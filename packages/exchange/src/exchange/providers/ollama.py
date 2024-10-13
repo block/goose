@@ -1,8 +1,9 @@
 import os
-
 import httpx
 
+from typing import Type
 from exchange.providers.openai import OpenAiProvider
+from exchange.providers.utils import get_env_url
 
 OLLAMA_HOST = "http://localhost:11434/"
 OLLAMA_MODEL = "qwen2.5"
@@ -31,8 +32,8 @@ ollama:
         super().__init__(client)
 
     @classmethod
-    def from_env(cls: type["OllamaProvider"]) -> "OllamaProvider":
-        ollama_url = os.environ.get("OLLAMA_HOST", OLLAMA_HOST)
+    def from_env(cls: Type["OllamaProvider"]) -> "OllamaProvider":
+        ollama_url = get_env_url("OLLAMA_HOST", OLLAMA_HOST)
         timeout = httpx.Timeout(60 * 10)
 
         # from_env is expected to fail if required ENV variables are not
@@ -41,7 +42,7 @@ ollama:
         httpx.get(ollama_url, timeout=timeout)
 
         # When served by Ollama, the OpenAI API is available at the path "v1/".
-        client = httpx.Client(base_url=ollama_url + "v1/", timeout=timeout)
+        client = httpx.Client(base_url=ollama_url.join("v1/"), timeout=timeout)
         return cls(client)
 
     @staticmethod
