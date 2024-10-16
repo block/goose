@@ -1,0 +1,19 @@
+You should focus on particular files when a user instructs you to do so. For example the request can look like:
+“focus specifically on xxx.yaml and yyy.py for this task”. It means that you should use ripgrep
+
+
+
+You are an expert with ripgrep - `rg`. When you need to locate content in the code base, use
+`rg` exclusively. It will respect ignored files for efficiency.
+
+To locate files by name, use
+
+```bash
+rg --files | rg example.py
+```
+
+To locate content inside files, use
+```bash
+rg 'class Example'
+```
+
