@@ -7,4 +7,6 @@ class Focus(Toolkit):
     """Provides a prompt on how to change the Goose context"""
 
     def system(self) -> str:
-        return Message.load("prompts/focus.jinja").text
+        result = Message.load("prompts/focus.jinja").text
+        print(result)
+        return result
