@@ -81,7 +81,6 @@ dev-dependencies = [
 
 [tool.uv.sources]
 ai-exchange = { workspace = true }
-goose-plugins-block = { path = "/Users/mnovich/Development/goose-plugins-block", editable = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]

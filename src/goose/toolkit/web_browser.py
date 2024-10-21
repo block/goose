@@ -87,7 +87,7 @@ class BrowserToolkit(Toolkit):
         """Safely execute a browser action, restart the driver if needed."""
         try:
             return func(*args, **kwargs)
-        except (TimeoutException, NoSuchElementException, Exception) as e:
+        except (TimeoutException, NoSuchElementException, InvalidSessionIdException, Exception) as e:
             self.notifier.notify(f"Error during browser action: {str(e)}")
             self._initialize_driver(force_restart=True)
             return func(*args, **kwargs)
@@ -137,6 +137,21 @@ class BrowserToolkit(Toolkit):
         self.driver.execute_script(f"window.open('{url}', '_blank');")
         self.driver.switch_to.window(self.driver.window_handles[-1])
         self.wait_for_page_load()
+
+    @tool
+    def check_current_page_url(self) -> str:
+        """Get the URL of the current page.
+
+        Returns:
+            str: The current page URL.
+        """
+        if not self.driver:
+            self.notifier.notify("Driver is not initialized.")
+            return ""
+
+        current_url = self.driver.current_url
+        self.notifier.notify(f"Current page URL: {current_url}")
+        return current_url
 
     @tool
     def switch_to_tab(self, index: int) -> None:
@@ -209,14 +224,24 @@ class BrowserToolkit(Toolkit):
             selector (str): CSS selector string to locate the input element.
             text (str): The text to type into the input element.
         """
-        self.notifier.notify(f"Typing '{text}' into input with selector: {selector}")
-        element = WebDriverWait(self.driver, 15).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-        element.clear()
-        for char in text:
-            element.send_keys(char)
-            time.sleep(random.uniform(0.1, 0.3))
+        retries = 3
+        for attempt in range(retries):
+            try:
+                self.notifier.notify(f"Typing '{text}' into input with selector: {selector}")
+                element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                element.clear()
+                for char in text:
+                    element.send_keys(char)
+                    time.sleep(random.uniform(0.1, 0.3))
+                break
+            except TimeoutException as e:
+                if attempt < retries - 1:
+                    self.notifier.notify(f"Retry {attempt + 1}/{retries} due to timeout: {str(e)}")
+                    time.sleep(2)
+                else:
+                    raise
 
-    def wait_for_page_load(self, timeout=30):
+    def wait_for_page_load(self, timeout=45):
         """Wait for the page to fully load by checking the document readiness state.
 
         Args:
@@ -234,10 +259,20 @@ class BrowserToolkit(Toolkit):
         Args:
             selector (str): CSS selector string to locate the element.
         """
-        self.notifier.notify(f"Clicking element with selector: {selector}")
-        element = WebDriverWait(self.driver, 15).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-        element.click()
-        self.wait_for_page_load()
+        retries = 3
+        for attempt in range(retries):
+            try:
+                self.notifier.notify(f"Clicking element with selector: {selector}")
+                element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                element.click()
+                self.wait_for_page_load()
+                break
+            except TimeoutException as e:
+                if attempt < retries - 1:
+                    self.notifier.notify(f"Retry {attempt + 1}/{retries} due to timeout: {str(e)}")
+                    time.sleep(2)
+                else:
+                    raise
 
     @tool
     def find_element_by_text_soup(self, text: str, filename: str):

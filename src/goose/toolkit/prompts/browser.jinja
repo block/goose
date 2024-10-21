@@ -14,4 +14,14 @@ BrowserToolkit is a selenium-based toolset for automated web interactions. Here'
 
 - **find_elements_of_type(tag_type: str, filename: str)**: Find all elements of a specific HTML tag type using BeautifulSoup, sourcing from the cached HTML file. Useful for retrieving multiple elements of the same type.
 
+### Important Note on Element Selection:
+
+When using tools that require CSS selectors or text identification, ensure that:
+
+1. **Precision**: Selectors must be accurate and precise. The specificity of CSS selectors should match the target element precisely to avoid selection errors.
+
+2. **DOM Considerations**: Some elements may reside within shadow DOMs, requiring special handling using tools like PyShadow, or may not be visible in the default DOM structure.
+
+3. **Element Types**: Elements may not always be of the expected type or have attributes you're searching for. Consider the tree structure and hierarchy when querying elements.
+
 This toolkit facilitates browser automation by scripting user interactions and processing web content efficiently.
