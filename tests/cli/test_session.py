@@ -1,3 +1,4 @@
+import os
 from typing import Union
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -11,6 +12,22 @@ from prompt_toolkit import PromptSession
 
 SPECIFIED_SESSION_NAME = "mySession"
 SESSION_NAME = "test"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def set_openai_api_key():
+    key = "OPENAI_API_KEY"
+    value = "test_api_key"
+
+    original_api_key = os.environ.get(key)
+    os.environ[key] = value
+
+    yield
+
+    if original_api_key is None:
+        os.environ.pop(key, None)
+    else:
+        os.environ[key] = original_api_key
 
 
 @pytest.fixture
@@ -152,9 +169,16 @@ def test_log_log_cost(create_session_with_mock_configs):
         mock_logger.info.assert_called_once_with(cost_message)
 
 
-@patch("goose.cli.session.droid", return_value="generated_session_name", name="mock_droid")
-def test_set_generated_session_name(mock_droid, create_session_with_mock_configs):
+@patch("goose.cli.session.droid", return_value="generated_session_name")
+@patch("goose.cli.session.load_provider")
+def test_set_generated_session_name(
+    mock_load_provider, mock_droid, create_session_with_mock_configs, mock_sessions_path
+):
+    mock_provider = MagicMock()
+    mock_load_provider.return_value = mock_provider
+
     session = create_session_with_mock_configs({"name": None})
+
     assert session.name == "generated_session_name"
 
 
