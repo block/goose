@@ -10,7 +10,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
 </p>
 
 <p align="center">
-  <a href="https://block-open-source.github.io/goose/">
+  <a href="https://block.github.io/goose/">
     <img src="https://img.shields.io/badge/Documentation-goose_docs-teal">
   </a>
   <a href=https://pypi.org/project/goose-ai>
@@ -225,19 +225,19 @@ Let us know what you think in our [Discussions][discussions] or the [**`#goose`*
 [goose-plugins]: https://github.com/block-open-source/goose-plugins
 
 [pipx]: https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx
-[contributing]: https://github.com/block-open-source/goose/blob/main/CONTRIBUTING.md
-[license]: https://github.com/block-open-source/goose/blob/main/LICENSE
+[contributing]: https://github.com/block/goose/blob/main/CONTRIBUTING.md
+[license]: https://github.com/block/goose/blob/main/LICENSE
 
-[goose-docs]: https://block-open-source.github.io/goose/
-[toolkits]: https://block-open-source.github.io/goose/plugins/available-toolkits.html
-[configuration]: https://block-open-source.github.io/goose/configuration.html
-[cli]: https://block-open-source.github.io/goose/plugins/cli.html
-[providers]: https://block-open-source.github.io/goose/providers.html
-[use-cases]: https://block-open-source.github.io/goose/guidance/applications.html
-[getting-started]: https://block-open-source.github.io/goose/guidance/getting-started.html
+[goose-docs]: https://block.github.io/goose/
+[toolkits]: https://block.github.io/goose/plugins/available-toolkits.html
+[configuration]: https://block.github.io/goose/configuration.html
+[cli]: https://block.github.io/goose/plugins/cli.html
+[providers]: https://block.github.io/goose/providers.html
+[use-cases]: https://block.github.io/goose/guidance/applications.html
+[getting-started]: https://block.github.io/goose/guidance/getting-started.html
 
 [discord-invite]: https://discord.gg/7GaTvbDwga
-[gh-issues]: https://github.com/block-open-source/goose/issues
+[gh-issues]: https://github.com/block/goose/issues
 [van-code]: https://github.com/block-open-source/goose-plugins/blob/de98cd6c29f8e7cd3b6ace26535f24ac57c9effa/src/goose_plugins/toolkits/artify.py
-[discussions]: https://github.com/block-open-source/goose/discussions
+[discussions]: https://github.com/block/goose/discussions
 [goose-channel]: https://discord.com/channels/1287729918100246654/1287729920319033345
