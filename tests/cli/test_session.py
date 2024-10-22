@@ -1,3 +1,4 @@
+from typing import Union
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -159,10 +160,18 @@ def test_set_generated_session_name(mock_droid, create_session_with_mock_configs
 
 @patch("goose.cli.session.is_existing_session", name="mock_is_existing")
 @patch("goose.cli.session.Session._prompt_overwrite_session", name="mock_prompt")
-def test_existing_session_prompt(mock_prompt, mock_is_existing, create_session_with_mock_configs):
+def test_existing_session_prompt(
+    mock_prompt,
+    mock_is_existing,
+    create_session_with_mock_configs,
+):
     session = create_session_with_mock_configs({"name": SESSION_NAME})
 
-    def check_prompt_behavior(is_existing, new_session, should_prompt):
+    def check_prompt_behavior(
+        is_existing: bool,
+        new_session: Union[bool, None],
+        should_prompt: bool,
+    ) -> None:
         mock_is_existing.return_value = is_existing
         if new_session is None:
             session.run()
