@@ -9,9 +9,10 @@ def mock_langfuse_context():
         yield mock
 
 
-@patch("exchange.langfuse_wrapper.HAS_LANGFUSE_CREDENTIALS", True)
-def test_function_is_wrapped(mock_langfuse_context):
+@patch("exchange.langfuse_wrapper.auth_check")
+def test_function_is_wrapped(mock_auth_check, mock_langfuse_context):
     mock_observe = MagicMock(side_effect=lambda *args, **kwargs: lambda fn: fn)
+    mock_auth_check.return_value = True
     mock_langfuse_context.observe = mock_observe
 
     def original_function(x: int, y: int) -> int:
@@ -31,9 +32,10 @@ def test_function_is_wrapped(mock_langfuse_context):
     mock_observe.assert_called_with("arg1", kwarg1="kwarg1")
 
 
-@patch("exchange.langfuse_wrapper.HAS_LANGFUSE_CREDENTIALS", False)
-def test_function_is_not_wrapped(mock_langfuse_context):
+@patch("exchange.langfuse_wrapper.auth_check")
+def test_function_is_not_wrapped(mock_auth_check, mock_langfuse_context):
     mock_observe = MagicMock(return_value=lambda f: f)
+    mock_auth_check.return_value = False
     mock_langfuse_context.observe = mock_observe
 
     @observe_wrapper("arg1", kwarg1="kwarg1")
