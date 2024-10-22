@@ -72,7 +72,7 @@ def session_factory(create_session_with_mock_configs):
     ):
         session = create_session_with_mock_configs({"name": name})
         session.overwrite_prompt = overwrite_prompt or OverwriteSessionPrompt()
-        session.is_existing_session = is_existing_session or (lambda x: False)
+        session.is_existing_session = is_existing_session or (lambda _: False)
         session._get_initial_messages = get_initial_messages or (lambda: [])
         session.file_opener = file_opener
         return session
