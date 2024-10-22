@@ -94,6 +94,7 @@ def test_cancel_process(toolkit, tmpdir):
     processes = toolkit.list_processes()
     assert process_id not in processes
 
+
 def test_fetch_web_content(toolkit):
     url = "http://example.com"
 
