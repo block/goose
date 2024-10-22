@@ -13,11 +13,9 @@ dependencies = [
     "prompt-toolkit>=3.0.47",
     "keyring>=25.4.1",
     "langfuse>=2.38.2",
-    "goose-plugins-block",
-    "selenium>=4.0.0",  # Added dependency for browser automation
-    "beautifulsoup4>=4.9.3",  # Added dependency for HTML parsing
-    "pyshadow<=0.0.5",  # Adjusted dependency for current available version
-
+    "selenium>=4.0.0",
+    "beautifulsoup4>=4.9.3",
+    "pyshadow<=0.0.5"
 ]
 author = [{ name = "Block", email = "ai-oss-tools@block.xyz" }]
 packages = [{ include = "goose", from = "src" }]

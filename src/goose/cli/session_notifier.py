@@ -13,7 +13,7 @@ class SessionNotifier(Notifier):
 
     def notify(self, message: str) -> None:
         print(f"Notification: {message}")
-    
+
     def log(self, content: RenderableType) -> None:
         print(content)
 

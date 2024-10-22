@@ -5,24 +5,24 @@ import subprocess
 import time
 import random
 import shutil
+from typing import Callable
 
 # Windows-specific import
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     import winreg
 
 # Check and install selenium if not installed
-if importlib.util.find_spec('selenium') is None:
-    subprocess.check_call(["python", '-m', 'pip', 'install', 'selenium'])
+if importlib.util.find_spec("selenium") is None:
+    subprocess.check_call(["python", "-m", "pip", "install", "selenium"])
 from exchange import Message
 from goose.toolkit.base import Toolkit, tool
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException
 from bs4 import BeautifulSoup
 from pyshadow.main import Shadow
-
 
 
 class BrowserToolkit(Toolkit):
@@ -32,11 +32,11 @@ class BrowserToolkit(Toolkit):
         super().__init__(*args, **kwargs)
         self.driver = None
         self.history = []
-        self.session_dir = '.goose/browsing_session'
+        self.session_dir = ".goose/browsing_session"
         os.makedirs(self.session_dir, exist_ok=True)
         self.cached_url = ""
 
-    def _initialize_driver(self, force_restart=False, mock_driver=None):
+    def _initialize_driver(self, force_restart: bool = False, mock_driver: object = None) -> None:
         """Initialize the web driver if not already initialized or if a restart is forced."""
         if self.driver is None or force_restart:
             if mock_driver:
@@ -49,7 +49,7 @@ class BrowserToolkit(Toolkit):
                 except Exception as e:
                     self.notifier.notify(f"Error closing previous session: {str(e)}")
             self.driver = None
-            subprocess.run(['pkill', '-f', 'webdriver'])  # Attempt to close all previous browser instances
+            subprocess.run(["pkill", "-f", "webdriver"])  # Attempt to close all previous browser instances
             self.notifier.notify("All previous browser instances terminated.")
             if self.driver is not None:
                 try:
@@ -70,8 +70,8 @@ class BrowserToolkit(Toolkit):
 
                 try:
                     self.driver.set_window_size(835, 1024)
-                except:
-                    pass # Ignore window sizing errors if they occur
+                except Exception:
+                    pass  # Ignore window sizing errors if they occur
             except Exception as e:
                 self.notifier.notify(f"Failed to initialize browser driver: {str(e)}")
                 self.notifier.notify("Falling back to Firefox.")
@@ -83,7 +83,7 @@ class BrowserToolkit(Toolkit):
     def system(self) -> str:
         return Message.load("prompts/browser.jinja").text
 
-    def safe_execute(self, func, *args, **kwargs):
+    def safe_execute(self, func: Callable, *args: object, **kwargs: dict[str, object]) -> object:
         """Safely execute a browser action, restart the driver if needed."""
         try:
             return func(*args, **kwargs)
@@ -113,7 +113,7 @@ class BrowserToolkit(Toolkit):
             filename (str): The file path where the screenshot will be saved.
         """
         try:
-            path =os.path.join(self.session_dir, filename)
+            path = os.path.join(self.session_dir, filename)
             self.driver.save_screenshot(path)
             self.notifier.notify(f"Screenshot saved in browsing session: {path}")
             return f"image:{path}"
@@ -187,15 +187,14 @@ class BrowserToolkit(Toolkit):
 
     @tool
     def get_html_content(self) -> str:
-        """Extract the full HTML content of the current page and cache it to a file.
-        """
+        """Extract the full HTML content of the current page and cache it to a file."""
         self.notifier.notify("Extracting full HTML content of the page.")
-        current_url = self.driver.current_url.replace('https://', '').replace('http://', '').replace('/', '_')
+        current_url = self.driver.current_url.replace("https://", "").replace("http://", "").replace("/", "_")
 
         if current_url != self.cached_url:
             html_content = self.driver.page_source
             filename = os.path.join(self.session_dir, f"{current_url}_page.html")
-            with open(filename, "w", encoding='utf-8') as f:
+            with open(filename, "w", encoding="utf-8") as f:
                 f.write(html_content)
             self.cached_html_path = filename
             self.cached_url = current_url
@@ -228,7 +227,7 @@ class BrowserToolkit(Toolkit):
         for attempt in range(retries):
             try:
                 self.notifier.notify(f"Typing '{text}' into input with selector: {selector}")
-                element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                element = WebDriverWait(self.driver, 20).until(ec.element_to_be_clickable((By.CSS_SELECTOR, selector)))
                 element.clear()
                 for char in text:
                     element.send_keys(char)
@@ -241,17 +240,17 @@ class BrowserToolkit(Toolkit):
                 else:
                     raise
 
-    def wait_for_page_load(self, timeout=45):
+    def wait_for_page_load(self, timeout: int = 45) -> None:
         """Wait for the page to fully load by checking the document readiness state.
 
         Args:
             timeout (int): Maximum time to wait for page load, in seconds.
         """
         WebDriverWait(self.driver, timeout).until(
-            lambda driver: driver.execute_script('return document.readyState') == 'complete'
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
         )
         self.notifier.notify("Page fully loaded.")
-        
+
     @tool
     def click_element(self, selector: str) -> None:
         """Click a button or link specified by a CSS selector.
@@ -263,7 +262,7 @@ class BrowserToolkit(Toolkit):
         for attempt in range(retries):
             try:
                 self.notifier.notify(f"Clicking element with selector: {selector}")
-                element = WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
+                element = WebDriverWait(self.driver, 20).until(ec.element_to_be_clickable((By.CSS_SELECTOR, selector)))
                 element.click()
                 self.wait_for_page_load()
                 break
@@ -275,7 +274,7 @@ class BrowserToolkit(Toolkit):
                     raise
 
     @tool
-    def find_element_by_text_soup(self, text: str, filename: str):
+    def find_element_by_text_soup(self, text: str, filename: str) -> str:
         """Find an element containing the specified text using BeautifulSoup on HTML content stored in a file.
         If not found, fallback to Shadow DOM search using PyShadow.
 
@@ -286,14 +285,14 @@ class BrowserToolkit(Toolkit):
         """
         # Search using BeautifulSoup as previously implemented
         try:
-            with open(filename, 'r', encoding='utf-8') as file:
-                soup = BeautifulSoup(file, 'html.parser')
-                element = soup.find(lambda tag: (
-                    tag.string and text in tag.string) or 
-                    (tag.get_text() and text in tag.get_text()) or 
-                    (tag.has_attr('title') and text in tag['title']) or 
-                    (tag.has_attr('alt') and text in tag['alt']) or 
-                    (tag.has_attr('aria-label') and text in tag['aria-label'])
+            with open(filename, "r", encoding="utf-8") as file:
+                soup = BeautifulSoup(file, "html.parser")
+                element = soup.find(
+                    lambda tag: (tag.string and text in tag.string)
+                    or (tag.get_text() and text in tag.get_text())
+                    or (tag.has_attr("title") and text in tag["title"])
+                    or (tag.has_attr("alt") and text in tag["alt"])
+                    or (tag.has_attr("aria-label") and text in tag["aria-label"])
                 )
 
                 if element:
@@ -309,7 +308,7 @@ class BrowserToolkit(Toolkit):
             shadow_element = shadow.find_element_by_xpath(f"//*[contains(text(), '{text}')]")
             if shadow_element:
                 self.notifier.notify(f"Element found in shadow DOM with text: {text}")
-                return shadow_element.get_attribute('outerHTML')
+                return shadow_element.get_attribute("outerHTML")
         except Exception as e:
             self.notifier.notify(f"Error searching in shadow DOM: {str(e)}")
 
@@ -317,7 +316,7 @@ class BrowserToolkit(Toolkit):
         return None
 
     @tool
-    def find_elements_of_type(self, tag_type: str, filename: str):
+    def find_elements_of_type(self, tag_type: str, filename: str) -> list[str]:
         """Find all elements of a specific tag type using BeautifulSoup on HTML content stored in a file.
 
         Args:
@@ -326,8 +325,8 @@ class BrowserToolkit(Toolkit):
         """
         elements_as_strings = []
         try:
-            with open(filename, 'r', encoding='utf-8') as file:
-                soup = BeautifulSoup(file, 'html.parser')
+            with open(filename, "r", encoding="utf-8") as file:
+                soup = BeautifulSoup(file, "html.parser")
                 elements = soup.find_all(tag_type)
                 elements_as_strings = [str(element) for element in elements]
                 self.notifier.notify(f"Found {len(elements_as_strings)} elements of type: {tag_type}")
@@ -335,7 +334,7 @@ class BrowserToolkit(Toolkit):
             self.notifier.notify(f"File not found: {filename}")
         return elements_as_strings
 
-    def __del__(self):
+    def __del__(self) -> None:
         # Remove the entire session directory
         if os.path.exists(self.session_dir):
             try:
@@ -347,36 +346,13 @@ class BrowserToolkit(Toolkit):
         if self.driver:
             self.driver.quit()
 
-    # @tool
-    # def manage_cookies(self, action: str, cookie_data: dict = None) -> dict:
-    #     """Manage cookies - add, delete or retrieve.
-    #
-    #     Args:
-    #         action (str): The action to perform ('add', 'delete', 'get').
-    #         cookie_data (dict, optional): Data for the cookie to be added or deleted.
-    #
-    #     Returns:
-    #         dict: The cookies if action is 'get'.
-    #     """
-    #     self.notifier.notify(f"Managing cookies with action: {action}")
-    #     if action == 'add' and cookie_data:
-    #         self.driver.add_cookie(cookie_data)
-    #     elif action == 'delete' and cookie_data:
-    #         self.driver.delete_cookie(cookie_data['name'])
-    #     elif action == 'get':
-    #         return self.driver.get_cookies()
-    #     else:
-    #         self.notifier.notify("Invalid cookie management action or parameters.")
-    #     return {}
 
-
-def get_default_browser_windows():
+def get_default_browser_windows() -> str:
     try:
         with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
+            winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
         ) as key:
-            prog_id, _ = winreg.QueryValueEx(key, 'ProgId')
+            prog_id, _ = winreg.QueryValueEx(key, "ProgId")
 
         with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, f"{prog_id}\\shell\\open\\command") as cmd_key:
             command, _ = winreg.QueryValueEx(cmd_key, None)
@@ -384,7 +360,7 @@ def get_default_browser_windows():
         if command.startswith('"'):
             executable = command.split('"')[1]
         else:
-            executable = command.split(' ')[0]
+            executable = command.split(" ")[0]
 
         return os.path.basename(executable)
 
@@ -392,15 +368,19 @@ def get_default_browser_windows():
         print(f"Error retrieving default browser on Windows: {e}")
         return None
 
-def get_default_browser_macos():
+
+def get_default_browser_macos() -> str:
     try:
         try:
             result = subprocess.run(
-                "defaults read ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array | grep -B 1 -A 1 http | grep LSHandlerRoleAll | awk -F= '{print $2}' | tr -d ' ;\"'",
+                "defaults read"
+                + " ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure"
+                + " LSHandlers -array | grep -B 1 -A 1 http | grep LSHandlerRoleAll | awk -F= '{print $2}'"
+                + " | tr -d ' ;\"'",
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
             )
 
             if result.returncode == 0:
@@ -415,13 +395,11 @@ def get_default_browser_macos():
         print(f"Error retrieving default browser on macOS: {e}")
         return None
 
-def get_default_browser_linux():
+
+def get_default_browser_linux() -> str:
     try:
         result = subprocess.run(
-            ['xdg-settings', 'get', 'default-web-browser'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            ["xdg-settings", "get", "default-web-browser"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         if result.returncode != 0:
@@ -430,32 +408,34 @@ def get_default_browser_linux():
 
         desktop_file = result.stdout.strip()
         desktop_paths = [
-            os.path.expanduser('~/.local/share/applications/'),
-            '/usr/share/applications/',
-            '/usr/local/share/applications/',
+            os.path.expanduser("~/.local/share/applications/"),
+            "/usr/share/applications/",
+            "/usr/local/share/applications/",
         ]
 
         for path in desktop_paths:
             desktop_file_path = os.path.join(path, desktop_file)
             if os.path.exists(desktop_file_path):
-                with open(desktop_file_path, 'r') as f:
+                with open(desktop_file_path, "r") as f:
                     for line in f:
-                        if line.startswith('Name='):
-                            name = line.split('=', 1)[1].strip()
+                        if line.startswith("Name="):
+                            name = line.split("=", 1)[1].strip()
                             return name
-        return desktop_file.replace('.desktop', '')
+        return desktop_file.replace(".desktop", "")
 
     except Exception as e:
         print(f"Error retrieving default browser on Linux: {e}")
         return None
 
-def get_default_browser():
-    if sys.platform.startswith('win'):
-        return get_default_browser_windows()
-    elif sys.platform.startswith('darwin'):
+
+def get_default_browser() -> str:
+    if sys.platform.startswith("darwin"):
         return get_default_browser_macos()
-    elif sys.platform.startswith('linux'):
-        return get_default_browser_linux()
+    # other platforms are not enabled yet.
+    # elif sys.platform.startswith("win"):
+    #     return get_default_browser_windows()
+    # elif sys.platform.startswith("linux"):
+    #     return get_default_browser_linux()
     else:
         print("Unsupported operating system.")
         return None
