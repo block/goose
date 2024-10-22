@@ -17,8 +17,10 @@ from typing import Callable
 from langfuse.decorators import langfuse_context
 import sys
 from io import StringIO
-from functools import cache, wraps  # Add this import
+from functools import cache, wraps
 
+## These are the default configurations for local Langfuse server
+## Please refer to .env.langfuse.local file for local langfuse server setup configurations
 DEFAULT_LOCAL_LANGFUSE_HOST = "http://localhost:3000"
 DEFAULT_LOCAL_LANGFUSE_PUBLIC_KEY = "publickey-local"
 DEFAULT_LOCAL_LANGFUSE_SECRET_KEY = "secretkey-local"
