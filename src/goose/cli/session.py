@@ -286,9 +286,15 @@ class Session:
         print(f"[yellow]Session already exists at {self.session_file_path}.[/]")
 
         choice = OverwriteSessionPrompt.ask("Enter your choice", show_choices=False)
+        # during __init__ we load the previous context, so we need to
+        # explicitly clear it
+        self.exchange.messages.clear()
+
         match choice:
             case "y" | "yes":
                 print("Overwriting existing session")
+                with open(self.session_file_path, "w") as f:
+                    f.write("")
 
             case "n" | "no":
                 while True:
@@ -299,7 +305,7 @@ class Session:
                     print(f"[yellow]Session '{new_session_name}' already exists[/]")
 
             case "r" | "resume":
-                self.exchange.messages.extend(self.load_session())
+                self.exchange.messages.extend(self._get_initial_messages())
 
     def _remove_empty_session(self) -> bool:
         """
