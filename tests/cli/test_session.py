@@ -152,7 +152,7 @@ def test_log_log_cost(create_session_with_mock_configs):
 
 
 @patch("goose.cli.session.droid", return_value="generated_session_name", name="mock_droid")
-def test_set_generated_session_name(mock_droid, create_session_with_mock_configs, mock_sessions_path):
+def test_set_generated_session_name(mock_droid, create_session_with_mock_configs):
     session = create_session_with_mock_configs({"name": None})
     assert session.name == "generated_session_name"
 
