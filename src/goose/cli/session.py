@@ -3,9 +3,9 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
-from langfuse.decorators import langfuse_context
 from exchange import Message, Text, ToolResult, ToolUse
-from exchange.langfuse_wrapper import observe_wrapper, auth_check
+from exchange.langfuse_wrapper import auth_check, observe_wrapper
+from langfuse.decorators import langfuse_context
 from rich import print
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -21,7 +21,7 @@ from goose.profile import Profile
 from goose.utils import droid, load_plugins
 from goose.utils._cost_calculator import get_total_cost_message
 from goose.utils._create_exchange import create_exchange
-from goose.utils.session_file import is_empty_session, is_existing_session, read_or_create_file, log_messages
+from goose.utils.session_file import is_empty_session, is_existing_session, log_messages, read_or_create_file
 
 RESUME_MESSAGE = "I see we were interrupted. How can I help you?"
 
