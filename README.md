@@ -143,6 +143,12 @@ You can run goose to do things just as a one off, such as tidying up, and then e
 goose run instructions.md
 ```
 
+You can also use process substitution to provide instructions directly from the command line:
+
+```sh
+goose run <(echo "Create a new Python file that prints hello world")
+```
+
 This will run until completion as best it can. You can also pass `--resume-session` and it will re-use the first session it finds for context
 
 
