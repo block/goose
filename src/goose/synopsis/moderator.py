@@ -51,9 +51,6 @@ class Synopsis(Moderator):
 
     def rewrite(self, exchange: Exchange) -> None:
         self.rewrites += 1
-        if self.rewrites % 20 != 0:
-            # we only want to rewrite in batches
-            return
 
         # Get the last message, which would be either a user text or a user tool use
         last_message: Message = exchange.messages[-1]
@@ -97,9 +94,12 @@ class Synopsis(Moderator):
     def summarize(self, exchange: Exchange) -> str:
         message = Message.load("summarize.md", synopsis=self, messages=self.originals, exchange=exchange, system=system)
         model = os.environ.get("SUMMARIZER", exchange.model)
-        new_exchange = exchange.replace(moderator=ContextTruncate(), tools=(), system="", messages=[], model=model)
-        new_exchange.add(message)
-        return new_exchange.generate().content[0].text
+        if self.rewrites % 20 == 0:
+            new_exchange = exchange.replace(moderator=ContextTruncate(), tools=(), system="", messages=[], model=model)
+            new_exchange.add(message)
+            return new_exchange.generate().content[0].text
+        else:
+            return message
 
     def plan(self, exchange: Exchange) -> str:
         message = Message.load("plan.md", synopsis=self, messages=self.originals, exchange=exchange, system=system)
