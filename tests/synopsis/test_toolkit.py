@@ -93,3 +93,23 @@ def test_cancel_process(toolkit, tmpdir):
     # Verify that the process is no longer in the list
     processes = toolkit.list_processes()
     assert process_id not in processes
+
+
+def test_fetch_web_content(toolkit):
+    url = "http://example.com"
+
+    result = toolkit.fetch_web_content(url)
+    assert "html_file_path" in result
+    assert "text_file_path" in result
+
+    html_file_path = result["html_file_path"]
+    text_file_path = result["text_file_path"]
+
+    with open(html_file_path, "r") as html_file:
+        fetched_content = html_file.read()
+
+    assert "Example Domain" in fetched_content
+
+    with open(text_file_path, "r") as html_file:
+        fetched_content = html_file.read()
+    assert "Example Domain" in fetched_content
