@@ -23,7 +23,7 @@ def create_exchange(profile: Profile, notifier: SessionNotifier) -> Exchange:
     except InvalidChoiceError as e:
         error_message = (
             f"[bold red]{e.message}[/bold red].\nPlease check your configuration file at {PROFILES_CONFIG_PATH}.\n"
-            + "Configuration doc: https://block-open-source.github.io/goose/configuration.html"
+            + "Configuration doc: https://block.github.io/goose/configuration.html"
         )
         print(error_message)
         sys.exit(1)

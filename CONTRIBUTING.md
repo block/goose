@@ -95,14 +95,14 @@ In order to release a new version of goose, you need to do the following:
 2. Update version in `pyproject.toml` for `goose` and package dependencies such as `exchange`
 3. Create a PR and merge it into main branch
 4. Tag the HEAD commit in main branch. To do this, switch to main branch and run: `just tag-push`
-5. Publish a new release from the [Github Release UI](https://github.com/block-open-source/goose/releases)
+5. Publish a new release from the [Github Release UI](https://github.com/block/goose/releases)
 
 
-[issues]: https://github.com/block-open-source/goose/issues
+[issues]: https://github.com/block/goose/issues
 [goose-plugins]: https://github.com/block-open-source/goose-plugins
-[ai-exchange]: https://github.com/block-open-source/goose/tree/main/packages/exchange
-[developer]: https://github.com/block-open-source/goose/blob/dfecf829a83021b697bf2ecc1dbdd57d31727ddd/src/goose/toolkit/developer.py
+[ai-exchange]: https://github.com/block/goose/tree/main/packages/exchange
+[developer]: https://github.com/block/goose/blob/dfecf829a83021b697bf2ecc1dbdd57d31727ddd/src/goose/toolkit/developer.py
 [uv]: https://docs.astral.sh/uv/
 [ruff]: https://docs.astral.sh/ruff/
 [just]: https://github.com/casey/just
-[adding-toolkit]: https://block-open-source.github.io/goose/configuration.html#adding-a-toolkit
+[adding-toolkit]: https://block.github.io/goose/configuration.html#adding-a-toolkit
