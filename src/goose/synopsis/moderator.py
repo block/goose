@@ -38,6 +38,7 @@ class Synopsis(Moderator):
         self.current_summary = ""
         self.current_plan = ""
         self.originals = []
+        self.rewrites = 0
 
         hints = []
         hints_path = Path(".goosehints")
@@ -49,6 +50,11 @@ class Synopsis(Moderator):
         self.hints = "\n".join(hints)
 
     def rewrite(self, exchange: Exchange) -> None:
+        self.rewrites += 1
+        if self.rewrites % 20 != 0:
+            # we only want to rewrite in batches
+            return
+
         # Get the last message, which would be either a user text or a user tool use
         last_message: Message = exchange.messages[-1]
 
