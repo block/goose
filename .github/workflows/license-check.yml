@@ -39,7 +39,7 @@ jobs:
         run: |
           python .github/workflows/scripts/check_licenses.py \
             packages/exchange/pyproject.toml || exit_code=$?
-          if [ "${exit_code:-0}" -eq 1 ]; then
+          if [ "${exit_code:-0}" -ne 0 ]; then
             echo "::error::Found packages with disallowed licenses in exchange"
             exit 1
           fi
