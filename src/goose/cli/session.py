@@ -150,7 +150,6 @@ class Session:
         profile = self.profile_name or "default"
         print(f"[dim]starting session | name:[cyan]{self.name}[/]  profile:[cyan]{profile}[/]")
         print(f"[dim]saving to {self.session_file_path}")
-        print()
 
         # Process initial message
         message = Message.user(initial_message)
@@ -202,6 +201,9 @@ class Session:
     @observe_wrapper()
     def reply(self) -> None:
         """Reply to the last user message, calling tools as needed"""
+        # group all traces under the same session
+        langfuse_context.update_current_trace(session_id=self.name)
+
         # These are the *raw* messages, before the moderator rewrites things
         committed = [self.exchange.messages[-1]]
 

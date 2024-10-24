@@ -9,7 +9,7 @@ from ruamel.yaml import YAML
 
 from goose.cli.config import SESSIONS_PATH
 from goose.cli.session import Session
-from goose.toolkit.utils import render_template, parse_plan
+from goose.toolkit.utils import parse_plan, render_template
 from goose.utils import load_plugins
 from goose.utils.autocomplete import SUPPORTED_SHELLS, setup_autocomplete
 from goose.utils.session_file import list_sorted_session_files
@@ -208,7 +208,14 @@ def session_resume(name: Optional[str], profile: str, log_level: str) -> None:
 @click.option("--profile")
 @click.option("--log-level", type=LOG_CHOICE, default="INFO")
 @click.option("--resume-session", is_flag=True, help="Resume the last session if available")
-def run(message_file: Optional[str], profile: str, log_level: str, resume_session: bool = False) -> None:
+@click.option("--tracing", is_flag=True, required=False)
+def run(
+    message_file: Optional[str],
+    profile: str,
+    log_level: str,
+    resume_session: bool = False,
+    tracing: bool = False,
+) -> None:
     """Run a single-pass session with a message from a markdown input file"""
     if message_file:
         with open(message_file, "r") as f:
@@ -220,9 +227,9 @@ def run(message_file: Optional[str], profile: str, log_level: str, resume_sessio
         session_files = get_session_files()
         if session_files:
             name = list(session_files.keys())[0]
-            session = Session(name=name, profile=profile, log_level=log_level)
+            session = Session(name=name, profile=profile, log_level=log_level, tracing=tracing)
     else:
-        session = Session(profile=profile, log_level=log_level)
+        session = Session(profile=profile, log_level=log_level, tracing=tracing)
     session.single_pass(initial_message=initial_message)
 
 
