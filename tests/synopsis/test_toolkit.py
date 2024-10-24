@@ -30,54 +30,54 @@ def toolkit(tmpdir):
 
 
 def test_shell(toolkit, tmpdir):
-    result = toolkit.shell("echo 'Hello, World!'")
+    result = toolkit.bash(command="echo 'Hello, World!'")
     assert "Hello, World!" in result
 
 
-def test_read_write_file(toolkit, tmpdir):
+def test_text_editor_read_write_file(toolkit, tmpdir):
     test_file = tmpdir.join("test_file.txt")
     content = "Test content"
 
-    toolkit.write_file(str(test_file), content)
+    toolkit.text_editor(command="create", path=str(test_file), file_text=content)
     assert test_file.read() == content
 
-    result = toolkit.read_file(str(test_file))
-    assert "The file content at" in result
+    result = toolkit.text_editor(command="view", path=str(test_file))
+    assert "Displayed content of" in result
     assert system.is_active(str(test_file))
 
 
-def test_patch_file(toolkit, tmpdir):
+def test_text_editor_patch_file(toolkit, tmpdir):
     test_file = tmpdir.join("test_file.txt")
     test_file.write("Hello, World!")
 
-    toolkit.read_file(str(test_file))  # Remember the file
-    result = toolkit.patch_file(str(test_file), "World", "Universe")
-    assert "Succesfully replaced before with after" in result
+    toolkit.text_editor(command="view", path=str(test_file))  # Remember the file
+    result = toolkit.text_editor(command="str_replace", path=str(test_file), old_str="World", new_str="Universe")
+    assert "Successfully replaced before with after" in result
     assert test_file.read() == "Hello, Universe!"
 
 
 def test_change_dir(toolkit, tmpdir):
     subdir = tmpdir.mkdir("subdir")
-    result = toolkit.change_dir(str(subdir))
-    assert result == str(subdir)
+    result = toolkit.bash(working_dir=str(subdir))
+    assert str(subdir) in result
     assert system.cwd == str(subdir)
 
 
 def test_start_process(toolkit, tmpdir):
-    process_id = toolkit.start_process("python -m http.server 8000")
+    process_id = toolkit.process_manager(command="start", shell_command="python -m http.server 8000")
     assert process_id > 0
 
     # Check if the process is in the list of running processes
-    processes = toolkit.list_processes()
+    processes = toolkit.process_manager(command="list")
     assert process_id in processes
     assert "python -m http.server 8000" in processes[process_id]
 
 
 def test_list_processes(toolkit, tmpdir):
-    process_id1 = toolkit.start_process("python -m http.server 8001")
-    process_id2 = toolkit.start_process("python -m http.server 8002")
+    process_id1 = toolkit.process_manager(command="start", shell_command="python -m http.server 8001")
+    process_id2 = toolkit.process_manager(command="start", shell_command="python -m http.server 8002")
 
-    processes = toolkit.list_processes()
+    processes = toolkit.process_manager(command="list")
     assert process_id1 in processes
     assert process_id2 in processes
     assert "python -m http.server 8001" in processes[process_id1]
@@ -85,13 +85,13 @@ def test_list_processes(toolkit, tmpdir):
 
 
 def test_cancel_process(toolkit, tmpdir):
-    process_id = toolkit.start_process("python -m http.server 8003")
+    process_id = toolkit.process_manager(command="start", shell_command="python -m http.server 8003")
 
-    result = toolkit.cancel_process(process_id)
-    assert result == f"process {process_id} cancelled"
+    result = toolkit.process_manager(command="cancel", process_id=process_id)
+    assert result == f"Process {process_id} cancelled"
 
     # Verify that the process is no longer in the list
-    processes = toolkit.list_processes()
+    processes = toolkit.process_manager(command="list")
     assert process_id not in processes
 
 

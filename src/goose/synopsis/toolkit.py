@@ -1,19 +1,15 @@
 # janky global state for now, think about it
+from collections import defaultdict
 import re
-import subprocess
-import os
-from pathlib import Path
 import tempfile
-from typing import Dict
+from typing import Dict, Optional
 
 from exchange import Message
 import httpx
-from goose.synopsis.system import system
+from goose.synopsis.bash import Bash
+from goose.synopsis.text_editor import TextEditor, TextEditorCommand
+from goose.synopsis.process_manager import ProcessManager, ProcessManagerCommand
 from goose.toolkit.base import Toolkit, tool
-from goose.toolkit.utils import RULEPREFIX, RULESTYLE, get_language
-from goose.utils.shell import is_dangerous_command, shell, keep_unsafe_command_prompt
-from rich.markdown import Markdown
-from rich.rule import Rule
 
 
 class SynopsisDeveloper(Toolkit):
@@ -21,230 +17,138 @@ class SynopsisDeveloper(Toolkit):
 
     def __init__(self, *args: object, **kwargs: Dict[str, object]) -> None:
         super().__init__(*args, **kwargs)
+        self._file_history = defaultdict(list)
 
     def system(self) -> str:
         """Retrieve system configuration details for developer"""
         system_prompt = Message.load("developer.md").text
         return system_prompt
 
-    def logshell(self, command: str, title: str = "shell") -> None:
-        self.notifier.log("")
-        self.notifier.log(
-            Rule(RULEPREFIX + f"{title} | [dim magenta]{os.path.abspath(system.cwd)}[/]", style=RULESTYLE, align="left")
+    @tool
+    def bash(
+        self,
+        command: Optional[str] = None,
+        working_dir: Optional[str] = None,
+        source_path: Optional[str] = None,
+    ) -> str:
+        """
+        Run commands in a bash shell.
+
+        Perform bash-related operations in a specific order:
+        1. Change the working directory (if provided)
+        2. Source a file (if provided)
+        3. Run a shell command (if provided)
+
+        At least one of the parameters must be provided.
+
+        Args:
+            command (str, optional):The bash shell command to run.
+            working_dir (str, optional): The directory to change to.
+            source_path (str, optional): The file to source before running the command.
+        """
+        assert any(
+            [command, working_dir, source_path]
+        ), "At least one of the parameters for bash shell must be provided."
+
+        bash_tool = Bash(notifier=self.notifier, exchange_view=self.exchange_view)
+        outputs = []
+
+        if working_dir:
+            _out = bash_tool._change_dir(working_dir)
+            outputs.append(_out)
+
+        if source_path:
+            _out = bash_tool._source(source_path)
+            outputs.append(_out)
+
+        if command:
+            _out = bash_tool._shell(command)
+            outputs.append(_out)
+
+        return "\n".join(outputs)
+
+    @tool
+    def text_editor(
+        self,
+        command: TextEditorCommand,
+        path: str,
+        file_text: Optional[str] = None,
+        insert_line: Optional[int] = None,
+        new_str: Optional[str] = None,
+        old_str: Optional[str] = None,
+        view_range: Optional[list[int]] = None,
+    ) -> str:
+        """
+        Perform text editing operations on files.
+
+        The `command` parameter specifies the operation to perform. Allowed options are:
+        - `view`: View the content of a file or directory.
+        - `create`: Create a new file with the given content.
+        - `str_replace`: Replace a string in a file with a new string.
+        - `insert`: Insert a string into a file after a specific line number.
+        - `undo_edit`: Undo the last edit made to a file.
+
+        Args:
+            command (str): The commands to run.
+                Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
+            path (str): Absolute path (or relative path against cwd) to file or directory,
+                e.g. `/repo/file.py` or `/repo` or `curr_dir_file.py`.
+            file_text (str, optional): Required parameter of `create` command, with the content
+                of the file to be created.
+            insert_line (int, optional): Required parameter of `insert` command.
+                The `new_str` will be inserted AFTER the line `insert_line` of `path`.
+            new_str (str, optional): Optional parameter of `str_replace` command
+                containing the new string (if not given, no string will be added).
+                Required parameter of `insert` command containing the string to insert.
+            old_str (str, optional): Required parameter of `str_replace` command containing the
+                string in `path` to replace.
+            view_range (list, optional): Optional parameter of `view` command when `path` points to a file.
+                If none is given, the full file is shown. If provided, the file will be shown in the indicated line
+                number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start.
+                Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.
+        """
+        text_editor_instance = TextEditor(notifier=self.notifier)
+        return text_editor_instance.run_command(
+            command=command,
+            path=path,
+            file_text=file_text,
+            insert_line=insert_line,
+            new_str=new_str,
+            old_str=old_str,
+            view_range=view_range,
         )
-        self.notifier.log(Markdown(f"```bash\n{command}\n```"))
-        self.notifier.log("")
 
     @tool
-    def source(self, path: str) -> str:
-        """Source the file at path, keeping the updates reflected in future shell commands
+    def process_manager(
+        self,
+        command: ProcessManagerCommand,
+        shell_command: Optional[str] = None,
+        process_id: Optional[int] = None,
+    ) -> str:
+        """
+        Manage background processes.
+
+        The `command` parameter specifies the operation to perform. Allowed options are:
+        - `start`: Start a background process by running a shell command.
+        - `list`: List all currently running background processes with their IDs and commands.
+        - `view_output`: View the output of a running background process by providing its ID.
+        - `cancel`: Cancel a running background process by providing its ID.
 
         Args:
-            path (str): The path to the file to source.
+            command (str): The command to run.
+                Allowed options are: `start`, `list`, `view_output`, `cancel`.
+            shell_command (str, optional): Required parameter for the `start` command, representing
+                the shell command to be executed in the background.
+                Example: `"python -m http.server &"` to start a web server in the background.
+            process_id (int, optional): Required parameter for `view_output` and `cancel` commands,
+                representing the process ID of the background process to manage.
         """
-        source_command = f"source {path} && env"
-        self.logshell(f"source {path}")
-        result = shell(source_command, self.notifier, self.exchange_view, cwd=system.cwd, env=system.env)
-        env_vars = dict(line.split("=", 1) for line in result.splitlines() if "=" in line)
-        system.env.update(env_vars)
-        return f"Sourced {path}"
-
-    @tool
-    def shell(self, command: str) -> str:
-        """Execute any command on the shell
-
-        Args:
-            command (str): The shell command to run. It can support multiline statements
-                if you need to run more than one at a time
-        """
-        if command.startswith("cat"):
-            raise ValueError("You must read files through the read_file tool.")
-        if command.startswith("cd"):
-            raise ValueError("You must change dirs through the change_dir tool.")
-        if command.startswith("source"):
-            raise ValueError("You must source files through the source tool.")
-
-        self.logshell(command)
-        return shell(command, self.notifier, self.exchange_view, cwd=system.cwd, env=system.env)
-
-    @tool
-    def read_file(self, path: str) -> str:
-        """Read the content of the file at path
-
-        Args:
-            path (str): The destination file path, in the format "path/to/file.txt"
-        """
-        system.remember_file(path)
-        self.logshell(f"cat {path}")
-        return f"The file content at {path} has been updated above."
-
-    @tool
-    def write_file(self, path: str, content: str) -> str:
-        """
-        Write a file at the specified path with the provided content. This will create any directories if they do not exist.
-        The content will fully overwrite the existing file.
-
-        Args:
-            path (str): The destination file path, in the format "path/to/file.txt"
-            content (str): The raw file content.
-        """  # noqa: E501
-        patho = system.to_patho(path)
-
-        if patho.exists() and not system.is_active(path):
-            print(f"We are warning the LLM to view before write in write_file, with path={path} and patho={str(patho)}")
-            raise ValueError(f"You must view {path} using read_file before you overwrite it")
-
-        patho.parent.mkdir(parents=True, exist_ok=True)
-        patho.write_text(content)
-        system.remember_file(path)
-
-        language = get_language(path)
-        md = f"```{language}\n{content}\n```"
-
-        self.notifier.log("")
-        self.notifier.log(Rule(RULEPREFIX + path, style=RULESTYLE, align="left"))
-        self.notifier.log(Markdown(md))
-        self.notifier.log("")
-
-        return f"Successfully wrote to {path}"
-
-    @tool
-    def patch_file(self, path: str, before: str, after: str) -> str:
-        """Patch the file at the specified by replacing before with after
-
-        Before **must** be present exactly once in the file, so that it can safely
-        be replaced with after.
-
-        Args:
-            path (str): The path to the file, in the format "path/to/file.txt"
-            before (str): The content that will be replaced
-            after (str): The content it will be replaced with
-        """
-        self.notifier.status(f"editing {path}")
-        patho = system.to_patho(path)
-
-        if not patho.exists():
-            raise ValueError(f"You can't patch {path} - it does not exist yet")
-
-        if not system.is_active(path):
-            raise ValueError(f"You must view {path} using read_file before you patch it")
-
-        language = get_language(path)
-
-        content = patho.read_text()
-
-        if content.count(before) > 1:
-            raise ValueError("The before content is present multiple times in the file, be more specific.")
-        if content.count(before) < 1:
-            raise ValueError("The before content was not found in file, be careful that you recreate it exactly.")
-
-        content = content.replace(before, after)
-        system.remember_file(path)
-        patho.write_text(content)
-
-        output = f"""
-```{language}
-{before}
-```
-->
-```{language}
-{after}
-```
-"""
-        self.notifier.log("")
-        self.notifier.log(Rule(RULEPREFIX + path, style=RULESTYLE, align="left"))
-        self.notifier.log(Markdown(output))
-        self.notifier.log("")
-        return "Succesfully replaced before with after."
-
-    @tool
-    def start_process(self, command: str) -> int:
-        """Start a background process running the specified command
-
-        Use this exclusively for processes that you need to run in the background
-        because they do not terminate, such as running a webserver.
-
-        Args:
-            command (str): The shell command to run
-        """
-        self.logshell(command, title="background")
-
-        if is_dangerous_command(command):
-            self.notifier.stop()
-            if not keep_unsafe_command_prompt(command):
-                raise RuntimeError(
-                    f"The command {command} was rejected as dangerous by the user."
-                    " Do not proceed further, instead ask for instructions."
-                )
-            self.notifier.start()
-
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=system.cwd,
-            env=system.env,
+        process_manager_instance = ProcessManager(notifier=self.notifier)
+        return process_manager_instance.run_command(
+            command=command,
+            shell_command=shell_command,
+            process_id=process_id,
         )
-        process_id = system.add_process(process)
-        return process_id
-
-    @tool
-    def list_processes(self) -> Dict[int, str]:
-        """List all running background processes with their IDs and commands."""
-        processes = system.get_processes()
-        process_list = "```\n" + "\n".join(f"id: {pid}, command: {cmd}" for pid, cmd in processes.items()) + "\n```"
-        self.notifier.log("")
-        self.notifier.log(Rule(RULEPREFIX + "processes", style=RULESTYLE, align="left"))
-        self.notifier.log(Markdown(process_list))
-        self.notifier.log("")
-        return processes
-
-    @tool
-    def view_process_output(self, process_id: int) -> str:
-        """View the output of a running background process
-
-        Args:
-            process_id (int): The ID of the process to view output.
-        """
-        self.notifier.log("")
-        self.notifier.log(Rule(RULEPREFIX + "processes", style=RULESTYLE, align="left"))
-        self.notifier.log(Markdown(f"```\nreading {process_id}\n```"))
-        self.notifier.log("")
-        output = system.view_process_output(process_id)
-        return output
-
-    @tool
-    def cancel_process(self, process_id: int) -> str:
-        """Cancel the background process with the specified ID.
-
-        Args:
-            process_id (int): The ID of the process to be cancelled.
-        """
-        result = system.cancel_process(process_id)
-        self.logshell(f"kill {process_id}")
-        if result:
-            return f"process {process_id} cancelled"
-        else:
-            return f"no known process {process_id}"
-
-    @tool
-    def change_dir(self, path: str) -> str:
-        """Change the directory to the specified path
-
-        Args:
-            path (str): The new dir path, in the format "path/to/dir"
-        """
-        patho = system.to_patho(path)
-        if not patho.is_dir():
-            raise ValueError(f"The directory {path} does not exist")
-        if patho.resolve() < Path(os.getcwd()).resolve():
-            raise ValueError("You can cd into subdirs but not above the directory where we started.")
-        self.logshell(f"cd {path}")
-        system.cwd = str(patho)
-        return path
 
     @tool
     def fetch_web_content(self, url: str) -> str:
