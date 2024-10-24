@@ -8,6 +8,8 @@ from exchange.moderators import Moderator
 from exchange.moderators.passive import PassiveModerator
 from exchange.moderators.truncate import ContextTruncate
 from goose.synopsis.system import system
+from goose.notifier import Notifier
+from typing import Optional
 
 
 class Synopsis(Moderator):
@@ -33,19 +35,25 @@ class Synopsis(Moderator):
     goose state is managed.
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, notifier: Optional[Notifier] = None) -> None:
+        super().__init__(notifier=notifier)
         self.current_summary = ""
         self.current_plan = ""
         self.originals = []
 
+        if self.notifier:
+            self.notifier.status("Loading hints...")
         hints = []
         hints_path = Path(".goosehints")
         home_hints_path = Path.home() / ".config/goose/.goosehints"
         if hints_path.is_file():
             hints.append(render_template(hints_path))
+            if self.notifier:
+                self.notifier.status("Loaded local hints")
         if home_hints_path.is_file():
             hints.append(render_template(home_hints_path))
+            if self.notifier:
+                self.notifier.status("Loaded global hints")
         self.hints = "\n".join(hints)
 
     def rewrite(self, exchange: Exchange) -> None:
@@ -56,6 +64,8 @@ class Synopsis(Moderator):
         # [synopsis, tool_use, tool_result, tool_use, tool_result, ..., assistant_message, user_message]
 
         if isinstance(last_message.content[0], Text):
+            if self.notifier:
+                self.notifier.status("Processing user message, updating context...")
             # We're in the state:
             # [synopsis, tool_use, tool_result, ..., user_message]
             # and we'll reset it to:
@@ -63,36 +73,54 @@ class Synopsis(Moderator):
 
             # keep track of the original messages before we reset
             if not self.originals:
+                if self.notifier:
+                    self.notifier.status("Starting new session, preserving history...")
                 self.originals.extend(exchange.messages)
                 if len(exchange.messages) > 1:
                     # we are resuming an existing session, and need to restore state
+                    if self.notifier:
+                        self.notifier.status("Restoring system state from existing session...")
                     system.restore(exchange.messages)
             else:
+                if self.notifier:
+                    self.notifier.status("Updating conversation history...")
                 self.originals.extend(exchange.messages[1:])
 
             exchange.messages.clear()
+            if self.notifier:
+                self.notifier.status("Generating new synopsis with summary and plan...")
             exchange.add(self.get_synopsis(exchange, summarize=True, plan=True))
         else:
             # We're in the state
             # [synopsis, ..., tool_use, tool_result]
             # and we'll keep going but updated the synopsis
             # [new_synopsis, ..., tool_use, tool_result]
+            if self.notifier:
+                self.notifier.status("Updating synopsis after tool use...")
             exchange.messages[0] = self.get_synopsis(exchange)
 
     def get_synopsis(self, exchange: Exchange, summarize: bool = False, plan: bool = False) -> Message:
         if summarize:
+            if self.notifier:
+                self.notifier.status("Generating conversation summary...")
             self.current_summary = self.summarize(exchange)
 
         if plan:
+            if self.notifier:
+                self.notifier.status("Updating action plan...")
             self.current_plan = self.plan(exchange)
 
         return Message.load("synopsis.md", synopsis=self, system=system)
 
     def summarize(self, exchange: Exchange) -> str:
         message = Message.load("summarize.md", synopsis=self, messages=self.originals, exchange=exchange, system=system)
+        if len(self.originals) < 5:
+            return "\n".join([message.summary for message in self.originals])
         model = os.environ.get("SUMMARIZER", exchange.model)
         new_exchange = exchange.replace(moderator=ContextTruncate(), tools=(), system="", messages=[], model=model)
         new_exchange.add(message)
+        if self.notifier:
+            self.notifier.status("Summarizing context")
         return new_exchange.generate().content[0].text
 
     def plan(self, exchange: Exchange) -> str:
@@ -100,4 +128,6 @@ class Synopsis(Moderator):
         model = os.environ.get("PLANNER", exchange.model)
         new_exchange = exchange.replace(moderator=PassiveModerator(), tools=(), system="", messages=[], model=model)
         new_exchange.add(message)
+        if self.notifier:
+            self.notifier.status("Generating plan with model...")
         return new_exchange.generate().content[0].text

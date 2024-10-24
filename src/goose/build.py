@@ -53,7 +53,7 @@ def build_exchange(profile: Profile, notifier: Notifier) -> Exchange:
         provider=provider,
         system=system,
         tools=tools,
-        moderator=get_moderator(profile.moderator)(),
+        moderator=get_moderator(profile.moderator)(notifier=notifier),
         model=profile.processor,
     )
 
