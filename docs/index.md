@@ -125,7 +125,7 @@ You will see the Goose prompt `G❯`:
 G❯ type your instructions here exactly as you would tell a developer.
 ```
 
-Now you are interacting with Goose in conversational sessions - something like a natural language driven code interpreter. The default toolkit allows Goose to take actions through shell commands and file edits. You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
+Now you are interacting with Goose in conversational sessions - think of it as like giving direction to a junior developer. The default toolkit allows Goose to take actions through shell commands and file edits. You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
 
 #### Exit the session 
 
@@ -141,6 +141,23 @@ goose session resume
 
 To see more documentation on the CLI commands currently available to Goose check out the documentation [here][cli]. If you’d like to develop your own CLI commands for Goose, check out the [Contributing document][contributing].
 
+### Running a goose tasks (one off)
+
+You can run goose to do things just as a one off, such as tidying up, and then exiting: 
+
+```sh
+goose run instructions.md
+```
+
+You can also use process substitution to provide instructions directly from the command line:
+
+```sh
+goose run <(echo "Create a new Python file that prints hello world")
+```
+
+This will run until completion as best it can. You can also pass `--resume-session` and it will re-use the first session it finds for context
+
+
 ### Next steps
 
 Learn how to modify your Goose profiles.yaml file to add and remove functionality (toolkits) and providing context to get the most out of Goose in our [Getting Started Guide][getting-started].
@@ -150,6 +167,23 @@ Learn how to modify your Goose profiles.yaml file to add and remove functionalit
 We have some experimental IDE integrations for VSCode and JetBrains IDEs: 
 * https://github.com/square/goose-vscode 
 * https://github.com/Kvadratni/goose-intellij
+
+## Other ways to run goose
+
+**Want to move out of the terminal and into an IDE?**
+
+We have some experimental IDE integrations for VSCode and JetBrains IDEs:
+* https://github.com/square/goose-vscode
+* https://github.com/block-open-source/goose-intellij
+
+**Goose as a Github Action**
+
+There is also an experimental Github action to run goose as part of your workflow (for example if you ask it to fix an issue): 
+https://github.com/marketplace/actions/goose-ai-developer-agent
+
+**With Docker**
+
+There is also a `Dockerfile` in the root of this project you can use if you want to run goose in a sandboxed fashion.
 
 ## Getting involved!
 
