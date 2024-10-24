@@ -210,7 +210,7 @@ class IO(Toolkit):
             raise Exception("Unable to reduce image size below the specified maximum.")
 
         print(f"Final screenshot saved: {filename}")
-        return f"image{filename}"
+        return f"image:{filename}"
 
     @tool
     def take_screenshot_and_crop(self, area_of_interest, save_path, max_size_mb=5, image_path=None):
