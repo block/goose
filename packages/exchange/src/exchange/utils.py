@@ -1,7 +1,7 @@
 import inspect
 import uuid
 from importlib.metadata import entry_points
-from typing import get_args, get_origin
+from typing import Literal, get_args, get_origin, Any, Union
 
 from griffe import (
     Docstring,
@@ -107,16 +107,27 @@ def json_schema(func: any) -> dict[str, any]:  # noqa: ANN401
     return schema
 
 
-def _map_type_to_schema(py_type: type) -> dict[str, any]:  # noqa: ANN401
+def _map_type_to_schema(py_type: type) -> dict[str, Any]:
     origin = get_origin(py_type)
     args = get_args(py_type)
 
-    if origin is list or origin is tuple:
-        return {"type": "array", "items": _map_type_to_schema(args[0] if args else any)}
+    if origin is Union:
+        # Handle Optional[X], which is Union[X, NoneType]
+        non_none_args = [arg for arg in args if arg is not type(None)]
+        if len(non_none_args) == 1:
+            # This is Optional[X]
+            return _map_type_to_schema(non_none_args[0])
+        else:
+            # General Union
+            return {"anyOf": [_map_type_to_schema(arg) for arg in non_none_args]}
+    elif origin is Literal:
+        return {"enum": list(args)}
+    elif origin in (list, tuple):
+        return {"type": "array", "items": _map_type_to_schema(args[0] if args else Any)}
     elif origin is dict:
         return {
             "type": "object",
-            "additionalProperties": _map_type_to_schema(args[1] if len(args) > 1 else any),
+            "additionalProperties": _map_type_to_schema(args[1] if len(args) > 1 else Any),
         }
     elif py_type is int:
         return {"type": "integer"}
