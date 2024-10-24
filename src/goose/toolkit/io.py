@@ -1,13 +1,17 @@
+import os
+import subprocess
+import uuid
+
 from goose.toolkit.base import Toolkit, tool
 from exchange import Message
-
+from PIL import Image
+import pyautogui
 
 class IO(Toolkit):
     """Provides tools to control mouse and keyboard inputs."""
 
     def __init__(self, *args: object, **kwargs: dict[str, object]) -> None:
         super().__init__(*args, **kwargs)
-        import pyautogui
         self.pyautogui = pyautogui
         self.screen_width, self.screen_height = self.get_screen_info().values()
 
@@ -27,9 +31,8 @@ class IO(Toolkit):
             y (int): The y-coordinate to move the mouse to.
 
         Return:
-            (str) a message indicating the mouse has been moved.
+            (str) A message indicating the mouse has been moved.
         """
-
         self.pyautogui.moveTo(x, y)
         return f"Mouse moved to ({x}, {y})"
 
@@ -39,9 +42,8 @@ class IO(Toolkit):
         Perform a mouse click at the current cursor position.
 
         Return:
-            (str) a message indicating the mouse has been clicked.
+            (str) A message indicating the mouse has been clicked.
         """
-
         self.pyautogui.click()
         return "Mouse clicked"
 
@@ -51,9 +53,8 @@ class IO(Toolkit):
         Perform a right mouse click at the current cursor position.
 
         Return:
-            (str) a message indicating the mouse has been right-clicked.
+            (str) A message indicating the mouse has been right-clicked.
         """
-
         self.pyautogui.click(button="right")
         return "Mouse right-clicked"
 
@@ -66,9 +67,8 @@ class IO(Toolkit):
             text (str): The text to type.
 
         Return:
-            (str) a message indicating the text has been typed.
+            (str) A message indicating the text has been typed.
         """
-
         self.pyautogui.write(text)
         return f"Typed text: {text}"
 
@@ -81,9 +81,8 @@ class IO(Toolkit):
             key (str): The key to press.
 
         Return:
-            (str) a message indicating the key has been pressed.
+            (str) A message indicating the key has been pressed.
         """
-
         self.pyautogui.press(key)
         return f"Key {key} pressed"
 
@@ -97,9 +96,8 @@ class IO(Toolkit):
             hold_key (str): The key to hold while pressing the key.
 
         Return:
-            (str) a message indicating the key has been pressed while holding another key.
+            (str) A message indicating the key has been pressed while holding another key.
         """
-
         with self.pyautogui.hold(hold_key):
             self.pyautogui.press(keys)
         return f"Key {keys} pressed while holding {hold_key}"
@@ -115,9 +113,8 @@ class IO(Toolkit):
             y (int, optional): The y-coordinate to scroll at.
 
         Return:
-            (str) a message indicating the scroll action.
+            (str) A message indicating the scroll action.
         """
-
         self.pyautogui.scroll(clicks, x, y)
         return f"Scrolled {clicks} clicks at ({x}, {y})"
 
@@ -130,10 +127,9 @@ class IO(Toolkit):
             image (str): The file path to the image to locate.
 
         Return:
-            (str) a message indicating whether the image was found and its position.
+            (str) A message indicating whether the image was found and its position.
         """
-
-        location = pyautogui.locateOnScreen(image)
+        location = self.pyautogui.locateOnScreen(image)
         if location:
             return f"Image found at {location}"
         else:
@@ -148,9 +144,8 @@ class IO(Toolkit):
             image (str): The file path to the image to locate.
 
         Return:
-            (str) a message indicating the positions of all instances found.
+            (str) A message indicating the positions of all instances found.
         """
-
         locations = self.pyautogui.locateAllOnScreen(image)
         locations_list = list(locations)
         if locations_list:
@@ -160,7 +155,8 @@ class IO(Toolkit):
 
     @tool
     def scale_to_resolution(self, x: int, y: int, resolution: tuple[int, int]) -> tuple[int, int]:
-        """Map coordinates from original resolution to the current screen resolution.
+        """
+        Map coordinates from original resolution to the current screen resolution.
 
         Args:
             x (int): The x-coordinate to scale.
@@ -168,7 +164,7 @@ class IO(Toolkit):
             resolution (tuple[int, int]): The original resolution to scale from.
 
         Return:
-            (tuple[int, int]) the scaled coordinates.
+            (tuple[int, int]) The scaled coordinates.
         """
         scale_x = self.screen_width / resolution[0]
         scale_y = self.screen_height / resolution[1]
@@ -176,7 +172,87 @@ class IO(Toolkit):
         new_y = int(y * scale_y)
         return new_x, new_y
 
-      # Provide any system instructions for the model
+    @tool
+    def take_and_resize_screenshot(self, max_size_mb: int = 5) -> str:
+        """
+        Take a screenshot and resize it to ensure it's under 5MB,
+        maintaining aspect ratio.
+
+        Args:
+            max_size_mb (int): Maximum size of the screenshot in MB. Default is 5MB.
+        """
+        # Determine the path to save the screenshot
+        goose_dir = os.path.expanduser("~/goose_screenshots")
+        if not os.path.exists(goose_dir):
+            os.makedirs(goose_dir)
+        
+        filename = os.path.join(goose_dir, f"goose_screenshot_{uuid.uuid4().hex}.jpg")
+
+        # Take a screenshot and convert to RGB
+        screenshot = self.pyautogui.screenshot()
+        screenshot = screenshot.convert('RGB')
+        screenshot.save(filename)
+
+        # Open the image using Pillow
+        img = Image.open(filename)
+
+        # Calculate the maximum acceptable file size in bytes
+        max_size_bytes = max_size_mb * 1024 * 1024
+
+        # If the image size is greater than max_size_bytes, compress the image
+        quality = 90
+        while os.path.getsize(filename) > max_size_bytes and quality > 10:
+            img.save(filename, 'JPEG', quality=quality)
+            quality -= 10
+
+        # Confirm the resulting image is smaller than the max size
+        if os.path.getsize(filename) > max_size_bytes:
+            raise Exception("Unable to reduce image size below the specified maximum.")
+
+        print(f"Final screenshot saved: {filename}")
+        return f"image{filename}"
+
+    @tool
+    def take_screenshot_and_crop(self, area_of_interest, save_path, max_size_mb=5, image_path=None):
+        """
+        Take a screenshot (or use an existing image), crop a specified area, 
+        and return it along with the pixel coordinates of the cropped area 
+        in the original screen size.
+
+        Args:
+            area_of_interest (tuple): A tuple (left, upper, right, lower) indicating the area to crop.
+            save_path (str): Path to save the cropped area image.
+            max_size_mb (int): The maximum acceptable size of the cropped image in megabytes.
+            image_path (str, optional): Path to an existing image file to be cropped.
+
+        Returns:
+            tuple: Returns the cropped image path and a tuple with pixel coordinates
+            of the cropped area (left, upper, right, lower) relative to the full screenshot or provided image.
+
+        Raises:
+            Exception: If the cropped image exceeds the specified maximum size.
+        """
+        if image_path:
+            # Use an existing image
+            full_screenshot = Image.open(image_path)
+        else:
+            # Take a new screenshot of the entire screen
+            full_screenshot = self.pyautogui.screenshot()
+
+        # Crop the specified area of interest and convert to RGB
+        cropped_img = full_screenshot.crop(area_of_interest)
+        cropped_img = cropped_img.convert('RGB')
+        cropped_img.save(save_path)
+
+        # Check the size of the cropped image
+        max_size_bytes = max_size_mb * 1024 * 1024
+        if os.path.getsize(save_path) > max_size_bytes:
+            raise Exception(f"Cropped image exceeds the maximum size of {max_size_mb}MB")
+
+        # Return the cropped image and cropping offsets
+        return save_path, area_of_interest
+
+    # Provide any system instructions for the model
     # This can be generated dynamically, and is run at startup time
     def system(self) -> str:
         return Message.load("prompts/io.jinja").text

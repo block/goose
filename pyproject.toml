@@ -14,6 +14,7 @@ dependencies = [
     "pyautogui>=0.9.53",
     "keyring>=25.4.1",
     "langfuse>=2.38.2",
+    "Pillow >= 9.0.0",
 ]
 author = [{ name = "Block", email = "ai-oss-tools@block.xyz" }]
 packages = [{ include = "goose", from = "src" }]
