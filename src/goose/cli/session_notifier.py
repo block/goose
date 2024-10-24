@@ -11,6 +11,9 @@ class SessionNotifier(Notifier):
         self.status_indicator = status_indicator
         self.live = Live(self.status_indicator, refresh_per_second=8, transient=True)
 
+    def notify(self, message: str) -> None:
+        print(f"Notification: {message}")
+
     def log(self, content: RenderableType) -> None:
         print(content)
 
