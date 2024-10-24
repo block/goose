@@ -20,13 +20,13 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
     <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
   </a>
   <a href="https://discord.gg/7GaTvbDwga">
-    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">  
+    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">
   </a>
 </p>
 
 <p align="center">
 <a href="#unique-features-of-goose-compared-to-other-ai-assistants">Unique features</a> 🤖 •
-<a href="#what-block-employees-have-to-say-about-goose"> Block Employees on Goose</a> <img src=assets/logo.png height="15", width="15" alt="Block Emoji"/> •
+<a href="#what-block-employees-have-to-say-about-goose"> Block Employees on Goose</a> <img src="assets/logo.png" height="15" width="15" alt="Block Emoji"/> •
 <a href="#quick-start-guide">Quick start guide</a> 🚀 •
 <a href="#getting-involved">Getting involved!</a> 👋
 </p>
@@ -65,7 +65,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
 -- M, Software Engineer
 
 
-> If anyone was looking for another reason to check it out: I just asked Goose to break a string-array into individual string resources across eleven localizations, and it performed amazingly well and saved me a bunch of time doing it manually or figuring out some way to semi-automate it. 
+> If anyone was looking for another reason to check it out: I just asked Goose to break a string-array into individual string resources across eleven localizations, and it performed amazingly well and saved me a bunch of time doing it manually or figuring out some way to semi-automate it.
 
 -- A, Android Engineer
 
@@ -101,7 +101,7 @@ To install Goose, use `pipx`. First ensure [pipx][pipx] is installed:
 brew install pipx
 pipx ensurepath
 ```
-You can also place `.goosehints` in `~/.config/goose/.goosehints` if you like for always loaded hints personal to you. 
+You can also place `.goosehints` in `~/.config/goose/.goosehints` if you like for always loaded hints personal to you.
 
 Then install Goose:
 
@@ -111,7 +111,7 @@ pipx install goose-ai
 
 ### Running Goose
 
-#### Start a session 
+#### Start a session
 
 From your terminal, navigate to the directory you'd like to start from and run:
 
@@ -127,11 +127,11 @@ G❯ type your instructions here exactly as you would tell a developer.
 
 Now you are interacting with Goose in conversational sessions - think of it as like giving direction to a junior developer. The default toolkit allows Goose to take actions through shell commands and file edits. You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
 
-#### Exit the session 
+#### Exit the session
 
-If you are looking to exit, use `CTRL+D`, although Goose should help you figure that out if you forget. 
+If you are looking to exit, use `CTRL+D`, although Goose should help you figure that out if you forget.
 
-#### Resume a session 
+#### Resume a session
 
 When you exit a session, it will save the history in `~/.config/goose/sessions` directory and you can resume it later on:
 
@@ -143,7 +143,7 @@ To see more documentation on the CLI commands currently available to Goose check
 
 ### Running a goose tasks (one off)
 
-You can run goose to do things just as a one off, such as tidying up, and then exiting: 
+You can run goose to do things just as a one off, such as tidying up, and then exiting:
 
 ```sh
 goose run instructions.md
@@ -162,10 +162,10 @@ This will run until completion as best it can. You can also pass `--resume-sessi
 
 Learn how to modify your Goose profiles.yaml file to add and remove functionality (toolkits) and providing context to get the most out of Goose in our [Getting Started Guide][getting-started].
 
-**Want to move out of the terminal and into an IDE?** 
+**Want to move out of the terminal and into an IDE?**
 
-We have some experimental IDE integrations for VSCode and JetBrains IDEs: 
-* https://github.com/square/goose-vscode 
+We have some experimental IDE integrations for VSCode and JetBrains IDEs:
+* https://github.com/square/goose-vscode
 * https://github.com/Kvadratni/goose-intellij
 
 ## Other ways to run goose
@@ -178,7 +178,7 @@ We have some experimental IDE integrations for VSCode and JetBrains IDEs:
 
 **Goose as a Github Action**
 
-There is also an experimental Github action to run goose as part of your workflow (for example if you ask it to fix an issue): 
+There is also an experimental Github action to run goose as part of your workflow (for example if you ask it to fix an issue):
 https://github.com/marketplace/actions/goose-ai-developer-agent
 
 **With Docker**
@@ -201,7 +201,7 @@ Let us know what you think in our [Discussions][discussions] or the [**`#goose`*
 [goose-plugins]: https://github.com/block-open-source/goose-plugins
 
 [pipx]: https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx
-[contributing]: https://github.com/block/goose/blob/main/CONTRIBUTING.md
+[contributing]: https://block.github.io/goose/contributing.html
 [license]: https://github.com/block/goose/blob/main/LICENSE
 
 [goose-docs]: https://block.github.io/goose/

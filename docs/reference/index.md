@@ -33,6 +33,6 @@
 ## Utils
 - [goose.utils](goose/utils/index.md)
 - [goose.utils.ask](goose/utils/ask.md)
-- [goose.utils.check_shell_command](goose/utils/check_shell_command.md)
 - [goose.utils.file_utils](goose/utils/file_utils.md)
 - [goose.utils.session_file](goose/utils/session_file.md)
+- [goose.utils.shell.is_dangerous_command](goose/utils/shell/is_dangerous_command.md)

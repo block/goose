@@ -63,3 +63,5 @@ Deletes old Goose sessions, keeping the most recent ones as specified by the `--
 ```
 
 Lists all available toolkits with their descriptions.
+
+[contributing]: https://block.github.io/goose/contributing.html
