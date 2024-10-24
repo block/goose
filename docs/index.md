@@ -162,12 +162,6 @@ This will run until completion as best it can. You can also pass `--resume-sessi
 
 Learn how to modify your Goose profiles.yaml file to add and remove functionality (toolkits) and providing context to get the most out of Goose in our [Getting Started Guide][getting-started].
 
-**Want to move out of the terminal and into an IDE?**
-
-We have some experimental IDE integrations for VSCode and JetBrains IDEs:
-* https://github.com/square/goose-vscode
-* https://github.com/Kvadratni/goose-intellij
-
 ## Other ways to run goose
 
 **Want to move out of the terminal and into an IDE?**
