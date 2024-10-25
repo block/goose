@@ -166,7 +166,7 @@ Learn how to modify your Goose profiles.yaml file to add and remove functionalit
 
 We have some experimental IDE integrations for VSCode and JetBrains IDEs:
 * https://github.com/square/goose-vscode
-* https://github.com/block-open-source/goose-intellij
+* https://github.com/Kvadratni/goose-intellij
 
 **Goose as a Github Action**
 
