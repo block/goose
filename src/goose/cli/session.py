@@ -208,8 +208,9 @@ class Session:
         committed = [self.exchange.messages[-1]]
 
         try:
-            self.status_indicator.update("responding")
+            self.status_indicator.update("processing request")
             response = self.exchange.generate()
+            self.status_indicator.update("got response, processing")
             committed.append(response)
 
             if response.text:
@@ -223,7 +224,7 @@ class Session:
                 message = Message(role="user", content=content)
                 committed.append(message)
                 self.exchange.add(message)
-                self.status_indicator.update("responding")
+                self.status_indicator.update("processing tool results")
                 response = self.exchange.generate()
                 committed.append(response)
 
