@@ -166,14 +166,6 @@ Learn how to modify your Goose profiles.yaml file to add and remove functionalit
 
 We have some experimental IDE integrations for VSCode and JetBrains IDEs:
 * https://github.com/square/goose-vscode
-* https://github.com/Kvadratni/goose-intellij
-
-## Other ways to run goose
-
-**Want to move out of the terminal and into an IDE?**
-
-We have some experimental IDE integrations for VSCode and JetBrains IDEs:
-* https://github.com/square/goose-vscode
 * https://github.com/block-open-source/goose-intellij
 
 **Goose as a Github Action**
