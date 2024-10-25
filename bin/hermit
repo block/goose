@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+# THIS FILE IS GENERATED; DO NOT MODIFY
+
+set -eo pipefail
+
+export HERMIT_USER_HOME=~
+
+if [ -z "${HERMIT_STATE_DIR}" ]; then
+  case "$(uname -s)" in
+  Darwin)
+    export HERMIT_STATE_DIR="${HERMIT_USER_HOME}/Library/Caches/hermit"
+    ;;
+  Linux)
+    export HERMIT_STATE_DIR="${XDG_CACHE_HOME:-${HERMIT_USER_HOME}/.cache}/hermit"
+    ;;
+  esac
+fi
+
+export HERMIT_DIST_URL="${HERMIT_DIST_URL:-https://github.com/cashapp/hermit/releases/download/stable}"
+HERMIT_CHANNEL="$(basename "${HERMIT_DIST_URL}")"
+export HERMIT_CHANNEL
+export HERMIT_EXE=${HERMIT_EXE:-${HERMIT_STATE_DIR}/pkg/hermit@${HERMIT_CHANNEL}/hermit}
+
+if [ ! -x "${HERMIT_EXE}" ]; then
+  echo "Bootstrapping ${HERMIT_EXE} from ${HERMIT_DIST_URL}" 1>&2
+  INSTALL_SCRIPT="$(mktemp)"
+  # This value must match that of the install script
+  INSTALL_SCRIPT_SHA256="180e997dd837f839a3072a5e2f558619b6d12555cd5452d3ab19d87720704e38"
+  if [ "${INSTALL_SCRIPT_SHA256}" = "BYPASS" ]; then
+    curl -fsSL "${HERMIT_DIST_URL}/install.sh" -o "${INSTALL_SCRIPT}"
+  else
+    # Install script is versioned by its sha256sum value
+    curl -fsSL "${HERMIT_DIST_URL}/install-${INSTALL_SCRIPT_SHA256}.sh" -o "${INSTALL_SCRIPT}"
+    # Verify install script's sha256sum
+    openssl dgst -sha256 "${INSTALL_SCRIPT}" | \
+      awk -v EXPECTED="$INSTALL_SCRIPT_SHA256" \
+      '$2!=EXPECTED {print "Install script sha256 " $2 " does not match " EXPECTED; exit 1}'
+  fi
+  /bin/bash "${INSTALL_SCRIPT}" 1>&2
+fi
+
+exec "${HERMIT_EXE}" --level=fatal exec "$0" -- "$@"
