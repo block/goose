@@ -152,7 +152,12 @@ class LicenseChecker:
             response.raise_for_status()
             data = response.json()
 
-            license_info = data["info"].get("license") or data["info"].get("classifiers", [])
+            # fmt: off
+            license_info = (
+                data["info"].get("license") or
+                data["info"].get("classifiers", [])
+            )
+            # fmt: on
 
             if isinstance(license_info, list):
                 for classifier in license_info:
