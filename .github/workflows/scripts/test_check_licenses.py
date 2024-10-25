@@ -46,7 +46,7 @@ dev-dependencies = [
 
 
 @pytest.fixture
-def mock_toml_files(tmp_path):
+def mock_toml_files(tmp_path: Path) -> list[Path]:
     """Create mock TOML files with different dependencies."""
     file1 = tmp_path / "pyproject1.toml"
 
@@ -224,8 +224,12 @@ def test_dependency_parsing_scenarios() -> None:
 
 
 @patch.object(LicenseChecker, "get_package_license")
-def test_multiple_toml_files(mock_get_license, checker, mock_toml_files, capsys):
-    def get_license(package):
+def test_multiple_toml_files(
+    mock_get_license: Mock,
+    mock_toml_files: list[Path],
+    capsys: pytest.CaptureFixture,
+) -> None:
+    def get_license(package: str) -> Optional[str]:
         licenses = {"requests": "Apache-2.0", "tomli": "MIT", "urllib3": "MIT"}
         return licenses.get(package)
 
