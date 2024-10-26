@@ -10,6 +10,7 @@ PRICES = {
     "o1-preview": (15.00, 60.00),
     "o1-mini": (3.00, 12.00),
     "claude-3-5-sonnet-20240620": (3.00, 15.00),
+    "claude-3-5-sonnet-20241022": (3.00, 15.00),
     "anthropic.claude-3-5-sonnet-20240620-v1:0": (3.00, 15.00),
     "claude-3-opus-20240229": (15.00, 75.00),
     "anthropic.claude-3-opus-20240229-v1:0": (15.00, 75.00),

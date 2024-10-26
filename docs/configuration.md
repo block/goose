@@ -23,11 +23,11 @@ default:
 
 Provider of LLM. LLM providers that currently are supported by Goose:
 
-| Provider | Required environment variable(s) to access provider |
-| ----- | ------------------------------ |
-| openai | `OPENAI_API_KEY` |
-| anthropic  | `ANTHROPIC_API_KEY` |
-| databricks | `DATABRICKS_HOST` and `DATABRICKS_TOKEN` |
+| Provider   | Required environment variable(s) to access provider |
+| ---------- | --------------------------------------------------- |
+| openai     | `OPENAI_API_KEY`                                    |
+| anthropic  | `ANTHROPIC_API_KEY`                                 |
+| databricks | `DATABRICKS_HOST` and `DATABRICKS_TOKEN`            |
 
 #### processor
 
@@ -52,8 +52,8 @@ Rules designed to control or manage the output of the model. Moderators that cur
 
 default:
   provider: anthropic
-  processor: claude-3-5-sonnet-20240620
-  accelerator: claude-3-5-sonnet-20240620
+  processor: claude-3-5-sonnet-20241022
+  accelerator: claude-3-5-sonnet-20241022
 ```
 
 #### provider as `databricks`
@@ -74,8 +74,8 @@ You can tell it to use another provider for example for Anthropic:
 ```yaml
 default:
   provider: anthropic
-  processor: claude-3-5-sonnet-20240620
-  accelerator: claude-3-5-sonnet-20240620
+  processor: claude-3-5-sonnet-20241022
+  accelerator: claude-3-5-sonnet-20241022
   moderator: passive
   toolkits:
     - name: developer

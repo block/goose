@@ -94,8 +94,8 @@ def default_model_configuration() -> tuple[str, str, str]:
         "ollama": (OLLAMA_MODEL, OLLAMA_MODEL),
         "openai": ("gpt-4o", "gpt-4o-mini"),
         "anthropic": (
-            "claude-3-5-sonnet-20240620",
-            "claude-3-5-sonnet-20240620",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-sonnet-20241022",
         ),
         "databricks": (
             # TODO when function calling is first rec should be: "databricks-meta-llama-3-1-405b-instruct"
