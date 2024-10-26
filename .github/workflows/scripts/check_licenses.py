@@ -141,9 +141,6 @@ class LicenseChecker:
         Returns:
             str | None: The license of the package, or None if not found.
         """
-        if package_name in self.config.exceptions:
-            return "APPROVED-EXCEPTION"
-
         try:
             response = self.session.get(
                 f"https://pypi.org/pypi/{package_name}/json",
