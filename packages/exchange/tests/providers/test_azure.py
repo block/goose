@@ -2,10 +2,10 @@ import os
 from unittest.mock import patch
 
 import pytest
-
 from exchange import Text, ToolUse
 from exchange.providers.azure import AzureProvider
 from exchange.providers.base import MissingProviderEnvVariableError
+
 from .conftest import complete, tools
 
 AZURE_MODEL = os.getenv("AZURE_MODEL", "gpt-4o-mini")
@@ -36,7 +36,7 @@ def test_from_env_throw_error_when_missing_env_var(env_var_name):
             AzureProvider.from_env()
         assert context.value.provider == "azure"
         assert context.value.env_variable == env_var_name
-        assert context.value.message == f"Missing environment variable: {env_var_name} for provider azure."
+        assert context.value.message == f"Missing environment variables: {env_var_name} for provider azure."
 
 
 @pytest.mark.vcr()

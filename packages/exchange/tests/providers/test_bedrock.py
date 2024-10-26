@@ -35,7 +35,7 @@ def test_from_env_throw_error_when_missing_env_var(env_var_name):
             BedrockProvider.from_env()
         assert context.value.provider == "bedrock"
         assert context.value.env_variable == env_var_name
-        assert context.value.message == f"Missing environment variable: {env_var_name} for provider bedrock."
+        assert context.value.message == f"Missing environment variables: {env_var_name} for provider bedrock."
 
 
 @pytest.fixture
