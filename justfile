@@ -4,11 +4,22 @@ default:
 
 # run tests
 test *FLAGS:
+    #! /usr/bin/env bash
     uv run pytest tests -m "not integration" {{ FLAGS }}
+    if ! git diff --quiet pyproject.toml; then
+      uv run pytest .github/workflows {{ FLAGS }}
+    fi
 
 # run integration tests
 integration *FLAGS:
     uv run pytest tests -m integration {{ FLAGS }}
+
+# check licenses
+check-licenses:
+    #!/usr/bin/env bash
+    if ! git diff --quiet pyproject.toml; then
+      uv run .github/workflows/scripts/check_licenses.py pyproject.toml
+    fi
 
 # format code
 format:
@@ -47,6 +58,7 @@ install-hooks:
     #!/usr/bin/env bash
 
     just format
+    just check-licenses
     EOF
 
     if [ ! -f "$HOOKS_DIR/pre-commit" ]; then
