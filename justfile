@@ -4,11 +4,11 @@ default:
 
 # run tests
 test *FLAGS:
-    @uv run pytest .github/workflows tests -m "not integration" {{ FLAGS }}
+    @uv run pytest .github/workflows/ tests/ -m "not integration" {{ FLAGS }}
 
 # run integration tests
 integration *FLAGS:
-    @uv run pytest tests -m integration {{ FLAGS }}
+    @uv run pytest tests/ -m integration {{ FLAGS }}
 
 # check licenses
 check-licenses:
@@ -30,7 +30,7 @@ format:
 
 # run tests with coverage
 coverage *FLAGS:
-    @uv run coverage run -m pytest tests -m "not integration" {{ FLAGS }}
+    @uv run coverage run -m pytest tests/ -m "not integration" {{ FLAGS }}
     @uv run coverage report
     @uv run coverage lcov -o lcov.info
 
