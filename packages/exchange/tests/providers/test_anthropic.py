@@ -32,7 +32,7 @@ def test_from_env_throw_error_when_missing_api_key():
             AnthropicProvider.from_env()
         assert context.value.provider == "anthropic"
         assert context.value.env_variable == "ANTHROPIC_API_KEY"
-        assert context.value.message == "Missing environment variable: ANTHROPIC_API_KEY for provider anthropic."
+        assert context.value.message == "Missing environment variables: ANTHROPIC_API_KEY for provider anthropic."
 
 
 def test_anthropic_response_to_text_message() -> None:
