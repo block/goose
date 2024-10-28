@@ -1,6 +1,6 @@
 # list all tasks
 default:
-    @just --list --unsorted
+    @just --list
 
 # run tests
 test *FLAGS:
