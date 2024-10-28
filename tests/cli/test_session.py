@@ -256,4 +256,4 @@ def test_prompt_overwrite_session(session_factory):
     check_overwrite_behavior(
         choice="r",
         expected_messages=[Message.user(text="duck duck"), Message.user(text="goose")],
-    )  #
+    )
