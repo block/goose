@@ -4,11 +4,7 @@ default:
 
 # run tests
 test *FLAGS:
-    #! /usr/bin/env bash
-    uv run pytest tests -m "not integration" {{ FLAGS }}
-    if ! git diff --quiet pyproject.toml; then
-      uv run pytest .github/workflows {{ FLAGS }}
-    fi
+    @uv run pytest .github/workflows tests -m "not integration" {{ FLAGS }}
 
 # run integration tests
 integration *FLAGS:
@@ -16,10 +12,7 @@ integration *FLAGS:
 
 # check licenses
 check-licenses:
-    #!/usr/bin/env bash
-    if ! git diff --quiet pyproject.toml; then
-      uv run .github/workflows/scripts/check_licenses.py pyproject.toml
-    fi
+    uv run .github/workflows/scripts/check_licenses.py pyproject.toml packages/exchange/pyproject.toml
 
 # format code
 format:
