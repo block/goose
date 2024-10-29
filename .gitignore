@@ -104,7 +104,7 @@ celerybeat.pid
 .venv
 
 # exception for local langfuse init vars
-!**/packages/exchange/.env.langfuse.local 
+!**/packages/exchange/.env.langfuse.local
 
 # Spyder project settings
 .spyderproject
@@ -130,3 +130,6 @@ docs/docs/reference
 
 # uv lock file
 uv.lock
+
+# local files
+.DS_Store
