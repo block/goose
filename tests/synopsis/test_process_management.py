@@ -29,7 +29,7 @@ def toolkit(tmpdir):
 
 
 def test_start_process(toolkit):
-    process_id = toolkit.start_process("python -m http.server 8000")
+    process_id = toolkit.process_manager(command="start", shell_command="python -m http.server 8000")
     assert process_id > 0
     time.sleep(2)  # Give the server time to start
 
@@ -39,24 +39,24 @@ def test_start_process(toolkit):
         assert response.status_code == 200
     except requests.ConnectionError:
         pytest.fail("HTTP server did not start successfully")
-    output = toolkit.view_process_output(process_id)
+    output = toolkit.process_manager(command="view_output", process_id=process_id)
     assert "200" in output
 
 
 def test_list_processes(toolkit):
-    process_id = toolkit.start_process("python -m http.server 8001")
-    processes = toolkit.list_processes()
+    process_id = toolkit.process_manager(command="start", shell_command="python -m http.server 8001")
+    processes = toolkit.process_manager(command="list")
     assert process_id in processes
     assert "python -m http.server 8001" in processes[process_id]
 
 
 def test_cancel_process(toolkit):
-    process_id = toolkit.start_process("python -m http.server 8003")
+    process_id = toolkit.process_manager(command="start", shell_command="python -m http.server 8003")
     time.sleep(2)  # Give the server time to start
 
-    result = toolkit.cancel_process(process_id)
-    assert result == f"process {process_id} cancelled"
+    result = toolkit.process_manager(command="cancel", process_id=process_id)
+    assert result == f"Process {process_id} cancelled"
 
     # Verify that the process is no longer running
     with pytest.raises(ValueError):
-        toolkit.view_process_output(process_id)
+        toolkit.process_manager(command="view_output", process_id=process_id)
