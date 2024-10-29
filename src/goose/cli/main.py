@@ -101,6 +101,26 @@ def list_toolkits() -> None:
 
 
 @goose_cli.group()
+def moderators() -> None:
+    """Manage moderators"""
+    pass
+
+
+@moderators.command(name="list")
+def list_moderators() -> None:
+    """List available moderators"""
+    from exchange.moderators import load_plugins
+
+    moderators = load_plugins(group="exchange.moderator")
+
+    print("[green]Available moderators:[/green]")
+    for moderator_name, moderator in moderators.items():
+        lines_doc = moderator.__doc__.split("\n") if moderator.__doc__ else ["No description available"]
+        first_line_of_doc = lines_doc[0]
+        print(f" - [bold]{moderator_name}[/bold]: {first_line_of_doc}")
+
+
+@goose_cli.group()
 def providers() -> None:
     """Manage providers"""
     pass
