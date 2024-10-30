@@ -1,6 +1,6 @@
 import os
-import subprocess
 import uuid
+import shutil
 
 from goose.toolkit.base import Toolkit, tool
 from exchange import Message
@@ -14,6 +14,18 @@ class IO(Toolkit):
         super().__init__(*args, **kwargs)
         self.pyautogui = pyautogui
         self.screen_width, self.screen_height = self.get_screen_info().values()
+        self.session_dir = os.path.expanduser(".goose/screenshots")
+        if not os.path.exists(self.session_dir):
+            os.makedirs(self.session_dir)
+
+    def __del__(self):
+        # Remove the entire screenshot directory
+        if os.path.exists(self.session_dir):
+            try:
+                shutil.rmtree(self.session_dir)
+                self.notifier.log(f"Removed browsing session directory: {self.session_dir}")
+            except OSError as e:
+                self.notifier.log(f"Error removing session directory: {str(e)}")
 
     @tool
     def get_screen_info(self):
@@ -119,41 +131,6 @@ class IO(Toolkit):
         return f"Scrolled {clicks} clicks at ({x}, {y})"
 
     @tool
-    def locate_on_screen(self, image: str) -> str:
-        """
-        Locate an image on the screen.
-
-        Args:
-            image (str): The file path to the image to locate.
-
-        Return:
-            (str) A message indicating whether the image was found and its position.
-        """
-        location = self.pyautogui.locateOnScreen(image)
-        if location:
-            return f"Image found at {location}"
-        else:
-            return "Image not found on screen"
-
-    @tool
-    def locate_all_on_screen(self, image: str) -> str:
-        """
-        Locate all instances of an image on the screen.
-
-        Args:
-            image (str): The file path to the image to locate.
-
-        Return:
-            (str) A message indicating the positions of all instances found.
-        """
-        locations = self.pyautogui.locateAllOnScreen(image)
-        locations_list = list(locations)
-        if locations_list:
-            return f"Image found at {locations_list}"
-        else:
-            return "No instances of the image found on screen"
-
-    @tool
     def scale_to_resolution(self, x: int, y: int, resolution: tuple[int, int]) -> tuple[int, int]:
         """
         Map coordinates from original resolution to the current screen resolution.
@@ -173,6 +150,19 @@ class IO(Toolkit):
         return new_x, new_y
 
     @tool
+    def view_image(self, image_path: str) -> str:
+        """
+        Allows to view any image
+
+        Args:
+            image_path (str): The file path to the image to open.
+
+        Return:
+            (str) A message indicating the image has been opened.
+        """
+        return f"image:{image_path}"
+
+    @tool
     def take_and_resize_screenshot(self, max_size_mb: int = 5) -> str:
         """
         Take a screenshot and resize it to ensure it's under 5MB,
@@ -181,12 +171,8 @@ class IO(Toolkit):
         Args:
             max_size_mb (int): Maximum size of the screenshot in MB. Default is 5MB.
         """
-        # Determine the path to save the screenshot
-        goose_dir = os.path.expanduser("~/goose_screenshots")
-        if not os.path.exists(goose_dir):
-            os.makedirs(goose_dir)
         
-        filename = os.path.join(goose_dir, f"goose_screenshot_{uuid.uuid4().hex}.jpg")
+        filename = os.path.join(self.session_dir, f"goose_screenshot_{uuid.uuid4().hex}.jpg")
 
         # Take a screenshot and convert to RGB
         screenshot = self.pyautogui.screenshot()
@@ -213,7 +199,7 @@ class IO(Toolkit):
         return f"image:{filename}"
 
     @tool
-    def take_screenshot_and_crop(self, area_of_interest, save_path, max_size_mb=5, image_path=None):
+    def take_screenshot_and_crop(self, area_of_interest, save_name, max_size_mb=5, image_path=None):
         """
         Take a screenshot (or use an existing image), crop a specified area, 
         and return it along with the pixel coordinates of the cropped area 
@@ -221,13 +207,12 @@ class IO(Toolkit):
 
         Args:
             area_of_interest (tuple): A tuple (left, upper, right, lower) indicating the area to crop.
-            save_path (str): Path to save the cropped area image.
+            save_name (str): The name of the file to save the cropped image.
             max_size_mb (int): The maximum acceptable size of the cropped image in megabytes.
             image_path (str, optional): Path to an existing image file to be cropped.
 
         Returns:
-            tuple: Returns the cropped image path and a tuple with pixel coordinates
-            of the cropped area (left, upper, right, lower) relative to the full screenshot or provided image.
+            (tuple): Returns the cropped image path and a tuple with pixel coordinates of the cropped area (left, upper, right, lower) relative to the full screenshot or provided image.
 
         Raises:
             Exception: If the cropped image exceeds the specified maximum size.
@@ -238,6 +223,8 @@ class IO(Toolkit):
         else:
             # Take a new screenshot of the entire screen
             full_screenshot = self.pyautogui.screenshot()
+
+        save_path = os.path.join(self.session_dir, save_name)
 
         # Crop the specified area of interest and convert to RGB
         cropped_img = full_screenshot.crop(area_of_interest)
