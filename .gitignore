@@ -130,21 +130,6 @@ docs/docs/reference
 
 # uv lock file
 uv.lock
-/web_timer/venv/bin/activate
-/web_timer/venv/bin/activate.csh
-/web_timer/venv/bin/activate.fish
-/web_timer/venv/bin/Activate.ps1
-/web_timer/venv/bin/flask
-/web_timer/venv/bin/pip
-/web_timer/venv/bin/pip3
-/web_timer/venv/bin/pip3.12
-/web_timer/venv/bin/python
-/web_timer/venv/bin/python3
-/web_timer/venv/bin/python3.12
-/web_timer/venv/pyvenv.cfg
-/web_timer/index.html
-/web_timer/server.py
 
 # local files
 .DS_Store
-

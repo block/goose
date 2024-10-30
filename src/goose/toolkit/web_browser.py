@@ -371,26 +371,27 @@ def get_default_browser_windows() -> str:
 
 def get_default_browser_macos() -> str:
     try:
-        try:
-            result = subprocess.run(
-                "defaults read"
-                + " ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure"
-                + " LSHandlers -array | grep -B 1 -A 1 http | grep LSHandlerRoleAll | awk -F= '{print $2}'"
-                + " | tr -d ' ;\"'",
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+        import plistlib
+        import os
 
-            if result.returncode == 0:
-                return result.stdout.strip()
-            else:
-                print(f"Error: {result.stderr.strip()}")
-                return None
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to get default browser on macOS: {e}")
+        plist_path = os.path.expanduser(
+            "~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+        )
+
+        if not os.path.exists(plist_path):
+            print(f"Launch services plist not found at: {plist_path}")
             return None
+
+        with open(plist_path, "rb") as fp:
+            plist = plistlib.load(fp)
+            handlers = plist.get("LSHandlers", [])
+
+            for handler in handlers:
+                scheme = handler.get("LSHandlerURLScheme")
+                if scheme and scheme.lower() == "http":
+                    return handler.get("LSHandlerRoleAll")
+
+        return None
     except Exception as e:
         print(f"Error retrieving default browser on macOS: {e}")
         return None
