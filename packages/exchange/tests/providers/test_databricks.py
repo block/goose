@@ -28,7 +28,7 @@ def test_from_env_throw_error_when_missing_env_var(env_var_name):
             DatabricksProvider.from_env()
         assert context.value.provider == "databricks"
         assert context.value.env_variable == env_var_name
-        assert f"Missing environment variable: {env_var_name} for provider databricks" in context.value.message
+        assert f"Missing environment variables: {env_var_name} for provider databricks" in context.value.message
         assert "https://docs.databricks.com" in context.value.message
 
 

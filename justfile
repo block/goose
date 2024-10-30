@@ -1,14 +1,18 @@
 # list all tasks
 default:
-    @just --list --unsorted
+    @just --list
 
 # run tests
 test *FLAGS:
-    uv run pytest tests -m "not integration" {{ FLAGS }}
+    @uv run pytest .github/workflows/ tests/ -m "not integration" {{ FLAGS }}
 
 # run integration tests
 integration *FLAGS:
-    uv run pytest tests -m integration {{ FLAGS }}
+    @uv run pytest tests/ -m integration {{ FLAGS }}
+
+# check licenses
+check-licenses:
+    @uv run .github/workflows/scripts/check_licenses.py pyproject.toml packages/exchange/pyproject.toml
 
 # format code
 format:
@@ -26,13 +30,13 @@ format:
 
 # run tests with coverage
 coverage *FLAGS:
-    uv run coverage run -m pytest tests -m "not integration" {{ FLAGS }}
-    uv run coverage report
-    uv run coverage lcov -o lcov.info
+    @uv run coverage run -m pytest tests/ -m "not integration" {{ FLAGS }}
+    @uv run coverage report
+    @uv run coverage lcov -o lcov.info
 
 # build docs
 docs:
-    uv sync && uv run mkdocs serve
+    @uv sync && uv run mkdocs serve
 
 # install pre-commit hooks
 install-hooks:
@@ -47,6 +51,7 @@ install-hooks:
     #!/usr/bin/env bash
 
     just format
+    just check-licenses
     EOF
 
     if [ ! -f "$HOOKS_DIR/pre-commit" ]; then
@@ -77,8 +82,7 @@ release version:
 
 # extract tag from pyproject.toml
 get-tag-version:
-    #!/usr/bin/env bash
-    uvx --from=toml-cli toml get --toml-path=pyproject.toml "project.version"
+    @uvx --from=toml-cli toml get --toml-path=pyproject.toml "project.version"
 
 # create tag from pyproject.toml
 tag:

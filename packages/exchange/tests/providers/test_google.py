@@ -28,7 +28,7 @@ def test_from_env_throw_error_when_missing_api_key():
             GoogleProvider.from_env()
         assert context.value.provider == "google"
         assert context.value.env_variable == "GOOGLE_API_KEY"
-        assert "Missing environment variable: GOOGLE_API_KEY for provider google" in context.value.message
+        assert "Missing environment variables: GOOGLE_API_KEY for provider google" in context.value.message
         assert "https://ai.google.dev/gemini-api/docs/api-key" in context.value.message
 
 

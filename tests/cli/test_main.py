@@ -163,3 +163,13 @@ def test_goose_no_args_print_help():
     assert "Usage:" in result.output
     assert "Options:" in result.output
     assert "Commands:" in result.output
+
+
+def test_moderators_list_command():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["moderators", "list"])
+    assert result.exit_code == 0
+    assert "Available moderators:" in result.output
+    assert "passive" in result.output
+    assert "summarize" in result.output
+    assert "truncate" in result.output

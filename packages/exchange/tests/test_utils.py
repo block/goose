@@ -1,3 +1,4 @@
+from typing import Literal
 import pytest
 from exchange import utils
 from unittest.mock import patch
@@ -65,6 +66,34 @@ def test_parse_docstring_no_description() -> None:
     assert "Attempted to load from a function" in str(e.value)
 
 
+def test_parse_docstring_with_optional_params() -> None:
+    from typing import Optional, List
+
+    def dummy_func(a: int, b: List[int], c: Literal["foo", "bar"] = "foo", d: Optional[str] = None) -> None:
+        """This function does something.
+
+        Args:
+            a (int): The first required parameter.
+            b (List[int]): The second parameter.
+            c (Literal["foo", "bar"], optional): A parameter with a literal default value. Defaults to "foo".
+            d (Optional[str], optional): Optional fourth parameter. Defaults to None.
+        """
+        pass
+
+    description, parameters = utils.parse_docstring(dummy_func)
+    assert description == "This function does something."
+    assert parameters == [
+        {"name": "a", "annotation": "int", "description": "The first required parameter."},
+        {"name": "b", "annotation": "List[int]", "description": "The second parameter."},
+        {
+            "name": "c",
+            "annotation": 'Literal["foo", "bar"]',
+            "description": 'A parameter with a literal default value. Defaults to "foo".',
+        },
+        {"name": "d", "annotation": "Optional[str]", "description": "Optional fourth parameter. Defaults to None."},
+    ]
+
+
 def test_json_schema() -> None:
     def dummy_func(a: int, b: str, c: list) -> None:
         pass
@@ -79,6 +108,31 @@ def test_json_schema() -> None:
             "c": {"type": "string"},
         },
         "required": ["a", "b", "c"],
+    }
+
+
+def test_json_schema_with_optional_params() -> None:
+    from typing import Optional, List
+
+    def dummy_func(
+        a: int,
+        b: Literal["foo", "bar"] = "foo",
+        c: Optional[List[int]] = None,
+        d: Optional[str] = None,
+    ) -> None:
+        pass
+
+    schema = utils.json_schema(dummy_func)
+
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"enum": ["foo", "bar"], "default": "foo"},
+            "c": {"type": "array", "items": {"type": "integer"}, "default": None},
+            "d": {"type": "string", "default": None},
+        },
+        "required": ["a"],
     }
 
 

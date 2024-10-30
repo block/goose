@@ -1,1 +1,0 @@
-::: goose.utils.check_shell_command
