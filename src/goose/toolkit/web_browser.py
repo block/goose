@@ -8,8 +8,8 @@ import shutil
 from typing import Callable
 
 # Windows-specific import
-if sys.platform.startswith("win"):
-    import winreg
+# if sys.platform.startswith("win"):
+#     import winreg
 
 # Check and install selenium if not installed
 if importlib.util.find_spec("selenium") is None:
@@ -120,7 +120,6 @@ class BrowserToolkit(Toolkit):
         except Exception as e:
             self.notifier.notify(f"Error taking screenshot: {str(e)}")
 
-    @tool
     @tool
     def open_new_tab(self, url: str) -> None:
         """Open a new tab and navigate to the specified URL.
@@ -347,26 +346,26 @@ class BrowserToolkit(Toolkit):
             self.driver.quit()
 
 
-def get_default_browser_windows() -> str:
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
-        ) as key:
-            prog_id, _ = winreg.QueryValueEx(key, "ProgId")
-
-        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, f"{prog_id}\\shell\\open\\command") as cmd_key:
-            command, _ = winreg.QueryValueEx(cmd_key, None)
-
-        if command.startswith('"'):
-            executable = command.split('"')[1]
-        else:
-            executable = command.split(" ")[0]
-
-        return os.path.basename(executable)
-
-    except Exception as e:
-        print(f"Error retrieving default browser on Windows: {e}")
-        return None
+# def get_default_browser_windows() -> str:
+#     try:
+#         with winreg.OpenKey(
+#             winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice"
+#         ) as key:
+#             prog_id, _ = winreg.QueryValueEx(key, "ProgId")
+#
+#         with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, f"{prog_id}\\shell\\open\\command") as cmd_key:
+#             command, _ = winreg.QueryValueEx(cmd_key, None)
+#
+#         if command.startswith('"'):
+#             executable = command.split('"')[1]
+#         else:
+#             executable = command.split(" ")[0]
+#
+#         return os.path.basename(executable)
+#
+#     except Exception as e:
+#         print(f"Error retrieving default browser on Windows: {e}")
+#         return None
 
 
 def get_default_browser_macos() -> str:
@@ -397,36 +396,36 @@ def get_default_browser_macos() -> str:
         return None
 
 
-def get_default_browser_linux() -> str:
-    try:
-        result = subprocess.run(
-            ["xdg-settings", "get", "default-web-browser"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-
-        if result.returncode != 0:
-            print(f"Error: {result.stderr.strip()}")
-            return None
-
-        desktop_file = result.stdout.strip()
-        desktop_paths = [
-            os.path.expanduser("~/.local/share/applications/"),
-            "/usr/share/applications/",
-            "/usr/local/share/applications/",
-        ]
-
-        for path in desktop_paths:
-            desktop_file_path = os.path.join(path, desktop_file)
-            if os.path.exists(desktop_file_path):
-                with open(desktop_file_path, "r") as f:
-                    for line in f:
-                        if line.startswith("Name="):
-                            name = line.split("=", 1)[1].strip()
-                            return name
-        return desktop_file.replace(".desktop", "")
-
-    except Exception as e:
-        print(f"Error retrieving default browser on Linux: {e}")
-        return None
+# def get_default_browser_linux() -> str:
+#     try:
+#         result = subprocess.run(
+#             ["xdg-settings", "get", "default-web-browser"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+#         )
+#
+#         if result.returncode != 0:
+#             print(f"Error: {result.stderr.strip()}")
+#             return None
+#
+#         desktop_file = result.stdout.strip()
+#         desktop_paths = [
+#             os.path.expanduser("~/.local/share/applications/"),
+#             "/usr/share/applications/",
+#             "/usr/local/share/applications/",
+#         ]
+#
+#         for path in desktop_paths:
+#             desktop_file_path = os.path.join(path, desktop_file)
+#             if os.path.exists(desktop_file_path):
+#                 with open(desktop_file_path, "r") as f:
+#                     for line in f:
+#                         if line.startswith("Name="):
+#                             name = line.split("=", 1)[1].strip()
+#                             return name
+#         return desktop_file.replace(".desktop", "")
+#
+#     except Exception as e:
+#         print(f"Error retrieving default browser on Linux: {e}")
+#         return None
 
 
 def get_default_browser() -> str:
@@ -438,5 +437,5 @@ def get_default_browser() -> str:
     # elif sys.platform.startswith("linux"):
     #     return get_default_browser_linux()
     else:
-        print("Unsupported operating system.")
+        print(f"Unsupported platform {sys.platform}")
         return None
