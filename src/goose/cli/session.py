@@ -149,7 +149,7 @@ class Session:
             initial_message (str): The initial user message to process.
         """
         profile = self.profile_name or "default"
-        print(f"[dim]starting session | name:[cyan]{self.name}[/]  profile:[cyan]{profile}[/]")
+        print(f"[dim]starting session | name: [cyan]{self.name}[/]  profile: [cyan]{profile}[/]")
         print(f"[dim]saving to {self.session_file_path}")
 
         # Process initial message
@@ -158,7 +158,7 @@ class Session:
         self.exchange.add(message)
         self.reply()  # Process the user message
 
-        print(f"[dim]ended run | name:[cyan]{self.name}[/]  profile:[cyan]{profile}[/]")
+        print(f"[dim]ended run | name: [cyan]{self.name}[/]  profile: [cyan]{profile}[/]")
         print(f"[dim]to resume: [magenta]goose session resume {self.name} --profile {profile}[/][/]")
 
     def run(self, new_session: bool = True) -> None:
