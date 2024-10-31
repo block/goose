@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import traceback
 from pathlib import Path
@@ -168,6 +169,7 @@ class Session:
         Args:
             new_session (bool): True when starting a new session, False when resuming.
         """
+        time_start = datetime.now()
         if is_existing_session(self.session_file_path) and new_session:
             self._prompt_overwrite_session()
 
@@ -196,7 +198,8 @@ class Session:
             message = Message.user(text=user_input.text) if user_input.to_continue() else None
 
         self._remove_empty_session()
-        self._log_cost()
+        time_end = datetime.now()
+        self._log_cost(start_time=time_start, end_time=time_end)
 
     @observe_wrapper()
     def reply(self) -> None:
@@ -281,8 +284,8 @@ class Session:
     def load_session(self) -> list[Message]:
         return read_or_create_file(self.session_file_path)
 
-    def _log_cost(self) -> None:
-        get_logger().info(get_total_cost_message(self.exchange.get_token_usage()))
+    def _log_cost(self, start_time: datetime, end_time: datetime) -> None:
+        get_logger().info(get_total_cost_message(self.exchange.get_token_usage(), self.name, start_time, end_time))
         print(f"[dim]you can view the cost and token usage in the log directory {LOG_PATH}[/]")
 
     def _prompt_overwrite_session(self) -> None:

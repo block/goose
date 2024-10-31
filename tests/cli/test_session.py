@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 from typing import Union
 from unittest.mock import MagicMock, mock_open, patch
@@ -159,13 +160,15 @@ def test_process_first_message_return_last_exchange_message(create_session_with_
 def test_log_log_cost(create_session_with_mock_configs):
     session = create_session_with_mock_configs()
     mock_logger = MagicMock()
+    start_time = datetime(2024, 10, 20, 1, 2, 3)
+    end_time = datetime(2024, 10, 21, 2, 3, 4)
     cost_message = "You have used 100 tokens"
     with (
         patch("exchange.Exchange.get_token_usage", return_value={}),
         patch("goose.cli.session.get_total_cost_message", return_value=cost_message),
         patch("goose.cli.session.get_logger", return_value=mock_logger),
     ):
-        session._log_cost()
+        session._log_cost(start_time, end_time)
         mock_logger.info.assert_called_once_with(cost_message)
 
 
