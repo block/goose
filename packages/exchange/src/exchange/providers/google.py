@@ -165,3 +165,8 @@ class GoogleProvider(Provider):
     def _post(self, payload: dict, model: str) -> httpx.Response:
         response = self.client.post("models/" + model + ":generateContent", json=payload)
         return raise_for_status(response).json()
+
+    @staticmethod
+    def recommended_models() -> tuple[str, str]:
+        """Return the recommended model and processor for this provider"""
+        return "gemini-1.5-flash", "gemini-1.5-flash"

@@ -6,7 +6,6 @@ from rich import print
 from rich.panel import Panel
 from ruamel.yaml import YAML
 
-from exchange.providers.ollama import OLLAMA_MODEL
 
 from goose.profile import Profile
 from goose.utils import load_plugins
@@ -90,19 +89,5 @@ def default_model_configuration() -> tuple[str, str, str]:
             pass
     else:
         provider = RECOMMENDED_DEFAULT_PROVIDER
-    recommended = {
-        "ollama": (OLLAMA_MODEL, OLLAMA_MODEL),
-        "openai": ("gpt-4o", "gpt-4o-mini"),
-        "anthropic": (
-            "claude-3-5-sonnet-20241022",
-            "claude-3-5-sonnet-20241022",
-        ),
-        "databricks": (
-            # TODO when function calling is first rec should be: "databricks-meta-llama-3-1-405b-instruct"
-            "databricks-meta-llama-3-1-70b-instruct",
-            "databricks-meta-llama-3-1-70b-instruct",
-        ),
-        "google": ("gemini-1.5-flash", "gemini-1.5-flash"),
-    }
-    processor, accelerator = recommended.get(provider, ("gpt-4o", "gpt-4o-mini"))
+    processor, accelerator = providers.get(provider).recommended_models()
     return provider, processor, accelerator

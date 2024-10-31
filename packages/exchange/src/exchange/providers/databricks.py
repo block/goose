@@ -90,6 +90,11 @@ class DatabricksProvider(Provider):
         usage = self.get_usage(response)
         return message, usage
 
+    @staticmethod
+    def recommended_models() -> tuple[str, str]:
+        """Return the recommended model and processor for this provider"""
+        return "databricks-meta-llama-3-1-70b-instruct", "databricks-meta-llama-3-1-70b-instruct"
+
     @retry_procedure
     def _post(self, model: str, payload: dict) -> httpx.Response:
         response = self.client.post(

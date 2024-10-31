@@ -50,6 +50,11 @@ class Provider(ABC):
         """Generate the next message using the specified model"""
         pass
 
+    @staticmethod
+    def recommended_models() -> tuple[str, str]:
+        """Return the recommended model and processor for this provider"""
+        return "gpt-4o", "gpt-4o-mini"
+
 
 class MissingProviderEnvVariableError(Exception):
     def __init__(self, env_variable: str, provider: str, instructions_url: Optional[str] = None) -> None:
