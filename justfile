@@ -14,6 +14,10 @@ integration *FLAGS:
 check-licenses:
     @uv run .github/workflows/scripts/check_licenses.py pyproject.toml packages/exchange/pyproject.toml
 
+# list supported licenses
+list-licenses:
+    @uv run .github/workflows/scripts/check_licenses.py --supported-licenses
+
 # format code
 format:
     #!/usr/bin/env bash
