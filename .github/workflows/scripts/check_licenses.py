@@ -47,6 +47,7 @@ class LicenseConfig:
             "MIT",
             "BSD-3-Clause",
             "Apache-2.0",
+            "Apache License 2",
             "Apache Software License",
             "Python Software Foundation License",
             "BSD License",
