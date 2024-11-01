@@ -271,11 +271,16 @@ class LicenseChecker:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check package licenses in TOML files")
-    parser.add_argument("toml_files", type=Path, nargs="+", help="Paths to TOML files")
-    args = parser.parse_args()
+    parser.add_argument("toml_files", type=Path, nargs="*", help="Paths to TOML files")
 
     checker = LicenseChecker()
     all_results: dict[str, LicenseInfo] = {}
+
+    args = parser.parse_args()
+    if not args.toml_files:
+        print("Error: No TOML files specified", file=sys.stderr)
+        parser.print_help()
+        sys.exit(1)
 
     for toml_file in args.toml_files:
         results = checker.check_licenses(toml_file)
