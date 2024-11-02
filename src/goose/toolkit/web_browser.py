@@ -139,11 +139,7 @@ class BrowserToolkit(Toolkit):
 
     @tool
     def check_current_page_url(self) -> str:
-        """Get the URL of the current page.
-
-        Returns:
-            str: The current page URL.
-        """
+        """Get the URL of the current page."""
         if not self.driver:
             self.notifier.notify("Driver is not initialized.")
             return ""
