@@ -11,8 +11,28 @@ integration *FLAGS:
     @uv run pytest tests/ -m integration {{ FLAGS }}
 
 # check licenses
-check-licenses:
-    @uv run .github/workflows/scripts/check_licenses.py pyproject.toml packages/exchange/pyproject.toml
+check-licenses force="":
+    #!/usr/bin/env bash
+    mapfile -t license_files < <(find . -type f -name 'pyproject.toml')
+    total=${#license_files[@]}
+
+    for ((i=0; i<total; i++)); do
+        license="${license_files[i]}"
+        remaining=$((total - i - 1))
+
+        if ! git diff --quiet "$license" || [ "{{ force }}" == "--force" ]; then
+            echo "checking licenses for: $license"
+            uv run .github/workflows/scripts/check_licenses.py "$license"
+
+            if [ $remaining -gt 0 ]; then
+                echo ""
+            fi
+        fi
+    done
+
+# list supported licenses
+list-licenses:
+    @uv run .github/workflows/scripts/check_licenses.py --supported-licenses
 
 # format code
 format:
