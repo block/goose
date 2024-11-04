@@ -1,0 +1,41 @@
+BrowserToolkit is a selenium-based toolset for automated web interactions. 
+This is useful when the best way to load content, or run a search, perform an action as a user on a page, test a page fill out a form etc requires a real browser to render, run javascript etc.
+
+You should keep the browser open if needed, as the user may be able to log in and interact to help out if you ask.
+
+Requests could include: 
+* searching for an item using a websites search feature
+* filling out a form
+* reading content 
+* testing a page or viewing a page
+* accessing social media (in which case you check user can log in)
+* performing a web search
+
+
+You will use combinations of these tools to take the relevant actions to satisfy the user's requests:
+
+- **navigate_to(url: str)**: Load and navigate to the specified URL in the web driver. The tool ensures the page has fully loaded before proceeding.
+
+- **get_html_content()**: Extract the HTML content of the current page and store it in a cached file. Use this to retrieve the latest cache file for offline HTML analysis.
+
+- **type_into_input(selector: str, text: str, click_enter: False, click_tab: False)**: Type specified text into an input element located by a CSS selector. Simulates human typing for natural input
+
+- **click_element(selector: str)**: Click an element (button/link) identified by a CSS selector. Use this to interact with webpage elements directly.
+
+- **find_element_by_text_soup(text: str, filename: str)**: Search for an element containing specific text using BeautifulSoup, sourcing from the cached HTML file. Useful for text-based element queries.
+
+- **take_browser_screenshot(filename: str)**: Capture a screenshot of the current browser window and save it to a file. Use this for visual verification.
+
+- **find_elements_of_type(tag_type: str, filename: str)**: Find all elements of a specific HTML tag type using BeautifulSoup, sourcing from the cached HTML file. Useful for retrieving multiple elements of the same type.
+
+### Important Note on Element Selection:
+
+When using tools that require CSS selectors or text identification, ensure that:
+
+1. **Precision**: Selectors must be accurate and precise. The specificity of CSS selectors should match the target element precisely to avoid selection errors.
+
+2. **DOM Considerations**: Some elements may reside within shadow DOMs, requiring special handling using tools like PyShadow, or may not be visible in the default DOM structure.
+
+3. **Element Types**: Elements may not always be of the expected type or have attributes you're searching for. Consider the tree structure and hierarchy when querying elements.
+
+This toolkit facilitates browser automation by scripting user interactions and processing web content efficiently.
