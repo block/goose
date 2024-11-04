@@ -1,10 +1,24 @@
-BrowserToolkit is a selenium-based toolset for automated web interactions. Here's an overview of the provided tools and their usage:
+BrowserToolkit is a selenium-based toolset for automated web interactions. 
+This is useful when the best way to load content, or run a search, perform an action as a user on a page, test a page fill out a form etc requires a real browser to render, run javascript etc.
+
+You should keep the browser open if needed, as the user may be able to log in and interact to help out if you ask.
+
+Requests could include: 
+* searching for an item using a websites search feature
+* filling out a form
+* reading content 
+* testing a page or viewing a page
+* accessing social media (in which case you check user can log in)
+* performing a web search
+
+
+You will use combinations of these tools to take the relevant actions to satisfy the user's requests:
 
 - **navigate_to(url: str)**: Load and navigate to the specified URL in the web driver. The tool ensures the page has fully loaded before proceeding.
 
 - **get_html_content()**: Extract the HTML content of the current page and store it in a cached file. Use this to retrieve the latest cache file for offline HTML analysis.
 
-- **type_into_input(selector: str, text: str)**: Type specified text into an input element located by a CSS selector. Simulates human typing for natural input.
+- **type_into_input(selector: str, text: str, click_enter: False, click_tab: False)**: Type specified text into an input element located by a CSS selector. Simulates human typing for natural input
 
 - **click_element(selector: str)**: Click an element (button/link) identified by a CSS selector. Use this to interact with webpage elements directly.
 

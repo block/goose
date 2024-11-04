@@ -1,10 +1,10 @@
-import sys
 import importlib.util
 import os
-import subprocess
-import time
 import random
 import shutil
+import subprocess
+import sys
+import time
 from typing import Callable
 
 # Windows-specific import
@@ -14,15 +14,16 @@ from typing import Callable
 # Check and install selenium if not installed
 if importlib.util.find_spec("selenium") is None:
     subprocess.check_call(["python", "-m", "pip", "install", "selenium"])
-from exchange import Message
-from goose.toolkit.base import Toolkit, tool
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as ec
-from selenium.common.exceptions import TimeoutException, NoSuchElementException, InvalidSessionIdException
 from bs4 import BeautifulSoup
+from exchange import Message
 from pyshadow.main import Shadow
+from selenium import webdriver
+from selenium.common.exceptions import InvalidSessionIdException, NoSuchElementException, TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.support.ui import WebDriverWait
+
+from goose.toolkit.base import Toolkit, tool
 
 
 class BrowserToolkit(Toolkit):
@@ -94,7 +95,7 @@ class BrowserToolkit(Toolkit):
 
     @tool
     def navigate_to(self, url: str) -> None:
-        """Navigate to a specified URL in the browser.
+        """Navigate or browse to a specified URL in the browser.
 
         Args:
             url (str): The URL to navigate to.
@@ -212,7 +213,7 @@ class BrowserToolkit(Toolkit):
 
     @tool
     def type_into_input(self, selector: str, text: str) -> None:
-        """Type text into an input element specified by a CSS selector.
+        """Type text into an input element specified by a CSS selector for the currently open page.
 
         Args:
             selector (str): CSS selector string to locate the input element.
@@ -366,8 +367,8 @@ class BrowserToolkit(Toolkit):
 
 def get_default_browser_macos() -> str:
     try:
-        import plistlib
         import os
+        import plistlib
 
         plist_path = os.path.expanduser(
             "~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
@@ -434,4 +435,5 @@ def get_default_browser() -> str:
     #     return get_default_browser_linux()
     else:
         print(f"Unsupported platform {sys.platform}")
+        return None
         return None
