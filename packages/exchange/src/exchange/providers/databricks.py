@@ -4,7 +4,7 @@ import os
 from exchange.message import Message
 from exchange.providers.base import Provider, Usage
 from tenacity import retry, wait_fixed, stop_after_attempt
-from exchange.providers.utils import raise_for_status, retry_if_status, get_env_url
+from exchange.providers.utils import raise_for_status, retry_if_status
 from exchange.providers.utils import (
     messages_to_openai_spec,
     openai_response_to_message,
@@ -31,10 +31,8 @@ class DatabricksProvider(Provider):
     """
 
     PROVIDER_NAME = "databricks"
-    REQUIRED_ENV_VARS = [
-        "DATABRICKS_HOST",
-        "DATABRICKS_TOKEN",
-    ]
+    BASE_URL_ENV_VAR = "DATABRICKS_HOST"
+    REQUIRED_ENV_VARS = ["DATABRICKS_TOKEN"]
     instructions_url = "https://docs.databricks.com/en/dev-tools/auth/index.html#general-host-token-and-account-id-environment-variables-and-fields"
 
     def __init__(self, client: httpx.Client) -> None:
@@ -43,7 +41,7 @@ class DatabricksProvider(Provider):
     @classmethod
     def from_env(cls: type["DatabricksProvider"]) -> "DatabricksProvider":
         cls.check_env_vars(cls.instructions_url)
-        url = get_env_url("DATABRICKS_HOST")
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR))
         key = os.environ.get("DATABRICKS_TOKEN")
         client = httpx.Client(
             base_url=url,

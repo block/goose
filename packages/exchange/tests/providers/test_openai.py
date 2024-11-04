@@ -14,7 +14,7 @@ def test_from_env_throw_error_when_invalid_host(monkeypatch):
     monkeypatch.setenv("OPENAI_HOST", "localhost:1234")
     monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
 
-    with pytest.raises(ValueError, match="expected OPENAI_HOST to be a 'http' or 'https' url: localhost:1234"):
+    with pytest.raises(ValueError, match="Expected OPENAI_HOST to be a 'http' or 'https' url: localhost:1234"):
         OpenAiProvider.from_env()
 
 

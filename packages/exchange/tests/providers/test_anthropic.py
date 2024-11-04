@@ -30,7 +30,7 @@ def test_from_env_throw_error_when_invalid_host(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_HOST", "localhost:1234")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test_api_key")
 
-    with pytest.raises(ValueError, match="expected ANTHROPIC_HOST to be a 'http' or 'https' url: localhost:1234"):
+    with pytest.raises(ValueError, match="Expected ANTHROPIC_HOST to be a 'http' or 'https' url: localhost:1234"):
         AnthropicProvider.from_env()
 
 

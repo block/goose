@@ -2,15 +2,14 @@ import httpx
 import os
 
 from exchange.providers import OpenAiProvider
-from exchange.providers.utils import get_env_url
 
 
 class AzureProvider(OpenAiProvider):
     """Provides chat completions for models hosted by the Azure OpenAI Service."""
 
     PROVIDER_NAME = "azure"
+    BASE_URL_ENV_VAR = "AZURE_CHAT_COMPLETIONS_HOST_NAME"
     REQUIRED_ENV_VARS = [
-        "AZURE_CHAT_COMPLETIONS_HOST_NAME",
         "AZURE_CHAT_COMPLETIONS_DEPLOYMENT_NAME",
         "AZURE_CHAT_COMPLETIONS_DEPLOYMENT_API_VERSION",
         "AZURE_CHAT_COMPLETIONS_KEY",
@@ -22,7 +21,7 @@ class AzureProvider(OpenAiProvider):
     @classmethod
     def from_env(cls: type["AzureProvider"]) -> "AzureProvider":
         cls.check_env_vars()
-        url = get_env_url("AZURE_CHAT_COMPLETIONS_HOST_NAME")
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR, cls.BASE_URL_DEFAULT))
         deployment_name = os.environ.get("AZURE_CHAT_COMPLETIONS_DEPLOYMENT_NAME")
         api_version = os.environ.get("AZURE_CHAT_COMPLETIONS_DEPLOYMENT_API_VERSION")
         key = os.environ.get("AZURE_CHAT_COMPLETIONS_KEY")

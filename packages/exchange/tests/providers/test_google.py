@@ -16,7 +16,7 @@ def test_from_env_throw_error_when_invalid_host(monkeypatch):
     monkeypatch.setenv("GOOGLE_HOST", "localhost:1234")
     monkeypatch.setenv("GOOGLE_API_KEY", "test_api_key")
 
-    with pytest.raises(ValueError, match="expected GOOGLE_HOST to be a 'http' or 'https' url: localhost:1234"):
+    with pytest.raises(ValueError, match="Expected GOOGLE_HOST to be a 'http' or 'https' url: localhost:1234"):
         GoogleProvider.from_env()
 
 

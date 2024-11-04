@@ -12,7 +12,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", OLLAMA_MODEL)
 def test_from_env_throw_error_when_invalid_host(monkeypatch):
     monkeypatch.setenv("OLLAMA_HOST", "localhost:1234")
 
-    with pytest.raises(ValueError, match="expected OLLAMA_HOST to be a 'http' or 'https' url: localhost:1234"):
+    with pytest.raises(ValueError, match="Expected OLLAMA_HOST to be a 'http' or 'https' url: localhost:1234"):
         OllamaProvider.from_env()
 
 

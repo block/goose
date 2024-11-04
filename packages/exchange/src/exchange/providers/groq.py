@@ -11,13 +11,10 @@ from exchange.providers.utils import (
     openai_single_message_context_length_exceeded,
     raise_for_status,
     tools_to_openai_spec,
-    get_env_url,
 )
 from exchange.tool import Tool
 from tenacity import retry, wait_fixed, stop_after_attempt
 from exchange.providers.utils import retry_if_status
-
-GROQ_HOST = "https://api.groq.com/openai/"
 
 retry_procedure = retry(
     wait=wait_fixed(5),
@@ -31,6 +28,8 @@ class GroqProvider(Provider):
     """Provides chat completions for models hosted directly by OpenAI."""
 
     PROVIDER_NAME = "groq"
+    BASE_URL_ENV_VAR = "GROQ_HOST"
+    BASE_URL_DEFAULT = "https://api.groq.com/openai/"
     REQUIRED_ENV_VARS = ["GROQ_API_KEY"]
     instructions_url = "https://console.groq.com/docs/quickstart"
 
@@ -40,7 +39,7 @@ class GroqProvider(Provider):
     @classmethod
     def from_env(cls: type["GroqProvider"]) -> "GroqProvider":
         cls.check_env_vars(cls.instructions_url)
-        url = get_env_url("GROQ_HOST", GROQ_HOST)
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR, cls.BASE_URL_DEFAULT))
         key = os.environ.get("GROQ_API_KEY")
 
         client = httpx.Client(
