@@ -122,6 +122,23 @@ def list_providers() -> None:
         print("\n")
 
 
+@goose_cli.group()
+def moderators() -> None:
+    """Manage moderators"""
+    pass
+
+
+@moderators.command(name="list")
+def list_moderators() -> None:
+    moderators = load_plugins(group="exchange.moderator")
+
+    for moderator_name, moderator in moderators.items():
+        doc = moderator.__doc__ or "No description available"
+        first_line_of_doc = doc.split("\n")[0]
+        print(f" - [bold]{moderator_name}[/bold]: {first_line_of_doc}")
+        print("\n")
+
+
 def autocomplete_session_files(ctx: click.Context, args: str, incomplete: str) -> None:
     return [
         f"{session_name}"

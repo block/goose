@@ -18,6 +18,13 @@ MAX_TOKENS = 100000
 
 
 class ContextTruncate(Moderator):
+    """A moderator that truncates conversation history to stay within token limits.
+
+    This moderator implements a First-In-First-Out (FIFO) strategy to remove older messages
+    when the conversation exceeds the maximum token limit. It preserves system prompts and
+    handles tool results appropriately to maintain conversation coherence.
+    """
+
     def __init__(
         self,
         model: Optional[str] = None,

@@ -4,6 +4,13 @@ from exchange.moderators import ContextTruncate, PassiveModerator
 
 
 class ContextSummarizer(ContextTruncate):
+    """A moderator that summarizes older conversation history to reduce token usage.
+
+    This moderator extends ContextTruncate by summarizing older messages instead of simply
+    removing them. When the token limit is exceeded, it uses an LLM to create a concise
+    summary of the older messages, preserving the conversation context while reducing token usage.
+    """
+
     def rewrite(self, exchange: type["exchange.exchange.Exchange"]) -> None:  # noqa: F821
         """Summarize the context history up to the last few messages in the exchange"""
 
