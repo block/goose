@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] - 2024-11-04
+- fix: only run summarize when there is something to summarize vs up front (#195)
+- feat: add browser toolkit (#179)
+- docs: reworks README to be outcome based (#151)
+- chore: license-checker improvements (#212)
+- fix: prompt rendering (#208)
+- fix: Cost calculation enhancement (#207)
+- refactor: used recommended_models function  as default model (#209)
+- feat: default to synopsis (#206)
+- chore: housekeeping (#202)
+- feat: reduce tool entrypoints in synopsis for text editor, bash, process manager (#191)
+- feat: list moderators (#204)
+- chore: Minor changes in providers envs logic (#161)
+- chore: add `.vscode` workspace settings and suggested extensions (#200)
+- feat: license checker (#201)
+- feat: include new anthropic model in docs and recommended config (#198)
+- feat: tiny change so you know what processing is doing (#196)
+- docs: correct intellij link (#197)
+- docs: remove small duplication (#194)
+- chore: add tracing option to run and group traces under session name (#187)
+- docs: fix mkdocs, update to new references (#193)
+- feat: support optional params jsonschema conversion in exchange (#188)
+- fix: correct context loading from session new/overwrite and resume (#180)
+- feat: trying a license checker (#184)
+- docs: getting index.md in sync with readme (#183)
+- chore: Update block-open-source ref to block (#181)
+- fix: just adding stuff from developer.py to synopsis developer (#182)
+- fix: Simplifed langfuse auth check (#177)
+- test: add vision tests for google (#160)
+- fix: adding a release checker (#176)
+
 ## [0.9.8] - 2024-10-20
 - fix: added specific ai-exchange version and check path is None to avoid error after starting goose (#174)
 
