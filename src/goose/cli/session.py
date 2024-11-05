@@ -157,7 +157,7 @@ class Session:
         if self.has_plan and len(self.exchange.messages) > 0:
             # Process the plan prompt
             self.exchange.add(self.exchange.messages.pop())
-            self.reply()  
+            self.reply()
 
         if initial_message:
             # Process initial message
