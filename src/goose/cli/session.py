@@ -77,6 +77,7 @@ class Session:
         self.prompt_session = GoosePromptSession()
         self.status_indicator = Status("", spinner="dots")
         self.notifier = SessionNotifier(self.status_indicator)
+        self.tracing = tracing
         if not tracing:
             logging.getLogger("langfuse").setLevel(logging.ERROR)
         else:
@@ -88,7 +89,8 @@ class Session:
                     "You passed --tracing, but a Langfuse object was not found in the current context. "
                     "Please initialize the local Langfuse server and restart Goose."
                 )
-        langfuse_context.configure(enabled=tracing)
+        if self.tracing:
+            langfuse_context.configure(enabled=tracing)
 
         self.exchange = create_exchange(profile=load_profile(profile), notifier=self.notifier)
         setup_logging(log_file_directory=LOG_PATH, log_level=log_level)
