@@ -1,11 +1,11 @@
 [project]
 name = "goose-ai"
 description = "a programming agent that runs on your machine"
-version = "0.9.9"
+version = "0.9.10"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "ai-exchange==0.9.8",
+    "ai-exchange==0.9.9",
     "attrs>=23.2.0",
     "rich>=13.7.1",
     "ruamel-yaml>=0.18.6",
