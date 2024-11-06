@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,27 +37,47 @@ def test_login_error(mock_get_credentials, google_workspace_toolkit):
     assert "Error: Test error" in result
 
 
-@patch.object(os.path, "expanduser")
-def test_file_paths(mock_expanduser):
-    mock_expanduser.return_value = "/mock/home/path"
-    from goose.toolkit.google_workspace import CLIENT_SECRETS_FILE, TOKEN_FILE
+@patch("goose.toolkit.google_workspace.get_file_paths")
+def test_file_paths(mock_get_file_paths):
+    mock_get_file_paths.return_value = {
+        "CLIENT_SECRETS_FILE": "/mock/home/path/.config/goose/google_credentials.json",
+        "TOKEN_FILE": "/mock/home/path/.config/goose/google_oauth_token.json",
+    }
+    from goose.toolkit.google_workspace import get_file_paths
 
-    assert CLIENT_SECRETS_FILE == "/mock/home/path/.config/goose/google_credentials.json"
-    assert TOKEN_FILE == "/mock/home/path/.config/goose/google_oauth_token.json"
+    file_paths = get_file_paths()
+    assert file_paths["CLIENT_SECRETS_FILE"] == "/mock/home/path/.config/goose/google_credentials.json"
+    assert file_paths["TOKEN_FILE"] == "/mock/home/path/.config/goose/google_oauth_token.json"
 
 
-# Uncomment and implement when GmailClient is available
-# @patch('goose.toolkits.tools.gmail_client.GmailClient')
-# @patch.object(GoogleOAuthHandler, 'get_credentials')
-# def test_list_emails(mock_get_credentials, mock_gmail_client, google_workspace_toolkit, mock_credentials):
-#     mock_get_credentials.return_value = mock_credentials
-#     mock_client_instance = MagicMock()
-#     mock_gmail_client.return_value = mock_client_instance
-#     mock_client_instance.list_emails.return_value = ["Email 1", "Email 2"]
-#
-#     result = google_workspace_toolkit.list_emails()
-#     assert result == ["Email 1", "Email 2"]
-#     mock_gmail_client.assert_called_once_with(mock_credentials)
-#     mock_client_instance.list_emails.assert_called_once()
-#     mock_gmail_client.assert_called_once_with(mock_credentials)
-#     mock_client_instance.list_emails.assert_called_once()
+def test_list_emails(mocker, google_workspace_toolkit):
+    # Mock get_file_paths
+    mock_get_file_paths = mocker.patch("goose.toolkit.google_workspace.get_file_paths")
+    mock_get_file_paths.return_value = {
+        "CLIENT_SECRETS_FILE": "/mock/home/path/.config/goose/google_credentials.json",
+        "TOKEN_FILE": "/mock/home/path/.config/goose/google_oauth_token.json",
+    }
+
+    # Mock GoogleOAuthHandler
+    mock_google_oauth_handler = mocker.patch("goose.toolkit.google_workspace.GoogleOAuthHandler")
+    mock_credentials = mocker.MagicMock()
+    mock_google_oauth_handler.return_value.get_credentials.return_value = mock_credentials
+
+    # Mock GmailClient
+    mock_gmail_client = mocker.patch("goose.toolkit.google_workspace.GmailClient")
+    mock_gmail_client.return_value.list_emails.return_value = "mock_emails"
+
+    # Call the method
+    result = google_workspace_toolkit.list_emails()
+
+    # Assertions
+    assert result == "mock_emails"
+    mock_get_file_paths.assert_called_once()
+    mock_google_oauth_handler.assert_called_once_with(
+        "/mock/home/path/.config/goose/google_credentials.json",
+        "/mock/home/path/.config/goose/google_oauth_token.json",
+        ["https://www.googleapis.com/auth/gmail.readonly"],
+    )
+    mock_google_oauth_handler.return_value.get_credentials.assert_called_once()
+    mock_gmail_client.assert_called_once_with(mock_credentials)
+    mock_gmail_client.return_value.list_emails.assert_called_once()
