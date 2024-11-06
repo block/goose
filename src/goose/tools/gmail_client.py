@@ -36,7 +36,11 @@ class GmailClient:
                             body += base64.urlsafe_b64decode(part["body"]["data"].encode("ASCII")).decode("utf-8")
             else:
                 if "data" in message["payload"]["body"]:
-                    body = base64.urlsafe_b64decode(message["payload"]["body"]["data"].encode("ASCII")).decode("utf-8")
+                    # NOTE: Trunace the body to 100 characters.
+                    # TODO: Add ability to look up specific emails.
+                    body = base64.urlsafe_b64decode(message["payload"]["body"]["data"].encode("ASCII")).decode("utf-8")[
+                        0:100
+                    ]
                 else:
                     body = "No content"
 
