@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.11] - 2024-11-05
+- fix: removed the unexpected tracing message (#219)
+
 ## [0.9.10] - 2024-11-05
 - fix: bump version of exchange to 0.9.9
 
