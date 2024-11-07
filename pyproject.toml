@@ -15,7 +15,8 @@ dependencies = [
     "langfuse>=2.38.2",
     "selenium>=4.0.0",
     "beautifulsoup4>=4.9.3",
-    "pyshadow<=0.0.5"
+    "pyshadow<=0.0.5",
+    "tomli>=2.0.1",
 ]
 author = [{ name = "Block", email = "ai-oss-tools@block.xyz" }]
 packages = [{ include = "goose", from = "src" }]
@@ -35,6 +36,7 @@ reasoner = "goose.toolkit.reasoner:Reasoner"
 repo_context = "goose.toolkit.repo_context.repo_context:RepoContext"
 synopsis = "goose.synopsis.toolkit:SynopsisDeveloper"
 browser = "goose.toolkit.web_browser:BrowserToolkit"
+memory = "goose.toolkit.memory:Memory"
 
 [project.entry-points."goose.profile"]
 default = "goose.profile:default_profile"
