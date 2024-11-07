@@ -48,18 +48,3 @@ class GoogleCalendarClient:
         except HttpError as error:
             print(f"An error occurred: {error}")
             return []
-
-
-# def list_calendar_events() -> str:
-#     client = GoogleCalendarClient()
-#     events = client.list_events_for_today()
-
-# if not events:
-#     return "No events found for today."
-
-# event_list = []
-# for event in events:
-#     start = event["start"].get("dateTime", event["start"].get("date"))
-#     event_list.append(f"{start} - {event['summary']}")
-
-# return "\n".join(event_list)
