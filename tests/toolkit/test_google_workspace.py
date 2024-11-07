@@ -82,52 +82,54 @@ def test_list_emails(mocker, google_workspace_toolkit):
     mock_gmail_client.assert_called_once_with(mock_credentials)
     mock_gmail_client.return_value.list_emails.assert_called_once()
 
+
 def test_todays_schedule(mocker, google_workspace_toolkit):
     mock_calendar_client = mocker.Mock()
     mock_calendar_client.list_events_for_today.return_value = [
         {
-            'summary': 'Test Event 1',
-            'start': {'dateTime': '2023-05-01T09:00:00'},
-            'end': {'dateTime': '2023-05-01T10:00:00'}
+            "summary": "Test Event 1",
+            "start": {"dateTime": "2023-05-01T09:00:00"},
+            "end": {"dateTime": "2023-05-01T10:00:00"},
         },
         {
-            'summary': 'Test Event 2',
-            'start': {'dateTime': '2023-05-01T14:00:00'},
-            'end': {'dateTime': '2023-05-01T15:00:00'}
-        }
+            "summary": "Test Event 2",
+            "start": {"dateTime": "2023-05-01T14:00:00"},
+            "end": {"dateTime": "2023-05-01T15:00:00"},
+        },
     ]
-    mocker.patch('goose.toolkit.google_workspace.GoogleCalendarClient', return_value=mock_calendar_client)
-    mocker.patch('goose.toolkit.google_workspace.get_file_paths', return_value={
-        "CLIENT_SECRETS_FILE": "mock_path",
-        "TOKEN_FILE": "mock_path"
-    })
-    mocker.patch('goose.toolkit.google_workspace.GoogleOAuthHandler')
+    mocker.patch("goose.toolkit.google_workspace.GoogleCalendarClient", return_value=mock_calendar_client)
+    mocker.patch(
+        "goose.toolkit.google_workspace.get_file_paths",
+        return_value={"CLIENT_SECRETS_FILE": "mock_path", "TOKEN_FILE": "mock_path"},
+    )
+    mocker.patch("goose.toolkit.google_workspace.GoogleOAuthHandler")
 
     result = google_workspace_toolkit.todays_schedule()
 
     assert isinstance(result, list)
     assert len(result) == 2
-    assert result[0]['summary'] == 'Test Event 1'
-    assert result[1]['summary'] == 'Test Event 2'
+    assert result[0]["summary"] == "Test Event 1"
+    assert result[1]["summary"] == "Test Event 2"
+
 
 def test_list_calendars(mocker, google_workspace_toolkit):
     mock_calendar_client = mocker.Mock()
     mock_calendar_client.list_calendars.return_value = [
-        {'summary': 'Calendar 1', 'id': 'calendar1@example.com'},
-        {'summary': 'Calendar 2', 'id': 'calendar2@example.com'}
+        {"summary": "Calendar 1", "id": "calendar1@example.com"},
+        {"summary": "Calendar 2", "id": "calendar2@example.com"},
     ]
-    mocker.patch('goose.toolkit.google_workspace.GoogleCalendarClient', return_value=mock_calendar_client)
-    mocker.patch('goose.toolkit.google_workspace.get_file_paths', return_value={
-        "CLIENT_SECRETS_FILE": "mock_path",
-        "TOKEN_FILE": "mock_path"
-    })
-    mocker.patch('goose.toolkit.google_workspace.GoogleOAuthHandler')
+    mocker.patch("goose.toolkit.google_workspace.GoogleCalendarClient", return_value=mock_calendar_client)
+    mocker.patch(
+        "goose.toolkit.google_workspace.get_file_paths",
+        return_value={"CLIENT_SECRETS_FILE": "mock_path", "TOKEN_FILE": "mock_path"},
+    )
+    mocker.patch("goose.toolkit.google_workspace.GoogleOAuthHandler")
 
     result = google_workspace_toolkit.list_calendars()
 
     assert isinstance(result, list)
     assert len(result) == 2
-    assert result[0]['summary'] == 'Calendar 1'
-    assert result[1]['summary'] == 'Calendar 2'
-    assert result[0]['id'] == 'calendar1@example.com'
-    assert result[1]['id'] == 'calendar2@example.com'
+    assert result[0]["summary"] == "Calendar 1"
+    assert result[1]["summary"] == "Calendar 2"
+    assert result[0]["id"] == "calendar1@example.com"
+    assert result[1]["id"] == "calendar2@example.com"
