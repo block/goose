@@ -15,8 +15,7 @@ dependencies = [
     "langfuse>=2.38.2",
     "selenium>=4.0.0",
     "beautifulsoup4>=4.9.3",
-    "pyshadow<=0.0.5",
-    "tomli>=2.0.1",
+    "pyshadow<=0.0.5"
 ]
 author = [{ name = "Block", email = "ai-oss-tools@block.xyz" }]
 packages = [{ include = "goose", from = "src" }]
@@ -76,7 +75,8 @@ dev-dependencies = [
     "mkdocstrings-python>=1.11.1",
     "mkdocstrings>=0.26.1",
     "pytest-mock>=3.14.0",
-    "pytest>=8.3.2"
+    "pytest>=8.3.2",
+    "tomli>=2.0.1",
 ]
 
 [tool.uv.sources]
