@@ -7,15 +7,14 @@ from goose.tools.gmail_client import GmailClient
 from goose.tools.google_calendar_client import GoogleCalendarClient
 from goose.tools.google_oauth_handler import GoogleOAuthHandler
 
+SCOPES = ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/calendar.readonly"]
+
 
 def get_file_paths() -> dict[str, str]:
     return {
         "CLIENT_SECRETS_FILE": os.path.expanduser("~/.config/goose/google_credentials.json"),
         "TOKEN_FILE": os.path.expanduser("~/.config/goose/google_oauth_token.json"),
     }
-
-
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/calendar.readonly"]
 
 
 class GoogleWorkspace(Toolkit):
@@ -37,7 +36,7 @@ class GoogleWorkspace(Toolkit):
 
     @tool
     def list_emails(self) -> str:
-        """List the emails in the user's Gmail inbox"""
+        """List the emails in the user's Gmail inbox, including email IDs"""
         try:
             file_paths = get_file_paths()
             oauth_handler = GoogleOAuthHandler(file_paths["CLIENT_SECRETS_FILE"], file_paths["TOKEN_FILE"], SCOPES)
@@ -45,6 +44,29 @@ class GoogleWorkspace(Toolkit):
             gmail_client = GmailClient(credentials)
             emails = gmail_client.list_emails()
             return emails
+        except ValueError as e:
+            return f"Error: {str(e)}"
+        except Exception as e:
+            return f"An unexpected error occurred: {str(e)}"
+
+    @tool
+    def get_email_content(self, email_id: str) -> str:
+        """
+        Get the contents of a single email by its ID.
+
+        Args:
+            email_id (str): The ID of the email to retrieve.
+
+        Returns:
+            response (str): The contents of the email, including subject, sender, and body.
+        """
+        try:
+            file_paths = get_file_paths()
+            oauth_handler = GoogleOAuthHandler(file_paths["CLIENT_SECRETS_FILE"], file_paths["TOKEN_FILE"], SCOPES)
+            credentials = oauth_handler.get_credentials()
+            gmail_client = GmailClient(credentials)
+            email_content = gmail_client.get_email_content(email_id)
+            return email_content
         except ValueError as e:
             return f"Error: {str(e)}"
         except Exception as e:
