@@ -35,6 +35,7 @@ reasoner = "goose.toolkit.reasoner:Reasoner"
 repo_context = "goose.toolkit.repo_context.repo_context:RepoContext"
 synopsis = "goose.synopsis.toolkit:SynopsisDeveloper"
 browser = "goose.toolkit.web_browser:BrowserToolkit"
+memory = "goose.toolkit.memory:Memory"
 
 [project.entry-points."goose.profile"]
 default = "goose.profile:default_profile"
@@ -74,7 +75,8 @@ dev-dependencies = [
     "mkdocstrings-python>=1.11.1",
     "mkdocstrings>=0.26.1",
     "pytest-mock>=3.14.0",
-    "pytest>=8.3.2"
+    "pytest>=8.3.2",
+    "tomli>=2.0.1",
 ]
 
 [tool.uv.sources]
