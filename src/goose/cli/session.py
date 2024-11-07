@@ -77,6 +77,7 @@ class Session:
         self.prompt_session = GoosePromptSession()
         self.status_indicator = Status("", spinner="dots")
         self.notifier = SessionNotifier(self.status_indicator)
+        self.has_plan = plan is not None
         self.tracing = tracing
         if not tracing:
             logging.getLogger("langfuse").setLevel(logging.ERROR)
@@ -142,23 +143,30 @@ class Session:
             return Message.user(text=user_input.text)
         return self.exchange.messages.pop()
 
-    def single_pass(self, initial_message: str) -> None:
+    def single_pass(self, initial_message: Optional[str]) -> None:
         """
         Handles a single input message and processes a reply
         without entering a loop for additional inputs.
 
         Args:
-            initial_message (str): The initial user message to process.
+            initial_message (Optional[str]): The initial user message to process.
         """
         profile = self.profile_name or "default"
         print(f"[dim]starting session | name: [cyan]{self.name}[/]  profile: [cyan]{profile}[/]")
         print(f"[dim]saving to {self.session_file_path}")
 
-        # Process initial message
-        message = Message.user(initial_message)
+        # Check to see if there is a planned operation to perform prior to the bespoke prompt
+        if self.has_plan and len(self.exchange.messages) > 0:
+            # Process the plan prompt
+            self.exchange.add(self.exchange.messages.pop())
+            self.reply()
 
-        self.exchange.add(message)
-        self.reply()  # Process the user message
+        if initial_message:
+            # Process initial message
+            message = Message.user(initial_message)
+
+            self.exchange.add(message)
+            self.reply()  # Process the user message
 
         print(f"[dim]ended run | name: [cyan]{self.name}[/]  profile: [cyan]{profile}[/]")
         print(f"[dim]to resume: [magenta]goose session resume {self.name} --profile {profile}[/][/]")
