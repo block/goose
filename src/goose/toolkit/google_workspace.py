@@ -37,6 +37,7 @@ class GoogleWorkspace(Toolkit):
 
     @tool
     def list_emails(self) -> str:
+        """List the emails in the user's Gmail inbox"""
         try:
             file_paths = get_file_paths()
             oauth_handler = GoogleOAuthHandler(file_paths["CLIENT_SECRETS_FILE"], file_paths["TOKEN_FILE"], SCOPES)
@@ -51,6 +52,7 @@ class GoogleWorkspace(Toolkit):
 
     @tool
     def todays_schedule(self) -> str:
+        """List the events on the user's Google Calendar for today"""
         try:
             file_paths = get_file_paths()
             oauth_handler = GoogleOAuthHandler(file_paths["CLIENT_SECRETS_FILE"], file_paths["TOKEN_FILE"], SCOPES)
@@ -58,6 +60,21 @@ class GoogleWorkspace(Toolkit):
             calendar_client = GoogleCalendarClient(credentials)
             schedule = calendar_client.list_events_for_today()
             return schedule
+        except ValueError as e:
+            return f"Error: {str(e)}"
+        except Exception as e:
+            return f"An unexpected error occurred: {str(e)}"
+
+    @tool
+    def list_calendars(self) -> str:
+        """List the calendars in the user's Google Calendar"""
+        try:
+            file_paths = get_file_paths()
+            oauth_handler = GoogleOAuthHandler(file_paths["CLIENT_SECRETS_FILE"], file_paths["TOKEN_FILE"], SCOPES)
+            credentials = oauth_handler.get_credentials()
+            calendar_client = GoogleCalendarClient(credentials)
+            calendars = calendar_client.list_calendars()
+            return calendars
         except ValueError as e:
             return f"Error: {str(e)}"
         except Exception as e:
