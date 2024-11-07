@@ -76,7 +76,7 @@ def test_list_emails(mocker, google_workspace_toolkit):
     mock_google_oauth_handler.assert_called_once_with(
         "/mock/home/path/.config/goose/google_credentials.json",
         "/mock/home/path/.config/goose/google_oauth_token.json",
-        ["https://www.googleapis.com/auth/gmail.readonly"],
+        ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/calendar.readonly"],
     )
     mock_google_oauth_handler.return_value.get_credentials.assert_called_once()
     mock_gmail_client.assert_called_once_with(mock_credentials)
