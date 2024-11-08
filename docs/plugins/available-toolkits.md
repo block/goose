@@ -16,45 +16,80 @@ The **Developer** toolkit offers general-purpose development capabilities, inclu
 
 ## 2. GitHub Toolkit
 
-The **GitHub** toolkit provides detailed configuration and procedural guidelines for GitHub operations.
+The **GitHub** toolkit provides detailed configuration and procedural guidelines for GitHub operations, including:
 
-## 3. Lint Toolkit
+- **Pull Request Reviews:** View and analyze PR reviews and nested comments.
+- **API Integration:** Access GitHub API for repository operations.
+- **Command Line Interface:** Integration with `gh` CLI tool.
 
-The **Lint** toolkit ensures that all toolkits have proper documentation. It performs the following checks:
+## 3. JIRA Toolkit
 
-- Toolkit must have a docstring.
-- The first line of the docstring should contain more than 5 words and fewer than 12 words.
-- The first letter of the docstring should be capitalized.
+The **JIRA** toolkit facilitates interaction with JIRA issues and projects through:
 
-## 4. RepoContext Toolkit
+- **Issue Management:** View and interact with JIRA issues.
+- **Command Line Integration:** Integration with `jira` CLI tool.
+- **Authentication:** Handle JIRA authentication and initialization.
 
-The **RepoContext** toolkit provides context about the current repository. It includes:
+## 4. Memory Toolkit
+
+The **Memory** toolkit provides persistent storage capabilities:
+
+- **Local and Global Storage:** Store memories in both local (.goose/memory) and global (~/.config/goose/memory) locations.
+- **Categorization:** Organize memories with categories and tags.
+- **Natural Language Format:** Store and retrieve memories in natural language format.
+- **Template Integration:** Use memories in system prompts via Jinja templates.
+
+## 5. RepoContext Toolkit
+
+The **RepoContext** toolkit provides context about the current repository:
 
 - **Repository Size:** Get the size of the repository.
 - **Monorepo Check:** Determine if the repository is a monorepo.
-- **Project Summarization:** Summarize the current project based on the repository or the current project directory.
+- **Project Summarization:** Summarize the current project based on the repository or project directory.
 
-## 5. Screen Toolkit
+## 6. Screen Toolkit
 
-The **Screen** toolkit assists users in taking screenshots for debugging or designing purposes. It provides:
+The **Screen** toolkit assists users in taking screenshots for debugging or designing purposes:
 
 - **Take Screenshot:** Capture a screenshot and provide the path to the screenshot file.
 - **System Instructions:** Instructions on how to work with screenshots.
 
-## 6. SummarizeRepo Toolkit
+## 7. Summarization Toolkits
 
-The **SummarizeRepo** toolkit helps in summarizing a repository. It includes:
+Goose includes several summarization-focused toolkits:
 
-- **Summarize Repository:** Clone the repository (if not already cloned) and summarize the files based on specified extensions.
+### 7.1 SummarizeRepo Toolkit
+- **Repository Analysis:** Clone and summarize repositories based on specified extensions.
 
-## 7. SummarizeProject Toolkit
+### 7.2 SummarizeProject Toolkit
+- **Project Overview:** Generate or retrieve summaries of project directories based on specified file extensions.
 
-The **SummarizeProject** toolkit generates or retrieves a summary of a project directory based on specified file extensions. It includes:
+### 7.3 SummarizeFile Toolkit
+- **File Content Analysis:** Summarize specific files with optional custom instructions.
 
-- **Get Project Summary:** Generate or retrieve a summary of the project in the specified directory.
+## 8. Web Browser Toolkit
 
-## 8. SummarizeFile Toolkit
+The **Web Browser** toolkit provides web interaction capabilities:
 
-The **SummarizeFile** toolkit helps in summarizing a specific file. It includes:
+- **Web Content Access:** Fetch and analyze web content.
+- **URL Handling:** Process and validate URLs.
+- **Content Extraction:** Extract relevant information from web pages.
 
-- **Summarize File:** Summarize the contents of a specified file with optional instructions.
+## 9. Reasoner Toolkit
+
+The **Reasoner** toolkit enhances decision-making capabilities:
+
+- **Logical Analysis:** Apply reasoning to complex problems.
+- **Decision Support:** Help evaluate options and make informed choices.
+- **Pattern Recognition:** Identify patterns and relationships in data.
+
+## 10. Synopsis Toolkit
+
+The **Synopsis** toolkit provides core development and system interaction capabilities. Note that this toolkit requires the Synopsis moderator to be enabled to function properly.
+
+- **Bash Operations:** Execute shell commands with working directory and source file support.
+- **Text Editing:** View, create, replace, and insert content in files with undo support.
+- **Process Management:** Start, list, view output, and cancel background processes.
+- **Web Content:** Fetch and analyze web content with HTML and text extraction.
+
+> **Important:** This toolkit only works when used with the Synopsis moderator. Make sure the Synopsis moderator is enabled in your configuration to use these capabilities.
