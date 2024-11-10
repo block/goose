@@ -15,8 +15,10 @@ dependencies = [
     "langfuse>=2.38.2",
     "selenium>=4.0.0",
     "beautifulsoup4>=4.9.3",
-    "pyshadow<=0.0.5"
+    "pyshadow<=0.0.5",
+    "google-workspace>=0.20.3",
 ]
+
 author = [{ name = "Block", email = "ai-oss-tools@block.xyz" }]
 packages = [{ include = "goose", from = "src" }]
 
@@ -36,6 +38,7 @@ repo_context = "goose.toolkit.repo_context.repo_context:RepoContext"
 synopsis = "goose.synopsis.toolkit:SynopsisDeveloper"
 browser = "goose.toolkit.web_browser:BrowserToolkit"
 memory = "goose.toolkit.memory:Memory"
+google_workspace = "goose.toolkit.google_workspace:GoogleWorkspace"
 
 [project.entry-points."goose.profile"]
 default = "goose.profile:default_profile"
@@ -84,3 +87,10 @@ ai-exchange = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[project.optional-dependencies]
+google_workspace = [
+    "google-auth-oauthlib>=1.0.0",
+    "google-auth-httplib2>=0.1.0",
+    "google-api-python-client>=2.86.0",
+]
