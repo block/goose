@@ -26,7 +26,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
 
 <p align="center">
 <a href="#unique-features-of-goose-compared-to-other-ai-assistants">Unique features</a> 🤖 •
-<a href="#what-block-employees-have-to-say-about-goose"> Block Employees on Goose</a> <img src="assets/logo.png" height="15" width="15" alt="Block Emoji"/> •
+<a href="#what-users-have-to-say-about-goose"> Testimonials on Goose</a> 👩‍💻 •
 <a href="#quick-start-guide">Quick start guide</a> 🚀 •
 <a href="#getting-involved">Getting involved!</a> 👋
 </p>
@@ -45,7 +45,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
 
 - **Extensibility**: Open-source and fully customizable, Goose integrates with your workflow and allows you to extend it for even more control. **Toolkits let you add new capabilities to Goose.** They are anything you can implement as a Python function (e.g. API requests, deployments, search, etc). We have a growing library of toolkits to use, but more importantly you can create your own. This gives Goose the ability to run these commands and decide if and when a tool is needed to complete your request! **Creating your own toolkits give you a way to bring your own private context into Goose's capabilities.**  And you can use *any* LLM you want under the hood, as long as it supports tool use.
 
-## What Block employees have to say about Goose
+## What users have to say about Goose
 
 > With Goose, I feel like I am Maverick.
 >
