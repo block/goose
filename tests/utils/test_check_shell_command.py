@@ -17,6 +17,8 @@ from goose.utils.shell import is_dangerous_command
         "shutdown now",
         "cat ~/.hello.txt",
         "cat ~/.config/example.txt",
+        "pkill -f gradle",
+        "fuser -k -n tcp 80",
     ],
 )
 def test_dangerous_commands(command):

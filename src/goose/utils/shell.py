@@ -34,6 +34,9 @@ def is_dangerous_command(command: str) -> bool:
         r"\bsystemctl\b",  # systemctl command
         r"\breboot\b",  # reboot command
         r"\bshutdown\b",  # shutdown command
+        # Commands that kill processes
+        r"\b(kill|pkill|killall|xkill|skill)\b",
+        r"\bfuser\b\s*-[kK]",  # fuser -k command
         # Target files that are unsafe
         r"\b~\/\.|\/\.\w+",  # commands that point to files or dirs in home that start with a dot (dotfiles)
     ]
