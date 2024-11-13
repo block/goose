@@ -14,7 +14,7 @@ from exchange.providers.utils import (
 from exchange.tool import Tool
 from tenacity import retry, wait_fixed, stop_after_attempt
 from exchange.providers.utils import retry_if_status
-from exchange.langfuse_wrapper import observe_wrapper
+from exchange.observers import observe_wrapper
 
 OPENAI_HOST = "https://api.openai.com/"
 

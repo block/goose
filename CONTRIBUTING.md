@@ -52,16 +52,22 @@ just test
 > [!NOTE]
 > This integration is experimental and we don't currently have integration tests for it.
  
-Developers can use locally hosted Langfuse tracing by applying the custom `observe_wrapper` decorator defined in `packages/exchange/src/langfuse_wrapper.py` to functions for automatic integration with Langfuse. 
+Developers can use locally hosted Langfuse tracing by applying the custom `observe_wrapper` decorator defined in `packages/exchange/src/exchange/observers` to functions for automatic integration with Langfuse, and potentially other observability providers in the future. 
 
+- Add an `observers` array to your profile containing `langfuse`.
 - Run `just langfuse-server` to start your local Langfuse server. It requires Docker.
 - Go to http://localhost:3000 and log in with the default email/password output by the shell script (values can also be found in the `.env.langfuse.local` file).
 - Run Goose with the --tracing flag enabled i.e., `goose session start --tracing`
 - View your traces at http://localhost:3000
 
-To extend tracing to additional functions, import `from exchange.langfuse_wrapper import observe_wrapper` and use the `observe_wrapper()` decorator on functions you wish to enable tracing for. `observe_wrapper` functions the same way as Langfuse's observe decorator. 
+`To extend tracing to additional functions, import `from exchange.observers import observe_wrapper` and use the `observe_wrapper()` decorator on functions you wish to enable tracing for. `observe_wrapper` functions the same way as Langfuse's observe decorator. 
 
 Read more about Langfuse's decorator-based tracing [here](https://langfuse.com/docs/sdk/python/decorators).
+
+### Other observability plugins
+
+In case locally hosted Langfuse doesn't fit your needs, you can alternatively use other `observer` telemetry plugins to ingest data with the same interface as the Langfuse integration.
+To do so, extend `packages/exchange/src/exchange/observers/base.py:Observer` and include the new plugin's path as an entrypoint in `exchange`'s `pyproject.toml`.
 
 ## Exchange
 

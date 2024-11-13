@@ -1,6 +1,6 @@
 import os
 
-from exchange.langfuse_wrapper import observe_wrapper
+from exchange.observers import observe_wrapper
 import httpx
 
 from exchange.message import Message

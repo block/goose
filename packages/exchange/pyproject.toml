@@ -42,6 +42,9 @@ passive = "exchange.moderators.passive:PassiveModerator"
 truncate = "exchange.moderators.truncate:ContextTruncate"
 summarize = "exchange.moderators.summarizer:ContextSummarizer"
 
+[project.entry-points."exchange.observer"]
+langfuse = "exchange.observers.langfuse:LangfuseObserver"
+
 [project.entry-points."metadata.plugins"]
 ai-exchange = "exchange:module_name"
 

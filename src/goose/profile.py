@@ -14,6 +14,13 @@ class ToolkitSpec:
 
 
 @define
+class ObserverSpec:
+    """Configuration for an Observer (telemetry plugin)"""
+
+    name: str
+
+
+@define
 class Profile:
     """The configuration for a run of goose"""
 
@@ -22,6 +29,7 @@ class Profile:
     accelerator: str
     moderator: str
     toolkits: list[ToolkitSpec] = field(factory=list, converter=ensure_list(ToolkitSpec))
+    observers: list[ObserverSpec] = field(factory=list, converter=ensure_list(ObserverSpec))
 
     @toolkits.validator
     def check_toolkit_requirements(self, _: type["ToolkitSpec"], toolkits: list[ToolkitSpec]) -> None:
@@ -40,8 +48,13 @@ class Profile:
         return asdict(self)
 
     def profile_info(self) -> str:
-        tookit_names = [toolkit.name for toolkit in self.toolkits]
-        return f"provider:{self.provider}, processor:{self.processor} toolkits: {', '.join(tookit_names)}"
+        toolkit_names = [toolkit.name for toolkit in self.toolkits]
+        observer_names = [observer.name for observer in self.observers]
+        return (
+            f"provider:{self.provider}, processor:{self.processor} "
+            f"toolkits: {', '.join(toolkit_names)} "
+            f"observers: {', '.join(observer_names)}"
+        )
 
 
 def default_profile(provider: str, processor: str, accelerator: str, **kwargs: dict[str, any]) -> Profile:
@@ -55,4 +68,5 @@ def default_profile(provider: str, processor: str, accelerator: str, **kwargs: d
         accelerator=accelerator,
         moderator="synopsis",
         toolkits=[ToolkitSpec("synopsis")],
+        observers=[ObserverSpec("langfuse")],
     )

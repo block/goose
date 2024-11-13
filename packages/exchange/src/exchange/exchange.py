@@ -8,10 +8,10 @@ from tiktoken import get_encoding
 
 from exchange.checkpoint import Checkpoint, CheckpointData
 from exchange.content import Text, ToolResult, ToolUse
-from exchange.langfuse_wrapper import observe_wrapper
 from exchange.message import Message
 from exchange.moderators import Moderator
 from exchange.moderators.truncate import ContextTruncate
+from exchange.observers import observe_wrapper
 from exchange.providers import Provider, Usage
 from exchange.token_usage_collector import _token_usage_collector
 from exchange.tool import Tool

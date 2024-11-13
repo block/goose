@@ -1,12 +1,10 @@
-from datetime import datetime
-import logging
 import traceback
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from exchange import Message, Text, ToolResult, ToolUse
-from exchange.langfuse_wrapper import auth_check, observe_wrapper
-from langfuse.decorators import langfuse_context
+from exchange.observers import ObserverManager, observe_wrapper
 from rich import print
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -79,22 +77,16 @@ class Session:
         self.notifier = SessionNotifier(self.status_indicator)
         self.has_plan = plan is not None
         self.tracing = tracing
-        if not tracing:
-            logging.getLogger("langfuse").setLevel(logging.ERROR)
-        else:
-            langfuse_auth = auth_check()
-            if langfuse_auth:
-                print("Local Langfuse initialized. View your traces at http://localhost:3000")
-            else:
-                raise RuntimeError(
-                    "You passed --tracing, but a Langfuse object was not found in the current context. "
-                    "Please initialize the local Langfuse server and restart Goose."
-                )
-        if self.tracing:
-            langfuse_context.configure(enabled=tracing)
 
         self.exchange = create_exchange(profile=load_profile(profile), notifier=self.notifier)
         setup_logging(log_file_directory=LOG_PATH, log_level=log_level)
+
+        all_observers = load_plugins(group="exchange.observer")
+        profile_observer_names = load_profile(profile).observers
+        observers_to_init = [all_observers[o.name]() for o in profile_observer_names if o.name in all_observers]
+
+        self.observer_manager = ObserverManager.get_instance()
+        self.observer_manager.initialize(tracing=tracing, observers=observers_to_init)
 
         self.exchange.messages.extend(self._get_initial_messages())
 
@@ -102,6 +94,10 @@ class Session:
             self.setup_plan(plan=plan)
 
         self.prompt_session = GoosePromptSession()
+
+    def __del__(self) -> None:
+        if hasattr(self, "observer_manager"):
+            self.observer_manager.finalize()
 
     def _get_initial_messages(self) -> list[Message]:
         messages = self.load_session()
@@ -211,12 +207,9 @@ class Session:
         time_end = datetime.now()
         self._log_cost(start_time=time_start, end_time=time_end)
 
-    @observe_wrapper()
+    @observe_wrapper(session_id=lambda instance: instance.name)
     def reply(self) -> None:
         """Reply to the last user message, calling tools as needed"""
-        # group all traces under the same session
-        langfuse_context.update_current_trace(session_id=self.name)
-
         # These are the *raw* messages, before the moderator rewrites things
         committed = [self.exchange.messages[-1]]
 

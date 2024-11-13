@@ -1,10 +1,11 @@
-from datetime import datetime
 import os
+from datetime import datetime
 from typing import Union
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 from exchange import Message, ToolResult, ToolUse
+from exchange.observers import ObserverManager
 from goose.cli.prompt.goose_prompt_session import GoosePromptSession
 from goose.cli.prompt.overwrite_session_prompt import OverwriteSessionPrompt
 from goose.cli.prompt.user_input import PromptAction, UserInput
@@ -260,3 +261,22 @@ def test_prompt_overwrite_session(session_factory):
         choice="r",
         expected_messages=[Message.user(text="duck duck"), Message.user(text="goose")],
     )
+
+
+def test_observer_plugin_called(create_session_with_mock_configs):
+    observer_mock = MagicMock()
+    observe_wrapper_mock = MagicMock()
+    observer_mock.observe_wrapper = observe_wrapper_mock
+
+    observer_manager_mock = MagicMock(spec=ObserverManager)
+    observer_manager_mock._observers = [observer_mock]
+
+    with patch("exchange.observers.ObserverManager.get_instance", return_value=observer_manager_mock), patch(
+        "exchange.Exchange.generate", return_value=Message.assistant("test response")
+    ):
+        session = create_session_with_mock_configs({"name": SESSION_NAME})
+
+        session.exchange.messages.append(Message.user("hi"))
+        session.reply()
+
+        observe_wrapper_mock.assert_called_once()
