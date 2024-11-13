@@ -114,6 +114,7 @@ nav:
   - "Contributing": contributing.md
   - Guidance:
       - "Getting Started": guidance/getting-started.md
+      - "Managing Goose Sessions": guidance/managing-goose-sessions.md
       - "Quick Tips": guidance/tips.md
       - "Applications of Goose": guidance/applications.md
       - "Goose in Action": guidance/goose-in-action.md
