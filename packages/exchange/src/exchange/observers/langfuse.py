@@ -67,11 +67,12 @@ class LangfuseObserver(Observer):
         langfuse_context.configure(enabled=False)
         self.tracing = False
 
-    def session_id_wrapper(self, func: Callable, session_id) -> Callable:
+    def session_id_wrapper(self, func: Callable, session_id: str) -> Callable:
         @wraps(func)  # This will preserve the metadata of 'func'
-        def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs) -> Callable:  # noqa: ANN002, ANN003
             langfuse_context.update_current_trace(session_id=session_id)
             return func(*args, **kwargs)
+
         return wrapper
 
     def observe_wrapper(self, *args, **kwargs) -> Callable:  # noqa: ANN002, ANN003
@@ -88,6 +89,7 @@ class LangfuseObserver(Observer):
                         return langfuse_context.observe(*args, **kwargs)(modified_fn)(*fargs, **fkwargs)
                     else:
                         return langfuse_context.observe(*args, **kwargs)(fn)(*fargs, **fkwargs)
+
                 return wrapped_fn
             else:
                 return fn
