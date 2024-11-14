@@ -137,6 +137,17 @@ From your terminal, navigate to the directory you'd like to start from and run:
 goose session start
 ```
 
+#### Set up a provider
+Goose works on top of LLMs and by default, it uses `openai` as the LLM provider but you can customize it as needed. You'll be prompted to set an [OPENAI_API_KEY][openai-key] if you haven't set one previously.
+
+>[!TIP]
+> **Billing:**
+>
+> You will need to add credits to your Open AI accounts to be able to successfully make requests.
+>
+
+
+#### Make Goose do the work for you
 You will see the Goose prompt `G❯`:
 
 ```
@@ -254,6 +265,7 @@ Let us know what you think in our [Discussions][discussions] or the [**`#goose`*
 [providers]: https://block.github.io/goose/providers.html
 [use-cases]: https://block.github.io/goose/guidance/applications.html
 [getting-started]: https://block.github.io/goose/guidance/getting-started.html
+[openai-key]: https://platform.openai.com/api-keys
 
 [discord-invite]: https://discord.gg/7GaTvbDwga
 [gh-issues]: https://github.com/block/goose/issues

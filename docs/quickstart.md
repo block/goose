@@ -39,7 +39,7 @@ Goose works on top of LLMs and by default, it uses `openai` as the LLM provider 
 >
 
 
-#### Make Goose work for you
+#### Make Goose do the work for you
 You will see the Goose prompt `G❯`:
 
 ```
