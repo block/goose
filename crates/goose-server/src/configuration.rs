@@ -106,15 +106,25 @@ impl Settings {
     }
 
     fn load_and_validate() -> Result<Self, ConfigError> {
-        // Start with default configuration
-        let config = Config::builder()
-            // Server defaults
+        // Check for OpenAI API key in environment
+        let mut builder = Config::builder();
+        
+        // Server defaults
+        builder = builder
             .set_default("server.host", default_host())?
             .set_default("server.port", default_port())?
             // Provider defaults
             .set_default("provider.host", default_openai_host())?
-            .set_default("provider.model", default_model())?
-            // Layer on the environment variables
+            .set_default("provider.model", default_model())?;
+
+        // If OPENAI_API_KEY exists, set OpenAI as the default provider
+        if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+            builder = builder
+                .set_default("provider.type", "openai")?
+                .set_default("provider.api_key", api_key)?;
+        }
+        // Layer on the environment variables
+        let config = builder
             .add_source(
                 Environment::with_prefix("GOOSE")
                     .prefix_separator("_")
@@ -177,6 +187,31 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use std::env;
+
+    #[test]
+    #[serial]
+    fn test_openai_api_key_default() {
+        clean_env();
+        env::set_var("OPENAI_API_KEY", "test-openai-key");
+
+        let settings = Settings::new().unwrap();
+        if let ProviderSettings::OpenAi {
+            host,
+            api_key,
+            model,
+            ..
+        } = settings.provider
+        {
+            assert_eq!(host, "https://api.openai.com");
+            assert_eq!(api_key, "test-openai-key");
+            assert_eq!(model, "gpt-4o");
+        } else {
+            panic!("Expected OpenAI provider");
+        }
+
+        // Clean up
+        env::remove_var("OPENAI_API_KEY");
+    }
 
     fn clean_env() {
         for (key, _) in env::vars() {
