@@ -228,23 +228,33 @@ impl Agent {
                 // Yield the assistant's response
                 yield response.clone();
 
-                // If there are tool calls, handle them and continue the conversation
+                // If there are tool calls, handle them in phases
                 if response.has_tool_request() {
-                    // Handle all tool calls in the response
-                    let mut content = Vec::new();
+                    // Phase 1: Collect and process all tool requests
+                    let mut tool_requests = Vec::new();
                     for tool_request in response.tool_request() {
-                        let output = self.dispatch_tool_call(tool_request.call).await;
-
-                        content.push(Content::ToolResponse(ToolResponse {request_id: tool_request.id, output}));
+                        tool_requests.push(tool_request);
                     }
 
-                    // Create and add the tool response message
+                    // Phase 2: Dispatch tool calls and collect responses
+                    let mut content = Vec::new();
+                    for tool_request in tool_requests {
+                        // Add a small delay before processing each tool call to ensure proper sequencing
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        
+                        let output = self.dispatch_tool_call(tool_request.call).await;
+                        content.push(Content::ToolResponse(ToolResponse {
+                            request_id: tool_request.id, 
+                            output
+                        }));
+                    }
+
+                    // Phase 3: Create and yield the tool response message
                     let tool_response = Message::new(Role::User, content)
                         .expect("Failed to create tool response message");
-                    // messages.push(tool_response.clone());
                     yield tool_response.clone();
 
-                    // Remove the last two status msgs and then add the response, and tool outputs
+                    // Update conversation history
                     self.rewrite_messages_on_tool_response(&mut messages, vec![response.clone(), tool_response.clone()]).await?;
                 } else {
                     // No more tool calls, end the conversation

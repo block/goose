@@ -148,8 +148,10 @@ async fn chat_handler(
                     match message.role {
                         Role::User => {
                             // Handle tool results if present
-                            if let Some(Content::ToolResponse(tool_data)) = message.content.first()
-                            {
+                            if let Some(Content::ToolResponse(tool_data)) = message.content.first() {
+                                // Introduce a small delay to ensure tool calls and results are separated
+                                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                                
                                 let result = json!({
                                     "toolCallId": tool_data.request_id,
                                     "result": tool_data.output.as_ref().unwrap(),
@@ -175,13 +177,8 @@ async fn chat_handler(
                                         // Split text by newlines and send each line separately
                                         for line in text.lines() {
                                             let escaped_line = line.replace('\"', "\\\"");
-                                            if let Err(e) =
-                                                tx.send(format!("0:\"{}\"\n", escaped_line)).await
-                                            {
-                                                tracing::error!(
-                                                    "Error sending line through channel: {}",
-                                                    e
-                                                );
+                                            if let Err(e) = tx.send(format!("0:\"{}\"\n", escaped_line)).await {
+                                                tracing::error!("Error sending line through channel: {}", e);
                                                 break;
                                             }
                                         }
