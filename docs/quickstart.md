@@ -43,7 +43,7 @@ Goose works on top of LLMs and by default, it uses `openai` as the LLM provider 
 You will see the Goose prompt `G❯`:
 
 ```
-G❯ type your instructions here exactly as you would tell a developer.
+G❯ type your instructions here exactly as you would speak to a developer.
 ```
 
 Now you are interacting with Goose in conversational sessions - think of it like you're giving directions to a junior developer. The default toolkit allows Goose to take actions through shell commands and file edits. You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
