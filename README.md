@@ -143,7 +143,7 @@ Goose works with your [preferred LLM](https://block.github.io/goose/plugins/prov
 >[!TIP]
 > **Billing:**
 >
-> You will need to add credits to your Open AI accounts to be able to successfully make requests.
+> You will need to have credits in your LLM Provider account to be able to successfully make requests.
 >
 
 
