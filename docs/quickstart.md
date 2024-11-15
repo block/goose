@@ -94,7 +94,7 @@ We have some experimental IDE integrations for VSCode and JetBrains IDEs:
 
 **Goose as a Github Action**
 
-There is also an experimental Github action to run goose as part of your workflow (for example if you ask it to fix an issue):
+There is also an experimental Github action to run Goose as part of your workflow (e.g., if you ask it to fix an issue):
 https://github.com/marketplace/actions/goose-ai-developer-agent
 
 **With Docker**
