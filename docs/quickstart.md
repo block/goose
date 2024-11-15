@@ -84,7 +84,7 @@ You can place `.goosehints` in `~/.config/goose/.goosehints` if you like for alw
 
 ### Next steps
 
-Learn how to modify your Goose profiles.yaml file to add and remove functionality (toolkits) and providing context to get the most out of Goose in our [Getting Started Guide][getting-started].
+Review the [Getting Started Guide][getting-started] to learn how to modify the Goose `profiles.yaml` file to add and remove functionality (toolkits) and provide additional context to get the most out of Goose.
 
 **Want to move out of the terminal and into an IDE?**
 
