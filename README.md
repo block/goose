@@ -138,7 +138,7 @@ goose session start
 ```
 
 #### Set up a provider
-Goose works on top of LLMs and by default, it uses `openai` as the LLM provider but you can customize it as needed. You'll be prompted to set an [OPENAI_API_KEY][openai-key] if you haven't set one previously.
+Goose works with your [preferred LLM](https://block.github.io/goose/plugins/providers.html). By default, it uses `openai` as the LLM provider. You'll be prompted to set an [API key][openai-key] if you haven't set one previously.
 
 >[!TIP]
 > **Billing:**
