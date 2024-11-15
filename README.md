@@ -138,7 +138,7 @@ goose session start
 ```
 
 #### Set up a provider
-Goose works with your [preferred LLM](https://block.github.io/goose/plugins/providers.html). By default, it uses `openai` as the LLM provider. You'll be prompted to set an [API key][openai-key] if you haven't set one previously.
+Goose works with your [preferred LLM][providers]. By default, it uses `openai` as the LLM provider. You'll be prompted to set an [API key][openai-key] if you haven't set one previously.
 
 >[!TIP]
 > **Billing:**
@@ -151,7 +151,7 @@ Goose works with your [preferred LLM](https://block.github.io/goose/plugins/prov
 You will see the Goose prompt `G❯`:
 
 ```
-G❯ type your instructions here exactly as you would tell a developer.
+G❯ type your instructions here exactly as you would speak to a developer.
 ```
 
 Now you are interacting with Goose in conversational sessions - think of it as like giving direction to a junior developer. The default toolkit allows Goose to take actions through shell commands and file edits. You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
@@ -182,7 +182,7 @@ If you are looking to exit, use `CTRL+D`, although Goose should help you figure 
 
 #### Resume a session
 
-When you exit a session, it will save the history in `~/.config/goose/sessions` directory and you can resume it later on:
+When you exit a session, it will save the history in `~/.config/goose/sessions` directory. You can then resume your last saved session later, using:
 
 ``` sh
 goose session resume
