@@ -66,7 +66,7 @@ When you exit a session, it will save the history in `~/.config/goose/sessions` 
 goose session resume
 ```
 
-To see more documentation on the CLI commands currently available to Goose check out the documentation [here][cli]. If you’d like to develop your own CLI commands for Goose, check out the [Contributing document][contributing].
+To see more documentation on the available CLI commands, check out the [documentation][cli]. If you’d like to develop your own CLI commands for Goose, check out the [Contributing document][contributing].
 
 ### Running a goose tasks (one off)
 
