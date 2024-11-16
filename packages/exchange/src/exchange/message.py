@@ -6,7 +6,7 @@ from typing import Literal
 from attrs import define, field
 from jinja2 import Environment, FileSystemLoader
 
-from exchange.content import CONTENT_TYPES, Content, Text, ToolResult, ToolUse
+from exchange.content import CONTENT_TYPES, Content, Text, ToolResult, ToolUse, ImageUrl
 from exchange.utils import create_object_id
 
 Role = Literal["user", "assistant"]
@@ -14,8 +14,8 @@ Role = Literal["user", "assistant"]
 
 def validate_role_and_content(instance: "Message", *_: any) -> None:  # noqa: ANN401
     if instance.role == "user":
-        if not (instance.text or instance.tool_result):
-            raise ValueError("User message must include a Text or ToolResult")
+        if not (instance.text or instance.tool_result or instance.image_content):
+            raise ValueError("User message must include a Text or ToolResult or ImageUrl")
         if instance.tool_use:
             raise ValueError("User message does not support ToolUse")
     elif instance.role == "assistant":
@@ -25,9 +25,21 @@ def validate_role_and_content(instance: "Message", *_: any) -> None:  # noqa: AN
             raise ValueError("Assistant message does not support ToolResult")
 
 
-def content_converter(contents: list[dict[str, any]]) -> list[Content]:
-    return [(CONTENT_TYPES[c.pop("type")](**c) if c.__class__ not in CONTENT_TYPES.values() else c) for c in contents]
-
+def content_converter(contents: list) -> list[Content]:                                                                                                                      
+     result = []                                                                                                                                                              
+     for c in contents:                                                                                                                                                       
+         if isinstance(c, dict) and 'type' in c:  # Structured content logic                                                                                                  
+             content_type = c.pop('type')                                                                                                                                     
+             if content_type in CONTENT_TYPES:                                                                                                                                
+                 result.append(CONTENT_TYPES[content_type](**c))                                                                                                              
+         elif isinstance(c, Content):  # Already a Content instance                                                                                                           
+             result.append(c)                                                                                                                                                 
+         elif isinstance(c, str):  # Plain text handling                                                                                                                      
+             result.append(Text(text=c))                                                                                                                                      
+         else:                                                                                                                                                                
+             # Handle unexpected content formats if necessary                                                                                                                 
+             raise ValueError(f"Unsupported content type: {type(c)}")                                                                                                         
+     return result       
 
 @define
 class Message:
@@ -57,6 +69,15 @@ class Message:
             "created": self.created,
             "content": [item.to_dict() for item in self.content],
         }
+    
+    @property
+    def image_content(self) -> list[ImageUrl]:
+        """All images in this message."""
+        result = []
+        for content in self.content:
+            if isinstance(content, ImageUrl):
+                result.append(content)
+        return result
 
     @property
     def text(self) -> str:

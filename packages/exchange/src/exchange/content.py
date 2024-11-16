@@ -19,6 +19,18 @@ class Content:
 
 
 @define
+class ImageUrl(Content):
+    url: str
+
+    def to_dict(self) -> dict[str, any]:
+        return {"type": "image_url", "image_url": {"url": self.url}}
+
+    @property
+    def summary(self) -> str:
+        return f"[Image: {self.url}]"
+
+
+@define
 class Text(Content):
     text: str
 

@@ -1,7 +1,7 @@
 [project]
 name = "goose-ai"
 description = "a programming agent that runs on your machine"
-version = "0.9.11"
+version = "0.9.12"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -39,6 +39,7 @@ synopsis = "goose.synopsis.toolkit:SynopsisDeveloper"
 browser = "goose.toolkit.web_browser:BrowserToolkit"
 memory = "goose.toolkit.memory:Memory"
 google_workspace = "goose.toolkit.google_workspace:GoogleWorkspace"
+vision = "exchange.tools.vision_toolkit:VisionToolkit"
 
 [project.entry-points."goose.profile"]
 default = "goose.profile:default_profile"

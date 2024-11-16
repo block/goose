@@ -4,7 +4,7 @@ import re
 from typing import Optional
 
 import httpx
-from exchange.content import Text, ToolResult, ToolUse
+from exchange.content import Text, ToolResult, ToolUse, ImageUrl
 from exchange.message import Message
 from exchange.tool import Tool
 from tenacity import retry_if_exception
@@ -99,7 +99,18 @@ def messages_to_openai_spec(messages: list[Message]) -> list[dict[str, any]]:
                             "tool_call_id": content.tool_use_id,
                         }
                     )
-
+            elif isinstance(content, ImageUrl):
+                output.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": content.url},
+                            }
+                        ],
+                    }
+                )
         if "content" in converted or "tool_calls" in converted:
             output = [converted] + output
         messages_spec.extend(output)

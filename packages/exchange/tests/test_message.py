@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from exchange.message import Message
-from exchange.content import Text, ToolUse, ToolResult
+from exchange.content import Text, ToolUse, ToolResult, ImageUrl
 
 
 def test_user_message():
@@ -36,6 +36,16 @@ def test_message_tool_result():
     message = Message(role="user", content=[tr1, tr2])
     assert len(message.tool_result) == 2
     assert message.tool_result[0].output == "result"
+
+
+def test_message_image_content():
+    img1 = ImageUrl(url="https://picsum.photos/id/1/200/200")
+    img2 = ImageUrl(url="https://picsum.photos/id/200/200/200")
+    message = Message(role="user", content=["here are two images", img1, img2])
+    
+    assert len(message.image_content) == 2
+    assert message.image_content[0].url == "https://picsum.photos/id/1/200/200"
+    assert message.image_content[1].url == "https://picsum.photos/id/200/200/200"
 
 
 def test_message_load(tmpdir):
