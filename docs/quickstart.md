@@ -56,7 +56,7 @@ Now you are interacting with Goose in conversational sessions. Think of it like 
 
 #### Exit the session
 
-If you are looking to exit, use `CTRL+D`, although Goose should help you figure that out if you forget.
+If you are looking to exit, use `CTRL+D`.
 
 #### Resume a session
 
@@ -68,9 +68,9 @@ goose session resume
 
 To see more documentation on the available CLI commands, check out the [documentation][cli]. If you’d like to develop your own CLI commands for Goose, check out the [Contributing document][contributing].
 
-### Running a goose tasks (one off)
+### Running a Goose task
 
-You can run goose to do things just as a one off, such as tidying up, and then exiting:
+You can run Goose to do things just as a one off, such as tidying up, and then exiting:
 
 ```sh
 goose run instructions.md
