@@ -2,14 +2,8 @@ import React, { useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import Chat from './Chat';
 
-export interface Chat {
-  id: number;
-  title: string;
-  messages: Array<{ id: number; role: string; content: string }>;
-}
-
 export default function App() {
-  const initialChats: Chat[] = [
+  const initialChats = [
     { id: 1, title: 'Chat 1', messages: [] },
   ]
 

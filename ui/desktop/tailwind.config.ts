@@ -19,6 +19,13 @@ export default {
         background: 'var(--background)',
         foreground: 'var(--foreground)',
         tab: '#E9F7FA',
+
+        'tool-bold': 'rgba(0, 0, 0, 0.65);',
+        'tool': 'rgba(0, 0, 0, 0.50);',
+
+        'tool-result-green': '#028E00;',
+        'tool-card': 'rgba(255, 255, 255, 0.80);',
+        'user-bubble': 'rgba(85, 95, 231, 0.90);',
         'goose-bubble': 'rgba(0, 0, 0, 0.12);'
       },
       borderRadius: {

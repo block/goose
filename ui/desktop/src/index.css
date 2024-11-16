@@ -2,18 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-.inter-app-type {
-  color: rgba(0, 0, 0, 0.90);
-  font-family: Inter;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 500;
-  line-height: normal;
-}
-
 @layer base {
   :root {
     --radius: 0.5rem;
+  }
+
+  .inter-app-type {
+    color: rgba(0, 0, 0, 0.90);
+    font-family: Inter;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
   }
 }
 
@@ -26,6 +26,17 @@
     font-weight: 600;
     line-height: normal;
     letter-spacing: 1.6px;
+  }
+
+  .tool-form-button {
+    color: #7A7EFB;
+    text-align: center;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: var(--Type-styles-Paragraph-leading-20, 22px);
+    letter-spacing: var(--Type-styles-Paragraph-tracking-20, 0px);
+    background: var(--fill-40, rgba(0, 0, 0, 0.05))
   }
 }
 
