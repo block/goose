@@ -149,8 +149,6 @@ async fn chat_handler(
                         Role::User => {
                             // Handle tool results if present
                             if let Some(Content::ToolResponse(tool_data)) = message.content.first() {
-                                // Introduce a small delay to ensure tool calls and results are separated
-                                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                                 
                                 let result = json!({
                                     "toolCallId": tool_data.request_id,
