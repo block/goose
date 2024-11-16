@@ -40,6 +40,7 @@ theme:
     logo: assets/logo.ico
 # plugins
 plugins:
+  - blog
   - include-markdown
   - callouts
   - glightbox
@@ -112,6 +113,8 @@ nav:
   - Home: index.md
   - "Installation": installation.md
   - "Contributing": contributing.md
+  - Blog:
+    - "Blog Home": blog/index.md
   - Guidance:
       - "Getting Started": guidance/getting-started.md
       - "Managing Goose Sessions": guidance/managing-goose-sessions.md
