@@ -66,6 +66,9 @@ When you exit a session, it will save the history in `~/.config/goose/sessions` 
 goose session resume
 ```
 
+Check out the [Managing Goose sessions][managing-sessions] to learn more about working with sessions in Goose.
+
+
 To see more documentation on the available CLI commands, check out the [documentation][cli]. If you’d like to develop your own CLI commands for Goose, check out the [Contributing document][contributing].
 
 ### Running a Goose task
@@ -113,3 +116,4 @@ There is also a `Dockerfile` in the root of this project you can use if you want
 [openai-key]: https://platform.openai.com/api-keys
 [getting-started]: https://block.github.io/goose/guidance/getting-started.html
 [providers]: https://block.github.io/goose/providers.html
+[managing-sessions]: https://block.github.io/goose/guidance/managing-goose-sessions.html
