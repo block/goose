@@ -1,6 +1,3 @@
-import os
-import platform
-
 from exchange.content import ImageUrl
 from exchange.exchange import Exchange
 from exchange.message import Message
@@ -21,10 +18,6 @@ class VisionToolkit(Toolkit):
             image (ImageUrl): The URL of the image to analyze.
             instructions (str): Instructions for the AI on what kind of analysis to perform.
         """
-        if image.startswith('data:'):
-            print("Using base64 image")
-
-
         image = ImageUrl(url=image)
         user_message = Message(role="user", content=[f"{instructions}: ", image])
         exchange = Exchange(
