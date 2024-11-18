@@ -39,7 +39,7 @@ synopsis = "goose.synopsis.toolkit:SynopsisDeveloper"
 browser = "goose.toolkit.web_browser:BrowserToolkit"
 memory = "goose.toolkit.memory:Memory"
 google_workspace = "goose.toolkit.google_workspace:GoogleWorkspace"
-vision = "goose.toolkit.vision_toolkit:VisionToolkit"
+vision = "goose.toolkit.vision:VisionToolkit"
 
 [project.entry-points."goose.profile"]
 default = "goose.profile:default_profile"
