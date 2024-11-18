@@ -1,7 +1,7 @@
 import os
 import platform
 
-from exchange.content import ImageUrl, ToolResult
+from exchange.content import ImageUrl
 from exchange.exchange import Exchange
 from exchange.message import Message
 from exchange.providers.openai import OpenAiProvider
@@ -27,16 +27,15 @@ class VisionToolkit(Toolkit):
 
         image = ImageUrl(url=image)
         user_message = Message(role="user", content=[f"{instructions}: ", image])
-        ex = Exchange(
+        exchange = Exchange(
             provider=OpenAiProvider.from_env(),
             model="gpt-4o-mini",
             system="You are a helpful assistant.",
             messages=[user_message],
             tools=[],
         )
-        message_response = ex.reply()
-        print(message_response.content[0].text)
-        return str(message_response.content[0].text)
+        assistant_response = exchange.reply()
+        return assistant_response.content[0].text
 
     def system(self) -> str:
         return """This toolkit allows you to visually analyze images using AI capabilities."""
