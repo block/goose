@@ -112,6 +112,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - "Installation": installation.md
+  - "Quickstart": quickstart.md
   - "Contributing": contributing.md
   - Blog:
     - "Blog Home": blog/index.md
