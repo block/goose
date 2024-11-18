@@ -103,12 +103,7 @@ def messages_to_openai_spec(messages: list[Message]) -> list[dict[str, any]]:
                 output.append(
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": content.url},
-                            }
-                        ],
+                        "content": [content.to_dict()]
                     }
                 )
         if "content" in converted or "tool_calls" in converted:

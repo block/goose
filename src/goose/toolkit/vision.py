@@ -1,4 +1,6 @@
+import os
 from exchange.content import ImageUrl
+from exchange.providers.utils import encode_image
 from exchange.exchange import Exchange
 from exchange.message import Message
 from exchange.providers.openai import OpenAiProvider
@@ -15,9 +17,13 @@ class VisionToolkit(Toolkit):
         """Analyze an image and return a description or other analysis based on the instructions.
 
         Args:
-            image (ImageUrl): The URL of the image to analyze.
+            image (ImageUrl): The URL or base64 encoded image to analyze.
             instructions (str): Instructions for the AI on what kind of analysis to perform.
         """
+        if os.path.isfile(image):
+            encoded_image = encode_image(image)
+            image = f"data:image/jpeg;base64,{encoded_image}"
+        
         image = ImageUrl(url=image)
         user_message = Message(role="user", content=[f"{instructions}: ", image])
         exchange = Exchange(
