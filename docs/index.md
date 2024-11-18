@@ -27,7 +27,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
 <p align="center">
 <a href="#unique-features-of-goose-compared-to-other-ai-assistants">Unique features</a> 🤖 •
 <a href="#what-users-have-to-say-about-goose"> Testimonials on Goose</a> 👩‍💻 •
-<a href="#quick-start-guide">Quick start guide</a> 🚀 •
+<a href="https://block.github.io/goose/quickstart.html">Quickstart guide</a> 🚀 •
 <a href="#getting-involved">Getting involved!</a> 👋
 </p>
 
