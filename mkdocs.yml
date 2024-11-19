@@ -120,6 +120,7 @@ nav:
       - "Getting Started": guidance/getting-started.md
       - "Managing Goose Sessions": guidance/managing-goose-sessions.md
       - "Quick Tips": guidance/tips.md
+      - "Using Goosehints": guidance/using-goosehints.md
       - "Applications of Goose": guidance/applications.md
       - "Goose in Action": guidance/goose-in-action.md
   - Plugins:
