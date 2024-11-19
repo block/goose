@@ -10,7 +10,7 @@
 This guide will walk you through using your `.goosehints` file to streamline your workflow with custom instructions and context.
 
 ## Creating your `.goosehints` file
-You can place a `.goosehints` file in your current working directory or globally at `~/.config/goose/.goosehints`. This file can include any repeated instructions or contextual details relevant to your projects.x
+You can place a `.goosehints` file in your current working directory or globally at `~/.config/goose/.goosehints`. This file can include any repeated instructions or contextual details relevant to your projects.
 
 A good time to consider adding a `.goosehints` file is when you find your self repeating prompts, or providing the same kind of instructions multiple times.
 
