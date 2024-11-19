@@ -5,7 +5,7 @@ use crate::session::Session;
 use goose::agent::Agent;
 use goose::providers::factory;
 
-use crate::prompt::CliclackPrompt;
+use crate::prompt::cliclack::CliclackPrompt;
 use rand::{distributions::Alphanumeric, Rng};
 
 use crate::commands::expected_config::get_recommended_models;

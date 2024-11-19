@@ -1,8 +1,7 @@
 use anyhow::Result;
 use futures::StreamExt;
 
-use crate::prompt::InputType;
-use crate::prompt::Prompt;
+use crate::prompt::prompt::{InputType, Prompt};
 
 use goose::agent::Agent;
 use goose::developer::DeveloperSystem;

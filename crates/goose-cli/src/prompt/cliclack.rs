@@ -5,47 +5,7 @@ use bat::WrappingMode;
 use cliclack::{input, spinner};
 use goose::models::message::{Message, MessageContent};
 
-pub trait Prompt {
-    fn render(&mut self, message: Box<Message>);
-    fn get_input(&mut self) -> Result<Input>;
-    fn show_busy(&self);
-    fn hide_busy(&self);
-    fn close(&self);
-    fn goose_ready(&self) {
-        self.draw_goose();
-    }
-
-    fn draw_goose(&self) {
-        println!(
-            r#"
-        __
-       ( 0)>
-       ||
-       ||
-     __||_
-  <=/     \=>
-    \_____/
-     |  |
-     ^  ^
-    "#
-        );
-    }
-}
-
-pub struct Input {
-    pub input_type: InputType,
-    pub content: Option<String>, // Optional content as sometimes the user may be issuing a command eg. (Exit)
-}
-
-pub enum InputType {
-    Message, // User sent a message
-    Exit,    // User wants to exit the session
-}
-
-pub enum Theme {
-    Light,
-    Dark,
-}
+use super::prompt::{Input, InputType, Prompt, Theme};
 
 pub struct CliclackPrompt {
     spinner: cliclack::ProgressBar,
@@ -136,18 +96,16 @@ impl Prompt for CliclackPrompt {
         for message_content in &message.content {
             match message_content {
                 MessageContent::Text(text) => print(&text.text, theme),
-                MessageContent::ToolRequest(tool_request) => {
-                    match &tool_request.tool_call {
-                        Ok(call) => {
-                            print_tool_request(
-                                &serde_json::to_string_pretty(&call.arguments).unwrap(),
-                                theme,
-                                &call.name,
-                            );
-                        }
-                        Err(e) => print(&e.to_string(), theme),
+                MessageContent::ToolRequest(tool_request) => match &tool_request.tool_call {
+                    Ok(call) => {
+                        print_tool_request(
+                            &serde_json::to_string_pretty(&call.arguments).unwrap(),
+                            theme,
+                            &call.name,
+                        );
                     }
-                }
+                    Err(e) => print(&e.to_string(), theme),
+                },
                 MessageContent::ToolResponse(tool_response) => {
                     match &tool_response.tool_result {
                         Ok(output) => {
@@ -166,7 +124,7 @@ impl Prompt for CliclackPrompt {
                         }
                         Err(e) => print(&e.to_string(), theme),
                     }
-                },
+                }
                 MessageContent::Image(image) => {
                     println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
                 }
