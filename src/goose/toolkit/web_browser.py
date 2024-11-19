@@ -285,6 +285,7 @@ class BrowserToolkit(Toolkit):
                     time.sleep(2)
                 else:
                     raise
+
     @tool
     def click_element_by_link_text(self, link_text: str, exact_match: bool = True) -> None:
         """Click on a page element using the text visible on the page.
