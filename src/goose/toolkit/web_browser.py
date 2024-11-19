@@ -286,8 +286,8 @@ class BrowserToolkit(Toolkit):
                 else:
                     raise
     @tool
-    def click_element_by_link_text(self, link_text: str, exact_match=True) -> None:
-        """Click on a page element using the text visible on the page. 
+    def click_element_by_link_text(self, link_text: str, exact_match: bool = True) -> None:
+        """Click on a page element using the text visible on the page.
         Useful when the page has multiple links or buttons, and you want to click on a specific one.
 
         Args:
@@ -298,7 +298,7 @@ class BrowserToolkit(Toolkit):
         match_type = By.LINK_TEXT if exact_match else By.PARTIAL_LINK_TEXT
         element = self.driver.find_element(match_type, link_text)
         element.click()
-    
+
     @tool
     def find_element_by_text_soup(self, text: str, filename: str) -> str:
         """Find an element containing the specified text using BeautifulSoup on HTML content stored in a file.
