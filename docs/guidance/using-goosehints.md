@@ -14,6 +14,8 @@ You can place a `.goosehints` file in your current working directory or globally
 
 A good time to consider adding a `.goosehints` file is when you find your self repeating prompts, or providing the same kind of instructions multiple times.
 
+The `.goosehints` file follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables. But you can also add instructions in natural language.
+
 ### Setting Rules
 
 Some rules you can define for Goose to follow:
@@ -38,3 +40,6 @@ Run tests with `npm run test` ideally after each change.
 
 - **Keep It Updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
 - **Be Concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
+
+
+[jinja-guide]: https://jinja.palletsprojects.com/en/3.1.x/
