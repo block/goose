@@ -5,26 +5,32 @@
 >[!TIP]
 > **Developer toolkit required**
 >
-> To make use of the hints file, you need to have the `developer` toolkit enabled.
+> To make use of the hints file, you need to have the `developer` toolkit [enabled](https://block.github.io/goose/plugins/using-toolkits.html).
 
 This guide will walk you through creating and using your `.goosehints` file to streamline your workflow with custom instructions and context.
 
 ## Creating your `.goosehints` file
 You can place a `.goosehints` file in your current working directory or globally at `~/.config/goose/.goosehints`. This file can include any repeated instructions or contextual details relevant to your projects.
 
-A good time to consider adding a `.goosehints` file is when you find your self repeating prompts, or providing the same kind of instructions multiple times.
+A good time to consider adding a `.goosehints` file is when you find yourself repeating prompts, or providing the same kind of instructions multiple times.
 
-The `.goosehints` file follows [jinja templating rules][jinja-guide], so you can leverage templating to insert file contents or variables. You can also add instructions in natural language.
+### Setting up hints
 
-### Setting Rules
+The `.goosehints` file supports natural language and also follows [jinja templating rules][jinja-guide], so you can leverage templating to insert file contents or variables.
 
-Some rules you can define for Goose to follow:
+Here are some ways people have used hints to provide additional context for Goose to follow:
+
 - **Decision-Making**: Specify if Goose should autonomously make changes or confirm actions with you first.
+
 - **Validation Routines**: Provide test cases or validation methods that Goose should perform to ensure changes meet project specifications.
+
 - **Feedback Loop**: Include steps that allow Goose to receive feedback and iteratively improve its suggestions.
+
 - **Point to more detailed documentation**: Indicate important files like `README.md`, `CONTRIBUTING.md`, or others that Goose should consult for detailed explanations.
 
-Example:
+Like prompts, this is not an extensive list to shape your `.goosehints` file. You can include as much context as you need.
+
+Example `.goosehints file`:
 
 ```jinja
 This is a simple example JavaScript web application that uses the Express.js framework. View [Express documentation](https://expressjs.com/) for extended guidance.
@@ -32,6 +38,9 @@ This is a simple example JavaScript web application that uses the Express.js fra
 Go through the README.md for information on how to build and test it as needed.
 
 Make sure to confirm all changes with me before applying.
+
+Use the following custom values when needed:
+{% include custom-config.js %}
 
 Run tests with `npm run test` ideally after each change.
 ```
