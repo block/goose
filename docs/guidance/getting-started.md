@@ -59,7 +59,7 @@ The following justfile shows our common commands:
 Write all code comments in French
 ```
 
-Check out the [using .goosehints][using-goosehints] guide for more tips.
+Check out the [guide on using .goosehints][using-goosehints] for more tips.
 
 ### Toolkits
 
