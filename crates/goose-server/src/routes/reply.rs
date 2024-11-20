@@ -49,7 +49,7 @@ struct ToolInvocation {
     #[serde(rename = "toolName")]
     tool_name: String,
     args: Value,
-    result: Option<String>,
+    result: Option<Vec<Content>>,
 }
 
 // Custom SSE response type that implements the Vercel AI SDK protocol
@@ -116,11 +116,7 @@ fn convert_messages(incoming: Vec<IncomingMessage>) -> Vec<Message> {
                             messages.push(
                                 Message::user().with_tool_response(
                                     tool.tool_call_id,
-                                    Ok(vec![goose::models::content::Content::Text(
-                                        goose::models::content::TextContent {
-                                            text: result.clone(),
-                                        },
-                                    )]),
+                                    Ok(result.clone())
                                 ),
                             );
                         }

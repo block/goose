@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { BoxIcon, GPSIcon } from './ui/icons'
 import ReactMarkdown from 'react-markdown'
 
-
 export default function ToolInvocation({ toolInvocation }) {
   return (
     <div key={toolInvocation.toolCallId} className="text-tool space-y-4 transition-all duration-300">
@@ -13,9 +12,6 @@ export default function ToolInvocation({ toolInvocation }) {
     </div>
   )
 }
-
-
-
 
 interface ToolCallProps {
   call: {
@@ -43,13 +39,11 @@ function ToolCall({ call }: ToolCallProps) {
   )
 }
 
-
-
-
 interface ResultItem {
   text?: string
   type: 'text' | 'image'
-  url?: string
+  mimeType?: string
+  data?: string // Base64 encoded image data
 }
 
 interface ToolResultProps {
@@ -105,11 +99,15 @@ function ToolResult({ result }: ToolResultProps) {
                     {item.text}
                   </ReactMarkdown>
                 )}
-                {item.type === 'image' && item.url && (
+                {item.type === 'image' && item.data && item.mimeType && (
                   <img 
-                    src={item.url} 
+                    src={`data:${item.mimeType};base64,${item.data}`}
                     alt="Tool result" 
                     className="max-w-full h-auto rounded-md"
+                    onError={(e) => {
+                      console.error('Failed to load image: Invalid MIME-type encoded image data');
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 )}
               </div>
@@ -146,9 +144,6 @@ function ToolResult({ result }: ToolResultProps) {
   )
 }
 
-
-
-
 interface ToolResponseFormProps {
   result: {
     message?: string
@@ -181,7 +176,6 @@ function getIconForSchemaType(schema: JsonSchemaProperty) {
   return BoxIcon
 }
 
-// NOTE - Not yet tested/matched to designs
 function ToolResponseForm({ result, onSubmitInput }: ToolResponseFormProps) {
   const [inputValues, setInputValues] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -290,13 +284,3 @@ function ToolResponseForm({ result, onSubmitInput }: ToolResponseFormProps) {
     </div>
   )}
 }
-
-// TODO - Use when we have plans
-/*
-function AppoveFlightPlanButton(){
-  return (
-    <Button className="w-full transition-colors tool-form-button">
-      Take flight with this direction
-    </Button>
-  )
-} */
