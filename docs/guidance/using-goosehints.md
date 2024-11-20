@@ -1,6 +1,6 @@
 # Using `.goosehints` in Goose
 
-`.goosehints` are text files used within the Goose environment to provide additional context about your project and improve the communication between the developer and Goose. Ensuring it understands your requirements better and can execute tasks more effectively.
+`.goosehints` are text files used within the Goose environment to provide additional context about your project and improve the communication between the developer and Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
 
 >[!TIP]
 > **Developer toolkit required**
