@@ -59,6 +59,8 @@ The following justfile shows our common commands:
 Write all code comments in French
 ```
 
+Check out the [guide on using .goosehints][using-goosehints] for more tips.
+
 ### Toolkits
 
 Toolkits expand Goose’s capabilities and tailor its functionality to specific development tasks. Toolkits provide Goose with additional contextual information and interactive abilities, allowing for a more comprehensive and efficient workflow.
@@ -139,3 +141,4 @@ goose session start --plan plan.md --args dep=pytest,repo=github
 [available-toolkits]: ../plugins/available-toolkits.md
 [providers]: ../plugins/providers.md
 [goose-plugins]:https://github.com/block-open-source/goose-plugins
+[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html
