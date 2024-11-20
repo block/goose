@@ -146,7 +146,7 @@ Goose ships with the ability to read in the contents of a file named `.goosehint
 
 This file will be read into the Goose system prompt if it is present in the current working directory.
 
-Check out the [using .goosehints][using-goosehints] guide for more tips.
+Check out the [guide on using .goosehints][using-goosehints] for more tips.
 
 > [!NOTE]
 > `.goosehints` follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables.
