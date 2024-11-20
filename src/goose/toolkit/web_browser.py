@@ -20,6 +20,8 @@ from pyshadow.main import Shadow
 from selenium import webdriver
 from selenium.common.exceptions import InvalidSessionIdException, NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -120,6 +122,21 @@ class BrowserToolkit(Toolkit):
             return f"image:{path}"
         except Exception as e:
             self.notifier.notify(f"Error taking screenshot: {str(e)}")
+
+    @tool
+    def scroll_page(self, direction: str = "down") -> None:
+        """Scroll the current page up or down.
+
+        Args:
+            direction (str): The direction to scroll the page. Either 'up' or 'down'.
+        """
+        actions = ActionChains(self.driver)
+        if direction == "up":
+            actions.send_keys(Keys.PAGE_UP).perform()
+        elif direction == "down":
+            actions.send_keys(Keys.PAGE_DOWN).perform()
+        else:
+            self.notifier.notify(f"Invalid scroll direction: {direction}")
 
     @tool
     def open_new_tab(self, url: str) -> None:
@@ -268,6 +285,20 @@ class BrowserToolkit(Toolkit):
                     time.sleep(2)
                 else:
                     raise
+
+    @tool
+    def click_element_by_link_text(self, link_text: str, exact_match: bool = True) -> None:
+        """Click on a page element using the text visible on the page.
+        Useful when the page has multiple links or buttons, and you want to click on a specific one.
+
+        Args:
+            link_text (str): The visible text of the button or link.
+            exact_match (bool): Whether to match the exact link text or any partial match.
+        """
+        self.notifier.notify(f"Clicking element with text: {link_text}")
+        match_type = By.LINK_TEXT if exact_match else By.PARTIAL_LINK_TEXT
+        element = self.driver.find_element(match_type, link_text)
+        element.click()
 
     @tool
     def find_element_by_text_soup(self, text: str, filename: str) -> str:

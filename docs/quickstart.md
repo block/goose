@@ -115,5 +115,5 @@ There is also a `Dockerfile` in the root of this project you can use if you want
 [pipx]: https://github.com/pypa/pipx?tab=readme-ov-file#install-pipx
 [openai-key]: https://platform.openai.com/api-keys
 [getting-started]: https://block.github.io/goose/guidance/getting-started.html
-[providers]: https://block.github.io/goose/providers.html
+[providers]: https://block.github.io/goose/plugins/providers.html
 [managing-sessions]: https://block.github.io/goose/guidance/managing-goose-sessions.html
