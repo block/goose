@@ -48,6 +48,7 @@
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "electron-log": "^5.2.2",
     "electron-squirrel-startup": "^1.0.1",
     "express": "^4.21.1",
     "framer-motion": "^11.11.11",
