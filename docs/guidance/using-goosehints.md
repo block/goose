@@ -40,7 +40,7 @@ Go through the README.md for information on how to build and test it as needed.
 Make sure to confirm all changes with me before applying.
 
 Use the following custom values when needed:
-{% include custom-config.js %}
+&#123;% include custom-config.js %&#125;
 
 Run tests with `npm run test` ideally after each change.
 ```
