@@ -44,15 +44,6 @@ export const start = (app) => {
     log.error('Failed to start goosed:', err);
   });
 
-  // Wait a bit to ensure the server is up
-  setTimeout(() => {
-    // Test if server is responding
-    fetch('http://127.0.0.1:3000/health')
-      .then(response => response.text())
-      .then(text => log.info('Server health check successful:', text))
-      .catch(err => log.error('Server health check failed:', err));
-  }, 1000);
-
   // Ensure goosed is terminated when the app quits
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
