@@ -2,7 +2,15 @@ import { execSync } from 'child_process';
 import path from 'path';
 import log from './logger';
 
-export function loadZshEnv(): void {
+export function loadZshEnv(isProduction: boolean = false): void {
+  // Only proceed if running on macOS and in production mode
+  if (process.platform !== 'darwin' || !isProduction) {
+    log.info(`Skipping zsh environment loading: ${
+      process.platform !== 'darwin' ? 'Not running on macOS' : 'Not in production mode'
+    }`);
+    return;
+  }
+
   try {
     // Execute zsh and source the zshrc file, then export all environment variables
     const zshrcPath = path.join(process.env.HOME || '', '.zshrc');

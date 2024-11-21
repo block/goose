@@ -194,8 +194,9 @@ const showWindow = () => {
 };
 
 app.whenReady().then(() => {
-  // Load zsh environment variables
-  loadZshEnv();
+  // Load zsh environment variables in production mode only
+  const isProduction = app.isPackaged;
+  loadZshEnv(isProduction);
   // Get the server startup configuration
   const shouldStartServer = (process.env.VITE_START_EMBEDDED_SERVER || 'yes').toLowerCase() === 'yes';
   
