@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { loadZshEnv } from './utils/loadEnv';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain } from 'electron';
 import path from 'node:path';
 import { start as startGoosed } from './goosed';
@@ -193,6 +194,8 @@ const showWindow = () => {
 };
 
 app.whenReady().then(() => {
+  // Load zsh environment variables
+  loadZshEnv();
   // Get the server startup configuration
   const shouldStartServer = (process.env.VITE_START_EMBEDDED_SERVER || 'yes').toLowerCase() === 'yes';
   
