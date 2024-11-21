@@ -1,9 +1,17 @@
 ---
 name: License Check
 
-"on":
-  pull_request:
+on:
+  pull_request: # Trigger license check on any PRs
     paths:
+      - '**/pyproject.toml'
+      - '.github/workflows/license-check.yml'
+      - '.github/workflows/scripts/check_licenses.py'
+
+  push: # Trigger license check on pushes to main
+    branches:
+      - main
+    paths: # TODO: can't DRY unless https://github.com/actions/runner/issues/1182
       - '**/pyproject.toml'
       - '.github/workflows/license-check.yml'
       - '.github/workflows/scripts/check_licenses.py'

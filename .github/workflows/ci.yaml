@@ -2,7 +2,12 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main # Trigger CI on PRs to main
+
+  push:
+    branches:
+      - main # Trigger CI on pushes to main
 
 jobs:
   exchange:
