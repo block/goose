@@ -29,6 +29,9 @@ In this blog post, I'll show you how to quickly prototype design styles by letti
 ### Step 1: Create your UI
 Let's create a basic UI to experiment with. Create an index.html file with the code below:
 
+<details>
+<summary>Create an index.html file with the code below</summary>
+
 ```html
 <!DOCTYPE html>
 <html>
@@ -169,6 +172,7 @@ Let's create a basic UI to experiment with. Create an index.html file with the c
 </body>
 </html>
 ```
+</details>
 
 Once saved, open the file in your browser. You should see a calendar!
 
