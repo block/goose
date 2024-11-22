@@ -271,8 +271,9 @@ def test_observer_plugin_called(create_session_with_mock_configs):
     observer_manager_mock = MagicMock(spec=ObserverManager)
     observer_manager_mock._observers = [observer_mock]
 
-    with patch("exchange.observers.ObserverManager.get_instance", return_value=observer_manager_mock), patch(
-        "exchange.Exchange.generate", return_value=Message.assistant("test response")
+    with (
+        patch("exchange.observers.ObserverManager.get_instance", return_value=observer_manager_mock),
+        patch("exchange.Exchange.generate", return_value=Message.assistant("test response")),
     ):
         session = create_session_with_mock_configs({"name": SESSION_NAME})
 
