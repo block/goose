@@ -114,9 +114,7 @@ nav:
   - "Installation": installation.md
   - "Quickstart": quickstart.md
   - "Contributing": contributing.md
-  - Blog:
-    - "Blog Home": blog/index.md
-  - Guidance:
+  - Guides:
       - "Getting Started": guidance/getting-started.md
       - "Managing Goose Sessions": guidance/managing-goose-sessions.md
       - "Quick Tips": guidance/tips.md
@@ -137,3 +135,5 @@ nav:
       - Configuration: configuration.md
   - "Reference":
       - "API Docs": reference/index.md
+  - Blog:
+    - "Blog Home": blog/index.md
