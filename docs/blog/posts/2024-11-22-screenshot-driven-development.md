@@ -196,10 +196,10 @@ export OPENAI_API_KEY=your_api_key
 export ANTHROPIC_API_KEY=your_api_key
 ```
 
-### Step 4: Enable the Screen Toolkit
+### Step 4: Enable the Screen toolkit
 Goose uses [toolkits](https://block.github.io/goose/plugins/plugins.html) to extend its capabilities. The [screen](https://block.github.io/goose/plugins/available-toolkits.html#6-screen-toolkit) toolkit lets Goose take and analyze screenshots.
 
-To enable the screen toolkit, add it to your Goose profile at ~/.config/goose/profiles.yaml.
+To enable the Screen toolkit, add it to your Goose profile at ~/.config/goose/profiles.yaml.
 
 > Your configuration might look slightly different depending on your LLM provider preferences.
 
