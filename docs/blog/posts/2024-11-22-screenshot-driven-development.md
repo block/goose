@@ -5,7 +5,7 @@ date: 2024-11-22
 authors:
   - rizel
 categories:
-  - Prototyping & Automation
+  - Web Development
 ---
 ![calendar](../images/screenshot-driven-development-blog/screenshot-driven-development.png)
 
