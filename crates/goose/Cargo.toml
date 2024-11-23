@@ -36,6 +36,7 @@ tower-http = { version = "0.5", features = ["cors"] }
 webbrowser = "0.8"
 dotenv = "0.15"
 keyring = "2.3.2"
+once_cell = "1.19"
 
 [dev-dependencies]
 wiremock = "0.6.0"

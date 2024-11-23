@@ -30,7 +30,9 @@ impl OpenAiProvider {
         if config.api_key.is_none() {
             let keyring_manager = KeyringManager::new(KEYRING_SERVICE, KEYRING_KEY);
             let keyring = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY).unwrap();
-            if let Some(api_key) = keyring_manager.retrieve_api_key(&keyring, PROVIDER_NAME) {
+            let env = super::keyring_manager::RealEnvironment;
+            let stdin = super::keyring_manager::RealStdinReader;
+            if let Some(api_key) = keyring_manager.retrieve_api_key(&keyring, &env, PROVIDER_NAME, &stdin) {
                 config.api_key = Some(api_key);
             }
         }
