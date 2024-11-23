@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 
 
 export default function GooseMessage({ message }) {
+
   return (
     <div className="flex mb-4">
       <div className="bg-goose-bubble w-full text-black rounded-2xl p-4">

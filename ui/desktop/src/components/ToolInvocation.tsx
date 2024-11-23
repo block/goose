@@ -65,7 +65,6 @@ interface ToolResultProps {
 }
 
 function ToolResult({ result }: ToolResultProps) {
-  console.log('ToolResult', result)
   if (!result || !result.result) return null
 
   return (    

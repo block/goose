@@ -235,7 +235,7 @@ async fn stream_message(
                     }
                     MessageContent::Text(text) => {
                         for line in text.text.lines() {
-                            tx.send(ProtocolFormatter::format_text(line)).await?;
+                            tx.send(ProtocolFormatter::format_text(&format!("{}\\n", line))).await?;
                         }
                     }
                     MessageContent::Image(_) => {
