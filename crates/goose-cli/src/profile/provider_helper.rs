@@ -26,11 +26,7 @@ pub fn set_provider_config(provider_name: &str, model: String) -> ProviderConfig
     match provider_name.to_lowercase().as_str() {
         PROVIDER_OPEN_AI => ProviderConfig::OpenAi(OpenAiProviderConfig {
             host: "https://api.openai.com".to_string(),
-            api_key: get_env_value_or_input(
-                "OPENAI_API_KEY",
-                "Please enter your OpenAI API key:",
-                true,
-            ),
+            api_key: None,
             model,
             temperature: None,
             max_tokens: None,

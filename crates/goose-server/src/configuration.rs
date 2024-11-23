@@ -30,7 +30,7 @@ pub enum ProviderSettings {
     OpenAi {
         #[serde(default = "default_openai_host")]
         host: String,
-        api_key: String,
+        api_key: Option<String>,
         #[serde(default = "default_model")]
         model: String,
         #[serde(default)]

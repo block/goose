@@ -27,6 +27,15 @@ tokenizers = "0.20.3"
 include_dir = "0.7.4"
 chrono = "0.4.38"
 indoc = "2.0.5"
+nanoid = "0.4"
+sha2 = "0.10"
+base64 = "0.21"
+url = "2.5"
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors"] }
+webbrowser = "0.8"
+dotenv = "0.15"
+keyring = "2.3.2"
 
 [dev-dependencies]
 wiremock = "0.6.0"

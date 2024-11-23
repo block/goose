@@ -8,7 +8,7 @@ pub enum ProviderConfig {
 // Define specific config structs for each provider
 pub struct OpenAiProviderConfig {
     pub host: String,
-    pub api_key: String,
+    pub api_key: Option<String>,
     pub model: String,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
