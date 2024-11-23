@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use keyring;
 use reqwest::Client;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
@@ -11,7 +12,6 @@ use super::utils::{
     check_openai_context_length_error, messages_to_openai_spec, openai_response_to_message,
     tools_to_openai_spec,
 };
-use super::keyring_manager::KeyringManager;
 
 use crate::models::message::Message;
 use crate::models::tool::Tool;
@@ -28,11 +28,10 @@ const PROVIDER_NAME: &str = "OpenAI";
 impl OpenAiProvider {
     pub fn new(mut config: OpenAiProviderConfig) -> Result<Self> {
         if config.api_key.is_none() {
-            let keyring_manager = KeyringManager::new(KEYRING_SERVICE, KEYRING_KEY);
             let keyring = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY).unwrap();
             let env = super::keyring_manager::RealEnvironment;
             let stdin = super::keyring_manager::RealStdinReader;
-            if let Some(api_key) = keyring_manager.retrieve_api_key(&keyring, &env, PROVIDER_NAME, &stdin) {
+            if let Some(api_key) = super::keyring_manager::retrieve_api_key(&keyring, &env, KEYRING_SERVICE, KEYRING_KEY, PROVIDER_NAME, &stdin) {
                 config.api_key = Some(api_key);
             }
         }
