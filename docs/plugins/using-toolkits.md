@@ -2,12 +2,7 @@
 [Toolkits](https://block.github.io/goose/plugins/plugins.html) in Goose are add-ons that expand its capabilities, offering tools and prompts for specific tasks. They make it easier to interact with external systems and handle complex operations. In this guide, we'll cover how to use Toolkits included in `goose` and those available through the `goose-plugins` repository.
 
 !!! important
-    Before using Toolkits, ensure Goose is installed and properly set up. If you haven’t installed Goose yet, follow the [Goose Installation Guide](https://block.github.io/goose/installation.html).
-    To install the `goose-plugins` package along with Goose for additional Toolkits, run:
-
-    ```bash
-    pipx install goose-ai --preinstall goose-plugins
-    ```
+    Before using Toolkits, ensure Goose is installed and properly set up. If you haven’t installed Goose yet, follow the [Goose Installation Guide](https://block.github.io/goose/installation.html).    
 
 ## Listing Available Toolkits
 
@@ -24,7 +19,6 @@ The output should look similar to the following:
 ```yaml
 Available toolkits:
  - browser: A toolkit for interacting with web browsers using Selenium.
- - developer: Provides a set of general purpose development capabilities
  - github: Provides an additional prompt on how to interact with Github
  - jira: Provides an additional prompt on how to interact with Jira
  - reasoner: Deep thinking toolkit for reasoning through problems and solutions
@@ -48,27 +42,28 @@ my-profile:
   provider: openai
   processor: gpt-4o
   accelerator: gpt-4o-mini
-  moderator: passive
+  moderator: synopsis
   toolkits:
-    - name: developer
+    - name: synopsis
       requires: {}
     - name: my_toolkit
       requires: {}
 ```
 
 !!! important
-    You always want to have the `developer` Toolkit enabled. It is essential for Goose to be able to create files for you, if this is removed it will greatly limit Goose's functionality. 
+    You always want to have the `synopsis` Toolkit, formerly known as the `developer` Toolkit enabled. It is essential for Goose to be able to create files for you, if this is removed it will greatly limit Goose's functionality. 
 
-Additionally, use the `requires` field to specify dependencies between Toolkits, and any necessary configurations. For example, if `my_toolkit` depends on `another_toolkit`, you would configure it as shown below: 
+
+Additionally, use the `requires` field to specify dependencies between Toolkits, and any necessary configurations. If there are no requirements, simply add an empty set of braces: `{}`. However, if a toolkit requires dependencies or configurations, you can specify that here. For example, if `my_toolkit` depends on `another_toolkit`, you would configure it as shown below:
 
 ```yaml
 my-profile:                                                                                                                       
   provider: openai                                                                                                                
   processor: gpt-4o                                                                                                               
   accelerator: gpt-4o-mini                                                                                                        
-  moderator: passive                                                                                                              
+  moderator: synopsis                                                                                                              
   toolkits:                                                                                                                       
-    - name: developer                                                                                                             
+    - name: synopsis                                                                                                             
       requires: {}                                                                                                                
     - name: my_toolkit                                                                                                            
       requires:                                                                                                                   
@@ -86,11 +81,19 @@ goose session start --profile my-profile
 This command initializes Goose with the Toolkits defined in your profile.
 
 !!! example
-    If your profile includes the `developer` and `my_toolkit` Toolkits, Goose will initialize with both functionalities.
+    If your profile includes the `synopsis` and `my_toolkit` Toolkits, Goose will initialize with both functionalities.
 
 ## Using Toolkits from Goose Plugins
 
-To use Toolkits defined in the `goose-plugins` repository, follow these steps:
+To access additional Toolkits provided by the `goose-plugins` repository, follow these steps:
+
+### Install `goose-plugins`:
+
+Run the following command to install the `goose-plugins` package:
+
+```bash
+ pipx install goose-ai --preinstall goose-plugins
+```
 
 ### List available toolkits:
 
@@ -108,8 +111,10 @@ my-profile:
   provider: openai
   processor: gpt-4o
   accelerator: gpt-4o-mini
-  moderator: passive
+  moderator: synopsis
   toolkits:
+    - name: synopsis                                                                                                             
+      requires: {}   
     - name: artify
       requires: {}
 ```
