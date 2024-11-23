@@ -4,8 +4,6 @@ use reqwest::Client;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
 use std::time::Duration;
-use keyring;
-use std::io::{self, Write};
 
 use super::base::{Provider, Usage};
 use super::configs::OpenAiProviderConfig;
@@ -13,6 +11,8 @@ use super::utils::{
     check_openai_context_length_error, messages_to_openai_spec, openai_response_to_message,
     tools_to_openai_spec,
 };
+use super::keyring_manager::KeyringManager;
+
 use crate::models::message::Message;
 use crate::models::tool::Tool;
 
@@ -28,49 +28,9 @@ const PROVIDER_NAME: &str = "OpenAI";
 impl OpenAiProvider {
     pub fn new(mut config: OpenAiProviderConfig) -> Result<Self> {
         if config.api_key.is_none() {
-            if let Ok(kr) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY) {
-                if let Ok(api_key) = kr.get_password() {
-                    println!("{} API key found in keyring", PROVIDER_NAME);
-                    config.api_key = Some(api_key.clone());
-                    std::env::set_var(KEYRING_KEY, &api_key);
-                } else if let Ok(api_key) = std::env::var(KEYRING_KEY) {
-                    config.api_key = Some(api_key.clone());
-                    print!("{} API key found in environment. Would you like to save it to the keyring for future sessions? (y/n): ", PROVIDER_NAME);
-                    io::stdout().flush().ok();
-                    let mut input = String::new();
-                    if io::stdin().read_line(&mut input).is_ok() {
-                        if input.trim().to_lowercase() == "y" {
-                            if kr.set_password(&api_key).is_ok() {
-                                println!("API key saved to keyring successfully!");
-                            } else {
-                                println!("Failed to save API key to keyring");
-                            }
-                        }
-                    }
-                } else {
-                    print!("Please enter your {} API key: ", PROVIDER_NAME);
-                    io::stdout().flush().ok();
-                    let mut api_key = String::new();
-                    if io::stdin().read_line(&mut api_key).is_ok() {
-                        let api_key = api_key.trim().to_string();
-                        std::env::set_var(KEYRING_KEY, &api_key);
-                        
-                        // Ask if they want to save to keyring
-                        print!("Would you like to save this API key to the keyring for future sessions? (y/n): ");
-                        io::stdout().flush().ok();
-                        let mut save = String::new();
-                        if io::stdin().read_line(&mut save).is_ok() {
-                            if save.trim().to_lowercase() == "y" {
-                                if kr.set_password(&api_key).is_ok() {
-                                    println!("API key saved to keyring successfully!");
-                                } else {
-                                    println!("Failed to save API key to keyring");
-                                }
-                            }
-                        }            
-                    }
-                }
-
+            let keyring_manager = KeyringManager::new(KEYRING_SERVICE, KEYRING_KEY);
+            if let Some(api_key) = keyring_manager.retrieve_api_key(PROVIDER_NAME) {
+                config.api_key = Some(api_key);
             }
         }
         let client = Client::builder()
