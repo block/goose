@@ -29,7 +29,8 @@ impl OpenAiProvider {
     pub fn new(mut config: OpenAiProviderConfig) -> Result<Self> {
         if config.api_key.is_none() {
             let keyring_manager = KeyringManager::new(KEYRING_SERVICE, KEYRING_KEY);
-            if let Some(api_key) = keyring_manager.retrieve_api_key(PROVIDER_NAME) {
+            let keyring = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY).unwrap();
+            if let Some(api_key) = keyring_manager.retrieve_api_key(&keyring, PROVIDER_NAME) {
                 config.api_key = Some(api_key);
             }
         }
@@ -188,7 +189,7 @@ mod tests {
         // Create the OpenAiProvider with the mock server's URL as the host
         let config = OpenAiProviderConfig {
             host: mock_server.uri(),
-            api_key: "test_api_key".to_string(),
+            api_key: Some("test_api_key".to_string()),
             model: "gpt-3.5-turbo".to_string(),
             temperature: Some(0.7),
             max_tokens: None,
