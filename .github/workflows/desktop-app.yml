@@ -22,7 +22,7 @@ jobs:
         node-version: 'lts/*'
 
     - name: Install dependencies
-      run: npm ci
+      run: npm install
       working-directory: ui/desktop
 
     - name: Package application
