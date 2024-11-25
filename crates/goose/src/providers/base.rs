@@ -45,6 +45,7 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, Usage)>;
+
 }
 
 #[cfg(test)]

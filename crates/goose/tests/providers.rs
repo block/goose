@@ -117,7 +117,7 @@ async fn test_openai_provider() -> Result<()> {
 
     let config = ProviderConfig::OpenAi(OpenAiProviderConfig {
         host: "https://api.openai.com".to_string(),
-        api_key: Some(std::env::var("OPENAI_API_KEY")?),
+        api_key: std::env::var("OPENAI_API_KEY")?,
         model: std::env::var("OPENAI_MODEL")?,
         temperature: None,
         max_tokens: None,

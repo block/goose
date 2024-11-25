@@ -30,7 +30,7 @@ pub enum ProviderSettings {
     OpenAi {
         #[serde(default = "default_openai_host")]
         host: String,
-        api_key: Option<String>,
+        api_key: String,
         #[serde(default = "default_model")]
         model: String,
         #[serde(default)]
@@ -239,7 +239,7 @@ mod tests {
         } = settings.provider
         {
             assert_eq!(host, "https://api.openai.com");
-            assert_eq!(api_key, Some("test-key".to_string()));
+            assert_eq!(api_key, "test-key".to_string());
             assert_eq!(model, "gpt-4o");
             assert_eq!(temperature, None);
             assert_eq!(max_tokens, None);
@@ -347,7 +347,7 @@ mod tests {
         } = settings.provider
         {
             assert_eq!(host, "https://custom.openai.com");
-            assert_eq!(api_key, Some("test-key".to_string()));
+            assert_eq!(api_key, "test-key");
             assert_eq!(model, "gpt-3.5-turbo");
             assert_eq!(temperature, Some(0.8));
         } else {

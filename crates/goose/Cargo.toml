@@ -27,7 +27,7 @@ tokenizers = "0.20.3"
 include_dir = "0.7.4"
 chrono = "0.4.38"
 indoc = "2.0.5"
-keyring = "2.3.2"
+keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 [dev-dependencies]
 wiremock = "0.6.0"
@@ -35,3 +35,4 @@ mockito = "1.2"
 tempfile = "3.8"
 dotenv = "0.15"
 mockall = "0.11"
+downcast-rs = "1.2.0"

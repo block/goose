@@ -5,7 +5,6 @@ pub mod factory;
 pub mod ollama;
 pub mod openai;
 pub mod utils;
-pub mod keyring_manager;
 
 #[cfg(test)]
 pub mod mock;

@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use keyring;
 use reqwest::Client;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
@@ -21,24 +20,12 @@ pub struct OpenAiProvider {
     config: OpenAiProviderConfig,
 }
 
-const KEYRING_SERVICE: &str = "goose";
-const KEYRING_KEY: &str = "OPENAI_API_KEY";
-const PROVIDER_NAME: &str = "OpenAI";
 
 impl OpenAiProvider {
-    pub fn new(mut config: OpenAiProviderConfig) -> Result<Self> {
-        if config.api_key.is_none() {
-            let keyring = keyring::Entry::new(KEYRING_SERVICE, KEYRING_KEY).unwrap();
-            let env = super::keyring_manager::RealEnvironment;
-            let stdin = super::keyring_manager::RealStdinReader;
-            if let Some(api_key) = super::keyring_manager::retrieve_api_key(&keyring, &env, KEYRING_SERVICE, KEYRING_KEY, PROVIDER_NAME, &stdin) {
-                config.api_key = Some(api_key);
-            }
-        }
+    pub fn new(config: OpenAiProviderConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600)) // 10 minutes timeout
             .build()?;
-
         Ok(Self { client, config })
     }
 
@@ -78,7 +65,7 @@ impl OpenAiProvider {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_key.clone().unwrap()))
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
             .json(&payload)
             .send()
             .await?;
@@ -190,7 +177,7 @@ mod tests {
         // Create the OpenAiProvider with the mock server's URL as the host
         let config = OpenAiProviderConfig {
             host: mock_server.uri(),
-            api_key: Some("test_api_key".to_string()),
+            api_key: "test_api_key".to_string(),
             model: "gpt-3.5-turbo".to_string(),
             temperature: Some(0.7),
             max_tokens: None,
