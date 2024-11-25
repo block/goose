@@ -16,8 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
 
       - name: Source Cargo Environment
         run: source $HOME/.cargo/env
@@ -38,8 +40,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
 
       - name: Source Cargo Environment
         run: source $HOME/.cargo/env
@@ -71,8 +75,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install UV
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.4"
 
       - name: Source Cargo Environment
         run: source $HOME/.cargo/env
