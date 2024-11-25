@@ -43,7 +43,6 @@ keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sy
 wiremock = "0.6.0"
 mockito = "1.2"
 tempfile = "3.8"
-dotenv = "0.15"
 mockall = "0.11"
 
 [[example]]

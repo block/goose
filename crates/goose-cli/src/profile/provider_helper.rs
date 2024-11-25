@@ -90,6 +90,6 @@ pub fn set_provider_config(provider_name: &str, model: String) -> ProviderConfig
             temperature: None,
             max_tokens: None,
         }),
-        _ => panic!("Invalid provider name: {}", provider_name),
+        _ => panic!("Invalid provider name"),
     }
 }
