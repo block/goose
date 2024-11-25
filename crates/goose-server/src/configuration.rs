@@ -249,7 +249,7 @@ mod tests {
         } = settings.provider
         {
             assert_eq!(host, "https://api.openai.com");
-            assert_eq!(api_key, "test-key");
+            assert_eq!(api_key, "test-key".to_string());
             assert_eq!(model, "gpt-4o");
             assert_eq!(temperature, None);
             assert_eq!(max_tokens, None);

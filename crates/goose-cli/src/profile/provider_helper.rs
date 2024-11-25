@@ -1,9 +1,10 @@
-use crate::inputs::inputs::get_env_value_or_input;
+use crate::inputs::inputs::{get_user_input, get_env_value_or_input};
 use goose::providers::configs::{
     DatabricksAuth, DatabricksProviderConfig, OpenAiProviderConfig, OllamaProviderConfig, ProviderConfig
 };
 use goose::providers::factory::ProviderType;
 use goose::providers::ollama::OLLAMA_HOST;
+use goose::key_manager::{get_api_key_default, save_to_keyring, KeyRetrievalStrategy};
 use strum::IntoEnumIterator;
 
 pub const PROVIDER_OPEN_AI: &str = "openai";
@@ -24,19 +25,48 @@ pub fn select_provider_lists() -> Vec<(&'static str, String, &'static str)> {
         .collect()
 }
 
+pub fn get_or_set_api_key(provider_name: &str, api_key_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Try to get existing key first from keyring or environment
+    if let Ok(key) = get_api_key_default(api_key_name, KeyRetrievalStrategy::Both) {
+        return Ok(key);
+    }
+
+    // If no key found or error occurred, prompt user for input
+    let prompt = format!("Please enter your {} key:", provider_name);
+    let api_key = get_env_value_or_input(
+        api_key_name,
+        &prompt,
+        false,
+    );
+    
+    // Check if user wants to save to the system keyring
+    let resp = get_user_input("Would you like to save this key to the system keyring? (y/n):", "y")?;
+    if resp.eq_ignore_ascii_case("y") {
+        match save_to_keyring(api_key_name, &api_key) {
+            Ok(_) => println!("Successfully saved key to system keyring"),
+            Err(e) => {
+                // Log the error but don't fail - the API key is still usable
+                println!("Warning: Failed to save key to system keyring: {}", e);
+            }
+        }
+    }
+    
+    Ok(api_key)
+}
+
 pub fn set_provider_config(provider_name: &str, model: String) -> ProviderConfig {
     match provider_name.to_lowercase().as_str() {
-        PROVIDER_OPEN_AI => ProviderConfig::OpenAi(OpenAiProviderConfig {
-            host: "https://api.openai.com".to_string(),
-            api_key: get_env_value_or_input(
-                "OPENAI_API_KEY",
-                "Please enter your OpenAI API key:",
-                true,
-            ),
-            model,
-            temperature: None,
-            max_tokens: None,
-        }),
+        PROVIDER_OPEN_AI => {
+            let api_key = get_or_set_api_key(provider_name, "OPENAI_API_KEY")
+                .expect("Failed to get OpenAI API key");
+            ProviderConfig::OpenAi(OpenAiProviderConfig {
+                host: "https://api.openai.com".to_string(),
+                api_key,
+                model,
+                temperature: None,
+                max_tokens: None,
+            })
+        },
         PROVIDER_DATABRICKS => {
             let host = get_env_value_or_input(
                 "DATABRICKS_HOST",
@@ -60,6 +90,6 @@ pub fn set_provider_config(provider_name: &str, model: String) -> ProviderConfig
             temperature: None,
             max_tokens: None,
         }),
-        _ => panic!("Invalid provider name"),
+        _ => panic!("Invalid provider name: {}", provider_name),
     }
 }
