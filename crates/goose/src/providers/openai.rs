@@ -11,7 +11,6 @@ use super::utils::{
     check_openai_context_length_error, messages_to_openai_spec, openai_response_to_message,
     tools_to_openai_spec,
 };
-
 use crate::models::message::Message;
 use crate::models::tool::Tool;
 
@@ -20,12 +19,12 @@ pub struct OpenAiProvider {
     config: OpenAiProviderConfig,
 }
 
-
 impl OpenAiProvider {
     pub fn new(config: OpenAiProviderConfig) -> Result<Self> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600)) // 10 minutes timeout
             .build()?;
+
         Ok(Self { client, config })
     }
 
