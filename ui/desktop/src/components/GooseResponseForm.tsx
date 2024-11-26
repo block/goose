@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GPSIcon } from './ui/icons';
 import ReactMarkdown from 'react-markdown';
 import { Button } from './ui/button';
@@ -12,6 +12,7 @@ interface GooseResponseFormProps {
 
 export default function GooseResponseForm({ message, metadata, append }: GooseResponseFormProps) {
   const [selectedOption, setSelectedOption] = useState(null);
+  const prevStatusRef = useRef(null);
 
   let isReady = false;
   let isQuestion = false;
@@ -20,12 +21,10 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
 
   console.log('metadata:', metadata[0]);
 
-
   if (metadata) {
     isReady = metadata[0] === "READY";
     isQuestion = metadata[0] === "QUESTION";
     isOptions = metadata[0] === "OPTIONS";
-
 
     if (isOptions && metadata[1]) {
       try {
@@ -45,6 +44,19 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
       }
     }
   }
+
+  useEffect(() => {
+    if (
+      (metadata && (metadata[0] === "QUESTION" || metadata[0] === "OPTIONS")) &&
+      prevStatusRef.current !== metadata[0]
+    ) {
+      window.electron.showNotification({
+        title: 'Goose has a question for you',
+        body: `Please check with Goose to approve the plan of action`,
+      });
+    }
+    prevStatusRef.current = metadata ? metadata[0] : null;
+  }, [metadata]);
 
   const handleOptionClick = (index) => {
     setSelectedOption(index);
@@ -75,13 +87,6 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
       append(message);
     }
   };
-
-  if (isQuestion || isOptions) {    
-    window.electron.showNotification({
-      title: 'Goose has a question for you',
-      body: `please check with goose to approve the plan of action`,
-    });
-  }
 
   return (
     <div className="space-y-4">
