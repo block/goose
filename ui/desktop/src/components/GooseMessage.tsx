@@ -52,14 +52,12 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {false && metadata && (
-          <div className="bg-goose-bubble text-white rounded-2xl p-4 mb-[16px]">
+        {metadata && (
             <GooseResponseForm
               message={message.content}
               metadata={metadata}
               append={append}
             />
-          </div>
         )}
       </div>
     </div>

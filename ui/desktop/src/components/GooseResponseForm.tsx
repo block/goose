@@ -18,10 +18,14 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
   let isOptions = false;
   let options = [];
 
+  console.log('metadata:', metadata[0]);
+
+
   if (metadata) {
     isReady = metadata[0] === "READY";
     isQuestion = metadata[0] === "QUESTION";
     isOptions = metadata[0] === "OPTIONS";
+
 
     if (isOptions && metadata[1]) {
       try {
@@ -81,11 +85,6 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
 
   return (
     <div className="space-y-4">
-      {(!isOptions || options.length === 0) && (
-        <div className="prose prose-xs max-w-none">
-          <ReactMarkdown>{message}</ReactMarkdown>
-        </div>
-      )}
       {isQuestion && (
         <div className="flex items-center gap-4 p-4 rounded-lg bg-tool-card border">
           <Button
