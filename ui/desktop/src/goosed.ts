@@ -2,6 +2,7 @@ import path from 'node:path';
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import log from './utils/logger';
+import os from 'node:os';
 
 // Start the goosed binary
 export const start = (app) => {
@@ -26,7 +27,19 @@ export const start = (app) => {
     return;
   }
 
-  const goosedProcess = spawn(goosedPath);
+  const homeDir = os.homedir();
+
+  // Optional: Ensure the home directory exists (it should, but for safety)
+  if (!existsSync(homeDir)) {
+    log.error(`Home directory does not exist: ${homeDir}`);
+    return;
+  }
+
+  console.log("Starting goosed in: ", homeDir);
+
+  // Spawn the goosed process with the user's home directory as cwd
+  const goosedProcess = spawn(goosedPath, [], { cwd: homeDir });
+
 
   goosedProcess.stdout.on('data', (data) => {
     log.info(`goosed stdout: ${data.toString()}`);
