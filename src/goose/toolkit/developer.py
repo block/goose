@@ -7,7 +7,7 @@ from pathlib import Path
 
 from exchange import Message
 from goose.toolkit.base import Toolkit, tool
-from goose.toolkit.utils import get_language, render_template, RULEPREFIX, RULESTYLE
+from goose.toolkit.utils import get_language, RULEPREFIX, RULESTYLE
 from goose.utils.goosehints import fetch_goosehints
 from goose.utils.shell import shell
 from rich.markdown import Markdown

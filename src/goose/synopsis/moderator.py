@@ -1,6 +1,4 @@
 import os
-from goose.toolkit.utils import render_template
-from pathlib import Path
 from exchange.content import Text
 from exchange.exchange import Exchange
 from exchange.message import Message
