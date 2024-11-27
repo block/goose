@@ -8,6 +8,7 @@ from exchange.moderators import Moderator
 from exchange.moderators.passive import PassiveModerator
 from exchange.moderators.truncate import ContextTruncate
 from goose.synopsis.system import system
+from goose.utils.goosehints import fetch_goosehints
 
 
 class Synopsis(Moderator):
@@ -39,14 +40,7 @@ class Synopsis(Moderator):
         self.current_plan = ""
         self.originals = []
 
-        hints = []
-        hints_path = Path(".goosehints")
-        home_hints_path = Path.home() / ".config/goose/.goosehints"
-        if hints_path.is_file():
-            hints.append(render_template(hints_path))
-        if home_hints_path.is_file():
-            hints.append(render_template(home_hints_path))
-        self.hints = "\n".join(hints)
+        self.hints = fetch_goosehints()
 
     def rewrite(self, exchange: Exchange) -> None:
         # Get the last message, which would be either a user text or a user tool use
