@@ -13,7 +13,7 @@ export default function Splash({ append }) {
       </div>
       <Spacer className="mt-[10px]"></Spacer>
       <div
-        className="w-[312px] px-16 py-4 text-14 text-center text-splash-pills-text whitespace-nowrap cursor-pointer bg-prev-goose-gradient text-prev-goose-text rounded-[14px] inline-block"
+        className="w-[312px] px-16 py-4 text-14 text-center text-splash-pills-text whitespace-nowrap cursor-pointer bg-prev-goose-gradient text-prev-goose-text rounded-[14px] inline-block hover:scale-[1.02] transition-all duration-150"
         onClick={async () => {
           const message = {
             content: "What can Goose do?",
