@@ -43,8 +43,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {/* TODO - Re-enable once detection logic for when to show is correct */}
-        {false && metadata && (
+        {/* append false && to turn this off */}
+        {metadata && (
           <div className="flex mb-[16px]">
             <GooseResponseForm
               message={message.content}

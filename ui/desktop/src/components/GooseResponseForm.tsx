@@ -14,22 +14,33 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
   const [selectedOption, setSelectedOption] = useState(null);
   const prevStatusRef = useRef(null);
 
-  let isReady = false;
   let isQuestion = false;
   let isOptions = false;
   let options = [];
 
   if (metadata) {
-    isReady = metadata[0] === "READY";
-    isQuestion = metadata[0] === "QUESTION";
-    isOptions = metadata[0] === "OPTIONS";
+    window.electron.logInfo('metadata:'+ JSON.stringify(metadata, null, 2));   
+  }
 
-    if (isOptions && metadata[1]) {
+
+
+  if (metadata) {
+    isQuestion = metadata[0] === "QUESTION";
+    isOptions = metadata[1] === "OPTIONS";
+
+    if (isQuestion && isOptions && metadata[2]) {
       try {
-        let optionsData = metadata[1];
-        if (optionsData.startsWith('```json')) {
-          optionsData = optionsData.replace(/```json/g, '').replace(/```/g, '');
-        }
+        let optionsData = metadata[2];
+        // Use a regular expression to extract the JSON block
+        const jsonBlockMatch = optionsData.match(/```json([\s\S]*?)```/);
+
+      // If a JSON block is found, extract and clean it
+      if (jsonBlockMatch) {
+        optionsData = jsonBlockMatch[1].trim(); // Extract the content inside the block
+      } else {
+        // Optionally, handle the case where there is no explicit ```json block
+        console.warn("No JSON block found in the provided string.");
+      }        
         options = JSON.parse(optionsData);
         options = options.filter(
           (opt) =>
@@ -88,7 +99,7 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
 
   return (
     <div className="space-y-4">
-      {isQuestion && (
+      {isQuestion && !isOptions && (
         <div className="flex items-center gap-4 p-4 rounded-lg bg-tool-card border">
           <Button
             onClick={handleAccept}
@@ -108,7 +119,7 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
           </Button>
         </div>
       )}
-      {isOptions && options.length > 0 && (
+      {isQuestion && isOptions && options.length > 0 && (
         <div className="space-y-4">
           {options.map((opt, index) => (
             <div
