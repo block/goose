@@ -114,6 +114,25 @@ function ChatContent({
     },
   });
 
+  // Add keyboard shortcut handler for stopping
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Stop on Control+C
+      if (event.ctrlKey && event.key === 'c') {
+        event.preventDefault(); // Prevent the default copy behavior
+        stop();
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [stop]);
+
   // const messages = fakeToolInvocations;
 
   // Update chat messages when they change
