@@ -39,26 +39,22 @@ def mock_specified_session_name(specified_session_name):
 
 
 @pytest.fixture
-@patch("goose.cli.session.create_exchange", name="mock_exchange")
-@patch("goose.cli.session.load_profile", name="mock_load_profile")
-@patch("goose.cli.session.SessionNotifier", name="mock_session_notifier")
-@patch("goose.cli.session.load_provider", name="mock_load_provider")
 def create_session_with_mock_configs(
-    mock_load_provider,
-    mock_session_notifier,
-    mock_load_profile,
-    mock_exchange,
-    mock_sessions_path,
     exchange_factory,
     profile_factory,
 ):
-    mock_load_provider.return_value = "provider"
-    mock_session_notifier.return_value = MagicMock()
-    mock_load_profile.return_value = profile_factory()
-    mock_exchange.return_value = exchange_factory()
-
     def create_session(session_attributes: dict = {}):
-        return Session(**session_attributes)
+        with (
+            patch("goose.cli.session.create_exchange", name="mock_exchange") as mock_exchange,
+            patch("goose.cli.session.load_profile", name="mock_load_profile") as mock_load_profile,
+            patch("goose.cli.session.SessionNotifier", name="mock_session_notifier") as mock_session_notifier,
+            patch("goose.cli.session.load_provider", name="mock_load_provider") as mock_load_provider,
+        ):
+            mock_load_provider.return_value = "provider"
+            mock_session_notifier.return_value = MagicMock()
+            mock_load_profile.return_value = profile_factory()
+            mock_exchange.return_value = exchange_factory()
+            return Session(**session_attributes)
 
     return create_session
 
