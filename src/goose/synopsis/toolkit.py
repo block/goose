@@ -27,6 +27,8 @@ class SynopsisDeveloper(Toolkit):
     @tool
     def bash(
         self,
+        explanation: str,
+        ask_confirmation: bool,
         command: Optional[str] = None,
         working_dir: Optional[str] = None,
         source_path: Optional[str] = None,
@@ -42,6 +44,8 @@ class SynopsisDeveloper(Toolkit):
         At least one of the parameters must be provided.
 
         Args:
+            explanation (str): The explanations of the bash commands.
+            ask_confirmation (boolean): Whether to ask for confirmation before running the command.
             command (str, optional):The bash shell command to run.
             working_dir (str, optional): The directory to change to.
             source_path (str, optional): The file to source before running the command.
@@ -50,7 +54,8 @@ class SynopsisDeveloper(Toolkit):
             [command, working_dir, source_path]
         ), "At least one of the parameters for bash shell must be provided."
 
-        bash_tool = Bash(notifier=self.notifier, exchange_view=self.exchange_view)
+        bash_tool = Bash(notifier=self.notifier, exchange_view=self.exchange_view, explanation=explanation,
+            ask_confirmation=ask_confirmation)
         outputs = []
 
         if working_dir:
@@ -72,6 +77,7 @@ class SynopsisDeveloper(Toolkit):
         self,
         command: TextEditorCommand,
         path: str,
+        ask_confirmation: bool,
         file_text: Optional[str] = None,
         insert_line: Optional[int] = None,
         new_str: Optional[str] = None,
@@ -93,6 +99,8 @@ class SynopsisDeveloper(Toolkit):
                 Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
             path (str): Absolute path (or relative path against cwd) to file or directory,
                 e.g. `/repo/file.py` or `/repo` or `curr_dir_file.py`.
+            ask_confirmation (boolean): whether to ask for confirmation before creating or modifying any file.
+                Any command except `view` will require confirmation.
             file_text (str, optional): Required parameter of `create` command, with the content
                 of the file to be created.
             insert_line (int, optional): Required parameter of `insert` command.
@@ -107,7 +115,7 @@ class SynopsisDeveloper(Toolkit):
                 number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start.
                 Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.
         """
-        text_editor_instance = TextEditor(notifier=self.notifier)
+        text_editor_instance = TextEditor(notifier=self.notifier, ask_confirmation=ask_confirmation)
         return text_editor_instance.run_command(
             command=command,
             path=path,

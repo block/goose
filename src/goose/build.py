@@ -11,7 +11,7 @@ from goose.toolkit.base import Requirements
 from goose.view import ExchangeView
 
 
-def build_exchange(profile: Profile, notifier: Notifier) -> Exchange:
+def build_exchange(profile: Profile, notifier: Notifier, ask_confirmation: bool) -> Exchange:
     """Build an exchange configured through the profile
 
     This will setup any toolkits and use that to build the exchange's collection
@@ -55,6 +55,7 @@ def build_exchange(profile: Profile, notifier: Notifier) -> Exchange:
         tools=tools,
         moderator=get_moderator(profile.moderator)(),
         model=profile.processor,
+        ask_confirmation=ask_confirmation,
     )
 
     # This is a bit awkward, but we have to set this after the fact because building

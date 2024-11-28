@@ -17,9 +17,9 @@ from exchange.invalid_choice_error import InvalidChoiceError
 from exchange.providers.base import MissingProviderEnvVariableError
 
 
-def create_exchange(profile: Profile, notifier: SessionNotifier) -> Exchange:
+def create_exchange(profile: Profile, notifier: SessionNotifier, ask_confirmation: bool) -> Exchange:
     try:
-        return build_exchange(profile, notifier=notifier)
+        return build_exchange(profile, notifier=notifier, ask_confirmation=ask_confirmation)
     except InvalidChoiceError as e:
         error_message = (
             f"[bold red]{e.message}[/bold red].\nPlease check your configuration file at {PROFILES_CONFIG_PATH}.\n"

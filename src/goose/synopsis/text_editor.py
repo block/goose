@@ -1,18 +1,22 @@
-from typing import Optional, Literal
 from pathlib import Path
-from rich.markdown import Markdown
-from rich.rule import Rule
+from typing import Literal, Optional
+
 from goose.notifier import Notifier
 from goose.synopsis.system import system
 from goose.toolkit.utils import RULEPREFIX, RULESTYLE, get_language
+from goose.utils.confirm_execute import cancel_confirmation, confirm_execute
+from goose.utils.file_changes import show_diff
+from rich.markdown import Markdown
+from rich.rule import Rule
 
 TextEditorCommand = Literal["view", "create", "str_replace", "insert", "undo_edit"]
 
 
 class TextEditor:
-    def __init__(self, notifier: Notifier) -> None:
+    def __init__(self, notifier: Notifier, ask_confirmation: bool) -> None:
         self.notifier = notifier
         self._file_history = {}
+        self.ask_confirmation = ask_confirmation
 
         # Command dispatch dictionary
         self.command_dispatch = {
@@ -29,7 +33,10 @@ class TextEditor:
 
         if patho.exists() and not system.is_active(path):
             raise ValueError(f"You must view {path} using read_file before you overwrite it")
-
+        before = patho.read_text() if patho.exists() else ""
+        show_diff(path, before, content)
+        if not confirm_execute(self.ask_confirmation, self.notifier, "write to this file"):
+            return cancel_confirmation(f"Writing to file {path}")
         self._save_file_history(patho)
         patho.parent.mkdir(parents=True, exist_ok=True)
         patho.write_text(content)
@@ -52,7 +59,9 @@ class TextEditor:
 
         if content.count(before) != 1:
             raise ValueError("The 'before' content must appear exactly once in the file.")
-
+        show_diff(path, before, after)
+        if not confirm_execute(self.ask_confirmation, self.notifier, "patch this file"):
+            return cancel_confirmation(f"Patching file {path}")
         self._save_file_history(patho)
         content = content.replace(before, after)
         system.remember_file(path)
@@ -117,13 +126,15 @@ class TextEditor:
         patho = system.to_patho(path)
         if not patho.exists() or not system.is_active(path):
             raise ValueError(f"You must view {path} before editing.")
-
         self._save_file_history(patho)
         with open(patho, "r") as f:
             lines = f.readlines()
 
         if insert_line < 0 or insert_line > len(lines):
             raise ValueError("Insert line is out of range.")
+        show_diff(path, "", new_str)
+        if not confirm_execute(self.ask_confirmation, self.notifier, "insert into this file {path}"):
+            return cancel_confirmation(f"Inserting into {path}")
 
         lines.insert(insert_line, new_str + "\n")
         with open(patho, "w") as f:

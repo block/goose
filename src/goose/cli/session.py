@@ -65,6 +65,7 @@ class Session:
         plan: Optional[dict] = None,
         log_level: Optional[str] = "INFO",
         tracing: bool = False,
+        ask_confirmation: bool = False,
         **kwargs: dict[str, any],
     ) -> None:
         if name is None:
@@ -78,7 +79,9 @@ class Session:
         self.has_plan = plan is not None
         self.tracing = tracing
 
-        self.exchange = create_exchange(profile=load_profile(profile), notifier=self.notifier)
+        self.exchange = create_exchange(
+            profile=load_profile(profile), notifier=self.notifier, ask_confirmation=ask_confirmation
+        )
         setup_logging(log_file_directory=LOG_PATH, log_level=log_level)
 
         all_observers = load_plugins(group="exchange.observer")

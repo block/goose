@@ -16,6 +16,8 @@ from exchange.providers import Provider, Usage
 from exchange.token_usage_collector import _token_usage_collector
 from exchange.tool import Tool
 
+from goose.utils.confirm_execute import is_cancelled_by_user
+
 
 def validate_tool_output(output: str) -> None:
     """Validate tool output for the given model"""
@@ -46,6 +48,7 @@ class Exchange:
     messages: list[Message] = field(factory=list)
     checkpoint_data: CheckpointData = field(factory=CheckpointData)
     generation_args: dict = field(default=Factory(dict))
+    ask_confirmation: bool = False
 
     @property
     def _toolmap(self) -> Mapping[str, Tool]:
@@ -111,6 +114,8 @@ class Exchange:
             content = []
             for tool_use in response.tool_use:
                 tool_result = self.call_function(tool_use)
+                if tool_result.is_cancelled_by_user:
+                    break
                 content.append(tool_result)
             self.add(Message(role="user", content=content))
 
@@ -132,7 +137,6 @@ class Exchange:
     def call_function(self, tool_use: ToolUse) -> ToolResult:
         """Call the function indicated by the tool use"""
         tool = self._toolmap.get(tool_use.name)
-
         if tool is None or tool_use.is_error:
             output = f"ERROR: Failed to use tool {tool_use.id}.\nDo NOT use the same tool name and parameters again - that will lead to the same error."  # noqa: E501
 
@@ -161,8 +165,10 @@ class Exchange:
             tb = traceback.format_exc()
             output = str(tb) + "\n" + str(e)
             is_error = True
-
-        return ToolResult(tool_use_id=tool_use.id, output=output, is_error=is_error)
+        cancelled_by_user = is_cancelled_by_user(output)
+        return ToolResult(
+            tool_use_id=tool_use.id, output=output, is_error=is_error, is_cancelled_by_user=cancelled_by_user
+        )
 
     def add_tool_use(self, tool_use: ToolUse) -> None:
         """Manually add a tool use and corresponding result
