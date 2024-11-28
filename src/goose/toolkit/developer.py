@@ -7,7 +7,8 @@ from pathlib import Path
 
 from exchange import Message
 from goose.toolkit.base import Toolkit, tool
-from goose.toolkit.utils import get_language, render_template, RULEPREFIX, RULESTYLE
+from goose.toolkit.utils import get_language, RULEPREFIX, RULESTYLE
+from goose.utils.goosehints import fetch_goosehints
 from goose.utils.shell import shell
 from rich.markdown import Markdown
 from rich.table import Table
@@ -28,17 +29,11 @@ class Developer(Toolkit):
 
     def system(self) -> str:
         """Retrieve system configuration details for developer"""
-        hints_path = Path(".goosehints")
         system_prompt = Message.load("prompts/developer.jinja").text
-        home_hints_path = Path.home() / ".config/goose/.goosehints"
-        hints = []
-        if hints_path.is_file():
-            hints.append(render_template(hints_path))
-        if home_hints_path.is_file():
-            hints.append(render_template(home_hints_path))
+        hints = fetch_goosehints()
+
         if hints:
-            hints_text = "\n".join(hints)
-            system_prompt = f"{system_prompt}\n\nHints:\n{hints_text}"
+            system_prompt = f"{system_prompt}\n\nHints:\n{hints}"
         return system_prompt
 
     @tool
