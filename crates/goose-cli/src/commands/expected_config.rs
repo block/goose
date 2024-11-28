@@ -1,5 +1,3 @@
-// This is a temporary file to simulate some configuration data from the backend
-
 use crate::profile::{PROVIDER_DATABRICKS, PROVIDER_OLLAMA, PROVIDER_OPEN_AI};
 use goose::providers::ollama::OLLAMA_MODEL;
 
