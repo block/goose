@@ -43,11 +43,7 @@ pub const PROFILE_DEFAULT_NAME: &str = "default";
 pub fn select_provider_lists() -> Vec<(&'static str, String, &'static str)> {
     ProviderType::iter()
         .map(|provider| match provider {
-            ProviderType::OpenAi => (
-                PROVIDER_OPEN_AI,
-                PROVIDER_OPEN_AI.to_string(),
-                "Recommended",
-            ),
+            ProviderType::OpenAi => (PROVIDER_OPEN_AI, PROVIDER_OPEN_AI.to_string(), ""),
             ProviderType::Databricks => (PROVIDER_DATABRICKS, PROVIDER_DATABRICKS.to_string(), ""),
             ProviderType::Ollama => (PROVIDER_OLLAMA, PROVIDER_OLLAMA.to_string(), ""),
         })
