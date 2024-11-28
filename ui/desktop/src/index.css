@@ -18,6 +18,19 @@
 }
 
 @layer components {
+  .titlebar-drag-region {
+    -webkit-app-region: drag;
+    height: 32px;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
   .ask-goose-type {
     color: #000;
     font-family: "Square Sans Mono";

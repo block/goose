@@ -111,7 +111,6 @@ impl MemoryManager {
             if let Some(first_line) = lines.next() {
                 if first_line.starts_with('#') {
                     let tags = first_line[1..]
-                        .trim()
                         .split_whitespace()
                         .map(String::from)
                         .collect::<Vec<_>>();
@@ -236,8 +235,7 @@ pub fn execute_tool_call(tool_call: ToolCall) -> Result<String, io::Error> {
                 .map(|v| v.as_str().unwrap())
                 .collect();
             let is_global = tool_call.arguments["is_global"].as_bool().unwrap();
-            let _result =
-                MemoryManager::new()?.remember("context", category, data, &tags, is_global)?;
+            MemoryManager::new()?.remember("context", category, data, &tags, is_global)?;
             Ok(format!("Stored memory in category: {}", category))
         }
         "retrieve_memories" => {
@@ -272,6 +270,12 @@ pub struct MemorySystem {
     memory_tools: Vec<Tool>,
     active_memories: HashMap<String, Vec<String>>,
     instructions: String,
+}
+
+impl Default for MemorySystem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MemorySystem {

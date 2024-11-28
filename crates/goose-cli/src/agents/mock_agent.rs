@@ -9,9 +9,7 @@ pub struct MockAgent;
 
 #[async_trait]
 impl Agent for MockAgent {
-    fn add_system(&mut self, _system: Box<dyn System>) {
-        ()
-    }
+    fn add_system(&mut self, _system: Box<dyn System>) {}
 
     async fn reply(&self, _messages: &[Message]) -> Result<BoxStream<'_, Result<Message>>> {
         Ok(Box::pin(futures::stream::empty()))

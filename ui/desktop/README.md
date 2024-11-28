@@ -1,23 +1,36 @@
 # Goose App
 
-Mac app for Goose. 
+Mac (and maybe windows?) app for Goose. 
 
 ```
 git clone git@github.com:block/goose.git
 cd goose/ui/desktop
 npm install
-export GOOSE_PROVIDER__API_KEY=... # OpenAI API Key
 npm start
 ```
 
-This will run `goosed` from src/bin (currently just copied into place from goose core) listening automatically.
+# Building notes
 
-Testing the rust server from source:
+This is an electron forge app, using vite and react.js. `gooosed` runs as multi process binaries on each window/tab similar to chrome.
 
-See `test.sh` for curl on how to use goose daemon - which is from rust version:
+see `package.json`: 
 
-* rust streaming server version of goose at time of writing: https://github.com/block/goose/pull/237
+`npm run bundle:default` will give you a Goose.app/zip which is signed/notarized but only if you setup the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
 
-`cargo run -p goose-server`
+`npm run bundle:preconfigured` will make a Goose.app/zip signed and notarized, but use the following:
 
-`./test.sh` (in another shell)
+```python
+            f"        process.env.GOOSE_PROVIDER__TYPE = '{os.getenv("GOOSE_BUNDLE_TYPE")}';",
+            f"        process.env.GOOSE_PROVIDER__HOST = '{os.getenv("GOOSE_BUNDLE_HOST")}';",
+            f"        process.env.GOOSE_PROVIDER__MODEL = '{os.getenv("GOOSE_BUNDLE_MODEL")}';"
+```
+
+This allows you to set for example GOOSE_PROVIDER__TYPE to be "databricks" by default if you want (so when people start Goose.app - they will get that out of the box). There is no way to set an api key in that bundling as that would be a terrible idea, so only use providers that can do oauth (like databricks can), otherwise stick to default goose.
+
+
+# Runninng with goosed server from source
+
+Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env.
+Run `cargo run -p goose-server` from parent dir.
+`npm run start` will then run against this.
+You can try server directly with `./test.sh`

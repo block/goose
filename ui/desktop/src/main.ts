@@ -1,11 +1,10 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem } from 'electron';
 import path from 'node:path';
-import { start as startGoosed } from './goosed';
+import { findAvailablePort, startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
-import { getPort } from './utils/portUtils';
 import { exec } from 'child_process';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -15,6 +14,10 @@ declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
 const checkApiCredentials = () => {
+
+  loadZshEnv(app.isPackaged);
+
+  //{env-macro-start}//  
   const isDatabricksConfigValid =
     process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
     process.env.GOOSE_PROVIDER__HOST &&
@@ -27,12 +30,13 @@ const checkApiCredentials = () => {
     process.env.GOOSE_PROVIDER__API_KEY;
 
   return isDatabricksConfigValid || isOpenAIDirectConfigValid
+  //{env-macro-end}//
 };
 
 let appConfig = { 
-  GOOSE_SERVER__PORT: 3000, 
+  apiCredsMissing: !checkApiCredentials(),
   GOOSE_API_HOST: 'http://127.0.0.1',
-  apiCredsMissing: !checkApiCredentials()
+  GOOSE_SERVER__PORT: 0,
 };
 
 const createLauncher = () => {
@@ -81,20 +85,22 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = (query?: string) => {
+const createChat = async (app, query?: string) => {
+
+  const port = await startGoosed(app);  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 16, y: 18 },
+    trafficLightPosition: { x: 16, y: 10 },
     width: 650,
     height: 800,
-    minWidth: 530,
+    minWidth: 650,
     minHeight: 800,
     transparent: true,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify(appConfig)],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port })],
     },
   });
 
@@ -195,36 +201,38 @@ const showWindow = () => {
 
 app.whenReady().then(async () => {
   // Load zsh environment variables in production mode only
-  const isProduction = app.isPackaged;
-  loadZshEnv(isProduction);
-
-  // Get the server startup configuration
-  const shouldStartServer = (process.env.VITE_START_EMBEDDED_SERVER || 'yes').toLowerCase() === 'yes';
   
-  if (shouldStartServer) {
-    log.info('Starting embedded goosed server');
-    const port = await getPort();
-    process.env.GOOSE_SERVER__PORT = port.toString();
-    appConfig = { ...appConfig, GOOSE_SERVER__PORT: process.env.GOOSE_SERVER__PORT };
-    startGoosed(app);
-  } else {
-    log.info('Skipping embedded server startup (disabled by configuration)');
-  }
-
   createTray();
-  createChat();
+  createChat(app);
 
   // Show launcher input on key combo
   globalShortcut.register('Control+Alt+Command+G', createLauncher);
 
+  // Preserve existing menu and add new items
+  const menu = Menu.getApplicationMenu();
+  const fileMenu = menu?.items.find(item => item.label === 'File');
+
+  // Add 'New Chat Window' to File menu
+  if (fileMenu && fileMenu.submenu) {
+    fileMenu.submenu.append(new MenuItem({
+      label: 'New Chat Window',
+      accelerator: 'CmdOrCtrl+N',
+      click() {
+        ipcMain.emit('create-chat-window');
+      },
+    }));
+  }
+
+  Menu.setApplicationMenu(menu);
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createChat();
+      createChat(app);
     }
   });
 
   ipcMain.on('create-chat-window', (_, query) => {
-    createChat(query);
+    createChat(app, query);
   });
 
   ipcMain.on('notify', (event, data) => {
@@ -276,3 +284,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+

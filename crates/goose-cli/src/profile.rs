@@ -3,7 +3,8 @@ use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::inputs::get_env_value_or_input;
+use crate::inputs::{get_env_value_or_input, get_user_input};
+use goose::key_manager::{get_keyring_secret, save_to_keyring, KeyRetrievalStrategy};
 use goose::providers::configs::{
     DatabricksAuth, DatabricksProviderConfig, OllamaProviderConfig, OpenAiProviderConfig,
     ProviderConfig,
@@ -42,11 +43,7 @@ pub const PROFILE_DEFAULT_NAME: &str = "default";
 pub fn select_provider_lists() -> Vec<(&'static str, String, &'static str)> {
     ProviderType::iter()
         .map(|provider| match provider {
-            ProviderType::OpenAi => (
-                PROVIDER_OPEN_AI,
-                PROVIDER_OPEN_AI.to_string(),
-                "Recommended",
-            ),
+            ProviderType::OpenAi => (PROVIDER_OPEN_AI, PROVIDER_OPEN_AI.to_string(), ""),
             ProviderType::Databricks => (PROVIDER_DATABRICKS, PROVIDER_DATABRICKS.to_string(), ""),
             ProviderType::Ollama => (PROVIDER_OLLAMA, PROVIDER_OLLAMA.to_string(), ""),
         })
@@ -91,25 +88,57 @@ pub fn find_existing_profile(name: &str) -> Option<Profile> {
     }
 }
 
+pub fn get_or_set_key(
+    human_readable_name: &str,
+    key_name: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    // Try to get existing key first from keyring or environment
+    match get_keyring_secret(key_name, KeyRetrievalStrategy::Both) {
+        Ok(key) => return Ok(key),
+        Err(e) => {
+            eprintln!("{}", e); // Print the error
+        }
+    }
+
+    // If no key found or error occurred, prompt user for input
+    let prompt = format!("Please enter your {}:", human_readable_name);
+    let key_val = get_env_value_or_input(key_name, &prompt, false);
+
+    // Check if user wants to save to the system keyring
+    let resp = get_user_input(
+        "Would you like to save this key to the system keyring? (y/n):",
+        "y",
+    )?;
+    if resp.eq_ignore_ascii_case("y") {
+        match save_to_keyring(key_name, &key_val) {
+            Ok(_) => println!("Successfully saved key to system keyring"),
+            Err(e) => {
+                // Log the error but don't fail - the API key is still usable
+                println!("Warning: Failed to save key to system keyring: {}", e);
+            }
+        }
+    }
+
+    Ok(key_val)
+}
+
 pub fn set_provider_config(provider_name: &str, model: String) -> ProviderConfig {
     match provider_name.to_lowercase().as_str() {
-        PROVIDER_OPEN_AI => ProviderConfig::OpenAi(OpenAiProviderConfig {
-            host: "https://api.openai.com".to_string(),
-            api_key: get_env_value_or_input(
-                "OPENAI_API_KEY",
-                "Please enter your OpenAI API key:",
-                true,
-            ),
-            model,
-            temperature: None,
-            max_tokens: None,
-        }),
+        PROVIDER_OPEN_AI => {
+            let api_key = get_or_set_key("OPENAI_API_KEY", "OPENAI_API_KEY")
+                .expect("Failed to get OpenAI API key");
+            ProviderConfig::OpenAi(OpenAiProviderConfig {
+                host: "https://api.openai.com".to_string(),
+                api_key,
+                model,
+                temperature: None,
+                max_tokens: None,
+            })
+        }
         PROVIDER_DATABRICKS => {
-            let host = get_env_value_or_input(
-                "DATABRICKS_HOST",
-                "Please enter your Databricks host:",
-                false,
-            );
+            let host = get_or_set_key("databricks host url", "DATABRICKS_HOST")
+                .expect("Failed to get databricks host");
+
             ProviderConfig::Databricks(DatabricksProviderConfig {
                 host: host.clone(),
                 // TODO revisit configuration

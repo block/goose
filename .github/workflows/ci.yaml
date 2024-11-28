@@ -18,7 +18,14 @@ jobs:
 
     - name: Install Libs
       run: |
-        sudo apt install libdbus-1-dev pkg-config
+        sudo apt update -y
+        sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring
+
+    - name: Start gnome-keyring
+      # run gnome-keyring with 'foobar' as password for the login keyring
+      # this will create a new login keyring and unlock it
+      # the login password doesn't matter, but the keyring must be unlocked for the tests to work
+      run: gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
     - name: Install UV
       run: |

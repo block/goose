@@ -8,11 +8,10 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "publish": "electron-forge publish",
+    "bundle:preconfigured": "./bundle.py && npm run make && echo 'resetting main' && git checkout src/main.ts && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
+    "bundle:default": "npm run make && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
-    "test-e2e": "electron-forge start > /tmp/out.txt & ELECTRON_PID=$! && sleep 12 && if grep -q 'renderer: ChatWindow loaded' /tmp/out.txt; then echo 'process is running'; pkill -f electron; else echo 'not starting correctly'; cat /tmp/out.txt; pkill -f electron; exit 1; fi",
-    "sign-macos": "cd ./out/Goose-darwin-arm64 && codesign --deep --force --verify --sign \"Developer ID Application: Michael Neale (W2L75AE9HQ)\" Goose.app && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
-    "sign-verify": " cd ./out/Goose-darwin-arm64 && codesign --verify --deep --strict Goose.app && codesign -d --entitlements :- Goose.app"
+    "test-e2e": "electron-forge start > /tmp/out.txt & ELECTRON_PID=$! && sleep 12 && if grep -q 'renderer: ChatWindow loaded' /tmp/out.txt; then echo 'process is running'; pkill -f electron; else echo 'not starting correctly'; cat /tmp/out.txt; pkill -f electron; exit 1; fi"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.5.0",

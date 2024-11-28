@@ -10,6 +10,13 @@ module.exports = {
       entitlements: 'entitlements.plist',
       'entitlements-inherit': 'entitlements.plist',
       'gatekeeper-assess': false,
+      hardenedRuntime: true,
+      identity: 'Developer ID Application: Michael Neale (W2L75AE9HQ)',
+    },
+    osxNotarize: {
+      appleId: process.env['APPLE_ID'],
+      appleIdPassword: process.env['APPLE_ID_PASSWORD'],
+      teamId: process.env['APPLE_TEAM_ID']
     },
   },
   rebuildConfig: {},

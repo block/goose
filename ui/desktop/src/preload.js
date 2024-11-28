@@ -1,7 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
-let windowId = null;
-
 
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 

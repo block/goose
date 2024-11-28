@@ -8,8 +8,8 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
+use tokio::process::Command;
 use xcap::Monitor;
 
 use crate::errors::{AgentError, AgentResult};
@@ -192,9 +192,11 @@ impl DeveloperSystem {
 
         // Execute the command
         let output = Command::new("bash")
+            .kill_on_drop(true) // Critical so that the command is killed when the agent.reply stream is interrupted.
             .arg("-c")
             .arg(cmd_with_redirect)
             .output()
+            .await
             .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
 
         let output_str = format!(
@@ -203,7 +205,8 @@ impl DeveloperSystem {
             String::from_utf8_lossy(&output.stdout)
         );
         Ok(vec![
-            Content::text(output_str).with_audience(vec![Role::Assistant])
+            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(output_str).with_audience(vec![Role::User]).with_priority(0.0),
         ])
     }
 

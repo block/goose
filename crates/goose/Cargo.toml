@@ -40,12 +40,15 @@ dotenv = "0.15"
 xcap = "0.0.14"
 libc = "=0.2.164"
 
+keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 [dev-dependencies]
 wiremock = "0.6.0"
 mockito = "1.2"
 tempfile = "3.8"
+mockall = "0.11"
 
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+

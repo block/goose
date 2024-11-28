@@ -40,7 +40,7 @@ impl TokenCache {
         let hash = format!("{:x}", hasher.finalize());
 
         fs::create_dir_all(get_base_path()).unwrap();
-        let cache_path = PathBuf::from(get_base_path()).join(format!("{}.json", hash));
+        let cache_path = get_base_path().join(format!("{}.json", hash));
 
         Self { cache_path }
     }

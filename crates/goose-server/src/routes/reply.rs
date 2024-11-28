@@ -22,8 +22,10 @@ use std::{
     convert::Infallible,
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
 use tokio::sync::mpsc;
+use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 
 // Types matching the incoming JSON structure
@@ -139,7 +141,6 @@ fn convert_messages(incoming: Vec<IncomingMessage>) -> Vec<Message> {
 struct ProtocolFormatter;
 
 impl ProtocolFormatter {
-
     fn format_text(text: &str) -> String {
         let encoded_text = serde_json::to_string(text).unwrap_or_else(|_| String::new());
         format!("0:{}\n", encoded_text)
@@ -236,8 +237,8 @@ async fn stream_message(
                     MessageContent::Text(text) => {
                         for line in text.text.lines() {
                             let modified_line = format!("{}\n", line);
-                            tx.send(ProtocolFormatter::format_text(&modified_line)).await?;
-
+                            tx.send(ProtocolFormatter::format_text(&modified_line))
+                                .await?;
                         }
                     }
                     MessageContent::Image(_) => {
@@ -294,17 +295,30 @@ async fn handler(
             }
         };
 
-        while let Some(response) = stream.next().await {
-            match response {
-                Ok(message) => {
-                    if let Err(e) = stream_message(message, &tx).await {
-                        tracing::error!("Error sending message through channel: {}", e);
-                        break;
+        loop {
+            tokio::select! {
+                response = timeout(Duration::from_millis(500), stream.next()) => {
+                    match response {
+                        Ok(Some(Ok(message))) => {
+                            if let Err(e) = stream_message(message, &tx).await {
+                                tracing::error!("Error sending message through channel: {}", e);
+                                break;
+                            }
+                        }
+                        Ok(Some(Err(e))) => {
+                            tracing::error!("Error processing message: {}", e);
+                            break;
+                        }
+                        Ok(None) => {
+                            break;
+                        }
+                        Err(_) => { // Heartbeat, used to detect disconnected clients and then end running tools.
+                            if tx.is_closed() {
+                                break;
+                            }
+                            continue;
+                        }
                     }
-                }
-                Err(e) => {
-                    tracing::error!("Error processing message: {}", e);
-                    break;
                 }
             }
         }

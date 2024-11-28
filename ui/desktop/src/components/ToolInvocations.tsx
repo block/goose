@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from './ui/card';
 import { BoxIcon } from './ui/icons'
 import ReactMarkdown from 'react-markdown'
-
+import { ToolCallArguments } from './ToolCallArguments';
 
 export default function ToolInvocations({ toolInvocations }) {
   return (
@@ -17,9 +17,6 @@ export default function ToolInvocations({ toolInvocations }) {
   )
 }
 
-
-
-
 function ToolInvocation({ toolInvocation }) {
   return (
     <div className="flex bg-goose-bubble text-white rounded-2xl p-4 pb-0 mb-[16px] max-w-full">
@@ -31,9 +28,6 @@ function ToolInvocation({ toolInvocation }) {
   )
 }
 
-
-
-
 interface ToolCallProps {
   call: {
     state: 'call' | 'result'
@@ -44,8 +38,6 @@ interface ToolCallProps {
 }
 
 function ToolCall({ call }: ToolCallProps) {
-  const argsMarkdownContent = convertArgsToMarkdown(call.args);
-
   return (
     <Card className="bg-tool-card p-4 mb-[16px]">
       <div className="flex items-center">
@@ -54,16 +46,11 @@ function ToolCall({ call }: ToolCallProps) {
       </div>
 
       {call.args && (
-        <ReactMarkdown className="p-2 max-w-full overflow-x-auto break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">
-          {argsMarkdownContent}
-        </ReactMarkdown>
+        <ToolCallArguments args={call.args} />
       )}
     </Card>
-  )
+  );
 }
-
-
-
 
 interface ResultItem {
   text?: string;
@@ -122,7 +109,7 @@ function ToolResult({ result }: ToolResultProps) {
         <BoxIcon size={14} />
         <span className="ml-[8px]">Tool Result: {result.toolName.substring(result.toolName.lastIndexOf("__") + 2)}</span>
       </div>
-      <div>
+      <div className="mt-2">
         {filteredResults.map((item: ResultItem, index: number) => {
           const isExpanded = shouldShowExpanded(item, index);
           const shouldMinimize = item.priority !== undefined && item.priority < 0.5;
@@ -132,13 +119,13 @@ function ToolResult({ result }: ToolResultProps) {
               {shouldMinimize && (
                 <button
                   onClick={() => toggleExpand(index)}
-                  className="mb-2 p-4 flex items-center"
+                  className="mb-2 hover:opacity-75"
                 >
-                  {isExpanded ? '▼ Collapse' : '▶ Expand'} {/* Unicode triangles as expand/collapse indicators */}
+                  {isExpanded ? '▼ Collapse' : '▶ Expand'}
                 </button>
               )}
               {(isExpanded || !shouldMinimize) && (
-                <>
+                <div className={shouldMinimize ? "ml-4" : ""}>
                   {item.type === 'text' && item.text && (
                     <ReactMarkdown className="text-tool-result-green whitespace-pre-wrap p-2 max-w-full overflow-x-auto break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">
                       {item.text}
@@ -155,11 +142,6 @@ function ToolResult({ result }: ToolResultProps) {
                       }}
                     />
                   )}
-                </>
-              )}
-              {!isExpanded && shouldMinimize && (
-                <div className="text-gray-500 italic ml-2">
-                  Click to show content
                 </div>
               )}
             </div>
@@ -169,41 +151,3 @@ function ToolResult({ result }: ToolResultProps) {
     </Card>
   );
 }
-
-
-
-
-// Utils
-
-const convertArgsToMarkdown = (args: Record<string, any>): string => {
-  const lines: string[] = [];
-  
-  Object.entries(args).forEach(([key, value]) => {
-    if (typeof value === 'string') {
-      lines.push('```');
-      lines.push(`${key}: ${value}`);
-      lines.push('```');
-    } else if (Array.isArray(value)) {
-      lines.push(`### ${key}`);
-      lines.push('');
-      value.forEach((item, index) => {
-        lines.push(`${index + 1}. ${JSON.stringify(item)}`);
-      });
-    } else if (typeof value === 'object' && value !== null) {
-      lines.push(`### ${key}`);
-      lines.push('');
-      lines.push('```json');
-      lines.push(JSON.stringify(value, null, 2));
-      lines.push('```');
-    } else {
-      lines.push(`### ${key}`);
-      lines.push('');
-      lines.push('```');
-      lines.push(String(value));
-      lines.push('```');
-    }
-    lines.push('');
-  });
-
-  return lines.join('\n');
-};

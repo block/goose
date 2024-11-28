@@ -1,8 +1,8 @@
+use console::style;
 use rand::{distributions::Alphanumeric, Rng};
 use std::path::{Path, PathBuf};
 
 use goose::agent::Agent;
-use goose::models::message::Message;
 use goose::providers::factory;
 
 use crate::commands::expected_config::get_recommended_models;
@@ -11,7 +11,6 @@ use crate::profile::{
 };
 use crate::prompt::cliclack::CliclackPrompt;
 use crate::prompt::rustyline::RustylinePrompt;
-use crate::prompt::thinking::get_random_goose_action;
 use crate::prompt::Prompt;
 use crate::session::{ensure_session_dir, Session};
 
@@ -48,7 +47,7 @@ pub fn build_session<'a>(
     // TODO: Odd to be prepping the provider rather than having that done in the agent?
     let provider = factory::get_provider(provider_config).unwrap();
     let agent = Box::new(Agent::new(provider));
-    let mut prompt = match std::env::var("GOOSE_INPUT") {
+    let prompt = match std::env::var("GOOSE_INPUT") {
         Ok(val) => match val.as_str() {
             "cliclack" => Box::new(CliclackPrompt::new()) as Box<dyn Prompt>,
             "rustyline" => Box::new(RustylinePrompt::new()) as Box<dyn Prompt>,
@@ -57,17 +56,19 @@ pub fn build_session<'a>(
         Err(_) => Box::new(RustylinePrompt::new()),
     };
 
-    prompt.render(Box::new(Message::assistant().with_text(format!(
-        r#"{}...
-    Provider: {}
-    Model: {}
-    Session file: {}"#,
-        get_random_goose_action(),
-        loaded_profile.provider,
-        loaded_profile.model,
-        session_file.display()
-    ))));
-
+    println!(
+        "{} {} {} {} {}",
+        style("starting session |").dim(),
+        style("provider:").dim(),
+        style(loaded_profile.provider).cyan().dim(),
+        style("model:").dim(),
+        style(loaded_profile.model).cyan().dim(),
+    );
+    println!(
+        "    {} {}",
+        style("logging to").dim(),
+        style(session_file.display()).dim().cyan(),
+    );
     Box::new(Session::new(agent, prompt, session_file))
 }
 

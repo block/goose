@@ -1,50 +1,5 @@
 use rand::seq::SliceRandom;
 
-/// List of goose-specific actions for noting goose readiness.
-pub const GOOSE_ACTIONS: &[&str] = &[
-    "Spreading wings",
-    "Honking thoughtfully",
-    "Waddling to conclusions",
-    "Flapping wings excitedly",
-    "Preening code feathers",
-    "Gathering digital breadcrumbs",
-    "Paddling through data",
-    "Migrating thoughts",
-    "Nesting ideas",
-    "Squawking calculations",
-    "Ruffling algorithmic feathers",
-    "Pecking at problems",
-    "Stretching webbed feet",
-    "Foraging for solutions",
-    "Grooming syntax",
-    "Building digital nest",
-    "Patrolling the codebase",
-    "Gosling about",
-    "Strutting with purpose",
-    "Diving for answers",
-    "Herding bytes",
-    "Molting old code",
-    "Swimming through streams",
-    "Goose-stepping through logic",
-    "Synchronizing flock algorithms",
-    "Navigating code marshes",
-    "Incubating brilliant ideas",
-    "Arranging feathers recursively",
-    "Gliding through branches",
-    "Migrating to better solutions",
-    "Nesting functions carefully",
-    "Hatching clever solutions",
-    "Preening parse trees",
-    "Flying through functions",
-    "Gathering syntax seeds",
-    "Webbing connections",
-    "Flocking to optimizations",
-    "Paddling through protocols",
-    "Honking success signals",
-    "Waddling through workflows",
-    "Nesting in neural networks",
-];
-
 /// Extended list of playful thinking messages including both goose and general AI actions
 pub const THINKING_MESSAGES: &[&str] = &[
     "Thinking",
@@ -267,11 +222,4 @@ pub fn get_random_thinking_message() -> &'static str {
     THINKING_MESSAGES
         .choose(&mut rand::thread_rng())
         .unwrap_or(&THINKING_MESSAGES[0])
-}
-
-/// Returns a random goose-specific action
-pub fn get_random_goose_action() -> &'static str {
-    GOOSE_ACTIONS
-        .choose(&mut rand::thread_rng())
-        .unwrap_or(&GOOSE_ACTIONS[0])
 }

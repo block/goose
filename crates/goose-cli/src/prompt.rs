@@ -12,23 +12,13 @@ pub trait Prompt {
     fn hide_busy(&self);
     fn close(&self);
     fn goose_ready(&self) {
-        self.draw_goose();
+        println!("\n");
+        println!("Goose is running! Enter your instructions, or try asking what goose can do.");
+        println!("\n");
     }
-
-    fn draw_goose(&self) {
-        println!(
-            r#"        __      - - - -
-       ( 0)>  <  honk!  >
-       ||       - - - -
-       ||
-     __||_
-  <=/     \=>
-    \_____/
-     |  |
-     ^  ^
-    "#
-        );
-    }
+    // Used for testing. Allows us to downcast to any type.
+    #[cfg(test)]
+    fn as_any(&self) -> &dyn std::any::Any;
 }
 
 pub struct Input {
