@@ -7,10 +7,17 @@ from exchange.providers.base import MissingProviderEnvVariableError
 from exchange.providers.databricks import DatabricksProvider
 
 
+def test_from_env_throw_error_when_invalid_host(monkeypatch):
+    monkeypatch.setenv("DATABRICKS_HOST", "localhost:1234")
+    monkeypatch.setenv("DATABRICKS_TOKEN", "test_token")
+
+    with pytest.raises(ValueError, match="Expected DATABRICKS_HOST to be a 'http' or 'https' url: localhost:1234"):
+        DatabricksProvider.from_env()
+
+
 @pytest.mark.parametrize(
     "env_var_name",
     [
-        "DATABRICKS_HOST",
         "DATABRICKS_TOKEN",
     ],
 )
@@ -18,7 +25,7 @@ def test_from_env_throw_error_when_missing_env_var(env_var_name):
     with patch.dict(
         os.environ,
         {
-            "DATABRICKS_HOST": "test_host",
+            "DATABRICKS_HOST": "http://test-host",
             "DATABRICKS_TOKEN": "test_token",
         },
         clear=True,

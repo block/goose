@@ -31,10 +31,8 @@ class DatabricksProvider(Provider):
     """
 
     PROVIDER_NAME = "databricks"
-    REQUIRED_ENV_VARS = [
-        "DATABRICKS_HOST",
-        "DATABRICKS_TOKEN",
-    ]
+    BASE_URL_ENV_VAR = "DATABRICKS_HOST"
+    REQUIRED_ENV_VARS = ["DATABRICKS_TOKEN"]
     instructions_url = "https://docs.databricks.com/en/dev-tools/auth/index.html#general-host-token-and-account-id-environment-variables-and-fields"
 
     def __init__(self, client: httpx.Client) -> None:
@@ -43,7 +41,7 @@ class DatabricksProvider(Provider):
     @classmethod
     def from_env(cls: type["DatabricksProvider"]) -> "DatabricksProvider":
         cls.check_env_vars(cls.instructions_url)
-        url = os.environ.get("DATABRICKS_HOST")
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR))
         key = os.environ.get("DATABRICKS_TOKEN")
         client = httpx.Client(
             base_url=url,

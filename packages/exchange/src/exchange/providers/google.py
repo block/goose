@@ -9,9 +9,6 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 from exchange.providers.utils import raise_for_status, retry_if_status, encode_image
 from exchange.observers import observe_wrapper
 
-
-GOOGLE_HOST = "https://generativelanguage.googleapis.com/v1beta"
-
 retry_procedure = retry(
     wait=wait_fixed(2),
     stop=stop_after_attempt(2),
@@ -24,6 +21,8 @@ class GoogleProvider(Provider):
     """Provides chat completions for models hosted by Google, including Gemini and other experimental models."""
 
     PROVIDER_NAME = "google"
+    BASE_URL_ENV_VAR = "GOOGLE_HOST"
+    BASE_URL_DEFAULT = "https://generativelanguage.googleapis.com/v1beta"
     REQUIRED_ENV_VARS = ["GOOGLE_API_KEY"]
     instructions_url = "https://ai.google.dev/gemini-api/docs/api-key"
 
@@ -33,7 +32,7 @@ class GoogleProvider(Provider):
     @classmethod
     def from_env(cls: type["GoogleProvider"]) -> "GoogleProvider":
         cls.check_env_vars(cls.instructions_url)
-        url = os.environ.get("GOOGLE_HOST", GOOGLE_HOST)
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR, cls.BASE_URL_DEFAULT))
         key = os.environ.get("GOOGLE_API_KEY")
         client = httpx.Client(
             base_url=url,

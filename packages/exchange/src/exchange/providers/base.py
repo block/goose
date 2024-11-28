@@ -1,3 +1,4 @@
+import httpx
 import os
 from abc import ABC, abstractmethod
 from attrs import define, field
@@ -22,6 +23,8 @@ class EmptyProviderNameError(Exception):
 
 class Provider(ABC):
     PROVIDER_NAME: str
+    BASE_URL_ENV_VAR: str = ""
+    BASE_URL_DEFAULT: str = ""
     REQUIRED_ENV_VARS: list[str] = []
 
     @classmethod
@@ -32,11 +35,23 @@ class Provider(ABC):
 
     @classmethod
     def check_env_vars(cls: type["Provider"], instructions_url: Optional[str] = None) -> None:
+        provider = cls.PROVIDER_NAME
         missing_vars = [x for x in cls.REQUIRED_ENV_VARS if x not in os.environ]
+
+        url_var = cls.BASE_URL_ENV_VAR
+        if url_var:
+            val = os.environ.get(url_var, cls.BASE_URL_DEFAULT)
+            if not val:
+                raise KeyError(url_var)
+            else:
+                url = httpx.URL(val)
+
+                if url.scheme not in ["http", "https"]:
+                    raise ValueError(f"Expected {url_var} to be a 'http' or 'https' url: {val}")
 
         if missing_vars:
             env_vars = ", ".join(missing_vars)
-            raise MissingProviderEnvVariableError(env_vars, cls.PROVIDER_NAME, instructions_url)
+            raise MissingProviderEnvVariableError(env_vars, provider, instructions_url)
 
     @abstractmethod
     def complete(

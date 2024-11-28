@@ -9,8 +9,6 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 from exchange.providers.utils import retry_if_status, raise_for_status
 from exchange.observers import observe_wrapper
 
-ANTHROPIC_HOST = "https://api.anthropic.com/v1/messages"
-
 retry_procedure = retry(
     wait=wait_fixed(2),
     stop=stop_after_attempt(2),
@@ -23,6 +21,8 @@ class AnthropicProvider(Provider):
     """Provides chat completions for models hosted directly by Anthropic."""
 
     PROVIDER_NAME = "anthropic"
+    BASE_URL_ENV_VAR = "ANTHROPIC_HOST"
+    BASE_URL_DEFAULT = "https://api.anthropic.com/v1/messages"
     REQUIRED_ENV_VARS = ["ANTHROPIC_API_KEY"]
 
     def __init__(self, client: httpx.Client) -> None:
@@ -31,7 +31,7 @@ class AnthropicProvider(Provider):
     @classmethod
     def from_env(cls: type["AnthropicProvider"]) -> "AnthropicProvider":
         cls.check_env_vars()
-        url = os.environ.get("ANTHROPIC_HOST", ANTHROPIC_HOST)
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR, cls.BASE_URL_DEFAULT))
         key = os.environ.get("ANTHROPIC_API_KEY")
         client = httpx.Client(
             base_url=url,
@@ -164,5 +164,5 @@ class AnthropicProvider(Provider):
 
     @retry_procedure
     def _post(self, payload: dict) -> httpx.Response:
-        response = self.client.post(ANTHROPIC_HOST, json=payload)
+        response = self.client.post(self.BASE_URL_DEFAULT, json=payload)
         return raise_for_status(response).json()

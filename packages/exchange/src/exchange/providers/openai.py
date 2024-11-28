@@ -16,7 +16,6 @@ from tenacity import retry, wait_fixed, stop_after_attempt
 from exchange.providers.utils import retry_if_status
 from exchange.observers import observe_wrapper
 
-OPENAI_HOST = "https://api.openai.com/"
 
 retry_procedure = retry(
     wait=wait_fixed(2),
@@ -30,6 +29,8 @@ class OpenAiProvider(Provider):
     """Provides chat completions for models hosted directly by OpenAI."""
 
     PROVIDER_NAME = "openai"
+    BASE_URL_ENV_VAR = "OPENAI_HOST"
+    BASE_URL_DEFAULT = "https://api.openai.com/"
     REQUIRED_ENV_VARS = ["OPENAI_API_KEY"]
     instructions_url = "https://platform.openai.com/docs/api-reference/api-keys"
 
@@ -39,11 +40,11 @@ class OpenAiProvider(Provider):
     @classmethod
     def from_env(cls: type["OpenAiProvider"]) -> "OpenAiProvider":
         cls.check_env_vars(cls.instructions_url)
-        url = os.environ.get("OPENAI_HOST", OPENAI_HOST)
+        url = httpx.URL(os.environ.get(cls.BASE_URL_ENV_VAR, cls.BASE_URL_DEFAULT))
         key = os.environ.get("OPENAI_API_KEY")
 
         client = httpx.Client(
-            base_url=url + "v1/",
+            base_url=url.join("v1/"),
             auth=("Bearer", key),
             timeout=httpx.Timeout(60 * 10),
         )
