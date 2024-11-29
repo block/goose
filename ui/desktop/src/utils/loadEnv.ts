@@ -23,9 +23,7 @@ export function loadZshEnv(isProduction: boolean = false): void {
       const matches = line.match(/^([^=]+)=(.*)$/);
       if (matches) {
         const [, key, value] = matches;
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
+        process.env[key] = value;
       }
     });
 

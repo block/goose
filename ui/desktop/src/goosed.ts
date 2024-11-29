@@ -62,7 +62,7 @@ export const startGoosed = async (app, dir=null): Promise<number> => {
     USERPROFILE: homeDir,
 
     // start with the port specified 
-    GOOSE_SERVER__PORT: port,
+    GOOSE_SERVER__PORT: String(port),
   };
 
   // Merge parent environment with additional environment variables
