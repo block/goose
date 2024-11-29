@@ -4,11 +4,11 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
 
-use goose::errors::{AgentError, AgentResult};
-use goose::models::content::Content;
-use goose::models::tool::Tool;
-use goose::models::tool::ToolCall;
-use goose::systems::System;
+use crate::errors::{AgentError, AgentResult};
+use crate::models::content::Content;
+use crate::models::tool::Tool;
+use crate::models::tool::ToolCall;
+use crate::systems::System;
 
 pub struct GooseHintsSystem {
     instructions: String,

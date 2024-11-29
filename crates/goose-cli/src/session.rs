@@ -7,10 +7,10 @@ use std::path::PathBuf;
 
 use crate::agents::agent::Agent;
 use crate::prompt::{InputType, Prompt};
-use crate::systems::goose_hints::GooseHintsSystem;
 use goose::developer::DeveloperSystem;
 use goose::models::message::{Message, MessageContent};
 use goose::models::role::Role;
+use goose::systems::goose_hints::GooseHintsSystem;
 
 // File management functions
 pub fn ensure_session_dir() -> Result<PathBuf> {
