@@ -48,7 +48,7 @@ Rules designed to control or manage the output of the model. Moderators that cur
 #### toolkits
 These are modular add-ons that enhance the functionality of Goose. Each toolkit provides specific capabilities or integrations that can be tailored to meet particular needs or use cases e.g `browser`, `developer`, `screen` etc. 
 
-To list available toolkits, use the following command within the Goose repo:
+To list available toolkits, use the following command:
 
 ```
   goose toolkit list
