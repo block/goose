@@ -21,7 +21,7 @@ default:
 
 #### provider
 
-Provider of LLM. LLM providers that currently are supported by Goose:
+Provider of LLM. LLM providers that are currently supported by Goose:
 
 | Provider   | Required environment variable(s) to access provider |
 | ---------- | --------------------------------------------------- |
@@ -43,6 +43,16 @@ Rules designed to control or manage the output of the model. Moderators that cur
 
 - `passive`: does not actively intervene in every response
 - `truncate`: truncates the first contexts when the contexts exceed the max token size
+
+
+#### toolkits
+These are modular add-ons that enhance the functionality of Goose. Each toolkit provides specific capabilities or integrations that can be tailored to meet particular needs or use cases e.g `browser`, `developer`, `screen` etc. 
+
+To list available toolkits, use the following command:
+
+```
+  goose toolkit list
+```
 
 ### Example `profiles.yaml` files
 
