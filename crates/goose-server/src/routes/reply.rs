@@ -9,9 +9,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::{
-    models::content::Content,
-    models::message::{Message, MessageContent},
-    models::role::Role,
+    models::{content::Content, message::{Message, MessageContent}, role::Role}, systems::goose_hints::GooseHintsSystem
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -275,6 +273,13 @@ async fn handler(
 
     // Get a lock on the shared agent
     let agent = state.agent.clone();
+        
+    // Lock the agent to get a mutable reference so we can add the system
+    {
+        let goosehints_system = Box::new(GooseHintsSystem::new());
+        let mut agent = agent.lock().await;
+        agent.add_system(goosehints_system);
+    }
 
     // Spawn task to handle streaming
     tokio::spawn(async move {
