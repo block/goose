@@ -92,20 +92,3 @@ jobs:
       with:
         name: Goose.zip
         path: ui/desktop/out/Goose-darwin-arm64/Goose.zip          
-
-    - name: Make preconfigured Goose App
-      run: npm run bundle:preconfigured
-      working-directory: ui/desktop
-      env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          GOOSE_BUNDLE_HOST: ${{ secrets.GOOSE_BUNDLE_HOST }}
-          GOOSE_BUNDLE_MODEL: ${{ secrets.GOOSE_BUNDLE_MODEL }}
-          GOOSE_BUNDLE_TYPE: ${{ secrets.GOOSE_BUNDLE_TYPE }}      
-
-    - name: Upload preconfigured
-      uses: actions/upload-artifact@v3
-      with:
-        name: Goose-preconfigured.app
-        path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
