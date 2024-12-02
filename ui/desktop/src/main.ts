@@ -6,6 +6,7 @@ import { findAvailablePort, startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
+import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -200,12 +201,23 @@ const showWindow = () => {
   });
 };
 
+const buildRecentFilesMenu = () => {
+  const recentDirs = loadRecentDirs();
+  return recentDirs.map(dir => ({
+    label: dir,
+    click: () => {
+      createChat(app, undefined, dir);
+    }
+  }));
+};
+
 const openDirectoryDialog = async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
+    addRecentDir(result.filePaths[0]);
     createChat(app, undefined, result.filePaths[0]);
   }
 };
@@ -232,6 +244,15 @@ app.whenReady().then(async () => {
     },
   }));
 
+  // Add Recent Files submenu
+  const recentFilesSubmenu = buildRecentFilesMenu();
+  if (recentFilesSubmenu.length > 0) {
+    fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.append(new MenuItem({
+      label: 'Recent Directories',
+      submenu: recentFilesSubmenu
+    }));
+  }
 
   // Add 'New Chat Window' and 'Open Directory' to File menu
   if (fileMenu && fileMenu.submenu) {
