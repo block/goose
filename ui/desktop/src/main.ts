@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
 import path from 'node:path';
 import { findAvailablePort, startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
@@ -85,9 +85,9 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string) => {
+const createChat = async (app, query?: string, dir?: string) => {
 
-  const port = await startGoosed(app);  
+  const port = await startGoosed(app, dir);  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
@@ -199,6 +199,16 @@ const showWindow = () => {
   });
 };
 
+const openDirectoryDialog = async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openDirectory']
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    createChat(app, undefined, result.filePaths[0]);
+  }
+};
+
 app.whenReady().then(async () => {
   // Load zsh environment variables in production mode only
   
@@ -212,13 +222,21 @@ app.whenReady().then(async () => {
   const menu = Menu.getApplicationMenu();
   const fileMenu = menu?.items.find(item => item.label === 'File');
 
-  // Add 'New Chat Window' to File menu
+  // Add 'New Chat Window' and 'Open Directory' to File menu
   if (fileMenu && fileMenu.submenu) {
     fileMenu.submenu.append(new MenuItem({
       label: 'New Chat Window',
       accelerator: 'CmdOrCtrl+N',
       click() {
         ipcMain.emit('create-chat-window');
+      },
+    }));
+
+    fileMenu.submenu.append(new MenuItem({
+      label: 'Open Directory...',
+      accelerator: 'CmdOrCtrl+O',
+      click() {
+        openDirectoryDialog();
       },
     }));
   }
@@ -284,4 +302,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
