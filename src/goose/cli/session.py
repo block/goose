@@ -289,7 +289,9 @@ class Session:
 
     def _log_cost(self, start_time: datetime, end_time: datetime) -> None:
         get_logger().info(get_total_cost_message(self.exchange.get_token_usage(), self.name, start_time, end_time))
-        print(f"[dim]you can view the cost and token usage in the log directory {LOG_PATH}[/]")
+        print(
+            f"[dim]Session '{self.name}' ended. You can view the cost and token usage in the log directory {LOG_PATH}[/]"
+        )
 
     def _prompt_overwrite_session(self) -> None:
         print(f"[yellow]Session already exists at {self.session_file_path}.[/]")
