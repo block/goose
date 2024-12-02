@@ -37,6 +37,7 @@ let appConfig = {
   apiCredsMissing: !checkApiCredentials(),
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_SERVER__PORT: 0,
+  GOOSE_WORKING_DIR: '',
 };
 
 const createLauncher = () => {
@@ -87,7 +88,7 @@ const windowMap = new Map<number, BrowserWindow>();
 
 const createChat = async (app, query?: string, dir?: string) => {
 
-  const port = await startGoosed(app, dir);  
+  const [port, working_dir] = await startGoosed(app, dir);  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
@@ -100,7 +101,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_DIR: dir })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir })],
     },
   });
 

@@ -73,6 +73,7 @@ function ChatContent({
 
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
 
+
   const {
     messages,
     input,

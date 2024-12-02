@@ -24,16 +24,22 @@ export const findAvailablePort = (): Promise<number> => {
 };
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
-export const startGoosed = async (app, dir=null): Promise<number> => {
+export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
   // In will use this later to determine if we should start process
   const isDev = process.env.NODE_ENV === 'development';
 
+  // we default to running goosed in home dir - if not specified
+  const homeDir = os.homedir();
+  if (!dir) {
+    dir = homeDir;
+  }
+  
   let goosedPath: string;
 
   if (isDev && !app.isPackaged) {
     if (process.env.VITE_START_EMBEDDED_SERVER === 'no') {
       log.info('Skipping starting goosed in development mode');
-      return 3000;
+      return [3000, dir];
     }
     // In development, use the absolute path from the project root
     goosedPath = path.join(process.cwd(), 'src', 'bin', process.platform === 'win32' ? 'goosed.exe' : 'goosed');
@@ -46,11 +52,6 @@ export const startGoosed = async (app, dir=null): Promise<number> => {
   // in case we want it
   //const isPackaged = app.isPackaged;
   
-  // we default to running goosed in home dir - if not specified
-  const homeDir = os.homedir();
-  if (!dir) {
-    dir = homeDir;
-  }
 
   log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}` );
   
@@ -94,7 +95,7 @@ export const startGoosed = async (app, dir=null): Promise<number> => {
     goosedProcess.kill();
   });
 
-  return port;
+  return [port, dir];
 };
 
 
