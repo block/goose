@@ -100,7 +100,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_DIR: dir })],
     },
   });
 
@@ -221,6 +221,16 @@ app.whenReady().then(async () => {
   // Preserve existing menu and add new items
   const menu = Menu.getApplicationMenu();
   const fileMenu = menu?.items.find(item => item.label === 'File');
+  
+  // open goose to specific dir and set that as its working space
+  fileMenu.submenu.append(new MenuItem({
+    label: 'Open Directory...',
+    accelerator: 'CmdOrCtrl+O',
+    click() {
+      openDirectoryDialog();
+    },
+  }));
+
 
   // Add 'New Chat Window' and 'Open Directory' to File menu
   if (fileMenu && fileMenu.submenu) {
@@ -232,13 +242,6 @@ app.whenReady().then(async () => {
       },
     }));
 
-    fileMenu.submenu.append(new MenuItem({
-      label: 'Open Directory...',
-      accelerator: 'CmdOrCtrl+O',
-      click() {
-        openDirectoryDialog();
-      },
-    }));
   }
 
   Menu.setApplicationMenu(menu);
