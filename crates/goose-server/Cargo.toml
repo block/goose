@@ -32,3 +32,5 @@ path = "src/main.rs"
 
 [dev-dependencies]
 serial_test = "3.2.0"
+tower = "0.5"
+async-trait = "0.1"
