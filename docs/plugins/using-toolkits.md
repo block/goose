@@ -37,7 +37,7 @@ The list above is limited. For a complete list, refer to the [Goose Available To
 
 To use a Toolkit within your Goose sessions, you'll need to add them to the `profiles.yaml` file, which can be found in your `User` directory at `~/.config/goose/profiles.yaml`. Here's how to add multiple toolkits:
 
-```yaml
+```yaml title="profiles.yaml"
 default:
   provider: openai
   processor: gpt-4o
@@ -56,7 +56,7 @@ default:
 
 Additionally, use the `requires` field to specify dependencies between toolkits, and any necessary configurations. If there are no requirements, simply add an empty set of braces: `{}`. However, if a toolkit requires dependencies or configurations, you can specify that here. For example, if `my_toolkit` depends on `another_toolkit`, you would configure it as shown below:
 
-```yaml
+```yaml title="profiles.yaml"
 default:                                                                                                                       
   provider: openai                                                                                                                
   processor: gpt-4o                                                                                                               
@@ -75,7 +75,7 @@ default:
 
 Once your [profile](https://block.github.io/goose/guidance/getting-started.html#configuring-goose-with-the-profilesyaml-file) is set up, you can start a Goose session with the specified profile. You can configure multiple profiles in your profiles.yaml file to suit different needs. For example, you might have separate `default` and `work` profiles:
 
-```yaml
+```yaml title="profiles.yaml"
 default:
   provider: openai
   processor: gpt-4o
@@ -138,7 +138,7 @@ uv run goose toolkit list
 ### Update the `profiles.yaml` File:
 Add the desired Toolkit from the `goose-plugins` repository to your profile. For example:
 
-```yaml
+```yaml title="profiles.yaml"
 default:
   provider: openai
   processor: gpt-4o
