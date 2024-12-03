@@ -1,8 +1,10 @@
 import React from 'react';
 import { Card } from './ui/card';
-import { BoxIcon } from './ui/icons'
-import ReactMarkdown from 'react-markdown'
-import { ToolCallArguments } from './ToolCallArguments';
+import Box from './ui/Box'
+import { ToolCallArguments } from "./ToolCallArguments"
+import MarkdownContent from './MarkdownContent'
+import { snakeToTitleCase } from '../utils'
+import { LoadingPlaceholder } from './LoadingPlaceholder';
 
 export default function ToolInvocations({ toolInvocations }) {
   return (
@@ -17,16 +19,22 @@ export default function ToolInvocations({ toolInvocations }) {
   )
 }
 
+
 function ToolInvocation({ toolInvocation }) {
   return (
-    <div className="flex bg-goose-bubble text-white rounded-2xl p-4 pb-0 mb-[16px] max-w-full">
-      <div key={toolInvocation.toolCallId} className="w-full h-full flex flex-col text-tool">
-        <ToolCall call={toolInvocation} />
-        {toolInvocation.state === 'result' && <ToolResult result={toolInvocation} />}
-      </div>
+    <div className="flex flex-col w-full">
+      <Card className="bg-tool-card text-tool p-4 mb-2">
+          <ToolCall call={toolInvocation} />
+          {toolInvocation.state === 'result' ? (
+            <ToolResult result={toolInvocation} />
+          ) : (
+            <LoadingPlaceholder />
+          )}
+      </Card>
     </div>
   )
 }
+
 
 interface ToolCallProps {
   call: {
@@ -39,18 +47,21 @@ interface ToolCallProps {
 
 function ToolCall({ call }: ToolCallProps) {
   return (
-    <Card className="bg-tool-card p-4 mb-[16px]">
+    <div>
       <div className="flex items-center">
-        <BoxIcon size={14} />
-        <span className="ml-[8px]">Tool Called: {call.toolName.substring(call.toolName.lastIndexOf("__") + 2)}</span>
+        <Box size={15} />
+        <span className="ml-[8px] text-tool-bold">{snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf("__") + 2))}</span>
       </div>
 
       {call.args && (
         <ToolCallArguments args={call.args} />
       )}
-    </Card>
-  );
+
+      <div className="self-stretch h-px bg-black/5 my-[10px] rounded-sm" />
+    </div>
+  )
 }
+
 
 interface ResultItem {
   text?: string;
@@ -104,50 +115,44 @@ function ToolResult({ result }: ToolResultProps) {
   };
 
   return (
-    <Card className="bg-tool-card p-4 mb-[16px]">
-      <div className="flex items-center">
-        <BoxIcon size={14} />
-        <span className="ml-[8px]">Tool Result: {result.toolName.substring(result.toolName.lastIndexOf("__") + 2)}</span>
-      </div>
-      <div className="mt-2">
-        {filteredResults.map((item: ResultItem, index: number) => {
-          const isExpanded = shouldShowExpanded(item, index);
-          const shouldMinimize = item.priority !== undefined && item.priority < 0.5;
-
-          return (
-            <div key={index} className="relative">
-              {shouldMinimize && (
-                <button
-                  onClick={() => toggleExpand(index)}
-                  className="mb-2 hover:opacity-75"
-                >
-                  {isExpanded ? '▼ Collapse' : '▶ Expand'}
-                </button>
-              )}
-              {(isExpanded || !shouldMinimize) && (
-                <div className={shouldMinimize ? "ml-4" : ""}>
-                  {item.type === 'text' && item.text && (
-                    <ReactMarkdown className="text-tool-result-green whitespace-pre-wrap p-2 max-w-full overflow-x-auto break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">
-                      {item.text}
-                    </ReactMarkdown>
-                  )}
-                  {item.type === 'image' && item.data && item.mimeType && (
-                    <img
-                      src={`data:${item.mimeType};base64,${item.data}`}
-                      alt="Tool result"
-                      className="max-w-full h-auto rounded-md"
-                      onError={(e) => {
-                        console.error('Failed to load image: Invalid MIME-type encoded image data');
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
+    <div className="mt-2 pt-2">
+      {filteredResults.map((item: ResultItem, index: number) => {
+        const isExpanded = shouldShowExpanded(item, index);
+        const shouldMinimize = item.priority !== undefined && item.priority < 0.5;
+        return (
+          <div key={index} className="relative">
+            {shouldMinimize && (
+              <button
+                onClick={() => toggleExpand(index)}
+                className="mb-1 p-1 flex items-center"
+              >
+                {isExpanded ? '▼ Output' : '▶ Output'} {/* Unicode triangles as expand/collapse indicators */}
+              </button>
+            )}
+            {(isExpanded || !shouldMinimize) && (
+              <>
+                {item.type === 'text' && item.text && (
+                  <MarkdownContent
+                    content={item.text}
+                    className="text-tool-result-green whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+                  />
+                )}
+                {item.type === 'image' && item.data && item.mimeType && (
+                  <img
+                    src={`data:${item.mimeType};base64,${item.data}`}
+                    alt="Tool result"
+                    className="max-w-full h-auto rounded-md"
+                    onError={(e) => {
+                      console.error('Failed to load image: Invalid MIME-type encoded image data');
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </div>
           );
         })}
-      </div>
-    </Card>
+    </div>
   );
 }

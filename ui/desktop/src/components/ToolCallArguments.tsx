@@ -19,25 +19,25 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
 
       if (!needsExpansion) {
         return (
-          <div className="p-2">
+          <div className="p-1">
             <div className="flex">
-              <span className="font-medium mr-2">{key}:</span>
-              <span>{value}</span>
+              <span className="text-tool-dim mr-2">{key}:</span>
+              <span className="text-tool">{value}</span>
             </div>
           </div>
         );
       }
 
       return (
-        <div className="p-2">
+        <div className="p-1">
           <div className="flex items-baseline">
-            <span className="font-medium mr-2">{key}:</span>
+            <span className="text-tool-dim mr-2">{key}:</span>
             <div className="flex-1">
               <button
                 onClick={() => toggleKey(key)}
                 className="hover:opacity-75"
               >
-                {isExpanded ? '▼ Collapse' : '▶ Expand'}
+                {isExpanded ? '▼ ' : '▶ '}
               </button>
               {!isExpanded && (
                 <span className="ml-2 text-gray-600">
@@ -65,7 +65,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       : String(value);
 
     return (
-      <div className="p-2">
+      <div className="p-1">
         <div className="flex">
           <span className="font-medium mr-2">{key}:</span>
           <pre className="whitespace-pre-wrap">
@@ -79,7 +79,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   return (
     <div className="mt-2">
       {Object.entries(args).map(([key, value]) => (
-        <div key={key} className="border-t first:border-t-0 border-gray-200">
+        <div key={key}>
           {renderValue(key, value)}
         </div>
       ))}

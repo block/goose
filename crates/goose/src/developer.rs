@@ -158,7 +158,8 @@ impl DeveloperSystem {
     // Helper method to resolve a path relative to cwd
     fn resolve_path(&self, path_str: &str) -> AgentResult<PathBuf> {
         let cwd = self.cwd.lock().unwrap();
-        let path = Path::new(path_str);
+        let expanded = shellexpand::tilde(path_str);
+        let path = Path::new(expanded.as_ref());
         let resolved_path = if path.is_absolute() {
             path.to_path_buf()
         } else {

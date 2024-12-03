@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useChat } from 'ai/react';
+import { useChat } from './ai-sdk-fork/useChat';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { getApiUrl } from './config';
 import { Card } from './components/ui/card';

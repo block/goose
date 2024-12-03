@@ -1,7 +1,7 @@
 import React from 'react'
-import ReactMarkdown from 'react-markdown'
 import LinkPreview from './LinkPreview'
 import { extractUrls } from '../utils/urlUtils'
+import MarkdownContent from './MarkdownContent'
 
 export default function UserMessage({ message }) {
   // Extract URLs which explicitly contain the http:// or https:// protocol
@@ -9,9 +9,12 @@ export default function UserMessage({ message }) {
 
   return (
     <div className="flex justify-end mb-[16px]">
-      <div className="flex-col">
+      <div className="flex-col max-w-[90%]">
         <div className="flex bg-user-bubble text-white rounded-2xl p-4">
-          <ReactMarkdown className="whitespace-pre-wrap">{message.content}</ReactMarkdown>
+          <MarkdownContent
+            content={message.content}
+            className="text-white"
+          />
         </div>
         {urls.length > 0 && (
           <div className="flex mt-2">

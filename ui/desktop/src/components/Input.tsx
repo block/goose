@@ -58,6 +58,7 @@ export default function Input({
       setValue('');
     }} className="flex relative bg-white h-auto px-[16px] pr-[38px] py-[1rem] rounded-b-2xl">
       <textarea
+        autoFocus
         id="dynamic-textarea"
         placeholder="What should goose do?"
         value={value}

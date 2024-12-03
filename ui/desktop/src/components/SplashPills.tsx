@@ -20,10 +20,10 @@ function SplashPill({ content, append }) {
 export default function SplashPills({ append }) {
   return (
     <div className="grid grid-cols-2 gap-4 mb-[8px]">
-      <SplashPill content="Migrate code to react" append={append} />
-      <SplashPill content="Scaffold a data retention API" append={append} />
+      <SplashPill content="Demo writing and reading files" append={append} />
+      <SplashPill content="Make a snake game in a new folder" append={append} />
       <SplashPill content="List files in my current directory" append={append} />
-      <SplashPill content="Find all markdown files" append={append} />
+      <SplashPill content="Take a screenshot and summarize" append={append} />
     </div>
   )
 }

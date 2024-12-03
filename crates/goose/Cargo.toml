@@ -41,6 +41,7 @@ xcap = "0.0.14"
 libc = "=0.2.164"
 
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
+shellexpand = "3.1.0"
 
 [dev-dependencies]
 wiremock = "0.6.0"

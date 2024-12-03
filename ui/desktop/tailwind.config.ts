@@ -11,6 +11,15 @@ export default {
   ],
   theme: {
     extend: {
+      keyframes: {
+        shimmer: {
+          '0%': { backgroundPosition: '200% 0' },
+          '100%': { backgroundPosition: '-200% 0' }
+        }
+      },
+      animation: {
+        'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
+      },
       typography: {
         xs: {
           css: {
@@ -58,8 +67,9 @@ export default {
 
         'more-menu': 'rgba(255, 255, 255, 0.95))',
 
-        'tool-bold': 'rgba(0, 0, 0, 0.65)',
-        'tool': 'rgba(0, 0, 0, 0.50)',
+        'tool-bold': 'rgba(0, 0, 0, 0.85)',
+        'tool': 'rgba(0, 0, 0, 0.75)',
+        'tool-dim': 'rgba(0, 0, 0, 0.6)',
 
         'tool-result-green': '#028E00',
         'tool-card': 'rgba(255, 255, 255, 0.80)',

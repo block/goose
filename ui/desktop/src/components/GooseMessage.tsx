@@ -1,9 +1,9 @@
 import React from 'react';
-import ReactMarkdown from 'react-markdown';
 import ToolInvocations from './ToolInvocations';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
+import MarkdownContent from './MarkdownContent';
 
 interface GooseMessageProps {
   message: any;
@@ -24,19 +24,22 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
 
   return (
     <div className="flex justify-start mb-[16px]">
-      <div className="flex-col">
-        {message.toolInvocations && (
-          <ToolInvocations toolInvocations={message.toolInvocations} />
-        )}
-
-        {message.content && (
-          <div className="flex bg-goose-bubble text-white rounded-2xl p-4 mb-[16px]">
-            <ReactMarkdown className="prose prose-xs max-w-full overflow-x-auto break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">{message.content}</ReactMarkdown>
-          </div>
-        )}
+      <div className="flex-col w-[90%]">
+        <div className="flex flex-col bg-goose-bubble text-white rounded-2xl p-4">
+          {message.content && (
+            <MarkdownContent
+              content={message.content}
+            />
+          )}
+          {message.toolInvocations && (
+            <div className="mt-1">
+              <ToolInvocations toolInvocations={message.toolInvocations} />
+            </div>
+          )}
+        </div>
 
         {urls.length > 0 && (
-          <div className="flex mb-[16px]">
+          <div className="flex mt-[16px]">
             {urls.map((url, index) => (
               <LinkPreview key={index} url={url} />
             ))}
@@ -45,7 +48,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
 
         {/* Currently disabled */}
         {false && metadata && (
-          <div className="flex mb-[16px]">
+          <div className="flex mt-[16px]">
             <GooseResponseForm
               message={message.content}
               metadata={metadata}
