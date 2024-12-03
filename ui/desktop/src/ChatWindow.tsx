@@ -273,11 +273,9 @@ export default function ChatWindow() {
               <Route path="*" element={<Navigate to="/chat/1" replace />} />
             </Routes>
           </div>
-
-          {/* Render WingToWing when in compact mode */}
-          {mode === 'compact' && (
-            <WingToWing onExpand={toggleMode} progressMessage={progressMessage} working={working} />
-          )}
+                    
+          <WingToWing onExpand={toggleMode} progressMessage={progressMessage} working={working} />
+          
         </>
       )}
     </div>
