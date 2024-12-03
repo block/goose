@@ -54,22 +54,7 @@ default:
     You always want to have the `synopsis` Toolkit, formerly known as the `developer` Toolkit enabled. It is essential for Goose to be able to create files for you, if this is removed it will greatly limit Goose's functionality. 
 
 
-Additionally, use the `requires` field to specify dependencies between toolkits, and any necessary configurations. If there are no requirements, simply add an empty set of braces: `{}`. However, if a toolkit requires dependencies or configurations, you can specify that here. For example, if `my_toolkit` depends on `another_toolkit`, you would configure it as shown below:
-
-```yaml title="profiles.yaml"
-default:                                                                                                                       
-  provider: openai                                                                                                                
-  processor: gpt-4o                                                                                                               
-  accelerator: gpt-4o-mini                                                                                                        
-  moderator: synopsis                                                                                                              
-  toolkits:                                                                                                                       
-    - name: synopsis                                                                                                             
-      requires: {}                                                                                                                
-    - name: my_toolkit                                                                                                            
-      requires:                                                                                                                   
-        another_toolkit:                                                                                                          
-          config_option_1: value1  
-```
+Additionally, use the `requires` field to specify dependencies between toolkits, and any necessary configurations. If there are no requirements, simply add an empty set of braces: `{}`. 
 
 ## Starting a Goose Session with Toolkits
 
