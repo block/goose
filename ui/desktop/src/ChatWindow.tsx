@@ -9,10 +9,10 @@ import GooseMessage from './components/GooseMessage';
 import UserMessage from './components/UserMessage';
 import Input from './components/Input';
 import MoreMenu from './components/MoreMenu';
-import { Bird } from './components/ui/icons';
 import LoadingGoose from './components/LoadingGoose';
 import { ApiKeyWarning } from './components/ApiKeyWarning';
-// import fakeToolInvocations from './fixtures/tool-calls-and-results.json';
+import { askAi } from './utils/askAI';
+import WingToWing, { Working } from './components/WingToWing';
 
 export interface Chat {
   id: number;
@@ -23,34 +23,6 @@ export interface Chat {
     content: string;
   }>;
 }
-
-enum Working {
-  Idle = 'Idle',
-  Working = 'Working',
-}
-
-const WingView: React.FC<{
-  onExpand: () => void;
-  progressMessage: string;
-  working: Working;
-}> = ({ onExpand, progressMessage, working }) => {
-  return (
-    <div
-      onClick={onExpand}
-      className="flex items-center w-full h-28 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-300 shadow-md rounded-lg p-4 cursor-pointer hover:shadow-lg transition-all duration-200">
-      {working === Working.Working && (      
-        <div className="w-10 h-10 mr-4 flex-shrink-0">
-          <Bird />
-        </div>
-      )}
-
-      {/* Status Text */}
-      <div className="flex flex-col text-left">
-        <span className="text-sm text-gray-600 font-medium">{progressMessage}</span>
-      </div>
-    </div>
-  );
-};
 
 function ChatContent({
   chats,
@@ -72,7 +44,6 @@ function ChatContent({
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
 
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
-
 
   const {
     messages,
@@ -114,8 +85,6 @@ function ChatContent({
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
     },
   });
-
-  // const messages = fakeToolInvocations;
 
   // Update chat messages when they change
   useEffect(() => {
@@ -305,37 +274,12 @@ export default function ChatWindow() {
             </Routes>
           </div>
 
-          {/* Always render WingView but control its visibility */}
-          <WingView onExpand={toggleMode} progressMessage={progressMessage} working={working} />
+          {/* Render WingToWing when in compact mode */}
+          {mode === 'compact' && (
+            <WingToWing onExpand={toggleMode} progressMessage={progressMessage} working={working} />
+          )}
         </>
       )}
     </div>
   );
-}
-
-/**
- * Utility to ask the LLM any question to clarify without wider context.
- */
-async function askAi(promptTemplates: string[]) {
-  const responses = await Promise.all(
-    promptTemplates.map(async (template) => {
-      const response = await fetch(getApiUrl('/ask'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt: template }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
-
-      const data = await response.json();
-
-      return data.response;
-    })
-  );
-
-  return responses;
 }
