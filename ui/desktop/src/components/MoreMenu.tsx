@@ -37,6 +37,19 @@ export default function MoreMenu({ onClearContext, onRestartGoose }: MoreMenuPro
           >
             Restart goose
           </button>
+          <button
+            onClick={() => window.electron.directoryChooser()}
+            className="w-full text-left px-2 py-1.5 text-sm"
+          >
+            Open Dir (cmd+O)
+          </button>          
+          <button
+            onClick={() => window.electron.createChatWindow()}
+            className="w-full text-left px-2 py-1.5 text-sm"
+          >
+            New Session (cmd+N)
+          </button>          
+
         </div>
       </PopoverContent>
     </Popover>

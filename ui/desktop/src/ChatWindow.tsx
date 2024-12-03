@@ -108,7 +108,10 @@ function ChatContent({
 
   return (
     <div className="chat-content flex flex-col w-screen h-screen bg-window-gradient items-center justify-center p-[10px]">
+      
+
       <div className="relative block h-[20px] w-screen">
+      <div className="text-center text-splash-pills-text">{window.appConfig.get("GOOSE_WORKING_DIR")}</div>
         <MoreMenu
           onStopGoose={() => {
             stop();
