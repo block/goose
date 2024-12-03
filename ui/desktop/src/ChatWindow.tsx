@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useChat } from './ai-sdk-fork/useChat';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { getApiUrl } from './config';
@@ -12,7 +12,8 @@ import MoreMenu from './components/MoreMenu';
 import { Bird } from './components/ui/icons';
 import LoadingGoose from './components/LoadingGoose';
 import { ApiKeyWarning } from './components/ApiKeyWarning';
-// import fakeToolInvocations from './fixtures/tool-calls-and-results.json';
+import { FixedSizeList as List } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
 
 export interface Chat {
   id: number;
@@ -28,6 +29,9 @@ enum Working {
   Idle = 'Idle',
   Working = 'Working',
 }
+
+const MESSAGES_PER_PAGE = 50;
+const MESSAGE_CLEANUP_THRESHOLD = 100;
 
 const WingView: React.FC<{
   onExpand: () => void;
@@ -70,9 +74,10 @@ function ChatContent({
   setWorking: React.Dispatch<React.SetStateAction<Working>>;
 }) {
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
-
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
-
+  const [visibleMessages, setVisibleMessages] = useState([]);
+  const [page, setPage] = useState(1);
+  const listRef = useRef<List>(null);
 
   const {
     messages,
@@ -110,12 +115,49 @@ function ChatContent({
       ];
 
       const fetchResponses = await askAi(promptTemplates);
-
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
+
+      // Clean up metadata if we've accumulated a lot of messages
+      if (messages.length % MESSAGE_CLEANUP_THRESHOLD === 0) {
+        cleanupMessageMetadata();
+      }
     },
   });
 
-  // const messages = fakeToolInvocations;
+  // Cleanup function for message metadata
+  const cleanupMessageMetadata = useCallback(() => {
+    const visibleMessageIds = new Set(
+      messages.slice(-MESSAGES_PER_PAGE).map(m => m.id)
+    );
+    setMessageMetadata(prev => {
+      const newMetadata = {};
+      Object.keys(prev).forEach(key => {
+        if (visibleMessageIds.has(key)) {
+          newMetadata[key] = prev[key];
+        }
+      });
+      return newMetadata;
+    });
+  }, [messages]);
+
+  // Update visible messages when page changes
+  useEffect(() => {
+    const start = (page - 1) * MESSAGES_PER_PAGE;
+    setVisibleMessages(messages.slice(start, start + MESSAGES_PER_PAGE));
+  }, [messages, page]);
+
+  // Scroll handling
+  const scrollToBottom = useCallback(() => {
+    if (listRef.current) {
+      listRef.current.scrollToItem(messages.length - 1, 'end');
+    }
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+      scrollToBottom();
+    }
+  }, [messages.length, scrollToBottom]);
 
   // Update chat messages when they change
   useEffect(() => {
@@ -132,6 +174,25 @@ function ChatContent({
       initialQueryAppended.current = true;
     }
   }, [initialQuery]);
+
+  // Message renderer for virtualization
+  const MessageRow = useCallback(({ index, style }) => {
+    const message = messages[index];
+    return (
+      <div style={style}>
+        {message.role === 'user' ? (
+          <UserMessage message={message} />
+        ) : (
+          <GooseMessage
+            message={message}
+            messages={messages}
+            metadata={messageMetadata[message.id]}
+            append={append}
+          />
+        )}
+      </div>
+    );
+  }, [messages, messageMetadata, append]);
 
   if (error) {
     console.log('Error:', error);
@@ -166,25 +227,21 @@ function ChatContent({
         ) : (
           <ScrollArea className="flex-1 px-[10px]" id="chat-scroll-area">
             <div className="block h-10" />
-            <div ref={(el) => {
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-              }
-            }}>
-              {messages.map((message) => (
-                <div key={message.id}>
-                  {message.role === 'user' ? (
-                    <UserMessage message={message} />
-                  ) : (
-                    <GooseMessage
-                      message={message}
-                      messages={messages}
-                      metadata={messageMetadata[message.id]}
-                      append={append}
-                    />
-                  )}
-                </div>
-              ))}
+            <div style={{ height: 'calc(100vh - 200px)' }}>
+              <AutoSizer>
+                {({ height, width }) => (
+                  <List
+                    ref={listRef}
+                    height={height}
+                    width={width}
+                    itemCount={messages.length}
+                    itemSize={100}
+                    overscanCount={5}
+                  >
+                    {MessageRow}
+                  </List>
+                )}
+              </AutoSizer>
             </div>
             {isLoading && (
               <div className="flex items-center justify-center p-4">
@@ -259,11 +316,9 @@ export default function ChatWindow() {
   });
 
   const [selectedChatId, setSelectedChatId] = useState(1);
-
   const [mode, setMode] = useState<'expanded' | 'compact'>(
     initialQuery ? 'compact' : 'expanded'
   );
-
   const [working, setWorking] = useState<Working>(Working.Idle);
   const [progressMessage, setProgressMessage] = useState<string>('');
 
