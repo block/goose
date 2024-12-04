@@ -45,7 +45,7 @@ plugins:
   - callouts
   - glightbox
   - social:
-      enabled: !ENV [CI, false]
+      enabled: !ENV [CI, true]
   - mkdocstrings:
       handlers:
         python:

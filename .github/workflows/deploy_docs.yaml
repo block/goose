@@ -10,6 +10,15 @@ on:
       - 'mkdocs.yml'
       - '.github/workflows/deploy_docs.yaml'
 
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/deploy_docs.yaml'
+
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -20,6 +29,12 @@ jobs:
 
     - name: Install UV
       uses: astral-sh/setup-uv@v3
+
+    - name: Create UV virtual environment
+      run: uv venv   
+      
+    - name: Install dependencies
+      run: uv pip install "mkdocs-material[imaging]" Pillow cairosvg
 
     - name: Build the documentation
       run: uv run mkdocs gh-deploy --force
