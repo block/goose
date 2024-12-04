@@ -22,8 +22,6 @@ const CURRENT_VERSION = '1.0.0';
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
 
-// Current version of the app - update this when you want to show the welcome screen again
-const CURRENT_VERSION = '1.0.0';
 
 export interface Chat {
   id: number;
