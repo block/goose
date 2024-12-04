@@ -621,24 +621,44 @@ running commands on the shell."
     async fn status(&self) -> AnyhowResult<HashMap<String, Value>> {
         let cwd = self.cwd.lock().unwrap().display().to_string();
         let mut file_contents = HashMap::new();
+        let mut total_size = 0;
+        const MAX_TOTAL_SIZE: usize = 10_000; // 10K characters limit
 
         // Get mutable access to active_files to remove any we can't read
         let mut active_files = self.active_files.lock().unwrap();
-
-        // Use retain to keep only the files we can successfully read
-        active_files.retain(|path| {
-            if !path.exists() {
-                return false;
-            }
-
-            match std::fs::read_to_string(path) {
-                Ok(content) => {
-                    file_contents.insert(path.display().to_string(), content);
-                    true
-                }
-                Err(_) => false,
-            }
+        let mut paths: Vec<_> = active_files.iter().cloned().collect();
+        
+        // Sort paths by last modified time (most recent first)
+        paths.sort_by(|a, b| {
+            let a_modified = std::fs::metadata(a).and_then(|m| m.modified()).ok();
+            let b_modified = std::fs::metadata(b).and_then(|m| m.modified()).ok();
+            b_modified.cmp(&a_modified)
         });
+
+        // Build file contents map keeping track of total size
+        for path in paths {
+            if !path.exists() {
+                active_files.remove(&path);
+                continue;
+            }
+
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    let content_len = content.len();
+                    // Only add file if it won't exceed the total size limit
+                    if total_size + content_len <= MAX_TOTAL_SIZE {
+                        total_size += content_len;
+                        file_contents.insert(path.display().to_string(), content);
+                    } else {
+                        // Don't remove from active_files, just skip including in status
+                        continue;
+                    }
+                }
+                Err(_) => {
+                    active_files.remove(&path);
+                }
+            }
+        }
 
         Ok(HashMap::from([
             ("cwd".to_string(), json!(cwd)),
@@ -661,6 +681,8 @@ mod tests {
     use super::*;
     use serde_json::json;
     use tokio::sync::OnceCell;
+    use std::thread;
+    use std::time::Duration;
 
     // Use OnceCell to initialize the system once for all tests
     static DEV_SYSTEM: OnceCell<DeveloperSystem> = OnceCell::const_new();
@@ -799,6 +821,79 @@ mod tests {
             .as_text()
             .unwrap()
             .contains("The file content for"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_status_file_size_limit() {
+        let system = get_system().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file1_path = temp_dir.path().join("test1.txt");
+        let file2_path = temp_dir.path().join("test2.txt");
+        let file1_path_str = file1_path.to_str().unwrap();
+        let file2_path_str = file2_path.to_str().unwrap();
+
+        // Create first file with 6K characters
+        let file1_content = "a".repeat(6000);
+        let create_call = ToolCall::new(
+            "text_editor",
+            json!({
+                "command": "write",
+                "path": file1_path_str,
+                "file_text": file1_content
+            }),
+        );
+        system.call(create_call).await.unwrap();
+
+        // View the first file to make it active
+        let view_call = ToolCall::new(
+            "text_editor",
+            json!({
+                "command": "view",
+                "path": file1_path_str
+            }),
+        );
+        system.call(view_call).await.unwrap();
+
+        // Sleep briefly to ensure file2 has a later modification time
+        thread::sleep(Duration::from_millis(100));
+
+        // Create second file with 6K characters
+        let file2_content = "b".repeat(6000);
+        let create_call = ToolCall::new(
+            "text_editor",
+            json!({
+                "command": "write",
+                "path": file2_path_str,
+                "file_text": file2_content
+            }),
+        );
+        system.call(create_call).await.unwrap();
+
+        // View the second file to make it active
+        let view_call = ToolCall::new(
+            "text_editor",
+            json!({
+                "command": "view",
+                "path": file2_path_str
+            }),
+        );
+        system.call(view_call).await.unwrap();
+
+        // Get status - should only include the more recently modified file2
+        let status = system.status().await.unwrap();
+        let files = status.get("files").and_then(|v| v.as_object()).unwrap();
+        
+        assert_eq!(files.len(), 1, "Status should only include one file due to size limit");
+        assert!(files.contains_key(&file2_path.display().to_string()), "Status should contain the more recent file2");
+        assert!(!files.contains_key(&file1_path.display().to_string()), "Status should not contain the older file1");
+
+        // Both files should still be in active_files
+        let active_files = system.active_files.lock().unwrap();
+        assert!(active_files.contains(&file1_path), "file1 should still be in active_files");
+        assert!(active_files.contains(&file2_path), "file2 should still be in active_files");
 
         temp_dir.close().unwrap();
     }
