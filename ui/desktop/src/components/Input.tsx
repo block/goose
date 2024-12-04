@@ -64,7 +64,7 @@ export default function Input({
   };
 
   return (
-    <form onSubmit={onFormSubmit} className="flex relative bg-white h-auto px-[16px] pr-[38px] py-[1rem] rounded-b-2xl">
+    <form onSubmit={onFormSubmit} className="flex relative bg-white h-auto px-[16px] pr-[38px] py-[1rem]">
       <textarea
         autoFocus
         id="dynamic-textarea"
