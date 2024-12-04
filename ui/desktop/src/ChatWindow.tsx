@@ -13,6 +13,17 @@ import LoadingGoose from './components/LoadingGoose';
 import { ApiKeyWarning } from './components/ApiKeyWarning';
 import { askAi, getPromptTemplates } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
+import { WelcomeScreen } from './components/WelcomeScreen';
+
+// Current version of the app - update this when you want to show the welcome screen again
+const CURRENT_VERSION = '1.0.0';
+
+// Get the last version from localStorage
+const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
+const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
+
+// Current version of the app - update this when you want to show the welcome screen again
+const CURRENT_VERSION = '1.0.0';
 
 export interface Chat {
   id: number;
@@ -273,6 +284,17 @@ export default function ChatWindow() {
   const [working, setWorking] = useState<Working>(Working.Idle);
   const [progressMessage, setProgressMessage] = useState<string>('');
 
+  // Welcome screen state
+  const [showWelcome, setShowWelcome] = useState(() => {
+    const lastVersion = getLastSeenVersion();
+    return !lastVersion || lastVersion !== CURRENT_VERSION;
+  });
+
+  const handleWelcomeDismiss = () => {
+    setShowWelcome(false);
+    setLastSeenVersion(CURRENT_VERSION);
+  };
+
   const toggleMode = () => {
     const newMode = mode === 'expanded' ? 'compact' : 'expanded';
     console.log(`Toggle to ${newMode}`);
@@ -287,6 +309,10 @@ export default function ChatWindow() {
       {apiCredsMissing ? (
         <div className="w-full h-full">
           <ApiKeyWarning className="w-full h-full" />
+        </div>
+      ) : showWelcome ? (
+        <div className="w-full h-full">
+          <WelcomeScreen className="w-full h-full" onDismiss={handleWelcomeDismiss} />
         </div>
       ) : (
         <>
