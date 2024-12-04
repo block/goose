@@ -10,7 +10,7 @@ social:
   cards_layout_options:
     title: "Screenshot-Driven Development"  
     description: "AI Agent uses screenshots to assist in styling."
-    background_image: "../images/screenshot-driven-development-blog/screenshot-driven-development.png" 
+    background_image: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" 
 ---
 ![calendar](../images/screenshot-driven-development-blog/screenshot-driven-development.png)
 
