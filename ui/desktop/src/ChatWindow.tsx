@@ -323,7 +323,7 @@ export default function ChatWindow() {
         <div className="w-full h-full">
           <ApiKeyWarning className="w-full h-full" />
         </div>
-      ) : showWelcome ? (
+      ) : showWelcome && !(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? (
         <div className="w-full h-full">
           <WelcomeScreen className="w-full h-full" onDismiss={handleWelcomeDismiss} />
         </div>
