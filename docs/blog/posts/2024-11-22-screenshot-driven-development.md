@@ -6,18 +6,12 @@ authors:
   - rizel
 categories:
   - Web Development
+social:
+  cards_layout_options:
+    title: "Screenshot-Driven Development"  
+    description: "AI Agent uses screenshots to assist in styling."
+    background_image: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" 
 ---
-<meta property="og:title" content="Screenshot-Driven Development" />
-<meta property="og:type" content="article" />
-<meta property="og:url" content="https://block.github.io/goose/blog/2024/11/22/screenshot-driven-development.html" />
-<meta property="og:description" content="AI Agent uses screenshots to assist in styling." />
-<meta property="og:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta property="twitter:domain" content="block.github.io" />
-<meta name="twitter:title" content="Screenshot-Driven Development" />
-<meta name="twitter:description" content="AI Agent uses screenshots to assist in styling." />
-<meta name="twitter:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
-
 ![calendar](../images/screenshot-driven-development-blog/screenshot-driven-development.png)
 
 I'm a developer at heart, so when I'm working on a personal project, the hardest part isn't writing code—it's making design decisions. I recently built a calendar user interface. I wanted to enhance its visual appeal, so I researched UI design trends like "glassmorphism" and "claymorphism."

@@ -44,6 +44,8 @@ plugins:
   - include-markdown
   - callouts
   - glightbox
+  - social:
+      enabled: !ENV [CI, false]
   - mkdocstrings:
       handlers:
         python:
