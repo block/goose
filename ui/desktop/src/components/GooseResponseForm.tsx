@@ -18,11 +18,6 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
   let isOptions = false;
   let options = [];
 
-  if (metadata) {
-    window.electron.logInfo('metadata:'+ JSON.stringify(metadata, null, 2));   
-  }
-
-
 
   if (metadata) {
     isQuestion = metadata[0] === "QUESTION";
