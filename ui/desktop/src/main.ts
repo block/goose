@@ -102,7 +102,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir })],
     },
   });
 

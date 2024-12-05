@@ -16,8 +16,8 @@ import { askAi, getPromptTemplates } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
 
-// Current version of the app - update this when you want to show the welcome screen again
-const CURRENT_VERSION = '1.0.0';
+// update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
+const CURRENT_VERSION = '0.0.0';
 
 // Get the last version from localStorage
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
@@ -323,7 +323,7 @@ export default function ChatWindow() {
         <div className="w-full h-full">
           <ApiKeyWarning className="w-full h-full" />
         </div>
-      ) : showWelcome ? (
+      ) : showWelcome && (!window.appConfig.get("REQUEST_DIR")) ? (
         <div className="w-full h-full">
           <WelcomeScreen className="w-full h-full" onDismiss={handleWelcomeDismiss} />
         </div>
