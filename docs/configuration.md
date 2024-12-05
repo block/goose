@@ -4,7 +4,7 @@
 
 If you need to customize goose, one way is via editing: `~/.config/goose/profiles.yaml`.
 
-It will look by default something like (and when you run `goose session start` without the `--profile` flag it will use the `default` profile):
+By default, it looks like this:
 
 ```yaml
 default:
@@ -17,17 +17,14 @@ default:
       requires: {}
 ```
 
+If you run `goose session start` without the `--profile` flag it will use the `default` profile automatically.
+
 ### Fields
 
 #### provider
 
-Provider of LLM. LLM providers that are currently supported by Goose:
+`provider` specifies the chosen LLM provider by the user. You can set up multiple profiles with different providers. Goose will use the provider specified in the profile to interact with the LLM. Here is the list of [supported LLM providers][providers]
 
-| Provider   | Required environment variable(s) to access provider |
-| ---------- | --------------------------------------------------- |
-| openai     | `OPENAI_API_KEY`                                    |
-| anthropic  | `ANTHROPIC_API_KEY`                                 |
-| databricks | `DATABRICKS_HOST` and `DATABRICKS_TOKEN`            |
 
 #### processor
 
@@ -53,68 +50,6 @@ To list available toolkits, use the following command:
 ```
   goose toolkit list
 ```
-
-### Example `profiles.yaml` files
-
-#### provider as `anthropic`
-
-```yaml
-
-default:
-  provider: anthropic
-  processor: claude-3-5-sonnet-20241022
-  accelerator: claude-3-5-sonnet-20241022
-```
-
-#### provider as `databricks`
-
-```yaml
-default:
-  provider: databricks
-  processor: databricks-meta-llama-3-1-70b-instruct
-  accelerator: databricks-meta-llama-3-1-70b-instruct
-  moderator: passive
-  toolkits:
-    - name: developer
-      requires: {}
-```
-
-You can tell it to use another provider for example for Anthropic:
-
-```yaml
-default:
-  provider: anthropic
-  processor: claude-3-5-sonnet-20241022
-  accelerator: claude-3-5-sonnet-20241022
-  moderator: passive
-  toolkits:
-    - name: developer
-      requires: {}
-```
-
-this will then use the claude-sonnet model, you will need to set the `ANTHROPIC_API_KEY` to your anthropic API key.
-
-You can also customize Goose's behavior through toolkits. These are set up automatically for you in the same `~/.config/goose/profiles.yaml` file, but you can include or remove toolkits as you see fit.
-
-For example, Goose's `unit-test-gen` command sets up a new profile in this file for you:
-
-```yaml
-unit-test-gen:
-  provider: openai
-  processor: gpt-4o
-  accelerator: gpt-4o-mini
-  moderator: passive
-  toolkits:
-    - name: developer
-      requires: {}
-    - name: unit-test-gen
-      requires: {}
-    - name: java
-      requires: {}
-```
-
-[jinja-guide]: https://jinja.palletsprojects.com/en/3.1.x/
-[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html
 
 
 ## Adding a toolkit
@@ -150,6 +85,7 @@ Or, if you're developing a new toolkit and want to test it:
 uv run goose session start --profile my-profile
 ```
 
+
 ## Tuning Goose to your repo
 
 Goose ships with the ability to read in the contents of a file named `.goosehints` from your repo. If you find yourself repeating the same information across sessions to Goose, this file is the right place to add this information.
@@ -160,3 +96,8 @@ Check out the [guide on using .goosehints][using-goosehints] for more tips.
 
 > [!NOTE]
 > `.goosehints` follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables.
+
+
+[providers]: https://block.github.io/goose/plugins/providers.html
+[jinja-guide]: https://jinja.palletsprojects.com/en/3.1.x/
+[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html

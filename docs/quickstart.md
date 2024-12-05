@@ -21,6 +21,16 @@ pipx install goose-ai
 
 ### Running Goose
 
+#### Set up a provider
+Goose works with a set of [supported LLM providers][providers] that you can obtain an API key from if you don't already have one. You'll be prompted to set an API key if you haven't set one previously when you run Goose.
+
+>[!TIP]
+> **Billing:**
+>
+> You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests.
+>
+
+
 #### Start a session
 
 From your terminal, navigate to the directory you'd like to start from and run:
@@ -28,15 +38,6 @@ From your terminal, navigate to the directory you'd like to start from and run:
 ```sh
 goose session start
 ```
-
-#### Set up a provider
-Goose works with your [preferred LLM][providers]. By default, it uses `openai` as the LLM provider. You'll be prompted to set an [API key][openai-key] if you haven't set one previously.
-
->[!TIP]
-> **Billing:**
->
-> You will need to have credits in your LLM Provider account to be able to successfully make requests.
->
 
 
 #### Make Goose do the work for you
