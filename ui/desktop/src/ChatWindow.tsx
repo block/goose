@@ -53,7 +53,7 @@ function ChatContent({
 }) {
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});  
-  const [isWindowTainted, setIsWindowTainted] = useState(false);
+  const [hasMessages, setHasMessages] = useState(false);
   
 
   const {
@@ -107,7 +107,7 @@ function ChatContent({
 
   useEffect(() => {
     if (messages.length > 0) {
-      setIsWindowTainted(true);
+      setHasMessages(true);
     }
   }, [messages]);
 
@@ -249,7 +249,7 @@ function ChatContent({
           onStop={onStopGoose}
         />
         <div className="self-stretch h-px bg-black/5 rounded-sm" />
-        <BottomMenu isWindowTainted={isWindowTainted} />
+        <BottomMenu hasMessages={hasMessages} />
       </Card>
     </div>
   );

@@ -1,13 +1,13 @@
 import React from 'react';
 
-export default function BottomMenu({isWindowTainted}) {
+export default function BottomMenu({hasMessages}) {
   return (
     <div className="flex relative text-bottom-menu pl-[15px] text-[10px] bg-white h-[30px] leading-[30px] align-middle bg-white rounded-b-2xl">
       <span
         className="cursor-pointer"
         onClick={async () => {
           console.log("Opening directory chooser");
-          if (isWindowTainted) {
+          if (hasMessages) {
             window.electron.directoryChooser();
           } else {
             window.electron.directoryChooser(true);  
