@@ -160,14 +160,14 @@ def get_session_files() -> dict[str, Path]:
 @click.option("--plan", type=click.Path(exists=True))
 @click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]), default="INFO")
 @click.option("--tracing", is_flag=True, required=False)
+@click.option("-a", "--args", callback=parse_args, help="Args in the format arg1:value1,arg2:value2")
 def session_start(
     name: Optional[str], profile: str, log_level: str, plan: Optional[str] = None, tracing: bool = False
 ) -> None:
     """Start a new goose session"""
     if plan:
-        yaml = YAML()
-        with open(plan, "r") as f:
-            _plan = yaml.load(f)
+        plan_templated = render_template(Path(plan), context=args)
+        _plan = parse_plan(plan_templated)
     else:
         _plan = None
 
