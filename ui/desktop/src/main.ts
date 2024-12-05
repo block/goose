@@ -211,13 +211,16 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async () => {
+const openDirectoryDialog = async (replaceWindow: Boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    if (replaceWindow) {
+      BrowserWindow.getFocusedWindow().close();
+    }
     createChat(app, undefined, result.filePaths[0]);
   }
 };
@@ -305,8 +308,8 @@ app.whenReady().then(async () => {
     createChat(app, query);
   });
 
-  ipcMain.on('directory-chooser', (_) => {
-    openDirectoryDialog();
+  ipcMain.on('directory-chooser', (_, replace: Boolean = false) => {
+    openDirectoryDialog(replace);
   });
 
   ipcMain.on('notify', (event, data) => {

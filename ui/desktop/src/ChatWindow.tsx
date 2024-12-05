@@ -52,7 +52,9 @@ function ChatContent({
   setWorking: React.Dispatch<React.SetStateAction<Working>>;
 }) {
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
-  const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
+  const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});  
+  const [isWindowTainted, setIsWindowTainted] = useState(false);
+  
 
   const {
     messages,
@@ -102,6 +104,12 @@ function ChatContent({
       initialQueryAppended.current = true;
     }
   }, [initialQuery]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setIsWindowTainted(true);
+    }
+  }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as CustomEvent;
@@ -241,7 +249,7 @@ function ChatContent({
           onStop={onStopGoose}
         />
         <div className="self-stretch h-px bg-black/5 rounded-sm" />
-        <BottomMenu />
+        <BottomMenu isWindowTainted={isWindowTainted} />
       </Card>
     </div>
   );
