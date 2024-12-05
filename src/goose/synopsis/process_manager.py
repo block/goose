@@ -7,7 +7,8 @@ from goose.notifier import Notifier
 from goose.synopsis.system import system
 from goose.synopsis.util import log_command
 from goose.toolkit.utils import RULEPREFIX, RULESTYLE
-from goose.utils.shell import is_dangerous_command, keep_unsafe_command_prompt
+from goose.utils.command_checker import is_dangerous_command
+from goose.utils.shell import keep_unsafe_command_prompt
 
 ProcessManagerCommand = Literal["start", "list", "view_output", "cancel"]
 

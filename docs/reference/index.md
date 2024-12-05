@@ -35,4 +35,4 @@
 - [goose.utils.ask](goose/utils/ask.md)
 - [goose.utils.file_utils](goose/utils/file_utils.md)
 - [goose.utils.session_file](goose/utils/session_file.md)
-- [goose.utils.shell.is_dangerous_command](goose/utils/shell/is_dangerous_command.md)
+- [goose.utils.command_checker.is_dangerous_command](goose/utils/command_checker/is_dangerous_command.md)
