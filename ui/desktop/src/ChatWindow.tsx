@@ -180,11 +180,11 @@ function ChatContent({
   };
 
   return (
-    <div className="chat-content flex flex-col w-screen h-screen bg-window-gradient items-center justify-center p-[10px]">
+    <div className="chat-content flex flex-col w-screen h-screen items-center justify-center p-[10px]">
       <div className="relative block h-[20px] w-screen">
         <MoreMenu />
       </div>
-      <Card className="flex flex-col flex-1 h-[calc(100vh-95px)] w-full bg-card-gradient mt-0 border-none shadow-xl rounded-2xl relative">
+      <Card className="flex flex-col flex-1 h-[calc(100vh-95px)] w-full bg-card-gradient mt-0 border-none rounded-2xl relative">
         {messages.length === 0 ? (
           <Splash append={append} />
         ) : (
@@ -325,7 +325,7 @@ export default function ChatWindow() {
   window.electron.logInfo('ChatWindow loaded');
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-transparent flex flex-col">
+    <div className="relative w-screen h-screen overflow-hidden bg-window-gradient flex flex-col">
       <div className="titlebar-drag-region" />
       {apiCredsMissing ? (
         <div className="w-full h-full">

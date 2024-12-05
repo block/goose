@@ -9,7 +9,11 @@ use goose::providers::factory;
 use goose::providers::ollama::OLLAMA_MODEL;
 use std::error::Error;
 
-pub async fn handle_configure(provided_profile_name: Option<String>) -> Result<(), Box<dyn Error>> {
+pub async fn handle_configure(
+    provided_profile_name: Option<String>,
+    provided_provider: Option<String>,
+    provided_model: Option<String>,
+) -> Result<(), Box<dyn Error>> {
     cliclack::intro(style(" configure-goose ").on_cyan().black())?;
 
     let profile_name = if let Some(name) = provided_profile_name {
@@ -31,18 +35,24 @@ pub async fn handle_configure(provided_profile_name: Option<String>) -> Result<(
         ));
     }
 
-    let default_provider = existing_profile.map_or("openai", |profile| profile.provider.as_str());
-    let provider_name = cliclack::select("Which model provider should we use?")
-        .initial_value(default_provider)
-        .items(&[
-            ("openai", "OpenAI", "GPT-4o etc"),
-            ("databricks", "Databricks", "Models on AI Gateway"),
-            ("ollama", "Ollama", "Local open source models"),
-        ])
-        .interact()?;
+    let provider_name = if let Some(provider) = provided_provider {
+        provider
+    } else {
+        let default_provider =
+            existing_profile.map_or("openai", |profile| profile.provider.as_str());
+        cliclack::select("Which model provider should we use?")
+            .initial_value(default_provider)
+            .items(&[
+                ("openai", "OpenAI", "GPT-4o etc"),
+                ("databricks", "Databricks", "Models on AI Gateway"),
+                ("ollama", "Ollama", "Local open source models"),
+            ])
+            .interact()?
+            .to_string()
+    };
 
     // Depending on the provider, we now want to look for any required keys and check or set them in the keychain
-    for key in get_required_keys(provider_name).iter() {
+    for key in get_required_keys(&provider_name).iter() {
         // If the key is in the keyring, ask if we want to overwrite
         if get_keyring_secret(key, KeyRetrievalStrategy::KeyringOnly).is_ok() {
             let _ = cliclack::log::info(format!("{} is already available in the keyring", key));
@@ -74,12 +84,16 @@ pub async fn handle_configure(provided_profile_name: Option<String>) -> Result<(
         }
     }
 
-    let recommended_model = get_recommended_model(provider_name);
-    let default_model_value =
-        existing_profile.map_or(recommended_model, |profile| profile.model.as_str());
-    let model: String = cliclack::input("Enter a model from that provider:")
-        .default_input(default_model_value)
-        .interact()?;
+    let model = if let Some(model) = provided_model {
+        model
+    } else {
+        let recommended_model = get_recommended_model(&provider_name);
+        let default_model_value =
+            existing_profile.map_or(recommended_model, |profile| profile.model.as_str());
+        cliclack::input("Enter a model from that provider:")
+            .default_input(default_model_value)
+            .interact()?
+    };
 
     // Forward any existing systems from the profile if present
     let additional_systems =
@@ -98,7 +112,7 @@ pub async fn handle_configure(provided_profile_name: Option<String>) -> Result<(
     };
 
     // Confirm everything is configured correctly by calling a model!
-    let provider_config = get_provider_config(provider_name, model.clone());
+    let provider_config = get_provider_config(&provider_name, model.clone());
     let spin = spinner();
     spin.start("Checking your configuration...");
     let provider = factory::get_provider(provider_config).unwrap();
