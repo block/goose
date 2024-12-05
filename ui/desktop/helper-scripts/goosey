@@ -31,7 +31,7 @@ echo $dir
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Assuming Goose.app is installed in /Applications
     if [ -d "/Applications/Goose.app" ]; then
-        /Users/micn/Documents/code/goose-ui/ui/desktop/out/Goose-darwin-arm64/Goose.app/Contents/MacOS/Goose --args --dir "$dir"
+        /Applications/Goose.app/Contents/MacOS/Goose --args --dir "$dir"
     else
         echo "Error: Goose.app not found in /Applications"
         exit 1
