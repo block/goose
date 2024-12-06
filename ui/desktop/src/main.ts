@@ -14,6 +14,21 @@ if (started) app.quit();
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
+// Parse command line arguments
+const parseArgs = () => {
+  const args = process.argv.slice(2); // Remove first two elements (electron and script path)
+  let dirPath = null;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--dir' && i + 1 < args.length) {
+      dirPath = args[i + 1];
+      break;
+    }
+  }
+
+  return { dirPath };
+};
+
 const checkApiCredentials = () => {
 
   loadZshEnv(app.isPackaged);
@@ -254,10 +269,11 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
-  // Load zsh environment variables in production mode only
+  // Parse command line arguments
+  const { dirPath } = parseArgs();
   
   createTray();
-  createChat(app);
+  createChat(app, undefined, dirPath);
 
   // Show launcher input on key combo
   globalShortcut.register('Control+Alt+Command+G', createLauncher);
