@@ -15,7 +15,6 @@ if [ $# -gt 0 ]; then
     elif [[ "$1" == "."* ]]; then
         # Convert relative path to absolute
         dir="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
-        echo "boop"
     else
         # Convert relative path to absolute
         dir="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
