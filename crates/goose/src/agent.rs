@@ -14,7 +14,7 @@ use crate::systems::{System, Resource};
 use crate::token_counter::TokenCounter;
 use serde::Serialize;
 
-const CONTEXT_LIMIT: usize = 200_000; // TODO: update back to 200_000; // model's context limit
+const CONTEXT_LIMIT: usize = 200_000; // TODO: model's context limit should be in provider config
 const ESTIMATE_FACTOR: f32 = 0.8;
 const ESTIMATED_TOKEN_LIMIT: usize = (CONTEXT_LIMIT as f32 * ESTIMATE_FACTOR) as usize;
 
@@ -160,6 +160,7 @@ impl Agent {
             tools: &Vec<Tool>,
             messages: &Vec<Message>,
             pending: &Vec<Message>,
+            target_limit: usize,
         ) -> AgentResult<Vec<Message>> {
         // Prepares the inference by managing context window and token budget.
         // This function:
@@ -202,8 +203,8 @@ impl Agent {
 
         let mut status_content: Vec<String> = Vec::new();
 
-        if approx_count > ESTIMATED_TOKEN_LIMIT {
-            println!("[WARNING]Token budget exceeded. Current count: {} \n Difference: {} tokens over buget. Removing context", approx_count, approx_count - ESTIMATED_TOKEN_LIMIT);
+        if approx_count > target_limit {
+            println!("[WARNING] Token budget exceeded. Current count: {} \n Difference: {} tokens over buget. Removing context", approx_count, approx_count - target_limit);
 
             // Get token counts for each resourcee
             let mut system_token_counts = HashMap::new();
@@ -245,7 +246,7 @@ impl Agent {
             // Remove resources until we're under target limit
             let mut current_tokens = approx_count;
 
-            while current_tokens > ESTIMATED_TOKEN_LIMIT && !all_resources.is_empty() {
+            while current_tokens > target_limit && !all_resources.is_empty() {
                 if let Some((system_name, uri, _, token_count)) = all_resources.pop() {
                     if let Some(system_counts) = system_token_counts.get_mut(&system_name) {
                         system_counts.remove(&uri);
@@ -313,7 +314,7 @@ impl Agent {
 
 
         // Update conversation history for the start of the reply
-        messages =self.prepare_inference(&system_prompt, &tools, &messages, &Vec::new()).await?;
+        messages =self.prepare_inference(&system_prompt, &tools, &messages, &Vec::new(), ESTIMATED_TOKEN_LIMIT).await?;
 
         Ok(Box::pin(async_stream::try_stream! {
             loop {
@@ -371,7 +372,7 @@ impl Agent {
                 messages.pop();
 
                 let pending = vec![response, message_tool_response];
-                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending).await?;
+                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending, ESTIMATED_TOKEN_LIMIT).await?;
             }
         }))
     }
@@ -386,12 +387,13 @@ mod tests {
     use async_trait::async_trait;
     use futures::TryStreamExt;
     use serde_json::json;
-    use chrono::{Utc, Duration};
 
     // Mock system for testing
     struct MockSystem {
         name: String,
         tools: Vec<Tool>,
+        resources: Vec<Resource>,
+        resource_content: HashMap<String, String>,
     }
 
     impl MockSystem {
@@ -403,7 +405,23 @@ mod tests {
                     "Echoes back the input",
                     json!({"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]}),
                 )],
+                resources: Vec::new(),
+                resource_content: HashMap::new(),
             }
+        }
+
+        fn add_resource(&mut self, name: &str, content: &str, priority: i32) {
+            let uri = format!("file://{}", name);
+            let resource = Resource {
+                name: name.to_string(),
+                uri: uri.clone(),
+                priority,
+                timestamp: chrono::Utc::now(),
+                description: Some("A mock resource".to_string()),
+                mime_type: "text/plain".to_string(),
+            };
+            self.resources.push(resource);
+            self.resource_content.insert(uri, content.to_string());
         }
     }
 
@@ -426,7 +444,7 @@ mod tests {
         }
 
         async fn status(&self) -> anyhow::Result<Vec<Resource>> {
-            Ok(Vec::new())
+            Ok(self.resources.clone())
         }
 
         async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
@@ -438,8 +456,11 @@ mod tests {
             }
         }
 
-        async fn read_resource(&self, _uri: &str) -> AgentResult<String> {
-            Ok("".to_string())
+        async fn read_resource(&self, uri: &str) -> AgentResult<String> {
+            self.resource_content
+                .get(uri)
+                .cloned()
+                .ok_or_else(|| AgentError::InvalidParameters(format!("Resource {} could not be found", uri)))
         }
     }
 
@@ -559,6 +580,75 @@ mod tests {
             .iter()
             .any(|c| matches!(c, MessageContent::ToolRequest(_))));
         assert_eq!(messages[2].content[0], MessageContent::text("All done!"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_prepare_inference_trims_resources_when_budget_exceeded() -> Result<()> {
+        // Create a mock provider
+        let provider = MockProvider::new(vec![]);
+        let mut agent = Agent::new(Box::new(provider));
+
+        // Create a mock system with two resources
+        let mut system = MockSystem::new("test");
+
+        // Add two resources with different priorities
+        let string_10toks = "hello ".repeat(10);
+        system.add_resource(
+            "high_priority",
+            &string_10toks,
+            4,
+        );
+        system.add_resource(
+            "low_priority",
+            &string_10toks,
+            1,
+        );
+
+        agent.add_system(Box::new(system));
+
+        // Set up test parameters
+        // 18 tokens with system + user msg in chat format
+        let system_prompt = "This is a system prompt";
+        let messages = vec![Message::user().with_text("Hi there")];
+        let tools = vec![];
+        let pending = vec![];
+
+        // Approx count is 40, so target limit of 35 will force trimming
+        let target_limit = 35;
+
+        // Call prepare_inference
+        let result = agent
+            .prepare_inference(system_prompt, &tools, &messages, &pending, target_limit)
+            .await?;
+
+        // Get the last message which should be the tool response containing status
+        let status_message = result.last().unwrap();
+        let status_content = status_message.content.first()
+            .and_then(|content| content.as_tool_response_text())
+            .unwrap_or_default();
+
+        // Verify that only the high priority resource is included in the status
+        assert!(status_content.contains("high_priority"));
+        assert!(!status_content.contains("low_priority"));
+
+        // Now test with a target limit that allows both resources (no trimming)
+        let target_limit = 100;
+
+        // Call prepare_inference
+        let result = agent
+        .prepare_inference(system_prompt, &tools, &messages, &pending, target_limit)
+        .await?;
+
+        // Get the last message which should be the tool response containing status
+        let status_message = result.last().unwrap();
+        let status_content = status_message.content.first()
+            .and_then(|content| content.as_tool_response_text())
+            .unwrap_or_default();
+
+        // Verify that only the high priority resource is included in the status
+        assert!(status_content.contains("high_priority"));
+        assert!(status_content.contains("low_priority"));
         Ok(())
     }
 }

@@ -41,7 +41,7 @@ impl DeveloperSystem {
     pub async fn read_resource(&self, uri: &str) -> AgentResult<String> {
         let url = Url::parse(uri)
             .map_err(|e| AgentError::InvalidParameters(format!("Invalid URI: {}", e)))?;
-        
+
         // For all URIs, verify the resource exists in active_resources first
         let active_resources = self.active_resources.lock().unwrap();
         let resource = active_resources.get(uri).ok_or_else(|| {
@@ -49,20 +49,20 @@ impl DeveloperSystem {
             if uri.starts_with("file://") {
                 AgentError::ExecutionError(format!("Resource {} must be registered before reading", uri))
             } else {
-                AgentError::InvalidParameters(format!("Resource {} must be registered before reading", uri))
+                AgentError::InvalidParameters(format!("Resource {} could not be found", uri))
             }
         })?;
-        
+
         // Load the content based on URI scheme and mime type
         let content = match url.scheme() {
             "file" => {
                 let path = url.to_file_path()
                     .map_err(|_| AgentError::InvalidParameters("Invalid file path in URI".into()))?;
-                
+
                 if !path.exists() {
                     return Err(AgentError::ExecutionError(format!("File does not exist: {}", path.display())));
                 }
-                
+
                 match resource.mime_type.as_str() {
                     "text" => {
                         // For text mime type, read as string
@@ -85,7 +85,7 @@ impl DeveloperSystem {
                         format!("str:// URI only supports text mime type, got {}", resource.mime_type)
                     ));
                 }
-                
+
                 // Extract content after "str:///" prefix and URL decode it
                 let content = url.path().trim_start_matches('/');
                 urlencoding::decode(content)
@@ -358,15 +358,15 @@ impl DeveloperSystem {
             let uri = Url::from_file_path(path)
                 .map_err(|_| AgentError::ExecutionError("Invalid file path".into()))?
                 .to_string();
-            
+
             // Read the content first
             let content = std::fs::read_to_string(path)
                 .map_err(|e| AgentError::ExecutionError(format!("Failed to read file: {}", e)))?;
-            
+
             // Create and store the resource
             let resource = Resource::new(uri.clone(), Some("text".to_string()), None)
                 .map_err(|e| AgentError::ExecutionError(format!("Failed to create resource: {}", e)))?;
-            
+
             self.active_resources
                 .lock()
                 .unwrap()
@@ -430,7 +430,7 @@ impl DeveloperSystem {
             .map_err(|e| AgentError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Create and store resource
-        
+
         let resource = Resource::new(uri.clone(), Some("text".to_string()), None)
             .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
         self.active_resources
@@ -521,7 +521,7 @@ impl DeveloperSystem {
             Content::text("Successfully replaced text").with_audience(vec![Role::Assistant]),
             Content::text(formatdoc! {r#"
                 ### {path}
-                
+
                 *Before*:
                 ```{language}
                 {old_str}
@@ -844,7 +844,7 @@ mod tests {
         let uri = Url::from_file_path(&file_path)
             .unwrap()
             .to_string();
-        
+
         // Test text mime type with file:// URI
         {
             let mut active_resources = system.active_resources.lock().unwrap();
