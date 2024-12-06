@@ -5,8 +5,6 @@ import Stop from './ui/Stop';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
-  handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  input: string;
   disabled?: boolean;
   isLoading?: boolean;
   onStop?: () => void;
@@ -14,14 +12,18 @@ interface InputProps {
 
 export default function Input({
   handleSubmit,
-  handleInputChange,
-  input,
   disabled = false,
   isLoading = false,
   onStop
 }: InputProps) {
-  const [value, setValue] = useState(input);
+  const [value, setValue] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textAreaRef.current && !disabled) {
+      textAreaRef.current.focus();
+    }
+  }, [disabled, value]);
 
   const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
@@ -41,22 +43,28 @@ export default function Input({
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target?.value;
     setValue(val);
-    handleInputChange(evt);
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (evt.key === 'Enter' && !evt.shiftKey) {
       evt.preventDefault();
-      handleSubmit(new CustomEvent('submit', { detail: { value } })); // Trigger custom form submit
-      setValue(''); // Clear textarea
+      if (value.trim()) {
+        handleSubmit(new CustomEvent('submit', { detail: { value } }));
+        setValue('');
+      }
+    }
+  };
+
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (value.trim()) {
+      handleSubmit(new CustomEvent('submit', { detail: { value } }));
+      setValue('');
     }
   };
 
   return (
-    <form onSubmit={(e) => {
-      handleSubmit(e);
-      setValue('');
-    }} className="flex relative bg-white h-auto px-[16px] pr-[38px] py-[1rem] rounded-b-2xl">
+    <form onSubmit={onFormSubmit} className="flex relative bg-white h-auto px-[16px] pr-[38px] py-[1rem]">
       <textarea
         autoFocus
         id="dynamic-textarea"
@@ -91,9 +99,9 @@ export default function Input({
           type="submit"
           size="icon"
           variant="ghost"
-          disabled={disabled}
+          disabled={disabled || !value.trim()}
           className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100 ${
-            disabled ? 'opacity-50 cursor-not-allowed' : ''
+            disabled || !value.trim() ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
           <Send size={24} />

@@ -2,7 +2,8 @@ use anyhow::Result;
 use goose::{
     agent::Agent,
     developer::DeveloperSystem,
-    providers::{configs::ProviderConfig, factory}, systems::goose_hints::GooseHintsSystem,
+    providers::{configs::ProviderConfig, factory},
+    systems::goose_hints::GooseHintsSystem,
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;

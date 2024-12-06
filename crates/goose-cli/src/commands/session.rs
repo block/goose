@@ -1,14 +1,11 @@
 use console::style;
-use rand::{distributions::Alphanumeric, Rng};
-use std::path::{Path, PathBuf};
-
 use goose::agent::Agent;
 use goose::providers::factory;
+use rand::{distributions::Alphanumeric, Rng};
+use std::path::{Path, PathBuf};
+use std::process;
 
-use crate::commands::expected_config::get_recommended_models;
-use crate::profile::{
-    load_profiles, set_provider_config, Profile, PROFILE_DEFAULT_NAME, PROVIDER_OPEN_AI,
-};
+use crate::profile::{get_provider_config, load_profiles, Profile};
 use crate::prompt::cliclack::CliclackPrompt;
 use crate::prompt::rustyline::RustylinePrompt;
 use crate::prompt::Prompt;
@@ -40,9 +37,8 @@ pub fn build_session<'a>(
 
     let loaded_profile = load_profile(profile);
 
-    // TODO: Reconsider fn name as we are just using the fn to ask the user if env vars are not set
     let provider_config =
-        set_provider_config(&loaded_profile.provider, loaded_profile.model.clone());
+        get_provider_config(&loaded_profile.provider, loaded_profile.model.clone());
 
     // TODO: Odd to be prepping the provider rather than having that done in the agent?
     let provider = factory::get_provider(provider_config).unwrap();
@@ -120,26 +116,29 @@ fn generate_new_session_path(session_dir: &Path) -> PathBuf {
 }
 
 fn load_profile(profile_name: Option<String>) -> Box<Profile> {
+    let configure_profile_message = "Please create a profile first via goose configure.";
     let profiles = load_profiles().unwrap();
     let loaded_profile = if profiles.is_empty() {
-        let recommended_models = get_recommended_models(PROVIDER_OPEN_AI);
-        Box::new(Profile {
-            provider: PROVIDER_OPEN_AI.to_string(),
-            model: recommended_models.model.to_string(),
-            additional_systems: Vec::new(),
-        })
+        println!("No profiles found. {}", configure_profile_message);
+        process::exit(1);
     } else {
         match profile_name {
             Some(name) => match profiles.get(name.as_str()) {
                 Some(profile) => Box::new(profile.clone()),
-                None => panic!("Profile '{}' not found", name),
+                None => {
+                    println!(
+                        "Profile '{}' not found. {}",
+                        name, configure_profile_message
+                    );
+                    process::exit(1);
+                }
             },
-            None => match profiles.get(PROFILE_DEFAULT_NAME) {
+            None => match profiles.get("default") {
                 Some(profile) => Box::new(profile.clone()),
-                None => panic!(
-                    "No '{}' profile found. Run configure to create a profile.",
-                    PROFILE_DEFAULT_NAME
-                ),
+                None => {
+                    println!("No 'default' profile found. {}", configure_profile_message);
+                    process::exit(1);
+                }
             },
         }
     };

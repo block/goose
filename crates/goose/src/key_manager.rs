@@ -67,6 +67,22 @@ pub fn get_keyring_secret(
     }
 }
 
+pub fn key_value_in_environment_variable(key_name: &str) -> Option<String> {
+    match env::var(key_name) {
+        Ok(value) => Some(value),
+        Err(_) => None,
+    }
+}
+
+pub fn key_value_in_key_chain(key_name: &str) -> Option<String> {
+    let kr = Entry::new("goose", key_name).ok()?;
+
+    match kr.get_password() {
+        Ok(password) => Some(password),
+        Err(_) => None,
+    }
+}
+
 pub fn save_to_keyring(key_name: &str, key_val: &str) -> std::result::Result<(), KeyManagerError> {
     let kr = Entry::new("goose", key_name)?;
     kr.set_password(key_val).map_err(KeyManagerError::from)

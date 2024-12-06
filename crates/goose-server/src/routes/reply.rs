@@ -8,7 +8,11 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::models::{content::Content, message::{Message, MessageContent}, role::Role};
+use goose::models::{
+    content::Content,
+    message::{Message, MessageContent},
+    role::Role,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -271,7 +275,6 @@ async fn handler(
 
     // Get a lock on the shared agent
     let agent = state.agent.clone();
-        
 
     // Spawn task to handle streaming
     tokio::spawn(async move {
@@ -390,12 +393,9 @@ pub fn routes(state: AppState) -> Router {
 mod tests {
     use super::*;
     use goose::{
-        providers::{
-            base::Provider,
-            configs::OpenAiProviderConfig,
-        },
-        models::tool::Tool,
         agent::Agent,
+        models::tool::Tool,
+        providers::{base::Provider, configs::OpenAiProviderConfig},
     };
 
     // Mock Provider implementation for testing
@@ -410,7 +410,10 @@ mod tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<(Message, goose::providers::base::Usage), anyhow::Error> {
-            Ok((Message::assistant().with_text("Mock response"), goose::providers::base::Usage::default()))
+            Ok((
+                Message::assistant().with_text("Mock response"),
+                goose::providers::base::Usage::default(),
+            ))
         }
     }
 
@@ -425,7 +428,9 @@ mod tests {
         let messages = convert_messages(incoming);
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, Role::User);
-        assert!(matches!(&messages[0].content[0], MessageContent::Text(text) if text.text == "Hello"));
+        assert!(
+            matches!(&messages[0].content[0], MessageContent::Text(text) if text.text == "Hello")
+        );
     }
 
     #[test]
@@ -445,14 +450,18 @@ mod tests {
 
         let messages = convert_messages(incoming);
         assert_eq!(messages.len(), 2); // Tool request and response
-        
+
         // Check tool request
         assert_eq!(messages[0].role, Role::Assistant);
-        assert!(matches!(&messages[0].content[0], MessageContent::ToolRequest(req) if req.id == "123"));
-        
+        assert!(
+            matches!(&messages[0].content[0], MessageContent::ToolRequest(req) if req.id == "123")
+        );
+
         // Check tool response
         assert_eq!(messages[1].role, Role::User);
-        assert!(matches!(&messages[1].content[0], MessageContent::ToolResponse(resp) if resp.id == "123"));
+        assert!(
+            matches!(&messages[1].content[0], MessageContent::ToolResponse(resp) if resp.id == "123")
+        );
     }
 
     #[test]
@@ -463,11 +472,8 @@ mod tests {
         assert_eq!(formatted, "0:\"Hello world\"\n");
 
         // Test tool call formatting
-        let formatted = ProtocolFormatter::format_tool_call(
-            "123",
-            "test_tool",
-            &json!({"key": "value"}),
-        );
+        let formatted =
+            ProtocolFormatter::format_tool_call("123", "test_tool", &json!({"key": "value"}));
         assert!(formatted.starts_with("9:"));
         assert!(formatted.contains("\"toolCallId\":\"123\""));
         assert!(formatted.contains("\"toolName\":\"test_tool\""));
@@ -486,14 +492,11 @@ mod tests {
 
     mod integration_tests {
         use super::*;
-        use axum::{
-            http::Request,
-            body::Body,
-        };
-        use tower::ServiceExt;
+        use axum::{body::Body, http::Request};
+        use goose::providers::configs::ProviderConfig;
         use std::sync::Arc;
         use tokio::sync::Mutex;
-        use goose::providers::configs::ProviderConfig;
+        use tower::ServiceExt;
 
         // This test requires tokio runtime
         #[tokio::test]
@@ -530,7 +533,7 @@ mod tests {
 
             // Send request
             let response = app.oneshot(request).await.unwrap();
-            
+
             // Assert response status
             assert_eq!(response.status(), StatusCode::OK);
         }

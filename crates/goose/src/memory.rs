@@ -111,8 +111,8 @@ impl MemoryManager {
         for entry in content.split("\n\n") {
             let mut lines = entry.lines();
             if let Some(first_line) = lines.next() {
-                if first_line.starts_with('#') {
-                    let tags = first_line[1..]
+                if let Some(stripped) = first_line.strip_prefix('#') {
+                    let tags = stripped
                         .split_whitespace()
                         .map(String::from)
                         .collect::<Vec<_>>();

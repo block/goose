@@ -26,11 +26,10 @@ export default function Splash({ append }) {
         What can goose do?
       </div>
       <div className="flex flex-1" />
-      <div
-        className="w-[312px] px-16 py-4 text-12 text-center text-splash-pills-text whitespace-nowrap rounded-[14px] inline-block">
-        Working in: {window.appConfig.get("GOOSE_WORKING_DIR")}
+      <div className={`mt-[10px] w-[198px] h-[17px] py-2 flex-col justify-center items-start inline-flex`}>
+        <div className="self-stretch h-px bg-black/5 rounded-sm" />
       </div>
-      <div className="flex items-center">
+      <div className="flex items-center p-4">
         <SplashPills append={append} />
       </div>
     </div>

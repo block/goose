@@ -21,6 +21,11 @@ export default {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
       },
       typography: {
+        xxs: {
+          css: {
+            fontSize: '10px'
+          }
+        },
         xs: {
           css: {
             fontSize: '12px',
@@ -66,6 +71,8 @@ export default {
         'prev-goose-text': '#4E52C5',
 
         'more-menu': 'rgba(255, 255, 255, 0.95))',
+
+        'bottom-menu': 'rgba(0, 0, 0, 0.35)',
 
         'tool-bold': 'rgba(0, 0, 0, 0.85)',
         'tool': 'rgba(0, 0, 0, 0.75)',

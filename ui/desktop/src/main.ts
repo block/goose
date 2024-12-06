@@ -93,7 +93,8 @@ const createChat = async (app, query?: string, dir?: string) => {
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
-    width: 650,
+    vibrancy: 'under-window',
+    width: 750,
     height: 800,
     minWidth: 650,
     minHeight: 800,
@@ -102,7 +103,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir })],
     },
   });
 
@@ -211,18 +212,48 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async () => {
+const openDirectoryDialog = async (replaceWindow: Boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    if (replaceWindow) {
+      BrowserWindow.getFocusedWindow().close();
+    }
     createChat(app, undefined, result.filePaths[0]);
   }
 };
 
+// Global error handler
+const handleFatalError = (error: Error) => {
+  const windows = BrowserWindow.getAllWindows();
+  windows.forEach(win => {
+    win.webContents.send('fatal-error', error.message || 'An unexpected error occurred');
+  });
+};
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  handleFatalError(error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Rejection:', error);
+  handleFatalError(error instanceof Error ? error : new Error(String(error)));
+});
+
 app.whenReady().then(async () => {
+  // Test error feature - only enabled with GOOSE_TEST_ERROR=true
+  if (process.env.GOOSE_TEST_ERROR === 'true') {
+    console.log('Test error feature enabled, will throw error in 5 seconds');
+    setTimeout(() => {
+      console.log('Throwing test error now...');
+      throw new Error('Test error: This is a simulated fatal error after 5 seconds');
+    }, 5000);
+  }
+
   // Load zsh environment variables in production mode only
   
   createTray();
@@ -278,6 +309,10 @@ app.whenReady().then(async () => {
     createChat(app, query);
   });
 
+  ipcMain.on('directory-chooser', (_, replace: Boolean = false) => {
+    openDirectoryDialog(replace);
+  });
+
   ipcMain.on('notify', (event, data) => {
     console.log("NOTIFY", data);
     new Notification({ title: data.title, body: data.body }).show();
@@ -285,6 +320,11 @@ app.whenReady().then(async () => {
 
   ipcMain.on('logInfo', (_, info) => {
     log.info("from renderer:", info);
+  });
+
+  ipcMain.on('reload-app', () => {
+    app.relaunch();
+    app.exit(0);
   });
 
   // Handle metadata fetching from main process

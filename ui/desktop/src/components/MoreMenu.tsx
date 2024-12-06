@@ -2,13 +2,7 @@ import React, { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import VertDots from './ui/VertDots';
 
-interface MoreMenuProps {
-  className?: string;
-  onClearContext: () => void;
-  onRestartGoose: () => void;
-}
-
-export default function MoreMenu({ onClearContext, onRestartGoose }: MoreMenuProps) {
+export default function MoreMenu() {
   const [open, setOpen] = useState(false);
 
   const handleAction = (action: () => void) => {
@@ -26,16 +20,16 @@ export default function MoreMenu({ onClearContext, onRestartGoose }: MoreMenuPro
       <PopoverContent className="w-48 rounded-md">
         <div className="flex flex-col bg-black text-white rounded-md">
           <button
-            onClick={() => handleAction(onClearContext)}
+            onClick={() => handleAction(window.electron.directoryChooser)}
             className="w-full text-left px-2 py-1.5 text-sm"
           >
-            Clear context
+            Open Directory (cmd+O)
           </button>
           <button
-            onClick={() => handleAction(onRestartGoose)}
+            onClick={() => handleAction(window.electron.createChatWindow)}
             className="w-full text-left px-2 py-1.5 text-sm"
           >
-            Restart goose
+            New Session (cmd+N)
           </button>
         </div>
       </PopoverContent>
