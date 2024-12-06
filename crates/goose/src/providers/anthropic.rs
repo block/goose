@@ -78,8 +78,7 @@ impl AnthropicProvider {
             .client
             .post(&url)
             .header("x-api-key", &self.config.api_key)
-            .header("anthropic-version", "2024-02-01")
-            .header("anthropic-beta", "messages-2024-02-01-preview")
+            .header("anthropic-version", "2023-06-01")
             .json(&payload)
             .send()
             .await?;
@@ -157,8 +156,6 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/v1/messages"))
             .and(header("x-api-key", "test_api_key"))
-            .and(header("anthropic-version", "2024-02-01"))
-            .and(header("anthropic-beta", "messages-2024-02-01-preview"))
             .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
             .mount(&mock_server)
             .await;
@@ -166,7 +163,7 @@ mod tests {
         let config = AnthropicProviderConfig {
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
-            model: "claude-3-sonnet-20240229".to_string(),
+            model: "claude-3-sonnet-20241022".to_string(),
             temperature: Some(0.7),
             max_tokens: None,
         };

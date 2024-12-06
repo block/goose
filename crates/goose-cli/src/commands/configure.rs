@@ -138,7 +138,8 @@ pub async fn handle_configure(
                 Err(e) => cliclack::outro(format!("Failed to save profile: {}", e)),
             };
         }
-        Err(_) => {
+        Err(e) => {
+            println!("{:?}", e);
             spin.stop("We could not connect!");
             let _ = cliclack::outro("Try rerunning configure and check your credentials.");
         }
