@@ -33,6 +33,7 @@ nanoid = "0.4"
 sha2 = "0.10"
 base64 = "0.21"
 url = "2.5"
+urlencoding = "2.1.3"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 webbrowser = "0.8"
@@ -51,7 +52,13 @@ wiremock = "0.6.0"
 mockito = "1.2"
 tempfile = "3.8"
 mockall = "0.11"
+criterion = "0.5"
+tokio-test = "0.4"
 
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+
+[[bench]]
+name = "tokenization_benchmark"
+harness = false

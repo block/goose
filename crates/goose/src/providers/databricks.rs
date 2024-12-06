@@ -8,7 +8,7 @@ use super::base::{Provider, Usage};
 use super::configs::{DatabricksAuth, DatabricksProviderConfig};
 use super::oauth;
 use super::utils::{
-    check_openai_context_length_error, messages_to_openai_spec, openai_response_to_message,
+    check_openai_context_length_error, check_bedrock_context_length_error, messages_to_openai_spec, openai_response_to_message,
     tools_to_openai_spec,
 };
 use crate::models::message::Message;
@@ -149,12 +149,12 @@ impl Provider for DatabricksProvider {
         // Make request
         let response = self.post(payload).await?;
 
-        // Handle errors
+        // Raise specific error if context length is exceeded
         if let Some(error) = response.get("error") {
-            if messages.len() == 1 {
-                if let Some(err) = check_openai_context_length_error(error) {
-                    return Err(err.into());
-                }
+            if let Some(err) = check_openai_context_length_error(error) {
+                return Err(err.into());
+            } else if let Some(err) = check_bedrock_context_length_error(error) {
+                return Err(err.into());
             }
             return Err(anyhow!("Databricks API error: {}", error));
         }

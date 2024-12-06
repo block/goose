@@ -5,11 +5,13 @@ use crate::systems::System;
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
+
+use crate::systems::Resource;
 
 #[derive(Debug, Default)]
 pub struct MemoryManager {
@@ -395,11 +397,20 @@ impl System for MemorySystem {
         &self.memory_tools
     }
 
-    async fn status(&self) -> AnyhowResult<HashMap<String, Value>> {
-        Ok(HashMap::from([(
-            "active_memories".to_string(),
-            json!(self.active_memories),
-        )]))
+    async fn status(&self) -> AnyhowResult<Vec<Resource>> {
+        // Convert active memories to resources
+        let resources: Vec<Resource> = self.active_memories
+            .iter()
+            .filter_map(|(category, memories)| {
+                Resource::with_uri(
+                    format!("str:///{}.txt", memories.join(" ")),
+                    format!("{}.txt", category),
+                    0,
+                    Some("text".to_string())
+                ).ok()
+            })
+            .collect();
+        Ok(resources)
     }
 
     async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
@@ -407,6 +418,11 @@ impl System for MemorySystem {
             Ok(result) => Ok(vec![Content::text(result)]),
             Err(err) => Err(AgentError::ExecutionError(err.to_string())),
         }
+    }
+
+    async fn read_resource(&self, uri: &str) -> AgentResult<String> {
+        let memories = uri.split("/").next().unwrap();
+        Ok(memories.to_string())
     }
 }
 
