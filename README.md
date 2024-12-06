@@ -13,7 +13,7 @@ Goose is your on-machine developer agent, working for you, on your terms
 
 ## GOOSE 1.0!!
 
-This is the branch for goose 1.0 which is a port over from python to rust + typescript/electron for optional desktop environment.
+This is the branch for goose 1.0 WIP: which is a port over from python to rust + typescript/electron for optional desktop environment. WATCH THIS SPACE
 
 ## Building
 
