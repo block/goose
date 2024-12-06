@@ -9,6 +9,7 @@ use_directory_urls: false
 # theme
 theme:
   name: material
+  custom_dir: overrides
   features:
     - announce.dismiss
     - content.action.edit
@@ -41,11 +42,11 @@ theme:
 # plugins
 plugins:
   - blog
+  - social:
+      enabled: true
   - include-markdown
   - callouts
   - glightbox
-  - social:
-      enabled: !ENV [CI, true]
   - mkdocstrings:
       handlers:
         python:

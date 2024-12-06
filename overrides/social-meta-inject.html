@@ -1,0 +1,10 @@
+{% block head %}
+  {{ super() }}
+  {% if page.meta.description %}
+    <meta name="description" content="{{ page.meta.description }}">
+  {% endif %}
+  {% if page.meta.background_image %}
+    <meta property="og:image" content="{{ page.meta.background_image }}">
+    <meta name="twitter:image" content="{{ page.meta.background_image }}">
+  {% endif %}
+{% endblock %}

@@ -1,16 +1,13 @@
 ---
 draft: false
 title: "Screenshot-Driven Development"
+description: "AI Agent uses screenshots to assist in styling."
+background_image: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" 
 date: 2024-11-22
 authors:
   - rizel
 categories:
   - Web Development
-social:
-  cards_layout_options:
-    title: "Screenshot-Driven Development"  
-    description: "AI Agent uses screenshots to assist in styling."
-    background_image: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" 
 ---
 ![calendar](../images/screenshot-driven-development-blog/screenshot-driven-development.png)
 
