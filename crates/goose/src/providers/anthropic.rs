@@ -59,6 +59,11 @@ impl AnthropicProvider {
                 }
             }
 
+            // Skip messages with empty content
+            if content.is_empty() {
+                continue;
+            }
+
             anthropic_messages.push(json!({
                 "role": role,
                 "content": content
@@ -109,6 +114,11 @@ impl Provider for AnthropicProvider {
         _tools: &[Tool],
     ) -> Result<(Message, Usage)> {
         let anthropic_messages = Self::messages_to_anthropic_spec(messages, system);
+
+        // Check if we have any messages to send
+        if anthropic_messages.is_empty() {
+            return Err(anyhow!("No valid messages to send to Anthropic API"));
+        }
 
         let mut payload = json!({
             "model": self.config.model,
@@ -209,6 +219,46 @@ mod tests {
         assert_eq!(usage.input_tokens, None);
         assert_eq!(usage.output_tokens, None);
         assert_eq!(usage.total_tokens, None);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_messages() -> Result<()> {
+        let response_body = json!({
+            "id": "msg_123",
+            "type": "message",
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": "Hello!"
+            }],
+            "model": "claude-3-sonnet-20240229",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 12,
+                "output_tokens": 15
+            }
+        });
+
+        let (_, provider) = setup_mock_server(response_body).await;
+
+        // Create a message with empty content
+        let messages = vec![
+            Message::user().with_text(""),
+            Message::user().with_text("Hello"),
+        ];
+
+        let (message, _) = provider
+            .complete("You are a helpful assistant.", &messages, &[])
+            .await?;
+
+        if let MessageContent::Text(text) = &message.content[0] {
+            assert_eq!(text.text, "Hello!");
+        } else {
+            panic!("Expected Text content");
+        }
 
         Ok(())
     }
