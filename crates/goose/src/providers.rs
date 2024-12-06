@@ -6,6 +6,7 @@ pub mod oauth;
 pub mod ollama;
 pub mod openai;
 pub mod utils;
+pub mod anthropic;
 
 #[cfg(test)]
 pub mod mock;
