@@ -70,23 +70,8 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
   const env = { ...process.env, ...additionalEnv };
 
   // Spawn the goosed process with the user's home directory as cwd
-  const goosedProcess = spawn(goosedPath, [], { cwd: dir, env: env });
+  const goosedProcess = spawn(goosedPath, [], { cwd: dir, env: env, stdio: "ignore" });
 
-  goosedProcess.stdout.on('data', (data) => {
-    log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
-  });
-
-  goosedProcess.stderr.on('data', (data) => {
-    log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
-  });
-
-  goosedProcess.on('close', (code) => {
-    log.info(`goosed process exited with code ${code} for port ${port} and dir ${dir}`);
-  });
-
-  goosedProcess.on('error', (err) => {
-    log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
-  });
 
   // Ensure goosed is terminated when the app quits
   // TODO will need to do it at tab level next
