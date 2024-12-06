@@ -86,6 +86,12 @@ impl Resource {
         self.timestamp = Utc::now();
     }
 
+    /// Sets the priority of the resource and returns self for method chaining
+    pub fn with_priority(mut self, priority: i32) -> Self {
+        self.priority = priority;
+        self
+    }
+
     /// Returns the scheme of the URI
     pub fn scheme(&self) -> Result<String> {
         let url = Url::parse(&self.uri)?;

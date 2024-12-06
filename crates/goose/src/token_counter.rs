@@ -4,6 +4,7 @@ use tokenizers::tokenizer::Tokenizer;
 use crate::models::message::Message;
 use crate::models::tool::Tool;
 
+
 // Embed the tokenizer files directory
 static TOKENIZER_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../tokenizer_files");
 
@@ -178,6 +179,25 @@ impl TokenCounter {
         // Every reply is primed with <|start|>assistant<|message|>
         num_tokens += 3;
 
+        num_tokens
+    }
+
+    pub fn count_everything(
+        &self,
+        system_prompt: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        resources: &[String],
+        model_name: Option<&str>,
+    ) -> usize {
+        
+        let mut num_tokens = self.count_chat_tokens(system_prompt, messages, tools, model_name);
+
+        if !resources.is_empty() {
+            for resource in resources {
+                num_tokens += self.count_tokens(resource, model_name);
+            }
+        }
         num_tokens
     }
 

@@ -53,6 +53,7 @@ mockito = "1.2"
 tempfile = "3.8"
 mockall = "0.11"
 criterion = "0.5"
+tokio-test = "0.4"
 
 [[example]]
 name = "databricks_oauth"
