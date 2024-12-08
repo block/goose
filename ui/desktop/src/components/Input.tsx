@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import Send from './ui/Send';
 import Stop from './ui/Stop';
-import { FolderOpen } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -111,7 +111,7 @@ export default function Input({
           disabled ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
-        <FolderOpen size={20} />
+        <Paperclip size={20} />
       </Button>
       {isLoading ? (
         <Button

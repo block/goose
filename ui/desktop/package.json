@@ -5,7 +5,8 @@
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
-    "start": "electron-forge start",
+    "start-gui": "electron-forge start",
+    "start": "cd ../.. && just run-ui",
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
