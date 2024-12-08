@@ -19,7 +19,7 @@ jobs:
     - name: Install Libs
       run: |
         sudo apt update -y
-        sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring
+        sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring libxcb1-dev
 
     - name: Start gnome-keyring
       # run gnome-keyring with 'foobar' as password for the login keyring
