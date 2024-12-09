@@ -498,8 +498,10 @@ impl DeveloperSystem {
             .map(|w| w.title().to_string())
             .collect();
 
-        Ok(vec![
+        Ok(vec![                    
+            
             Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
+                .with_audience(vec![Role::Assistant]).with_priority(0.0),                
         ])
     }
 
