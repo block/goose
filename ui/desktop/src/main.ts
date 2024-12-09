@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, shell } from 'electron';
 import path from 'node:path';
-import { findAvailablePort, startGoosed } from './goosed';
+import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
@@ -319,22 +319,6 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createChat(app);
     }
-    const sources = await electron.desktopCapturer.getSources({ types: ['screen'] })
-    for (const source of sources) {
-      if (source.name === 'Entire screen' || source.name === 'Screen 1') {
-        // Handle permissions based on platform
-        if (process.platform === 'darwin') {
-          shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
-        } else if (process.platform === 'win32') {
-          // Windows typically handles permissions through UAC
-          console.log("Windows: Screen capture permissions requested");
-        } else {
-          // Linux typically handles permissions through desktop environment
-          console.log("Linux: Screen capture permissions requested");
-        }
-        return;
-      }
-    }    
   });
 
   ipcMain.on('create-chat-window', (_, query) => {
