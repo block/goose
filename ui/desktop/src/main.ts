@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, shell } from 'electron';
 import path from 'node:path';
 import { findAvailablePort, startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
@@ -322,17 +322,16 @@ app.whenReady().then(async () => {
     const sources = await electron.desktopCapturer.getSources({ types: ['screen'] })
     for (const source of sources) {
       if (source.name === 'Entire screen' || source.name === 'Screen 1') {
-        navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: true,
-        })
-          .then(async (stream) => {
-            // You can open settings if needed
-            shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
-          })
-          .catch((err) => {
-            console.error(err)
-          });
+        // Handle permissions based on platform
+        if (process.platform === 'darwin') {
+          shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture");
+        } else if (process.platform === 'win32') {
+          // Windows typically handles permissions through UAC
+          console.log("Windows: Screen capture permissions requested");
+        } else {
+          // Linux typically handles permissions through desktop environment
+          console.log("Linux: Screen capture permissions requested");
+        }
         return;
       }
     }    
