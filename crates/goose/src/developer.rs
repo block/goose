@@ -35,6 +35,20 @@ impl Default for DeveloperSystem {
 
 impl DeveloperSystem {
     pub fn new() -> Self {
+        let list_windows_tool = Tool::new(
+            "list_windows",
+            indoc! {r#"
+                List all available window titles that can be used with screen_capture.
+                Returns a list of window titles that can be used with the window_title parameter
+                of the screen_capture tool.
+            "#},
+            json!({
+                "type": "object",
+                "required": [],
+                "properties": {}
+            }),
+        );
+
         let bash_tool = Tool::new(
             "bash",
             indoc! {r#"
@@ -84,7 +98,7 @@ impl DeveloperSystem {
                     "window_title": {
                         "type": "string",
                         "default": null,
-                        "description": "The title of the window to capture. Must match exactly."
+                        "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
                     }
                 }
             }),
@@ -151,7 +165,7 @@ impl DeveloperSystem {
             os=std::env::consts::OS,
         };
         Self {
-            tools: vec![bash_tool, text_editor_tool, screen_capture_tool],
+            tools: vec![bash_tool, text_editor_tool, screen_capture_tool, list_windows_tool],
             cwd: Mutex::new(std::env::current_dir().unwrap()),
             active_files: Mutex::new(HashSet::new()),
             file_history: Mutex::new(HashMap::new()),
@@ -476,6 +490,19 @@ impl DeveloperSystem {
     }
 
     // Implement screen capture functionality
+    async fn list_windows(&self, _params: Value) -> AgentResult<Vec<Content>> {
+        let windows = Window::all()
+            .map_err(|_| AgentError::ExecutionError("Failed to list windows".into()))?;
+        
+        let window_titles: Vec<String> = windows.into_iter()
+            .map(|w| w.title().to_string())
+            .collect();
+
+        Ok(vec![
+            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
+        ])
+    }
+
     async fn screen_capture(&self, params: Value) -> AgentResult<Vec<Content>> {
         let mut image = if let Some(window_title) = params.get("window_title").and_then(|v| v.as_str()) {
             // Try to find and capture the specified window
@@ -588,6 +615,7 @@ running commands on the shell."
             "bash" => self.bash(tool_call.arguments).await,
             "text_editor" => self.text_editor(tool_call.arguments).await,
             "screen_capture" => self.screen_capture(tool_call.arguments).await,
+            "list_windows" => self.list_windows(tool_call.arguments).await,
             _ => Err(AgentError::ToolNotFound(tool_call.name)),
         }
     }
