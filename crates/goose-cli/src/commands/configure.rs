@@ -35,6 +35,7 @@ pub async fn handle_configure(
         ));
     }
 
+
     let provider_name = if let Some(provider) = provided_provider {
         provider
     } else {
@@ -46,6 +47,7 @@ pub async fn handle_configure(
                 ("openai", "OpenAI", "GPT-4o etc"),
                 ("databricks", "Databricks", "Models on AI Gateway"),
                 ("ollama", "Ollama", "Local open source models"),
+                ("anthropic", "Anthropic", "Claude models"),            
             ])
             .interact()?
             .to_string()
@@ -136,7 +138,8 @@ pub async fn handle_configure(
                 Err(e) => cliclack::outro(format!("Failed to save profile: {}", e)),
             };
         }
-        Err(_) => {
+        Err(e) => {
+            println!("{:?}", e);
             spin.stop("We could not connect!");
             let _ = cliclack::outro("Try rerunning configure and check your credentials.");
         }
@@ -146,14 +149,12 @@ pub async fn handle_configure(
 }
 
 pub fn get_recommended_model(provider_name: &str) -> &str {
-    if provider_name == "openai" {
-        "gpt-4o"
-    } else if provider_name == "databricks" {
-        "claude-3-5-sonnet-2"
-    } else if provider_name == "ollama" {
-        OLLAMA_MODEL
-    } else {
-        panic!("Invalid provider name");
+    match provider_name {
+        "openai" => "gpt-4o",
+        "databricks" => "claude-3-5-sonnet-2",
+        "ollama" => OLLAMA_MODEL,
+        "anthropic" => "claude-3-5-sonnet-2",
+        _ => panic!("Invalid provider name"),
     }
 }
 
@@ -162,6 +163,7 @@ pub fn get_required_keys(provider_name: &str) -> Vec<&'static str> {
         "openai" => vec!["OPENAI_API_KEY"],
         "databricks" => vec!["DATABRICKS_HOST"],
         "ollama" => vec!["OLLAMA_HOST"],
+        "anthropic" => vec!["ANTHROPIC_API_KEY"],  // Removed ANTHROPIC_HOST since we use a fixed endpoint
         _ => panic!("Invalid provider name"),
     }
 }

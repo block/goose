@@ -10,9 +10,14 @@
   </head>
   <script>
     // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+    const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
+    const savedTheme = localStorage.getItem('theme');
+    
     document.documentElement.classList.toggle(
       'dark',
-      localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      useSystemTheme 
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches 
+        : savedTheme === 'dark'
     );
   </script>
   <body>
