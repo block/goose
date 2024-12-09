@@ -41,8 +41,6 @@ theme:
 # plugins
 plugins:
   - blog
-  - social:
-      enabled: true
   - include-markdown
   - callouts
   - glightbox
