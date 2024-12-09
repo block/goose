@@ -1,5 +1,5 @@
 import pytest
-from goose.utils.shell import is_dangerous_command
+from goose.utils.command_checker import add_dangerous_command_patterns, is_dangerous_command
 
 
 @pytest.mark.parametrize(
@@ -40,3 +40,11 @@ def test_dangerous_commands(command):
 )
 def test_safe_commands(command):
     assert not is_dangerous_command(command)
+
+
+def test_add_dangerous_patterns():
+    add_dangerous_command_patterns(["echo hello"])
+    assert is_dangerous_command("echo hello")
+
+    # and that the original commands are still flagged
+    assert is_dangerous_command("rm -rf /")
