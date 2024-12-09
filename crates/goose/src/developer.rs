@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Mutex;
 use tokio::process::Command;
-use xcap::Monitor;
+use xcap::{Monitor, Window};
 
 use crate::errors::{AgentError, AgentResult};
 use crate::models::content::Content;
@@ -65,9 +65,12 @@ impl DeveloperSystem {
         let screen_capture_tool = Tool::new(
             "screen_capture",
             indoc! {r#"
-                Capture a screenshot of a specified display.
-                The display parameter defaults to 0 (main display).
-                For multiple displays, use 1, 2, etc.
+                Capture a screenshot of a specified display or window.
+                You can capture either:
+                1. A full display (monitor) using the display parameter
+                2. A specific window by its title using the window_title parameter
+                
+                Only one of display or window_title should be specified.
             "#},
             json!({
                 "type": "object",
@@ -77,6 +80,11 @@ impl DeveloperSystem {
                         "type": "integer",
                         "default": 0,
                         "description": "The display number to capture (0 is main display)"
+                    },
+                    "window_title": {
+                        "type": "string",
+                        "default": null,
+                        "description": "The title of the window to capture. Must match exactly."
                     }
                 }
             }),
@@ -469,22 +477,37 @@ impl DeveloperSystem {
 
     // Implement screen capture functionality
     async fn screen_capture(&self, params: Value) -> AgentResult<Vec<Content>> {
-        let display = params.get("display").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let mut image = if let Some(window_title) = params.get("window_title").and_then(|v| v.as_str()) {
+            // Try to find and capture the specified window
+            let windows = Window::all()
+                .map_err(|_| AgentError::ExecutionError("Failed to list windows".into()))?;
+            
+            let window = windows
+                .into_iter()
+                .find(|w| w.title() == window_title)
+                .ok_or_else(|| AgentError::ExecutionError(format!("No window found with title '{}'", window_title)))?;
 
-        // Capture the screenshot using xcap
-        let monitors = Monitor::all()
-            .map_err(|_| AgentError::ExecutionError("Failed to access monitors".into()))?;
-        let monitor = monitors
-            .get(display)
-            .ok_or(AgentError::ExecutionError(format!(
-                "{} was not an available monitor, {} found.",
-                display,
-                monitors.len()
-            )))?;
+            window.capture_image().map_err(|e| {
+                AgentError::ExecutionError(format!("Failed to capture window '{}': {}", window_title, e))
+            })?
+        } else {
+            // Default to display capture if no window title is specified
+            let display = params.get("display").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
 
-        let mut image = monitor.capture_image().map_err(|e| {
-            AgentError::ExecutionError(format!("Failed to capture display {}: {}", display, e))
-        })?;
+            let monitors = Monitor::all()
+                .map_err(|_| AgentError::ExecutionError("Failed to access monitors".into()))?;
+            let monitor = monitors
+                .get(display)
+                .ok_or_else(|| AgentError::ExecutionError(format!(
+                    "{} was not an available monitor, {} found.",
+                    display,
+                    monitors.len()
+                )))?;
+
+            monitor.capture_image().map_err(|e| {
+                AgentError::ExecutionError(format!("Failed to capture display {}: {}", display, e))
+            })?
+        };
 
         // Resize the image to a reasonable width while maintaining aspect ratio
         let max_width = 768;

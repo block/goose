@@ -315,10 +315,27 @@ app.whenReady().then(async () => {
 
   Menu.setApplicationMenu(menu);
 
-  app.on('activate', () => {
+  app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createChat(app);
     }
+    const sources = await electron.desktopCapturer.getSources({ types: ['screen'] })
+    for (const source of sources) {
+      if (source.name === 'Entire screen' || source.name === 'Screen 1') {
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: true,
+        })
+          .then(async (stream) => {
+            // You can open settings if needed
+            shell.openExternal("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+          })
+          .catch((err) => {
+            console.error(err)
+          });
+        return;
+      }
+    }    
   });
 
   ipcMain.on('create-chat-window', (_, query) => {
