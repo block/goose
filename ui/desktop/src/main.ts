@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, shell } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
