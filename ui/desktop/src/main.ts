@@ -327,7 +327,7 @@ app.whenReady().then(async () => {
 
   Menu.setApplicationMenu(menu);
 
-  app.on('activate', async () => {
+  app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createChat(app);
     }
