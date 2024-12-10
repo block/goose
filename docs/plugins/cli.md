@@ -44,7 +44,7 @@ Goose can run one off plans:
   goose run plan.md
 ```
 
-It will run this plan to completion as a one shot task
+It will run this plan, or sequence of tasks, to completion as a one shot task.
 
 #### `list`
 
