@@ -20,7 +20,7 @@ copy-binary:
 run-ui:
     @just release
     @echo "Running UI..."
-    cd ui/desktop && npm install && npm start
+    cd ui/desktop && npm install && npm run start-gui
     
 # Run server
 run-server:

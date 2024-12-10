@@ -2,12 +2,21 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import Send from './ui/Send';
 import Stop from './ui/Stop';
+import { Paperclip } from 'lucide-react';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
   disabled?: boolean;
   isLoading?: boolean;
   onStop?: () => void;
+}
+
+declare global {
+  interface Window {
+    electron: {
+      selectFileOrDirectory: () => Promise<string | null>;
+    };
+  }
 }
 
 export default function Input({
@@ -63,8 +72,16 @@ export default function Input({
     }
   };
 
+  const handleFileSelect = async () => {
+    const path = await window.electron.selectFileOrDirectory();
+    if (path) {
+      setValue(path);
+      textAreaRef.current?.focus();
+    }
+  };
+
   return (
-    <form onSubmit={onFormSubmit} className="flex relative bg-white dark:bg-gray-800 h-auto px-[16px] pr-[38px] py-[1rem]">
+    <form onSubmit={onFormSubmit} className="flex relative bg-white dark:bg-gray-800 h-auto px-[16px] pr-[68px] py-[1rem]">
       <textarea
         autoFocus
         id="dynamic-textarea"
@@ -84,6 +101,18 @@ export default function Input({
           disabled ? 'cursor-not-allowed opacity-50' : ''
         }`}
       />
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        onClick={handleFileSelect}
+        disabled={disabled}
+        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
+          disabled ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
+      >
+        <Paperclip size={20} />
+      </Button>
       {isLoading ? (
         <Button
           type="button"

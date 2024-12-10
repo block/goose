@@ -259,6 +259,18 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
+// Add file/directory selection handler
+ipcMain.handle('select-file-or-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'openDirectory']
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
 app.whenReady().then(async () => {
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {
