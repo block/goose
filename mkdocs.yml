@@ -40,7 +40,10 @@ theme:
     logo: assets/logo.ico
 # plugins
 plugins:
-  - blog
+  - blog:
+      archive: false
+      categories: false
+      blog_toc: true
   - include-markdown
   - callouts
   - glightbox
@@ -137,5 +140,8 @@ nav:
       - "API Docs": reference/index.md
   - Blog:
     - "Blog Home": blog/index.md
+<<<<<<< HEAD
     - "Screenshot-Driven Development": blog/posts/2024-11-22-screenshot-driven-development.md
     - "Previewing Goose v1.0 Beta": blog/posts/2024-12-06-previewing-goose-v1.md
+=======
+>>>>>>> main
