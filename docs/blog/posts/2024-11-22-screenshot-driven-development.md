@@ -5,30 +5,6 @@ description: "AI Agent uses screenshots to assist in styling."
 date: 2024-11-22
 authors:
   - rizel
-categories:
-  - Web Development
-head:
-  meta:
-    - property: "og:title"
-      content: "Screenshot-Driven Development"
-    - property: "og:type"
-      content: "article"
-    - property: "og:url"
-      content: "https://block.github.io/goose/blog/2024/11/22/screenshot-driven-development.html"
-    - property: "og:description"
-      content: "AI Agent uses screenshots to assist in styling."
-    - property: "og:image"
-      content: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png"
-    - name: "twitter:card"
-      content: "summary_large_image"
-    - property: "twitter:domain"
-      content: "block.github.io"
-    - name: "twitter:title"
-      content: "Screenshot-Driven Development"
-    - name: "twitter:description"
-      content: "AI Agent uses screenshots to assist in styling."
-    - name: "twitter:image"
-      content: "https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png"
 ---
 
 ![calendar](../images/screenshot-driven-development-blog/screenshot-driven-development.png)
@@ -302,3 +278,16 @@ Developing user interfaces is a blend of creativity and problem-solving. And I l
 Beyond prototyping, Goose's ability to analyze screenshots can help developers identify and resolve UI bugs.
 
 If you're interested in learning more, check out the [Goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
+
+<head>
+    <meta property="og:title" content="Screenshot-Driven Development" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://block.github.io/goose/blog/2024/11/22/screenshot-driven-development.html" />
+    <meta property="og:description" content="AI Agent uses screenshots to assist in styling." />
+    <meta property="og:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta property="twitter:domain" content="block.github.io" />
+    <meta name="twitter:title" content="Screenshot-Driven Development" />
+    <meta name="twitter:description" content="AI Agent uses screenshots to assist in styling." />
+    <meta name="twitter:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
+</head>
