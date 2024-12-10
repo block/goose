@@ -65,6 +65,30 @@ impl MessageContent {
         }
     }
 
+    pub fn as_tool_response(&self) -> Option<&ToolResponse> {
+        if let MessageContent::ToolResponse(ref tool_response) = self {
+            Some(tool_response)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_response_text(&self) -> Option<String> {
+        if let Some(tool_response) = self.as_tool_response() {
+            if let Ok(contents) = &tool_response.tool_result {
+                let texts: Vec<String> = contents
+                    .iter()
+                    .filter_map(|content| content.as_text().map(String::from))
+                    .collect();
+                if !texts.is_empty() {
+                    return Some(texts.join("\n"));
+                }
+            }
+        }
+        None
+    }
+
+
     /// Get the text content if this is a TextContent variant
     pub fn as_text(&self) -> Option<&str> {
         match self {

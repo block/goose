@@ -139,12 +139,10 @@ impl Provider for OpenAiProvider {
         // Make request
         let response = self.post(payload).await?;
 
-        // Check for context length error if single message
+        // Raise specific error if context length is exceeded
         if let Some(error) = response.get("error") {
-            if messages.len() == 1 {
-                if let Some(err) = check_openai_context_length_error(error) {
-                    return Err(err.into());
-                }
+            if let Some(err) = check_openai_context_length_error(error) {
+                return Err(err.into());
             }
             return Err(anyhow!("OpenAI API error: {}", error));
         }

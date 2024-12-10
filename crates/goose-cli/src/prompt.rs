@@ -2,6 +2,7 @@ use anyhow::Result;
 use goose::models::message::Message;
 
 pub mod cliclack;
+pub mod renderer;
 pub mod rustyline;
 pub mod thinking;
 

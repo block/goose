@@ -1,12 +1,11 @@
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 
 use goose::errors::{AgentError, AgentResult};
 use goose::models::content::Content;
 use goose::models::tool::{Tool, ToolCall};
-use goose::systems::System;
+use goose::systems::{System, Resource};
 
 /// A simple system that echoes input back to the caller
 pub struct EchoSystem {
@@ -67,8 +66,8 @@ impl System for EchoSystem {
         &self.tools
     }
 
-    async fn status(&self) -> AnyhowResult<HashMap<String, Value>> {
-        Ok(HashMap::new()) // Echo system has no state to report
+    async fn status(&self) -> AnyhowResult<Vec<Resource>> {
+        Ok(Vec::new()) // Echo system has no state to report
     }
 
     async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
@@ -76,6 +75,10 @@ impl System for EchoSystem {
             "echo" => self.echo(tool_call.arguments).await,
             _ => Err(AgentError::ToolNotFound(tool_call.name)),
         }
+    }
+
+    async fn read_resource(&self, _uri: &str) -> AgentResult<String> {
+        Ok("".to_string())
     }
 }
 

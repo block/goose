@@ -10,8 +10,13 @@ use crate::models::message::{Message, ToolRequest};
 use crate::models::tool::{Tool, ToolCall};
 use crate::prompt_template::load_prompt_file;
 use crate::providers::base::Provider;
-use crate::systems::System;
+use crate::systems::{System, Resource};
+use crate::token_counter::TokenCounter;
 use serde::Serialize;
+
+const CONTEXT_LIMIT: usize = 200_000; // TODO: model's context limit should be in provider config
+const ESTIMATE_FACTOR: f32 = 0.8;
+const ESTIMATED_TOKEN_LIMIT: usize = (CONTEXT_LIMIT as f32 * ESTIMATE_FACTOR) as usize;
 
 #[derive(Clone, Debug, Serialize)]
 struct SystemInfo {
@@ -51,6 +56,7 @@ pub struct Agent {
     provider: Box<dyn Provider>,
 }
 
+#[allow(dead_code)]
 impl Agent {
     /// Create a new Agent with the specified provider
     pub fn new(provider: Box<dyn Provider>) -> Self {
@@ -127,77 +133,176 @@ impl Agent {
         load_prompt_file("system.md", &context).map_err(|e| AgentError::Internal(e.to_string()))
     }
 
-    /// Fetches the current status of all systems and formats it as a status message
-    async fn get_system_status(&self) -> AgentResult<String> {
-        // Get status of all systems
-        let status = if !self.systems.is_empty() {
-            let mut context = HashMap::new();
-            let mut systems_status: Vec<SystemStatus> = Vec::new();
-            for system in &self.systems {
-                let system_status = system
-                    .status()
-                    .await
-                    .map_err(|e| AgentError::Internal(e.to_string()))?;
+    async fn get_systems_resources(&self) -> AgentResult<HashMap<String, HashMap<String, (Resource,String)>>> {
+        let mut system_resource_content: HashMap<String, HashMap<String, (Resource, String)>> = HashMap::new();
+        for system in &self.systems {
+            let system_status = system
+                .status()
+                .await
+                .map_err(|e| AgentError::Internal(e.to_string()))?;
 
-                // Format the status into a readable string
-                let status_str = serde_json::to_string(&system_status).unwrap_or_default();
-
-                systems_status.push(SystemStatus::new(system.name(), status_str));
+            let mut resource_content: HashMap<String, (Resource, String)> = HashMap::new();
+            for resource in system_status {
+                if let Ok(content) = system.read_resource(&resource.uri).await {
+                    resource_content.insert(resource.uri.to_string(), (resource, content));
+                }
             }
-            context.insert("systems", systems_status);
-            load_prompt_file("status.md", &context)
-                .map_err(|e| AgentError::Internal(e.to_string()))?
-        } else {
-            "No systems loaded".to_string()
-        };
-
-        Ok(status)
+            system_resource_content.insert(system.name().to_string(), resource_content);
+        }
+        Ok(system_resource_content)
     }
 
-    // Initialize a new reply round, which may call multiple tools
-    async fn rewrite_messages_on_reply(
-        &self,
-        messages: &mut Vec<Message>,
-        status: String,
-    ) -> AgentResult<()> {
-        // Create tool use message for status check
+
+    /// Setup the next inference by budgeting the context window as well as we can
+    async fn prepare_inference(
+            &self,
+            system_prompt: &str,
+            tools: &Vec<Tool>,
+            messages: &Vec<Message>,
+            pending: &Vec<Message>,
+            target_limit: usize,
+        ) -> AgentResult<Vec<Message>> {
+        // Prepares the inference by managing context window and token budget.
+        // This function:
+        // 1. Retrieves and formats system resources and status
+        // 2. Trims content if total tokens exceed the model's context limit
+        // 3. Adds pending messages if any. Pending messages are messages that have been added
+        //    to the conversation but not yet responded to.
+        // 4. Adds two messages to the conversation:
+        //    - A tool request message for status
+        //    - A tool response message containing the (potentially trimmed) status
+        //
+        // Returns the updated message history with status information appended.
+        //
+        // Arguments:
+        // * `system_prompt` - The system prompt to include
+        // * `tools` - Available tools for the agent
+        // * `messages` - Current conversation history
+        //
+        // Returns:
+        // * `AgentResult<Vec<Message>>` - Updated message history with status appended
+
+        let token_counter = TokenCounter::new();
+        let resource_content = self.get_systems_resources().await?;
+
+        // Flatten all resource content into a vector of strings
+        let mut resources = Vec::new();
+        for (_, system_resources) in &resource_content {
+            for (_, (_, content)) in system_resources {
+                resources.push(content.clone());
+            }
+        }
+
+        let approx_count = token_counter.count_everything(
+            &system_prompt,
+            &messages,
+            &tools,
+            &resources,
+            Some("gpt-4"),
+        );
+
+        let mut status_content: Vec<String> = Vec::new();
+
+        if approx_count > target_limit {
+            println!("[WARNING] Token budget exceeded. Current count: {} \n Difference: {} tokens over buget. Removing context", approx_count, approx_count - target_limit);
+
+            // Get token counts for each resourcee
+            let mut system_token_counts = HashMap::new();
+
+            // Iterate through each system and its resources
+            for (system_name, resources) in &resource_content {
+                let mut resource_counts = HashMap::new();
+                for (uri, (_resource, content)) in resources {
+                    let token_count = token_counter.count_tokens(&content, Some("gpt-4")) as u32;
+                    resource_counts.insert(uri.clone(), token_count);
+                }
+                system_token_counts.insert(system_name.clone(), resource_counts);
+            }
+            // Sort resources by priority and timestamp and trim to fit context limit
+            let mut all_resources: Vec<(String, String, Resource, u32)> = Vec::new();
+            for (system_name, resources) in &resource_content {
+                for (uri, (resource, _)) in resources {
+                    if let Some(token_count) = system_token_counts.get(system_name).and_then(|counts| counts.get(uri)) {
+                        all_resources.push((
+                            system_name.clone(),
+                            uri.clone(),
+                            resource.clone(),
+                            *token_count
+                        ));
+                    }
+                }
+            }
+
+            // Sort by priority (high to low) and timestamp (newest to oldest)
+            all_resources.sort_by(|a, b| {
+                let priority_cmp = b.2.priority.cmp(&a.2.priority);
+                if priority_cmp == std::cmp::Ordering::Equal {
+                    b.2.timestamp.cmp(&a.2.timestamp)
+                } else {
+                    priority_cmp
+                }
+            });
+
+            // Remove resources until we're under target limit
+            let mut current_tokens = approx_count;
+
+            while current_tokens > target_limit && !all_resources.is_empty() {
+                if let Some((system_name, uri, _, token_count)) = all_resources.pop() {
+                    if let Some(system_counts) = system_token_counts.get_mut(&system_name) {
+                        system_counts.remove(&uri);
+                        current_tokens -= token_count as usize;
+                    }
+                }
+            }
+            // Create status messages only from resources that remain after token trimming
+            for (system_name, uri, _, _) in &all_resources {
+                if let Some(system_resources) = resource_content.get(system_name) {
+                    if let Some((resource, content)) = system_resources.get(uri) {
+                        status_content.push(format!("{}\n```\n{}\n```\n", resource.name, content));
+                    }
+            }
+        }
+        }
+        else {
+            // Create status messages from all resources when no trimming needed
+            for (_system_name, resources) in &resource_content {
+                for (resource, content) in resources.values() {
+                    status_content.push(format!("{}\n```\n{}\n```\n", resource.name, content));
+                }
+            }
+        }
+
+        // Join remaining status content and create status message
+        let status_str = status_content.join("\n");
+        let mut context = HashMap::new();
+        let systems_status = vec![SystemStatus::new("system", status_str)];
+        context.insert("systems", &systems_status);
+
+        // Load and format the status template with only remaining resources
+        let status = load_prompt_file("status.md", &context)
+            .map_err(|e| AgentError::Internal(e.to_string()))?;
+
+
+        // Create a new messages vector with our changes
+        let mut new_messages = messages.to_vec();
+
+        // Add pending messages
+        for msg in pending {
+            new_messages.push(msg.clone());
+        }
+
+        // Finally add the status messages
         let message_use =
             Message::assistant().with_tool_request("000", Ok(ToolCall::new("status", json!({}))));
 
-        // Create tool result message with status
         let message_result =
             Message::user().with_tool_response("000", Ok(vec![Content::text(status)]));
 
-        messages.push(message_use);
-        messages.push(message_result);
-        Ok(())
-    }
 
-    // Rewrite the exchange as needed after each tool call
-    async fn rewrite_messages_on_tool_response(
-        &self,
-        messages: &mut Vec<Message>,
-        pending: Vec<Message>,
-        status: String,
-    ) -> AgentResult<()> {
-        // Remove the last two messages (status and tool response)
-        messages.pop();
-        messages.pop();
+        new_messages.push(message_use);
+        new_messages.push(message_result);
 
-        // Append the pending messages
-        messages.extend(pending);
-
-        // Add back a fresh status and tool response
-        let message_use =
-            Message::assistant().with_tool_request("000", Ok(ToolCall::new("status", json!({}))));
-
-        let message_result =
-            Message::user().with_tool_response("000", Ok(vec![Content::text(status)]));
-
-        messages.push(message_use);
-        messages.push(message_result);
-
-        Ok(())
+        Ok(new_messages)
     }
 
     /// Create a stream that yields each message as it's generated by the agent.
@@ -207,13 +312,13 @@ impl Agent {
         let tools = self.get_prefixed_tools();
         let system_prompt = self.get_system_prompt()?;
 
+
         // Update conversation history for the start of the reply
-        let status = self.get_system_status().await?;
-        self.rewrite_messages_on_reply(&mut messages, status)
-            .await?;
+        messages =self.prepare_inference(&system_prompt, &tools, &messages, &Vec::new(), ESTIMATED_TOKEN_LIMIT).await?;
 
         Ok(Box::pin(async_stream::try_stream! {
             loop {
+
                 // Get completion from provider
                 let (response, _) = self.provider.complete(
                     &system_prompt,
@@ -261,13 +366,13 @@ impl Agent {
 
                 yield message_tool_response.clone();
 
-                // Update conversation history after the tool call round
-                let status = self.get_system_status().await?;
-                self.rewrite_messages_on_tool_response(
-                    &mut messages,
-                    vec![response.clone(), message_tool_response],
-                    status,
-                ).await?;
+                // Now we have to remove the previous status tooluse and toolresponse
+                // before we add pending messages, then the status msgs back again
+                messages.pop();
+                messages.pop();
+
+                let pending = vec![response, message_tool_response];
+                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending, ESTIMATED_TOKEN_LIMIT).await?;
             }
         }))
     }
@@ -278,15 +383,17 @@ mod tests {
     use super::*;
     use crate::models::message::MessageContent;
     use crate::providers::mock::MockProvider;
+    use crate::systems::Resource;
     use async_trait::async_trait;
     use futures::TryStreamExt;
     use serde_json::json;
-    use std::collections::HashMap;
 
     // Mock system for testing
     struct MockSystem {
         name: String,
         tools: Vec<Tool>,
+        resources: Vec<Resource>,
+        resource_content: HashMap<String, String>,
     }
 
     impl MockSystem {
@@ -298,7 +405,23 @@ mod tests {
                     "Echoes back the input",
                     json!({"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]}),
                 )],
+                resources: Vec::new(),
+                resource_content: HashMap::new(),
             }
+        }
+
+        fn add_resource(&mut self, name: &str, content: &str, priority: i32) {
+            let uri = format!("file://{}", name);
+            let resource = Resource {
+                name: name.to_string(),
+                uri: uri.clone(),
+                priority,
+                timestamp: chrono::Utc::now(),
+                description: Some("A mock resource".to_string()),
+                mime_type: "text/plain".to_string(),
+            };
+            self.resources.push(resource);
+            self.resource_content.insert(uri, content.to_string());
         }
     }
 
@@ -320,8 +443,8 @@ mod tests {
             &self.tools
         }
 
-        async fn status(&self) -> anyhow::Result<HashMap<String, serde_json::Value>> {
-            Ok(HashMap::new())
+        async fn status(&self) -> anyhow::Result<Vec<Resource>> {
+            Ok(self.resources.clone())
         }
 
         async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
@@ -331,6 +454,13 @@ mod tests {
                 )]),
                 _ => Err(AgentError::ToolNotFound(tool_call.name)),
             }
+        }
+
+        async fn read_resource(&self, uri: &str) -> AgentResult<String> {
+            self.resource_content
+                .get(uri)
+                .cloned()
+                .ok_or_else(|| AgentError::InvalidParameters(format!("Resource {} could not be found", uri)))
         }
     }
 
@@ -450,6 +580,75 @@ mod tests {
             .iter()
             .any(|c| matches!(c, MessageContent::ToolRequest(_))));
         assert_eq!(messages[2].content[0], MessageContent::text("All done!"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_prepare_inference_trims_resources_when_budget_exceeded() -> Result<()> {
+        // Create a mock provider
+        let provider = MockProvider::new(vec![]);
+        let mut agent = Agent::new(Box::new(provider));
+
+        // Create a mock system with two resources
+        let mut system = MockSystem::new("test");
+
+        // Add two resources with different priorities
+        let string_10toks = "hello ".repeat(10);
+        system.add_resource(
+            "high_priority",
+            &string_10toks,
+            4,
+        );
+        system.add_resource(
+            "low_priority",
+            &string_10toks,
+            1,
+        );
+
+        agent.add_system(Box::new(system));
+
+        // Set up test parameters
+        // 18 tokens with system + user msg in chat format
+        let system_prompt = "This is a system prompt";
+        let messages = vec![Message::user().with_text("Hi there")];
+        let tools = vec![];
+        let pending = vec![];
+
+        // Approx count is 40, so target limit of 35 will force trimming
+        let target_limit = 35;
+
+        // Call prepare_inference
+        let result = agent
+            .prepare_inference(system_prompt, &tools, &messages, &pending, target_limit)
+            .await?;
+
+        // Get the last message which should be the tool response containing status
+        let status_message = result.last().unwrap();
+        let status_content = status_message.content.first()
+            .and_then(|content| content.as_tool_response_text())
+            .unwrap_or_default();
+
+        // Verify that only the high priority resource is included in the status
+        assert!(status_content.contains("high_priority"));
+        assert!(!status_content.contains("low_priority"));
+
+        // Now test with a target limit that allows both resources (no trimming)
+        let target_limit = 100;
+
+        // Call prepare_inference
+        let result = agent
+        .prepare_inference(system_prompt, &tools, &messages, &pending, target_limit)
+        .await?;
+
+        // Get the last message which should be the tool response containing status
+        let status_message = result.last().unwrap();
+        let status_content = status_message.content.first()
+            .and_then(|content| content.as_tool_response_text())
+            .unwrap_or_default();
+
+        // Verify that only the high priority resource is included in the status
+        assert!(status_content.contains("high_priority"));
+        assert!(status_content.contains("low_priority"));
         Ok(())
     }
 }

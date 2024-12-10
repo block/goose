@@ -245,10 +245,10 @@ fn is_valid_function_name(name: &str) -> bool {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("Input message too long. Message: {0}")]
-pub struct InitialMessageTooLargeError(String);
+#[error("Context length exceeded. Message: {0}")]
+pub struct ContextLengthExceededError(String);
 
-pub fn check_openai_context_length_error(error: &Value) -> Option<InitialMessageTooLargeError> {
+pub fn check_openai_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
     let code = error.get("code")?.as_str()?;
     if code == "context_length_exceeded" || code == "string_above_max_length" {
         let message = error
@@ -256,7 +256,16 @@ pub fn check_openai_context_length_error(error: &Value) -> Option<InitialMessage
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown error")
             .to_string();
-        Some(InitialMessageTooLargeError(message))
+        Some(ContextLengthExceededError(message))
+    } else {
+        None
+    }
+}
+
+pub fn check_bedrock_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
+    let external_message = error.get("external_model_message")?.get("message")?.as_str()?;
+    if external_message.to_lowercase().contains("too long") {
+        Some(ContextLengthExceededError(external_message.to_string()))
     } else {
         None
     }
@@ -528,7 +537,7 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(
             result.unwrap().to_string(),
-            "Input message too long. Message: This message is too long"
+            "Context length exceeded. Message: This message is too long"
         );
 
         let error = json!({
@@ -537,6 +546,33 @@ mod tests {
         });
 
         let result = check_openai_context_length_error(&error);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_check_bedrock_context_length_error() {
+        let error = json!({
+            "error": "Received error from amazon-bedrock",
+            "external_model_message": {
+                "message": "Input is too long for requested model."
+            }
+        });
+
+        let result = check_bedrock_context_length_error(&error);
+        assert!(result.is_some());
+        assert_eq!(
+            result.unwrap().to_string(),
+            "Context length exceeded. Message: Input is too long for requested model."
+        );
+
+        let error = json!({
+            "error": "Some other error",
+            "external_model_message": {
+                "message": "Some other message"
+            }
+        });
+
+        let result = check_bedrock_context_length_error(&error);
         assert!(result.is_none());
     }
 }
