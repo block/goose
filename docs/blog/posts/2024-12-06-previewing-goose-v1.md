@@ -5,28 +5,6 @@ description: "Goose v1.0 Beta is here! Learn about the latest features and impro
 date: 2024-12-06
 authors:
   - adewale
-head:
-  meta:
-    - property: "og:title"
-      content: "Previewing Goose v1.0 Beta"
-    - property: "og:type"
-      content: "article"
-    - property: "og:url"
-      content: "https://block.github.io/goose/blog/2024/12/06/previewing-goose-v1.html"
-    - property: "og:description"
-      content: "AI Agent uses screenshots to assist in styling."
-    - property: "og:image"
-      content: "https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png"
-    - name: "twitter:card"
-      content: "summary_large_image"
-    - property: "twitter:domain"
-      content: "block.github.io"
-    - name: "twitter:title"
-      content: "Screenshot-Driven Development"
-    - name: "twitter:description"
-      content: "AI Agent uses screenshots to assist in styling."
-    - name: "twitter:image"
-      content: "https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png"
 ---
 
 ![Goose v1.0 Beta](../images/whats-new-in-goose-v1/goose-v1.0-beta.png)
