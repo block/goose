@@ -19,7 +19,7 @@ Lists the version of Goose and any associated plugins.
 
 **Usage:**
 ```sh
-  goose session start [--profile PROFILE] [--plan PLAN] [--log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]] [--tracing]
+  goose session start [--profile PROFILE] [--log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]] [--tracing]
 ```
 
 Starts a new Goose session.
@@ -34,6 +34,17 @@ If you want to enable locally hosted Langfuse tracing, pass the --tracing flag a
 ```
 
 Resumes an existing Goose session.
+
+#### `run`
+
+Goose can run one off plans: 
+
+**Usage:**
+```sh
+  goose run plan.md
+```
+
+It will run this plan, or sequence of tasks, to completion as a one shot task.
 
 #### `list`
 
