@@ -17,7 +17,7 @@ head:
     - property: "og:description"
       content: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
     - property: "og:image"
-      content: ""
+      content: "https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png"
     - name: "twitter:card"
       content: "summary_large_image"
     - property: "twitter:domain"
@@ -27,9 +27,10 @@ head:
     - name: "twitter:description"
       content: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
     - name: "twitter:image"
-      content: ""
+      content: "https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png"
 ---
 
+![CI](../images/resolving-ci-issues/goose-github-ci.png)
 
 Running into Continuous Integration (CI) failures in pull requests can be quite frustrating but they happen very often. In this post, we leverage the GitHub CLI (`gh`) using Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly.
 
