@@ -5,6 +5,7 @@ description: "Leverage Goose to simplify your CI debugging process, fetch detail
 date: 2024-12-10
 authors:
   - dalton
+  - adewale
 head:
   meta:
     - property: "og:title"
