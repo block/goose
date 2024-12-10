@@ -70,3 +70,17 @@ Goose now has an electron-based GUI macOS application that provides and alternat
 Goose v1.0 Beta now uses a custom protocol, that is designed in parallel with [Anthropic’s Model Context Protocol](https://www.anthropic.com/news/model-context-protocol) (MCP) to communicate with Systems. This makes it possible for developers to create their own systems (e.g Jira, ) that Goose can integrate with. 
 
 Excited for many more feature updates and improvements? Stay tuned for more updates on Goose! Check out the [Goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
+
+
+<head>
+  <meta property="og:title" content="Previewing Goose v1.0 Beta">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/06/previewing-goose-v1.html">
+  <meta property="og:description" content="AI Agent uses screenshots to assist in styling.">
+  <meta property="og:image" content="https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="twitter:domain" content="block.github.io">
+  <meta name="twitter:title" content="Screenshot-Driven Development">
+  <meta name="twitter:description" content="AI Agent uses screenshots to assist in styling.">
+  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png">
+</head>
