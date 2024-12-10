@@ -1,10 +1,9 @@
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
-use serde_json::Value;
-use std::collections::HashMap;
 use std::fs;
 
 use crate::errors::{AgentError, AgentResult};
+use super::Resource;
 use crate::models::content::Content;
 use crate::models::tool::Tool;
 use crate::models::tool::ToolCall;
@@ -69,12 +68,16 @@ impl System for GooseHintsSystem {
         &[]
     }
 
-    async fn status(&self) -> AnyhowResult<HashMap<String, Value>> {
-        Ok(HashMap::new())
+    async fn status(&self) -> AnyhowResult<Vec<Resource>> {
+        Ok(Vec::new())
     }
 
     async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
         Err(AgentError::ToolNotFound(tool_call.name))
+    }
+
+    async fn read_resource(&self, _uri: &str) -> AgentResult<String> {
+        Ok("".to_string())
     }
 }
 

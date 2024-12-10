@@ -23,7 +23,7 @@ export default function ToolInvocations({ toolInvocations }) {
 function ToolInvocation({ toolInvocation }) {
   return (
     <div className="flex flex-col w-full">
-      <Card className="bg-tool-card text-tool p-4 mb-2">
+      <Card className="bg-tool-card dark:bg-tool-card-dark text-tool dark:text-tool-dark p-4 mb-2">
           <ToolCall call={toolInvocation} />
           {toolInvocation.state === 'result' ? (
             <ToolResult result={toolInvocation} />
@@ -50,14 +50,14 @@ function ToolCall({ call }: ToolCallProps) {
     <div>
       <div className="flex items-center">
         <Box size={15} />
-        <span className="ml-[8px] text-tool-bold">{snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf("__") + 2))}</span>
+        <span className="ml-[8px] text-tool-bold dark:text-tool-bold-dark">{snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf("__") + 2))}</span>
       </div>
 
       {call.args && (
         <ToolCallArguments args={call.args} />
       )}
 
-      <div className="self-stretch h-px bg-black/5 my-[10px] rounded-sm" />
+      <div className="self-stretch h-px bg-black/5 dark:bg-white/5 my-[10px] rounded-sm" />
     </div>
   )
 }

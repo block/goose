@@ -10,7 +10,7 @@ export default function UserMessage({ message }) {
   return (
     <div className="flex justify-end mb-[16px]">
       <div className="flex-col max-w-[90%]">
-        <div className="flex bg-user-bubble text-white rounded-2xl p-4">
+        <div className="flex bg-user-bubble dark:bg-user-bubble-dark text-goose-text-light dark:text-goose-text-light-dark rounded-2xl p-4">
           <MarkdownContent
             content={message.content}
             className="text-white"

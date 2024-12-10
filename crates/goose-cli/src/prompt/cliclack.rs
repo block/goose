@@ -1,14 +1,14 @@
-use std::{
-    collections::HashMap,
-    io::{self, Write},
-};
+use std::collections::HashMap;
 
 use anyhow::Result;
-use bat::WrappingMode;
 use cliclack::{input, set_theme, spinner, Theme as CliclackTheme, ThemeState};
-use goose::models::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::models::message::Message;
 
-use super::{thinking::get_random_thinking_message, Input, InputType, Prompt, Theme};
+use super::{
+    renderer::{render, BashDeveloperSystemRenderer, DefaultRenderer, ToolRenderer},
+    thinking::get_random_thinking_message,
+    Input, InputType, Prompt, Theme,
+};
 
 pub struct CliclackPrompt {
     spinner: cliclack::ProgressBar,
@@ -24,164 +24,38 @@ enum InputMode {
 
 impl CliclackPrompt {
     pub fn new() -> Self {
-        // // Load highlighting assets
-        // let assets = HighlightingAssets::from_binary();
-
-        // // Fetch and list all available themes
-        // let themes = assets.themes();
-        // for theme_name in themes {
-        //     println!("{}", theme_name);
-        // }
-
-        // // List all available syntaxes (languages)
-        // let syntax_set = assets.get_syntaxes().unwrap();
-        // for syntax in syntax_set {
-        //     println!("{}", syntax.name);
-        // }
-
         set_theme(PromptTheme);
 
         let mut renderers: HashMap<String, Box<dyn ToolRenderer>> = HashMap::new();
         let default_renderer = DefaultRenderer;
         renderers.insert(default_renderer.tool_name(), Box::new(default_renderer));
+        let bash_dev_system_renderer = BashDeveloperSystemRenderer;
+        renderers.insert(
+            bash_dev_system_renderer.tool_name(),
+            Box::new(bash_dev_system_renderer),
+        );
 
         CliclackPrompt {
             spinner: spinner(),
-            input_mode: InputMode::Multiline,
-            theme: Theme::Dark,
+            input_mode: InputMode::Singleline,
+            theme: std::env::var("GOOSE_CLI_THEME")
+                .ok()
+                .map(|val| {
+                    if val.eq_ignore_ascii_case("light") {
+                        Theme::Light
+                    } else {
+                        Theme::Dark
+                    }
+                })
+                .unwrap_or(Theme::Dark),
             renderers,
         }
     }
 }
 
-/// Implement the ToolRenderer trait for each tool that you want to render in the prompt.
-trait ToolRenderer {
-    fn tool_name(&self) -> String;
-    fn request(&self, tool_request: &ToolRequest, theme: &str);
-    fn response(&self, tool_response: &ToolResponse, theme: &str);
-}
-
-struct DefaultRenderer;
-
-impl ToolRenderer for DefaultRenderer {
-    fn tool_name(&self) -> String {
-        "default".to_string()
-    }
-
-    fn request(&self, tool_request: &ToolRequest, theme: &str) {
-        match &tool_request.tool_call {
-            Ok(call) => {
-                print_tool_request(
-                    &serde_json::to_string_pretty(&call.arguments).unwrap(),
-                    theme,
-                    &call.name,
-                );
-            }
-            Err(e) => print(&e.to_string(), theme),
-        }
-    }
-
-    fn response(&self, tool_response: &ToolResponse, theme: &str) {
-        match &tool_response.tool_result {
-            Ok(output) => {
-                let output_value = serde_json::to_string_pretty(output).unwrap();
-
-                // For pure text responses, strip the quotes and replace escaped newlines. Eg. bash responses
-                let unquoted = output_value.trim_matches('"');
-                let formatted = unquoted.replace("\\n", "\n");
-
-                let language = if formatted.starts_with("{") {
-                    "JSON"
-                } else {
-                    "Markdown"
-                };
-                print_tool_response(&formatted, theme, language);
-            }
-            Err(e) => print(&e.to_string(), theme),
-        }
-    }
-}
-
-fn print_tool_request(content: &str, theme: &str, tool_name: &str) {
-    bat::PrettyPrinter::new()
-        .input(
-            bat::Input::from_bytes(content.as_bytes()).name(format!("Tool Request: {}", tool_name)),
-        )
-        .theme(theme)
-        .language("JSON")
-        .grid(true)
-        .header(true)
-        .wrapping_mode(WrappingMode::Character)
-        .print()
-        .unwrap();
-}
-
-fn print_tool_response(content: &str, theme: &str, language: &str) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()).name("Tool Response:"))
-        .theme(theme)
-        .language(language)
-        .grid(true)
-        .header(true)
-        .wrapping_mode(WrappingMode::Character)
-        .print()
-        .unwrap();
-}
-
-fn print(content: &str, theme: &str) {
-    bat::PrettyPrinter::new()
-        .input(bat::Input::from_bytes(content.as_bytes()))
-        .theme(theme)
-        .language("Markdown")
-        .wrapping_mode(WrappingMode::Character)
-        .print()
-        .unwrap();
-}
-
-fn print_newline() {
-    println!();
-}
-
 impl Prompt for CliclackPrompt {
     fn render(&mut self, message: Box<Message>) {
-        let theme = match self.theme {
-            Theme::Light => "GitHub",
-            Theme::Dark => "zenburn",
-        };
-
-        let mut last_tool_name: &str = "default";
-        for message_content in &message.content {
-            match message_content {
-                MessageContent::Text(text) => print(&text.text, theme),
-                MessageContent::ToolRequest(tool_request) => match &tool_request.tool_call {
-                    Ok(call) => {
-                        last_tool_name = &call.name;
-                        self.renderers
-                            .get(&call.name)
-                            .or_else(|| self.renderers.get("default"))
-                            .unwrap()
-                            .request(tool_request, theme);
-                    }
-                    Err(_) => self
-                        .renderers
-                        .get("default")
-                        .unwrap()
-                        .request(tool_request, theme),
-                },
-                MessageContent::ToolResponse(tool_response) => self
-                    .renderers
-                    .get(last_tool_name)
-                    .or_else(|| self.renderers.get("default"))
-                    .unwrap()
-                    .response(tool_response, theme),
-                MessageContent::Image(image) => {
-                    println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
-                }
-            }
-        }
-
-        print_newline();
-        io::stdout().flush().expect("Failed to flush stdout");
+        render(message, &self.theme, self.renderers.clone());
     }
 
     fn show_busy(&mut self) {

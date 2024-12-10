@@ -115,7 +115,7 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
 
   return (
     <Card 
-      className="max-w-[300px] truncate flex items-center bg-link-preview p-3 transition-colors cursor-pointer"
+      className="max-w-[300px] truncate flex items-center bg-link-preview dark:bg-link-preview-dark p-3 transition-colors cursor-pointer"
       onClick={() => {
         window.electron.openInChrome(url);
       }}

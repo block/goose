@@ -25,7 +25,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
   return (
     <div className="flex justify-start mb-[16px]">
       <div className="flex-col w-[90%]">
-        <div className="flex flex-col bg-goose-bubble text-white rounded-2xl p-4">
+        <div className="flex flex-col bg-goose-bubble dark:bg-goose-bubble-dark rounded-2xl p-4">
           {message.content && (
             <MarkdownContent
               content={message.content}

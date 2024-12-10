@@ -9,15 +9,15 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ className, onDismiss }: WelcomeScreenProps) {
   return (
-    <Card className={`flex flex-col items-center justify-center p-8 space-y-6 bg-card-gradient w-full h-full ${className}`}>
+    <Card className={`flex flex-col items-center justify-center p-8 space-y-6 bg-card-gradient dark:bg-dark-card-gradient w-full h-full ${className}`}>
       <div className="w-16 h-16">
         <Bird />
       </div>
       <div className="text-center space-y-4">
-        <h2 className="text-2xl font-semibold text-gray-800">Welcome to Goose 1.0 <b>beta</b>! 🎉</h2>
-        <div className="whitespace-pre-wrap text-gray-600">
+        <h2 className="text-2xl font-semibold text-gray-800 dark:text-white/70">Welcome to Goose 1.0 <b>beta</b>! 🎉</h2>
+        <div className="whitespace-pre-wrap text-gray-600 dark:text-white/50">
           Goose is your AI-powered agent.
-          <br /><br />
+          <br /><br />                                                                              
           <b> Warning: During the beta, your chats are not saved - closing the window <br />
               or closing the app will lose your history. <br />
           </b>

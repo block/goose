@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('appConfig', {
 contextBridge.exposeInMainWorld('electron', {
   getConfig: () => config,
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: () => ipcRenderer.send('directory-chooser'),
+  directoryChooser: (replace) => ipcRenderer.send('directory-chooser', replace),
   createChatWindow: (query) => ipcRenderer.send('create-chat-window', query),
   logInfo: (txt) => ipcRenderer.send('logInfo', txt),
   showNotification: (data) => ipcRenderer.send('notify', data),
@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
   openInChrome: (url) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
+  selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
   on: (channel, callback) => {
     if (channel === 'fatal-error') {
       ipcRenderer.on(channel, callback);
@@ -28,4 +29,4 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.removeListener(channel, callback);
     }
   }
-})
+});

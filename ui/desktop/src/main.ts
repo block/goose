@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
 import path from 'node:path';
-import { findAvailablePort, startGoosed } from './goosed';
+import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
@@ -13,6 +13,21 @@ if (started) app.quit();
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
+
+// Parse command line arguments
+const parseArgs = () => {
+  const args = process.argv.slice(2); // Remove first two elements (electron and script path)
+  let dirPath = null;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--dir' && i + 1 < args.length) {
+      dirPath = args[i + 1];
+      break;
+    }
+  }
+
+  return { dirPath };
+};
 
 const checkApiCredentials = () => {
 
@@ -93,6 +108,7 @@ const createChat = async (app, query?: string, dir?: string) => {
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
+    vibrancy: 'under-window',
     width: 750,
     height: 800,
     minWidth: 650,
@@ -102,7 +118,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir })],
     },
   });
 
@@ -211,13 +227,16 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async () => {
+const openDirectoryDialog = async (replaceWindow: Boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    if (replaceWindow) {
+      BrowserWindow.getFocusedWindow().close();
+    }
     createChat(app, undefined, result.filePaths[0]);
   }
 };
@@ -240,6 +259,18 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
+// Add file/directory selection handler
+ipcMain.handle('select-file-or-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'openDirectory']
+  });
+  
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
 app.whenReady().then(async () => {
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {
@@ -250,10 +281,11 @@ app.whenReady().then(async () => {
     }, 5000);
   }
 
-  // Load zsh environment variables in production mode only
+  // Parse command line arguments
+  const { dirPath } = parseArgs();
   
   createTray();
-  createChat(app);
+  createChat(app, undefined, dirPath);
 
   // Show launcher input on key combo
   globalShortcut.register('Control+Alt+Command+G', createLauncher);
@@ -305,8 +337,8 @@ app.whenReady().then(async () => {
     createChat(app, query);
   });
 
-  ipcMain.on('directory-chooser', (_) => {
-    openDirectoryDialog();
+  ipcMain.on('directory-chooser', (_, replace: Boolean = false) => {
+    openDirectoryDialog(replace);
   });
 
   ipcMain.on('notify', (event, data) => {

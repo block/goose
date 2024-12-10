@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
+import {oneLight} from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface MarkdownContentProps {
   content: string;
@@ -11,8 +12,7 @@ interface MarkdownContentProps {
 
 const CodeBlock = ({ language, children }: { language: string; children: string }) => {
   const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
+    const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(children);
       setCopied(true);
@@ -63,13 +63,14 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
 };
 
 export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
+    // Determine whether dark mode is enabled
+    const isDarkMode = document.documentElement.classList.contains('dark');
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
-        className={`prose prose-xs w-full max-w-full break-words
+        className={`prose prose-xs dark:prose-invert w-full max-w-full break-words
           prose-pre:p-0 prose-pre:m-0
           prose-code:break-all prose-code:whitespace-pre-wrap
-          prose-pre:bg-transparent
           ${className}`}
         components={{
           code({node, inline, className, children, ...props}) {
@@ -79,7 +80,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
                 {String(children).replace(/\n$/, '')}
               </CodeBlock>
             ) : (
-              <code {...props} className={`${className} break-all whitespace-pre-wrap`}>
+              <code {...props} className={`${className} break-all bg-inline-code dark:bg-inline-code-dark whitespace-pre-wrap`}>
                 {children}
               </code>
             );

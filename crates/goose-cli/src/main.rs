@@ -37,10 +37,30 @@ enum Command {
     Configure {
         /// Name of the profile to configure
         #[arg(
+            short('n'),
+            long,
             help = "Profile name to configure",
             long_help = "Create or modify a named configuration profile. Use 'default' for the default profile."
         )]
         profile_name: Option<String>,
+
+        /// AI Provider to use
+        #[arg(
+            short,
+            long,
+            help = "AI Provider to use (e.g., 'openai', 'databricks', 'ollama')",
+            long_help = "Specify AI Provider to use (e.g., 'openai', 'databricks', 'ollama')."
+        )]
+        provider: Option<String>,
+
+        /// Model to use
+        #[arg(
+            short,
+            long,
+            help = "Model to use (e.g., 'gpt-4', 'llama2')",
+            long_help = "Specify which model to use for this profile."
+        )]
+        model: Option<String>,
     },
 
     /// Manage system prompts and behaviors
@@ -178,8 +198,12 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
-        Some(Command::Configure { profile_name }) => {
-            let _ = handle_configure(profile_name).await;
+        Some(Command::Configure {
+            profile_name,
+            provider,
+            model,
+        }) => {
+            let _ = handle_configure(profile_name, provider, model).await;
             return Ok(());
         }
         Some(Command::System { action }) => match action {

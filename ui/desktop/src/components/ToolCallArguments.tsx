@@ -21,8 +21,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
         return (
           <div className="p-1">
             <div className="flex">
-              <span className="text-tool-dim mr-2">{key}:</span>
-              <span className="text-tool">{value}</span>
+              <span className="text-tool-dim dark:text-tool-dim-dark mr-2">{key}:</span>
+              <span className="text-tool dark:text-tool-dark">{value}</span>
             </div>
           </div>
         );
@@ -31,7 +31,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       return (
         <div className="p-1">
           <div className="flex items-baseline">
-            <span className="text-tool-dim mr-2">{key}:</span>
+            <span className="text-tool-dim dark:text-tool-dim-dark mr-2">{key}:</span>
             <div className="flex-1">
               <button
                 onClick={() => toggleKey(key)}
