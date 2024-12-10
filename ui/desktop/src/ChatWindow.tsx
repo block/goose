@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Message, useChat } from './ai-sdk-fork/useChat';
-import { Route, Routes, Navigate } from 'react-router-dom';
-import { getApiUrl } from './config';
-import { Card } from './components/ui/card';
-import { ScrollArea } from './components/ui/scroll-area';
+import React, {useEffect, useRef, useState} from 'react';
+import {Message,useChat} from './ai-sdk-fork/useChat';
+import {Navigate, Route, Routes} from 'react-router-dom';
+import {getApiUrl} from './config';
+import {Card} from './components/ui/card';
+import {ScrollArea} from './components/ui/scroll-area';
 import Splash from './components/Splash';
 import GooseMessage from './components/GooseMessage';
 import UserMessage from './components/UserMessage';
@@ -11,7 +11,8 @@ import Input from './components/Input';
 import MoreMenu from './components/MoreMenu';
 import BottomMenu from './components/BottomMenu';
 import LoadingGoose from './components/LoadingGoose';
-import { ApiKeyWarning } from './components/ApiKeyWarning';
+import {ApiKeyWarning} from './components/ApiKeyWarning';
+
 import { askAi, getPromptTemplates } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -24,37 +25,41 @@ const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
 
 
-export interface Chat {
-  id: number;
-  title: string;
-  messages: Array<{
-    id: string;
-    role: 'function' | 'system' | 'user' | 'assistant' | 'data' | 'tool';
-    content: string;
-  }>;
-}
 
 function ChatContent({
-  chats,
-  setChats,
-  selectedChatId,
-  setSelectedChatId,
   initialQuery,
   setProgressMessage,
   setWorking,
 }: {
-  chats: Chat[];
-  setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
-  selectedChatId: number;
-  setSelectedChatId: React.Dispatch<React.SetStateAction<number>>;
   initialQuery: string | null;
   setProgressMessage: React.Dispatch<React.SetStateAction<string>>;
   setWorking: React.Dispatch<React.SetStateAction<Working>>;
 }) {
-  const chat = chats.find((c: Chat) => c.id === selectedChatId);
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
+  const [initialMessages, setInitialMessages] = useState<Message[]>([]); // Replace `any` with actual message type.
   const [hasMessages, setHasMessages] = useState(false);
 
+
+  useEffect(() => {
+    async function fetchSession() {
+      const sessionId = window.appConfig.get("GOOSE_SESSION_ID");
+      if (sessionId) {
+        window.electron.logInfo('We have a session ID: ' + sessionId);
+        try {
+          const session = await getSession(sessionId);
+          window.electron.logInfo('Session: ' + session);
+
+          // Populate initialMessages based on session data
+          const sessionMessages = session ? session.messages || [] : [];
+          window.electron.logInfo("we have session: " + JSON.stringify(sessionMessages, null, 2));
+          setInitialMessages(sessionMessages);
+        } catch (error) {
+          window.electron.logError('Error fetching session: ' + error);
+        }
+      }
+    }
+    fetchSession();
+  }, []);
 
   const {
     messages,
@@ -65,7 +70,7 @@ function ChatContent({
     setMessages,
   } = useChat({
     api: getApiUrl('/reply'),
-    initialMessages: chat?.messages || [],
+    initialMessages,
     onToolCall: ({ toolCall }) => {
       setWorking(Working.Working);
       setProgressMessage(`Executing tool: ${toolCall.toolName}`);
@@ -91,11 +96,20 @@ function ChatContent({
 
   // Update chat messages when they change
   useEffect(() => {
-    const updatedChats = chats.map((c) =>
-      c.id === selectedChatId ? { ...c, messages } : c
-    );
-    setChats(updatedChats);
-  }, [messages, selectedChatId]);
+      const sessionToSave = {
+        messages: messages,
+        directory: window.appConfig.get("GOOSE_WORKING_DIR")
+      };
+      saveSession(sessionToSave);
+
+  }, [messages]);
+
+  // Function to save a session
+  const saveSession = (session) => {
+    if(session.messages === undefined || session.messages.length === 0) return
+    window.electron.saveSession(session);
+  };
+
 
   const initialQueryAppended = useRef(false);
   useEffect(() => {
@@ -256,10 +270,6 @@ function ChatContent({
 }
 
 export default function ChatWindow() {
-  // Shared function to create a chat window
-  const openNewChatWindow = () => {
-    window.electron.createChatWindow();
-  };
 
   // Add keyboard shortcut handler
   useEffect(() => {
@@ -267,7 +277,7 @@ export default function ChatWindow() {
       // Check for Command+N (Mac) or Control+N (Windows/Linux)
       if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
         event.preventDefault(); // Prevent default browser behavior
-        openNewChatWindow();
+        window.electron.createChatWindow();
       }
     };
 
@@ -288,15 +298,6 @@ export default function ChatWindow() {
   const initialQuery = searchParams.get('initialQuery');
   const historyParam = searchParams.get('history');
   const initialHistory = historyParam ? JSON.parse(decodeURIComponent(historyParam)) : [];
-
-  const [chats, setChats] = useState<Chat[]>(() => {
-    const firstChat = {
-      id: 1,
-      title: initialQuery || 'Chat 1',
-      messages: initialHistory.length > 0 ? initialHistory : [],
-    };
-    return [firstChat];
-  });
 
   const [selectedChatId, setSelectedChatId] = useState(1);
   const [mode, setMode] = useState<'expanded' | 'compact'>(
@@ -343,11 +344,6 @@ export default function ChatWindow() {
                 path="/chat/:id"
                 element={
                   <ChatContent
-                    key={selectedChatId}
-                    chats={chats}
-                    setChats={setChats}
-                    selectedChatId={selectedChatId}
-                    setSelectedChatId={setSelectedChatId}
                     initialQuery={initialQuery}
                     setProgressMessage={setProgressMessage}
                     setWorking={setWorking}
@@ -365,3 +361,15 @@ export default function ChatWindow() {
     </div>
   );
 }
+
+
+const getSession =  async (sessionId) => {
+  try {
+    const session = await window.electron.getSession(sessionId);
+    window.electron.logInfo('GUI Session loading '); // + JSON.stringify(session, null,2));
+    console.log('XSession loaded:', session);
+    return  session
+  } catch (error) {
+    console.error('Failed to load session:', error);
+  }
+};

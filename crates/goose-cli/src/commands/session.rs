@@ -74,7 +74,7 @@ fn session_path(
     retry_on_conflict: bool,
 ) -> PathBuf {
     let session_name = provided_session_name.unwrap_or(random_session_name());
-    let session_file = session_dir.join(format!("{}.jsonl", session_name));
+    let session_file = session_dir.join(format!("{}.json", session_name));
 
     if session_file.exists() && retry_on_conflict {
         generate_new_session_path(session_dir)

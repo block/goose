@@ -1,12 +1,13 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, session } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { loadSessions, saveSession, clearAllSessions, loadSession } from './utils/sessionManager';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -102,7 +103,7 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string) => {
+const createChat = async (app, query?: string, dir?: string, sessionId?: string) => {
 
   const [port, working_dir] = await startGoosed(app, dir);  
   const mainWindow = new BrowserWindow({
@@ -118,7 +119,7 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir })],
+      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir, GOOSE_SESSION_ID: sessionId })],
     },
   });
 
@@ -227,6 +228,17 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
+// Add Recent Sessions submenu
+const buildRecentSessionsMenu = () => {
+  const sessions = loadSessions();
+  return sessions.map(session => ({
+    label: session.name,
+    click: () => {
+      createChat(app, undefined, session.directory, session.name);
+    }
+  }));
+};
+
 const openDirectoryDialog = async (replaceWindow: Boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
@@ -303,6 +315,23 @@ app.whenReady().then(async () => {
     },
   }));
 
+  const recentSessionsSubmenu = buildRecentSessionsMenu();
+  if (recentSessionsSubmenu.length > 0) {
+    fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.append(new MenuItem({
+      label: 'Recent Sessions',
+      submenu: recentSessionsSubmenu
+    }));
+  }
+
+  // Add option to clear session history
+  fileMenu.submenu.append(new MenuItem({
+    label: 'Clear Session History',
+    click() {
+      clearAllSessions();
+    },
+  }));
+
   // Add Recent Files submenu
   const recentFilesSubmenu = buildRecentFilesMenu();
   if (recentFilesSubmenu.length > 0) {
@@ -333,8 +362,34 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query) => {
-    createChat(app, query);
+  ipcMain.on('save-session',  (_, session) => {
+  try {
+    return saveSession(session);
+  } catch (error) {
+    console.error('Failed to save session:', error);
+    throw error;
+  }
+});
+
+
+  ipcMain.on('create-chat-window', (_, query, dir?, sessionId?) => {
+      //(app, query?: string, dir?: string, sessionId?: string)
+      createChat(app, query, dir, sessionId);
+  });
+
+  ipcMain.on('clear-session-history', () => {
+    // Clear all stored session data
+    try {
+      // We'll simulate clearing session data - implement this using your session storage logic
+      clearAllSessions();
+      console.log('All session history cleared');
+      // Optionally notify all open chat windows to update/reset
+      windowMap.forEach(win => {
+        win.webContents.send('session-history-cleared');
+      });
+    } catch (error) {
+      console.error('Failed to clear session history:', error);
+    }
   });
 
   ipcMain.on('directory-chooser', (_, replace: Boolean = false) => {
@@ -374,6 +429,30 @@ app.whenReady().then(async () => {
       throw error;
     }
   });
+
+  ipcMain.handle('get-session',  (_, sessionId) => {
+    try {
+      console.log("Loading session.....");
+      return loadSession(sessionId)
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+      throw error;
+    }
+  });
+
+  // list sessions filtered by ones for the given directory
+  ipcMain.handle('list-sessions',  () => {
+    try {
+      console.log("Loading sessions.....");
+      const sessions = loadSessions();
+      console.log("Sessions loaded.....");
+      return sessions.map(session => ({ name: session.name, directory: session.directory }));
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+      throw error;
+    }
+  });
+
 
   ipcMain.on('open-in-chrome', (_, url) => {
     // On macOS, use the 'open' command with Chrome

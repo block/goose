@@ -3,9 +3,9 @@ use core::panic;
 use futures::StreamExt;
 use serde_json;
 use std::fs::{self, File};
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead};
 use std::path::PathBuf;
-
+use serde_json::json;
 use crate::agents::agent::Agent;
 use crate::prompt::{InputType, Prompt};
 use goose::developer::DeveloperSystem;
@@ -38,20 +38,15 @@ pub fn readable_session_file(session_file: &PathBuf) -> Result<File> {
     }
 }
 
-pub fn persist_messages(session_file: &PathBuf, messages: &[Message]) -> Result<()> {
-    let file = fs::File::create(session_file)?; // Create or truncate the file
-    persist_messages_internal(file, messages)
-}
-
-fn persist_messages_internal(session_file: File, messages: &[Message]) -> Result<()> {
-    let mut writer = std::io::BufWriter::new(session_file);
-
-    for message in messages {
-        serde_json::to_writer(&mut writer, &message)?;
-        writeln!(writer)?;
-    }
-
-    writer.flush()?;
+pub fn persist_messages(session_file: &PathBuf, messages: &[Message], directory: &PathBuf) -> Result<()> {
+    let session_data = json!({
+        "name": session_file.file_stem().unwrap().to_str().unwrap(),
+        "messages": messages,
+        "directory": directory
+    });
+    
+    let writer = std::io::BufWriter::new(fs::File::create(session_file)?);
+    serde_json::to_writer(writer, &session_data)?;
     Ok(())
 }
 
@@ -76,27 +71,27 @@ pub struct Session<'a> {
 
 impl<'a> Session<'a> {
     pub fn new(agent: Box<dyn Agent>, prompt: Box<dyn Prompt + 'a>, session_file: PathBuf) -> Self {
-        let messages = match readable_session_file(&session_file) {
-            Ok(file) => deserialize_messages(file).unwrap_or_else(|e| {
-                eprintln!(
-                    "Failed to read messages from session file. Starting fresh.\n{}",
-                    e
-                );
-                Vec::<Message>::new()
-            }),
-            Err(e) => {
-                eprintln!("Failed to load session file. Starting fresh.\n{}", e);
-                Vec::<Message>::new()
-            }
-        };
-
-        Session {
-            agent,
-            prompt,
-            session_file,
-            messages,
+    let messages = match readable_session_file(&session_file) {
+        Ok(file) => deserialize_messages(file).unwrap_or_else(|e| {
+            eprintln!(
+                "Failed to read messages from session file. Starting fresh.\n{}",
+                e
+            );
+            Vec::<Message>::new()
+        }),
+        Err(e) => {
+            eprintln!("Failed to load session file. Starting fresh.\n{}", e);
+            Vec::<Message>::new()
         }
+    };
+
+    Session {
+        agent,
+        prompt,
+        session_file,
+        messages,
     }
+}
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.setup_session();
@@ -108,7 +103,8 @@ impl<'a> Session<'a> {
                 InputType::Message => {
                     if let Some(content) = &input.content {
                         self.messages.push(Message::user().with_text(content));
-                        persist_messages(&self.session_file, &self.messages)?;
+                        let directory: PathBuf = std::env::current_dir().expect("Failed to get current directory");
+                        persist_messages(&self.session_file, &self.messages, &directory)?
                     }
                 }
                 InputType::Exit => break,
@@ -131,7 +127,8 @@ impl<'a> Session<'a> {
 
         self.messages
             .push(Message::user().with_text(initial_message.as_str()));
-        persist_messages(&self.session_file, &self.messages)?;
+        let directory: PathBuf = std::env::current_dir().expect("Failed to get current directory");
+        persist_messages(&self.session_file, &self.messages, &directory)?;
 
         self.agent_process_messages().await;
 
@@ -153,7 +150,8 @@ impl<'a> Session<'a> {
                     match response {
                         Some(Ok(message)) => {
                             self.messages.push(message.clone());
-                            persist_messages(&self.session_file, &self.messages).unwrap_or_else(|e| eprintln!("Failed to persist messages: {}", e));
+                            let directory: PathBuf = std::env::current_dir().expect("Failed to get current directory");
+                            persist_messages(&self.session_file, &self.messages, &directory).unwrap_or_else(|e| eprintln!("Failed to persist messages: {}", e));
                             self.prompt.hide_busy();
                             self.prompt.render(Box::new(message.clone()));
                             self.prompt.show_busy();
