@@ -6,28 +6,6 @@ date: 2024-12-10
 authors:
   - dalton
   - adewale
-head:
-  meta:
-    - property: "og:title"
-      content: "Resolving CI Issues with Goose: A Practical Walkthrough"
-    - property: "og:type"
-      content: "article"
-    - property: "og:url"
-      content: "https://block.github.io/goose/blog/2024/12/10/resolving-ci-issues.html"
-    - property: "og:description"
-      content: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
-    - property: "og:image"
-      content: "https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png"
-    - name: "twitter:card"
-      content: "summary_large_image"
-    - property: "twitter:domain"
-      content: "block.github.io"
-    - name: "twitter:title"
-      content: "Resolving CI Issues with Goose: A Practical Walkthrough"
-    - name: "twitter:description"
-      content: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
-    - name: "twitter:image"
-      content: "https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png"
 ---
 
 ![CI](../images/resolving-ci-issues/goose-github-ci.png)
@@ -177,3 +155,16 @@ Using Goose to resolve CI issues streamlines your workflow by:
 Goose allows you to resolve CI failures efficiently, ensuring confidence in your workflow while reducing the effort required for debugging and testing.
 
 Try it out, and let Goose handle the heavy lifting of CI debugging for you!
+
+<head>
+  <meta property="og:title" content="Resolving CI Issues with Goose: A Practical Walkthrough">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/10/resolving-ci-issues.html">
+  <meta property="og:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly.">
+  <meta property="og:image" content="https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="twitter:domain" content="block.github.io">
+  <meta name="twitter:title" content="Resolving CI Issues with Goose: A Practical Walkthrough">
+  <meta name="twitter:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly.">
+  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png">
+</head>
