@@ -40,7 +40,10 @@ theme:
     logo: assets/logo.ico
 # plugins
 plugins:
-  - blog
+  - blog:
+      archive: false
+      categories: false
+      blog_toc: true
   - include-markdown
   - callouts
   - glightbox
