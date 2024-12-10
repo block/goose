@@ -77,30 +77,29 @@ You can see the current toolkits available to Goose [here][available-toolkits]. 
 
 ### Plans
 
-Goose creates plans for itself to execute to achieve its goals. In some cases, you may already have a plan in mind for Goose — this is where you can define your own `plan.md` file, and it will set the first message and also hard code Goose's initial plan.
+Goose creates plans for itself to execute to achieve its goals. In some cases, you may already have a plan in mind for Goose — this is where you can define your own `plan.yml` file, and it will set the first message and also hard code Goose's initial plan.
 
-The plan.md file can be text in any format and uses `jinja` templating, and the last group of lines that start with “-” will be considered the plan.
-
-Here are some examples:
 
 #### Basic example plan
 
-```md
-Your goal is to refactor this fastapi application to use a sqlite database. Use `pytest -s -v -x` to run the tests when needed.
+```yaml
 
-- Use ripgrep to find the fastapi app and its tests in this directory
-- read the files you found
-- Add sqlalchemy and alembic as dependencies with poetry
-- Run alembic init to set up the basic configuration
-- Add sqlite dependency with Poetry
-- Create new module for database code and include sqlalchemy and alembic setup
-- Define an accounts table with SQLAlchemy
-- Implement CRUD operations for accounts table
-- Update main.py to integrate with SQLite database and use CRUD operation
-- Use alembic to create the table
-- Use conftest to set up a test database with a new DB URL
-- Run existing test suite and ensure all tests pass. Do not edit the test case behavior, instead use tests to find issues.
+kickoff_message: Your goal is to refactor this fastapi application to use a sqlite database. Use `pytest -s -v -x` to run the tests when needed.
+tasks:
+  - Use ripgrep to find the fastapi app and its tests in this directory
+  - read the files you found
+  - Add sqlalchemy and alembic as dependencies with poetry
+  - Run alembic init to set up the basic configuration
+  - Add sqlite dependency with Poetry
+  - Create new module for database code and include sqlalchemy and alembic setup
+  - Define an accounts table with SQLAlchemy
+  - Implement CRUD operations for accounts table
+  - Update main.py to integrate with SQLite database and use CRUD operation
+  - Use alembic to create the table
+  - Use conftest to set up a test database with a new DB URL
+  - Run existing test suite and ensure all tests pass. Do not edit the test case behavior, instead use tests to find issues.
 ```
+
 
 The starting plan is specified with the tasks. Each list entry is a different step in the plan. This is a pretty detailed set of tasks, but is really just a break-down of the conversation we had in the previous section.
 
@@ -109,10 +108,12 @@ The kickoff message is what gets set as the first user message when goose starts
 To run Goose with this plan:
 
 ``` sh
-goose session start --plan plan.md
+goose session start --plan plan.yml
 ```
 
-#### Injecting arguments into a plan
+#### One shot plans and injecting arguments into a plan
+
+you can use `goose run plan.md` to run plans from a markdown format of a plan similar to the above (in which case it will run to completion and exit).
 
 You can also inject arguments into your plan. `plan.md` files can be templated with `jinja` and can include variables that are passed in when you start the session.
 
@@ -134,7 +135,7 @@ Here is the plan:
 To run Goose with this plan with the arguments `dep=pytest,repo=github`, you would run the following command:
 
 ```sh
-goose session start --plan plan.md --args dep=pytest,repo=github
+goose run plan.md --args dep=pytest,repo=github
 ```
 
 [configuration]: ../configuration.md
