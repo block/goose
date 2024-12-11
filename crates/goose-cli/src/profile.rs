@@ -1,8 +1,8 @@
 use anyhow::Result;
 use goose::key_manager::{get_keyring_secret, KeyRetrievalStrategy};
 use goose::providers::configs::{
-    DatabricksAuth, DatabricksProviderConfig, OllamaProviderConfig, OpenAiProviderConfig,
-    ProviderConfig, AnthropicProviderConfig,
+    AnthropicProviderConfig, DatabricksAuth, DatabricksProviderConfig, OllamaProviderConfig,
+    OpenAiProviderConfig, ProviderConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -115,7 +115,7 @@ pub fn get_provider_config(provider_name: &str, model: String) -> ProviderConfig
                 .expect("ANTHROPIC_API_KEY not available in env or the keychain\nSet an env var or rerun `goose configure`");
 
             ProviderConfig::Anthropic(AnthropicProviderConfig {
-                host: "https://api.anthropic.com".to_string(),  // Default Anthropic API endpoint
+                host: "https://api.anthropic.com".to_string(), // Default Anthropic API endpoint
                 api_key,
                 model,
                 temperature: None,

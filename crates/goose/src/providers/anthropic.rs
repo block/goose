@@ -3,15 +3,15 @@ use async_trait::async_trait;
 use reqwest::Client;
 use reqwest::StatusCode;
 use serde_json::{json, Value};
-use std::time::Duration;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use super::base::{Provider, Usage};
 use super::configs::AnthropicProviderConfig;
-use crate::models::message::{Message, MessageContent};
-use crate::models::tool::{Tool, ToolCall};
-use crate::models::role::Role;
 use crate::models::content::{Content, TextContent};
+use crate::models::message::{Message, MessageContent};
+use crate::models::role::Role;
+use crate::models::tool::{Tool, ToolCall};
 
 pub struct AnthropicProvider {
     client: Client,
@@ -30,10 +30,12 @@ impl AnthropicProvider {
     fn get_usage(data: &Value) -> Result<Usage> {
         // Extract usage data if available
         if let Some(usage) = data.get("usage") {
-            let input_tokens = usage.get("input_tokens")
+            let input_tokens = usage
+                .get("input_tokens")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as i32);
-            let output_tokens = usage.get("output_tokens")
+            let output_tokens = usage
+                .get("output_tokens")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as i32);
             let total_tokens = match (input_tokens, output_tokens) {
@@ -96,7 +98,8 @@ impl AnthropicProvider {
                     }
                     MessageContent::ToolResponse(tool_response) => {
                         if let Ok(result) = &tool_response.tool_result {
-                            let text = result.iter()
+                            let text = result
+                                .iter()
                                 .filter_map(|c| match c {
                                     Content::Text(t) => Some(t.text.clone()),
                                     _ => None,
@@ -158,13 +161,18 @@ impl AnthropicProvider {
                     }
                 }
                 Some("tool_use") => {
-                    let id = block.get("id").and_then(|i| i.as_str())
+                    let id = block
+                        .get("id")
+                        .and_then(|i| i.as_str())
                         .ok_or_else(|| anyhow!("Missing tool_use id"))?;
-                    let name = block.get("name").and_then(|n| n.as_str())
+                    let name = block
+                        .get("name")
+                        .and_then(|n| n.as_str())
                         .ok_or_else(|| anyhow!("Missing tool_use name"))?;
-                    let input = block.get("input")
+                    let input = block
+                        .get("input")
                         .ok_or_else(|| anyhow!("Missing tool_use input"))?;
-                    
+
                     let tool_call = ToolCall::new(name, input.clone());
                     message = message.with_tool_request(id, Ok(tool_call));
                 }
@@ -176,10 +184,7 @@ impl AnthropicProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value> {
-        let url = format!(
-            "{}/v1/messages",
-            self.config.host.trim_end_matches('/')
-        );
+        let url = format!("{}/v1/messages", self.config.host.trim_end_matches('/'));
 
         let response = self
             .client
@@ -197,11 +202,7 @@ impl AnthropicProvider {
             }
             status => {
                 let error_text = response.text().await?;
-                Err(anyhow!(
-                    "Request failed: {} - {}",
-                    status,
-                    error_text
-                ))
+                Err(anyhow!("Request failed: {} - {}", status, error_text))
             }
         }
     }
@@ -231,19 +232,25 @@ impl Provider for AnthropicProvider {
 
         // Add system message if present
         if !system.is_empty() {
-            payload.as_object_mut().unwrap()
+            payload
+                .as_object_mut()
+                .unwrap()
                 .insert("system".to_string(), json!(system));
         }
 
         // Add tools if present
         if !tool_specs.is_empty() {
-            payload.as_object_mut().unwrap()
+            payload
+                .as_object_mut()
+                .unwrap()
                 .insert("tools".to_string(), json!(tool_specs));
         }
 
         // Add temperature if specified
         if let Some(temp) = self.config.temperature {
-            payload.as_object_mut().unwrap()
+            payload
+                .as_object_mut()
+                .unwrap()
                 .insert("temperature".to_string(), json!(temp));
         }
 
@@ -363,7 +370,7 @@ mod tests {
                         "description": "The mathematical expression to evaluate"
                     }
                 }
-            })
+            }),
         );
 
         let (message, usage) = provider
@@ -373,10 +380,7 @@ mod tests {
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
             assert_eq!(tool_call.name, "calculator");
-            assert_eq!(
-                tool_call.arguments,
-                json!({"expression": "2 + 2"})
-            );
+            assert_eq!(tool_call.arguments, json!({"expression": "2 + 2"}));
         } else {
             panic!("Expected ToolRequest content");
         }

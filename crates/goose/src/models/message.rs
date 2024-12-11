@@ -88,7 +88,6 @@ impl MessageContent {
         None
     }
 
-
     /// Get the text content if this is a TextContent variant
     pub fn as_text(&self) -> Option<&str> {
         match self {

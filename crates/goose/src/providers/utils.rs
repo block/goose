@@ -263,7 +263,10 @@ pub fn check_openai_context_length_error(error: &Value) -> Option<ContextLengthE
 }
 
 pub fn check_bedrock_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
-    let external_message = error.get("external_model_message")?.get("message")?.as_str()?;
+    let external_message = error
+        .get("external_model_message")?
+        .get("message")?
+        .as_str()?;
     if external_message.to_lowercase().contains("too long") {
         Some(ContextLengthExceededError(external_message.to_string()))
     } else {

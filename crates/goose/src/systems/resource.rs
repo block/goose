@@ -1,6 +1,6 @@
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, anyhow};
 use url::Url;
 
 /// Represents a resource in the system with metadata
@@ -28,19 +28,23 @@ fn default_mime_type() -> String {
 
 impl Resource {
     /// Creates a new Resource from a URI with explicit mime type
-    pub fn new<S: AsRef<str>>(uri: S, mime_type: Option<String>, name: Option<String>) -> Result<Self> {
+    pub fn new<S: AsRef<str>>(
+        uri: S,
+        mime_type: Option<String>,
+        name: Option<String>,
+    ) -> Result<Self> {
         let uri = uri.as_ref();
-        let url = Url::parse(uri)
-            .map_err(|e| anyhow!("Invalid URI: {}", e))?;
+        let url = Url::parse(uri).map_err(|e| anyhow!("Invalid URI: {}", e))?;
 
         // Extract name from the path component of the URI
         // Use provided name if available, otherwise extract from URI
         let name = match name {
             Some(n) => n,
-            None => url.path_segments()
+            None => url
+                .path_segments()
                 .and_then(|segments| segments.last())
                 .unwrap_or("unnamed")
-                .to_string()
+                .to_string(),
         };
 
         // Use provided mime_type or default
@@ -60,10 +64,14 @@ impl Resource {
     }
 
     /// Creates a new Resource with explicit URI, name, and priority
-    pub fn with_uri<S: Into<String>>(uri: S, name: S, priority: i32, mime_type: Option<String>) -> Result<Self> {
+    pub fn with_uri<S: Into<String>>(
+        uri: S,
+        name: S,
+        priority: i32,
+        mime_type: Option<String>,
+    ) -> Result<Self> {
         let uri_string = uri.into();
-        Url::parse(&uri_string)
-            .map_err(|e| anyhow!("Invalid URI: {}", e))?;
+        Url::parse(&uri_string).map_err(|e| anyhow!("Invalid URI: {}", e))?;
 
         // Use provided mime_type or default
         let mime_type = match mime_type {
@@ -118,24 +126,24 @@ impl Resource {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_new_resource_with_file_uri() -> Result<()> {
         let mut temp_file = NamedTempFile::new()?;
         writeln!(temp_file, "test content")?;
-        
+
         let uri = Url::from_file_path(temp_file.path())
             .map_err(|_| anyhow!("Invalid file path"))?
             .to_string();
-        
+
         let resource = Resource::new(&uri, Some("text".to_string()), None)?;
         assert!(resource.uri.starts_with("file:///"));
         assert_eq!(resource.priority, 0);
         assert_eq!(resource.mime_type, "text");
         assert_eq!(resource.scheme()?, "file");
-        
+
         Ok(())
     }
 
@@ -143,14 +151,19 @@ mod tests {
     fn test_resource_with_str_uri() -> Result<()> {
         let test_content = "Hello, world!";
         let uri = format!("str:///{}", test_content);
-        let resource = Resource::with_uri(uri.clone(), "test.txt".to_string(), 5, Some("text".to_string()))?;
-        
+        let resource = Resource::with_uri(
+            uri.clone(),
+            "test.txt".to_string(),
+            5,
+            Some("text".to_string()),
+        )?;
+
         assert_eq!(resource.uri, uri);
         assert_eq!(resource.name, "test.txt");
         assert_eq!(resource.priority, 5);
         assert_eq!(resource.mime_type, "text");
         assert_eq!(resource.scheme()?, "str");
-        
+
         Ok(())
     }
 
@@ -178,16 +191,16 @@ mod tests {
     fn test_with_description() -> Result<()> {
         let resource = Resource::with_uri("file:///test.txt", "test.txt", 0, None)?
             .with_description("A test resource");
-        
+
         assert_eq!(resource.description, Some("A test resource".to_string()));
         Ok(())
     }
 
     #[test]
     fn test_with_mime_type() -> Result<()> {
-        let resource = Resource::with_uri("file:///test.txt", "test.txt", 0, None)?
-            .with_mime_type("blob");
-        
+        let resource =
+            Resource::with_uri("file:///test.txt", "test.txt", 0, None)?.with_mime_type("blob");
+
         assert_eq!(resource.mime_type, "blob");
 
         // Test invalid mime type defaults to "text"

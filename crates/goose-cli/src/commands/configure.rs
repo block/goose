@@ -46,7 +46,7 @@ pub async fn handle_configure(
                 ("openai", "OpenAI", "GPT-4o etc"),
                 ("databricks", "Databricks", "Models on AI Gateway"),
                 ("ollama", "Ollama", "Local open source models"),
-                ("anthropic", "Anthropic", "Claude models"),            
+                ("anthropic", "Anthropic", "Claude models"),
             ])
             .interact()?
             .to_string()
@@ -162,7 +162,7 @@ pub fn get_required_keys(provider_name: &str) -> Vec<&'static str> {
         "openai" => vec!["OPENAI_API_KEY"],
         "databricks" => vec!["DATABRICKS_HOST"],
         "ollama" => vec!["OLLAMA_HOST"],
-        "anthropic" => vec!["ANTHROPIC_API_KEY"],  // Removed ANTHROPIC_HOST since we use a fixed endpoint
+        "anthropic" => vec!["ANTHROPIC_API_KEY"], // Removed ANTHROPIC_HOST since we use a fixed endpoint
         _ => panic!("Invalid provider name"),
     }
 }

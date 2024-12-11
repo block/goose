@@ -1,10 +1,10 @@
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 
+use super::Resource;
 use crate::errors::AgentResult;
 use crate::models::content::Content;
 use crate::models::tool::{Tool, ToolCall};
-use super::Resource;
 
 /// Core trait that defines a system that can be operated by an AI agent
 #[async_trait]
@@ -33,7 +33,7 @@ pub trait System: Send + Sync {
     /// - file:///path/to/file - A file on disk
     /// - str:///content - Direct string content
     /// - http(s)://url - Web content (if supported by the system)
-    /// 
+    ///
     /// # Arguments
     /// * `uri` - The URI of the resource to read
     ///

@@ -8,8 +8,8 @@ use super::base::{Provider, Usage};
 use super::configs::{DatabricksAuth, DatabricksProviderConfig};
 use super::oauth;
 use super::utils::{
-    check_openai_context_length_error, check_bedrock_context_length_error, messages_to_openai_spec, openai_response_to_message,
-    tools_to_openai_spec,
+    check_bedrock_context_length_error, check_openai_context_length_error, messages_to_openai_spec,
+    openai_response_to_message, tools_to_openai_spec,
 };
 use crate::models::message::Message;
 use crate::models::tool::Tool;

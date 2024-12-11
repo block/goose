@@ -399,15 +399,17 @@ impl System for MemorySystem {
 
     async fn status(&self) -> AnyhowResult<Vec<Resource>> {
         // Convert active memories to resources
-        let resources: Vec<Resource> = self.active_memories
+        let resources: Vec<Resource> = self
+            .active_memories
             .iter()
             .filter_map(|(category, memories)| {
                 Resource::with_uri(
                     format!("str:///{}.txt", memories.join(" ")),
                     format!("{}.txt", category),
                     0,
-                    Some("text".to_string())
-                ).ok()
+                    Some("text".to_string()),
+                )
+                .ok()
             })
             .collect();
         Ok(resources)
