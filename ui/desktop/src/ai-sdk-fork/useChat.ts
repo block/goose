@@ -14,6 +14,7 @@ import { callCustomChatApi as callChatApi } from './call-custom-chat-api'
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import useSWR, { KeyedMutator } from 'swr';
 import { throttle } from './throttle';
+import { getSecretKey } from '../config';
 
 export type { CreateMessage, Message, UseChatOptions };
 
@@ -152,6 +153,7 @@ const processResponseStream = async (
     headers: {
       ...extraMetadataRef.current.headers,
       ...chatRequest.headers,
+      "X-Secret-Key": getSecretKey()
     },
     abortController: () => abortControllerRef.current,
     restoreMessagesOnFailure() {

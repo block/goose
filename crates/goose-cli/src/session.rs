@@ -25,6 +25,32 @@ pub fn ensure_session_dir() -> Result<PathBuf> {
     Ok(config_dir)
 }
 
+pub fn get_most_recent_session() -> Result<PathBuf> {
+    let session_dir = ensure_session_dir()?;
+    let mut entries = fs::read_dir(&session_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "jsonl"))
+        .collect::<Vec<_>>();
+
+    if entries.is_empty() {
+        return Err(anyhow::anyhow!("No session files found"));
+    }
+
+    // Sort by modification time, most recent first
+    entries.sort_by(|a, b| {
+        b.metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH)
+            .cmp(
+                &a.metadata()
+                    .and_then(|m| m.modified())
+                    .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH),
+            )
+    });
+
+    Ok(entries[0].path())
+}
+
 pub fn readable_session_file(session_file: &PathBuf) -> Result<File> {
     match fs::OpenOptions::new()
         .read(true)
@@ -295,6 +321,10 @@ We've removed the conversation up to the most recent user message
         ));
         self.prompt.close();
     }
+
+    pub fn session_file(&self) -> PathBuf {
+        self.session_file.clone()
+    }
 }
 
 fn raw_message(content: &str) -> Box<Message> {
@@ -308,6 +338,7 @@ mod tests {
 
     use crate::agents::mock_agent::MockAgent;
     use crate::prompt::{self, Input};
+    use crate::test_helpers::run_with_tmp_dir;
 
     use super::*;
     use goose::models::content::Content;
@@ -726,6 +757,34 @@ mod tests {
             &session,
             "We interrupted the existing calls to tools. How would you like to proceed?",
         );
+    }
+
+    #[test]
+    fn test_get_most_recent_session() -> Result<()> {
+        use std::thread;
+        use std::time::Duration;
+
+        // Create a temporary directory for testing
+        run_with_tmp_dir(|| {
+            let session_dir = ensure_session_dir()?;
+
+            // Create test session files with different timestamps
+            let file1_path = session_dir.join("session1.jsonl");
+            let file2_path = session_dir.join("session2.jsonl");
+            let file3_path = session_dir.join("not_a_session.txt");
+
+            fs::write(&file1_path, "test content")?;
+            thread::sleep(Duration::from_millis(1));
+            fs::write(&file2_path, "test content")?;
+            thread::sleep(Duration::from_millis(1));
+            fs::write(&file3_path, "test content")?;
+
+            // Test getting the most recent session
+            let most_recent = get_most_recent_session()?;
+            assert_eq!(most_recent, file2_path);
+
+            Ok(())
+        })
     }
 
     fn assert_last_prompt_text(session: &Session, expected_text: &str) {

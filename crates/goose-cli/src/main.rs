@@ -18,6 +18,9 @@ use commands::version::print_version;
 use profile::has_no_profiles;
 use std::io::{self, Read};
 
+#[cfg(test)]
+mod test_helpers;
+
 use crate::systems::system_handler::{add_system, remove_system};
 
 #[derive(Parser)]

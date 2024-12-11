@@ -1,4 +1,4 @@
-import { getApiUrl } from '../config';
+import { getApiUrl, getSecretKey } from '../config';
 
 const getQuestionClassifierPrompt = (messageContent: string): string => 
   `You are a simple classifier that takes content and decides if it is asking for input from a person before continuing if there is more to do, or not. These are questions on if a course of action should proceeed or not, or approval is needed. If it is a question very clearly, return QUESTION, otherwise READY. If it of the form of 'anything else I can do?' sort of question, return READY as that is not the sort of question we are looking for. ### Message Content:\n${messageContent}\nYou must provide a response strictly limited to one of the following two words: QUESTION, READY. No other words, phrases, or explanations are allowed. Response:`;
@@ -25,6 +25,7 @@ export async function askAi(promptTemplates: string[]) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
         },
         body: JSON.stringify({ prompt: template }),
       });

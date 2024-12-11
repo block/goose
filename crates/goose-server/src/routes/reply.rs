@@ -511,8 +511,9 @@ mod tests {
                     api_key: "test-key".to_string(),
                     model: "test-model".to_string(),
                     temperature: None,
-                    max_tokens: None,
+                    max_tokens: None
                 }),
+                secret_key: "test-secret".to_string(),
             };
 
             // Build router

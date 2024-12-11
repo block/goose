@@ -12,10 +12,11 @@ use tokio::sync::Mutex;
 pub struct AppState {
     pub provider_config: ProviderConfig,
     pub agent: Arc<Mutex<Agent>>,
+    pub secret_key: String,
 }
 
 impl AppState {
-    pub fn new(provider_config: ProviderConfig) -> Result<Self> {
+    pub fn new(provider_config: ProviderConfig, secret_key: String) -> Result<Self> {
         let provider = factory::get_provider(provider_config.clone())?;
         let mut agent = Agent::new(provider);
         agent.add_system(Box::new(DeveloperSystem::new()));
@@ -25,6 +26,7 @@ impl AppState {
         Ok(Self {
             provider_config,
             agent: Arc::new(Mutex::new(agent)),
+            secret_key,
         })
     }
 }
@@ -72,6 +74,7 @@ impl Clone for AppState {
                 }
             },
             agent: self.agent.clone(),
+            secret_key: self.secret_key.clone(),
         }
     }
 }

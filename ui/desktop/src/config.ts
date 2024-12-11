@@ -5,3 +5,7 @@ export const getApiUrl = (endpoint: string): string => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   return `${baseUrl}${cleanEndpoint}`;
 };
+
+export const getSecretKey = (): string => {
+  return window.appConfig.get('secretKey');
+}

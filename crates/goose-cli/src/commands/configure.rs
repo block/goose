@@ -35,7 +35,6 @@ pub async fn handle_configure(
         ));
     }
 
-
     let provider_name = if let Some(provider) = provided_provider {
         provider
     } else {

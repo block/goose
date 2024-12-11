@@ -5,6 +5,7 @@ interface IElectronAPI {
     GOOSE_SERVER__PORT: number;
     GOOSE_API_HOST: string;
     apiCredsMissing: boolean;
+    secretKey: string;
   };
 }
 

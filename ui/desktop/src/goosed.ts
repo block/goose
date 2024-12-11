@@ -64,6 +64,8 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
 
     // start with the port specified 
     GOOSE_SERVER__PORT: String(port),
+
+    GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
   };
 
   // Merge parent environment with additional environment variables
