@@ -38,7 +38,7 @@ Update your `profiles.yaml` file in `~/.config/goose` with the necessary toolkit
 
 ```yaml
 my-profile:
-  provider: openai
+  provider: anthropic
   processor: claude-3-5-sonnet
   accelerator: claude-3-5-sonnet
   moderator: truncate

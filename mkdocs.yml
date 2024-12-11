@@ -140,6 +140,4 @@ nav:
       - "API Docs": reference/index.md
   - Blog:
     - "Blog Home": blog/index.md
-    - "Screenshot-Driven Development": blog/posts/2024-11-22-screenshot-driven-development.md
-    - "Resolving CI Issues": blog/posts/2024-12-10-resolving-ci-issues.md
 
