@@ -2,7 +2,7 @@
 draft: false
 title: "Resolving CI Issues with Goose: A Practical Walkthrough"
 description: "Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly."
-date: 2024-12-10
+date: 2024-12-11
 authors:
   - dalton
 ---
