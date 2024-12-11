@@ -65,7 +65,7 @@ if [[ ":$PATH:" != *":$LOCAL_BIN:"* ]]; then
   echo ""
   echo "Then reload your shell configuration file by running:"
   echo ""
-  echo "    source ~/.bashrc    # or source ~/.zshrc\n"
+  echo "    source ~/.bashrc    # or source ~/.zshrc"
 fi
 
 # Initialize config args with the default name

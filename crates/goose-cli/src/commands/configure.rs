@@ -68,7 +68,7 @@ pub async fn handle_configure(
         // If the key is in the env, ask if we want to save to keyring
         else if let Ok(value) = get_keyring_secret(key, KeyRetrievalStrategy::EnvironmentOnly) {
             let _ = cliclack::log::info(format!("Detected {} in env, we can use this from your environment.\nIt will need to continue to be set in future goose usage.", key));
-            if cliclack::confirm("Would you like to save it to your kerying?").interact()? {
+            if cliclack::confirm("Would you like to save it to your keyring?").interact()? {
                 save_to_keyring(key, &value)?;
             }
         }
