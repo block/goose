@@ -42,6 +42,8 @@ xcap = "0.0.14"
 libc = "=0.2.167"
 lazy_static = "1.5"
 kill_tree = "0.2.4"
+headless_chrome = "1.0.15"
+image = "0.24"
 
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
 shellexpand = "3.1.0"
