@@ -197,8 +197,12 @@ impl DeveloperSystem {
             "text_editor",
             indoc! {r#"
                 Perform text editing operations on files.
-                The `command` parameter specifies the operation to perform.
-                You can use "write" to fully overwrite an existing file or to create a new file.
+
+                The `command` parameter specifies the operation to perform. Allowed options are:
+                - `view`: View the content of a file.
+                - `write`: Write a file with the given content (create a new file or overwrite an existing).
+                - `str_replace`: Replace a string in a file with a new string.
+                - `undo_edit`: Undo the last edit made to a file.
             "#},
             json!({
                 "type": "object",
@@ -209,7 +213,7 @@ impl DeveloperSystem {
                         "description": "Path to the file. Can be absolute or relative to the system CWD"
                     },
                     "command": {
-                        "enum": ["view", "write", "replace", "undo"],
+                        "enum": ["view", "write", "str_replace", "undo_edit"],
                         "description": "The commands to run."
                     },
                     "new_str": {
@@ -250,6 +254,9 @@ impl DeveloperSystem {
               - File edits are tracked and can be undone with 'undo'
               - String replacements must match exactly once in the file
               - Line numbers start at 1 for insert operations
+
+            The write mode will do a full overwrite of the existing file, while the str_replace mode will edit it
+            using a find and replace. Choose the mode which will make the edit as simple as possible to execute.
             "#,
             os=std::env::consts::OS,
         };
@@ -384,7 +391,7 @@ impl DeveloperSystem {
 
                 self.text_editor_write(&path, file_text).await
             }
-            "replace" => {
+            "str_replace" => {
                 let old_str = params
                     .get("old_str")
                     .and_then(|v| v.as_str())
@@ -400,7 +407,7 @@ impl DeveloperSystem {
 
                 self.text_editor_replace(&path, old_str, new_str).await
             }
-            "undo" => self.text_editor_undo(&path).await,
+            "undo_edit" => self.text_editor_undo(&path).await,
             _ => Err(AgentError::InvalidParameters(format!(
                 "Unknown command '{}'",
                 command
@@ -893,7 +900,7 @@ mod tests {
         let replace_call = ToolCall::new(
             "text_editor",
             json!({
-                "command": "replace",
+                "command": "str_replace",
                 "path": file_path_str,
                 "old_str": "world",
                 "new_str": "Rust"
@@ -1061,7 +1068,7 @@ mod tests {
         let insert_call = ToolCall::new(
             "text_editor",
             json!({
-                "command": "replace",
+                "command": "str_replace",
                 "path": file_path_str,
                 "old_str": "First line",
                 "new_str": "Second line"
@@ -1073,7 +1080,7 @@ mod tests {
         let undo_call = ToolCall::new(
             "text_editor",
             json!({
-                "command": "undo",
+                "command": "undo_edit",
                 "path": file_path_str
             }),
         );
