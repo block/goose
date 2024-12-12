@@ -383,14 +383,40 @@ impl DeveloperSystem {
 
     async fn text_editor_view(&self, path: &PathBuf) -> AgentResult<Vec<Content>> {
         if path.is_file() {
+            // Check file size first (2MB limit)
+            const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024; // 2MB in bytes
+            const MAX_CHAR_COUNT: usize = 1 << 20; // 2^20 characters (1,048,576)
+            
+            let file_size = std::fs::metadata(path)
+                .map_err(|e| AgentError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+                .len();
+            
+            if file_size > MAX_FILE_SIZE {
+                return Err(AgentError::ExecutionError(format!(
+                    "File '{}' is too large ({:.2}MB). Maximum size is 2MB to prevent memory issues.",
+                    path.display(),
+                    file_size as f64 / 1024.0 / 1024.0
+                )));
+            }
+            
             // Create a new resource and add it to active_resources
             let uri = Url::from_file_path(path)
                 .map_err(|_| AgentError::ExecutionError("Invalid file path".into()))?
                 .to_string();
 
-            // Read the content first
+            // Read the content once
             let content = std::fs::read_to_string(path)
                 .map_err(|e| AgentError::ExecutionError(format!("Failed to read file: {}", e)))?;
+            
+            let char_count = content.chars().count();
+            if char_count > MAX_CHAR_COUNT {
+                return Err(AgentError::ExecutionError(format!(
+                    "File '{}' has too many characters ({}). Maximum character count is {}.",
+                    path.display(),
+                    char_count,
+                    MAX_CHAR_COUNT
+                )));
+            }
 
             // Create and store the resource
             let resource = Resource::new(uri.clone(), Some("text".to_string()), None)
@@ -788,6 +814,58 @@ mod tests {
         let tool_call = ToolCall::new("bash", json!({ "working_dir": "non_existent_dir" }));
         let error = system.call(tool_call).await.unwrap_err();
         assert!(matches!(error, AgentError::InvalidParameters(_)));
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_size_limits() {
+        let system = get_system().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        // Test file size limit
+        {
+            let large_file_path = temp_dir.path().join("large.txt");
+            let large_file_str = large_file_path.to_str().unwrap();
+            
+            // Create a file larger than 2MB
+            let content = "x".repeat(3 * 1024 * 1024); // 3MB
+            std::fs::write(&large_file_path, content).unwrap();
+
+            let view_call = ToolCall::new(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": large_file_str
+                }),
+            );
+            let error = system.call(view_call).await.unwrap_err();
+            assert!(matches!(error, AgentError::ExecutionError(_)));
+            assert!(error.to_string().contains("too large"));
+            assert!(error.to_string().contains("Maximum size is 2MB"));
+        }
+
+        // Test character count limit
+        {
+            let many_chars_path = temp_dir.path().join("many_chars.txt");
+            let many_chars_str = many_chars_path.to_str().unwrap();
+            
+            // Create a file with more than 2^20 characters but less than 2MB
+            let content = "x".repeat((1 << 20) + 1); // 2^20 + 1 characters
+            std::fs::write(&many_chars_path, content).unwrap();
+
+            let view_call = ToolCall::new(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": many_chars_str
+                }),
+            );
+            let error = system.call(view_call).await.unwrap_err();
+            assert!(matches!(error, AgentError::ExecutionError(_)));
+            assert!(error.to_string().contains("too many characters"));
+            assert!(error.to_string().contains("Maximum character count is"));
+        }
+
+        temp_dir.close().unwrap();
     }
 
     #[tokio::test]
