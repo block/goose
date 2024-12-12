@@ -94,3 +94,10 @@ google_workspace = [
     "google-auth-httplib2>=0.1.0",
     "google-api-python-client>=2.86.0",
 ]
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git*,*.css'
+check-hidden = true
+# ignore-regex = ''
+# ignore-words-list = ''
