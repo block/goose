@@ -9,14 +9,12 @@ import GooseMessage from './components/GooseMessage';
 import UserMessage from './components/UserMessage';
 import Input from './components/Input';
 import MoreMenu from './components/MoreMenu';
-import { getPromptTemplates } from './notificationPrompts';
 import BottomMenu from './components/BottomMenu';
 import LoadingGoose from './components/LoadingGoose';
 import { ApiKeyWarning } from './components/ApiKeyWarning';
 import { askAi, getPromptTemplates } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
-import { Body } from '@radix-ui/themes/dist/cjs/components/table';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
 const CURRENT_VERSION = '0.0.0';

@@ -11,9 +11,12 @@ anything else I can do? -> READY
 Could you please run the application and verify that the headlines are now visible in dark mode? You can use npm start. -> READY
 Would you like me to make any adjustments to the formatting of these multiline strings? -> READY
 Would you like me to show you how to… -> READY
-Should I go ahead and make the changes -> QUESTION
+Should I go ahead and make the changes? -> QUESTION
 Go ahead with this plan? -> QUESTION
 Listing window titles... Is there anything specific you'd like help with using these tools? -> READY
+Would you like me to demonstrate any specific capability or help you with a particular task? -> READY
+Would you like me to run any tests? -> READY
+Would you like me to make any adjustments or would you like to test? -> READY
 
 ### Message Content:
 ${messageContent}
