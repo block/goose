@@ -46,8 +46,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {/* Currently enabled */}
-        {metadata && (
+        {/* enable or disable prompts here */}
+        {false && metadata && (
           <div className="flex mt-[16px]">
             <GooseResponseForm
               message={message.content}
