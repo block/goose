@@ -16,6 +16,7 @@ import { ApiKeyWarning } from './components/ApiKeyWarning';
 import { askAi, getPromptTemplates } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
+import { Body } from '@radix-ui/themes/dist/cjs/components/table';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
 const CURRENT_VERSION = '0.0.0';
@@ -87,6 +88,7 @@ function ChatContent({
       const promptTemplates = getPromptTemplates(message.content);
       const fetchResponses = await askAi(promptTemplates);
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
+      window.electron.showNotification({title: 'Goose finished the task.', body: 'Click here to expand.'});
     },
   });
 

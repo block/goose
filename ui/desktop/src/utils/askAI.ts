@@ -4,7 +4,7 @@ const getQuestionClassifierPrompt = (messageContent: string): string => `
 You are a simple classifier that takes content and decides if it is asking for input 
 from a person before continuing if there is more to do, or not. These are questions 
 on if a course of action should proceeed or not, or approval is needed. If it is a 
-question very clearly, return QUESTION, otherwise READY.
+question asking if it ok to proceed or make a choice, clearly, return QUESTION, otherwise READY if not 97% sure.
 
 ### Example (text -> response):
 anything else I can do? -> READY
@@ -13,6 +13,7 @@ Would you like me to make any adjustments to the formatting of these multiline s
 Would you like me to show you how to… -> READY
 Should I go ahead and make the changes -> QUESTION
 Go ahead with this plan? -> QUESTION
+Listing window titles... Is there anything specific you'd like help with using these tools? -> READY
 
 ### Message Content:
 ${messageContent}
@@ -27,6 +28,11 @@ You are a simple classifier that takes content and decides if it a list of optio
 or plans to choose from, or not a list of options to choose from. It is IMPORTANT 
 that you really know this is a choice, just not numbered steps. If it is a list 
 of options and you are 95% sure, return OPTIONS, otherwise return NO.
+
+### Example (text -> response):
+Would you like me to proceed with creating this file? Please let me know if you want any changes before I write it. -> NO
+Here are some options for you to choose from: -> OPTIONS
+which one do you want to choose? -> OPTIONS
 
 ### Message Content:
 ${messageContent}
