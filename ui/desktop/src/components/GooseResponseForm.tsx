@@ -78,14 +78,6 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
     append(message);
   };
 
-  const handleCancel = () => {
-    const message = {
-      content: "No - do not execute this plan",
-      role: "user",
-    };
-    append(message);
-  };
-
   const handleSubmit = () => {
     if (selectedOption !== null) {
       const message = {
@@ -107,14 +99,6 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
           >
             <GPSIcon size={14} />
             Take flight with this plan
-          </Button>
-          <Button
-            onClick={handleCancel}
-            variant="destructive"
-            className="w-full sm:w-auto dark:bg-button-destructive-dark"
-          >
-            <GPSIcon size={14} />
-            Cancel
           </Button>
         </div>
       )}
