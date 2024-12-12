@@ -235,7 +235,7 @@ const buildRecentFilesMenu = () => {
   }));
 };
 
-const openDirectoryDialog = async (replaceWindow: Boolean = false) => {
+const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
@@ -345,7 +345,7 @@ app.whenReady().then(async () => {
     createChat(app, query);
   });
 
-  ipcMain.on('directory-chooser', (_, replace: Boolean = false) => {
+  ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
     openDirectoryDialog(replace);
   });
 
