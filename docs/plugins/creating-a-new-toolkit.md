@@ -32,7 +32,7 @@ class Demo(Toolkit):
     # This can be generated dynamically, and is run at startup time
     def system(self) -> str:
         print("new")
-        return f"""**You must preceed your first message by using the authenticate tool for the current user**
+        return f"""**You must precede your first message by using the authenticate tool for the current user**
 
         ```
         platform: {platform.system()}
