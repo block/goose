@@ -4,9 +4,15 @@ const getQuestionClassifierPrompt = (messageContent: string): string => `
 You are a simple classifier that takes content and decides if it is asking for input 
 from a person before continuing if there is more to do, or not. These are questions 
 on if a course of action should proceeed or not, or approval is needed. If it is a 
-question very clearly, return QUESTION, otherwise READY. If it of the form of 
-'anything else I can do?' sort of question, return READY as that is not the sort 
-of question we are looking for.
+question very clearly, return QUESTION, otherwise READY.
+
+### Example (text -> response):
+anything else I can do? -> READY
+Could you please run the application and verify that the headlines are now visible in dark mode? You can use npm start. -> READY
+Would you like me to make any adjustments to the formatting of these multiline strings? -> READY
+Would you like me to show you how to… -> READY
+Should I go ahead and make the changes -> QUESTION
+Go ahead with this plan? -> QUESTION
 
 ### Message Content:
 ${messageContent}
