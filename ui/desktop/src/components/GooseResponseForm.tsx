@@ -131,7 +131,7 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
               )}
             >
               <h3 className="font-semibold text-lg mb-2 dark:text-gray-100">{opt.optionTitle}</h3>
-              <div className="prose prose-xs max-w-none">
+              <div className="prose prose-xs max-w-none dark:text-gray-100">
                 <ReactMarkdown>{opt.optionDescription}</ReactMarkdown>
               </div>
             </div>

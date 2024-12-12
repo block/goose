@@ -17,6 +17,8 @@ Listing window titles... Is there anything specific you'd like help with using t
 Would you like me to demonstrate any specific capability or help you with a particular task? -> READY
 Would you like me to run any tests? -> READY
 Would you like me to make any adjustments or would you like to test? -> READY
+Would you like me to dive deeper into any aspect? -> READY
+Should I focus on X or Y? -> QUESTION
 
 ### Message Content:
 ${messageContent}
@@ -36,6 +38,8 @@ of options and you are 95% sure, return OPTIONS, otherwise return NO.
 Would you like me to proceed with creating this file? Please let me know if you want any changes before I write it. -> NO
 Here are some options for you to choose from: -> OPTIONS
 which one do you want to choose? -> OPTIONS
+Would you like me to dive deeper into any aspects of these components? -> NO
+Should I focus on X or Y? -> OPTIONS
 
 ### Message Content:
 ${messageContent}
