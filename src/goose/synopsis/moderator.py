@@ -21,7 +21,7 @@ class Synopsis(Moderator):
     This is a compromise for speed, where we do fast updates as frequently as possible
 
     What?
-      - [Automatic] Current sytem state
+      - [Automatic] Current system state
       - [Automatic] Current file context
       - (TODO) [Automatic] Loaded memories
       - [Curated] Summary of the discussion so far

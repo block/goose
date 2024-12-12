@@ -143,7 +143,7 @@ class Developer(Toolkit):
 """
         self.notifier.log(Rule(RULEPREFIX + path, style=RULESTYLE, align="left"))
         self.notifier.log(Markdown(output))
-        return "Succesfully replaced before with after."
+        return "Successfully replaced before with after."
 
     @tool
     def read_file(self, path: str) -> str:

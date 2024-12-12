@@ -24,7 +24,7 @@ def build_exchange(profile: Profile, notifier: Notifier) -> Exchange:
 
     provider = get_provider(profile.provider).from_env()
 
-    # Support instantating toolkits in *two* passes for now, no further nesting
+    # Support instantiating toolkits in *two* passes for now, no further nesting
     concrete_toolkits = {}
 
     # First instantiate all toolkits that are sub dependencies

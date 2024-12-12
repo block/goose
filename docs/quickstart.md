@@ -86,7 +86,7 @@ You can also use process substitution to provide instructions directly from the 
 goose run <(echo "Create a new Python file that prints hello world")
 ```
 
-This will run until completion as best it can. You can also pass `--resume-session` and it will re-use the first session it finds for context.
+This will run until completion as best it can. You can also pass `--resume-session` and it will reuse the first session it finds for context.
 
 ## Additional tips
 
