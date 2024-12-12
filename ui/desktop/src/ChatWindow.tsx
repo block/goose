@@ -89,7 +89,9 @@ function ChatContent({
       
       // Only show notification if it's been more than a minute since last interaction
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
+      window.electron.logInfo("last interaction:" + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) { // 60000ms = 1 minute
+        
         window.electron.showNotification({title: 'Goose finished the task.', body: 'Click here to expand.'});
       }
     },
