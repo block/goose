@@ -56,7 +56,7 @@ function ChatContent({
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
-
+  const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
 
   const {
     messages,
@@ -88,7 +88,12 @@ function ChatContent({
       const promptTemplates = getPromptTemplates(message.content);
       const fetchResponses = await askAi(promptTemplates);
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
-      window.electron.showNotification({title: 'Goose finished the task.', body: 'Click here to expand.'});
+      
+      // Only show notification if it's been more than a minute since last interaction
+      const timeSinceLastInteraction = Date.now() - lastInteractionTime;
+      if (timeSinceLastInteraction > 60000) { // 60000ms = 1 minute
+        window.electron.showNotification({title: 'Goose finished the task.', body: 'Click here to expand.'});
+      }
     },
   });
 
@@ -118,6 +123,7 @@ function ChatContent({
     const customEvent = e as CustomEvent;
     const content = customEvent.detail?.value || '';
     if (content.trim()) {
+      setLastInteractionTime(Date.now()); // Update last interaction time
       append({
         role: 'user',
         content: content,
@@ -131,6 +137,7 @@ function ChatContent({
 
   const onStopGoose = () => {
     stop();
+    setLastInteractionTime(Date.now()); // Update last interaction time
 
     const lastMessage: Message = messages[messages.length - 1];
     if (lastMessage.role === 'user' && lastMessage.toolInvocations === undefined) {
