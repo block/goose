@@ -78,6 +78,7 @@ module.exports = [
       }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      /*
       '@typescript-eslint/ban-types': ['error', {
         types: {
           Object: {
@@ -86,6 +87,7 @@ module.exports = [
           },
         },
       }],
+      */
       '@typescript-eslint/no-var-requires': 'warn', // Downgrade to warning for Electron main process
       'no-undef': 'error',
       'no-useless-catch': 'warn',

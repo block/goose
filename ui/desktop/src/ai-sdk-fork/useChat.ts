@@ -68,7 +68,7 @@ export type UseChatHelpers = {
     event?: { preventDefault?: () => void },
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
-  metadata?: object;
+  metadata?: Object;
   /** Whether the API request is in progress */
   isLoading: boolean;
 
@@ -484,7 +484,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
     async (
       event?: { preventDefault?: () => void },
       options: ChatRequestOptions = {},
-      metadata?: object,
+      metadata?: Object,
     ) => {
       event?.preventDefault?.();
 
