@@ -28,6 +28,7 @@ def setup_bash(install: bool) -> None:
     else:
         f = sys.stdout
         print(f"# add the following to your bash config, typically {bashrc}")
+        print(f"# or run  source <(goose shell-completions --generate)")
 
     with f:
         f.write('eval "$(_GOOSE_COMPLETE=bash_source goose)"\n')
@@ -67,6 +68,7 @@ def setup_zsh(install: bool) -> None:
     else:
         f = sys.stdout
         print(f"# add the following to your zsh config, typically {zshrc}")
+        print(f"# or run  source <(goose shell-completions --generate)")
 
     with f:
         f.write("autoload -U +X compinit && compinit\n")
