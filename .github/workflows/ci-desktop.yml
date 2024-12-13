@@ -25,6 +25,11 @@ jobs:
       run: npm ci
       working-directory: ui/desktop
 
+    - name: Install dependencies
+      run: npm run lint:check
+      working-directory: ui/desktop
+
+
     - name: Run E2E tests
       run: npm run test-e2e
       working-directory: ui/desktop
