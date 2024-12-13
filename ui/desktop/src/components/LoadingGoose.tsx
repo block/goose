@@ -10,14 +10,15 @@ import svg7 from '../images/loading-goose/7.svg';
 const Example = () => {
   const [currentFrame, setCurrentFrame] = useState(0);
   const frames = [svg1, svg2, svg3, svg4, svg5, svg6, svg7];
+  const frameCount = frames.length;
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentFrame((prev) => (prev + 1) % frames.length);
+      setCurrentFrame((prev) => (prev + 1) % frameCount);
     }, 200); // 200ms for smoother animation, adjust as needed
 
     return () => clearInterval(interval);
-  }, []);
+  }, [frameCount]); // Add frameCount as dependency
 
   return (
     <div>

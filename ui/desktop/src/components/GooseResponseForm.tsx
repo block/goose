@@ -10,9 +10,9 @@ interface GooseResponseFormProps {
   append: (value: any) => void;
 }
 
-export default function GooseResponseForm({ message, metadata, append }: GooseResponseFormProps) {
-  const [selectedOption, setSelectedOption] = useState(null);
-  const prevStatusRef = useRef(null);
+export default function GooseResponseForm({ message: _message, metadata, append }: GooseResponseFormProps) {
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const prevStatusRef = useRef<string | null>(null);
 
   let isQuestion = false;
   let isOptions = false;
@@ -22,15 +22,16 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
     window.electron.logInfo('metadata:'+ JSON.stringify(metadata, null, 2));
   }
 
-  if (metadata) {
-    isQuestion = metadata[0] === "QUESTION";
-    isOptions = metadata[1] === "OPTIONS";
+  // Process metadata outside of conditional
+  const currentStatus = metadata?.[0] ?? null;
+  isQuestion = currentStatus === "QUESTION";
+  isOptions = metadata?.[1] === "OPTIONS";
 
-    if (isQuestion && isOptions && metadata[2]) {
-      try {
-        let optionsData = metadata[2];
-        // Use a regular expression to extract the JSON block
-        const jsonBlockMatch = optionsData.match(/```json([\s\S]*?)```/);
+  if (isQuestion && isOptions && metadata?.[2]) {
+    try {
+      let optionsData = metadata[2];
+      // Use a regular expression to extract the JSON block
+      const jsonBlockMatch = optionsData.match(/```json([\s\S]*?)```/);
 
       // If a JSON block is found, extract and clean it
       if (jsonBlockMatch) {
@@ -39,34 +40,37 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
         // Optionally, handle the case where there is no explicit ```json block
         console.warn("No JSON block found in the provided string.");
       }
-        options = JSON.parse(optionsData);
-        options = options.filter(
-          (opt) =>
-            typeof opt.optionTitle === 'string' &&
-            typeof opt.optionDescription === 'string'
-        );
-      } catch (err) {
-        console.error("Failed to parse options data:", err);
-        options = [];
-        return null;
-      }
+      options = JSON.parse(optionsData);
+      options = options.filter(
+        (opt) =>
+          typeof opt.optionTitle === 'string' &&
+          typeof opt.optionDescription === 'string'
+      );
+    } catch (err) {
+      console.error("Failed to parse options data:", err);
+      options = [];
     }
   }
 
+  // Move useEffect to top level
   useEffect(() => {
-    if (
-      (metadata && (metadata[0] === "QUESTION" || metadata[0] === "OPTIONS")) &&
-      prevStatusRef.current !== metadata[0]
-    ) {
+    const currentMetadataStatus = metadata?.[0];
+    const shouldNotify = 
+      currentMetadataStatus && 
+      (currentMetadataStatus === "QUESTION" || currentMetadataStatus === "OPTIONS") &&
+      prevStatusRef.current !== currentMetadataStatus;
+
+    if (shouldNotify) {
       window.electron.showNotification({
         title: 'Goose has a question for you',
         body: `Please check with Goose to approve the plan of action`,
       });
     }
-    prevStatusRef.current = metadata ? metadata[0] : null;
+
+    prevStatusRef.current = currentMetadataStatus ?? null;
   }, [metadata]);
 
-  const handleOptionClick = (index) => {
+  const handleOptionClick = (index: number) => {
     setSelectedOption(index);
   };
 
@@ -79,7 +83,7 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
   };
 
   const handleSubmit = () => {
-    if (selectedOption !== null) {
+    if (selectedOption !== null && options[selectedOption]) {
       const message = {
         content: `Yes - continue with: ${options[selectedOption].optionTitle}`,
         role: "user",
@@ -87,6 +91,10 @@ export default function GooseResponseForm({ message, metadata, append }: GooseRe
       append(message);
     }
   };
+
+  if (!metadata) {
+    return null;
+  }
 
   return (
     <div className="space-y-4">
