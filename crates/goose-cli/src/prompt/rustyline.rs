@@ -79,6 +79,7 @@ impl Prompt for RustylinePrompt {
             Err(e) => {
                 match e {
                     rustyline::error::ReadlineError::Interrupted => (),
+                    rustyline::error::ReadlineError::Eof => (),
                     _ => eprintln!("Input error: {}", e),
                 }
                 return Ok(Input {
@@ -89,7 +90,13 @@ impl Prompt for RustylinePrompt {
         };
         message_text = message_text.trim().to_string();
 
-        if message_text.eq_ignore_ascii_case("/exit") || message_text.eq_ignore_ascii_case("/quit")
+        if message_text.is_empty() {
+            Ok(Input {
+                input_type: InputType::AskAgain,
+                content: None,
+            })
+        } else if message_text.eq_ignore_ascii_case("/exit")
+            || message_text.eq_ignore_ascii_case("/quit")
         {
             Ok(Input {
                 input_type: InputType::Exit,
