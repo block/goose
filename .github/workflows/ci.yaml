@@ -45,13 +45,6 @@ jobs:
       # the login password doesn't matter, but the keyring must be unlocked for the tests to work
       run: gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    - name: Run download_tokenizer_files.py
-      run: uv run download_tokenizer_files.py
-
     - name: Set up Rust
       uses: actions-rs/toolchain@v1
       with:
