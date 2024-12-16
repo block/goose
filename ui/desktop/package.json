@@ -47,8 +47,6 @@
   "keywords": [],
   "license": "Apache-2.0",
   "dependencies": {
-    "@ai-sdk/openai": "^0.0.72",
-    "@ai-sdk/ui-utils": "^1.0.2",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-icons": "^1.3.1",
     "@radix-ui/react-scroll-area": "^1.2.0",
@@ -74,6 +72,7 @@
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.28.0",
     "react-syntax-highlighter": "^15.6.1",
+    "sharp": "^0.33.5",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7"
   }

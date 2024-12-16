@@ -1,14 +1,5 @@
 import React, { useState, useRef } from 'react';
 
-declare global {
-  interface Window {
-    electron: {
-      hideWindow: () => void;
-      createChatWindow: (query: string) => void;
-    };
-  }
-}
-
 export default function SpotlightWindow() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);

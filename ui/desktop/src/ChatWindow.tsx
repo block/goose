@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Message, useChat } from './ai-sdk-fork/useChat';
+import { useChat } from './ai-sdk-fork/useChat';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { getApiUrl } from './config';
 import { Card } from './components/ui/card';
@@ -16,6 +16,14 @@ import { askAi } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
 
+// Custom event type for form submission
+interface CustomSubmitEvent extends CustomEvent {
+  detail?: {
+    value?: string;
+    image?: string;
+  };
+}
+
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
 const CURRENT_VERSION = '0.0.0';
 
@@ -23,15 +31,34 @@ const CURRENT_VERSION = '0.0.0';
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
 
+interface ToolInvocation {
+  state: 'result' | 'pending';
+  toolName?: string;
+  result?: Array<{
+    audience: string[];
+    text: string;
+    type: string;
+  }>;
+}
+
+interface MessageBase {
+  role: string;
+  content: string;
+  image?: string;
+}
+
+interface Message extends MessageBase {
+  id: string;
+  role: 'function' | 'system' | 'user' | 'assistant' | 'data' | 'tool';
+  content: string;
+  image?: string;
+  toolInvocations?: ToolInvocation[];
+}
 
 export interface Chat {
   id: number;
   title: string;
-  messages: Array<{
-    id: string;
-    role: 'function' | 'system' | 'user' | 'assistant' | 'data' | 'tool';
-    content: string;
-  }>;
+  messages: Message[];
 }
 
 function ChatContent({
@@ -118,21 +145,28 @@ function ChatContent({
     }
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    const customEvent = e as CustomEvent;
-    const content = customEvent.detail?.value || '';
-    if (content.trim()) {
+  const handleSubmit = (e: CustomSubmitEvent) => {
+    const content = e.detail?.value || '';
+    const image = e.detail?.image || null;
+    
+    if (content.trim() || image) {
       setLastInteractionTime(Date.now()); // Update last interaction time
+      
+      // Create message content based on what's available
+      let messageContent = content;
+      if (image) {
+        messageContent = content.trim() 
+          ? `${content}\n\n[Attached Image: ${image}]` 
+          : `[Attached Image: ${image}]`;
+      }
+      
       append({
         role: 'user',
-        content: content,
+        content: messageContent,
+        image: image,
       });
     }
   };
-
-  if (error) {
-    console.log('Error:', error);
-  }
 
   const onStopGoose = () => {
     stop();
@@ -227,9 +261,9 @@ function ChatContent({
             {error && (
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                  {error.status && (
-                    <span className="ml-2">(Status: {error.status})</span>
+                  {(error as Error).message || 'Honk! Goose experienced an error while responding'}
+                  {(error as any).status && (
+                    <span className="ml-2">(Status: {(error as any).status})</span>
                   )}
                 </div>
                 <div
@@ -239,7 +273,8 @@ function ChatContent({
                     if (lastUserMessage) {
                       append({
                         role: 'user',
-                        content: lastUserMessage.content
+                        content: lastUserMessage.content,
+                        image: lastUserMessage.image,
                       });
                     }
                   }}>

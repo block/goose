@@ -9,8 +9,4 @@ interface IElectronAPI {
   };
 }
 
-declare global {
-  interface Window {
-    electron: IElectronAPI;
-  }
-}
+export type { IElectronAPI };

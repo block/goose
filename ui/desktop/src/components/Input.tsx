@@ -3,21 +3,31 @@ import { Button } from './ui/button';
 import Send from './ui/Send';
 import Stop from './ui/Stop';
 import { Paperclip } from 'lucide-react';
+import ImagePreview from './ImagePreview';
+
+interface CustomSubmitEvent extends CustomEvent {
+  detail: {
+    value: string;
+    image?: string;
+  };
+}
 
 interface InputProps {
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (e: CustomSubmitEvent) => void;
   disabled?: boolean;
   isLoading?: boolean;
   onStop?: () => void;
 }
 
-declare global {
-  interface Window {
-    electron: {
-      selectFileOrDirectory: () => Promise<string | null>;
+const getImageData = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      resolve(e.target?.result as string);
     };
-  }
-}
+    reader.readAsDataURL(file);
+  });
+};
 
 export default function Input({
   handleSubmit,
@@ -26,6 +36,7 @@ export default function Input({
   onStop
 }: InputProps) {
   const [value, setValue] = useState('');
+  const [pastedImage, setPastedImage] = useState<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -57,18 +68,41 @@ export default function Input({
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (evt.key === 'Enter' && !evt.shiftKey) {
       evt.preventDefault();
-      if (value.trim()) {
-        handleSubmit(new CustomEvent('submit', { detail: { value } }));
+      if (value.trim() || pastedImage) {
+        handleSubmit(new CustomEvent('submit', { detail: { value, image: pastedImage } }) as CustomSubmitEvent);
         setValue('');
+        setPastedImage(null);
       }
     }
   };
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
-      handleSubmit(new CustomEvent('submit', { detail: { value } }));
+    if (value.trim() || pastedImage) {
+      handleSubmit(new CustomEvent('submit', { detail: { value, image: pastedImage } }) as CustomSubmitEvent);
       setValue('');
+      setPastedImage(null);
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile();
+          if (blob) {
+            try {
+              const imageData = await getImageData(blob);
+              setPastedImage(imageData);
+            } catch (error) {
+              console.error('Error processing image:', error);
+            }
+          }
+          break;
+        }
+      }
     }
   };
 
@@ -81,61 +115,72 @@ export default function Input({
   };
 
   return (
-    <form onSubmit={onFormSubmit} className="flex relative bg-white dark:bg-gray-800 h-auto px-[16px] pr-[68px] py-[1rem]">
-      <textarea
-        autoFocus
-        id="dynamic-textarea"
-        placeholder="What should goose do?"
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        disabled={disabled}
-        ref={textAreaRef}
-        rows={1}
-        style={{
-          minHeight: `${minHeight}px`,
-          maxHeight: `${maxHeight}px`,
-          overflowY: 'auto'
-        }}
-        className={`w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-14 resize-none ${
-          disabled ? 'cursor-not-allowed opacity-50' : ''
-        }`}
-      />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        onClick={handleFileSelect}
-        disabled={disabled}
-        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-          disabled ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-      >
-        <Paperclip size={20} />
-      </Button>
-      {isLoading ? (
+    <div className="flex flex-col bg-white dark:bg-gray-800 px-[16px] py-[1rem]">
+      {pastedImage && (
+        <div className="mb-2">
+          <ImagePreview
+            imageData={pastedImage}
+            onRemove={() => setPastedImage(null)}
+          />
+        </div>
+      )}
+      <form onSubmit={onFormSubmit} className="flex relative h-auto pr-[68px]">
+        <textarea
+          autoFocus
+          id="dynamic-textarea"
+          placeholder="What should goose do?"
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          disabled={disabled}
+          ref={textAreaRef}
+          rows={1}
+          style={{
+            minHeight: `${minHeight}px`,
+            maxHeight: `${maxHeight}px`,
+            overflowY: 'auto'
+          }}
+          className={`w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-14 resize-none ${
+            disabled ? 'cursor-not-allowed opacity-50' : ''
+          }`}
+        />
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          onClick={onStop}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
-        >
-          <Stop size={24} />
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          size="icon"
-          variant="ghost"
-          disabled={disabled || !value.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-            disabled || !value.trim() ? 'opacity-50 cursor-not-allowed' : ''
+          onClick={handleFileSelect}
+          disabled={disabled}
+          className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
+            disabled ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
-          <Send size={24} />
+          <Paperclip size={20} />
         </Button>
-      )}
-    </form>
+        {isLoading ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onStop}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+          >
+            <Stop size={24} />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="icon"
+            variant="ghost"
+            disabled={disabled || (!value.trim() && !pastedImage)}
+            className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
+              disabled || (!value.trim() && !pastedImage) ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Send size={24} />
+          </Button>
+        )}
+      </form>
+    </div>
   );
 }

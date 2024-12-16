@@ -1,10 +1,27 @@
-import { generateId as generateIdFunction } from '@ai-sdk/provider-utils';
-import type { JSONValue, Message } from '@ai-sdk/ui-utils';
-import {parsePartialJson, processDataStream } from '@ai-sdk/ui-utils';
-import { LanguageModelV1FinishReason } from '@ai-sdk/provider';
-import { LanguageModelUsage } from './core/types/usage';
+import { nanoid } from 'nanoid';
 
-// Simple usage calculation since we don't have access to the original
+export type Message = {
+  id: string;
+  role: 'assistant' | 'user';
+  content: string;
+  createdAt: Date;
+  toolInvocations?: any[];
+};
+
+export type JSONValue = 
+  | string
+  | number
+  | boolean
+  | null
+  | JSONValue[]
+  | { [key: string]: JSONValue };
+
+export type LanguageModelUsage = {
+  completionTokens: number;
+  promptTokens: number;
+  totalTokens: number;
+};
+
 function calculateLanguageModelUsage(usage: LanguageModelUsage): LanguageModelUsage {
   return {
     completionTokens: usage.completionTokens,
@@ -18,7 +35,7 @@ export async function processCustomChatResponse({
   update,
   onToolCall,
   onFinish,
-  generateId = generateIdFunction,
+  generateId = () => nanoid(),
   getCurrentDate = () => new Date(),
 }: {
   stream: ReadableStream<Uint8Array>;
@@ -26,7 +43,7 @@ export async function processCustomChatResponse({
   onToolCall?: (options: { toolCall: any }) => Promise<any>;
   onFinish?: (options: {
     message: Message | undefined;
-    finishReason: LanguageModelV1FinishReason;
+    finishReason: string;
     usage: LanguageModelUsage;
   }) => void;
   generateId?: () => string;
@@ -36,196 +53,59 @@ export async function processCustomChatResponse({
   let currentMessage: Message | undefined = undefined;
   const previousMessages: Message[] = [];
   const data: JSONValue[] = [];
-  let lastEventType: 'text' | 'tool' | undefined = undefined;
 
-  // Keep track of partial tool calls
-  const partialToolCalls: Record<
-    string,
-    { text: string; index: number; toolName: string }
-  > = {};
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
 
-  let usage: LanguageModelUsage = {
-    completionTokens: NaN,
-    promptTokens: NaN,
-    totalTokens: NaN,
-  };
-  let finishReason: LanguageModelV1FinishReason = 'unknown';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-  function execUpdate() {
-    const copiedData = [...data];
-    if (currentMessage == null) {
-      update(previousMessages, copiedData);
-      return;
-    }
-
-    const copiedMessage = {
-      ...JSON.parse(JSON.stringify(currentMessage)),
-      revisionId: generateId(),
-    } as Message;
-
-    update([...previousMessages, copiedMessage], copiedData);
-  }
-
-  // Create a new message only if needed
-  function createNewMessage(): Message {
-    if (currentMessage == null) {
-      currentMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: '',
-        createdAt,
-      };
-    }
-    return currentMessage;
-  }
-
-  // Move the current message to previous messages if it exists
-  function archiveCurrentMessage() {
-    if (currentMessage != null) {
-      previousMessages.push(currentMessage);
-      currentMessage = undefined;
-    }
-  }
-
-  await processDataStream({
-    stream,
-    onTextPart(value) {
-      // If the last event wasn't text, or we don't have a current message, create a new one
-      if (lastEventType !== 'text' || currentMessage == null) {
-        archiveCurrentMessage();
-        currentMessage = createNewMessage();
-        currentMessage.content = value;
-      } else {
-        // Concatenate with the existing message
-        currentMessage.content += value;
-      }
-      lastEventType = 'text';
-      execUpdate();
-    },
-    onToolCallStreamingStartPart(value) {
-      // Always create a new message for tool calls
-      archiveCurrentMessage();
-      currentMessage = createNewMessage();
-      lastEventType = 'tool';
-
-      if (currentMessage.toolInvocations == null) {
-        currentMessage.toolInvocations = [];
-      }
-
-      partialToolCalls[value.toolCallId] = {
-        text: '',
-        toolName: value.toolName,
-        index: currentMessage.toolInvocations.length,
-      };
-
-      currentMessage.toolInvocations.push({
-        state: 'partial-call',
-        toolCallId: value.toolCallId,
-        toolName: value.toolName,
-        args: undefined,
-      });
-
-      execUpdate();
-    },
-    onToolCallDeltaPart(value) {
+      const text = decoder.decode(value);
+      
+      // Create new message if needed
       if (!currentMessage) {
-        currentMessage = createNewMessage();
-      }
-      lastEventType = 'tool';
-
-      const partialToolCall = partialToolCalls[value.toolCallId];
-      partialToolCall.text += value.argsTextDelta;
-
-      const { value: partialArgs } = parsePartialJson(partialToolCall.text);
-
-      currentMessage.toolInvocations![partialToolCall.index] = {
-        state: 'partial-call',
-        toolCallId: value.toolCallId,
-        toolName: partialToolCall.toolName,
-        args: partialArgs,
-      };
-
-      execUpdate();
-    },
-    async onToolCallPart(value) {
-      if (!currentMessage) {
-        currentMessage = createNewMessage();
-      }
-      lastEventType = 'tool';
-
-      if (partialToolCalls[value.toolCallId] != null) {
-        currentMessage.toolInvocations![
-          partialToolCalls[value.toolCallId].index
-        ] = { state: 'call', ...value };
+        currentMessage = {
+          id: generateId(),
+          role: 'assistant',
+          content: text,
+          createdAt,
+        };
       } else {
-        if (currentMessage.toolInvocations == null) {
-          currentMessage.toolInvocations = [];
-        }
+        // Append to existing message
+        currentMessage.content += text;
+      }
 
-        currentMessage.toolInvocations.push({
-          state: 'call',
-          ...value,
+      // Update UI
+      const messages = [...previousMessages];
+      if (currentMessage) {
+        messages.push({
+          ...currentMessage,
+          id: generateId(),
         });
       }
+      update(messages, data);
+    }
+  } catch (error) {
+    console.error('Error processing stream:', error);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 
-      if (onToolCall) {
-        const result = await onToolCall({ toolCall: value });
-        if (result != null) {
-          currentMessage.toolInvocations![
-            currentMessage.toolInvocations!.length - 1
-          ] = { state: 'result', ...value, result };
-        }
-      }
-
-      execUpdate();
-    },
-    onToolResultPart(value) {
-      if (!currentMessage) {
-        currentMessage = createNewMessage();
-      }
-      lastEventType = 'tool';
-
-      const toolInvocations = currentMessage.toolInvocations;
-      if (toolInvocations == null) {
-        throw new Error('tool_result must be preceded by a tool_call');
-      }
-
-      const toolInvocationIndex = toolInvocations.findIndex(
-        invocation => invocation.toolCallId === value.toolCallId,
-      );
-
-      if (toolInvocationIndex === -1) {
-        throw new Error(
-          'tool_result must be preceded by a tool_call with the same toolCallId',
-        );
-      }
-
-      toolInvocations[toolInvocationIndex] = {
-        ...toolInvocations[toolInvocationIndex],
-        state: 'result' as const,
-        ...value,
-      };
-
-      execUpdate();
-    },
-    onDataPart(value) {
-      data.push(...value);
-      execUpdate();
-    },
-    onFinishStepPart() {
-      // Archive the current message when a step finishes
-      archiveCurrentMessage();
-    },
-    onFinishMessagePart(value) {
-      finishReason = value.finishReason;
-      if (value.usage != null) {
-        usage = calculateLanguageModelUsage(value.usage);
-      }
-    },
-    onErrorPart(error) {
-      throw new Error(error);
+  // Final update
+  if (currentMessage) {
+    previousMessages.push(currentMessage);
+  }
+  
+  onFinish?.({
+    message: currentMessage,
+    finishReason: 'stop',
+    usage: {
+      completionTokens: 0,
+      promptTokens: 0,
+      totalTokens: 0,
     },
   });
-
-  onFinish?.({ message: currentMessage, finishReason, usage });
 }
