@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card } from './ui/card';
-import Box from './ui/Box'
+import Box from './ui/Box';
+import { featureFlags } from '../featureFlags';
 import { ToolCallArguments } from "./ToolCallArguments"
 import MarkdownContent from './MarkdownContent'
 import { snakeToTitleCase } from '../utils'
@@ -88,8 +89,16 @@ interface ToolResultProps {
 }
 
 function ToolResult({ result }: ToolResultProps) {
-  // State to track expanded items
-  const [expandedItems, setExpandedItems] = React.useState<number[]>([]);
+  const expandedToolsByDefault = featureFlags.getFlags().expandedToolsByDefault;
+  
+  // Initialize expanded state based on feature flag
+  const [expandedItems, setExpandedItems] = React.useState<number[]>(() => {
+    if (expandedToolsByDefault) {
+      // If flag is on, start with all items expanded
+      return result?.result ? Array.from(Array(Array.isArray(result.result) ? result.result.length : 1).keys()) : [];
+    }
+    return []; // If flag is off, start with all items collapsed
+  });
 
   // If no result info, don't show anything
   if (!result || !result.result) return null;
