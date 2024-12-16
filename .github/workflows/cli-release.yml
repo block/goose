@@ -1,0 +1,56 @@
+on:
+  push:
+    tags:
+      - "v1.*"
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+name: Release CLI
+jobs:
+  build:
+    name: Build ${{ matrix.os }}-${{ matrix.architecture }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        architecture: [x86_64, aarch64]
+        include:
+          - os: ubuntu-latest
+            suffix: unknown-linux-gnu
+          - os: macos-latest
+            suffix: apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: ${{ matrix.architecture }}-${{ matrix.suffix }}
+      - id: build
+        shell: bash
+        run: |
+          export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
+          cargo build --release --target $TARGET
+          cd target/${TARGET}/release
+          tar -cjf goose-${TARGET}.tar.bz2 goose goosed
+          export TARGET_PATH="target/${TARGET}/release/goose-${TARGET}.tar.bz2"
+          echo "TARGET_PATH=${TARGET_PATH}" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: goose-${{ matrix.architecture }}-${{ matrix.suffix }}
+          path: ${{ steps.build.outputs.TARGET_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: "goose-*.bz2"
