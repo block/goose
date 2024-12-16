@@ -23,3 +23,7 @@ Cargo.lock
 # UI
 ./ui/desktop/node_modules
 ./ui/desktop/out
+
+# Hermit
+/.hermit/
+/bin/

@@ -44,14 +44,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-build-
 
-    # Install UV and download tokenizer files
-    - name: Install UV
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-
-    - name: Run download_tokenizer_files.py
-      run: uv run download_tokenizer_files.py
-
     # Build Rust Binary
     - name: Build Release Binary
       run: cargo build --release
@@ -68,7 +60,7 @@ jobs:
       working-directory: ui/desktop
       env:
         CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
-        CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}      
+        CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
     - name: Set up Node.js
       uses: actions/setup-node@v2
@@ -91,4 +83,4 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: Goose.zip
-        path: ui/desktop/out/Goose-darwin-arm64/Goose.zip          
+        path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
