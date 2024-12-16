@@ -18,13 +18,14 @@ This is the branch for goose 1.0 WIP: which is a port over from python to rust +
 ## Building
 
 ```sh
-uv run download_tokenizer_files.py
+./download_tokenizer_files.sh
 cargo build
 ```
 
 ## Running the CLI
 
 ### Configure
+
 ```
 goose configure
 ```
@@ -63,19 +64,19 @@ Usage: cargo run --bin goose -- run -i instructions.md
 
 ## GUI
 
-Goose has an electron based GUI which you can see in `ui/desktop`: 
+Goose has an electron based GUI which you can see in `ui/desktop`:
 
 <img width="732" alt="image" src="https://github.com/user-attachments/assets/17499ae5-7812-46f0-8aae-e4d3d9583c34">
 <img width="739" alt="image" src="https://github.com/user-attachments/assets/13ff2304-8468-47e0-9de8-89d23a62ec26">
 <img width="744" alt="image" src="https://github.com/user-attachments/assets/3a825455-6cd1-406b-a459-e2c73dba024b">
 
-
-
 ## Start sub system server
+
 ```sh
 cd crates/stub-system
 cargo run
 ```
+
 ## Troubleshooting
 
 #### Compiling `tokenizers` library

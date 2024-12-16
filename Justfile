@@ -17,7 +17,7 @@ copy-binary:
     fi
 
 # Run UI with latest
-run-ui:
+run-ui: download-tokenizers
     @just release
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
@@ -26,3 +26,8 @@ run-ui:
 run-server:
     @echo "Running server..."
     cargo run -p goose-server
+
+# Download tokenizer files if they don't exist
+download-tokenizers:
+    @echo "Checking and downloading tokenizer files..."
+    ./download_tokenizers.sh
