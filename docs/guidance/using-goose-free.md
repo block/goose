@@ -21,9 +21,12 @@ default:
     requires: {}
 ```
 
-Note: At the moment, the `synopsis` toolkit isn't supported by Google Gemini, so we use the `developer` toolkit to interact with the API. 
-
 When you run `goose session start`, you will be prompted to enter your Google API Key.
+
+> [!NOTE] 
+> At the moment, the `synopsis` toolkit isn't supported by Google Gemini, so we use the `developer` toolkit to interact with the API. 
+
+
 
 
 
@@ -33,7 +36,7 @@ These free options are a great way to get started with Goose and explore its cap
 
 ---
 
-This guide will continue to be updated with more free options as they become available. If you have any questions or need help with a specific provider, feel free to reach out to us on the [Goose repo](https://github.com/block/goose) or on [Discord](https://discord.gg/block-opensource).
+This guide will continue to be updated with more free options as they become available. If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/block-opensource) or on the [Goose repo](https://github.com/block/goose).
+
 
 [providers]: https://block.github.io/goose/plugins/providers.html
-```
