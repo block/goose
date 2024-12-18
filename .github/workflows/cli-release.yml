@@ -50,6 +50,14 @@ jobs:
           rustup target add aarch64-apple-darwin
           echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
 
+      - name: Install Libs for Ubuntu linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring libxcb1-dev
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+
+
       # Step 4: Build the project
       - name: Build
         run: |
