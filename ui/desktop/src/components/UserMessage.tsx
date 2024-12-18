@@ -17,7 +17,7 @@ export default function UserMessage({ message }) {
           />
         </div>
         {urls.length > 0 && (
-          <div className="flex mt-2">
+          <div className="flex flex-wrap mt-2">
             {urls.map((url, index) => (
               <LinkPreview key={index} url={url} />
             ))}
