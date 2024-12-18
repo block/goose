@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - "v00.*"
+      - "v1.*"
   workflow_dispatch:
 
 concurrency:
