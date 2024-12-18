@@ -8,37 +8,41 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
-name: Build CLI
+name: Release CLI
 
 jobs:
   build:
     name: Build ${{ matrix.os }}-${{ matrix.architecture }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false # Allow independent failures
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        architecture: [x86_64, aarch64]
         include:
+          # Linux x86_64 build on Ubuntu
           - os: ubuntu-latest
             architecture: x86_64
             suffix: unknown-linux-gnu
+          # macOS x86_64 build
           - os: macos-latest
             architecture: x86_64
             suffix: apple-darwin
+          # macOS ARM build
           - os: macos-latest
             architecture: aarch64
             suffix: apple-darwin
-    steps:
-      # Step 1: Checkout code
-      - uses: actions/checkout@v4
 
-      # Step 2: Set up Rust toolchain
-      - name: Set up Rust
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Rust toolchain for the specific target
+      - name: Set up Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.architecture }}-${{ matrix.suffix }}
 
-      # Step 3: Install dependencies (macOS ARM only)
+      # Step 3: Install dependencies for macOS ARM builds
       - name: Install dependencies for macOS ARM
         if: matrix.os == 'macos-latest' && matrix.architecture == 'aarch64'
         run: |
@@ -47,16 +51,37 @@ jobs:
           echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
 
       # Step 4: Build the project
-      - name: Build
+      - name: Build the project
         run: |
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
           cd target/${TARGET}/release
           tar -cjf goose-${TARGET}.tar.bz2 goose goosed
-          echo "goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
-      # Step 5: Upload the artifacts
-      - uses: actions/upload-artifact@v4
+      # Step 5: Upload artifacts
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.suffix }}
-          path: target/${{ matrix.architecture }}-${{ matrix.suffix }}/release/goose-*.tar.bz2
+          path: ${{ env.ARTIFACT }}
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      contents: write
+    steps:
+      # Step 1: Download all build artifacts
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      # Step 2: Create GitHub release and upload artifacts
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "goose-*.tar.bz2"
+          token: ${{ secrets.GITHUB_TOKEN }}
