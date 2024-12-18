@@ -18,7 +18,6 @@ This is the branch for goose 1.0 WIP: which is a port over from python to rust +
 ## Building
 
 ```sh
-./download_tokenizer_files.sh
 cargo build
 ```
 
