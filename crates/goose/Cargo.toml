@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[build-dependencies]
+tokio = { version = "1.36", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+
 [dependencies]
 mcp-core = { path = "../mcp-core" }
 dirs = "5.0.1"
@@ -44,7 +48,11 @@ libc = "=0.2.167"
 lazy_static = "1.5"
 kill_tree = "0.2.4"
 
-keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
+keyring = { version = "3.6.1", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+] }
 shellexpand = "3.1.0"
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
