@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - "v*"
+      - "v00.*"
   workflow_dispatch:
 
 concurrency:
@@ -26,7 +26,7 @@ jobs:
           - os: macos-latest
             architecture: x86_64
             suffix: apple-darwin
-          # macOS ARM build
+          # macOS ARM64 build
           - os: macos-latest
             architecture: aarch64
             suffix: apple-darwin
@@ -36,14 +36,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Rust toolchain for the specific target
+      # Step 2: Set up Rust toolchain
       - name: Set up Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.architecture }}-${{ matrix.suffix }}
 
-      # Step 3: Install dependencies for macOS ARM builds
-      - name: Install dependencies for macOS ARM
+      # Step 3: Install dependencies for macOS ARM64 builds
+      - name: Install dependencies for macOS ARM64
         if: matrix.os == 'macos-latest' && matrix.architecture == 'aarch64'
         run: |
           brew install llvm
@@ -51,7 +51,7 @@ jobs:
           echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
 
       # Step 4: Build the project
-      - name: Build the project
+      - name: Build
         run: |
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
@@ -60,7 +60,7 @@ jobs:
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       # Step 5: Upload artifacts
-      - name: Upload build artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.suffix }}
@@ -74,13 +74,13 @@ jobs:
       contents: write
     steps:
       # Step 1: Download all build artifacts
-      - name: Download build artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
 
-      # Step 2: Create GitHub release and upload artifacts
-      - name: Create release
+      # Step 2: Publish release with artifacts
+      - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "goose-*.tar.bz2"
