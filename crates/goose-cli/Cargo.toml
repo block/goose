@@ -36,6 +36,9 @@ async-trait = "0.1"
 rustyline = "15.0.0"
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
+ratatui = "0.29.0"
+tui-input = "0.11.1"
+throbber-widgets-tui = "0.8.0"
 
 [dev-dependencies]
 tempfile = "3"

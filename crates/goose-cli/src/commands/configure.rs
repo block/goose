@@ -5,6 +5,7 @@ use cliclack::spinner;
 use console::style;
 use goose::key_manager::{get_keyring_secret, save_to_keyring, KeyRetrievalStrategy};
 use goose::message::Message;
+use goose::providers::base::ProviderUsage;
 use goose::providers::factory;
 use goose::providers::ollama::OLLAMA_MODEL;
 use std::error::Error;
@@ -118,14 +119,10 @@ pub async fn handle_configure(
     };
 
     // Confirm everything is configured correctly by calling a model!
-    let provider_config = get_provider_config(&provider_name, profile.clone());
     let spin = spinner();
     spin.start("Checking your configuration...");
-    let provider = factory::get_provider(provider_config).unwrap();
-    let message = Message::user().with_text("Please give a nice welcome messsage (one sentence) and let them know they are all set to use this agent");
-    let result = provider.complete("You are an AI agent called Goose. You use tools of connected systems to solve problems.", &[message], &[]).await;
 
-    match result {
+    match send_test_message(profile.clone()).await {
         Ok((message, _usage)) => {
             if let Some(content) = message.content.first() {
                 if let Some(text) = content.as_text() {
@@ -150,6 +147,15 @@ pub async fn handle_configure(
     }
 
     Ok(())
+}
+
+pub async fn send_test_message(
+    profile: Profile,
+) -> Result<(Message, ProviderUsage), anyhow::Error> {
+    let provider_config = get_provider_config(&profile.provider, profile.clone());
+    let provider = factory::get_provider(provider_config).unwrap();
+    let message = Message::user().with_text("Please give a nice welcome messsage (one sentence) and let them know they are all set to use this agent");
+    provider.complete("You are an AI agent called Goose. You use tools of connected systems to solve problems.", &[message], &[]).await
 }
 
 pub fn get_recommended_model(provider_name: &str) -> &str {
