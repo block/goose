@@ -6,6 +6,7 @@ mod commands {
 pub mod agents;
 mod profile;
 mod prompt;
+mod langfuse_layer;
 pub mod session;
 
 mod systems;
@@ -17,6 +18,8 @@ use commands::session::build_session;
 use commands::version::print_version;
 use profile::has_no_profiles;
 use std::io::{self, Read};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod log_usage;
 
@@ -193,8 +196,22 @@ enum CliProviderVariant {
     Ollama,
 }
 
+fn setup_logging() -> Result<()> {
+    if let Some(langfuse_layer) = langfuse_layer::create_langfuse_layer() {
+        tracing_subscriber::registry()
+            .with(langfuse_layer).init();
+    } 
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize logging
+    if let Err(e) = setup_logging() {
+        eprintln!("Failed to initialize logging: {}", e);
+    }
+
     let cli = Cli::parse();
 
     if cli.version {

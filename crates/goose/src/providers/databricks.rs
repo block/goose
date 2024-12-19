@@ -105,12 +105,14 @@ impl DatabricksProvider {
 
 #[async_trait]
 impl Provider for DatabricksProvider {
+    #[tracing::instrument(skip(self, system, messages, tools), fields(model_config, input, output))]
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
+        let span = tracing::Span::current();
         // Prepare messages and tools
         let messages_spec = messages_to_openai_spec(messages, &self.config.image_format);
         let tools_spec = if !tools.is_empty() {
@@ -147,8 +149,13 @@ impl Provider for DatabricksProvider {
                 .collect(),
         );
 
+        span.record("model_config", serde_json::to_string_pretty(&self.config).unwrap_or_else(|_| "null".to_string()));
+        span.record("input", serde_json::to_string(&payload).unwrap_or_else(|_| "null".to_string()));
+
         // Make request
         let response = self.post(payload).await?;
+
+        span.record("output", serde_json::to_string(&response).unwrap_or_else(|_| "null".to_string()));
 
         // Raise specific error if context length is exceeded
         if let Some(error) = response.get("error") {

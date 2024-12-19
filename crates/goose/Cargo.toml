@@ -47,6 +47,8 @@ xcap = "0.0.14"
 libc = "=0.2.167"
 lazy_static = "1.5"
 kill_tree = "0.2.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 keyring = { version = "3.6.1", features = [
     "apple-native",
