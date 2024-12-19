@@ -30,7 +30,18 @@ serde_yaml = "0.9"
 dirs = "4.0"
 strum = "0.26"
 strum_macros = "0.26"
-reqwest = "0.11.27"
+reqwest = { version = "0.12.9", features = [
+        "rustls-tls",
+        "json",
+        "cookies",
+        "gzip",
+        "brotli",
+        "deflate",
+        "zstd",
+        "charset",
+        "http2",
+        "stream"
+    ], default-features = false }
 rand = "0.8.5"
 async-trait = "0.1"
 rustyline = "15.0.0"

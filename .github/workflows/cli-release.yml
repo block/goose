@@ -1,7 +1,7 @@
 on:
   push:
     tags:
-      - "v1.*"
+      - "v01.*"
   workflow_dispatch:
 
 concurrency:
@@ -15,17 +15,24 @@ jobs:
     name: Build ${{ matrix.os }}-${{ matrix.architecture }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # Allow independent failures
+      fail-fast: false
       matrix:
         include:
           # Linux x86_64 build on Ubuntu
           - os: ubuntu-latest
             architecture: x86_64
             suffix: unknown-linux-gnu
+
+          # Linux aarch64 (ARM64) build on Ubuntu via cross-compilation
+          - os: ubuntu-latest
+            architecture: aarch64
+            suffix: unknown-linux-gnu
+
           # macOS x86_64 build
           - os: macos-latest
             architecture: x86_64
             suffix: apple-darwin
+
           # macOS ARM64 build
           - os: macos-latest
             architecture: aarch64
@@ -37,6 +44,7 @@ jobs:
         uses: actions/checkout@v4
 
       # Step 2: Set up Rust toolchain
+      # This will install the specified target as per matrix
       - name: Set up Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -50,15 +58,23 @@ jobs:
           rustup target add aarch64-apple-darwin
           echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
 
-      - name: Install Libs for Ubuntu linux
+      # Step 4: Install Libs for Ubuntu (x86_64 and aarch64)
+      - name: Install Libs for Ubuntu
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update -y
-          sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring libxcb1-dev
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
+      # Additional step: Install dependencies for Linux aarch64 (cross-compilation)
+      - name: Install dependencies for Linux aarch64
+        if: matrix.os == 'ubuntu-latest' && matrix.architecture == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          rustup target add aarch64-unknown-linux-gnu
 
-      # Step 4: Build the project
+      # Step 5: Build the project
       - name: Build
         run: |
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
@@ -67,7 +83,7 @@ jobs:
           tar -cjf goose-${TARGET}.tar.bz2 goose goosed
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
-      # Step 5: Upload artifacts
+      # Step 6: Upload artifacts
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -87,7 +103,7 @@ jobs:
         with:
           merge-multiple: true
 
-      # Step 2: Publish release with artifacts
+      # Step 2: Create GitHub release with artifacts
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
