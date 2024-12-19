@@ -15,6 +15,7 @@ const GPT_4O_TOKENIZER_KEY: &str = "Xenova--gpt-4o";
 const CLAUDE_TOKENIZER_KEY: &str = "Xenova--claude-tokenizer";
 const GOOGLE_TOKENIZER_KEY: &str = "Xenova--gemma-2-tokenizer";
 const QWEN_TOKENIZER_KEY: &str = "Qwen--Qwen2.5-Coder-32B-Instruct";
+const LLAMA_TOKENIZER_KEY: &str = "Xenova--llama3-tokenizer";
 
 impl Default for TokenCounter {
     fn default() -> Self {
@@ -53,6 +54,8 @@ impl TokenCounter {
             GPT_4O_TOKENIZER_KEY,
             CLAUDE_TOKENIZER_KEY,
             GOOGLE_TOKENIZER_KEY,
+            QWEN_TOKENIZER_KEY,
+            LLAMA_TOKENIZER_KEY,
         ] {
             counter.load_tokenizer(tokenizer_key);
         }
@@ -71,6 +74,8 @@ impl TokenCounter {
             QWEN_TOKENIZER_KEY
         } else if model_name.contains("gemini") {
             GOOGLE_TOKENIZER_KEY
+        } else if model_name.contains("llama") {
+            LLAMA_TOKENIZER_KEY
         } else {
             // default
             GPT_4O_TOKENIZER_KEY

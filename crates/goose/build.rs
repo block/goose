@@ -8,6 +8,7 @@ const MODELS: &[&str] = &[
     "Xenova/gemma-2-tokenizer",
     "Xenova/gpt-4o",
     "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "Xenova/llama3-tokenizer",
 ];
 
 #[tokio::main]

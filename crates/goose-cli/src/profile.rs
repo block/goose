@@ -2,7 +2,7 @@ use anyhow::Result;
 use goose::key_manager::{get_keyring_secret, KeyRetrievalStrategy};
 use goose::providers::configs::{
     AnthropicProviderConfig, DatabricksAuth, DatabricksProviderConfig, GoogleProviderConfig,
-    ModelConfig, OllamaProviderConfig, OpenAiProviderConfig, ProviderConfig,
+    GroqProviderConfig, ModelConfig, OllamaProviderConfig, OpenAiProviderConfig, ProviderConfig,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -130,7 +130,17 @@ pub fn get_provider_config(provider_name: &str, profile: Profile) -> ProviderCon
                 .expect("GOOGLE_API_KEY not available in env or the keychain\nSet an env var or rerun `goose configure`");
 
             ProviderConfig::Google(GoogleProviderConfig {
-                host: "https://generativelanguage.googleapis.com".to_string(), // Default Anthropic API endpoint
+                host: "https://generativelanguage.googleapis.com".to_string(),
+                api_key,
+                model: model_config,
+            })
+        }
+        "groq" => {
+            let api_key = get_keyring_secret("GROQ_API_KEY", KeyRetrievalStrategy::Both)
+                .expect("GROQ_API_KEY not available in env or the keychain\nSet an env var or rerun `goose configure`");
+
+            ProviderConfig::Groq(GroqProviderConfig {
+                host: "https://api.groq.com".to_string(),
                 api_key,
                 model: model_config,
             })

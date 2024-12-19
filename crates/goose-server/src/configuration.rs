@@ -1,13 +1,14 @@
 use crate::error::{to_env_var, ConfigError};
 use config::{Config, Environment};
-use goose::providers::configs::GoogleProviderConfig;
+use goose::providers::configs::{GoogleProviderConfig, GroqProviderConfig};
+use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::{
     configs::{
         DatabricksAuth, DatabricksProviderConfig, ModelConfig, OllamaProviderConfig,
         OpenAiProviderConfig, ProviderConfig,
     },
     factory::ProviderType,
-    google, ollama,
+    google, groq, ollama,
     utils::ImageFormat,
 };
 use serde::Deserialize;
@@ -88,6 +89,17 @@ pub enum ProviderSettings {
         #[serde(default)]
         max_tokens: Option<i32>,
     },
+    Groq {
+        #[serde(default = "default_groq_host")]
+        host: String,
+        api_key: String,
+        #[serde(default = "default_groq_model")]
+        model: String,
+        #[serde(default)]
+        temperature: Option<f32>,
+        #[serde(default)]
+        max_tokens: Option<i32>,
+    },
 }
 
 impl ProviderSettings {
@@ -99,6 +111,7 @@ impl ProviderSettings {
             ProviderSettings::Databricks { .. } => ProviderType::Databricks,
             ProviderSettings::Ollama { .. } => ProviderType::Ollama,
             ProviderSettings::Google { .. } => ProviderType::Google,
+            ProviderSettings::Groq { .. } => ProviderType::Groq,
         }
     }
 
@@ -162,6 +175,19 @@ impl ProviderSettings {
                 temperature,
                 max_tokens,
             } => ProviderConfig::Google(GoogleProviderConfig {
+                host,
+                api_key,
+                model: ModelConfig::new(model)
+                    .with_temperature(temperature)
+                    .with_max_tokens(max_tokens),
+            }),
+            ProviderSettings::Groq {
+                host,
+                api_key,
+                model,
+                temperature,
+                max_tokens,
+            } => ProviderConfig::Groq(GroqProviderConfig {
                 host,
                 api_key,
                 model: ModelConfig::new(model)
@@ -240,7 +266,7 @@ fn default_port() -> u16 {
 }
 
 fn default_model() -> String {
-    "gpt-4o".to_string()
+    OPEN_AI_DEFAULT_MODEL.to_string()
 }
 
 fn default_openai_host() -> String {
@@ -265,6 +291,14 @@ fn default_google_host() -> String {
 
 fn default_google_model() -> String {
     google::GOOGLE_DEFAULT_MODEL.to_string()
+}
+
+fn default_groq_host() -> String {
+    groq::GROQ_API_HOST.to_string()
+}
+
+fn default_groq_model() -> String {
+    groq::GROQ_DEFAULT_MODEL.to_string()
 }
 
 fn default_image_format() -> ImageFormat {

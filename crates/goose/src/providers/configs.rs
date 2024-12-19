@@ -14,6 +14,7 @@ pub enum ProviderConfig {
     Ollama(OllamaProviderConfig),
     Anthropic(AnthropicProviderConfig),
     Google(GoogleProviderConfig),
+    Groq(GroqProviderConfig),
 }
 
 /// Configuration for model-specific settings and limits
@@ -217,6 +218,19 @@ pub struct GoogleProviderConfig {
 }
 
 impl ProviderModelConfig for GoogleProviderConfig {
+    fn model_config(&self) -> &ModelConfig {
+        &self.model
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroqProviderConfig {
+    pub host: String,
+    pub api_key: String,
+    pub model: ModelConfig,
+}
+
+impl ProviderModelConfig for GroqProviderConfig {
     fn model_config(&self) -> &ModelConfig {
         &self.model
     }

@@ -1,15 +1,13 @@
-use anyhow::Result;
-use async_trait::async_trait;
-use rust_decimal_macros::dec;
-use std::sync::Arc;
-use std::sync::Mutex;
-
+use super::base::ProviderUsage;
 use crate::message::Message;
 use crate::providers::base::{Provider, Usage};
 use crate::providers::configs::ModelConfig;
+use anyhow::Result;
+use async_trait::async_trait;
 use mcp_core::tool::Tool;
-
-use super::base::ProviderUsage;
+use rust_decimal_macros::dec;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 /// A mock provider that returns pre-configured responses for testing
 pub struct MockProvider {

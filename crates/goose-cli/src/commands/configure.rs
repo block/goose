@@ -5,8 +5,13 @@ use cliclack::spinner;
 use console::style;
 use goose::key_manager::{get_keyring_secret, save_to_keyring, KeyRetrievalStrategy};
 use goose::message::Message;
+use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
+use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::factory;
+use goose::providers::google::GOOGLE_DEFAULT_MODEL;
+use goose::providers::groq::GROQ_DEFAULT_MODEL;
 use goose::providers::ollama::OLLAMA_MODEL;
+use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use std::error::Error;
 
 pub async fn handle_configure(
@@ -48,6 +53,7 @@ pub async fn handle_configure(
                 ("ollama", "Ollama", "Local open source models"),
                 ("anthropic", "Anthropic", "Claude models"),
                 ("google", "Google Gemini", "Gemini models"),
+                ("groq", "Groq", "AI models"),
             ])
             .interact()?
             .to_string()
@@ -154,11 +160,12 @@ pub async fn handle_configure(
 
 pub fn get_recommended_model(provider_name: &str) -> &str {
     match provider_name {
-        "openai" => "gpt-4o",
-        "databricks" => "claude-3-5-sonnet-2",
+        "openai" => OPEN_AI_DEFAULT_MODEL,
+        "databricks" => DATABRICKS_DEFAULT_MODEL,
         "ollama" => OLLAMA_MODEL,
-        "anthropic" => "claude-3-5-sonnet-2",
-        "google" => "gemini-1.5-flash",
+        "anthropic" => ANTHROPIC_DEFAULT_MODEL,
+        "google" => GOOGLE_DEFAULT_MODEL,
+        "groq" => GROQ_DEFAULT_MODEL,
         _ => panic!("Invalid provider name"),
     }
 }
@@ -170,6 +177,7 @@ pub fn get_required_keys(provider_name: &str) -> Vec<&'static str> {
         "ollama" => vec!["OLLAMA_HOST"],
         "anthropic" => vec!["ANTHROPIC_API_KEY"], // Removed ANTHROPIC_HOST since we use a fixed endpoint
         "google" => vec!["GOOGLE_API_KEY"],
+        "groq" => vec!["GROQ_API_KEY"],
         _ => panic!("Invalid provider name"),
     }
 }

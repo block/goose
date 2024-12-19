@@ -1,4 +1,5 @@
 use anyhow::Result;
+use goose::providers::configs::GroqProviderConfig;
 use goose::{
     agent::Agent,
     developer::DeveloperSystem,
@@ -71,6 +72,11 @@ impl Clone for AppState {
                         model: config.model.clone(),
                     })
                 }
+                ProviderConfig::Groq(config) => ProviderConfig::Groq(GroqProviderConfig {
+                    host: config.host.clone(),
+                    api_key: config.api_key.clone(),
+                    model: config.model.clone(),
+                }),
             },
             agent: self.agent.clone(),
             secret_key: self.secret_key.clone(),

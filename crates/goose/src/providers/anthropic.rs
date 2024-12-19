@@ -17,6 +17,8 @@ use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
 
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
+
 pub struct AnthropicProvider {
     client: Client,
     config: AnthropicProviderConfig,
