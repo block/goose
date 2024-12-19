@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function BottomMenu({hasMessages}) {
   return (
-    <div className="flex relative text-bottom-menu dark:text-bottom-menu-dark pl-[15px] text-[10px] h-[30px] leading-[30px] align-middle bg-bottom-menu-background dark:bg-bottom-menu-background-dark rounded-b-2xl">
+    <div className="flex relative text-bottom-menu dark:text-bottom-menu-dark pl-[15px] text-[10px] h-[30px] leading-[30px] align-middle rounded-b-2xl">
       <span
         className="cursor-pointer"
         onClick={async () => {

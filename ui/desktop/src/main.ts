@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
 import log from './utils/logger';
@@ -277,6 +279,48 @@ ipcMain.handle('select-file-or-directory', async () => {
     return result.filePaths[0];
   }
   return null;
+});
+
+// Temp directory for image storage
+const TEMP_DIR = path.join(os.tmpdir(), 'goose-images');
+
+// Ensure temp directory exists
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
+
+// Image handling functions
+const saveTempImage = async (imageData: string) => {
+  try {
+    const base64Data = imageData.includes('base64,')
+      ? imageData.split('base64,')[1]
+      : imageData;
+    
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+    const filepath = path.join(TEMP_DIR, filename);
+    
+    await fs.promises.writeFile(filepath, buffer);
+    return filepath;
+  } catch (error) {
+    console.error('Error saving temp image:', error);
+    throw error;
+  }
+};
+
+ipcMain.handle('save-temp-image', async (_, imageData: string) => {
+  return saveTempImage(imageData);
+});
+
+// Clean up temp files on app exit
+app.on('will-quit', () => {
+  try {
+    if (fs.existsSync(TEMP_DIR)) {
+      fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+    }
+  } catch (error) {
+    console.error('Error cleaning up temp directory:', error);
+  }
 });
 
 app.whenReady().then(async () => {

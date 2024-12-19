@@ -80,12 +80,10 @@
   }
 
   body {
-    background-color: white;
     color: black;
   }
 
   .dark body {
-    background-color: black;
     color: white;
   }
 
