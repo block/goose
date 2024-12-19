@@ -47,13 +47,36 @@ pub struct InitializeParams {
     pub client_info: ClientInfo,
 }
 
-/// The MCP client that sends requests via the provided service.
-pub struct McpClient<S> {
+/// The MCP client trait defining the interface for MCP operations.
+#[async_trait::async_trait]
+pub trait McpClient {
+    /// Initialize the connection with the server.
+    async fn initialize(
+        &mut self,
+        info: ClientInfo,
+        capabilities: ClientCapabilities,
+    ) -> Result<InitializeResult, Error>;
+
+    /// List available resources.
+    async fn list_resources(&mut self) -> Result<ListResourcesResult, Error>;
+
+    /// Read a resource's content.
+    async fn read_resource(&mut self, uri: &str) -> Result<ReadResourceResult, Error>;
+
+    /// List available tools.
+    async fn list_tools(&mut self) -> Result<ListToolsResult, Error>;
+
+    /// Call a specific tool with arguments.
+    async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<CallToolResult, Error>;
+}
+
+/// Standard implementation of the MCP client that sends requests via the provided service.
+pub struct McpClientImpl<S> {
     service: S,
     next_id: u64,
 }
 
-impl<S> McpClient<S>
+impl<S> McpClientImpl<S>
 where
     S: tower::Service<
             JsonRpcMessage,
@@ -123,7 +146,7 @@ where
     }
 
     /// Send a JSON-RPC notification.
-    pub async fn send_notification(&mut self, method: &str, params: Value) -> Result<(), Error> {
+    async fn send_notification(&mut self, method: &str, params: Value) -> Result<(), Error> {
         self.service.ready().await.map_err(|_| Error::NotReady)?;
 
         let notification = JsonRpcMessage::Notification(JsonRpcNotification {
@@ -135,9 +158,20 @@ where
         self.service.call(notification).await?;
         Ok(())
     }
+}
 
-    /// Initialize the connection with the server.
-    pub async fn initialize(
+#[async_trait::async_trait]
+impl<S> McpClient for McpClientImpl<S>
+where
+    S: tower::Service<
+            JsonRpcMessage,
+            Response = JsonRpcMessage,
+            Error = super::service::ServiceError,
+        > + Send
+        + Sync,
+    S::Future: Send,
+{
+    async fn initialize(
         &mut self,
         info: ClientInfo,
         capabilities: ClientCapabilities,
@@ -157,29 +191,21 @@ where
         Ok(result)
     }
 
-    /// List available resources.
-    pub async fn list_resources(&mut self) -> Result<ListResourcesResult, Error> {
+    async fn list_resources(&mut self) -> Result<ListResourcesResult, Error> {
         self.send_message("resources/list", serde_json::json!({}))
             .await
     }
 
-    /// Read a resource's content.
-    pub async fn read_resource(&mut self, uri: &str) -> Result<ReadResourceResult, Error> {
+    async fn read_resource(&mut self, uri: &str) -> Result<ReadResourceResult, Error> {
         let params = serde_json::json!({ "uri": uri });
         self.send_message("resources/read", params).await
     }
 
-    /// List tools
-    pub async fn list_tools(&mut self) -> Result<ListToolsResult, Error> {
+    async fn list_tools(&mut self) -> Result<ListToolsResult, Error> {
         self.send_message("tools/list", serde_json::json!({})).await
     }
 
-    // Call tool
-    pub async fn call_tool(
-        &mut self,
-        name: &str,
-        arguments: Value,
-    ) -> Result<CallToolResult, Error> {
+    async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
         let params = serde_json::json!({ "name": name, "arguments": arguments });
         self.send_message("tools/call", params).await
     }

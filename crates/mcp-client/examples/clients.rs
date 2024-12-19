@@ -3,18 +3,15 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use mcp_client::{
-    client::{ClientCapabilities, ClientInfo, McpClient},
+    client::{ClientCapabilities, ClientInfo, McpClient, McpClientImpl},
     service::{ServiceError, TransportService},
-    transport::StdioTransport,
+    transport::{SseTransport, StdioTransport},
 };
-use tower::{ServiceBuilder, ServiceExt};
-use tower::timeout::TimeoutLayer;
-use tracing_subscriber::EnvFilter;
-use tower::util::BoxService;
 use mcp_core::protocol::JsonRpcMessage;
-
-// Define a type alias for the boxed service using BoxService
-type BoxedService = BoxService<JsonRpcMessage, JsonRpcMessage, ServiceError>;
+use tower::timeout::TimeoutLayer;
+use tower::util::BoxService;
+use tower::{ServiceBuilder, ServiceExt};
+use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,9 +27,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create two separate clients with stdio transport
     let client1 = create_client("client1", "1.0.0")?;
     let client2 = create_client("client2", "1.0.0")?;
+    let client3 = create_sse_client("client3", "1.0.0")?;
 
     // Initialize both clients
-    let mut clients: Vec<McpClient<BoxedService>> = vec![client1, client2];
+    let mut clients: Vec<Box<dyn McpClient>> = Vec::new();
+    clients.push(client1);
+    clients.push(client2);
+    clients.push(client3);
 
     // Initialize all clients
     for (i, client) in clients.iter_mut().enumerate() {
@@ -59,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn create_client(
     _name: &str,
     _version: &str,
-) -> Result<McpClient<BoxService<JsonRpcMessage, JsonRpcMessage, ServiceError>>, Box<dyn std::error::Error>> {
+) -> Result<Box<dyn McpClient>, Box<dyn std::error::Error>> {
     // Create the transport
     let transport = Arc::new(Mutex::new(StdioTransport::new("uvx", ["mcp-server-git"])));
 
@@ -73,9 +74,30 @@ fn create_client(
             } else {
                 ServiceError::Other(e.to_string())
             }
-        })
-        .boxed(); // Box the service to create a BoxService
+        });
 
-    // Create the client
-    Ok(McpClient::new(service))
+    Ok(Box::new(McpClientImpl::new(service)))
+}
+
+fn create_sse_client(
+    _name: &str,
+    _version: &str,
+) -> Result<Box<dyn McpClient>, Box<dyn std::error::Error>> {
+    let transport = Arc::new(Mutex::new(
+        SseTransport::new("http://localhost:8000/sse").unwrap(),
+    ));
+
+    // Build service with middleware including timeout
+    let service = ServiceBuilder::new()
+        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .service(TransportService::new(Arc::clone(&transport)))
+        .map_err(|e: Box<dyn std::error::Error + Send + Sync>| {
+            if e.is::<tower::timeout::error::Elapsed>() {
+                ServiceError::Timeout(tower::timeout::error::Elapsed::new())
+            } else {
+                ServiceError::Other(e.to_string())
+            }
+        });
+
+    Ok(Box::new(McpClientImpl::new(service)))
 }

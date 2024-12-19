@@ -1,5 +1,7 @@
 use anyhow::Result;
-use mcp_client::client::{ClientCapabilities, ClientInfo, Error as ClientError, McpClient};
+use mcp_client::client::{
+    ClientCapabilities, ClientInfo, Error as ClientError, McpClient, McpClientImpl,
+};
 use mcp_client::{
     service::{ServiceError, TransportService},
     transport::StdioTransport,
@@ -38,7 +40,7 @@ async fn main() -> Result<(), ClientError> {
         });
 
     // Create client
-    let mut client = McpClient::new(service);
+    let mut client = McpClientImpl::new(service);
 
     // Initialize
     let server_info = client
