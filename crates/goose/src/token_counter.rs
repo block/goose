@@ -214,6 +214,9 @@ impl TokenCounter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::MessageContent;
+    use mcp_core::role::Role;
+    use serde_json::json;
 
     #[test]
     fn test_add_tokenizer_and_count_tokens() {
@@ -242,73 +245,65 @@ mod tests {
         assert_eq!(count, 3);
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::message::MessageContent;
-        use mcp_core::role::Role;
-        use serde_json::json;
+    #[test]
+    fn test_count_chat_tokens() {
+        let token_counter = TokenCounter::new();
 
-        #[test]
-        fn test_count_chat_tokens() {
-            let token_counter = TokenCounter::new();
+        let system_prompt =
+            "You are a helpful assistant that can answer questions about the weather.";
 
-            let system_prompt =
-                "You are a helpful assistant that can answer questions about the weather.";
+        let messages = vec![
+            Message {
+                role: Role::User,
+                created: 0,
+                content: vec![MessageContent::text(
+                    "What's the weather like in San Francisco?",
+                )],
+            },
+            Message {
+                role: Role::Assistant,
+                created: 1,
+                content: vec![MessageContent::text(
+                    "Looks like it's 60 degrees Fahrenheit in San Francisco.",
+                )],
+            },
+            Message {
+                role: Role::User,
+                created: 2,
+                content: vec![MessageContent::text("How about New York?")],
+            },
+        ];
 
-            let messages = vec![
-                Message {
-                    role: Role::User,
-                    created: 0,
-                    content: vec![MessageContent::text(
-                        "What's the weather like in San Francisco?",
-                    )],
-                },
-                Message {
-                    role: Role::Assistant,
-                    created: 1,
-                    content: vec![MessageContent::text(
-                        "Looks like it's 60 degrees Fahrenheit in San Francisco.",
-                    )],
-                },
-                Message {
-                    role: Role::User,
-                    created: 2,
-                    content: vec![MessageContent::text("How about New York?")],
-                },
-            ];
-
-            let tools = vec![Tool {
-                name: "get_current_weather".to_string(),
-                description: "Get the current weather in a given location".to_string(),
-                input_schema: json!({
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA"
-                        },
-                        "unit": {
-                            "type": "string",
-                            "description": "The unit of temperature to return",
-                            "enum": ["celsius", "fahrenheit"]
-                        }
+        let tools = vec![Tool {
+            name: "get_current_weather".to_string(),
+            description: "Get the current weather in a given location".to_string(),
+            input_schema: json!({
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA"
                     },
-                    "required": ["location"]
-                }),
-            }];
+                    "unit": {
+                        "type": "string",
+                        "description": "The unit of temperature to return",
+                        "enum": ["celsius", "fahrenheit"]
+                    }
+                },
+                "required": ["location"]
+            }),
+        }];
 
-            let token_count_without_tools =
-                token_counter.count_chat_tokens(system_prompt, &messages, &vec![], Some("gpt-4o"));
-            println!("Total tokens without tools: {}", token_count_without_tools);
+        let token_count_without_tools =
+            token_counter.count_chat_tokens(system_prompt, &messages, &[], Some("gpt-4o"));
+        println!("Total tokens without tools: {}", token_count_without_tools);
 
-            let token_count_with_tools =
-                token_counter.count_chat_tokens(system_prompt, &messages, &tools, Some("gpt-4o"));
-            println!("Total tokens with tools: {}", token_count_with_tools);
+        let token_count_with_tools =
+            token_counter.count_chat_tokens(system_prompt, &messages, &tools, Some("gpt-4o"));
+        println!("Total tokens with tools: {}", token_count_with_tools);
 
-            // The token count for messages without tools is calculated using the tokenizer - https://tiktokenizer.vercel.app/
-            // The token count for messages with tools is taken from tiktoken github repo example (notebook)
-            assert_eq!(token_count_without_tools, 56);
-            assert_eq!(token_count_with_tools, 124);
-        }
+        // The token count for messages without tools is calculated using the tokenizer - https://tiktokenizer.vercel.app/
+        // The token count for messages with tools is taken from tiktoken github repo example (notebook)
+        assert_eq!(token_count_without_tools, 56);
+        assert_eq!(token_count_with_tools, 124);
     }
 }

@@ -6,16 +6,21 @@ use serde_json::Value;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct JsonRpcRequest {
     pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u64>,
     pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct JsonRpcResponse {
     pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorData>,
 }
 
@@ -23,23 +28,81 @@ pub struct JsonRpcResponse {
 pub struct JsonRpcNotification {
     pub jsonrpc: String,
     pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct JsonRpcError {
     pub jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<u64>,
     pub error: ErrorData,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(untagged)]
+#[serde(untagged, try_from = "JsonRpcRaw")]
 pub enum JsonRpcMessage {
     Request(JsonRpcRequest),
     Response(JsonRpcResponse),
     Notification(JsonRpcNotification),
     Error(JsonRpcError),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JsonRpcRaw {
+    jsonrpc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<u64>,
+    method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    params: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<ErrorData>,
+}
+
+impl TryFrom<JsonRpcRaw> for JsonRpcMessage {
+    type Error = String;
+
+    fn try_from(raw: JsonRpcRaw) -> Result<Self, <Self as TryFrom<JsonRpcRaw>>::Error> {
+        // If it has an error field, it's an error response
+        if raw.error.is_some() {
+            return Ok(JsonRpcMessage::Error(JsonRpcError {
+                jsonrpc: raw.jsonrpc,
+                id: raw.id,
+                error: raw.error.unwrap(),
+            }));
+        }
+
+        // If it has a result field, it's a response
+        if raw.result.is_some() {
+            return Ok(JsonRpcMessage::Response(JsonRpcResponse {
+                jsonrpc: raw.jsonrpc,
+                id: raw.id,
+                result: raw.result,
+                error: None,
+            }));
+        }
+
+        // If the method starts with "notifications/", it's a notification
+        if raw.method.starts_with("notifications/") {
+            return Ok(JsonRpcMessage::Notification(JsonRpcNotification {
+                jsonrpc: raw.jsonrpc,
+                method: raw.method,
+                params: raw.params,
+            }));
+        }
+
+        // Otherwise it's a request
+        Ok(JsonRpcMessage::Request(JsonRpcRequest {
+            jsonrpc: raw.jsonrpc,
+            id: raw.id,
+            method: raw.method,
+            params: raw.params,
+        }))
+    }
 }
 
 // Standard JSON-RPC error codes
@@ -80,8 +143,11 @@ pub struct Implementation {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct ServerCapabilities {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prompts: Option<PromptsCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resources: Option<ResourcesCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<ToolsCapability>,
     // Add other capabilities as needed
 }

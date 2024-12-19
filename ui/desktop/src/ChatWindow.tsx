@@ -35,6 +35,8 @@ export interface Chat {
   }>;
 }
 
+type ScrollBehavior = 'auto' | 'smooth' | 'instant';
+
 function ChatContent({
   chats,
   setChats,
@@ -57,6 +59,16 @@ function ChatContent({
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [working, setWorkingLocal] = useState<Working>(Working.Idle);
+
+  useEffect(() => {
+    setWorking(working);
+  }, [working, setWorking]);
+
+  const updateWorking = (newWorking: Working) => {
+    setWorkingLocal(newWorking);
+  };
 
   const {
     messages,
@@ -69,26 +81,30 @@ function ChatContent({
     api: getApiUrl('/reply'),
     initialMessages: chat?.messages || [],
     onToolCall: ({ toolCall }) => {
-      setWorking(Working.Working);
+      updateWorking(Working.Working);
       setProgressMessage(`Executing tool: ${toolCall.toolName}`);
+      requestAnimationFrame(() => scrollToBottom('instant'));
     },
     onResponse: (response) => {
       if (!response.ok) {
         setProgressMessage('An error occurred while receiving the response.');
-        setWorking(Working.Idle);
+        updateWorking(Working.Idle);
       } else {
         setProgressMessage('thinking...');
-        setWorking(Working.Working);
+        updateWorking(Working.Working);
       }
     },
     onFinish: async (message, options) => {
-      setProgressMessage('Task finished. Click here to expand.');
-      setWorking(Working.Idle);
+      setTimeout(() => {
+        setProgressMessage('Task finished. Click here to expand.');
+        updateWorking(Working.Idle);
+      }, 500);
       
       const fetchResponses = await askAi(message.content);
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
       
-      // Only show notification if it's been more than a minute since last interaction
+      requestAnimationFrame(() => scrollToBottom('smooth'));
+      
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo("last interaction:" + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) { // 60000ms = 1 minute
@@ -120,15 +136,41 @@ function ChatContent({
     }
   }, [messages]);
 
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({
+        behavior,
+        block: 'end',
+        inline: 'nearest'
+      });
+    }
+  };
+
+  // Single effect to handle all scrolling
+  useEffect(() => {
+    if (isLoading || messages.length > 0 || working === Working.Working) {
+      // Initial scroll
+      scrollToBottom(isLoading || working === Working.Working ? 'instant' : 'smooth');
+      
+      // // Additional scrolls to catch dynamic content
+      // [100, 300, 500].forEach(delay => {
+      //   setTimeout(() => scrollToBottom('smooth'), delay);
+      // });
+    }
+  }, [messages, isLoading, working]);
+
+  // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     const customEvent = e as CustomEvent;
     const content = customEvent.detail?.value || '';
     if (content.trim()) {
-      setLastInteractionTime(Date.now()); // Update last interaction time
+      setLastInteractionTime(Date.now());
       append({
         role: 'user',
         content: content,
       });
+      // Immediate scroll on submit
+      scrollToBottom('instant');
     }
   };
 
@@ -198,13 +240,12 @@ function ChatContent({
         {messages.length === 0 ? (
           <Splash append={append} />
         ) : (
-          <ScrollArea className="flex-1 px-[10px]" id="chat-scroll-area">
+          <ScrollArea 
+            className="flex-1 px-[10px]" 
+            id="chat-scroll-area"
+          >
             <div className="block h-10" />
-            <div ref={(el) => {
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-              }
-            }}>
+            <div>
               {messages.map((message) => (
                 <div key={message.id}>
                   {message.role === 'user' ? (
@@ -219,37 +260,38 @@ function ChatContent({
                   )}
                 </div>
               ))}
+              {isLoading && (
+                <div className="flex items-center justify-center p-4">
+                  <div onClick={() => setShowGame(true)} style={{ cursor: 'pointer' }}>
+                    <LoadingGoose />
+                  </div>
+                </div>
+              )}
+              {error && (
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                    {error.message || 'Honk! Goose experienced an error while responding'}
+                    {error.status && (
+                      <span className="ml-2">(Status: {error.status})</span>
+                    )}
+                  </div>
+                  <div
+                    className="p-4 text-center text-splash-pills-text whitespace-nowrap cursor-pointer bg-prev-goose-gradient dark:bg-dark-prev-goose-gradient text-prev-goose-text dark:text-prev-goose-text-dark rounded-[14px] inline-block hover:scale-[1.02] transition-all duration-150"
+                    onClick={async () => {
+                      const lastUserMessage = messages.reduceRight((found, m) => found || (m.role === 'user' ? m : null), null);
+                      if (lastUserMessage) {
+                        append({
+                          role: 'user',
+                          content: lastUserMessage.content
+                        });
+                      }
+                    }}>
+                    Retry Last Message
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} style={{ height: '1px' }} />
             </div>
-            {isLoading && (
-              <div className="flex items-center justify-center p-4">
-                <div onClick={() => setShowGame(true)} style={{ cursor: 'pointer' }}>
-                  <LoadingGoose />
-                </div>
-              </div>
-            )}
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                  {error.status && (
-                    <span className="ml-2">(Status: {error.status})</span>
-                  )}
-                </div>
-                <div
-                  className="p-4 text-center text-splash-pills-text whitespace-nowrap cursor-pointer bg-prev-goose-gradient dark:bg-dark-prev-goose-gradient text-prev-goose-text dark:text-prev-goose-text-dark rounded-[14px] inline-block hover:scale-[1.02] transition-all duration-150"
-                  onClick={async () => {
-                    const lastUserMessage = messages.reduceRight((found, m) => found || (m.role === 'user' ? m : null), null);
-                    if (lastUserMessage) {
-                      append({
-                        role: 'user',
-                        content: lastUserMessage.content
-                      });
-                    }
-                  }}>
-                  Retry Last Message
-                </div>
-              </div>
-            )}
             <div className="block h-10" />
           </ScrollArea>
         )}

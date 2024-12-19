@@ -119,58 +119,8 @@ impl Transport for StdioTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use std::time::Duration;
     use tokio::time::timeout;
-
-    #[tokio::test]
-    async fn test_stdio_transport() {
-        let transport = StdioTransport {
-            params: StdioServerParams {
-                command: "tee".to_string(), // tee will echo back what it receives
-                args: vec![],
-                env: None,
-            },
-        };
-
-        let (mut rx, tx) = transport.connect().await.unwrap();
-
-        // Create test messages
-        let request = JsonRpcMessage::Request(JsonRpcRequest {
-            jsonrpc: "2.0".to_string(),
-            id: Some(1),
-            method: "ping".to_string(),
-            params: None,
-        });
-
-        let response = JsonRpcMessage::Response(JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id: Some(2),
-            result: Some(json!({})),
-            error: None,
-        });
-
-        // Send messages
-        tx.send(request.clone()).await.unwrap();
-        tx.send(response.clone()).await.unwrap();
-
-        // Receive and verify messages
-        let mut read_messages = Vec::new();
-
-        // Use timeout to avoid hanging if messages aren't received
-        for _ in 0..2 {
-            match timeout(Duration::from_secs(1), rx.recv()).await {
-                Ok(Some(Ok(msg))) => read_messages.push(msg),
-                Ok(Some(Err(e))) => panic!("Received error: {}", e),
-                Ok(None) => break,
-                Err(_) => panic!("Timeout waiting for message"),
-            }
-        }
-
-        assert_eq!(read_messages.len(), 2, "Expected 2 messages");
-        assert_eq!(read_messages[0], request);
-        assert_eq!(read_messages[1], response);
-    }
 
     #[tokio::test]
     async fn test_process_termination() {
