@@ -30,14 +30,17 @@ serde_yaml = "0.9"
 dirs = "4.0"
 strum = "0.26"
 strum_macros = "0.26"
-reqwest = "0.11.27"
+reqwest = { version = "0.11.27", features = ["json"] }
 rand = "0.8.5"
 async-trait = "0.1"
 rustyline = "15.0.0"
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = "0.4"
+parking_lot = "0.12.3"
 
 [dev-dependencies]
 tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
-
