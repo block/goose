@@ -13,21 +13,31 @@ pub enum ToolError {
     SerializationError(#[from] serde_json::Error),
     #[error("Schema error: {0}")]
     SchemaError(String),
+    #[error("Tool not found: {0}")]
+    NotFound(String),
+}
+
+#[derive(Error, Debug)]
+pub enum ResourceError {
+    #[error("Execution failed: {0}")]
+    ExecutionError(String),
+    #[error("Resource not found: {0}")]
+    NotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, ToolError>;
 
 /// Trait for implementing MCP tools
 #[async_trait]
-pub trait Tool: Send + Sync + 'static {
+pub trait ToolHandler: Send + Sync + 'static {
     /// The name of the tool
-    fn name() -> &'static str;
+    fn name(&self) -> &'static str;
 
     /// A description of what the tool does
-    fn description() -> &'static str;
+    fn description(&self) -> &'static str;
 
     /// JSON schema describing the tool's parameters
-    fn schema() -> Value;
+    fn schema(&self) -> Value;
 
     /// Execute the tool with the given parameters
     async fn call(&self, params: Value) -> Result<Value>;
@@ -35,7 +45,7 @@ pub trait Tool: Send + Sync + 'static {
 
 /// Trait for implementing MCP resources
 #[async_trait]
-pub trait Resource: Send + Sync + 'static {
+pub trait ResourceTemplateHandler: Send + Sync + 'static {
     /// The URL template for this resource
     fn template() -> &'static str;
 

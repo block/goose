@@ -5,6 +5,7 @@ use serde_json::Value;
 
 /// A tool that can be used by a model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Tool {
     /// The name of the tool
     pub name: String,
@@ -31,6 +32,7 @@ impl Tool {
 
 /// A tool call request that a system can execute
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolCall {
     /// The name of the tool to execute
     pub name: String,
