@@ -1,79 +1,71 @@
 on:
   push:
     tags:
-      - "v1.*"
+      - "v00.*"
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
-
-name: Release CLI
-
+name: Release
 jobs:
   build:
-    name: Build ${{ matrix.os }}-${{ matrix.architecture }}
+    name: Build ${{ matrix.arch }}-${{ matrix.target-suffix }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # Allow independent failures
       matrix:
+        os: [ubuntu-latest, macos-latest]
+        arch: [x86_64, aarch64]
         include:
-          # Linux x86_64 build on Ubuntu
           - os: ubuntu-latest
-            architecture: x86_64
-            suffix: unknown-linux-gnu
-          # macOS x86_64 build
+            target-suffix: unknown-linux-gnu
+          - os: ubuntu-latest
+            target-suffix: aarch64-unknown-linux-gnu
           - os: macos-latest
-            architecture: x86_64
-            suffix: apple-darwin
-          # macOS ARM64 build
-          - os: macos-latest
-            architecture: aarch64
-            suffix: apple-darwin
-
+            target-suffix: apple-darwin
     steps:
-      # Step 1: Checkout the code
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Step 2: Set up Rust toolchain
-      - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.architecture }}-${{ matrix.suffix }}
-
-      # Step 3: Install dependencies for macOS ARM64 builds
-      - name: Install dependencies for macOS ARM64
-        if: matrix.os == 'macos-latest' && matrix.architecture == 'aarch64'
+      # Install cross from Git
+      - name: Install cross from Git
         run: |
-          brew install llvm
-          rustup target add aarch64-apple-darwin
-          echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
+          cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Install Libs for Ubuntu linux
+      # Ensure Rust target is added (Linux only)
+      - name: Add Rust Target
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt update -y
-          sudo apt install -y libdbus-1-dev libssl-dev gnome-keyring libxcb1-dev
-          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          rustup target add ${{ matrix.target-suffix }}
 
-
-      # Step 4: Build the project
-      - name: Build
+      # Dynamically create Cross.toml for Linux
+      - name: Create Cross.toml
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
-          cargo build --release --target $TARGET
-          cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose goosed
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          echo "[target.aarch64-unknown-linux-gnu]" > Cross.toml
+          echo "pre-build = [\"apt-get update && apt-get install -y libssl-dev\"]" >> Cross.toml
+          echo "[target.x86_64-unknown-linux-gnu]" >> Cross.toml
+          echo "pre-build = [\"apt-get update && apt-get install -y libssl-dev\"]" >> Cross.toml
 
-      # Step 5: Upload artifacts
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      # Build the project using cross
+      - id: build
+        name: Build the project
+        shell: bash
+        run: |
+          export CROSS_NO_WARNINGS=0
+          export TARGET=${{ matrix.arch }}-${{ matrix.target-suffix }}
+
+          cross build --release --target ${TARGET} -vv
+
+          export TARGET_PATH=target/${TARGET}/release/goose-${TARGET}
+          mv target/${TARGET}/release/goose ${TARGET_PATH}
+          bzip2 -f9 ${TARGET_PATH}
+          echo "TARGET_PATH=${TARGET_PATH}.bz2" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: goose-${{ matrix.architecture }}-${{ matrix.suffix }}
-          path: ${{ env.ARTIFACT }}
-
+          name: goose-${{ matrix.arch }}-${{ matrix.target-suffix }}
+          path: ${{ steps.build.outputs.TARGET_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     name: Release
     runs-on: ubuntu-latest
@@ -81,15 +73,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      # Step 1: Download all build artifacts
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-
-      # Step 2: Publish release with artifacts
-      - name: Create GitHub release
-        uses: ncipollo/release-action@v1
+      - uses: ncipollo/release-action@v1
         with:
-          artifacts: "goose-*.tar.bz2"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: "goose-*.bz2"
