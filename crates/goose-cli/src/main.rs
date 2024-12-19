@@ -1,6 +1,7 @@
 mod commands {
     pub mod configure;
     pub mod session;
+    pub mod tui_configure;
     pub mod version;
 }
 pub mod agents;
@@ -12,9 +13,9 @@ mod systems;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use commands::configure::handle_configure;
 use commands::session::build_session;
 use commands::version::print_version;
+use commands::{configure::handle_configure, tui_configure::handle_tui_configure};
 use profile::has_no_profiles;
 use std::io::{self, Read};
 
@@ -37,6 +38,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(about = "Experiemental configure Goose UI")]
+    EConfigure {},
     /// Configure Goose settings and profiles
     #[command(about = "Configure Goose settings and profiles")]
     Configure {
@@ -203,6 +206,10 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
+        Some(Command::EConfigure {}) => {
+            let _ = handle_tui_configure().await;
+            return Ok(());
+        }
         Some(Command::Configure {
             profile_name,
             provider,

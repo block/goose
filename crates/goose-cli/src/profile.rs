@@ -52,6 +52,18 @@ pub fn load_profiles() -> Result<HashMap<String, Profile>> {
     Ok(profiles.profile_items)
 }
 
+pub fn remove_profile(name: &str) -> Result<()> {
+    let path = profile_path()?;
+    let mut profiles = load_profiles()?;
+    profiles.remove(name);
+    let profiles = Profiles {
+        profile_items: profiles,
+    };
+    let content = serde_json::to_string_pretty(&profiles)?;
+    fs::write(path, content)?;
+    Ok(())
+}
+
 pub fn save_profile(name: &str, profile: Profile) -> Result<()> {
     let path = profile_path()?;
     let mut profiles = load_profiles()?;
