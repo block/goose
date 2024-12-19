@@ -58,8 +58,8 @@ export default {
         'dark-prev-goose-gradient': 'linear-gradient(89deg, rgb(147 149 151 / 4%) 0.16%, rgb(55 65 81 / 35%) 99.77%)',
         'card-gradient': 'linear-gradient(359deg, rgba(255, 255, 255, 0.90) 9.96%, rgba(226, 245, 251, 0.90) 95.35%)',
         'dark-card-gradient': 'linear-gradient(359deg, rgba(31, 41, 55, 0.90) 9.96%, rgba(17, 24, 39, 0.90) 95.35%)',
-        'window-gradient': 'linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0%, rgba(246, 247, 255, 0.55) 100%)',
-        'dark-window-gradient': 'linear-gradient(90deg, rgba(50, 50, 50, 0.55) 0%, rgba(89, 89, 89, 0.55) 100%)'
+        'window-gradient': 'linear-gradient(90deg, rgba(255, 255, 255, 0.25) 0%, rgba(246, 247, 255, 0.25) 100%)',
+        'dark-window-gradient': 'linear-gradient(90deg, rgba(50, 50, 50, 0.25) 0%, rgba(89, 89, 89, 0.25) 100%)'
       },
       fontSize: {
         14: '14px'
@@ -142,14 +142,14 @@ export default {
           DEFAULT: '#000000',
           dark: '#9d9d9d',
         },
-      'goose-text': {
+        'goose-text': {
           DEFAULT: '#000000',
           dark: '#9d9d9d',
-          },
+        },
         'goose-text-light': {
-                  DEFAULT: '#FFFFFF',
-                  dark: '#2F2F2F',
-                  }
+          DEFAULT: '#FFFFFF',
+          dark: '#2F2F2F',
+        }
       },
       borderRadius: {
         lg: 'var(--radius)',

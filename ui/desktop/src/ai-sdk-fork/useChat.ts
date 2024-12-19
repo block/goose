@@ -10,11 +10,12 @@ import type {
   UseChatOptions,
 } from '@ai-sdk/ui-utils';
 import { generateId as generateIdFunc } from '@ai-sdk/ui-utils';
-import { callCustomChatApi as callChatApi } from './call-custom-chat-api'
+import { callCustomChatApi as callChatApi } from './call-custom-chat-api';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import useSWR, { KeyedMutator } from 'swr';
 import { throttle } from './throttle';
 import { getSecretKey } from '../config';
+import type { CustomSubmitEvent } from '../types/custom-event';
 
 export type { CreateMessage, Message, UseChatOptions };
 
@@ -65,7 +66,7 @@ export type UseChatHelpers = {
   ) => void;
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (
-    event?: { preventDefault?: () => void },
+    event?: { preventDefault?: () => void } | CustomSubmitEvent,
     chatRequestOptions?: ChatRequestOptions,
   ) => void;
   metadata?: object;
@@ -482,13 +483,18 @@ By default, it's set to 1, which means that only a single LLM call is made.
 
   const handleSubmit = useCallback(
     async (
-      event?: { preventDefault?: () => void },
+      event?: { preventDefault?: () => void } | CustomSubmitEvent,
       options: ChatRequestOptions = {},
       metadata?: object,
     ) => {
       event?.preventDefault?.();
 
-      if (!input && !options.allowEmptySubmit) return;
+      // Handle both regular form submit and CustomSubmitEvent
+      const customEvent = event as CustomSubmitEvent;
+      const eventInput = customEvent?.detail?.value ?? input;
+      const imageData = customEvent?.detail?.image;
+
+      if (!eventInput && !options.allowEmptySubmit && !imageData) return;
 
       if (metadata) {
         extraMetadataRef.current = {
@@ -497,18 +503,31 @@ By default, it's set to 1, which means that only a single LLM call is made.
         };
       }
 
-      const attachmentsForRequest = await prepareAttachmentsForRequest(
+      // Prepare attachments from both options and image data
+      let attachmentsForRequest = await prepareAttachmentsForRequest(
         options.experimental_attachments,
       );
 
+      // Add image from CustomSubmitEvent if present
+      if (imageData?.path) {
+        attachmentsForRequest = [
+          ...attachmentsForRequest,
+          {
+            name: 'pasted_image',
+            contentType: 'image/png',
+            url: `file://${imageData.path}`
+          }
+        ];
+      }
+
       const messages =
-        !input && !attachmentsForRequest.length && options.allowEmptySubmit
+        !eventInput && !attachmentsForRequest.length && options.allowEmptySubmit
           ? messagesRef.current
           : messagesRef.current.concat({
               id: generateId(),
               createdAt: new Date(),
               role: 'user',
-              content: input,
+              content: eventInput,
               experimental_attachments:
                 attachmentsForRequest.length > 0
                   ? attachmentsForRequest

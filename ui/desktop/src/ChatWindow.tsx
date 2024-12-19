@@ -17,23 +17,29 @@ import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import FlappyGoose from './components/FlappyGoose';
 
+interface CustomSubmitEvent extends CustomEvent {
+  detail: {
+    value: string;
+    image?: {
+      preview: string;
+      compressed: string;
+      path?: string;
+    };
+  };
+}
+
+export interface Chat {
+  id: number;
+  title: string;
+  messages: Message[];
+}
+
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
 const CURRENT_VERSION = '0.0.0';
 
 // Get the last version from localStorage
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
-
-
-export interface Chat {
-  id: number;
-  title: string;
-  messages: Array<{
-    id: string;
-    role: 'function' | 'system' | 'user' | 'assistant' | 'data' | 'tool';
-    content: string;
-  }>;
-}
 
 function ChatContent({
   chats,
@@ -120,15 +126,17 @@ function ChatContent({
     }
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    const customEvent = e as CustomEvent;
-    const content = customEvent.detail?.value || '';
-    if (content.trim()) {
-      setLastInteractionTime(Date.now()); // Update last interaction time
+  const handleSubmit = (e: CustomSubmitEvent) => {
+    const content = e.detail.value || '';
+    const image = e.detail.image;
+    
+    if (content.trim() || image) {
+      setLastInteractionTime(Date.now());
       append({
         role: 'user',
         content: content,
-      });
+        image,
+      } as Message);
     }
   };
 
@@ -341,7 +349,7 @@ export default function ChatWindow() {
   window.electron.logInfo('ChatWindow loaded');
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden dark:bg-dark-window-gradient bg-window-gradient flex flex-col">
+    <div className="relative w-screen h-screen overflow-hidden flex flex-col bg-window-gradient dark:bg-dark-window-gradient">
       <div className="titlebar-drag-region" />
       {apiCredsMissing ? (
         <div className="w-full h-full">
@@ -379,4 +387,15 @@ export default function ChatWindow() {
       )}
     </div>
   );
+}
+
+declare global {
+  interface Window {
+    electron: {
+      hideWindow: () => void;
+      createChatWindow: (query: string) => void;
+      notify: (data: { title: string; body: string }) => void;
+      logInfo: (info: string) => void;
+    };
+  }
 }
