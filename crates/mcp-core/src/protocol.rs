@@ -23,6 +23,7 @@ pub struct JsonRpcResponse {
 pub struct JsonRpcNotification {
     pub jsonrpc: String,
     pub method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Value>,
 }
 
@@ -40,6 +41,7 @@ pub enum JsonRpcMessage {
     Response(JsonRpcResponse),
     Notification(JsonRpcNotification),
     Error(JsonRpcError),
+    Nil, // used to respond to notifications
 }
 
 // Standard JSON-RPC error codes
