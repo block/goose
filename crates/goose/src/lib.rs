@@ -2,6 +2,7 @@ pub mod agent;
 pub mod developer;
 pub mod errors;
 pub mod key_manager;
+pub mod mcp_agent;
 pub mod memory;
 pub mod message;
 pub mod process_store;
