@@ -23,10 +23,7 @@ jobs:
             architecture: x86_64
             suffix: unknown-linux-gnu
 
-          # Linux aarch64 (ARM64) build on Ubuntu via cross-compilation
-          - os: ubuntu-latest
-            architecture: aarch64
-            suffix: unknown-linux-gnu
+          # TODO: Linux aarch64 (ARM64) build on Ubuntu via cross-compilation - probably use `cross-rs`
 
           # macOS x86_64 build
           - os: macos-latest
@@ -66,13 +63,6 @@ jobs:
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
-      # Additional step: Install dependencies for Linux aarch64 (cross-compilation)
-      - name: Install dependencies for Linux aarch64
-        if: matrix.os == 'ubuntu-latest' && matrix.architecture == 'aarch64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
 
       # Step 5: Build the project
       - name: Build
