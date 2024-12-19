@@ -204,7 +204,7 @@ class Exchange:
             self.checkpoint_data.checkpoints.append(
                 Checkpoint(
                     start_index=new_start_index + self.checkpoint_data.message_index_offset,
-                    # end index below is equivalent to the second last message. why? becuase
+                    # end index below is equivalent to the second last message. why? because
                     # the last message is the assistant message that we add below. we need to also
                     # track the token count of the user message sent.
                     end_index=len(self.messages) - 2 + self.checkpoint_data.message_index_offset,

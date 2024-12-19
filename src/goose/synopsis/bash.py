@@ -28,7 +28,7 @@ class Bash:
     def _shell(self, command: str) -> str:
         """Execute any shell command."""
         if command.startswith("cat"):
-            raise ValueError("You must read files through the text_editor tool with 'view' comamnd.")
+            raise ValueError("You must read files through the text_editor tool with 'view' command.")
         if command.startswith("cd"):
             raise ValueError("You must change dirs through the bash tool with 'working_dir' param.")
         if command.startswith("source"):

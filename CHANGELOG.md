@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: getting index.md in sync with readme (#183)
 - chore: Update block-open-source ref to block (#181)
 - fix: just adding stuff from developer.py to synopsis developer (#182)
-- fix: Simplifed langfuse auth check (#177)
+- fix: Simplified langfuse auth check (#177)
 - test: add vision tests for google (#160)
 - fix: adding a release checker (#176)
 
