@@ -293,7 +293,9 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
   
   createTray();
-  createChat(app, undefined, dirPath);
+  const recentDirs = loadRecentDirs();
+  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
+  createChat(app, undefined, openDir);
 
   // Show launcher input on key combo
   globalShortcut.register('Control+Alt+Command+G', createLauncher);
