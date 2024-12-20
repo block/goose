@@ -505,6 +505,7 @@ mod tests {
                     name: "mock".to_string(),
                     version: "2.0".to_string(),
                 },
+                instructions: None,
             })
         }
 

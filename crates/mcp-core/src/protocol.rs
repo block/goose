@@ -72,6 +72,7 @@ pub struct InitializeResult {
     pub protocol_version: String,
     pub capabilities: ServerCapabilities,
     pub server_info: Implementation,
+    pub instructions: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
