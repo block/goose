@@ -135,7 +135,13 @@ impl Moderation for OpenAiProvider {
             let category_scores = response_json["results"][0]["category_scores"].clone();
             return Ok(ModerationResult::new(
                 flagged,
-                Some(categories.keys().cloned().collect()),
+                Some(
+                    categories
+                        .iter()
+                        .filter(|(_, value)| value.as_bool().unwrap_or(false))
+                        .map(|(key, _)| key.to_string())
+                        .collect(),
+                ),
                 Some(category_scores),
             ));
         } else {
