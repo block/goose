@@ -66,16 +66,65 @@ jobs:
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
-      # Step 5: Build the project
+      # Step 5: Set up certificates for macOS builds
+      - name: Add MacOS certs for signing
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Create the script in a temp location
+          cat << 'EOF' > /tmp/add-macos-cert.sh
+          #!/usr/bin/env sh
+
+          KEY_CHAIN=build.keychain
+          CERTIFICATE_P12=certificate.p12
+
+          # Recreate the certificate from the secure environment variable
+          echo $CERTIFICATE_OSX_APPLICATION | base64 --decode > $CERTIFICATE_P12
+
+          #create a keychain
+          security create-keychain -p actions $KEY_CHAIN
+
+          # Make the keychain the default so identities are found
+          security default-keychain -s $KEY_CHAIN
+
+          # Unlock the keychain
+          security unlock-keychain -p actions $KEY_CHAIN
+
+          security import $CERTIFICATE_P12 -k $KEY_CHAIN -P $CERTIFICATE_PASSWORD -T /usr/bin/codesign;
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions $KEY_CHAIN
+
+          # remove certs
+          rm -fr *.p12
+          EOF
+
+          chmod +x /tmp/add-macos-cert.sh
+          /tmp/add-macos-cert.sh
+        env:
+          CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      # Step 6: Build the project
       - name: Build
         run: |
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
-          cd target/${TARGET}/release
-          zip -j goose-${TARGET}.zip goose
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          
+          # For macOS builds, sign the binary
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            cd target/${TARGET}/release
+            codesign --force -s "Developer ID Application" --options runtime goose
+            # Create a ZIP archive
+            ditto -c -k --keepParent goose goose-${TARGET}.zip
+            # Notarize the ZIP
+            xcrun notarytool submit goose-${TARGET}.zip --apple-id "${{ secrets.APPLE_ID }}" --password "${{ secrets.APPLE_ID_PASSWORD }}" --team-id "${{ secrets.APPLE_TEAM_ID }}" --wait
+            echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          else
+            cd target/${TARGET}/release
+            zip -j goose-${TARGET}.zip goose
+            echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          fi
 
-      # Step 6: Upload artifacts
+      # Step 7: Upload artifacts
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -139,11 +188,11 @@ jobs:
             
             The following binaries are available for testing:
             
-            - [📦 macOS ARM64 (M1/M2)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
-            - [📦 macOS x86_64 (Intel)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
+            - [📦 macOS ARM64 (M1/M2, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
+            - [📦 macOS x86_64 (Intel, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
             - [📦 Linux x86_64](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-unknown-linux-gnu.zip)
 
-            Each archive contains the `goose` CLI binary.
+            Each archive contains the `goose` CLI binary. The macOS binaries are signed and notarized.
             
             These links are provided by nightly.link and will work even if you're not logged into GitHub.
           edit-mode: replace
