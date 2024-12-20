@@ -81,6 +81,10 @@ impl McpAgent {
         let (tools, _errors): (Vec<_>, Vec<_>) =
             results.into_iter().partition(|(_, result)| result.is_ok());
 
+        for e in _errors {
+            println!("{}: {:#?}", e.0, e.1);
+        }
+
         tools
             .into_iter()
             .flat_map(|(name, result)| {
@@ -450,7 +454,7 @@ mod tests {
     use crate::message::Message;
     use crate::providers::mock::MockProvider;
     use async_trait::async_trait;
-    use mcp_client::client::{ClientCapabilities, ClientInfo, Error};
+    use mcp_client::client::{ClientCapabilities, ClientInfo, Error, McpClientImpl};
     use mcp_core::protocol::Implementation;
     use mcp_core::protocol::{
         InitializeResult, ListResourcesResult, ListToolsResult, ReadResourceResult,
@@ -618,5 +622,61 @@ mod tests {
         let tool_call = Ok(ToolCall::new("unknown__test_tool", json!({})));
         let result = agent.dispatch_tool_call(tool_call).await;
         assert!(matches!(result, Err(AgentError::ToolNotFound(_))));
+    }
+
+    use mcp_client::service::{ServiceError, TransportService};
+    use mcp_client::transport::SseTransport;
+    use std::time::Duration;
+    use tower::timeout::TimeoutLayer;
+    use tower::{ServiceBuilder, ServiceExt};
+    #[tokio::test]
+    async fn test_mcp_agent_local_sse() {
+        let provider = MockProvider::new(vec![Message::assistant().with_text("test")]);
+        let mut agent = McpAgent::new(Box::new(provider));
+
+        let response_content = vec![Content::text("test response")];
+        let client = MockMcpClient::new().with_tool_response("test_tool", response_content.clone());
+
+        let transport = Arc::new(Mutex::new(
+            SseTransport::new("http://localhost:8000/sse").unwrap(),
+        ));
+
+        // Build service with middleware including timeout
+        let service = ServiceBuilder::new()
+            .layer(TimeoutLayer::new(Duration::from_secs(30)))
+            .service(TransportService::new(Arc::clone(&transport)))
+            .map_err(|e: Box<dyn std::error::Error + Send + Sync>| {
+                if e.is::<tower::timeout::error::Elapsed>() {
+                    ServiceError::Timeout(tower::timeout::error::Elapsed::new())
+                } else {
+                    ServiceError::Other(e.to_string())
+                }
+            });
+
+        let mut client_sse = Box::new(McpClientImpl::new(service));
+        let info = ClientInfo {
+            name: format!("example-client-{}", 1),
+            version: "1.0.0".to_string(),
+        };
+        let capabilities = ClientCapabilities::default();
+        let _r = client_sse.initialize(info, capabilities).await.unwrap();
+
+        // Sleep for 100ms to allow the server to start - surprisingly this is required!
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        agent.add_mcp_client("test".to_string(), Box::new(client));
+        agent.add_mcp_client("sse".to_string(), client_sse);
+
+        // Test successful tool call
+        let tool_call = Ok(ToolCall::new("test__test_tool", json!({"message": "test"})));
+        let result = agent.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), response_content);
+
+        let tools = agent.get_prefixed_tools().await;
+        assert_eq!(tools.len(), 5);
+        for t in tools {
+            println!("{}", t.name)
+        }
     }
 }
