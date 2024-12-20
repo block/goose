@@ -72,7 +72,7 @@ jobs:
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
           cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose goosed
+          tar -cjf goose-${TARGET}.tar.bz2 goose
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       # Step 6: Upload artifacts
@@ -135,7 +135,15 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            You can download CLI binaries from here to try this pull request out:
-            You can download the artifacts from the "Artifacts" section of this workflow run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ### CLI Binaries for this PR
+            
+            The following binaries are available for testing:
+            
+            - [📦 macOS ARM64 (M1/M2)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-aarch64-apple-darwin)
+            - [📦 macOS x86_64 (Intel)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-x86_64-apple-darwin)
+            - [📦 Linux x86_64](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-x86_64-unknown-linux-gnu)
+
+            Each archive contains the `goose` CLI binary.
+            
+            You'll need to be logged into GitHub to download these artifacts.
           edit-mode: replace

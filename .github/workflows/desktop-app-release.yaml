@@ -145,8 +145,13 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            Desktop App is ready to be tried from the following link:
+            ### Desktop App for this PR
+            
+            The following build is available for testing:
+            
+            - [📱 macOS ARM64 Desktop App (Universal, signed)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/Goose-darwin-arm64)
 
-            You can download the artifacts from the "Artifacts" section of this workflow run:
-            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            The app is signed and notarized for macOS. After downloading, unzip the file and drag the Goose.app to your Applications folder.
+            
+            You'll need to be logged into GitHub to download these artifacts.
           edit-mode: replace
