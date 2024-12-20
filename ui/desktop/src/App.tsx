@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import LauncherWindow from './LauncherWindow';
 import ChatWindow from './ChatWindow';
 import ErrorScreen from './components/ErrorScreen';
+import FeatureFlagsWindow from './components/FeatureFlags';
 
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const searchParams = new URLSearchParams(window.location.search);
-  const isLauncher = searchParams.get('window') === 'launcher';
+  const targetWindow = searchParams.get('window');
 
   useEffect(() => {
     const handleFatalError = (_: any, errorMessage: string) => {
@@ -25,5 +26,12 @@ export default function App() {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
   }
   
-  return isLauncher ? <LauncherWindow /> : <ChatWindow />;
+
+  if (targetWindow === 'launcher') {
+    return <LauncherWindow />;
+  } else if (targetWindow === 'featureFlags') {
+    return <FeatureFlagsWindow />;
+  } else {
+    return <ChatWindow />;
+  }
 }

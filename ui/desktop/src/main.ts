@@ -7,6 +7,7 @@ import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { createFeatureFlagsWindow } from './FeatureFlagsWindow';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -334,6 +335,14 @@ app.whenReady().then(async () => {
     }));
 
   }
+
+  // Add Feature Flags menu item
+  fileMenu?.submenu?.append(new MenuItem({
+    label: 'Feature Flags',
+    click() {
+      createFeatureFlagsWindow();
+    },
+  }));
 
   Menu.setApplicationMenu(menu);
 
