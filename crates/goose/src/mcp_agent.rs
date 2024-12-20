@@ -490,7 +490,7 @@ mod tests {
     #[async_trait]
     impl McpClient for MockMcpClient {
         async fn initialize(
-            &mut self,
+            &self,
             _info: ClientInfo,
             _capabilities: ClientCapabilities,
         ) -> Result<InitializeResult, Error> {
@@ -508,17 +508,17 @@ mod tests {
             })
         }
 
-        async fn list_tools(&mut self) -> Result<ListToolsResult, Error> {
+        async fn list_tools(&self) -> Result<ListToolsResult, Error> {
             Ok(ListToolsResult {
                 tools: self.tools.clone(),
             })
         }
 
-        async fn list_resources(&mut self) -> Result<ListResourcesResult, Error> {
+        async fn list_resources(&self) -> Result<ListResourcesResult, Error> {
             Ok(ListResourcesResult { resources: vec![] })
         }
 
-        async fn read_resource(&mut self, _uri: &str) -> Result<ReadResourceResult, Error> {
+        async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
             Ok(ReadResourceResult {
                 contents: vec![ResourceContents::TextResourceContents {
                     uri: "".to_string(),
@@ -529,7 +529,7 @@ mod tests {
         }
 
         async fn call_tool(
-            &mut self,
+            &self,
             name: &str,
             _arguments: serde_json::Value,
         ) -> Result<mcp_core::protocol::CallToolResult, Error> {
@@ -637,29 +637,19 @@ mod tests {
         let response_content = vec![Content::text("test response")];
         let client = MockMcpClient::new().with_tool_response("test_tool", response_content.clone());
 
-        let transport = Arc::new(Mutex::new(
-            SseTransport::new("http://localhost:8000/sse").unwrap(),
-        ));
+        let transport = SseTransport::new("http://localhost:8000/sse");
 
-        // Build service with middleware including timeout
-        let service = ServiceBuilder::new()
-            .layer(TimeoutLayer::new(Duration::from_secs(30)))
-            .service(TransportService::new(Arc::clone(&transport)))
-            .map_err(|e: Box<dyn std::error::Error + Send + Sync>| {
-                if e.is::<tower::timeout::error::Elapsed>() {
-                    ServiceError::Timeout(tower::timeout::error::Elapsed::new())
-                } else {
-                    ServiceError::Other(e.to_string())
-                }
-            });
+        let service = ServiceBuilder::new().service(TransportService::new(transport));
 
-        let mut client_sse = Box::new(McpClientImpl::new(service));
+        let client_sse = Box::new(McpClientImpl::new(service));
         let info = ClientInfo {
             name: format!("example-client-{}", 1),
             version: "1.0.0".to_string(),
         };
         let capabilities = ClientCapabilities::default();
-        let _r = client_sse.initialize(info, capabilities).await.unwrap();
+        let initialize_result = client_sse.initialize(info, capabilities).await.unwrap();
+
+        println!("{:#?}", initialize_result);
 
         // Sleep for 100ms to allow the server to start - surprisingly this is required!
         tokio::time::sleep(Duration::from_millis(100)).await;
