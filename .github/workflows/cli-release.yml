@@ -72,8 +72,8 @@ jobs:
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
           cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          zip -j goose-${TARGET}.zip goose
+          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
 
       # Step 6: Upload artifacts
       - name: Upload artifact
@@ -100,7 +100,7 @@ jobs:
       - name: Create/Update GitHub release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "goose-*.tar.bz2"
+          artifacts: "goose-*.zip"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           omitBody: true
@@ -139,11 +139,11 @@ jobs:
             
             The following binaries are available for testing:
             
-            - [📦 macOS ARM64 (M1/M2)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-aarch64-apple-darwin)
-            - [📦 macOS x86_64 (Intel)](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-x86_64-apple-darwin)
-            - [📦 Linux x86_64](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/goose-x86_64-unknown-linux-gnu)
+            - [📦 macOS ARM64 (M1/M2)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
+            - [📦 macOS x86_64 (Intel)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
+            - [📦 Linux x86_64](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-unknown-linux-gnu.zip)
 
             Each archive contains the `goose` CLI binary.
             
-            You'll need to be logged into GitHub to download these artifacts.
+            These links are provided by nightly.link and will work even if you're not logged into GitHub.
           edit-mode: replace
