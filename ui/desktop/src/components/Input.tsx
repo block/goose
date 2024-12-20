@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import Send from './ui/Send';
 import Stop from './ui/Stop';
 import { Paperclip } from 'lucide-react';
+import { AudioRecorder } from './AudioRecorder';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -80,6 +81,13 @@ export default function Input({
     }
   };
 
+  const handleTranscription = (text: string) => {
+    if(text != undefined) {
+      setValue(text);
+      textAreaRef.current?.focus();
+    }
+  };
+
   return (
     <form onSubmit={onFormSubmit} className="flex relative bg-white dark:bg-gray-800 h-auto px-[16px] pr-[68px] py-[1rem]">
       <textarea
@@ -101,18 +109,21 @@ export default function Input({
           disabled ? 'cursor-not-allowed opacity-50' : ''
         }`}
       />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        onClick={handleFileSelect}
-        disabled={disabled}
-        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-          disabled ? 'opacity-50 cursor-not-allowed' : ''
-        }`}
-      >
-        <Paperclip size={20} />
-      </Button>
+      <div className="absolute right-[68px] top-1/2 -translate-y-1/2 flex items-center gap-2">
+        <AudioRecorder onTranscription={handleTranscription} />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          onClick={handleFileSelect}
+          disabled={disabled}
+          className={`text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
+            disabled ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          <Paperclip size={20} />
+        </Button>
+      </div>
       {isLoading ? (
         <Button
           type="button"
