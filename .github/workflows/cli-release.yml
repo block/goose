@@ -135,8 +135,7 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            Build artifacts for this PR are ready!
-
+            You can download CLI binaries from here to try this pull request out:
             You can download the artifacts from the "Artifacts" section of this workflow run:
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           edit-mode: replace

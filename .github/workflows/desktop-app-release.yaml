@@ -145,7 +145,7 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
-            Desktop App build artifacts for this PR are ready!
+            Desktop App is ready to be tried from the following link:
 
             You can download the artifacts from the "Artifacts" section of this workflow run:
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
