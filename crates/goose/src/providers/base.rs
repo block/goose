@@ -114,9 +114,12 @@ pub trait Provider: Send + Sync + Moderation {
     ) -> Result<(Message, ProviderUsage)> {
         // Get the latest user message
         let latest_user_msg = messages.iter().rev()
-            .find(|msg| msg.role == Role::User)
-            .ok_or_else(|| anyhow::anyhow!("No user message found in history"))?;
-
+            .find(|msg| {
+                msg.role == Role::User && 
+                msg.content.iter().any(|content| matches!(content, MessageContent::Text(_)))
+            })
+            .ok_or_else(|| anyhow::anyhow!("No user message with text content found in history"))?;
+ 
         // Get the content to moderate
         let content = latest_user_msg.content.first().unwrap().as_text().unwrap();
         
