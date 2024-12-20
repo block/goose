@@ -1,16 +1,12 @@
-use axum::{
-    extract::Multipart,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::Multipart, routing::post, Json, Router};
 use serde_json::json;
-use std::process::Command;
-use tempfile::Builder;
 use std::io::Write;
-use tokio::fs;
-use tower_http::cors::{CorsLayer, Any};
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Once;
+use tempfile::Builder;
+use tokio::fs;
+use tower_http::cors::{Any, CorsLayer};
 
 static INIT: Once = Once::new();
 
@@ -27,7 +23,7 @@ fn ensure_whisper() {
         if !whisper_path.exists() {
             println!("Building whisper...");
             let whisper_dir = project_dir.join("whisper.cpp");
-            
+
             // Build whisper
             let status = Command::new("make")
                 .current_dir(&whisper_dir)
@@ -44,7 +40,7 @@ fn ensure_whisper() {
         if !model_path.exists() {
             println!("Downloading whisper model...");
             let whisper_dir = project_dir.join("whisper.cpp");
-            
+
             // Download model
             let status = Command::new("bash")
                 .current_dir(&whisper_dir)
@@ -66,22 +62,20 @@ pub fn routes() -> Router {
     // Ensure whisper is installed when creating routes
     ensure_whisper();
 
-    Router::new()
-        .route("/transcribe", post(transcribe))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any)
-        )
+    Router::new().route("/transcribe", post(transcribe)).layer(
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any),
+    )
 }
 
 async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
     eprintln!("Starting transcription process...");
-    
+
     while let Some(field) = multipart.next_field().await.unwrap() {
         eprintln!("Processing multipart field: {:?}", field.name());
-        
+
         if let Ok(data) = field.bytes().await {
             eprintln!("Received audio data of size: {} bytes", data.len());
             if data.len() == 0 {
@@ -104,7 +98,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 }
             };
             let webm_path = webm_file.path().to_str().unwrap().to_string();
-            
+
             let wav_file = match Builder::new().suffix(".wav").tempfile() {
                 Ok(file) => file,
                 Err(e) => {
@@ -116,7 +110,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 }
             };
             let wav_path = wav_file.path().to_str().unwrap().to_string();
-            
+
             // Write the WebM data
             match webm_file.as_file().write_all(&data) {
                 Ok(_) => eprintln!("Successfully wrote WebM data to temporary file"),
@@ -187,7 +181,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             eprintln!("Analyzing WebM file with FFprobe...");
             let ffprobe_webm = Command::new("ffprobe")
                 .arg("-v")
-                .arg("error")  // Only show errors
+                .arg("error") // Only show errors
                 .arg("-show_format")
                 .arg("-show_streams")
                 .arg(&webm_path)
@@ -197,9 +191,12 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             let webm_probe_output = String::from_utf8_lossy(&ffprobe_webm.stdout);
             eprintln!("WebM FFprobe analysis:");
             eprintln!("{}", webm_probe_output);
-            
+
             if !ffprobe_webm.status.success() {
-                eprintln!("WebM FFprobe error: {}", String::from_utf8_lossy(&ffprobe_webm.stderr));
+                eprintln!(
+                    "WebM FFprobe error: {}",
+                    String::from_utf8_lossy(&ffprobe_webm.stderr)
+                );
                 return Json(json!({
                     "success": false,
                     "error": format!("Invalid WebM file: {}", String::from_utf8_lossy(&ffprobe_webm.stderr))
@@ -211,19 +208,19 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             let ffmpeg_output = Command::new("ffmpeg")
                 .arg("-hide_banner")
                 .arg("-loglevel")
-                .arg("debug")  // Increased logging level
+                .arg("debug") // Increased logging level
                 .arg("-i")
                 .arg(&webm_path)
-                .arg("-vn")  // Ignore video stream if present
+                .arg("-vn") // Ignore video stream if present
                 .arg("-acodec")
-                .arg("pcm_s16le")  // Force audio codec
+                .arg("pcm_s16le") // Force audio codec
                 .arg("-ar")
-                .arg("16000")  // Sample rate that whisper expects
+                .arg("16000") // Sample rate that whisper expects
                 .arg("-ac")
-                .arg("1")  // Mono audio
+                .arg("1") // Mono audio
                 .arg("-f")
-                .arg("wav")  // Force WAV format
-                .arg("-y")  // Overwrite output file
+                .arg("wav") // Force WAV format
+                .arg("-y") // Overwrite output file
                 .arg(&wav_path)
                 .output()
                 .unwrap();
@@ -231,7 +228,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             eprintln!("FFmpeg conversion details:");
             eprintln!("stdout: {}", String::from_utf8_lossy(&ffmpeg_output.stdout));
             eprintln!("stderr: {}", String::from_utf8_lossy(&ffmpeg_output.stderr));
-            
+
             if !ffmpeg_output.status.success() {
                 eprintln!("FFmpeg conversion failed!");
                 return Json(json!({
@@ -266,7 +263,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             eprintln!("Analyzing WAV file with FFprobe...");
             let ffprobe_wav = Command::new("ffprobe")
                 .arg("-v")
-                .arg("error")  // Only show errors
+                .arg("error") // Only show errors
                 .arg("-show_format")
                 .arg("-show_streams")
                 .arg(&wav_path)
@@ -278,7 +275,10 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             eprintln!("{}", wav_probe_output);
 
             if !ffprobe_wav.status.success() {
-                eprintln!("WAV FFprobe error: {}", String::from_utf8_lossy(&ffprobe_wav.stderr));
+                eprintln!(
+                    "WAV FFprobe error: {}",
+                    String::from_utf8_lossy(&ffprobe_wav.stderr)
+                );
                 return Json(json!({
                     "success": false,
                     "error": format!("Invalid WAV file: {}", String::from_utf8_lossy(&ffprobe_wav.stderr))
@@ -303,8 +303,14 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 .unwrap();
 
             eprintln!("Whisper process completed");
-            eprintln!("Whisper stdout: {}", String::from_utf8_lossy(&output.stdout));
-            eprintln!("Whisper stderr: {}", String::from_utf8_lossy(&output.stderr));
+            eprintln!(
+                "Whisper stdout: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            eprintln!(
+                "Whisper stderr: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
 
             if output.status.success() {
                 // Read the output text file
@@ -314,7 +320,7 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                         // Clean up temporary files
                         eprintln!("Cleaning up temporary files...");
                         let _ = fs::remove_file(&txt_path).await;
-                        
+
                         eprintln!("Transcription successful: {}", text.trim());
                         return Json(json!({
                             "success": true,
@@ -332,7 +338,10 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             } else {
                 eprintln!("Whisper process failed");
                 eprintln!("Error output: {}", String::from_utf8_lossy(&output.stderr));
-                eprintln!("Standard output: {}", String::from_utf8_lossy(&output.stdout));
+                eprintln!(
+                    "Standard output: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                );
                 return Json(json!({
                     "success": false,
                     "error": format!("Whisper failed: {}", String::from_utf8_lossy(&output.stderr))

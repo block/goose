@@ -4,16 +4,135 @@ import { Mic, Square } from 'lucide-react';
 import { getApiUrl } from "../config";
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.esm.js';
+declare class Blob{}
+declare class FormData{}
 
-interface AudioRecorderProps {
-  onTranscription: (text: string) => void;
-}
+// Separate button component
+export const AudioButton = ({
+  isRecording,
+  onClick,
+}: {
+  isRecording: boolean;
+  onClick: () => void;
+}) => (
+  <Button
+    type="button"
+    size="icon"
+    variant="ghost"
+    onClick={onClick}
+    className={`text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 flex-shrink-0`}
+  >
+    {isRecording ? <Square size={20} /> : <Mic size={20} />}
+  </Button>
+);
 
-export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [progress, setProgress] = useState('00:00');
+// Separate waveform component with its own state management
+export const AudioWaveform = React.forwardRef<
+  HTMLDivElement,
+  {
+    isRecording: boolean;
+    onRecordEnd?: (blob: Blob) => void;
+    className?: string;
+  }
+>(({ isRecording, onRecordEnd, className = '' }, ref) => {
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const recordPluginRef = useRef<any>(null);
+  const [progress, setProgress] = useState('00:00');
+
+  const handleRecordProgress = useCallback((time: number) => {
+    const minutes = Math.floor((time % 3600000) / 60000);
+    const seconds = Math.floor((time % 60000) / 1000);
+    const formattedTime = [minutes, seconds]
+      .map(v => v < 10 ? '0' + v : v)
+      .join(':');
+    setProgress(formattedTime);
+  }, []);
+
+  useEffect(() => {
+    const container = ref as React.RefObject<HTMLDivElement>;
+    if (!container.current) return;
+
+    const wavesurfer = WaveSurfer.create({
+      container: container.current,
+      waveColor: 'rgb(99, 102, 241)', // Indigo-600
+      progressColor: 'rgb(79, 70, 229)', // Indigo-700
+      height: 26,
+      barWidth: 2,
+      barGap: 1,
+      barRadius: 1,
+      normalize: true,
+      minPxPerSec: 50, // Increase this value to make the waveform wider
+    });
+
+    const recordPlugin = wavesurfer.registerPlugin(
+      RecordPlugin.create({
+        renderRecordedAudio: false,
+        scrollingWaveform: false,
+        continuousWaveform: true,
+        continuousWaveformDuration: 30,
+      })
+    );
+
+    if (onRecordEnd) {
+      recordPlugin.on('record-end', onRecordEnd);
+    }
+    recordPlugin.on('record-progress', handleRecordProgress);
+
+    wavesurferRef.current = wavesurfer;
+    recordPluginRef.current = recordPlugin;
+
+    return () => {
+      wavesurfer.destroy();
+      wavesurferRef.current = null;
+      recordPluginRef.current = null;
+    };
+  }, [ref, onRecordEnd, handleRecordProgress]);
+
+  useEffect(() => {
+    const recordPlugin = recordPluginRef.current;
+    if (!recordPlugin) return;
+
+    const handleRecording = async () => {
+      if (isRecording) {
+        try {
+          await recordPlugin.startRecording();
+        } catch (err) {
+          console.error('Failed to start recording:', err);
+        }
+      } else {
+        try {
+          if (recordPlugin.isRecording()) {
+            await recordPlugin.stopRecording();
+            setProgress('00:00');
+          }
+        } catch (err) {
+          console.error('Failed to stop recording:', err);
+        }
+      }
+    };
+
+    handleRecording();
+  }, [isRecording]);
+
+  return (
+    <div
+      className={`flex-grow transition-all duration-200 ${
+        isRecording ? 'opacity-100 h-[26px]' : 'opacity-0 h-0'
+      } ${className}`}
+    >
+      <div ref={ref} className="w-full h-full" />
+    </div>
+  );
+});
+
+AudioWaveform.displayName = 'AudioWaveform';
+
+// Main AudioRecorder component that combines both
+export function AudioRecorder({ onTranscription, containerClassName }: {
+  onTranscription: (text: string) => void;
+  containerClassName?: string;
+}) {
+  const [isRecording, setIsRecording] = useState(false);
   const micContainerRef = useRef<HTMLDivElement>(null);
 
   const handleRecordEnd = useCallback(async (blob: Blob) => {
@@ -43,108 +162,19 @@ export function AudioRecorder({ onTranscription }: AudioRecorderProps) {
     }
   }, [onTranscription]);
 
-  const handleRecordProgress = useCallback((time: number) => {
-    const minutes = Math.floor((time % 3600000) / 60000);
-    const seconds = Math.floor((time % 60000) / 1000);
-    const formattedTime = [minutes, seconds]
-      .map(v => v < 10 ? '0' + v : v)
-      .join(':');
-    setProgress(formattedTime);
+  const handleToggleRecording = useCallback(() => {
+    setIsRecording(prev => !prev);
   }, []);
 
-  useEffect(() => {
-    let wavesurfer: WaveSurfer | null = null;
-    let recordPlugin: any = null;
-
-    const initializeWaveSurfer = () => {
-      if (!micContainerRef.current) return;
-
-      // Create new WaveSurfer instance
-      wavesurfer = WaveSurfer.create({
-        container: micContainerRef.current,
-        waveColor: 'rgb(99, 102, 241)', // Indigo-600
-        progressColor: 'rgb(79, 70, 229)', // Indigo-700
-        height: 40,
-      });
-
-      // Initialize Record plugin
-      recordPlugin = wavesurfer.registerPlugin(
-        RecordPlugin.create({
-          renderRecordedAudio: false,
-          scrollingWaveform: false,
-          continuousWaveform: true,
-          continuousWaveformDuration: 30,
-        })
-      );
-
-      // Set up event handlers
-      recordPlugin.on('record-end', handleRecordEnd);
-      recordPlugin.on('record-progress', handleRecordProgress);
-
-      // Store references
-      wavesurferRef.current = wavesurfer;
-      recordPluginRef.current = recordPlugin;
-    };
-
-    initializeWaveSurfer();
-
-    // Cleanup
-    return () => {
-      if (wavesurfer) {
-        wavesurfer.destroy();
-      }
-      wavesurferRef.current = null;
-      recordPluginRef.current = null;
-    };
-  }, [handleRecordEnd, handleRecordProgress]);
-
-  const startRecording = async () => {
-    console.log('Attempting to start recording...');
-    try {
-      if (!recordPluginRef.current) {
-        console.error('Record plugin not initialized');
-        return;
-      }
-
-      await recordPluginRef.current.startRecording();
-      console.log('Recording started!');
-      setIsRecording(true);
-    } catch (err) {
-      console.error('Failed to start recording:', err);
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!recordPluginRef.current || !isRecording) return;
-
-    console.log('Stopping recording...');
-    try {
-      await recordPluginRef.current.stopRecording();
-      setIsRecording(false);
-      setProgress('00:00');
-    } catch (err) {
-      console.error('Failed to stop recording:', err);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <div
-            ref={micContainerRef}
-            className={`waveform transition-opacity duration-200 ${isRecording ? 'opacity-100'
-                : 'opacity-0'}`}
-        />
-        <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={isRecording ? stopRecording : startRecording}
-            className={`text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800`}
-        >
-          {isRecording ? <Square size={20}/> : <Mic size={20}/>}
-        </Button>
-      </div>
+    <div className={`flex items-center gap-2 w-full ${containerClassName || ''}`}>
+      <AudioWaveform
+        ref={micContainerRef}
+        isRecording={isRecording}
+        onRecordEnd={handleRecordEnd}
+        className="flex-grow"
+      />
+      <AudioButton isRecording={isRecording} onClick={handleToggleRecording} />
     </div>
   );
 }
