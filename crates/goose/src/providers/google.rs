@@ -1,10 +1,11 @@
 use crate::errors::AgentError;
 use crate::message::{Message, MessageContent};
-use crate::providers::base::{Provider, ProviderUsage, Usage};
+use crate::providers::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use crate::providers::configs::{GoogleProviderConfig, ModelConfig, ProviderModelConfig};
 use crate::providers::utils::{
     handle_response, is_valid_function_name, sanitize_function_name, unescape_json_values,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::{Content, Role, Tool, ToolCall};
 use reqwest::Client;
@@ -299,7 +300,7 @@ impl Provider for GoogleProvider {
         self.config.model_config()
     }
 
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -342,6 +343,13 @@ impl Provider for GoogleProvider {
         };
         let provider_usage = ProviderUsage::new(model, usage, None);
         Ok((message, provider_usage))
+    }
+}
+
+#[async_trait]
+impl Moderation for GoogleProvider {
+    async fn moderate_content(&self, content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }
 

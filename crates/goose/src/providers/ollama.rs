@@ -1,4 +1,4 @@
-use super::base::{Provider, ProviderUsage, Usage};
+use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use super::configs::{ModelConfig, OllamaProviderConfig, ProviderModelConfig};
 use super::utils::{get_model, handle_response};
 use crate::message::Message;
@@ -51,7 +51,7 @@ impl Provider for OllamaProvider {
         self.config.model_config()
     }
 
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -69,6 +69,13 @@ impl Provider for OllamaProvider {
         let cost = None;
 
         Ok((message, ProviderUsage::new(model, usage, cost)))
+    }
+}
+
+#[async_trait]
+impl Moderation for OllamaProvider {
+    async fn moderate_content(&self, content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }
 
