@@ -112,7 +112,8 @@ impl Moderation for OpenAiProvider {
     async fn moderate_content(&self, content: &str) -> Result<ModerationResult> {
         let url = format!("{}/v1/moderations", self.config.host.trim_end_matches('/'));
 
-        let request = OpenAiModerationRequest::new(content.to_string(), OPEN_AI_MODERATION_MODEL.to_string());
+        let request =
+            OpenAiModerationRequest::new(content.to_string(), OPEN_AI_MODERATION_MODEL.to_string());
 
         let response = self
             .client
@@ -124,14 +125,18 @@ impl Moderation for OpenAiProvider {
 
         let response_json: serde_json::Value = response.json().await?;
 
-        let flagged = response_json["results"][0]["flagged"].as_bool().unwrap_or(false);
+        let flagged = response_json["results"][0]["flagged"]
+            .as_bool()
+            .unwrap_or(false);
         if flagged {
-            let categories = response_json["results"][0]["categories"].as_object().unwrap();
+            let categories = response_json["results"][0]["categories"]
+                .as_object()
+                .unwrap();
             let category_scores = response_json["results"][0]["category_scores"].clone();
             return Ok(ModerationResult::new(
                 flagged,
                 Some(categories.keys().cloned().collect()),
-                Some(category_scores)
+                Some(category_scores),
             ));
         } else {
             return Ok(ModerationResult::new(flagged, None, None));

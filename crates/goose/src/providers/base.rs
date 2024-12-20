@@ -5,9 +5,9 @@ use tokio::select;
 
 use super::configs::ModelConfig;
 use crate::message::{Message, MessageContent};
-use mcp_core::tool::Tool;
-use mcp_core::role::Role;
 use mcp_core::content::TextContent;
+use mcp_core::role::Role;
+use mcp_core::tool::Tool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -113,16 +113,21 @@ pub trait Provider: Send + Sync + Moderation {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
         // Get the latest user message
-        let latest_user_msg = messages.iter().rev()
+        let latest_user_msg = messages
+            .iter()
+            .rev()
             .find(|msg| {
-                msg.role == Role::User && 
-                msg.content.iter().any(|content| matches!(content, MessageContent::Text(_)))
+                msg.role == Role::User
+                    && msg
+                        .content
+                        .iter()
+                        .any(|content| matches!(content, MessageContent::Text(_)))
             })
             .ok_or_else(|| anyhow::anyhow!("No user message with text content found in history"))?;
- 
+
         // Get the content to moderate
         let content = latest_user_msg.content.first().unwrap().as_text().unwrap();
-        
+
         // Create futures for both operations
         let moderation_fut = self.moderate_content(content);
         let completion_fut = self.complete_internal(system, messages, tools);
@@ -141,7 +146,7 @@ pub trait Provider: Send + Sync + Moderation {
                         .unwrap_or_else(|| vec!["unknown".to_string()])
                         .join(", ");
                     return Err(anyhow::anyhow!(
-                        "Content was flagged for moderation in categories: {}", 
+                        "Content was flagged for moderation in categories: {}",
                         categories
                     ));
                 }
@@ -157,7 +162,7 @@ pub trait Provider: Send + Sync + Moderation {
                         .unwrap_or_else(|| vec!["unknown".to_string()])
                         .join(", ");
                     return Err(anyhow::anyhow!(
-                        "Content was flagged for moderation in categories: {}", 
+                        "Content was flagged for moderation in categories: {}",
                         categories
                     ));
                 }
@@ -219,7 +224,7 @@ mod tests {
             "violence": 0.8
         });
         let result = ModerationResult::new(true, Some(categories.clone()), Some(scores.clone()));
-        
+
         assert!(result.flagged);
         assert_eq!(result.categories.unwrap(), categories);
         assert_eq!(result.category_scores.unwrap(), scores);
@@ -237,7 +242,7 @@ mod tests {
                 Ok(ModerationResult::new(
                     true,
                     Some(vec!["test".to_string()]),
-                    None
+                    None,
                 ))
             }
         }
@@ -270,14 +275,13 @@ mod tests {
             })],
         };
 
-        let result = provider.complete(
-            "system",
-            &[test_message],
-            &[]
-        ).await;
+        let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Content was flagged"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Content was flagged"));
     }
 
     #[tokio::test]
@@ -293,7 +297,7 @@ mod tests {
                 Ok(ModerationResult::new(
                     true,
                     Some(vec!["test".to_string()]),
-                    None
+                    None,
                 ))
             }
         }
@@ -336,14 +340,13 @@ mod tests {
             })],
         };
 
-        let result = provider.complete(
-            "system",
-            &[test_message],
-            &[]
-        ).await;
+        let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Content was flagged"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Content was flagged"));
     }
 
     #[tokio::test]
@@ -355,11 +358,7 @@ mod tests {
         impl Moderation for TestProvider {
             async fn moderate_content(&self, _content: &str) -> Result<ModerationResult> {
                 // Return quickly with flagged content
-                Ok(ModerationResult::new(
-                    false,
-                    None,
-                    None
-                ))
+                Ok(ModerationResult::new(false, None, None))
             }
         }
 
@@ -400,11 +399,7 @@ mod tests {
             })],
         };
 
-        let result = provider.complete(
-            "system",
-            &[test_message],
-            &[]
-        ).await;
+        let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_ok());
         let (message, usage) = result.unwrap();
@@ -463,11 +458,7 @@ mod tests {
             })],
         };
 
-        let result = provider.complete(
-            "system",
-            &[test_message],
-            &[]
-        ).await;
+        let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_ok());
         let (message, usage) = result.unwrap();
