@@ -2,10 +2,13 @@ on:
   push:
     tags:
       - "v1.*"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 name: Release CLI
@@ -63,7 +66,6 @@ jobs:
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
-
       # Step 5: Build the project
       - name: Build
         run: |
@@ -86,16 +88,56 @@ jobs:
     needs: [build]
     permissions:
       contents: write
+      pull-requests: write
+    if: github.event_name != 'pull_request'
     steps:
-      # Step 1: Download all build artifacts
+      # Step 1: Download all artifacts
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
 
       # Step 2: Create GitHub release with artifacts
-      - name: Create GitHub release
+      - name: Create/Update GitHub release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "goose-*.tar.bz2"
           token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+          omitBody: true
+          omitPrereleaseDuringUpdate: true
+
+  pr-comment:
+    name: Add PR Comment
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      pull-requests: write
+    if: github.event_name == 'pull_request'
+    steps:
+      # Step 1: Download all artifacts
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      # Step 2: Create comment with download links
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Build artifacts for this PR
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Build artifacts for this PR are ready!
+
+            You can download the artifacts from the "Artifacts" section of this workflow run:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          edit-mode: replace
