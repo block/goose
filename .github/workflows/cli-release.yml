@@ -88,7 +88,6 @@ jobs:
     needs: [build]
     permissions:
       contents: write
-      pull_request: write
     if: github.event_name != 'pull_request'
     steps:
       # Step 1: Download all artifacts
