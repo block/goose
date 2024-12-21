@@ -3,8 +3,8 @@ import { getApiUrl, getSecretKey } from '../config';
 const getQuestionClassifierPrompt = (messageContent: string): string => `
 You are a simple classifier that takes content and decides if it is asking for input 
 from a person before continuing if there is more to do, or not. These are questions 
-on if a course of action should proceeed or not, or approval is needed. If it is a 
-question asking if it ok to proceed or make a choice, clearly, return QUESTION, otherwise READY if not 97% sure.
+on if a course of action should proceeed or not, or approval is needed. If it is CLEARLY a 
+question asking if it ok to proceed or make a choice or some input is required to proceed, then, and ONLY THEN, return QUESTION, otherwise READY if not 97% sure.
 
 ### Examples message content that is classified as READY:
 anything else I can do?
@@ -21,11 +21,13 @@ Would you like any further information or assistance?
 Would you like to me to make any changes?
 Would you like me to make any adjustments to this implementation?
 Would you like me to show you how to…
+What would you like to do next?
 
 ### Examples that are QUESTIONS:
 Should I go ahead and make the changes?
 Should I Go ahead with this plan?
 Should I focus on X or Y?
+Provide me with the name of the package and version you would like to install.
 
 
 ### Message Content:
@@ -73,6 +75,79 @@ words, phrases, or explanations are allowed.
 
 Response:`;
 
+const getFormPrompt = (messageContent: string): string => `
+When you see a request for several pieces of information, then provide a well formed JSON object like will be shown below.
+The response will have:
+* a title, description,
+* a list of fields, each field will have a label, type, name, placeholder, and required (boolean).
+(type is either text or textarea only).
+If it is not requesting clearly several pieces of information, just return an empty object.
+If the task could be confirmed without more information, return an empty object.
+
+### Example Message:
+I'll help you scaffold out a Python package. To create a well-structured Python package, I'll need to know a few key pieces of information:
+
+Package name - What would you like to call your package? (This should be a valid Python package name - lowercase, no spaces, typically using underscores for separators if needed)
+
+Brief description - What is the main purpose of the package? This helps in setting up appropriate documentation and structure.
+
+Initial modules - Do you have specific functionality in mind that should be split into different modules?
+
+Python version - Which Python version(s) do you want to support?
+
+Dependencies - Are there any known external packages you'll need?
+
+### Example JSON Response:
+{
+  "title": "Python Package Scaffolding Form",
+  "description": "Provide the details below to scaffold a well-structured Python package.",
+  "fields": [
+    {
+      "label": "Package Name",
+      "type": "text",
+      "name": "package_name",
+      "placeholder": "Enter the package name (lowercase, no spaces, use underscores if needed)",
+      "required": true
+    },
+    {
+      "label": "Brief Description",
+      "type": "textarea",
+      "name": "brief_description",
+      "placeholder": "Enter a brief description of the package's purpose",
+      "required": true
+    },
+    {
+      "label": "Initial Modules",
+      "type": "textarea",
+      "name": "initial_modules",
+      "placeholder": "List the specific functionalities or modules (optional)",
+      "required": false
+    },
+    {
+      "label": "Python Version(s)",
+      "type": "text",
+      "name": "python_versions",
+      "placeholder": "Enter the Python version(s) to support (e.g., 3.8, 3.9, 3.10)",
+      "required": true
+    },
+    {
+      "label": "Dependencies",
+      "type": "textarea",
+      "name": "dependencies",
+      "placeholder": "List any known external packages you'll need (optional)",
+      "required": false
+    }
+  ]
+}
+
+### Message Content:
+${messageContent}
+
+You must provide a response strictly as json in the format described. No other 
+words, phrases, or explanations are allowed.
+
+Response:`;
+
 /**
  * Core function to ask the AI a single question and get a response
  * @param prompt The prompt to send to the AI
@@ -107,14 +182,15 @@ export async function askAi(messageContent: string): Promise<string[]> {
   
   // If READY, return early with empty responses for options
   if (questionClassification === 'READY') {
-    return [questionClassification, 'NO', '[]'];
+    return [questionClassification, 'NO', '[]', '{}'];
   }
   
   // Otherwise, proceed with all classifiers in parallel
   const prompts = [
     Promise.resolve(questionClassification), // Reuse the result we already have
     ask(getOptionsClassifierPrompt(messageContent)),
-    ask(getOptionsFormatterPrompt(messageContent))
+    ask(getOptionsFormatterPrompt(messageContent)),
+    ask(getFormPrompt(messageContent)),
   ];
   
   return Promise.all(prompts);
