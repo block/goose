@@ -17,73 +17,43 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Linux x86_64 build on Ubuntu
-          - os: ubuntu-latest
-            architecture: x86_64
-            suffix: unknown-linux-gnu
-
-          # TODO: Linux aarch64 (ARM64) build on Ubuntu via cross-compilation - probably use `cross-rs`
-
-          # macOS x86_64 build
-          - os: macos-latest
-            architecture: x86_64
-            suffix: apple-darwin
-
-          # macOS ARM64 build
-          - os: macos-latest
-            architecture: aarch64
-            suffix: apple-darwin
+          os: [ ubuntu-latest, macos-latest ]
+          architecture: [ aarch64, x86_64 ]
+          include:
+            - os: ubuntu-latest
+              target-suffix: unknown-linux-gnu
+            - os: macos-latest
+              target-suffix: apple-darwin
 
     steps:
-      # Step 1: Checkout the code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Rust toolchain
-      # This will install the specified target as per matrix
       - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+        uses: actions-rs/toolchain@v1
         with:
-          target: ${{ matrix.architecture }}-${{ matrix.suffix }}
+          toolchain: stable
 
-      # Step 3: Install dependencies for macOS ARM64 builds
-      - name: Install dependencies for macOS ARM64
-        if: matrix.os == 'macos-latest' && matrix.architecture == 'aarch64'
+      - name: build
         run: |
-          brew install llvm
-          rustup target add aarch64-apple-darwin
-          echo "export PATH=$(brew --prefix llvm)/bin:\$PATH" >> $GITHUB_ENV
-
-      # Step 4: Install Libs for Ubuntu (x86_64 and aarch64)
-      - name: Install Libs for Ubuntu
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt update -y
-          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
-          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
-
-
-      # Step 5: Build the project
-      - name: Build
-        run: |
-          export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
-          cargo build --release --target $TARGET
+          export TARGET=${{ matrix.architecture }}-${{ matrix.target-suffix }}
+          rustup target add "${TARGET}"
+          cargo install cross --git https://github.com/cross-rs/cross
+          CROSS_NO_WARNINGS=0 cross build --release --target ${TARGET}
           cd target/${TARGET}/release
           tar -cjf goose-${TARGET}.tar.bz2 goose goosed
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
-      # Step 6: Upload artifacts
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: goose-${{ matrix.architecture }}-${{ matrix.suffix }}
+          name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
           path: ${{ env.ARTIFACT }}
 
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [ build ]
     permissions:
       contents: write
     steps:

@@ -50,7 +50,7 @@ sha2 = "0.10"
 base64 = "0.21"
 url = "2.5"
 urlencoding = "2.1.3"
-axum = { version = "0.7" }
+axum = "0.7"
 tower-http = { version = "0.5", features = ["cors"] }
 webbrowser = "0.8"
 dotenv = "0.15"
