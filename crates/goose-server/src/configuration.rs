@@ -88,6 +88,10 @@ pub enum ProviderSettings {
         temperature: Option<f32>,
         #[serde(default)]
         max_tokens: Option<i32>,
+        #[serde(default)]
+        context_limit: Option<usize>,
+        #[serde(default)]
+        estimate_factor: Option<f32>,
     },
     Groq {
         #[serde(default = "default_groq_host")]
@@ -99,6 +103,10 @@ pub enum ProviderSettings {
         temperature: Option<f32>,
         #[serde(default)]
         max_tokens: Option<i32>,
+        #[serde(default)]
+        context_limit: Option<usize>,
+        #[serde(default)]
+        estimate_factor: Option<f32>,
     },
 }
 
@@ -174,12 +182,16 @@ impl ProviderSettings {
                 model,
                 temperature,
                 max_tokens,
+                context_limit,
+                estimate_factor,
             } => ProviderConfig::Google(GoogleProviderConfig {
                 host,
                 api_key,
                 model: ModelConfig::new(model)
                     .with_temperature(temperature)
-                    .with_max_tokens(max_tokens),
+                    .with_max_tokens(max_tokens)
+                    .with_context_limit(context_limit)
+                    .with_estimate_factor(estimate_factor),
             }),
             ProviderSettings::Groq {
                 host,
@@ -187,12 +199,16 @@ impl ProviderSettings {
                 model,
                 temperature,
                 max_tokens,
+                context_limit,
+                estimate_factor,
             } => ProviderConfig::Groq(GroqProviderConfig {
                 host,
                 api_key,
                 model: ModelConfig::new(model)
                     .with_temperature(temperature)
-                    .with_max_tokens(max_tokens),
+                    .with_max_tokens(max_tokens)
+                    .with_context_limit(context_limit)
+                    .with_estimate_factor(estimate_factor),
             }),
         }
     }

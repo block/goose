@@ -421,6 +421,10 @@ mod tests {
         fn get_model_config(&self) -> &ModelConfig {
             &self.model_config
         }
+
+        fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
+            Ok(Usage::new(None, None, None))
+        }
     }
 
     #[test]

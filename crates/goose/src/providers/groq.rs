@@ -2,7 +2,8 @@ use crate::message::Message;
 use crate::providers::base::{Provider, ProviderUsage, Usage};
 use crate::providers::configs::{GroqProviderConfig, ModelConfig, ProviderModelConfig};
 use crate::providers::openai_utils::{
-    create_openai_request_payload, get_openai_usage, openai_response_to_message,
+    create_openai_request_payload_with_concat_response_content, get_openai_usage,
+    openai_response_to_message,
 };
 use crate::providers::utils::{get_model, handle_response};
 use async_trait::async_trait;
@@ -26,10 +27,6 @@ impl GroqProvider {
             .build()?;
 
         Ok(Self { client, config })
-    }
-
-    fn get_usage(data: &Value) -> anyhow::Result<Usage> {
-        get_openai_usage(data)
     }
 
     async fn post(&self, payload: Value) -> anyhow::Result<Value> {
@@ -61,16 +58,24 @@ impl Provider for GroqProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> anyhow::Result<(Message, ProviderUsage)> {
-        let payload =
-            create_openai_request_payload(&self.config.model, system, messages, tools, true)?;
+        let payload = create_openai_request_payload_with_concat_response_content(
+            &self.config.model,
+            system,
+            messages,
+            tools,
+        )?;
 
         let response = self.post(payload).await?;
 
         let message = openai_response_to_message(response.clone())?;
-        let usage = Self::get_usage(&response)?;
+        let usage = self.get_usage(&response)?;
         let model = get_model(&response);
 
         Ok((message, ProviderUsage::new(model, usage, None)))
+    }
+
+    fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
+        get_openai_usage(data)
     }
 }
 

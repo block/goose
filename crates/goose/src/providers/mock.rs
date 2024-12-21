@@ -6,6 +6,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::tool::Tool;
 use rust_decimal_macros::dec;
+use serde_json::Value;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -59,5 +60,9 @@ impl Provider for MockProvider {
                 ProviderUsage::new("mock".to_string(), usage, Some(dec!(1))),
             ))
         }
+    }
+
+    fn get_usage(&self, data: &Value) -> Result<Usage> {
+        Ok(Usage::new(None, None, None))
     }
 }

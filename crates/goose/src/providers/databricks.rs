@@ -48,10 +48,6 @@ impl DatabricksProvider {
         }
     }
 
-    fn get_usage(data: &Value) -> Result<Usage> {
-        get_openai_usage(data)
-    }
-
     async fn post(&self, payload: Value) -> Result<Value> {
         let url = format!(
             "{}/serving-endpoints/{}/invocations",
@@ -74,6 +70,10 @@ impl DatabricksProvider {
 
 #[async_trait]
 impl Provider for DatabricksProvider {
+    fn get_model_config(&self) -> &ModelConfig {
+        self.config.model_config()
+    }
+
     async fn complete(
         &self,
         system: &str,
@@ -81,7 +81,12 @@ impl Provider for DatabricksProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
         // Prepare messages and tools
-        let messages_spec = messages_to_openai_spec(messages, &self.config.image_format, false);
+        let concat_tool_response_contents = false;
+        let messages_spec = messages_to_openai_spec(
+            messages,
+            &self.config.image_format,
+            concat_tool_response_contents,
+        );
         let tools_spec = if !tools.is_empty() {
             tools_to_openai_spec(tools)?
         } else {
@@ -131,15 +136,15 @@ impl Provider for DatabricksProvider {
 
         // Parse response
         let message = openai_response_to_message(response.clone())?;
-        let usage = Self::get_usage(&response)?;
+        let usage = self.get_usage(&response)?;
         let model = get_model(&response);
         let cost = cost(&usage, &model_pricing_for(&model));
 
         Ok((message, ProviderUsage::new(model, usage, cost)))
     }
 
-    fn get_model_config(&self) -> &ModelConfig {
-        self.config.model_config()
+    fn get_usage(&self, data: &Value) -> Result<Usage> {
+        get_openai_usage(data)
     }
 }
 

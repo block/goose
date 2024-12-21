@@ -28,27 +28,6 @@ impl GoogleProvider {
         Ok(Self { client, config })
     }
 
-    fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
-        if let Some(usage_meta_data) = data.get("usageMetadata") {
-            let input_tokens = usage_meta_data
-                .get("promptTokenCount")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as i32);
-            let output_tokens = usage_meta_data
-                .get("candidatesTokenCount")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as i32);
-            let total_tokens = usage_meta_data
-                .get("totalTokenCount")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as i32);
-            Ok(Usage::new(input_tokens, output_tokens, total_tokens))
-        } else {
-            // If no usage data, return None for all values
-            Ok(Usage::new(None, None, None))
-        }
-    }
-
     async fn post(&self, payload: Value) -> anyhow::Result<Value> {
         let url = format!(
             "{}/v1beta/models/{}:generateContent?key={}",
@@ -342,6 +321,27 @@ impl Provider for GoogleProvider {
         };
         let provider_usage = ProviderUsage::new(model, usage, None);
         Ok((message, provider_usage))
+    }
+
+    fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
+        if let Some(usage_meta_data) = data.get("usageMetadata") {
+            let input_tokens = usage_meta_data
+                .get("promptTokenCount")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as i32);
+            let output_tokens = usage_meta_data
+                .get("candidatesTokenCount")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as i32);
+            let total_tokens = usage_meta_data
+                .get("totalTokenCount")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as i32);
+            Ok(Usage::new(input_tokens, output_tokens, total_tokens))
+        } else {
+            // If no usage data, return None for all values
+            Ok(Usage::new(None, None, None))
+        }
     }
 }
 

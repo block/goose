@@ -29,10 +29,6 @@ impl OllamaProvider {
         Ok(Self { client, config })
     }
 
-    fn get_usage(data: &Value) -> Result<Usage> {
-        get_openai_usage(data)
-    }
-
     async fn post(&self, payload: Value) -> Result<Value> {
         let url = format!(
             "{}/v1/chat/completions",
@@ -57,18 +53,21 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
-        let payload =
-            create_openai_request_payload(&self.config.model, system, messages, tools, false)?;
+        let payload = create_openai_request_payload(&self.config.model, system, messages, tools)?;
 
         let response = self.post(payload).await?;
 
         // Parse response
         let message = openai_response_to_message(response.clone())?;
-        let usage = Self::get_usage(&response)?;
+        let usage = self.get_usage(&response)?;
         let model = get_model(&response);
         let cost = None;
 
         Ok((message, ProviderUsage::new(model, usage, cost)))
+    }
+
+    fn get_usage(&self, data: &Value) -> Result<Usage> {
+        get_openai_usage(data)
     }
 }
 

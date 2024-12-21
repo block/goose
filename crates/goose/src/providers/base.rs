@@ -48,6 +48,7 @@ impl Usage {
 }
 
 use async_trait::async_trait;
+use serde_json::Value;
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
@@ -70,6 +71,8 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)>;
+
+    fn get_usage(&self, data: &Value) -> Result<Usage>;
 }
 
 #[cfg(test)]

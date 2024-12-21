@@ -256,6 +256,21 @@ pub fn create_openai_request_payload(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
+    create_openai_request_payload_handling_concat_response_content(
+        model_config,
+        system,
+        messages,
+        tools,
+        false,
+    )
+}
+
+fn create_openai_request_payload_handling_concat_response_content(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
     concat_tool_response_contents: bool,
 ) -> anyhow::Result<Value, Error> {
     let system_message = json!({
@@ -268,7 +283,11 @@ pub fn create_openai_request_payload(
         &ImageFormat::OpenAi,
         concat_tool_response_contents,
     );
-    let tools_spec = tools_to_openai_spec(tools)?;
+    let tools_spec = if !tools.is_empty() {
+        tools_to_openai_spec(tools)?
+    } else {
+        vec![]
+    };
 
     let mut messages_array = vec![system_message];
     messages_array.extend(messages_spec);
@@ -297,6 +316,21 @@ pub fn create_openai_request_payload(
             .insert("max_tokens".to_string(), json!(tokens));
     }
     Ok(payload)
+}
+
+pub fn create_openai_request_payload_with_concat_response_content(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> anyhow::Result<Value, Error> {
+    create_openai_request_payload_handling_concat_response_content(
+        model_config,
+        system,
+        messages,
+        tools,
+        true,
+    )
 }
 
 pub fn check_openai_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
