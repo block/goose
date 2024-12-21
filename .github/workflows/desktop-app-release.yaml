@@ -149,7 +149,7 @@ jobs:
             
             The following build is available for testing:
             
-            - [📱 macOS ARM64 Desktop App (Universal, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
+            - [📱 macOS Desktop App (Universal, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             The app is signed and notarized for macOS. After downloading, unzip the file and drag the Goose.app to your Applications folder.
             
