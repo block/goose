@@ -119,7 +119,7 @@ export default function Input({
           size="icon"
           variant="ghost"
           onClick={onStop}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-100 dark:bg-white text-indigo-600 hover:opacity-50"
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-100 dark:bg-indigo-800 dark:text-indigo-200 text-indigo-600 hover:opacity-50"
         >
           <Stop size={24} />
         </Button>
