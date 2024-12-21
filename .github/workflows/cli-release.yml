@@ -2,13 +2,10 @@ on:
   push:
     tags:
       - "v1.*"
-  pull_request:
-    branches:
-      - v1.0
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}
   cancel-in-progress: true
 
 name: Release CLI
@@ -66,14 +63,15 @@ jobs:
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
 
+
       # Step 5: Build the project
       - name: Build
         run: |
           export TARGET=${{ matrix.architecture }}-${{ matrix.suffix }}
           cargo build --release --target $TARGET
           cd target/${TARGET}/release
-          zip -j goose-${TARGET}.zip goose
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          tar -cjf goose-${TARGET}.tar.bz2 goose goosed
+          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       # Step 6: Upload artifacts
       - name: Upload artifact
@@ -88,62 +86,16 @@ jobs:
     needs: [build]
     permissions:
       contents: write
-    if: github.event_name != 'pull_request'
     steps:
-      # Step 1: Download all artifacts
+      # Step 1: Download all build artifacts
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
 
       # Step 2: Create GitHub release with artifacts
-      - name: Create/Update GitHub release
+      - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "goose-*.zip"
+          artifacts: "goose-*.tar.bz2"
           token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          omitBody: true
-          omitPrereleaseDuringUpdate: true
-
-  pr-comment:
-    name: Add PR Comment
-    runs-on: ubuntu-latest
-    needs: [build]
-    permissions:
-      pull-requests: write
-    if: github.event_name == 'pull_request'
-    steps:
-      # Step 1: Download all artifacts
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-
-      # Step 2: Create comment with download links
-      - name: Find Comment
-        uses: peter-evans/find-comment@v2
-        id: fc
-        with:
-          issue-number: ${{ github.event.pull_request.number }}
-          comment-author: 'github-actions[bot]'
-          body-includes: Build artifacts for this PR
-
-      - name: Create or update comment
-        uses: peter-evans/create-or-update-comment@v3
-        with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body: |
-            ### CLI Binaries for this PR
-            
-            The following binaries are available for testing:
-            
-            - [📦 macOS ARM64 (M1/M2)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
-            - [📦 macOS x86_64 (Intel)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
-            - [📦 Linux x86_64](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-unknown-linux-gnu.zip)
-
-            Each archive contains the `goose` CLI binary.
-            
-            These links are provided by nightly.link and will work even if you're not logged into GitHub.
-          edit-mode: replace
