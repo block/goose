@@ -1,0 +1,29 @@
+[package]
+name = "developer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[dependencies]
+mcp-core = { path = "../mcp-core" }
+mcp-server = { path = "../mcp-server" }
+anyhow = "1.0.94"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+url = "2.5"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7"
+lazy_static = "1.5"
+kill_tree = "0.2.4"
+shellexpand = "3.1.0"
+indoc = "2.0.5"
+
+[dev-dependencies]
+sysinfo = "0.32.1"
