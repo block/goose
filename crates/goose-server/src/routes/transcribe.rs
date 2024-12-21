@@ -1,76 +1,146 @@
-use axum::{extract::Multipart, routing::post, Json, Router};
+use axum::{
+    extract::Multipart,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::Once;
+use std::sync::Arc;
 use tempfile::Builder;
 use tokio::fs;
+use tokio::process::Command as TokioCommand;
+use tokio::sync::{OnceCell, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 
-static INIT: Once = Once::new();
+// Status tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhisperStatus {
+    installed: bool,
+    built: bool,
+    model_downloaded: bool,
+}
+
+impl WhisperStatus {
+    fn new() -> Self {
+        Self {
+            installed: false,
+            built: false,
+            model_downloaded: false,
+        }
+    }
+
+    fn is_ready(&self) -> bool {
+        self.installed && self.built && self.model_downloaded
+    }
+}
+
+static STATUS: OnceCell<Arc<RwLock<WhisperStatus>>> = OnceCell::const_new();
+static INIT: OnceCell<()> = OnceCell::const_new();
+
+async fn get_status() -> Arc<RwLock<WhisperStatus>> {
+    STATUS
+        .get_or_init(|| async { Arc::new(RwLock::new(WhisperStatus::new())) })
+        .await
+        .clone()
+}
 
 /// Ensures whisper is built and the model is downloaded
-fn ensure_whisper() {
-    INIT.call_once(|| {
+async fn ensure_whisper() {
+    INIT.get_or_init(|| async {
+        let status = get_status().await;
+        
         // Get the project root directory
         let mut project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         project_dir.pop(); // go up from goose-server
         project_dir.pop(); // go up from crates
+        let project_dir = Arc::new(project_dir);
 
-        // Check if whisper executable exists
+        // Check whisper directory and installation
+        let whisper_dir = project_dir.join("whisper.cpp");
+        if whisper_dir.exists() {
+            let mut status = status.write().await;
+            status.installed = true;
+        }
+
+        // Check whisper executable
         let whisper_path = project_dir.join("whisper.cpp/build/bin/main");
-        if !whisper_path.exists() {
-            println!("Building whisper...");
-            let whisper_dir = project_dir.join("whisper.cpp");
-
-            // Build whisper
-            let status = Command::new("make")
-                .current_dir(&whisper_dir)
-                .status()
-                .expect("Failed to build whisper");
-
-            if !status.success() {
-                panic!("Failed to build whisper");
-            }
+        if whisper_path.exists() {
+            let mut status = status.write().await;
+            status.built = true;
         }
 
-        // Check if model exists
+        // Check model file
         let model_path = project_dir.join("whisper.cpp/models/ggml-base.en.bin");
-        if !model_path.exists() {
-            println!("Downloading whisper model...");
-            let whisper_dir = project_dir.join("whisper.cpp");
-
-            // Download model
-            let status = Command::new("bash")
-                .current_dir(&whisper_dir)
-                .arg("./models/download-ggml-model.sh")
-                .arg("base.en")
-                .status()
-                .expect("Failed to download whisper model");
-
-            if !status.success() {
-                panic!("Failed to download whisper model");
-            }
+        if model_path.exists() {
+            let mut status = status.write().await;
+            status.model_downloaded = true;
         }
+    })
+    .await;
+}
 
-        println!("Whisper is ready!");
-    });
+/// Get the current status of whisper setup
+async fn whisper_status() -> Json<serde_json::Value> {
+    ensure_whisper().await;
+    let status = get_status().await;
+    let status = status.read().await;
+    Json(json!({
+        "ready": status.is_ready(),
+        "status": {
+            "installed": status.installed,
+            "built": status.built,
+            "model_downloaded": status.model_downloaded
+        }
+    }))
 }
 
 pub fn routes() -> Router {
-    // Ensure whisper is installed when creating routes
-    ensure_whisper();
+    // Spawn the initialization in the background
+    tokio::spawn(ensure_whisper());
 
-    Router::new().route("/transcribe", post(transcribe)).layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
-    )
+    Router::new()
+        .route("/transcribe", post(transcribe))
+        .route("/whisper-status", get(whisper_status))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
 }
 
-async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
+/// Check if whisper is ready for transcription
+async fn check_whisper_ready() -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    ensure_whisper().await;
+    let status = get_status().await;
+    let status = status.read().await;
+    
+    if !status.is_ready() {
+        Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "success": false,
+                "error": "Whisper is not ready yet",
+                "status": {
+                    "installed": status.installed,
+                    "built": status.built,
+                    "model_downloaded": status.model_downloaded
+                }
+            }))
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Check if whisper is ready
+    check_whisper_ready().await?;
+
     eprintln!("Starting transcription process...");
 
     while let Some(field) = multipart.next_field().await.unwrap() {
@@ -80,10 +150,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             eprintln!("Received audio data of size: {} bytes", data.len());
             if data.len() == 0 {
                 eprintln!("Error: Received empty audio data");
-                return Json(json!({
-                    "success": false,
-                    "error": "Received empty audio data"
-                }));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "success": false,
+                        "error": "Received empty audio data"
+                    }))
+                ));
             }
 
             // Create temporary files with proper extensions
@@ -91,10 +164,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 Ok(file) => file,
                 Err(e) => {
                     eprintln!("Error creating WebM tempfile: {}", e);
-                    return Json(json!({
-                        "success": false,
-                        "error": format!("Failed to create temporary WebM file: {}", e)
-                    }));
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": format!("Failed to create temporary WebM file: {}", e)
+                        }))
+                    ));
                 }
             };
             let webm_path = webm_file.path().to_str().unwrap().to_string();
@@ -103,10 +179,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 Ok(file) => file,
                 Err(e) => {
                     eprintln!("Error creating WAV tempfile: {}", e);
-                    return Json(json!({
-                        "success": false,
-                        "error": format!("Failed to create temporary WAV file: {}", e)
-                    }));
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": format!("Failed to create temporary WAV file: {}", e)
+                        }))
+                    ));
                 }
             };
             let wav_path = wav_file.path().to_str().unwrap().to_string();
@@ -116,10 +195,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 Ok(_) => eprintln!("Successfully wrote WebM data to temporary file"),
                 Err(e) => {
                     eprintln!("Error writing WebM data: {}", e);
-                    return Json(json!({
-                        "success": false,
-                        "error": format!("Failed to write WebM data: {}", e)
-                    }));
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": format!("Failed to write WebM data: {}", e)
+                        }))
+                    ));
                 }
             }
 
@@ -149,19 +231,25 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             // Verify whisper executable exists
             if !whisper_path.exists() {
                 eprintln!("Error: Whisper executable not found at {:?}", whisper_path);
-                return Json(json!({
-                    "success": false,
-                    "error": "Whisper executable not found"
-                }));
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({
+                        "success": false,
+                        "error": "Whisper executable not found"
+                    }))
+                ));
             }
 
             // Verify model exists
             if !model_path.exists() {
                 eprintln!("Error: Whisper model not found at {:?}", model_path);
-                return Json(json!({
-                    "success": false,
-                    "error": "Whisper model not found"
-                }));
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({
+                        "success": false,
+                        "error": "Whisper model not found"
+                    }))
+                ));
             }
 
             // Check WebM file size
@@ -169,10 +257,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 Ok(metadata) => metadata.len(),
                 Err(e) => {
                     eprintln!("Error getting WebM file metadata: {}", e);
-                    return Json(json!({
-                        "success": false,
-                        "error": format!("Failed to verify WebM file: {}", e)
-                    }));
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": format!("Failed to verify WebM file: {}", e)
+                        }))
+                    ));
                 }
             };
             eprintln!("WebM file size: {} bytes", webm_size);
@@ -197,10 +288,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                     "WebM FFprobe error: {}",
                     String::from_utf8_lossy(&ffprobe_webm.stderr)
                 );
-                return Json(json!({
-                    "success": false,
-                    "error": format!("Invalid WebM file: {}", String::from_utf8_lossy(&ffprobe_webm.stderr))
-                }));
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "success": false,
+                        "error": format!("Invalid WebM file: {}", String::from_utf8_lossy(&ffprobe_webm.stderr))
+                    }))
+                ));
             }
 
             // Run ffmpeg to convert WebM to WAV
@@ -231,10 +325,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
 
             if !ffmpeg_output.status.success() {
                 eprintln!("FFmpeg conversion failed!");
-                return Json(json!({
-                    "success": false,
-                    "error": format!("FFmpeg conversion failed: {}", String::from_utf8_lossy(&ffmpeg_output.stderr))
-                }));
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "success": false,
+                        "error": format!("FFmpeg conversion failed: {}", String::from_utf8_lossy(&ffmpeg_output.stderr))
+                    }))
+                ));
             }
 
             // Check WAV file size
@@ -242,10 +339,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                 Ok(metadata) => metadata.len(),
                 Err(e) => {
                     eprintln!("Error getting WAV file metadata: {}", e);
-                    return Json(json!({
-                        "success": false,
-                        "error": format!("Failed to verify WAV file: {}", e)
-                    }));
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": format!("Failed to verify WAV file: {}", e)
+                        }))
+                    ));
                 }
             };
             eprintln!("WAV file size: {} bytes", wav_size);
@@ -253,10 +353,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
             // Check if WAV file exists and has content
             if wav_size == 0 {
                 eprintln!("Error: WAV file is empty!");
-                return Json(json!({
-                    "success": false,
-                    "error": "WAV conversion failed - output file is empty"
-                }));
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "success": false,
+                        "error": "WAV conversion failed - output file is empty"
+                    }))
+                ));
             }
 
             // Analyze WAV file
@@ -279,10 +382,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                     "WAV FFprobe error: {}",
                     String::from_utf8_lossy(&ffprobe_wav.stderr)
                 );
-                return Json(json!({
-                    "success": false,
-                    "error": format!("Invalid WAV file: {}", String::from_utf8_lossy(&ffprobe_wav.stderr))
-                }));
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "success": false,
+                        "error": format!("Invalid WAV file: {}", String::from_utf8_lossy(&ffprobe_wav.stderr))
+                    }))
+                ));
             }
 
             // Run whisper transcription
@@ -322,17 +428,20 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                         let _ = fs::remove_file(&txt_path).await;
 
                         eprintln!("Transcription successful: {}", text.trim());
-                        return Json(json!({
+                        return Ok(Json(json!({
                             "success": true,
                             "text": text.trim()
-                        }));
+                        })));
                     }
                     Err(e) => {
                         eprintln!("Error reading transcription output: {}", e);
-                        return Json(json!({
-                            "success": false,
-                            "error": format!("Failed to read transcription output: {}", e)
-                        }));
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({
+                                "success": false,
+                                "error": format!("Failed to read transcription output: {}", e)
+                            }))
+                        ));
                     }
                 }
             } else {
@@ -342,10 +451,13 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
                     "Standard output: {}",
                     String::from_utf8_lossy(&output.stdout)
                 );
-                return Json(json!({
-                    "success": false,
-                    "error": format!("Whisper failed: {}", String::from_utf8_lossy(&output.stderr))
-                }));
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "success": false,
+                        "error": format!("Whisper failed: {}", String::from_utf8_lossy(&output.stderr))
+                    }))
+                ));
             }
         } else {
             eprintln!("Error: Failed to read audio data from multipart field");
@@ -353,8 +465,11 @@ async fn transcribe(mut multipart: Multipart) -> Json<serde_json::Value> {
     }
 
     eprintln!("Error: No valid audio data found in request");
-    Json(json!({
-        "success": false,
-        "error": "Failed to process audio"
-    }))
+    Err((
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "success": false,
+            "error": "Failed to process audio"
+        }))
+    ))
 }
