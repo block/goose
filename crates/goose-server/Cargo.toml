@@ -10,10 +10,10 @@ description.workspace = true
 [dependencies]
 goose = { path = "../goose" }
 mcp-core = { path = "../mcp-core" }
-axum = { version = "0.7", features = ["ws"] }
+axum = { version = "0.7", features = ["ws", "multipart"] }
 tokio = { version = "1.0", features = ["full"] }
 chrono = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 futures = "0.3"
@@ -26,6 +26,7 @@ http-body-util = "0.1"
 http = "1.0"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
+tempfile = "3.8"
 
 [[bin]]
 name = "goosed"
