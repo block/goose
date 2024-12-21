@@ -31,6 +31,7 @@ export default function Input({
 }: InputProps) {
   const [value, setValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
 
@@ -88,6 +89,7 @@ export default function Input({
 
   const handleRecordEnd = async (blob: Blob) => {
     try {
+      setIsTranscribing(true);
       console.log('Recording completed, size:', blob.size, 'type:', blob.type);
       const formData = new FormData();
       formData.append('audio', blob, 'audio.webm');
@@ -111,6 +113,8 @@ export default function Input({
       }
     } catch (err) {
       console.error('Transcription error:', err);
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -120,11 +124,11 @@ export default function Input({
         <textarea
           autoFocus
           id="dynamic-textarea"
-          placeholder="What should goose do?"
+          placeholder={isTranscribing ? "transcribing..." : "What should goose do?"}
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          disabled={disabled}
+          disabled={disabled || isTranscribing}
           ref={textAreaRef}
           rows={1}
           style={{
