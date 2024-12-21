@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-use super::base::{Provider, ProviderUsage, Usage};
+use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use super::configs::{DatabricksAuth, DatabricksProviderConfig, ModelConfig, ProviderModelConfig};
 use super::model_pricing::{cost, model_pricing_for};
 use super::oauth;
@@ -74,7 +74,7 @@ impl DatabricksProvider {
 
 #[async_trait]
 impl Provider for DatabricksProvider {
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -140,6 +140,13 @@ impl Provider for DatabricksProvider {
 
     fn get_model_config(&self) -> &ModelConfig {
         self.config.model_config()
+    }
+}
+
+#[async_trait]
+impl Moderation for DatabricksProvider {
+    async fn moderate_content(&self, content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }
 

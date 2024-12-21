@@ -1,10 +1,11 @@
 use crate::message::Message;
-use crate::providers::base::{Provider, ProviderUsage, Usage};
+use crate::providers::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use crate::providers::configs::{GroqProviderConfig, ModelConfig, ProviderModelConfig};
 use crate::providers::openai_utils::{
     create_openai_request_payload, get_openai_usage, openai_response_to_message,
 };
 use crate::providers::utils::{get_model, handle_response};
+use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::Tool;
 use reqwest::Client;
@@ -55,7 +56,7 @@ impl Provider for GroqProvider {
         self.config.model_config()
     }
 
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -71,6 +72,13 @@ impl Provider for GroqProvider {
         let model = get_model(&response);
 
         Ok((message, ProviderUsage::new(model, usage, None)))
+    }
+}
+
+#[async_trait]
+impl Moderation for GroqProvider {
+    async fn moderate_content(&self, content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }
 
