@@ -78,6 +78,8 @@ impl CapabilitiesBuilder {
 }
 
 pub trait Router: Send + Sync + 'static {
+    // in the protocol, instructions are optional but we make it required
+    fn instructions(&self) -> String;
     fn capabilities(&self) -> ServerCapabilities;
     fn list_tools(&self) -> Vec<mcp_core::tool::Tool>;
     fn call_tool(
@@ -113,6 +115,7 @@ pub trait Router: Send + Sync + 'static {
                     name: "mcp-server".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
                 },
+                instructions: Some(self.instructions()),
             };
 
             let mut response = self.create_response(req.id);

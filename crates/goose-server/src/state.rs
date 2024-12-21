@@ -3,10 +3,11 @@ use goose::providers::configs::GroqProviderConfig;
 use goose::{
     agent::Agent,
     developer::DeveloperSystem,
+    memory::MemorySystem,
     providers::{configs::ProviderConfig, factory},
     systems::goose_hints::GooseHintsSystem,
 };
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use tokio::sync::Mutex;
 
 /// Shared application state
@@ -21,6 +22,14 @@ impl AppState {
         let provider = factory::get_provider(provider_config.clone())?;
         let mut agent = Agent::new(provider);
         agent.add_system(Box::new(DeveloperSystem::new()));
+
+        // Add memory system only if GOOSE_SERVER__MEMORY is set to "true"
+        if let Ok(memory_enabled) = env::var("GOOSE_SERVER__MEMORY") {
+            if memory_enabled.to_lowercase() == "true" {
+                agent.add_system(Box::new(MemorySystem::new()));
+            }
+        }
+
         let goosehints_system = Box::new(GooseHintsSystem::new());
         agent.add_system(goosehints_system);
 

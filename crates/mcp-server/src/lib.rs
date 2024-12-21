@@ -191,8 +191,9 @@ where
                         }
                         JsonRpcMessage::Response(_)
                         | JsonRpcMessage::Notification(_)
+                        | JsonRpcMessage::Nil
                         | JsonRpcMessage::Error(_) => {
-                            // Ignore responses and notifications for now
+                            // Ignore responses, notifications and nil messages for now
                             continue;
                         }
                     }

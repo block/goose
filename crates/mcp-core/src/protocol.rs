@@ -47,6 +47,7 @@ pub enum JsonRpcMessage {
     Response(JsonRpcResponse),
     Notification(JsonRpcNotification),
     Error(JsonRpcError),
+    Nil, // used to respond to notifications
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,7 +55,8 @@ struct JsonRpcRaw {
     jsonrpc: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<u64>,
-    method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     params: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,22 +88,34 @@ impl TryFrom<JsonRpcRaw> for JsonRpcMessage {
             }));
         }
 
-        // If the method starts with "notifications/", it's a notification
-        if raw.method.starts_with("notifications/") {
-            return Ok(JsonRpcMessage::Notification(JsonRpcNotification {
+        // If we have a method, it's either a notification or request
+        if let Some(method) = raw.method {
+            if method.starts_with("notifications/") {
+                return Ok(JsonRpcMessage::Notification(JsonRpcNotification {
+                    jsonrpc: raw.jsonrpc,
+                    method,
+                    params: raw.params,
+                }));
+            }
+
+            return Ok(JsonRpcMessage::Request(JsonRpcRequest {
                 jsonrpc: raw.jsonrpc,
-                method: raw.method,
+                id: raw.id,
+                method,
                 params: raw.params,
             }));
         }
 
-        // Otherwise it's a request
-        Ok(JsonRpcMessage::Request(JsonRpcRequest {
-            jsonrpc: raw.jsonrpc,
-            id: raw.id,
-            method: raw.method,
-            params: raw.params,
-        }))
+        // If we have no method and no result/error, it's a nil response
+        if raw.id.is_none() && raw.result.is_none() && raw.error.is_none() {
+            return Ok(JsonRpcMessage::Nil);
+        }
+
+        // If we get here, something is wrong with the message
+        Err(format!(
+            "Invalid JSON-RPC message format: id={:?}, method={:?}, result={:?}, error={:?}",
+            raw.id, raw.method, raw.result, raw.error
+        ))
     }
 }
 
@@ -133,6 +147,8 @@ pub struct InitializeResult {
     pub protocol_version: String,
     pub capabilities: ServerCapabilities,
     pub server_info: Implementation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
