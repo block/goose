@@ -12,7 +12,6 @@ use std::process::Command;
 use std::sync::Arc;
 use tempfile::Builder;
 use tokio::fs;
-use tokio::process::Command as TokioCommand;
 use tokio::sync::{OnceCell, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -52,7 +51,7 @@ async fn get_status() -> Arc<RwLock<WhisperStatus>> {
 async fn ensure_whisper() {
     INIT.get_or_init(|| async {
         let status = get_status().await;
-        
+
         // Get the project root directory
         let mut project_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         project_dir.pop(); // go up from goose-server
@@ -118,7 +117,7 @@ async fn check_whisper_ready() -> Result<(), (StatusCode, Json<serde_json::Value
     ensure_whisper().await;
     let status = get_status().await;
     let status = status.read().await;
-    
+
     if !status.is_ready() {
         Err((
             StatusCode::SERVICE_UNAVAILABLE,
@@ -130,14 +129,16 @@ async fn check_whisper_ready() -> Result<(), (StatusCode, Json<serde_json::Value
                     "built": status.built,
                     "model_downloaded": status.model_downloaded
                 }
-            }))
+            })),
         ))
     } else {
         Ok(())
     }
 }
 
-async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+async fn transcribe(
+    mut multipart: Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // Check if whisper is ready
     check_whisper_ready().await?;
 
@@ -155,7 +156,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": "Received empty audio data"
-                    }))
+                    })),
                 ));
             }
 
@@ -169,7 +170,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                         Json(json!({
                             "success": false,
                             "error": format!("Failed to create temporary WebM file: {}", e)
-                        }))
+                        })),
                     ));
                 }
             };
@@ -184,7 +185,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                         Json(json!({
                             "success": false,
                             "error": format!("Failed to create temporary WAV file: {}", e)
-                        }))
+                        })),
                     ));
                 }
             };
@@ -200,7 +201,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                         Json(json!({
                             "success": false,
                             "error": format!("Failed to write WebM data: {}", e)
-                        }))
+                        })),
                     ));
                 }
             }
@@ -236,7 +237,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": "Whisper executable not found"
-                    }))
+                    })),
                 ));
             }
 
@@ -248,7 +249,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": "Whisper model not found"
-                    }))
+                    })),
                 ));
             }
 
@@ -262,7 +263,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                         Json(json!({
                             "success": false,
                             "error": format!("Failed to verify WebM file: {}", e)
-                        }))
+                        })),
                     ));
                 }
             };
@@ -293,7 +294,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": format!("Invalid WebM file: {}", String::from_utf8_lossy(&ffprobe_webm.stderr))
-                    }))
+                    })),
                 ));
             }
 
@@ -330,7 +331,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": format!("FFmpeg conversion failed: {}", String::from_utf8_lossy(&ffmpeg_output.stderr))
-                    }))
+                    })),
                 ));
             }
 
@@ -344,7 +345,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                         Json(json!({
                             "success": false,
                             "error": format!("Failed to verify WAV file: {}", e)
-                        }))
+                        })),
                     ));
                 }
             };
@@ -358,7 +359,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": "WAV conversion failed - output file is empty"
-                    }))
+                    })),
                 ));
             }
 
@@ -387,7 +388,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": format!("Invalid WAV file: {}", String::from_utf8_lossy(&ffprobe_wav.stderr))
-                    }))
+                    })),
                 ));
             }
 
@@ -440,7 +441,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                             Json(json!({
                                 "success": false,
                                 "error": format!("Failed to read transcription output: {}", e)
-                            }))
+                            })),
                         ));
                     }
                 }
@@ -456,7 +457,7 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
                     Json(json!({
                         "success": false,
                         "error": format!("Whisper failed: {}", String::from_utf8_lossy(&output.stderr))
-                    }))
+                    })),
                 ));
             }
         } else {
@@ -470,6 +471,6 @@ async fn transcribe(mut multipart: Multipart) -> Result<Json<serde_json::Value>,
         Json(json!({
             "success": false,
             "error": "Failed to process audio"
-        }))
+        })),
     ))
 }
