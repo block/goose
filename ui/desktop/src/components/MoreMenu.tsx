@@ -87,13 +87,19 @@ export default function MoreMenu() {
                         </button>
                     </div>)}
                     <button
-                        onClick={() => handleAction(window.electron.directoryChooser)}
+                        onClick={() => {
+                            setOpen(false);
+                            window.electron.directoryChooser();
+                        }}
                         className="w-full text-left px-2 py-1.5 text-sm"
                     >
                         Open Directory (cmd+O)
                     </button>
                     <button
-                        onClick={() => handleAction(window.electron.createChatWindow)}
+                        onClick={() => {
+                            setOpen(false);
+                            window.electron.createChatWindow();
+                        }}
                         className="w-full text-left px-2 py-1.5 text-sm"
                     >
                         New Session (cmd+N)
