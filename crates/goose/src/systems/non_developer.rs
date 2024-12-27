@@ -34,6 +34,25 @@ impl Default for NonDeveloperSystem {
 impl NonDeveloperSystem {
     pub fn new() -> Self {
         // Create tools for the system
+        let web_search_tool = Tool::new(
+            "web_search",
+            indoc! {r#"
+                Search the web using DuckDuckGo's API. Returns results in JSON format.
+                The results are cached locally for future reference.
+                Be sparing as there is a limited number of api calls allowed.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search topic to send to DuckDuckGo - should be very general topic or will return no results"
+                    }
+                }
+            }),
+        );
+
         let web_scrape_tool = Tool::new(
             "web_scrape",
             indoc! {r#"
@@ -176,24 +195,18 @@ impl NonDeveloperSystem {
 
         let instructions = formatdoc! {r#"
             You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
-            The user will likely not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
-            You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
-            Using the developer system is allowed, but use it sparingly (and check what cli tools they have already on their system) 
-            for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
-
+            The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
             The NonDeveloperSystem helps you with common tasks like web scraping,
-            data processing, and automation without requiring programming expertise.
+            data processing, and automation without requiring programming expertise,
+            supplementing the Developer System.
+
+            You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
+            Using the developer system is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
             
-            The user may not have as many tools pre-installed however as a professional developer would, so consider that when running scripts to use what is available.
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
 
             Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
             You can also guide them steps if they can help out as you go along.
-
-            Do use:
-                bash_tool when needed.
-                screen_capture_tool with list_windows_tool if it helps to see content on screen (you can ask them to open websites, or open them with open bash command to screenshot).
-                the developer system when needing to write to files or do something more sophisticated.
 
             Here are some extra tools:
 
@@ -214,6 +227,9 @@ impl NonDeveloperSystem {
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
 
+            web_search
+              - Search the web using DuckDuckGo's API for general topics or keywords
+
             cache
               - Manage your cached files
               - List, view, delete files
@@ -228,6 +244,7 @@ impl NonDeveloperSystem {
 
         Self {
             tools: vec![
+                web_search_tool,
                 web_scrape_tool,
                 data_process_tool,
                 quick_script_tool,
@@ -261,6 +278,61 @@ impl NonDeveloperSystem {
     }
 
     // Implement web_scrape tool functionality
+    async fn web_search(&self, params: Value) -> AgentResult<Vec<Content>> {
+        let query = params
+            .get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| AgentError::InvalidParameters("Missing 'query' parameter".into()))?;
+
+        // Create the DuckDuckGo API URL
+        let url = format!(
+            "https://api.duckduckgo.com/?q={}&format=json&pretty=1",
+            urlencoding::encode(query)
+        );
+
+        // Fetch the results
+        let response = self.http_client.get(&url).send().await.map_err(|e| {
+            AgentError::ExecutionError(format!("Failed to fetch search results: {}", e))
+        })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(AgentError::ExecutionError(format!(
+                "HTTP request failed with status: {}",
+                status
+            )));
+        }
+
+        // Get the JSON response
+        let json_text = response.text().await.map_err(|e| {
+            AgentError::ExecutionError(format!("Failed to get response text: {}", e))
+        })?;
+
+        // Save to cache
+        let cache_path = self
+            .save_to_cache(json_text.as_bytes(), "search", "json")
+            .await?;
+
+        // Register as a resource
+        let uri = Url::from_file_path(&cache_path)
+            .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
+            .to_string();
+
+        let resource = Resource::new(
+            uri.clone(),
+            Some("json".to_string()),
+            Some(cache_path.to_string_lossy().into_owned()),
+        )
+        .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
+
+        self.active_resources.lock().unwrap().insert(uri, resource);
+
+        Ok(vec![Content::text(format!(
+            "Search results saved to: {}",
+            cache_path.display()
+        ))])
+    }
+
     async fn web_scrape(&self, params: Value) -> AgentResult<Vec<Content>> {
         let url = params
             .get("url")
@@ -702,6 +774,7 @@ impl System for NonDeveloperSystem {
 
     async fn call(&self, tool_call: ToolCall) -> AgentResult<Vec<Content>> {
         match tool_call.name.as_str() {
+            "web_search" => self.web_search(tool_call.arguments).await,
             "web_scrape" => self.web_scrape(tool_call.arguments).await,
             "data_process" => self.data_process(tool_call.arguments).await,
             "quick_script" => self.quick_script(tool_call.arguments).await,
@@ -752,6 +825,22 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_web_search() {
+        let system = NonDeveloperSystem::new();
+
+        // Test with a simple search query
+        let tool_call = ToolCall::new(
+            "web_search",
+            json!({
+                "query": "rust programming"
+            }),
+        );
+
+        let result = system.call(tool_call).await.unwrap();
+        assert!(result[0].as_text().unwrap().contains("saved to:"));
+    }
 
     #[tokio::test]
     async fn test_web_scrape() {
