@@ -235,7 +235,7 @@ impl NonDeveloperSystem {
             ],
             cache_dir,
             active_resources: Mutex::new(HashMap::new()),
-            http_client: Client::new(),
+            http_client: Client::builder().user_agent("Goose/1.0").build().unwrap(),
             instructions,
         }
     }
