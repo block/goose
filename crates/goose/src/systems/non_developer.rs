@@ -187,7 +187,8 @@ impl NonDeveloperSystem {
             The user may not have as many tools pre-installed however as a professional developer would, so consider that when running scripts to use what is available.
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
 
-            Try to do your best to find ways to complete a task without too many quesitons unless unclear, you can also guide them through things if they can help out as you go along.
+            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
+            You can also guide them steps if they can help out as you go along.
 
             Do use:
                 bash_tool when needed.
@@ -200,6 +201,7 @@ impl NonDeveloperSystem {
               - Fetch content from websites and APIs
               - Save as text, JSON, or binary files
               - Content is cached locally for later use
+              - if website doesn't support it find an alternative way.
 
             data_process
               - Process text data with common operations
@@ -209,7 +211,7 @@ impl NonDeveloperSystem {
 
             quick_script
               - Create and run simple automation scripts
-              - Supports Shell (such as bash), and AppleScript (macOS only)
+              - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
 
             cache
