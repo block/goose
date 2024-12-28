@@ -113,18 +113,36 @@ mod tests {
             .await?;
 
         // Assert the response
-        assert!(!message.content.is_empty(), "Message content should not be empty");
+        assert!(
+            !message.content.is_empty(),
+            "Message content should not be empty"
+        );
         match &message.content[0] {
             MessageContent::Text(text) => {
-                assert_eq!(text.text, expected_response, "Response text does not match expected");
+                assert_eq!(
+                    text.text, expected_response,
+                    "Response text does not match expected"
+                );
             }
             other => panic!("Expected Text content, got {:?}", other),
         }
 
         // Verify usage metrics
-        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS), "Input tokens mismatch");
-        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS), "Output tokens mismatch");
-        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS), "Total tokens mismatch");
+        assert_eq!(
+            usage.usage.input_tokens,
+            Some(TEST_INPUT_TOKENS),
+            "Input tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.output_tokens,
+            Some(TEST_OUTPUT_TOKENS),
+            "Output tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.total_tokens,
+            Some(TEST_TOTAL_TOKENS),
+            "Total tokens mismatch"
+        );
         assert_eq!(usage.model, model_name, "Model name mismatch");
         assert_eq!(usage.cost, None, "Cost should be None");
 
