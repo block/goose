@@ -7,8 +7,23 @@ use goose::{
     providers::{configs::ProviderConfig, factory},
     systems::{goose_hints::GooseHintsSystem, non_developer::NonDeveloperSystem},
 };
-use std::{env, sync::Arc};
+use std::{env, path::Path, process::Command, sync::Arc};
 use tokio::sync::Mutex;
+
+/// Check if the current directory or any parent directory contains a .git folder
+fn is_in_git_repository() -> bool {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--git-dir")
+        .output();
+
+    matches!(output, Ok(output) if output.status.success())
+}
+
+/// Check if a .goosehints file exists in the current directory
+fn has_goosehints_file() -> bool {
+    Path::new(".goosehints").exists()
+}
 
 /// Shared application state
 pub struct AppState {
@@ -21,16 +36,34 @@ impl AppState {
     pub fn new(provider_config: ProviderConfig, secret_key: String) -> Result<Self> {
         let provider = factory::get_provider(provider_config.clone())?;
         let mut agent = Agent::new(provider);
+
+        dbg!("Adding DeveloperSystem");
         agent.add_system(Box::new(DeveloperSystem::new()));
-        agent.add_system(Box::new(NonDeveloperSystem::new()));
+
+        // Only add NonDeveloperSystem if we're not in a git repository and don't have a .goosehints file
+        let in_git = is_in_git_repository();
+        let has_hints = has_goosehints_file();
+
+        if !in_git && !has_hints {
+            dbg!("Adding NonDeveloperSystem");
+            agent.add_system(Box::new(NonDeveloperSystem::new()));
+        } else {
+            dbg!("Skipping NonDeveloperSystem");
+        }
 
         // Add memory system only if GOOSE_SERVER__MEMORY is set to "true"
         if let Ok(memory_enabled) = env::var("GOOSE_SERVER__MEMORY") {
             if memory_enabled.to_lowercase() == "true" {
+                dbg!("Adding MemorySystem");
                 agent.add_system(Box::new(MemorySystem::new()));
+            } else {
+                dbg!("Skipping MemorySystem (GOOSE_SERVER__MEMORY not 'true')");
             }
+        } else {
+            dbg!("Skipping MemorySystem (GOOSE_SERVER__MEMORY not set)");
         }
 
+        dbg!("Adding GooseHintsSystem");
         let goosehints_system = Box::new(GooseHintsSystem::new());
         agent.add_system(goosehints_system);
 
