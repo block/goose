@@ -78,7 +78,19 @@ jobs:
       working-directory: ui/desktop
 
     - name: Make default Goose App
-      run: npm run bundle:default
+      run: |
+        attempt=0
+        max_attempts=2
+        until [ $attempt -ge $max_attempts ]; do
+          npm run bundle:default && break
+          attempt=$((attempt + 1))
+          echo "Attempt $attempt failed. Retrying..."
+          sleep 5
+        done
+        if [ $attempt -ge $max_attempts ]; then
+          echo "Action failed after $max_attempts attempts."
+          exit 1
+        fi
       working-directory: ui/desktop
       env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
