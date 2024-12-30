@@ -226,6 +226,7 @@ impl NonDeveloperSystem {
               - Create and run simple automation scripts
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
+              - on macos, use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do.
 
             web_search
               - Search the web using DuckDuckGo's API for general topics or keywords
