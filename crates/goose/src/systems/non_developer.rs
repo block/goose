@@ -47,7 +47,7 @@ impl NonDeveloperSystem {
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The search topic to send to DuckDuckGo - should be very general topic or will return no results"
+                        "description": "The search topic to send to DuckDuckGo - should be very general topic or will return no results, usually one or 2 words"
                     }
                 }
             }),
@@ -130,9 +130,8 @@ impl NonDeveloperSystem {
                 
                 The script is saved to a temporary file and executed.
                 Consider using shell script (bash) for most simple tasks first.
-                Applescript for more complex automations, and Ruby for text processing
-                or when you need more sophisticated scripting capabilities.
-            "#},
+                Applescript for more complex automations (and controlling applications which may not have an api, but do be careful to ensure not too much data is returned at once), and Ruby for text processing or when you need more sophisticated scripting capabilities.
+                "#},
             json!({
                 "type": "object",
                 "required": ["language", "script"],
@@ -226,7 +225,41 @@ impl NonDeveloperSystem {
               - Create and run simple automation scripts
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
-              - on macos, use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do.
+              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it: 
+                    AppleScript is a powerful scripting language designed for automating tasks on macOS. It allows users to control applications and system features programmatically. Here's an overview of what AppleScript can automate:
+                    Application Control
+                        Launch, quit, or manage applications.
+                        Interact with app-specific features (e.g., sending an email in Mail, creating a document in Pages, or editing photos in Preview).
+                        Perform tasks in third-party apps that support AppleScript, such as Adobe Photoshop, Microsoft Office, or Safari.
+                    User Interface Automation
+                        Simulate user interactions like clicking buttons, selecting menu items, or typing text.
+                        Fill out forms or automate repetitive tasks in apps.
+                    System Settings and Utilities
+                        Change system preferences (e.g., volume, screen brightness, Wi-Fi settings).
+                        Automate tasks like shutting down, restarting, or putting the system to sleep.
+                        Monitor system events or logs.
+                    Web Automation
+                        Open specific URLs in Safari or other AppleScript-enabled browsers.
+                        Automate web interactions (e.g., filling forms, navigating pages).
+                        Scrape information from websites.
+                    Email and Messaging
+                        Automate sending and organizing emails in the Mail app.
+                        Extract email contents or attachments.
+                        Send messages via Messages.
+                    Media Management
+                        Organize and edit iTunes/Music libraries (e.g., create playlists, change metadata).
+                        Manage photos in Photos (e.g., creating albums, importing/exporting images).
+                        Automate tasks in video or music production tools like Final Cut Pro or GarageBand.
+                    Data Processing
+                        Process text files or other types of documents.
+                        Extract or format data from files or apps.
+                        Interact with spreadsheets (e.g., Numbers or Excel).
+                    Integration with Other Scripts
+                        Execute shell scripts, Ruby scripts, or other automation scripts.
+                        Combine workflows across scripting languages.
+                    Complex Workflows
+                        Automate multi-step tasks involving multiple apps or system features.
+                        Create scheduled tasks using Calendar or other scheduling apps.
 
             web_search
               - Search the web using DuckDuckGo's API for general topics or keywords
@@ -615,12 +648,6 @@ impl NonDeveloperSystem {
                 format!("osascript {}", script_path.display())
             }
             "ruby" => {
-                if std::env::consts::OS != "macos" {
-                    return Err(AgentError::ExecutionError(
-                        "Ruby scripting is only supported on macOS".into(),
-                    ));
-                }
-
                 let script_path = script_dir.path().join("script.rb");
                 fs::write(&script_path, script).map_err(|e| {
                     AgentError::ExecutionError(format!("Failed to write script: {}", e))
