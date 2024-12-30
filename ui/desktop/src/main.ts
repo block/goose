@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, powerSaveBlocker } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
 import started from "electron-squirrel-startup";
@@ -365,8 +365,31 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
-  // Handle metadata fetching from main process
-  ipcMain.handle('fetch-metadata', async (_, url) => {
+  // Power save blocker ID
+let powerSaveBlockerId: number | null = null;
+
+// Handle power save blocker
+ipcMain.handle('start-power-save-blocker', () => {
+  if (powerSaveBlockerId === null) {
+    powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+    log.info('Started power save blocker');
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('stop-power-save-blocker', () => {
+  if (powerSaveBlockerId !== null) {
+    powerSaveBlocker.stop(powerSaveBlockerId);
+    powerSaveBlockerId = null;
+    log.info('Stopped power save blocker');
+    return true;
+  }
+  return false;
+});
+
+// Handle metadata fetching from main process
+ipcMain.handle('fetch-metadata', async (_, url) => {
     try {
       const response = await fetch(url, {
         headers: {

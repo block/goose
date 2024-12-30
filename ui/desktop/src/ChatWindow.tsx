@@ -89,6 +89,7 @@ function ChatContent({
       if (!response.ok) {
         setProgressMessage('An error occurred while receiving the response.');
         updateWorking(Working.Idle);
+        window.electron.stopPowerSaveBlocker();
       } else {
         setProgressMessage('thinking...');
         updateWorking(Working.Working);
@@ -98,6 +99,7 @@ function ChatContent({
       setTimeout(() => {
         setProgressMessage('Task finished. Click here to expand.');
         updateWorking(Working.Idle);
+        window.electron.stopPowerSaveBlocker();
       }, 500);
       
       const fetchResponses = await askAi(message.content);
@@ -160,11 +162,13 @@ function ChatContent({
   }, [messages, isLoading, working]);
 
   // Handle submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as CustomEvent;
     const content = customEvent.detail?.value || '';
     if (content.trim()) {
       setLastInteractionTime(Date.now());
+      // Start power save blocker when sending a message
+      await window.electron.startPowerSaveBlocker();
       append({
         role: 'user',
         content: content,
