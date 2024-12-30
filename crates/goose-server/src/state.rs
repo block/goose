@@ -12,12 +12,14 @@ use tokio::sync::Mutex;
 
 /// Check if the current directory or any parent directory contains a .git folder
 fn is_in_git_repository() -> bool {
-    let output = Command::new("git")
+    match Command::new("git")
         .arg("rev-parse")
         .arg("--git-dir")
-        .output();
-
-    matches!(output, Ok(output) if output.status.success())
+        .output()
+    {
+        Ok(output) => output.status.success(),
+        Err(_) => false, // Return false if git command fails (e.g., git not installed)
+    }
 }
 
 /// Check if a .goosehints file exists in the current directory
