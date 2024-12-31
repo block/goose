@@ -269,6 +269,23 @@ impl NonDeveloperSystem {
         Ok(cache_path)
     }
 
+    // Helper function to register a file as a resource
+    fn register_as_resource(&self, cache_path: &PathBuf, mime_type: &str) -> AgentResult<()> {
+        let uri = Url::from_file_path(cache_path)
+            .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
+            .to_string();
+
+        let resource = Resource::new(
+            uri.clone(),
+            Some(mime_type.to_string()),
+            Some(cache_path.to_string_lossy().into_owned()),
+        )
+        .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
+
+        self.active_resources.lock().unwrap().insert(uri, resource);
+        Ok(())
+    }
+
     // Implement web_scrape tool functionality
     async fn web_search(&self, params: Value) -> AgentResult<Vec<Content>> {
         let query = params
@@ -306,18 +323,7 @@ impl NonDeveloperSystem {
             .await?;
 
         // Register as a resource
-        let uri = Url::from_file_path(&cache_path)
-            .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
-            .to_string();
-
-        let resource = Resource::new(
-            uri.clone(),
-            Some("json".to_string()),
-            Some(cache_path.to_string_lossy().into_owned()),
-        )
-        .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
-
-        self.active_resources.lock().unwrap().insert(uri, resource);
+        self.register_as_resource(&cache_path, "json")?;
 
         Ok(vec![Content::text(format!(
             "Search results saved to: {}",
@@ -383,18 +389,7 @@ impl NonDeveloperSystem {
         let cache_path = self.save_to_cache(&content, "web", extension).await?;
 
         // Register as a resource
-        let uri = Url::from_file_path(&cache_path)
-            .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
-            .to_string();
-
-        let resource = Resource::new(
-            uri.clone(),
-            Some(save_as.to_string()),
-            Some(cache_path.to_string_lossy().into_owned()),
-        )
-        .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
-
-        self.active_resources.lock().unwrap().insert(uri, resource);
+        self.register_as_resource(&cache_path, save_as)?;
 
         Ok(vec![Content::text(format!(
             "Content saved to: {}",
@@ -495,18 +490,7 @@ impl NonDeveloperSystem {
             result.push_str(&format!("\n\nOutput saved to: {}", cache_path.display()));
 
             // Register as a resource
-            let uri = Url::from_file_path(&cache_path)
-                .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
-                .to_string();
-
-            let resource = Resource::new(
-                uri.clone(),
-                Some("text".to_string()),
-                Some(cache_path.to_string_lossy().into_owned()),
-            )
-            .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
-
-            self.active_resources.lock().unwrap().insert(uri, resource);
+            self.register_as_resource(&cache_path, "text")?;
         }
 
         Ok(vec![Content::text(result)])
