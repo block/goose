@@ -7,25 +7,8 @@ use goose::{
     providers::{configs::ProviderConfig, factory},
     systems::{goose_hints::GooseHintsSystem, non_developer::NonDeveloperSystem},
 };
-use std::{env, path::Path, process::Command, sync::Arc};
+use std::{env, sync::Arc};
 use tokio::sync::Mutex;
-
-/// Check if the current directory or any parent directory contains a .git folder
-fn is_in_git_repository() -> bool {
-    match Command::new("git")
-        .arg("rev-parse")
-        .arg("--git-dir")
-        .output()
-    {
-        Ok(output) => output.status.success(),
-        Err(_) => false, // Return false if git command fails (e.g., git not installed)
-    }
-}
-
-/// Check if a .goosehints file exists in the current directory
-fn has_goosehints_file() -> bool {
-    Path::new(".goosehints").exists()
-}
 
 /// Shared application state
 pub struct AppState {
@@ -42,15 +25,16 @@ impl AppState {
         dbg!("Adding DeveloperSystem");
         agent.add_system(Box::new(DeveloperSystem::new()));
 
-        // Only add NonDeveloperSystem if we're not in a git repository and don't have a .goosehints file
-        let in_git = is_in_git_repository();
-        let has_hints = has_goosehints_file();
-
-        if !in_git && !has_hints {
-            dbg!("Adding NonDeveloperSystem");
-            agent.add_system(Box::new(NonDeveloperSystem::new()));
+        // Add NonDeveloperSystem only if GOOSE_SERVER__NON_DEVELOPER is set to "true"
+        if let Ok(non_dev_enabled) = env::var("GOOSE_SERVER__NON_DEVELOPER") {
+            if non_dev_enabled.to_lowercase() == "true" {
+                dbg!("Adding NonDeveloperSystem");
+                agent.add_system(Box::new(NonDeveloperSystem::new()));
+            } else {
+                dbg!("Skipping NonDeveloperSystem (GOOSE_SERVER__NON_DEVELOPER not 'true')");
+            }
         } else {
-            dbg!("Skipping NonDeveloperSystem");
+            dbg!("Skipping NonDeveloperSystem (GOOSE_SERVER__NON_DEVELOPER not set)");
         }
 
         // Add memory system only if GOOSE_SERVER__MEMORY is set to "true"
