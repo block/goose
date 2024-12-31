@@ -37,7 +37,7 @@ impl NonDeveloperSystem {
         let web_search_tool = Tool::new(
             "web_search",
             indoc! {r#"
-                Search the web using DuckDuckGo's API. Returns results in JSON format.
+                Search the web for a single word (proper noun ideally) using DuckDuckGo's API. Returns results in JSON format.
                 The results are cached locally for future reference.
                 Be sparing as there is a limited number of api calls allowed.
             "#},
@@ -47,7 +47,7 @@ impl NonDeveloperSystem {
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The search topic to send to DuckDuckGo - should be very general topic or will return no results, usually one or 2 words"
+                        "description": "A single word to search for, a topic, propernoun, brand name that you may not know about"
                     }
                 }
             }),
@@ -82,46 +82,6 @@ impl NonDeveloperSystem {
             }),
         );
 
-        let data_process_tool = Tool::new(
-            "data_process",
-            indoc! {r#"
-                Process data from a file using common operations:
-                - filter: Keep only lines matching a pattern
-                - extract: Extract specific patterns from each line
-                - sort: Sort lines alphabetically
-                - unique: Remove duplicate lines
-                - count: Count occurrences of patterns
-                - split: Split file into smaller files
-                - join: Join multiple files
-                
-                Results are saved to a new file in the cache directory.
-            "#},
-            json!({
-                "type": "object",
-                "required": ["input_path", "operation"],
-                "properties": {
-                    "input_path": {
-                        "type": "string",
-                        "description": "Path to the input file(s). For join operation, provide multiple paths separated by commas"
-                    },
-                    "operation": {
-                        "type": "string",
-                        "enum": ["filter", "extract", "sort", "unique", "count", "split", "join"],
-                        "description": "The operation to perform on the data"
-                    },
-                    "pattern": {
-                        "type": "string",
-                        "description": "Pattern to use for filter/extract/count operations. Uses regular expressions"
-                    },
-                    "chunk_size": {
-                        "type": "integer",
-                        "description": "Number of lines per file for split operation",
-                        "default": 1000
-                    }
-                }
-            }),
-        );
-
         let quick_script_tool = Tool::new(
             "quick_script",
             indoc! {r#"
@@ -131,6 +91,11 @@ impl NonDeveloperSystem {
                 The script is saved to a temporary file and executed.
                 Consider using shell script (bash) for most simple tasks first.
                 Applescript for more complex automations (and controlling applications which may not have an api, but do be careful to ensure not too much data is returned at once), and Ruby for text processing or when you need more sophisticated scripting capabilities.
+
+                Some examples of shell:
+                    - create a sorted list of unique lines: sort file.txt | uniq
+                    - extract 2nd column in csv: awk -F "," '{ print $2}'
+                    - pattern matching: grep pattern file.txt
                 "#},
             json!({
                 "type": "object",
@@ -165,16 +130,16 @@ impl NonDeveloperSystem {
             "#},
             json!({
                 "type": "object",
-                "required": ["operation"],
+                "required": ["command"],
                 "properties": {
-                    "operation": {
+                    "command": {
                         "type": "string",
                         "enum": ["list", "view", "delete", "clear"],
-                        "description": "The operation to perform"
+                        "description": "The command to perform"
                     },
                     "path": {
                         "type": "string",
-                        "description": "Path to the cached file for view/delete operations"
+                        "description": "Path to the cached file for view/delete commands"
                     }
                 }
             }),
@@ -214,12 +179,6 @@ impl NonDeveloperSystem {
               - Save as text, JSON, or binary files
               - Content is cached locally for later use
               - if website doesn't support it find an alternative way.
-
-            data_process
-              - Process text data with common operations
-              - Filter, extract, sort, count, and more
-              - Works with both small and large files
-              - Results are saved to new files
 
             quick_script
               - Create and run simple automation scripts
@@ -280,7 +239,6 @@ impl NonDeveloperSystem {
             tools: vec![
                 web_search_tool,
                 web_scrape_tool,
-                data_process_tool,
                 quick_script_tool,
                 cache_tool,
             ],
@@ -444,155 +402,6 @@ impl NonDeveloperSystem {
         ))])
     }
 
-    // Implement data_process tool functionality
-    async fn data_process(&self, params: Value) -> AgentResult<Vec<Content>> {
-        let input_path = params
-            .get("input_path")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                AgentError::InvalidParameters("Missing 'input_path' parameter".into())
-            })?;
-
-        let operation = params
-            .get("operation")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| AgentError::InvalidParameters("Missing 'operation' parameter".into()))?;
-
-        // Read input file(s)
-        let input_paths: Vec<&str> = input_path.split(',').map(str::trim).collect();
-        let mut input_contents = Vec::new();
-        for path in input_paths {
-            let content = fs::read_to_string(path).map_err(|e| {
-                AgentError::ExecutionError(format!("Failed to read input file: {}", e))
-            })?;
-            input_contents.push(content);
-        }
-
-        // Process based on operation
-        let (result, extension) = match operation {
-            "filter" => {
-                let pattern = params
-                    .get("pattern")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        AgentError::InvalidParameters(
-                            "Missing 'pattern' parameter for filter".into(),
-                        )
-                    })?;
-                let regex = regex::Regex::new(pattern).map_err(|e| {
-                    AgentError::InvalidParameters(format!("Invalid regex pattern: {}", e))
-                })?;
-                let filtered: Vec<String> = input_contents[0]
-                    .lines()
-                    .filter(|line| regex.is_match(line))
-                    .map(String::from)
-                    .collect();
-                (filtered.join("\n"), "txt")
-            }
-            "extract" => {
-                let pattern = params
-                    .get("pattern")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        AgentError::InvalidParameters(
-                            "Missing 'pattern' parameter for extract".into(),
-                        )
-                    })?;
-                let regex = regex::Regex::new(pattern).map_err(|e| {
-                    AgentError::InvalidParameters(format!("Invalid regex pattern: {}", e))
-                })?;
-                let extracted: Vec<String> = input_contents[0]
-                    .lines()
-                    .filter_map(|line| regex.captures(line))
-                    .filter_map(|cap| cap.get(1))
-                    .map(|m| m.as_str().to_string())
-                    .collect();
-                (extracted.join("\n"), "txt")
-            }
-            "sort" => {
-                let mut lines: Vec<String> = input_contents[0].lines().map(String::from).collect();
-                lines.sort();
-                (lines.join("\n"), "txt")
-            }
-            "unique" => {
-                let mut lines: Vec<String> = input_contents[0].lines().map(String::from).collect();
-                lines.sort();
-                lines.dedup();
-                (lines.join("\n"), "txt")
-            }
-            "count" => {
-                let pattern = params
-                    .get("pattern")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        AgentError::InvalidParameters(
-                            "Missing 'pattern' parameter for count".into(),
-                        )
-                    })?;
-                let regex = regex::Regex::new(pattern).map_err(|e| {
-                    AgentError::InvalidParameters(format!("Invalid regex pattern: {}", e))
-                })?;
-                let count = input_contents[0]
-                    .lines()
-                    .filter(|line| regex.is_match(line))
-                    .count();
-                (count.to_string(), "txt")
-            }
-            "split" => {
-                let chunk_size = params
-                    .get("chunk_size")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(1000) as usize;
-
-                let lines: Vec<&str> = input_contents[0].lines().collect();
-                let chunks = lines.chunks(chunk_size);
-                let mut paths = Vec::new();
-
-                for (i, chunk) in chunks.enumerate() {
-                    let chunk_path = self
-                        .save_to_cache(
-                            chunk.join("\n").as_bytes(),
-                            &format!("split_{}", i + 1),
-                            "txt",
-                        )
-                        .await?;
-                    paths.push(chunk_path.display().to_string());
-                }
-
-                (paths.join("\n"), "txt")
-            }
-            "join" => {
-                let joined = input_contents.join("\n");
-                (joined, "txt")
-            }
-            _ => unreachable!(), // Prevented by enum in tool definition
-        };
-
-        // Save result
-        let cache_path = self
-            .save_to_cache(result.as_bytes(), operation, extension)
-            .await?;
-
-        // Register as a resource
-        let uri = Url::from_file_path(&cache_path)
-            .map_err(|_| AgentError::ExecutionError("Invalid cache path".into()))?
-            .to_string();
-
-        let resource = Resource::new(
-            uri.clone(),
-            Some("text".to_string()),
-            Some(cache_path.to_string_lossy().into_owned()),
-        )
-        .map_err(|e| AgentError::ExecutionError(e.to_string()))?;
-
-        self.active_resources.lock().unwrap().insert(uri, resource);
-
-        Ok(vec![Content::text(format!(
-            "Result saved to: {}",
-            cache_path.display()
-        ))])
-    }
-
     // Implement quick_script tool functionality
     async fn quick_script(&self, params: Value) -> AgentResult<Vec<Content>> {
         let language = params
@@ -705,12 +514,12 @@ impl NonDeveloperSystem {
 
     // Implement cache tool functionality
     async fn cache(&self, params: Value) -> AgentResult<Vec<Content>> {
-        let operation = params
-            .get("operation")
+        let command = params
+            .get("command")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AgentError::InvalidParameters("Missing 'operation' parameter".into()))?;
+            .ok_or_else(|| AgentError::InvalidParameters("Missing 'command' parameter".into()))?;
 
-        match operation {
+        match command {
             "list" => {
                 let mut files = Vec::new();
                 for entry in fs::read_dir(&self.cache_dir).map_err(|e| {
@@ -804,7 +613,6 @@ impl System for NonDeveloperSystem {
         match tool_call.name.as_str() {
             "web_search" => self.web_search(tool_call.arguments).await,
             "web_scrape" => self.web_scrape(tool_call.arguments).await,
-            "data_process" => self.data_process(tool_call.arguments).await,
             "quick_script" => self.quick_script(tool_call.arguments).await,
             "cache" => self.cache(tool_call.arguments).await,
             _ => Err(AgentError::ToolNotFound(tool_call.name)),
@@ -850,9 +658,6 @@ impl System for NonDeveloperSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Write;
-    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_web_search() {
@@ -880,29 +685,6 @@ mod tests {
             json!({
                 "url": "https://httpbin.org/json",
                 "save_as": "json"
-            }),
-        );
-
-        let result = system.call(tool_call).await.unwrap();
-        assert!(result[0].as_text().unwrap().contains("saved to:"));
-    }
-
-    #[tokio::test]
-    async fn test_data_process() {
-        let system = NonDeveloperSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let input_path = temp_dir.path().join("test.txt");
-
-        // Create test file
-        let mut file = File::create(&input_path).unwrap();
-        writeln!(file, "apple\nbanana\napple\ncherry").unwrap();
-
-        // Test unique operation
-        let tool_call = ToolCall::new(
-            "data_process",
-            json!({
-                "input_path": input_path.to_str().unwrap(),
-                "operation": "unique"
             }),
         );
 
@@ -957,11 +739,11 @@ mod tests {
     async fn test_cache() {
         let system = NonDeveloperSystem::new();
 
-        // Test list operation
+        // Test list command
         let tool_call = ToolCall::new(
             "cache",
             json!({
-                "operation": "list"
+                "command": "list"
             }),
         );
 
