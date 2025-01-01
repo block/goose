@@ -98,11 +98,11 @@ mod tests {
     #[tokio::test]
     async fn test_complete_basic() -> Result<()> {
         let model_name = "gpt-4o";
+        let expected_response = "Hello! How can I assist you today?";
         // Mock response for normal completion
-        let response_body =
-            create_mock_open_ai_response(model_name, "Hello! How can I assist you today?");
+        let response_body = create_mock_open_ai_response(model_name, expected_response);
 
-        let (_, provider) = _setup_mock_server(response_body).await;
+        let (mock_server, provider) = _setup_mock_server(response_body).await;
 
         // Prepare input messages
         let messages = vec![Message::user().with_text("Hello?")];
@@ -113,16 +113,41 @@ mod tests {
             .await?;
 
         // Assert the response
-        if let MessageContent::Text(text) = &message.content[0] {
-            assert_eq!(text.text, "Hello! How can I assist you today?");
-        } else {
-            panic!("Expected Text content");
+        assert!(
+            !message.content.is_empty(),
+            "Message content should not be empty"
+        );
+        match &message.content[0] {
+            MessageContent::Text(text) => {
+                assert_eq!(
+                    text.text, expected_response,
+                    "Response text does not match expected"
+                );
+            }
+            other => panic!("Expected Text content, got {:?}", other),
         }
-        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS));
-        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
-        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
-        assert_eq!(usage.model, model_name);
-        assert_eq!(usage.cost, None);
+
+        // Verify usage metrics
+        assert_eq!(
+            usage.usage.input_tokens,
+            Some(TEST_INPUT_TOKENS),
+            "Input tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.output_tokens,
+            Some(TEST_OUTPUT_TOKENS),
+            "Output tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.total_tokens,
+            Some(TEST_TOTAL_TOKENS),
+            "Total tokens mismatch"
+        );
+        assert_eq!(usage.model, model_name, "Model name mismatch");
+        assert_eq!(usage.cost, None, "Cost should be None");
+
+        // Ensure mock server handled the request
+        mock_server.verify().await;
 
         Ok(())
     }

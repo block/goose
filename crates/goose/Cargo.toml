@@ -67,6 +67,7 @@ keyring = { version = "3.6.1", features = [
 shellexpand = "3.1.0"
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
+tempfile = "3.8"
 
 [dev-dependencies]
 sysinfo = "0.32.1"
