@@ -386,7 +386,8 @@ app.whenReady().then(async () => {
 let powerSaveBlockerId: number | null = null;
 
 // Handle power save blocker
-ipcMain.handle('start-power-save-blocker', () => {
+  ipcMain.handle('start-power-save-blocker', () => {
+  log.info('Starting power save blocker...');
   if (powerSaveBlockerId === null) {
     powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
     log.info('Started power save blocker');
@@ -395,14 +396,15 @@ ipcMain.handle('start-power-save-blocker', () => {
   return false;
 });
 
-ipcMain.handle('stop-power-save-blocker', () => {
-  if (powerSaveBlockerId !== null) {
-    powerSaveBlocker.stop(powerSaveBlockerId);
-    powerSaveBlockerId = null;
-    log.info('Stopped power save blocker');
-    return true;
-  }
-  return false;
+  ipcMain.handle('stop-power-save-blocker', () => {
+    log.info('Stopping power save blocker...');
+    if (powerSaveBlockerId !== null) {
+      powerSaveBlocker.stop(powerSaveBlockerId);
+      powerSaveBlockerId = null;
+      log.info('Stopped power save blocker');
+      return true;
+    }
+    return false;
 });
 
 // Handle metadata fetching from main process

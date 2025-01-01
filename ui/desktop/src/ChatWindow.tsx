@@ -85,21 +85,21 @@ function ChatContent({
       setProgressMessage(`Executing tool: ${toolCall.toolName}`);
       requestAnimationFrame(() => scrollToBottom('instant'));
     },
-    onResponse: (response) => {
+    onResponse: (response) => {      
       if (!response.ok) {
         setProgressMessage('An error occurred while receiving the response.');
-        updateWorking(Working.Idle);
-        window.electron.stopPowerSaveBlocker();
+        updateWorking(Working.Idle);        
       } else {
         setProgressMessage('thinking...');
         updateWorking(Working.Working);
       }
     },
-    onFinish: async (message, options) => {
+    onFinish: async (message, _) => {
+      window.electron.stopPowerSaveBlocker();
       setTimeout(() => {
         setProgressMessage('Task finished. Click here to expand.');
         updateWorking(Working.Idle);
-        window.electron.stopPowerSaveBlocker();
+        
       }, 500);
       
       const fetchResponses = await askAi(message.content);
@@ -162,13 +162,13 @@ function ChatContent({
   }, [messages, isLoading, working]);
 
   // Handle submit
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
+    window.electron.startPowerSaveBlocker();
     const customEvent = e as CustomEvent;
     const content = customEvent.detail?.value || '';
     if (content.trim()) {
       setLastInteractionTime(Date.now());
-      // Start power save blocker when sending a message
-      await window.electron.startPowerSaveBlocker();
+      // Start power save blocker when sending a message      
       append({
         role: 'user',
         content: content,
@@ -185,6 +185,7 @@ function ChatContent({
   const onStopGoose = () => {
     stop();
     setLastInteractionTime(Date.now()); // Update last interaction time
+    window.electron.stopPowerSaveBlocker();
 
     const lastMessage: Message = messages[messages.length - 1];
     if (lastMessage.role === 'user' && lastMessage.toolInvocations === undefined) {

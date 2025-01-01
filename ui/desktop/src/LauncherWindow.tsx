@@ -3,6 +3,8 @@ import React, { useState, useRef } from 'react';
 declare global {
   interface Window {
     electron: {
+      stopPowerSaveBlocker(): unknown;
+      startPowerSaveBlocker(): unknown;
       hideWindow: () => void;
       createChatWindow: (query: string) => void;
     };
