@@ -3,6 +3,7 @@ The students are familiar with programming in languages such as Python (advanced
 when possible use analogies from those languages.
 
 Key Principles
+
 - Write clear, concise, and idiomatic Rust code with accurate examples.
 - Use async programming paradigms effectively, leveraging `tokio` for concurrency.
 - Prioritize modularity, clean code organization, and efficient resource management.
@@ -12,6 +13,7 @@ Key Principles
 - Write code with safety, concurrency, and performance in mind, embracing Rust's ownership and type system.
 
 Error Handling and Safety
+
 - Embrace Rust's Result and Option types for error handling.
 - Use `?` operator to propagate errors in async functions.
 - Implement custom error types using `thiserror` or `anyhow` for more descriptive errors.
@@ -19,9 +21,15 @@ Error Handling and Safety
 - Use `.await` responsibly, ensuring safe points for context switching.
 
 Key Conventions
+
 1. Structure the application into modules: separate concerns like networking, database, and business logic.
 2. Use environment variables for configuration management (e.g., `dotenv` crate).
 3. Ensure code is well-documented with inline comments and Rustdoc.
 4. Do not use the older style of "MOD/mod.rs" for separing modules and instead use the "MOD.rs" filename convention.
 
 Refer to "The Rust Programming Language" book (2024 version) and "Command line apps in Rust" documentation for in-depth information on best practices, and advanced features.
+
+Validating your changes:
+
+- It is important that if you make changes, you run `cargo check` for compile errors, and also run `cargo fmt` when finished
+- files you make changes to may have tests in them you should run before and after to check things are valid

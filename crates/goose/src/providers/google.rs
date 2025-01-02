@@ -28,6 +28,25 @@ impl GoogleProvider {
         Ok(Self { client, config })
     }
 
+    async fn post_with_retry(&self, payload: Value) -> anyhow::Result<Value> {
+        let mut attempts = 0;
+        let max_attempts = 3;
+        let mut last_error = None;
+
+        while attempts < max_attempts {
+            match self.post(payload.clone()).await {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    last_error = Some(e);
+                    attempts += 1;
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+
+        Err(last_error.unwrap())
+    }
+
     async fn post(&self, payload: Value) -> anyhow::Result<Value> {
         let url = format!(
             "{}/v1beta/models/{}:generateContent?key={}",
@@ -310,8 +329,9 @@ impl Provider for GoogleProvider {
             payload.insert("generationConfig".to_string(), json!(generation_config));
         }
 
-        // Make request
-        let response = self.post(Value::Object(payload)).await?;
+        // Make request with retry
+        let response = self.post_with_retry(Value::Object(payload)).await?;
+
         // Parse response
         let message = self.google_response_to_message(unescape_json_values(&response))?;
         let usage = self.get_usage(&response)?;
@@ -413,9 +433,9 @@ mod tests {
             }
         });
         let usage = provider.get_usage(&data).unwrap();
-        assert_eq!(usage.input_tokens, Some(1));
-        assert_eq!(usage.output_tokens, Some(2));
-        assert_eq!(usage.total_tokens, Some(3));
+        assert_eq!(usage.input_tokens, Some(1), "Input tokens mismatch");
+        assert_eq!(usage.output_tokens, Some(2), "Output tokens mismatch");
+        assert_eq!(usage.total_tokens, Some(3), "Total tokens mismatch");
     }
 
     #[test]
@@ -426,11 +446,23 @@ mod tests {
             set_up_text_message("World", Role::Assistant),
         ];
         let payload = provider.messages_to_google_spec(&messages);
-        assert_eq!(payload.len(), 2);
-        assert_eq!(payload[0]["role"], "user");
-        assert_eq!(payload[0]["parts"][0]["text"], "Hello");
-        assert_eq!(payload[1]["role"], "model");
-        assert_eq!(payload[1]["parts"][0]["text"], "World");
+        assert_eq!(payload.len(), 2, "Expected 2 messages in payload");
+        assert_eq!(
+            payload[0]["role"], "user",
+            "First message should be user role"
+        );
+        assert_eq!(
+            payload[0]["parts"][0]["text"], "Hello",
+            "First message text mismatch"
+        );
+        assert_eq!(
+            payload[1]["role"], "model",
+            "Second message should be model role"
+        );
+        assert_eq!(
+            payload[1]["parts"][0]["text"], "World",
+            "Second message text mismatch"
+        );
     }
 
     #[test]
@@ -444,9 +476,12 @@ mod tests {
             ToolCall::new("tool_name", json!(arguments)),
         )];
         let payload = provider.messages_to_google_spec(&messages);
-        assert_eq!(payload.len(), 1);
-        assert_eq!(payload[0]["role"], "user");
-        assert_eq!(payload[0]["parts"][0]["functionCall"]["args"], arguments);
+        assert_eq!(payload.len(), 1, "Expected 1 message in payload");
+        assert_eq!(payload[0]["role"], "user", "Message should be user role");
+        assert_eq!(
+            payload[0]["parts"][0]["functionCall"]["args"], arguments,
+            "Tool request arguments mismatch"
+        );
     }
 
     #[test]
@@ -458,15 +493,15 @@ mod tests {
             tool_result.unwrap(),
         )];
         let payload = provider.messages_to_google_spec(&messages);
-        assert_eq!(payload.len(), 1);
-        assert_eq!(payload[0]["role"], "model");
+        assert_eq!(payload.len(), 1, "Expected 1 message in payload");
+        assert_eq!(payload[0]["role"], "model", "Message should be model role");
         assert_eq!(
-            payload[0]["parts"][0]["functionResponse"]["name"],
-            "response_id"
+            payload[0]["parts"][0]["functionResponse"]["name"], "response_id",
+            "Tool response ID mismatch"
         );
         assert_eq!(
-            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
-            "Hello"
+            payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"], "Hello",
+            "Tool response content mismatch"
         );
     }
 
@@ -491,24 +526,32 @@ mod tests {
             set_up_tool("tool2", "description2", params2),
         ];
         let result = provider.tools_to_google_spec(&tools);
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0]["name"], "tool1");
-        assert_eq!(result[0]["description"], "description1");
+        assert_eq!(result.len(), 2, "Expected 2 tools in result");
+        assert_eq!(result[0]["name"], "tool1", "First tool name mismatch");
+        assert_eq!(
+            result[0]["description"], "description1",
+            "First tool description mismatch"
+        );
         assert_eq!(
             result[0]["parameters"]["properties"],
             json!({"param1": json!({
                 "type": "string",
                 "description": "A parameter"
-            })})
+            })}),
+            "First tool parameters mismatch"
         );
-        assert_eq!(result[1]["name"], "tool2");
-        assert_eq!(result[1]["description"], "description2");
+        assert_eq!(result[1]["name"], "tool2", "Second tool name mismatch");
+        assert_eq!(
+            result[1]["description"], "description2",
+            "Second tool description mismatch"
+        );
         assert_eq!(
             result[1]["parameters"]["properties"],
             json!({"param2": json!({
                 "type": "string",
                 "description": "B parameter"
-            })})
+            })}),
+            "Second tool parameters mismatch"
         );
     }
 
@@ -523,10 +566,16 @@ mod tests {
             }),
         }];
         let result = provider.tools_to_google_spec(&tools);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0]["name"], "tool1");
-        assert_eq!(result[0]["description"], "description1");
-        assert!(result[0]["parameters"].get("properties").is_none());
+        assert_eq!(result.len(), 1, "Expected 1 tool in result");
+        assert_eq!(result[0]["name"], "tool1", "Tool name mismatch");
+        assert_eq!(
+            result[0]["description"], "description1",
+            "Tool description mismatch"
+        );
+        assert!(
+            result[0]["parameters"].get("properties").is_none(),
+            "Tool should not have properties"
+        );
     }
 
     #[test]
@@ -534,29 +583,49 @@ mod tests {
         let provider = set_up_provider();
         let response = json!({});
         let message = provider.google_response_to_message(response).unwrap();
-        assert_eq!(message.role, Role::Assistant);
-        assert!(message.content.is_empty());
+        assert_eq!(
+            message.role,
+            Role::Assistant,
+            "Message should have Assistant role"
+        );
+        assert!(
+            message.content.is_empty(),
+            "Message content should be empty"
+        );
     }
 
     #[test]
     fn google_response_to_message_with_text_part() {
         let provider = set_up_provider();
+        let expected_text = "Hello, world!";
         let response = json!({
             "candidates": [{
                 "content": {
                     "parts": [{
-                        "text": "Hello, world!"
+                        "text": expected_text
                     }]
                 }
             }]
         });
         let message = provider.google_response_to_message(response).unwrap();
-        assert_eq!(message.role, Role::Assistant);
-        assert_eq!(message.content.len(), 1);
-        if let MessageContent::Text(text) = &message.content[0] {
-            assert_eq!(text.text, "Hello, world!");
-        } else {
-            panic!("Expected text content");
+        assert_eq!(
+            message.role,
+            Role::Assistant,
+            "Message should have Assistant role"
+        );
+        assert_eq!(
+            message.content.len(),
+            1,
+            "Message should have exactly one content item"
+        );
+        match &message.content[0] {
+            MessageContent::Text(text) => {
+                assert_eq!(
+                    text.text, expected_text,
+                    "Message text content does not match expected"
+                );
+            }
+            other => panic!("Expected Text content, got {:?}", other),
         }
     }
 
@@ -576,10 +645,21 @@ mod tests {
             }]
         });
         let message = provider.google_response_to_message(response).unwrap();
-        assert_eq!(message.role, Role::Assistant);
-        assert_eq!(message.content.len(), 1);
+        assert_eq!(
+            message.role,
+            Role::Assistant,
+            "Message should have Assistant role"
+        );
+        assert_eq!(
+            message.content.len(),
+            1,
+            "Message should have exactly one content item"
+        );
         if let Err(error) = &message.content[0].as_tool_request().unwrap().tool_call {
-            assert!(matches!(error, AgentError::ToolNotFound(_)));
+            assert!(
+                matches!(error, AgentError::ToolNotFound(_)),
+                "Expected ToolNotFound error"
+            );
         } else {
             panic!("Expected tool request error");
         }
@@ -603,13 +683,28 @@ mod tests {
             }]
         });
         let message = provider.google_response_to_message(response).unwrap();
-        assert_eq!(message.role, Role::Assistant);
-        assert_eq!(message.content.len(), 1);
-        if let Ok(tool_call) = &message.content[0].as_tool_request().unwrap().tool_call {
-            assert_eq!(tool_call.name, "valid_name");
-            assert_eq!(tool_call.arguments["param"], "value");
-        } else {
-            panic!("Expected valid tool request");
+        assert_eq!(
+            message.role,
+            Role::Assistant,
+            "Message should have Assistant role"
+        );
+        assert_eq!(
+            message.content.len(),
+            1,
+            "Message should have exactly one content item"
+        );
+        match &message.content[0].as_tool_request().unwrap().tool_call {
+            Ok(tool_call) => {
+                assert_eq!(
+                    tool_call.name, "valid_name",
+                    "Tool call name does not match expected"
+                );
+                assert_eq!(
+                    tool_call.arguments["param"], "value",
+                    "Tool call arguments do not match expected"
+                );
+            }
+            Err(e) => panic!("Expected valid tool request, got error: {:?}", e),
         }
     }
 
@@ -632,11 +727,11 @@ mod tests {
     #[tokio::test]
     async fn test_complete_basic() -> anyhow::Result<()> {
         let model_name = "gemini-1.5-flash";
+        let expected_response = "Hello! How can I assist you today?";
         // Mock response for normal completion
-        let response_body =
-            create_mock_google_ai_response(model_name, "Hello! How can I assist you today?");
+        let response_body = create_mock_google_ai_response(model_name, expected_response);
 
-        let (_, provider) = _setup_mock_server(model_name, response_body).await;
+        let (mock_server, provider) = _setup_mock_server(model_name, response_body).await;
 
         // Prepare input messages
         let messages = vec![Message::user().with_text("Hello?")];
@@ -647,16 +742,41 @@ mod tests {
             .await?;
 
         // Assert the response
-        if let MessageContent::Text(text) = &message.content[0] {
-            assert_eq!(text.text, "Hello! How can I assist you today?");
-        } else {
-            panic!("Expected Text content");
+        assert!(
+            !message.content.is_empty(),
+            "Message content should not be empty"
+        );
+        match &message.content[0] {
+            MessageContent::Text(text) => {
+                assert_eq!(
+                    text.text, expected_response,
+                    "Response text does not match expected"
+                );
+            }
+            other => panic!("Expected Text content, got {:?}", other),
         }
-        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS));
-        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
-        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
-        assert_eq!(usage.model, model_name);
-        assert_eq!(usage.cost, None);
+
+        // Verify usage metrics
+        assert_eq!(
+            usage.usage.input_tokens,
+            Some(TEST_INPUT_TOKENS),
+            "Input tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.output_tokens,
+            Some(TEST_OUTPUT_TOKENS),
+            "Output tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.total_tokens,
+            Some(TEST_TOTAL_TOKENS),
+            "Total tokens mismatch"
+        );
+        assert_eq!(usage.model, model_name, "Model name mismatch");
+        assert_eq!(usage.cost, None, "Cost should be None");
+
+        // Ensure mock server handled the request
+        mock_server.verify().await;
 
         Ok(())
     }
@@ -667,7 +787,7 @@ mod tests {
         // Mock response for tool calling
         let response_body = create_mock_google_ai_response_with_tools("gpt-4o");
 
-        let (_, provider) = _setup_mock_server(model_name, response_body).await;
+        let (mock_server, provider) = _setup_mock_server(model_name, response_body).await;
 
         // Input messages
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
@@ -682,17 +802,48 @@ mod tests {
             .await?;
 
         // Assert the response
-        if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
-            let tool_call = tool_request.tool_call.as_ref().unwrap();
-            assert_eq!(tool_call.name, TEST_TOOL_FUNCTION_NAME);
-            assert_eq!(tool_call.arguments, get_expected_function_call_arguments());
-        } else {
-            panic!("Expected ToolCall content");
+        assert!(
+            !message.content.is_empty(),
+            "Message content should not be empty"
+        );
+        match &message.content[0] {
+            MessageContent::ToolRequest(tool_request) => {
+                let tool_call = tool_request
+                    .tool_call
+                    .as_ref()
+                    .expect("Tool call should be present");
+                assert_eq!(
+                    tool_call.name, TEST_TOOL_FUNCTION_NAME,
+                    "Tool name does not match expected"
+                );
+                assert_eq!(
+                    tool_call.arguments,
+                    get_expected_function_call_arguments(),
+                    "Tool arguments do not match expected"
+                );
+            }
+            other => panic!("Expected ToolRequest content, got {:?}", other),
         }
 
-        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS));
-        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
-        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
+        // Verify usage metrics
+        assert_eq!(
+            usage.usage.input_tokens,
+            Some(TEST_INPUT_TOKENS),
+            "Input tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.output_tokens,
+            Some(TEST_OUTPUT_TOKENS),
+            "Output tokens mismatch"
+        );
+        assert_eq!(
+            usage.usage.total_tokens,
+            Some(TEST_TOTAL_TOKENS),
+            "Total tokens mismatch"
+        );
+
+        // Ensure mock server handled the request
+        mock_server.verify().await;
 
         Ok(())
     }
