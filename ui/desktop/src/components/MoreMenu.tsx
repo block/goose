@@ -3,9 +3,6 @@ import {Popover, PopoverContent, PopoverTrigger} from './ui/popover';
 import VertDots from './ui/VertDots';
 import {FaSun, FaMoon} from 'react-icons/fa';
 
-const handleAction = (action: () => void) => {
-    action();
-};
 
 export default function MoreMenu() {
     const [open, setOpen] = useState(false);
@@ -27,7 +24,7 @@ export default function MoreMenu() {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
         
         // Handler for system theme changes
-        const handleThemeChange = (e: MediaQueryListEvent) => {
+        const handleThemeChange = (e: { matches: boolean }) => {
             if (useSystemTheme) {
                 setDarkMode(e.matches);
             }
