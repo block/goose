@@ -10,7 +10,7 @@ export default function Splash({ append }) {
         <GooseSplashLogo />
         <span className="ask-goose-type goose-text dark:goose-text-dark ml-[8px]">ask<br />goose</span>
       </div>
-      <div className={`mt-[10px] w-[198px] h-[17px] py-2 flex-col justify-center items-start inline-flex`}>
+      <div className={`mt-[24px] mb-[24px] w-[198px] h-[17px] py-2 flex-col justify-center items-start inline-flex`}>
         <div className="self-stretch h-px bg-black/5 dark:bg-white/5 rounded-sm" />
       </div>
       <div
@@ -26,9 +26,6 @@ export default function Splash({ append }) {
         What can goose do?
       </div>
       <div className="flex flex-1" />
-      <div className={`mt-[10px] w-[198px] h-[17px] py-2 flex-col justify-center items-start inline-flex`}>
-        <div className="self-stretch h-px bg-black/5 dark:bg-white/5 rounded-sm" />
-      </div>
       <div className="flex items-center p-4">
         <SplashPills append={append} />
       </div>
