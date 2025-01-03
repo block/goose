@@ -15,15 +15,15 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
       <div className="text-center space-y-4">
         <h2 className="text-2xl font-semibold text-gray-800">API Key Required</h2>
         <div className="whitespace-pre-wrap">
-          To use Goose, you need to set some combination of the following env variables
+          To use Goose, you need to set some env variables for an appropriate provider
           <br />
           <br />
           # OpenAI
           <br />
           <br />
-          export GOOSE_PROVIDER__TYPE=openai<br />
-          GOOSE_PROVIDER__HOST=https://api.openai.com<br />
-          GOOSE_PROVIDER__MODEL=gpt-4o<br />
+          export GOOSE_PROVIDER__TYPE=openai|anthropic|openrouter|...<br />
+          GOOSE_PROVIDER__HOST=https://api.openai.com|https://api.anthropic.com|https://openrouter.ai"|...<br />
+          GOOSE_PROVIDER__MODEL=gpt-4o|claude-3-5-sonnet-latest|anthropic/claude-3.5-sonnet|...<br />
           GOOSE_PROVIDER__API_KEY=...<br />
           <br />
           <br />
@@ -35,7 +35,6 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
           export GOOSE_PROVIDER__MODEL="claude-3-5-sonnet-2"<br />
           <br />
           <br />
-          Please export these and restart the application.
         </div>
       </div>
     </Card>
