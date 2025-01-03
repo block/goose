@@ -13,12 +13,12 @@ use super::model_pricing::model_pricing_for;
 use super::utils::{get_model, handle_response};
 use crate::message::Message;
 use crate::providers::openai_utils::{
-    check_openai_context_length_error, create_openai_request_payload, get_openai_usage,
-    openai_response_to_message,
+    check_openai_context_length_error, create_openai_request_payload_with_concat_response_content,
+    get_openai_usage, openai_response_to_message,
 };
 use mcp_core::tool::Tool;
 
-pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3-sonnet";
+pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
 
 pub struct OpenRouterProvider {
     client: Client,
@@ -68,17 +68,12 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
         // Create the base payload
-        let mut payload = create_openai_request_payload(&self.config.model, system, messages, tools)?;
-        
-        // For OpenRouter, we need to ensure the model has a provider prefix
-        if let Some(model) = payload.get_mut("model") {
-            if let Some(model_str) = model.as_str() {
-                if !model_str.contains('/') {
-                    // For models without a prefix, add the anthropic prefix as that's our default
-                    *model = serde_json::Value::String(format!("anthropic/{}", model_str));
-                }
-            }
-        }
+        let payload = create_openai_request_payload_with_concat_response_content(
+            &self.config.model,
+            system,
+            messages,
+            tools,
+        )?;
 
         // Make request
         let response = self.post(payload).await?;
