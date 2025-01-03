@@ -1,5 +1,4 @@
 use anyhow::Result;
-use goose::providers::configs::GroqProviderConfig;
 use goose::{
     agent::Agent,
     developer::DeveloperSystem,
@@ -11,6 +10,8 @@ use std::{env, sync::Arc};
 use tokio::sync::Mutex;
 
 /// Shared application state
+#[allow(dead_code)]
+#[derive(Clone)]
 pub struct AppState {
     pub provider_config: ProviderConfig,
     pub agent: Arc<Mutex<Agent>>,
@@ -58,57 +59,5 @@ impl AppState {
             agent: Arc::new(Mutex::new(agent)),
             secret_key,
         })
-    }
-}
-
-// Manual Clone implementation since we know ProviderConfig variants can be cloned
-impl Clone for AppState {
-    fn clone(&self) -> Self {
-        Self {
-            provider_config: match &self.provider_config {
-                ProviderConfig::OpenAi(config) => {
-                    ProviderConfig::OpenAi(goose::providers::configs::OpenAiProviderConfig {
-                        host: config.host.clone(),
-                        api_key: config.api_key.clone(),
-                        model: config.model.clone(),
-                    })
-                }
-                ProviderConfig::Databricks(config) => ProviderConfig::Databricks(
-                    goose::providers::configs::DatabricksProviderConfig {
-                        host: config.host.clone(),
-                        auth: config.auth.clone(),
-                        model: config.model.clone(),
-                        image_format: config.image_format,
-                    },
-                ),
-                ProviderConfig::Ollama(config) => {
-                    ProviderConfig::Ollama(goose::providers::configs::OllamaProviderConfig {
-                        host: config.host.clone(),
-                        model: config.model.clone(),
-                    })
-                }
-                ProviderConfig::Anthropic(config) => {
-                    ProviderConfig::Anthropic(goose::providers::configs::AnthropicProviderConfig {
-                        host: config.host.clone(),
-                        api_key: config.api_key.clone(),
-                        model: config.model.clone(),
-                    })
-                }
-                ProviderConfig::Google(config) => {
-                    ProviderConfig::Google(goose::providers::configs::GoogleProviderConfig {
-                        host: config.host.clone(),
-                        api_key: config.api_key.clone(),
-                        model: config.model.clone(),
-                    })
-                }
-                ProviderConfig::Groq(config) => ProviderConfig::Groq(GroqProviderConfig {
-                    host: config.host.clone(),
-                    api_key: config.api_key.clone(),
-                    model: config.model.clone(),
-                }),
-            },
-            agent: self.agent.clone(),
-            secret_key: self.secret_key.clone(),
-        }
     }
 }
