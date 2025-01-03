@@ -3,6 +3,7 @@ import {Popover, PopoverContent, PopoverTrigger} from './ui/popover';
 import VertDots from './ui/VertDots';
 import {FaSun, FaMoon} from 'react-icons/fa';
 
+
 export default function MoreMenu() {
     const [open, setOpen] = useState(false);
 
@@ -20,13 +21,28 @@ export default function MoreMenu() {
     });
 
     useEffect(() => {
-        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        
+        // Handler for system theme changes
+        const handleThemeChange = (e: { matches: boolean }) => {
+            if (useSystemTheme) {
+                setDarkMode(e.matches);
+            }
+        };
+
+        // Add listener for system theme changes
+        mediaQuery.addEventListener('change', handleThemeChange);
+
+        // Initial setup
         if (useSystemTheme) {
-            setDarkMode(systemPrefersDark);
+            setDarkMode(mediaQuery.matches);
         } else {
             const savedTheme = localStorage.getItem('theme');
-            setDarkMode(savedTheme ? savedTheme === 'dark' : systemPrefersDark);
+            setDarkMode(savedTheme ? savedTheme === 'dark' : mediaQuery.matches);
         }
+
+        // Cleanup
+        return () => mediaQuery.removeEventListener('change', handleThemeChange);
     }, [useSystemTheme]);
 
     useEffect(() => {
@@ -50,6 +66,14 @@ export default function MoreMenu() {
         const checked = event.target.checked;
         setUseSystemTheme(checked);
         localStorage.setItem('use_system_theme', checked.toString());
+        
+        if (checked) {
+            // If enabling system theme, immediately sync with system preference
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setDarkMode(systemPrefersDark);
+            localStorage.removeItem('theme'); // Remove manual theme setting
+        }
+        // If disabling system theme, keep current theme state but don't update localStorage yet
     };
 
     return (
