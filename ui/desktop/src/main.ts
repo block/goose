@@ -37,19 +37,19 @@ const checkApiCredentials = () => {
 
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//  
-  const isDatabricksConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
+  //{env-macro-start}//    
+  const apiKeyProvidersValid =
+  ['openai', 'anthropic', 'google', 'groq'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
     process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;
-
-  const isOpenAIDirectConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'openai' &&
-    process.env.GOOSE_PROVIDER__HOST === 'https://api.openai.com' &&
     process.env.GOOSE_PROVIDER__MODEL &&
     process.env.GOOSE_PROVIDER__API_KEY;
+    
+  const optionalApiKeyProvidersValid =
+    ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+    process.env.GOOSE_PROVIDER__HOST &&
+    process.env.GOOSE_PROVIDER__MODEL;    
 
-  return isDatabricksConfigValid || isOpenAIDirectConfigValid
+  return apiKeyProvidersValid|| optionalApiKeyProvidersValid;
   //{env-macro-end}//
 };
 

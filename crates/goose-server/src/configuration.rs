@@ -1,8 +1,11 @@
 use crate::error::{to_env_var, ConfigError};
 use config::{Config, Environment};
-use goose::providers::configs::{GoogleProviderConfig, GroqProviderConfig};
+use goose::providers::configs::{
+    AnthropicProviderConfig, GoogleProviderConfig, GroqProviderConfig,
+};
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::{
+    anthropic,
     configs::{
         DatabricksAuth, DatabricksProviderConfig, ModelConfig, OllamaProviderConfig,
         OpenAiProviderConfig, ProviderConfig,
@@ -108,6 +111,21 @@ pub enum ProviderSettings {
         #[serde(default)]
         estimate_factor: Option<f32>,
     },
+    Anthropic {
+        #[serde(default = "default_anthropic_host")]
+        host: String,
+        api_key: String,
+        #[serde(default = "default_anthropic_model")]
+        model: String,
+        #[serde(default)]
+        temperature: Option<f32>,
+        #[serde(default)]
+        max_tokens: Option<i32>,
+        #[serde(default)]
+        context_limit: Option<usize>,
+        #[serde(default)]
+        estimate_factor: Option<f32>,
+    },
 }
 
 impl ProviderSettings {
@@ -120,6 +138,7 @@ impl ProviderSettings {
             ProviderSettings::Ollama { .. } => ProviderType::Ollama,
             ProviderSettings::Google { .. } => ProviderType::Google,
             ProviderSettings::Groq { .. } => ProviderType::Groq,
+            ProviderSettings::Anthropic { .. } => ProviderType::Anthropic,
         }
     }
 
@@ -202,6 +221,23 @@ impl ProviderSettings {
                 context_limit,
                 estimate_factor,
             } => ProviderConfig::Groq(GroqProviderConfig {
+                host,
+                api_key,
+                model: ModelConfig::new(model)
+                    .with_temperature(temperature)
+                    .with_max_tokens(max_tokens)
+                    .with_context_limit(context_limit)
+                    .with_estimate_factor(estimate_factor),
+            }),
+            ProviderSettings::Anthropic {
+                host,
+                api_key,
+                model,
+                temperature,
+                max_tokens,
+                context_limit,
+                estimate_factor,
+            } => ProviderConfig::Anthropic(AnthropicProviderConfig {
                 host,
                 api_key,
                 model: ModelConfig::new(model)
@@ -315,6 +351,14 @@ fn default_groq_host() -> String {
 
 fn default_groq_model() -> String {
     groq::GROQ_DEFAULT_MODEL.to_string()
+}
+
+fn default_anthropic_host() -> String {
+    "https://api.anthropic.com".to_string()
+}
+
+fn default_anthropic_model() -> String {
+    anthropic::ANTHROPIC_DEFAULT_MODEL.to_string()
 }
 
 fn default_image_format() -> ImageFormat {
