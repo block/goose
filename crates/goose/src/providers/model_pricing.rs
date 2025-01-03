@@ -61,8 +61,21 @@ lazy_static::lazy_static! {
             input_token_price: dec!(15.00),
             output_token_price: dec!(75.00),
         });
+        // OpenRouter Models
+        m.insert("anthropic/claude-3-sonnet".to_string(), Pricing {
+            input_token_price: dec!(3.00),
+            output_token_price: dec!(15.00),
+        });
+        m.insert("claude-3-sonnet".to_string(), Pricing {
+            input_token_price: dec!(3.00),
+            output_token_price: dec!(15.00),
+        });
         // OpenAI
         m.insert("gpt-4o".to_string(), Pricing {
+            input_token_price: dec!(2.50),
+            output_token_price: dec!(10.00),
+        });
+        m.insert("gpt-4".to_string(), Pricing {
             input_token_price: dec!(2.50),
             output_token_price: dec!(10.00),
         });

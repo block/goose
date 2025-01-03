@@ -51,6 +51,21 @@ pub enum ProviderSettings {
         #[serde(default)]
         estimate_factor: Option<f32>,
     },
+    OpenRouter {
+        #[serde(default = "default_openrouter_host")]
+        host: String,
+        api_key: String,
+        #[serde(default = "default_model")]
+        model: String,
+        #[serde(default)]
+        temperature: Option<f32>,
+        #[serde(default)]
+        max_tokens: Option<i32>,
+        #[serde(default)]
+        context_limit: Option<usize>,
+        #[serde(default)]
+        estimate_factor: Option<f32>,
+    },
     Databricks {
         #[serde(default = "default_databricks_host")]
         host: String,
@@ -139,6 +154,7 @@ impl ProviderSettings {
             ProviderSettings::Google { .. } => ProviderType::Google,
             ProviderSettings::Groq { .. } => ProviderType::Groq,
             ProviderSettings::Anthropic { .. } => ProviderType::Anthropic,
+            ProviderSettings::OpenRouter { .. } => ProviderType::OpenRouter,
         }
     }
 
@@ -154,6 +170,23 @@ impl ProviderSettings {
                 context_limit,
                 estimate_factor,
             } => ProviderConfig::OpenAi(OpenAiProviderConfig {
+                host,
+                api_key,
+                model: ModelConfig::new(model)
+                    .with_temperature(temperature)
+                    .with_max_tokens(max_tokens)
+                    .with_context_limit(context_limit)
+                    .with_estimate_factor(estimate_factor),
+            }),
+            ProviderSettings::OpenRouter {
+                host,
+                api_key,
+                model,
+                temperature,
+                max_tokens,
+                context_limit,
+                estimate_factor,
+            } => ProviderConfig::OpenRouter(OpenAiProviderConfig {
                 host,
                 api_key,
                 model: ModelConfig::new(model)
@@ -315,6 +348,10 @@ fn default_host() -> String {
 
 fn default_port() -> u16 {
     3000
+}
+
+pub fn default_openrouter_host() -> String {
+    "https://openrouter.ai".to_string()
 }
 
 fn default_model() -> String {

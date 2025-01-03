@@ -12,6 +12,7 @@ pub mod utils;
 
 pub mod google;
 pub mod groq;
+pub mod openrouter;
 
 #[cfg(test)]
 pub mod mock;

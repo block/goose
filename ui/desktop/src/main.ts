@@ -39,7 +39,7 @@ const checkApiCredentials = () => {
 
   //{env-macro-start}//    
   const apiKeyProvidersValid =
-  ['openai', 'anthropic', 'google', 'groq'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+  ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
     process.env.GOOSE_PROVIDER__HOST &&
     process.env.GOOSE_PROVIDER__MODEL &&
     process.env.GOOSE_PROVIDER__API_KEY;
