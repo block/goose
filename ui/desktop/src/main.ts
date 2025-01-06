@@ -7,12 +7,16 @@ import started from "electron-squirrel-startup";
 import log from './utils/logger';
 import { exec } from 'child_process';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { EnvToggles, loadSettings, saveSettings, updateEnvironmentVariables, createEnvironmentMenu } from './utils/settings';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
+
+// State for environment variable toggles
+let envToggles: EnvToggles = loadSettings().envToggles;
 
 // Parse command line arguments
 const parseArgs = () => {
@@ -33,19 +37,19 @@ const checkApiCredentials = () => {
 
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//  
-  const isDatabricksConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
+  //{env-macro-start}//    
+  const apiKeyProvidersValid =
+  ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
     process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;
-
-  const isOpenAIDirectConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'openai' &&
-    process.env.GOOSE_PROVIDER__HOST === 'https://api.openai.com' &&
     process.env.GOOSE_PROVIDER__MODEL &&
     process.env.GOOSE_PROVIDER__API_KEY;
+    
+  const optionalApiKeyProvidersValid =
+    ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+    process.env.GOOSE_PROVIDER__HOST &&
+    process.env.GOOSE_PROVIDER__MODEL;    
 
-  return isDatabricksConfigValid || isOpenAIDirectConfigValid
+  return apiKeyProvidersValid|| optionalApiKeyProvidersValid;
   //{env-macro-end}//
 };
 
@@ -111,12 +115,14 @@ let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
 const createChat = async (app, query?: string, dir?: string) => {
+  // Apply current environment settings before creating chat
+  updateEnvironmentVariables(envToggles);
 
   const [port, working_dir] = await startGoosed(app, dir);  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
-    vibrancy: 'under-window',
+    vibrancy: 'window',
     width: 750,
     height: 800,
     minWidth: 650,
@@ -203,13 +209,10 @@ const showWindow = () => {
 
   // Iterate over all windows
   windows.forEach((win, index) => {
-    const currentBounds = win.getBounds(); // Get the current window bounds (position and size)
-
-    // Calculate the new position with an incremental offset
+    const currentBounds = win.getBounds();
     const newX = currentBounds.x + initialOffsetX * index;
     const newY = currentBounds.y + initialOffsetY * index;
 
-    // Set the new bounds with the calculated position
     win.setBounds({
       x: newX,
       y: newY,
@@ -293,13 +296,30 @@ app.whenReady().then(async () => {
   const { dirPath } = parseArgs();
   
   createTray();
-  createChat(app, undefined, dirPath);
+  const recentDirs = loadRecentDirs();
+  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
+  createChat(app, undefined, openDir);
 
   // Show launcher input on key combo
   globalShortcut.register('Control+Alt+Command+G', createLauncher);
 
-  // Preserve existing menu and add new items
+  // Get the existing menu
   const menu = Menu.getApplicationMenu();
+
+  // Add Environment menu items to View menu
+  const viewMenu = menu.items.find(item => item.label === 'View');
+  if (viewMenu) {
+    viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
+    viewMenu.submenu.append(new MenuItem({
+      label: 'Environment',
+      submenu: Menu.buildFromTemplate(createEnvironmentMenu(envToggles, (newToggles) => {
+        envToggles = newToggles;
+        saveSettings({ envToggles: newToggles });
+        updateEnvironmentVariables(newToggles);
+      }))
+    }));
+  }
+
   const fileMenu = menu?.items.find(item => item.label === 'File');
   
   // open goose to specific dir and set that as its working space
@@ -330,7 +350,6 @@ app.whenReady().then(async () => {
         ipcMain.emit('create-chat-window');
       },
     }));
-
   }
 
   Menu.setApplicationMenu(menu);

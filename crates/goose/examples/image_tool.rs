@@ -2,15 +2,15 @@ use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use dotenv::dotenv;
 use goose::{
-    models::{
-        content::Content,
-        message::Message,
-        tool::{Tool, ToolCall},
-    },
+    message::Message,
     providers::{
-        configs::{DatabricksProviderConfig, OpenAiProviderConfig, ProviderConfig},
+        configs::{DatabricksProviderConfig, ModelConfig, OpenAiProviderConfig, ProviderConfig},
         factory::get_provider,
     },
+};
+use mcp_core::{
+    content::Content,
+    tool::{Tool, ToolCall},
 };
 use serde_json::json;
 use std::fs;
@@ -34,9 +34,7 @@ async fn main() -> Result<()> {
     let config2 = ProviderConfig::OpenAi(OpenAiProviderConfig {
         host: "https://api.openai.com".into(),
         api_key,
-        model: "gpt-4o".into(),
-        temperature: None,
-        max_tokens: None,
+        model: ModelConfig::new("gpt-4o".into()),
     });
 
     for config in [config1, config2] {
@@ -89,9 +87,9 @@ async fn main() -> Result<()> {
         }
         println!("\nToken Usage:");
         println!("------------");
-        println!("Input tokens: {:?}", usage.input_tokens);
-        println!("Output tokens: {:?}", usage.output_tokens);
-        println!("Total tokens: {:?}", usage.total_tokens);
+        println!("Input tokens: {:?}", usage.usage.input_tokens);
+        println!("Output tokens: {:?}", usage.usage.output_tokens);
+        println!("Total tokens: {:?}", usage.usage.total_tokens);
     }
 
     Ok(())

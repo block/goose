@@ -1,25 +1,44 @@
+/// Resources that servers provide to clients
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::content::Annotations;
+
 /// Represents a resource in the system with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Resource {
     /// URI representing the resource location (e.g., "file:///path/to/file" or "str:///content")
     pub uri: String,
     /// Name of the resource
     pub name: String,
-    /// Last modified timestamp
-    pub timestamp: DateTime<Utc>,
-    /// Priority of the resource (higher number means higher priority)
-    pub priority: i32,
     /// Optional description of the resource
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// MIME type of the resource content ("text" or "blob")
     #[serde(default = "default_mime_type")]
     pub mime_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<Annotations>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum ResourceContents {
+    TextResourceContents {
+        uri: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mime_type: Option<String>,
+        text: String,
+    },
+    BlobResourceContents {
+        uri: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        mime_type: Option<String>,
+        blob: String,
+    },
 }
 
 fn default_mime_type() -> String {
@@ -56,10 +75,9 @@ impl Resource {
         Ok(Self {
             uri: uri.to_string(),
             name,
-            timestamp: Utc::now(),
-            priority: 0,
             description: None,
             mime_type,
+            annotations: Some(Annotations::for_resource(0.0, Utc::now())),
         })
     }
 
@@ -67,7 +85,7 @@ impl Resource {
     pub fn with_uri<S: Into<String>>(
         uri: S,
         name: S,
-        priority: i32,
+        priority: f32,
         mime_type: Option<String>,
     ) -> Result<Self> {
         let uri_string = uri.into();
@@ -82,22 +100,31 @@ impl Resource {
         Ok(Self {
             uri: uri_string,
             name: name.into(),
-            timestamp: Utc::now(),
-            priority,
             description: None,
             mime_type,
+            annotations: Some(Annotations::for_resource(priority, Utc::now())),
         })
     }
 
     /// Updates the resource's timestamp to the current time
     pub fn update_timestamp(&mut self) {
-        self.timestamp = Utc::now();
+        self.annotations.as_mut().unwrap().timestamp = Some(Utc::now());
     }
 
     /// Sets the priority of the resource and returns self for method chaining
-    pub fn with_priority(mut self, priority: i32) -> Self {
-        self.priority = priority;
+    pub fn with_priority(mut self, priority: f32) -> Self {
+        self.annotations.as_mut().unwrap().priority = Some(priority);
         self
+    }
+
+    /// Returns the priority of the resource, if set
+    pub fn priority(&self) -> Option<f32> {
+        self.annotations.as_ref().and_then(|a| a.priority)
+    }
+
+    /// Returns the timestamp of the resource, if set
+    pub fn timestamp(&self) -> Option<DateTime<Utc>> {
+        self.annotations.as_ref().and_then(|a| a.timestamp)
     }
 
     /// Returns the scheme of the URI
@@ -140,7 +167,7 @@ mod tests {
 
         let resource = Resource::new(&uri, Some("text".to_string()), None)?;
         assert!(resource.uri.starts_with("file:///"));
-        assert_eq!(resource.priority, 0);
+        assert_eq!(resource.priority(), Some(0.0));
         assert_eq!(resource.mime_type, "text");
         assert_eq!(resource.scheme()?, "file");
 
@@ -154,13 +181,13 @@ mod tests {
         let resource = Resource::with_uri(
             uri.clone(),
             "test.txt".to_string(),
-            5,
+            0.5,
             Some("text".to_string()),
         )?;
 
         assert_eq!(resource.uri, uri);
         assert_eq!(resource.name, "test.txt");
-        assert_eq!(resource.priority, 5);
+        assert_eq!(resource.priority(), Some(0.5));
         assert_eq!(resource.mime_type, "text");
         assert_eq!(resource.scheme()?, "str");
 
@@ -189,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_with_description() -> Result<()> {
-        let resource = Resource::with_uri("file:///test.txt", "test.txt", 0, None)?
+        let resource = Resource::with_uri("file:///test.txt", "test.txt", 0.0, None)?
             .with_description("A test resource");
 
         assert_eq!(resource.description, Some("A test resource".to_string()));
@@ -199,7 +226,7 @@ mod tests {
     #[test]
     fn test_with_mime_type() -> Result<()> {
         let resource =
-            Resource::with_uri("file:///test.txt", "test.txt", 0, None)?.with_mime_type("blob");
+            Resource::with_uri("file:///test.txt", "test.txt", 0.0, None)?.with_mime_type("blob");
 
         assert_eq!(resource.mime_type, "blob");
 

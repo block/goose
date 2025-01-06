@@ -25,9 +25,5 @@ export default function App() {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
   }
   
-  if (isLauncher) {
-    return <LauncherWindow />;
-  } else {
-    return <ChatWindow />;
-  }
+  return isLauncher ? <LauncherWindow /> : <ChatWindow />;
 }

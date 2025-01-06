@@ -1,10 +1,8 @@
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 
-use super::Resource;
 use crate::errors::AgentResult;
-use crate::models::content::Content;
-use crate::models::tool::{Tool, ToolCall};
+use mcp_core::{Content, Resource, Tool, ToolCall};
 
 /// Core trait that defines a system that can be operated by an AI agent
 #[async_trait]

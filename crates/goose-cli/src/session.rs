@@ -7,11 +7,12 @@ use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
 use crate::agents::agent::Agent;
+use crate::log_usage::log_usage;
 use crate::prompt::{InputType, Prompt};
 use goose::developer::DeveloperSystem;
-use goose::models::message::{Message, MessageContent};
-use goose::models::role::Role;
+use goose::message::{Message, MessageContent};
 use goose::systems::goose_hints::GooseHintsSystem;
+use mcp_core::role::Role;
 
 // File management functions
 pub fn ensure_session_dir() -> Result<PathBuf> {
@@ -40,11 +41,11 @@ pub fn get_most_recent_session() -> Result<PathBuf> {
     entries.sort_by(|a, b| {
         b.metadata()
             .and_then(|m| m.modified())
-            .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
             .cmp(
                 &a.metadata()
                     .and_then(|m| m.modified())
-                    .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH),
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
             )
     });
 
@@ -101,7 +102,11 @@ pub struct Session<'a> {
 }
 
 impl<'a> Session<'a> {
-    pub fn new(agent: Box<dyn Agent>, prompt: Box<dyn Prompt + 'a>, session_file: PathBuf) -> Self {
+    pub fn new(
+        agent: Box<dyn Agent>,
+        mut prompt: Box<dyn Prompt + 'a>,
+        session_file: PathBuf,
+    ) -> Self {
         let messages = match readable_session_file(&session_file) {
             Ok(file) => deserialize_messages(file).unwrap_or_else(|e| {
                 eprintln!(
@@ -115,6 +120,8 @@ impl<'a> Session<'a> {
                 Vec::<Message>::new()
             }
         };
+
+        prompt.load_user_message_history(messages.clone());
 
         Session {
             agent,
@@ -145,7 +152,7 @@ impl<'a> Session<'a> {
             self.agent_process_messages().await;
             self.prompt.hide_busy();
         }
-        self.close_session();
+        self.close_session().await;
         Ok(())
     }
 
@@ -161,7 +168,7 @@ impl<'a> Session<'a> {
 
         self.agent_process_messages().await;
 
-        self.close_session();
+        self.close_session().await;
         Ok(())
     }
 
@@ -311,7 +318,7 @@ We've removed the conversation up to the most recent user message
         self.agent.add_system(goosehints_system);
     }
 
-    fn close_session(&mut self) {
+    async fn close_session(&mut self) {
         self.prompt.render(raw_message(
             format!(
                 "Closing session. Recorded to {}\n",
@@ -320,6 +327,10 @@ We've removed the conversation up to the most recent user message
             .as_str(),
         ));
         self.prompt.close();
+        match self.agent.usage().await {
+            Ok(usage) => log_usage(self.session_file.to_string_lossy().to_string(), usage),
+            Err(e) => eprintln!("Failed to collect total provider usage: {}", e),
+        }
     }
 
     pub fn session_file(&self) -> PathBuf {
@@ -338,12 +349,13 @@ mod tests {
 
     use crate::agents::mock_agent::MockAgent;
     use crate::prompt::{self, Input};
-    use crate::test_helpers::run_with_tmp_dir;
+    use crate::test_helpers::{run_with_tmp_dir, run_with_tmp_dir_async};
 
     use super::*;
-    use goose::models::content::Content;
-    use goose::models::tool;
-    use goose::{errors::AgentResult, models::tool::ToolCall};
+    use goose::errors::AgentResult;
+    use mcp_core::content::Content;
+    use mcp_core::tool;
+    use mcp_core::tool::ToolCall;
     use tempfile::NamedTempFile;
 
     // Helper function to create a test session
@@ -485,278 +497,288 @@ mod tests {
 
     #[test]
     fn test_interrupted_messages_only_1_user_msg() {
-        let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
-        session.messages.push(Message::user().with_text("Hello"));
+        run_with_tmp_dir(|| {
+            let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
+            session.messages.push(Message::user().with_text("Hello"));
 
-        session.handle_interrupted_messages();
+            session.handle_interrupted_messages();
 
-        assert!(session.messages.is_empty());
+            assert!(session.messages.is_empty());
 
-        assert_last_prompt_text(
-            &session,
-            "We interrupted before the model replied and removed the last message.",
-        );
+            assert_last_prompt_text(
+                &session,
+                "We interrupted before the model replied and removed the last message.",
+            );
+        });
     }
 
     #[test]
     fn test_interrupted_messages_removes_last_user_msg() {
-        let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
-        session.messages.push(Message::user().with_text("Hello"));
-        session.messages.push(Message::assistant().with_text("Hi"));
-        session
-            .messages
-            .push(Message::user().with_text("How are you?"));
+        run_with_tmp_dir(|| {
+            let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
+            session.messages.push(Message::user().with_text("Hello"));
+            session.messages.push(Message::assistant().with_text("Hi"));
+            session
+                .messages
+                .push(Message::user().with_text("How are you?"));
 
-        session.handle_interrupted_messages();
+            session.handle_interrupted_messages();
 
-        assert_eq!(session.messages.len(), 2);
-        assert_eq!(session.messages[0].role, Role::User);
-        assert_eq!(
-            session.messages[0].content[0],
-            MessageContent::text("Hello")
-        );
-        assert_eq!(session.messages[1].role, Role::Assistant);
-        assert_eq!(session.messages[1].content[0], MessageContent::text("Hi"));
+            assert_eq!(session.messages.len(), 2);
+            assert_eq!(session.messages[0].role, Role::User);
+            assert_eq!(
+                session.messages[0].content[0],
+                MessageContent::text("Hello")
+            );
+            assert_eq!(session.messages[1].role, Role::Assistant);
+            assert_eq!(session.messages[1].content[0], MessageContent::text("Hi"));
 
-        assert_last_prompt_text(
-            &session,
-            "We interrupted before the model replied and removed the last message.",
-        );
+            assert_last_prompt_text(
+                &session,
+                "We interrupted before the model replied and removed the last message.",
+            );
+        });
     }
 
     #[test]
     fn test_interrupted_tool_use_resolves_with_last_tool_use_interrupted() {
-        let tool_name1 = "test";
-        let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
-        let tool_result1 = AgentResult::Ok(vec![Content::text("Task 1 done")]);
+        run_with_tmp_dir(|| {
+            let tool_name1 = "test";
+            let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
+            let tool_result1 = AgentResult::Ok(vec![Content::text("Task 1 done")]);
 
-        let tool_name2 = "test2";
-        let tool_call2 = tool::ToolCall::new(tool_name2, "test2".into());
-        let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
-        session
-            .messages
-            .push(Message::user().with_text("Do something"));
-        session.messages.push(
-            Message::assistant()
-                .with_text("Doing it")
-                .with_tool_request("1", Ok(tool_call1.clone())),
-        );
-        session.messages.push(
-            Message::user()
-                .with_text("Did Task 1")
-                .with_tool_response("1", tool_result1.clone()),
-        );
-        session
-            .messages
-            .push(Message::user().with_text("Do something else"));
-        session.messages.push(
-            Message::assistant()
-                .with_text("Doing task 2")
-                .with_tool_request("2", Ok(tool_call2.clone())),
-        );
+            let tool_name2 = "test2";
+            let tool_call2 = tool::ToolCall::new(tool_name2, "test2".into());
+            let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
+            session
+                .messages
+                .push(Message::user().with_text("Do something"));
+            session.messages.push(
+                Message::assistant()
+                    .with_text("Doing it")
+                    .with_tool_request("1", Ok(tool_call1.clone())),
+            );
+            session.messages.push(
+                Message::user()
+                    .with_text("Did Task 1")
+                    .with_tool_response("1", tool_result1.clone()),
+            );
+            session
+                .messages
+                .push(Message::user().with_text("Do something else"));
+            session.messages.push(
+                Message::assistant()
+                    .with_text("Doing task 2")
+                    .with_tool_request("2", Ok(tool_call2.clone())),
+            );
 
-        session.handle_interrupted_messages();
+            session.handle_interrupted_messages();
 
-        assert_eq!(session.messages.len(), 7);
-        assert_eq!(session.messages[0].role, Role::User);
-        assert_eq!(
-            session.messages[0].content[0],
-            MessageContent::text("Do something")
-        );
-        assert_eq!(session.messages[1].role, Role::Assistant);
-        assert_eq!(
-            session.messages[1].content[0],
-            MessageContent::text("Doing it")
-        );
-        assert_eq!(
-            session.messages[1].content[1],
-            MessageContent::tool_request("1", Ok(tool_call1))
-        );
+            assert_eq!(session.messages.len(), 7);
+            assert_eq!(session.messages[0].role, Role::User);
+            assert_eq!(
+                session.messages[0].content[0],
+                MessageContent::text("Do something")
+            );
+            assert_eq!(session.messages[1].role, Role::Assistant);
+            assert_eq!(
+                session.messages[1].content[0],
+                MessageContent::text("Doing it")
+            );
+            assert_eq!(
+                session.messages[1].content[1],
+                MessageContent::tool_request("1", Ok(tool_call1))
+            );
 
-        assert_eq!(session.messages[2].role, Role::User);
-        assert_eq!(
-            session.messages[2].content[0],
-            MessageContent::text("Did Task 1")
-        );
-        assert_eq!(
-            session.messages[2].content[1],
-            MessageContent::tool_response("1", tool_result1)
-        );
+            assert_eq!(session.messages[2].role, Role::User);
+            assert_eq!(
+                session.messages[2].content[0],
+                MessageContent::text("Did Task 1")
+            );
+            assert_eq!(
+                session.messages[2].content[1],
+                MessageContent::tool_response("1", tool_result1)
+            );
 
-        assert_eq!(session.messages[3].role, Role::User);
-        assert_eq!(
-            session.messages[3].content[0],
-            MessageContent::text("Do something else")
-        );
+            assert_eq!(session.messages[3].role, Role::User);
+            assert_eq!(
+                session.messages[3].content[0],
+                MessageContent::text("Do something else")
+            );
 
-        assert_eq!(
-            session.messages[4].content[0],
-            MessageContent::text("Doing task 2")
-        );
-        assert_eq!(
-            session.messages[4].content[1],
-            MessageContent::tool_request("2", Ok(tool_call2))
-        );
-        // Check the interrupted tool response message
-        assert_eq!(session.messages[5].role, Role::User);
-        let tool_result = Err(goose::errors::AgentError::ExecutionError(
-            "Interrupted by the user to make a correction".to_string(),
-        ));
-        assert_eq!(
-            session.messages[5].content[0],
-            MessageContent::tool_response("2", tool_result)
-        );
+            assert_eq!(
+                session.messages[4].content[0],
+                MessageContent::text("Doing task 2")
+            );
+            assert_eq!(
+                session.messages[4].content[1],
+                MessageContent::tool_request("2", Ok(tool_call2))
+            );
+            // Check the interrupted tool response message
+            assert_eq!(session.messages[5].role, Role::User);
+            let tool_result = Err(goose::errors::AgentError::ExecutionError(
+                "Interrupted by the user to make a correction".to_string(),
+            ));
+            assert_eq!(
+                session.messages[5].content[0],
+                MessageContent::tool_response("2", tool_result)
+            );
 
-        // Check the follow-up assistant message
-        assert_eq!(session.messages[6].role, Role::Assistant);
-        assert_eq!(
-            session.messages[6].content[0],
-            MessageContent::text(format!(
-                "We interrupted the existing call to {}. How would you like to proceed?",
-                tool_name2
-            ))
-        );
+            // Check the follow-up assistant message
+            assert_eq!(session.messages[6].role, Role::Assistant);
+            assert_eq!(
+                session.messages[6].content[0],
+                MessageContent::text(format!(
+                    "We interrupted the existing call to {}. How would you like to proceed?",
+                    tool_name2
+                ))
+            );
 
-        assert_last_prompt_text(
-            &session,
-            format!(
-                "We interrupted the existing call to {}. How would you like to proceed?",
-                tool_name2
-            )
-            .as_str(),
-        );
+            assert_last_prompt_text(
+                &session,
+                format!(
+                    "We interrupted the existing call to {}. How would you like to proceed?",
+                    tool_name2
+                )
+                .as_str(),
+            );
+        });
     }
 
     #[test]
     fn test_interrupted_tool_use_interrupts_multiple_tools() {
-        let tool_name1 = "test";
-        let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
+        run_with_tmp_dir(|| {
+            let tool_name1 = "test";
+            let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
 
-        let tool_name2 = "test2";
-        let tool_call2 = tool::ToolCall::new(tool_name2, "test2".into());
-        let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
-        session
-            .messages
-            .push(Message::user().with_text("Do something"));
-        session.messages.push(
-            Message::assistant()
-                .with_text("Doing it")
-                .with_tool_request("1", Ok(tool_call1.clone()))
-                .with_tool_request("2", Ok(tool_call2.clone())),
-        );
+            let tool_name2 = "test2";
+            let tool_call2 = tool::ToolCall::new(tool_name2, "test2".into());
+            let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
+            session
+                .messages
+                .push(Message::user().with_text("Do something"));
+            session.messages.push(
+                Message::assistant()
+                    .with_text("Doing it")
+                    .with_tool_request("1", Ok(tool_call1.clone()))
+                    .with_tool_request("2", Ok(tool_call2.clone())),
+            );
 
-        session.handle_interrupted_messages();
+            session.handle_interrupted_messages();
 
-        assert_eq!(session.messages.len(), 4);
-        assert_eq!(session.messages[0].role, Role::User);
-        assert_eq!(
-            session.messages[0].content[0],
-            MessageContent::text("Do something")
-        );
-        assert_eq!(session.messages[1].role, Role::Assistant);
-        assert_eq!(
-            session.messages[1].content[0],
-            MessageContent::text("Doing it")
-        );
-        assert_eq!(
-            session.messages[1].content[1],
-            MessageContent::tool_request("1", Ok(tool_call1))
-        );
-        assert_eq!(
-            session.messages[1].content[2],
-            MessageContent::tool_request("2", Ok(tool_call2))
-        );
+            assert_eq!(session.messages.len(), 4);
+            assert_eq!(session.messages[0].role, Role::User);
+            assert_eq!(
+                session.messages[0].content[0],
+                MessageContent::text("Do something")
+            );
+            assert_eq!(session.messages[1].role, Role::Assistant);
+            assert_eq!(
+                session.messages[1].content[0],
+                MessageContent::text("Doing it")
+            );
+            assert_eq!(
+                session.messages[1].content[1],
+                MessageContent::tool_request("1", Ok(tool_call1))
+            );
+            assert_eq!(
+                session.messages[1].content[2],
+                MessageContent::tool_request("2", Ok(tool_call2))
+            );
 
-        // Check the interrupted tool response message
-        assert_eq!(session.messages[2].role, Role::User);
-        let tool_result = Err(goose::errors::AgentError::ExecutionError(
-            "Interrupted by the user to make a correction".to_string(),
-        ));
-        assert_eq!(
-            session.messages[2].content[0],
-            MessageContent::tool_response("1", tool_result.clone())
-        );
-        assert_eq!(
-            session.messages[2].content[1],
-            MessageContent::tool_response("2", tool_result)
-        );
+            // Check the interrupted tool response message
+            assert_eq!(session.messages[2].role, Role::User);
+            let tool_result = Err(goose::errors::AgentError::ExecutionError(
+                "Interrupted by the user to make a correction".to_string(),
+            ));
+            assert_eq!(
+                session.messages[2].content[0],
+                MessageContent::tool_response("1", tool_result.clone())
+            );
+            assert_eq!(
+                session.messages[2].content[1],
+                MessageContent::tool_response("2", tool_result)
+            );
 
-        // Check the follow-up assistant message
-        assert_eq!(session.messages[3].role, Role::Assistant);
-        assert_eq!(
-            session.messages[3].content[0],
-            MessageContent::text(format!(
-                "We interrupted the existing call to {}. How would you like to proceed?",
-                tool_name2
-            ))
-        );
+            // Check the follow-up assistant message
+            assert_eq!(session.messages[3].role, Role::Assistant);
+            assert_eq!(
+                session.messages[3].content[0],
+                MessageContent::text(format!(
+                    "We interrupted the existing call to {}. How would you like to proceed?",
+                    tool_name2
+                ))
+            );
 
-        assert_last_prompt_text(
-            &session,
-            format!(
-                "We interrupted the existing call to {}. How would you like to proceed?",
-                tool_name2
-            )
-            .as_str(),
-        );
+            assert_last_prompt_text(
+                &session,
+                format!(
+                    "We interrupted the existing call to {}. How would you like to proceed?",
+                    tool_name2
+                )
+                .as_str(),
+            );
+        });
     }
 
     #[test]
     fn test_interrupted_tool_use_interrupts_completed_tool_result_but_no_assistant_msg_yet() {
-        let tool_name1 = "test";
-        let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
-        let tool_result1 = AgentResult::Ok(vec![Content::text("Task 1 done")]);
+        run_with_tmp_dir(|| {
+            let tool_name1 = "test";
+            let tool_call1 = tool::ToolCall::new(tool_name1, "test".into());
+            let tool_result1 = AgentResult::Ok(vec![Content::text("Task 1 done")]);
 
-        let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
-        session
-            .messages
-            .push(Message::user().with_text("Do something"));
-        session.messages.push(
-            Message::assistant()
-                .with_text("Doing part 1")
-                .with_tool_request("1", Ok(tool_call1.clone())),
-        );
-        session
-            .messages
-            .push(Message::user().with_tool_response("1", tool_result1.clone()));
+            let mut session = create_test_session_with_prompt(Box::new(MockPrompt::new()));
+            session
+                .messages
+                .push(Message::user().with_text("Do something"));
+            session.messages.push(
+                Message::assistant()
+                    .with_text("Doing part 1")
+                    .with_tool_request("1", Ok(tool_call1.clone())),
+            );
+            session
+                .messages
+                .push(Message::user().with_tool_response("1", tool_result1.clone()));
 
-        session.handle_interrupted_messages();
+            session.handle_interrupted_messages();
 
-        assert_eq!(session.messages.len(), 4);
-        assert_eq!(session.messages[0].role, Role::User);
-        assert_eq!(
-            session.messages[0].content[0],
-            MessageContent::text("Do something")
-        );
-        assert_eq!(session.messages[1].role, Role::Assistant);
-        assert_eq!(
-            session.messages[1].content[0],
-            MessageContent::text("Doing part 1")
-        );
-        assert_eq!(
-            session.messages[1].content[1],
-            MessageContent::tool_request("1", Ok(tool_call1))
-        );
+            assert_eq!(session.messages.len(), 4);
+            assert_eq!(session.messages[0].role, Role::User);
+            assert_eq!(
+                session.messages[0].content[0],
+                MessageContent::text("Do something")
+            );
+            assert_eq!(session.messages[1].role, Role::Assistant);
+            assert_eq!(
+                session.messages[1].content[0],
+                MessageContent::text("Doing part 1")
+            );
+            assert_eq!(
+                session.messages[1].content[1],
+                MessageContent::tool_request("1", Ok(tool_call1))
+            );
 
-        assert_eq!(session.messages[2].role, Role::User);
-        assert_eq!(
-            session.messages[2].content[0],
-            MessageContent::tool_response("1", tool_result1.clone())
-        );
+            assert_eq!(session.messages[2].role, Role::User);
+            assert_eq!(
+                session.messages[2].content[0],
+                MessageContent::tool_response("1", tool_result1.clone())
+            );
 
-        // Check the follow-up assistant message
-        assert_eq!(session.messages[3].role, Role::Assistant);
-        assert_eq!(
-            session.messages[3].content[0],
-            MessageContent::text(
+            // Check the follow-up assistant message
+            assert_eq!(session.messages[3].role, Role::Assistant);
+            assert_eq!(
+                session.messages[3].content[0],
+                MessageContent::text(
+                    "We interrupted the existing calls to tools. How would you like to proceed?",
+                )
+            );
+
+            assert_last_prompt_text(
+                &session,
                 "We interrupted the existing calls to tools. How would you like to proceed?",
-            )
-        );
-
-        assert_last_prompt_text(
-            &session,
-            "We interrupted the existing calls to tools. How would you like to proceed?",
-        );
+            );
+        });
     }
 
     #[test]
@@ -785,6 +807,33 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_session_logging() -> Result<()> {
+        run_with_tmp_dir_async(|| async {
+            // Create a test session
+            let mut session = create_test_session();
+            let session_file = session.session_file.clone();
+            // Create a log directory
+            let home_dir = dirs::home_dir().unwrap();
+            let log_dir = home_dir.join(".config").join("goose").join("logs");
+
+            session.close_session().await;
+
+            // Check if log file exists and contains the expected content
+            let log_file = log_dir.join("goose.log");
+            assert!(log_file.exists());
+
+            let log_content = std::fs::read_to_string(&log_file)?;
+            assert!(log_content.contains(session_file.to_str().unwrap()));
+            assert!(log_content.contains("input_tokens"));
+            assert!(log_content.contains("output_tokens"));
+            assert!(log_content.contains("total_tokens"));
+
+            Ok(())
+        })
+        .await
     }
 
     fn assert_last_prompt_text(session: &Session, expected_text: &str) {

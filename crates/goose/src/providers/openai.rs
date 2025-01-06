@@ -1,18 +1,24 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use reqwest::StatusCode;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::time::Duration;
 
+use super::base::ProviderUsage;
 use super::base::{Provider, Usage};
 use super::configs::OpenAiProviderConfig;
-use super::utils::{
-    check_openai_context_length_error, messages_to_openai_spec, openai_response_to_message,
-    tools_to_openai_spec, ImageFormat,
+use super::configs::{ModelConfig, ProviderModelConfig};
+use super::model_pricing::cost;
+use super::model_pricing::model_pricing_for;
+use super::utils::{get_model, handle_response};
+use crate::message::Message;
+use crate::providers::openai_utils::{
+    check_openai_context_length_error, create_openai_request_payload, get_openai_usage,
+    openai_response_to_message,
 };
-use crate::models::message::Message;
-use crate::models::tool::Tool;
+use mcp_core::tool::Tool;
+
+pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 
 pub struct OpenAiProvider {
     client: Client,
@@ -26,33 +32,6 @@ impl OpenAiProvider {
             .build()?;
 
         Ok(Self { client, config })
-    }
-
-    fn get_usage(data: &Value) -> Result<Usage> {
-        let usage = data
-            .get("usage")
-            .ok_or_else(|| anyhow!("No usage data in response"))?;
-
-        let input_tokens = usage
-            .get("prompt_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
-
-        let output_tokens = usage
-            .get("completion_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32);
-
-        let total_tokens = usage
-            .get("total_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32)
-            .or_else(|| match (input_tokens, output_tokens) {
-                (Some(input), Some(output)) => Some(input + output),
-                _ => None,
-            });
-
-        Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     }
 
     async fn post(&self, payload: Value) -> Result<Value> {
@@ -69,72 +48,24 @@ impl OpenAiProvider {
             .send()
             .await?;
 
-        match response.status() {
-            StatusCode::OK => Ok(response.json().await?),
-            status if status == StatusCode::TOO_MANY_REQUESTS || status.as_u16() >= 500 => {
-                // Implement retry logic here if needed
-                Err(anyhow!("Server error: {}", status))
-            }
-            _ => Err(anyhow!(
-                "Request failed: {}\nPayload: {}",
-                response.status(),
-                payload
-            )),
-        }
+        handle_response(payload, response).await?
     }
 }
 
 #[async_trait]
 impl Provider for OpenAiProvider {
+    fn get_model_config(&self) -> &ModelConfig {
+        self.config.model_config()
+    }
+
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, Usage)> {
+    ) -> Result<(Message, ProviderUsage)> {
         // Not checking for o1 model here since system message is not supported by o1
-        let system_message = json!({
-            "role": "system",
-            "content": system
-        });
-
-        // Convert messages and tools to OpenAI format
-        let messages_spec = messages_to_openai_spec(messages, &ImageFormat::OpenAi);
-        let tools_spec = if !tools.is_empty() {
-            tools_to_openai_spec(tools)?
-        } else {
-            vec![]
-        };
-
-        // Build payload
-        // create messages array with system message first
-        let mut messages_array = vec![system_message];
-        messages_array.extend(messages_spec);
-
-        let mut payload = json!({
-            "model": self.config.model,
-            "messages": messages_array
-        });
-
-        // Add optional parameters
-        if !tools_spec.is_empty() {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("tools".to_string(), json!(tools_spec));
-        }
-        if let Some(temp) = self.config.temperature {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("temperature".to_string(), json!(temp));
-        }
-        if let Some(tokens) = self.config.max_tokens {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("max_tokens".to_string(), json!(tokens));
-        }
+        let payload = create_openai_request_payload(&self.config.model, system, messages, tools)?;
 
         // Make request
         let response = self.post(payload).await?;
@@ -149,35 +80,39 @@ impl Provider for OpenAiProvider {
 
         // Parse response
         let message = openai_response_to_message(response.clone())?;
-        let usage = Self::get_usage(&response)?;
+        let usage = self.get_usage(&response)?;
+        let model = get_model(&response);
+        let cost = cost(&usage, &model_pricing_for(&model));
 
-        Ok((message, usage))
+        Ok((message, ProviderUsage::new(model, usage, cost)))
+    }
+
+    fn get_usage(&self, data: &Value) -> Result<Usage> {
+        get_openai_usage(data)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::message::MessageContent;
-    use serde_json::json;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use crate::message::MessageContent;
+    use crate::providers::configs::ModelConfig;
+    use crate::providers::mock_server::{
+        create_mock_open_ai_response, create_mock_open_ai_response_with_tools, create_test_tool,
+        get_expected_function_call_arguments, setup_mock_server, TEST_INPUT_TOKENS,
+        TEST_OUTPUT_TOKENS, TEST_TOOL_FUNCTION_NAME, TEST_TOTAL_TOKENS,
+    };
+    use rust_decimal_macros::dec;
+    use wiremock::MockServer;
 
-    async fn _setup_mock_server(response_body: Value) -> (MockServer, OpenAiProvider) {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/v1/chat/completions"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(response_body))
-            .mount(&mock_server)
-            .await;
+    async fn _setup_mock_response(response_body: Value) -> (MockServer, OpenAiProvider) {
+        let mock_server = setup_mock_server("/v1/chat/completions", response_body).await;
 
         // Create the OpenAiProvider with the mock server's URL as the host
         let config = OpenAiProviderConfig {
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
-            model: "gpt-3.5-turbo".to_string(),
-            temperature: Some(0.7),
-            max_tokens: None,
+            model: ModelConfig::new("gpt-3.5-turbo".to_string()).with_temperature(Some(0.7)),
         };
 
         let provider = OpenAiProvider::new(config).unwrap();
@@ -186,27 +121,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_complete_basic() -> Result<()> {
+        let model_name = "gpt-4o";
         // Mock response for normal completion
-        let response_body = json!({
-            "id": "chatcmpl-123",
-            "object": "chat.completion",
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": "Hello! How can I assist you today?",
-                    "tool_calls": null
-                },
-                "finish_reason": "stop"
-            }],
-            "usage": {
-                "prompt_tokens": 12,
-                "completion_tokens": 15,
-                "total_tokens": 27
-            }
-        });
+        let response_body =
+            create_mock_open_ai_response(model_name, "Hello! How can I assist you today?");
 
-        let (_, provider) = _setup_mock_server(response_body).await;
+        let (_, provider) = _setup_mock_response(response_body).await;
 
         // Prepare input messages
         let messages = vec![Message::user().with_text("Hello?")];
@@ -222,9 +142,11 @@ mod tests {
         } else {
             panic!("Expected Text content");
         }
-        assert_eq!(usage.input_tokens, Some(12));
-        assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(27));
+        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS));
+        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
+        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
+        assert_eq!(usage.model, model_name);
+        assert_eq!(usage.cost, Some(dec!(0.00018)));
 
         Ok(())
     }
@@ -232,73 +154,36 @@ mod tests {
     #[tokio::test]
     async fn test_complete_tool_request() -> Result<()> {
         // Mock response for tool calling
-        let response_body = json!({
-            "id": "chatcmpl-tool",
-            "object": "chat.completion",
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": null,
-                    "tool_calls": [{
-                        "id": "call_123",
-                        "type": "function",
-                        "function": {
-                            "name": "get_weather",
-                            "arguments": "{\"location\":\"San Francisco, CA\"}"
-                        }
-                    }]
-                },
-                "finish_reason": "tool_calls"
-            }],
-            "usage": {
-                "prompt_tokens": 20,
-                "completion_tokens": 15,
-                "total_tokens": 35
-            }
-        });
+        let response_body = create_mock_open_ai_response_with_tools("gpt-4o");
 
-        let (_, provider) = _setup_mock_server(response_body).await;
+        let (_, provider) = _setup_mock_response(response_body).await;
 
         // Input messages
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
 
         // Define the tool using builder pattern
-        let tool = Tool::new(
-            "get_weather",
-            "Gets the current weather for a location",
-            json!({
-                "type": "object",
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. New York, NY"
-                    }
-                },
-                "required": ["location"]
-            }),
-        );
 
         // Call the complete method
         let (message, usage) = provider
-            .complete("You are a helpful assistant.", &messages, &[tool])
+            .complete(
+                "You are a helpful assistant.",
+                &messages,
+                &[create_test_tool()],
+            )
             .await?;
 
         // Assert the response
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {
             let tool_call = tool_request.tool_call.as_ref().unwrap();
-            assert_eq!(tool_call.name, "get_weather");
-            assert_eq!(
-                tool_call.arguments,
-                json!({"location": "San Francisco, CA"})
-            );
+            assert_eq!(tool_call.name, TEST_TOOL_FUNCTION_NAME);
+            assert_eq!(tool_call.arguments, get_expected_function_call_arguments());
         } else {
             panic!("Expected ToolCall content");
         }
 
-        assert_eq!(usage.input_tokens, Some(20));
-        assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(35));
+        assert_eq!(usage.usage.input_tokens, Some(TEST_INPUT_TOKENS));
+        assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
+        assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
 
         Ok(())
     }

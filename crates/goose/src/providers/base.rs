@@ -1,8 +1,30 @@
 use anyhow::Result;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use crate::models::message::Message;
-use crate::models::tool::Tool;
+use super::configs::ModelConfig;
+use crate::message::Message;
+use mcp_core::tool::Tool;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderUsage {
+    pub model: String,
+    pub usage: Usage,
+    pub cost: Option<Decimal>,
+}
+
+impl ProviderUsage {
+    pub fn new(model: String, usage: Usage, cost: Option<Decimal>) -> Self {
+        Self { model, usage, cost }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Pricing {
+    /// Prices are per million tokens.
+    pub input_token_price: Decimal,
+    pub output_token_price: Decimal,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Usage {
@@ -26,10 +48,14 @@ impl Usage {
 }
 
 use async_trait::async_trait;
+use serde_json::Value;
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
+    /// Get the model configuration
+    fn get_model_config(&self) -> &ModelConfig;
+
     /// Generate the next message using the configured model and other parameters
     ///
     /// # Arguments
@@ -38,13 +64,15 @@ pub trait Provider: Send + Sync {
     /// * `tools` - Optional list of tools the model can use
     ///
     /// # Returns
-    /// A tuple containing the model's response message and usage statistics
+    /// A tuple containing the model's response message and provider usage statistics
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, Usage)>;
+    ) -> Result<(Message, ProviderUsage)>;
+
+    fn get_usage(&self, data: &Value) -> Result<Usage>;
 }
 
 #[cfg(test)]

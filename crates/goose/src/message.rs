@@ -1,8 +1,15 @@
-use super::content::{Content, ImageContent, TextContent};
-use super::role::Role;
-use super::tool::ToolCall;
+/// Messages which represent the content sent back and forth to LLM provider
+///
+/// We use these messages in the agent code, and interfaces which interact with
+/// the agent. That let's us reuse message histories across different interfaces.
+///
+/// The content of the messages uses MCP types to avoid additional conversions
+/// when interacting with MCP servers.
 use crate::errors::AgentResult;
 use chrono::Utc;
+use mcp_core::content::{Content, ImageContent, TextContent};
+use mcp_core::role::Role;
+use mcp_core::tool::ToolCall;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolRequest {
@@ -29,8 +36,7 @@ impl MessageContent {
     pub fn text<S: Into<String>>(text: S) -> Self {
         MessageContent::Text(TextContent {
             text: text.into(),
-            audience: None,
-            priority: None,
+            annotations: None,
         })
     }
 
@@ -38,8 +44,7 @@ impl MessageContent {
         MessageContent::Image(ImageContent {
             data: data.into(),
             mime_type: mime_type.into(),
-            audience: None,
-            priority: None,
+            annotations: None,
         })
     }
 

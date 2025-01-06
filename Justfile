@@ -9,13 +9,12 @@ release:
 # Copy binary command
 copy-binary:
     @if [ -f ./target/release/goosed ]; then \
-        echo "Copying goosed binary to ui/desktop/src/bin..."; \
-        cp ./target/release/goosed ./ui/desktop/src/bin/; \
+        echo "Copying goosed binary to ui/desktop/src/bin with permissions preserved..."; \
+        cp -p ./target/release/goosed ./ui/desktop/src/bin/; \
     else \
         echo "Release binary not found."; \
         exit 1; \
     fi
-
 # Run UI with latest
 run-ui:
     @just release
@@ -26,3 +25,8 @@ run-ui:
 run-server:
     @echo "Running server..."
     cargo run -p goose-server
+
+# make GUI with latest binary
+make-ui:
+    @just release
+    cd ui/desktop && npm run bundle:default

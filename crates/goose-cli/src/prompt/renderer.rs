@@ -3,9 +3,9 @@ use std::io::{self, Write};
 
 use bat::WrappingMode;
 use console::style;
-use goose::models::message::{Message, MessageContent, ToolRequest, ToolResponse};
-use goose::models::role::Role;
-use goose::models::{content::Content, tool::ToolCall};
+use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use mcp_core::role::Role;
+use mcp_core::{content::Content, tool::ToolCall};
 use serde_json::Value;
 
 use super::Theme;
@@ -98,11 +98,7 @@ impl ToolRenderer for BashDeveloperSystemRenderer {
     }
 }
 
-pub fn render(
-    message: Box<Message>,
-    theme: &Theme,
-    renderers: HashMap<String, Box<dyn ToolRenderer>>,
-) {
+pub fn render(message: &Message, theme: &Theme, renderers: HashMap<String, Box<dyn ToolRenderer>>) {
     let theme = match theme {
         Theme::Light => "GitHub",
         Theme::Dark => "zenburn",

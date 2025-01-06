@@ -81,7 +81,7 @@ export default function Input({
   };
 
   return (
-    <form onSubmit={onFormSubmit} className="flex relative bg-white dark:bg-gray-800 h-auto px-[16px] pr-[68px] py-[1rem]">
+    <form onSubmit={onFormSubmit} className="flex relative h-auto px-[16px] pr-[68px] py-[1rem]">
       <textarea
         autoFocus
         id="dynamic-textarea"
@@ -119,7 +119,7 @@ export default function Input({
           size="icon"
           variant="ghost"
           onClick={onStop}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-100 dark:bg-indigo-800 dark:text-indigo-200 text-indigo-600 hover:opacity-50"
         >
           <Stop size={24} />
         </Button>

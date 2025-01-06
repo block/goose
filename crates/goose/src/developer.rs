@@ -1,6 +1,5 @@
 mod lang;
 
-use crate::systems::Resource;
 use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 use base64::Engine;
@@ -16,10 +15,8 @@ use url::Url;
 use xcap::{Monitor, Window};
 
 use crate::errors::{AgentError, AgentResult};
-use crate::models::content::Content;
-use crate::models::role::Role;
-use crate::models::tool::{Tool, ToolCall};
 use crate::systems::System;
+use mcp_core::{Content, Resource, Role, Tool, ToolCall};
 
 pub struct DeveloperSystem {
     tools: Vec<Tool>,
@@ -172,7 +169,7 @@ impl DeveloperSystem {
                 You can capture either:
                 1. A full display (monitor) using the display parameter
                 2. A specific window by its title using the window_title parameter
-                
+
                 Only one of display or window_title should be specified.
             "#},
             json!({
@@ -271,16 +268,12 @@ impl DeveloperSystem {
             active_resources: {
                 let mut resources = HashMap::new();
                 let cwd = std::env::current_dir().unwrap();
-                let uri: Option<String> = Some(format!("str:///{}", cwd.display()));
+                let uri = format!("str:///{}", cwd.display());
                 resources.insert(
-                    uri.clone().unwrap(),
-                    Resource::new(
-                        uri.unwrap(),
-                        Some("text".to_string()),
-                        Some("cwd".to_string()),
-                    )
-                    .unwrap()
-                    .with_priority(1000), // Set highest priority
+                    uri.clone(),
+                    Resource::new(uri, Some("text".to_string()), Some("cwd".to_string()))
+                        .unwrap()
+                        .with_priority(1.0), // Set highest priority
                 );
                 Mutex::new(resources)
             },

@@ -9,6 +9,7 @@ description.workspace = true
 
 [dependencies]
 goose = { path = "../goose" }
+mcp-core = { path = "../mcp-core" }
 axum = { version = "0.7", features = ["ws"] }
 tokio = { version = "1.0", features = ["full"] }
 chrono = "0.4"

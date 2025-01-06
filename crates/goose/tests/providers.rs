@@ -1,17 +1,16 @@
 use anyhow::Result;
 use dotenv::dotenv;
+use goose::message::{Message, MessageContent};
 use goose::providers::configs::OllamaProviderConfig;
 use goose::providers::ollama::{OLLAMA_HOST, OLLAMA_MODEL};
-use goose::{
-    models::{
-        message::{Message, MessageContent},
-        tool::Tool,
+use mcp_core::tool::Tool;
+
+use goose::providers::{
+    base::Provider,
+    configs::{
+        DatabricksAuth, DatabricksProviderConfig, ModelConfig, OpenAiProviderConfig, ProviderConfig,
     },
-    providers::{
-        base::Provider,
-        configs::{DatabricksAuth, DatabricksProviderConfig, OpenAiProviderConfig, ProviderConfig},
-        factory::get_provider,
-    },
+    factory::get_provider,
 };
 
 /// Generic test harness for any Provider implementation
@@ -116,9 +115,7 @@ async fn test_openai_provider() -> Result<()> {
     let config = ProviderConfig::OpenAi(OpenAiProviderConfig {
         host: "https://api.openai.com".to_string(),
         api_key: std::env::var("OPENAI_API_KEY")?,
-        model: std::env::var("OPENAI_MODEL")?,
-        temperature: None,
-        max_tokens: None,
+        model: ModelConfig::new(std::env::var("OPENAI_MODEL")?),
     });
 
     let tester = ProviderTester::new(config)?;
@@ -142,10 +139,8 @@ async fn test_databricks_provider() -> Result<()> {
 
     let config = ProviderConfig::Databricks(DatabricksProviderConfig {
         host: std::env::var("DATABRICKS_HOST")?,
-        model: std::env::var("DATABRICKS_MODEL")?,
+        model: ModelConfig::new(std::env::var("DATABRICKS_MODEL")?),
         auth: DatabricksAuth::Token(std::env::var("DATABRICKS_TOKEN")?),
-        temperature: None,
-        max_tokens: None,
         image_format: goose::providers::utils::ImageFormat::Anthropic,
     });
 
@@ -167,10 +162,8 @@ async fn test_databricks_provider_oauth() -> Result<()> {
 
     let config = ProviderConfig::Databricks(DatabricksProviderConfig {
         host: std::env::var("DATABRICKS_HOST")?,
-        model: std::env::var("DATABRICKS_MODEL")?,
+        model: ModelConfig::new(std::env::var("DATABRICKS_MODEL")?),
         auth: DatabricksAuth::oauth(std::env::var("DATABRICKS_HOST")?),
-        temperature: None,
-        max_tokens: None,
         image_format: goose::providers::utils::ImageFormat::Anthropic,
     });
 
@@ -193,9 +186,9 @@ async fn test_ollama_provider() -> Result<()> {
 
     let config = ProviderConfig::Ollama(OllamaProviderConfig {
         host: std::env::var("OLLAMA_HOST").unwrap_or_else(|_| String::from(OLLAMA_HOST)),
-        model: std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| String::from(OLLAMA_MODEL)),
-        temperature: None,
-        max_tokens: None,
+        model: ModelConfig::new(
+            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| String::from(OLLAMA_MODEL)),
+        ),
     });
 
     let tester = ProviderTester::new(config)?;

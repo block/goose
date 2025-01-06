@@ -52,6 +52,7 @@ module.exports = [
         KeyboardEvent: 'readonly',
         React: 'readonly',
         handleAction: 'readonly',
+        requestAnimationFrame: 'readonly',
       },
     },
     plugins: {

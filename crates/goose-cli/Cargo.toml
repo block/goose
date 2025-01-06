@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 goose = { path = "../goose" }
+mcp-core = { path = "../mcp-core" }
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
@@ -29,12 +30,25 @@ serde_yaml = "0.9"
 dirs = "4.0"
 strum = "0.26"
 strum_macros = "0.26"
-reqwest = "0.11.27"
+reqwest = { version = "0.12.9", features = [
+        "rustls-tls",
+        "json",
+        "cookies",
+        "gzip",
+        "brotli",
+        "deflate",
+        "zstd",
+        "charset",
+        "http2",
+        "stream"
+    ], default-features = false }
 rand = "0.8.5"
 async-trait = "0.1"
 rustyline = "15.0.0"
+rust_decimal = "1.36.0"
+rust_decimal_macros = "1.36.0"
 
 [dev-dependencies]
 tempfile = "3"
-temp-env = "0.3.6"
+temp-env = { version = "0.3.6", features = ["async_closure"] }
 

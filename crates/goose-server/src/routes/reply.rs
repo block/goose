@@ -8,11 +8,8 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::models::{
-    content::Content,
-    message::{Message, MessageContent},
-    role::Role,
-};
+use goose::message::{Message, MessageContent};
+use mcp_core::{content::Content, role::Role};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
@@ -101,7 +98,7 @@ fn convert_messages(incoming: Vec<IncomingMessage>) -> Vec<Message> {
                 for tool in msg.tool_invocations {
                     if tool.state == "result" {
                         // Add the original tool request from assistant
-                        let tool_call = goose::models::tool::ToolCall {
+                        let tool_call = mcp_core::tool::ToolCall {
                             name: tool.tool_name,
                             arguments: tool.args,
                         };
@@ -394,13 +391,18 @@ mod tests {
     use super::*;
     use goose::{
         agent::Agent,
-        models::tool::Tool,
-        providers::{base::Provider, configs::OpenAiProviderConfig},
+        providers::{
+            base::{Provider, ProviderUsage, Usage},
+            configs::{ModelConfig, OpenAiProviderConfig},
+        },
     };
+    use mcp_core::tool::Tool;
 
     // Mock Provider implementation for testing
     #[derive(Clone)]
-    struct MockProvider;
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
 
     #[async_trait::async_trait]
     impl Provider for MockProvider {
@@ -409,11 +411,19 @@ mod tests {
             _system_prompt: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, goose::providers::base::Usage), anyhow::Error> {
+        ) -> Result<(Message, ProviderUsage), anyhow::Error> {
             Ok((
                 Message::assistant().with_text("Mock response"),
-                goose::providers::base::Usage::default(),
+                ProviderUsage::new("mock".to_string(), Usage::default(), None),
             ))
+        }
+
+        fn get_model_config(&self) -> &ModelConfig {
+            &self.model_config
+        }
+
+        fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
+            Ok(Usage::new(None, None, None))
         }
     }
 
@@ -493,7 +503,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
-        use goose::providers::configs::ProviderConfig;
+        use goose::providers::configs::{ModelConfig, ProviderConfig};
         use std::sync::Arc;
         use tokio::sync::Mutex;
         use tower::ServiceExt;
@@ -502,16 +512,17 @@ mod tests {
         #[tokio::test]
         async fn test_ask_endpoint() {
             // Create a mock app state with mock provider
-            let mock_provider = Box::new(MockProvider);
+            let mock_model_config = ModelConfig::new("test-model".to_string());
+            let mock_provider = Box::new(MockProvider {
+                model_config: mock_model_config,
+            });
             let agent = Agent::new(mock_provider);
             let state = AppState {
                 agent: Arc::new(Mutex::new(agent)),
                 provider_config: ProviderConfig::OpenAi(OpenAiProviderConfig {
                     host: "https://api.openai.com".to_string(),
                     api_key: "test-key".to_string(),
-                    model: "test-model".to_string(),
-                    temperature: None,
-                    max_tokens: None,
+                    model: ModelConfig::new("test-model".to_string()),
                 }),
                 secret_key: "test-secret".to_string(),
             };

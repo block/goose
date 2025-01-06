@@ -80,15 +80,12 @@
   }
 
   body {
-    background-color: white;
     color: black;
   }
 
   .dark body {
-    background-color: black;
     color: white;
   }
-
 
   .bg-inline-code {
     border-radius: 4px;
@@ -111,7 +108,6 @@
     .bg-inline-code {
       padding: 2px 4px;
     }
-
   }
 
   .bg-inline-code:after {
@@ -121,5 +117,4 @@
   .dark .bg-inline-code {
     color: rgba(248, 155, 89, 0.7);
   }
-
 }

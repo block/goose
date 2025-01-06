@@ -40,7 +40,7 @@ pub fn load_prompt_file<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::tool::Tool;
+    use mcp_core::tool::Tool;
     use serde_json::json;
     use std::collections::HashMap;
 

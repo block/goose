@@ -6,12 +6,18 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::time::Duration;
 
+use super::base::ProviderUsage;
 use super::base::{Provider, Usage};
-use super::configs::AnthropicProviderConfig;
-use crate::models::content::{Content, TextContent};
-use crate::models::message::{Message, MessageContent};
-use crate::models::role::Role;
-use crate::models::tool::{Tool, ToolCall};
+use super::configs::{AnthropicProviderConfig, ModelConfig, ProviderModelConfig};
+use super::model_pricing::cost;
+use super::model_pricing::model_pricing_for;
+use super::utils::get_model;
+use crate::message::{Message, MessageContent};
+use mcp_core::content::Content;
+use mcp_core::role::Role;
+use mcp_core::tool::{Tool, ToolCall};
+
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
 
 pub struct AnthropicProvider {
     client: Client,
@@ -25,29 +31,6 @@ impl AnthropicProvider {
             .build()?;
 
         Ok(Self { client, config })
-    }
-
-    fn get_usage(data: &Value) -> Result<Usage> {
-        // Extract usage data if available
-        if let Some(usage) = data.get("usage") {
-            let input_tokens = usage
-                .get("input_tokens")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as i32);
-            let output_tokens = usage
-                .get("output_tokens")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as i32);
-            let total_tokens = match (input_tokens, output_tokens) {
-                (Some(i), Some(o)) => Some(i + o),
-                _ => None,
-            };
-
-            Ok(Usage::new(input_tokens, output_tokens, total_tokens))
-        } else {
-            // If no usage data, return None for all values
-            Ok(Usage::new(None, None, None))
-        }
     }
 
     fn tools_to_anthropic_spec(tools: &[Tool]) -> Vec<Value> {
@@ -153,11 +136,7 @@ impl AnthropicProvider {
             match block.get("type").and_then(|t| t.as_str()) {
                 Some("text") => {
                     if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
-                        message = message.with_content(MessageContent::Text(TextContent {
-                            text: text.to_string(),
-                            audience: None,
-                            priority: None,
-                        }));
+                        message = message.with_text(text.to_string());
                     }
                 }
                 Some("tool_use") => {
@@ -210,12 +189,16 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl Provider for AnthropicProvider {
+    fn get_model_config(&self) -> &ModelConfig {
+        self.config.model_config()
+    }
+
     async fn complete(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, Usage)> {
+    ) -> Result<(Message, ProviderUsage)> {
         let anthropic_messages = Self::messages_to_anthropic_spec(messages);
         let tool_specs = Self::tools_to_anthropic_spec(tools);
 
@@ -225,9 +208,9 @@ impl Provider for AnthropicProvider {
         }
 
         let mut payload = json!({
-            "model": self.config.model,
+            "model": self.config.model.model_name,
             "messages": anthropic_messages,
-            "max_tokens": self.config.max_tokens.unwrap_or(4096)
+            "max_tokens": self.config.model.max_tokens.unwrap_or(4096)
         });
 
         // Add system message if present
@@ -247,7 +230,7 @@ impl Provider for AnthropicProvider {
         }
 
         // Add temperature if specified
-        if let Some(temp) = self.config.temperature {
+        if let Some(temp) = self.config.model.temperature {
             payload
                 .as_object_mut()
                 .unwrap()
@@ -259,15 +242,43 @@ impl Provider for AnthropicProvider {
 
         // Parse response
         let message = Self::parse_anthropic_response(response.clone())?;
-        let usage = Self::get_usage(&response)?;
+        let usage = self.get_usage(&response)?;
+        let model = get_model(&response);
+        let cost = cost(&usage, &model_pricing_for(&model));
 
-        Ok((message, usage))
+        Ok((message, ProviderUsage::new(model, usage, cost)))
+    }
+
+    fn get_usage(&self, data: &Value) -> Result<Usage> {
+        // Extract usage data if available
+        if let Some(usage) = data.get("usage") {
+            let input_tokens = usage
+                .get("input_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as i32);
+            let output_tokens = usage
+                .get("output_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as i32);
+            let total_tokens = match (input_tokens, output_tokens) {
+                (Some(i), Some(o)) => Some(i + o),
+                _ => None,
+            };
+
+            Ok(Usage::new(input_tokens, output_tokens, total_tokens))
+        } else {
+            // If no usage data, return None for all values
+            Ok(Usage::new(None, None, None))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::providers::configs::ModelConfig;
+
     use super::*;
+    use rust_decimal_macros::dec;
     use serde_json::json;
     use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -284,9 +295,9 @@ mod tests {
         let config = AnthropicProviderConfig {
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
-            model: "claude-3-sonnet-20241022".to_string(),
-            temperature: Some(0.7),
-            max_tokens: None,
+            model: ModelConfig::new("claude-3-sonnet-20241022".to_string())
+                .with_temperature(Some(0.7))
+                .with_context_limit(Some(200_000)),
         };
 
         let provider = AnthropicProvider::new(config).unwrap();
@@ -303,7 +314,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello! How can I assist you today?"
             }],
-            "model": "claude-3-sonnet-20240229",
+            "model": "claude-3-5-sonnet-latest",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -326,9 +337,11 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(12));
-        assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(27));
+        assert_eq!(usage.usage.input_tokens, Some(12));
+        assert_eq!(usage.usage.output_tokens, Some(15));
+        assert_eq!(usage.usage.total_tokens, Some(27));
+        assert_eq!(usage.model, "claude-3-5-sonnet-latest");
+        assert_eq!(usage.cost, Some(dec!(0.000261)));
 
         Ok(())
     }
@@ -385,9 +398,9 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(15));
-        assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(35));
+        assert_eq!(usage.usage.input_tokens, Some(15));
+        assert_eq!(usage.usage.output_tokens, Some(20));
+        assert_eq!(usage.usage.total_tokens, Some(35));
 
         Ok(())
     }

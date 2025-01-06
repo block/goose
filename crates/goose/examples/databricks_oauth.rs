@@ -1,7 +1,7 @@
 use anyhow::Result;
 use dotenv::dotenv;
 use goose::{
-    models::message::Message,
+    message::Message,
     providers::{
         configs::{DatabricksProviderConfig, ProviderConfig},
         factory::get_provider,
@@ -41,9 +41,9 @@ async fn main() -> Result<()> {
     }
     println!("\nToken Usage:");
     println!("------------");
-    println!("Input tokens: {:?}", usage.input_tokens);
-    println!("Output tokens: {:?}", usage.output_tokens);
-    println!("Total tokens: {:?}", usage.total_tokens);
+    println!("Input tokens: {:?}", usage.usage.input_tokens);
+    println!("Output tokens: {:?}", usage.usage.output_tokens);
+    println!("Total tokens: {:?}", usage.usage.total_tokens);
 
     Ok(())
 }

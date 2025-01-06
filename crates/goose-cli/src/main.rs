@@ -18,6 +18,8 @@ use commands::version::print_version;
 use profile::has_no_profiles;
 use std::io::{self, Read};
 
+mod log_usage;
+
 #[cfg(test)]
 mod test_helpers;
 

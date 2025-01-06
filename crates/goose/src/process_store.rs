@@ -92,37 +92,49 @@ mod tests {
         // Store the parent process ID
         store_process(parent_pid);
 
-        // Give processes time to start
-        thread::sleep(Duration::from_secs(1));
+        let mut attempt = 0;
+        let mut child_pids: Vec<u32>;
+        loop {
+            attempt += 1;
+            if attempt > 100 {
+                panic!("Failed to start processes for process kill test");
+            }
 
-        // Get the child process ID using pgrep
-        let child_pids = Command::new("pgrep")
-            .arg("-P")
-            .arg(parent_pid.to_string())
-            .output()
-            .await
-            .expect("Failed to get child PIDs");
+            // Give processes time to start
+            thread::sleep(Duration::from_millis(10));
 
-        let child_pid_str = String::from_utf8_lossy(&child_pids.stdout);
-        let child_pids: Vec<u32> = child_pid_str
-            .lines()
-            .filter_map(|line| line.trim().parse::<u32>().ok())
-            .collect();
-        assert!(child_pids.len() == 1);
+            // Get the child process ID using pgrep
+            let child_pids_cmd = Command::new("pgrep")
+                .arg("-P")
+                .arg(parent_pid.to_string())
+                .output()
+                .await
+                .expect("Failed to get child PIDs");
 
-        // Verify processes are running
-        assert!(is_process_running(parent_pid).await);
-        assert!(is_process_running(child_pids[0]).await);
+            let child_pid_str = String::from_utf8_lossy(&child_pids_cmd.stdout);
+            child_pids = child_pid_str
+                .lines()
+                .filter_map(|line| line.trim().parse::<u32>().ok())
+                .collect::<Vec<u32>>();
+            if child_pids.len() != 1 {
+                print!("Waiting for 1 child_pids. Got {:?}", child_pids.len());
+                continue;
+            }
+
+            if is_process_running(parent_pid).await && is_process_running(child_pids[0]).await {
+                break;
+            }
+        }
 
         kill_processes();
 
         // Wait until processes are killed
         let mut attempts = 0;
-        while attempts < 10 {
+        while attempts < 100 {
             if !is_process_running(parent_pid).await && !is_process_running(child_pids[0]).await {
                 break;
             }
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(10));
             attempts += 1;
         }
 

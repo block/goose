@@ -62,14 +62,17 @@ function ToolCall({ call }: ToolCallProps) {
   )
 }
 
+interface Annotations {
+  audience?: string[]; // Array of audience types
+  priority?: number; // Priority value between 0 and 1
+}
 
 interface ResultItem {
   text?: string;
   type: 'text' | 'image';
   mimeType?: string;
   data?: string; // Base64 encoded image data
-  audience?: string[]; // Array of audience types
-  priority?: number; // Priority value between 0 and 1
+  annotations?: Annotations,
 }
 
 interface ToolResultProps {
@@ -98,7 +101,7 @@ function ToolResult({ result }: ToolResultProps) {
 
   // Find results where either audience is not set, or it's set to a list that contains user
   const filteredResults = results
-    .filter((item: ResultItem) => !item.audience || item.audience?.includes('user'))
+    .filter((item: ResultItem) => !item.annotations?.audience || item.annotations?.audience?.includes('user'))
 
   if (filteredResults.length === 0) return null;
 
@@ -111,14 +114,14 @@ function ToolResult({ result }: ToolResultProps) {
   };
 
   const shouldShowExpanded = (item: ResultItem, index: number) => {
-    return (item.priority === undefined || item.priority >= 0.5) || expandedItems.includes(index);
+    return (item.annotations?.priority === undefined || item.annotations?.priority >= 0.5) || expandedItems.includes(index);
   };
 
   return (
     <div className="mt-2 pt-2">
       {filteredResults.map((item: ResultItem, index: number) => {
         const isExpanded = shouldShowExpanded(item, index);
-        const shouldMinimize = item.priority !== undefined && item.priority < 0.5;
+        const shouldMinimize = item.annotations?.priority !== undefined && item.annotations?.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (

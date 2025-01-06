@@ -2,12 +2,9 @@ use anyhow::Result as AnyhowResult;
 use async_trait::async_trait;
 use std::fs;
 
-use super::Resource;
 use crate::errors::{AgentError, AgentResult};
-use crate::models::content::Content;
-use crate::models::tool::Tool;
-use crate::models::tool::ToolCall;
 use crate::systems::System;
+use mcp_core::{Content, Resource, Tool, ToolCall};
 
 pub struct GooseHintsSystem {
     instructions: String,

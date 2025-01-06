@@ -1,6 +1,7 @@
 use super::{
     anthropic::AnthropicProvider, base::Provider, configs::ProviderConfig,
-    databricks::DatabricksProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    databricks::DatabricksProvider, google::GoogleProvider, groq::GroqProvider,
+    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
 };
 use anyhow::Result;
 use strum_macros::EnumIter;
@@ -11,6 +12,9 @@ pub enum ProviderType {
     Databricks,
     Ollama,
     Anthropic,
+    Google,
+    Groq,
+    OpenRouter,
 }
 
 pub fn get_provider(config: ProviderConfig) -> Result<Box<dyn Provider + Send + Sync>> {
@@ -22,6 +26,11 @@ pub fn get_provider(config: ProviderConfig) -> Result<Box<dyn Provider + Send + 
         ProviderConfig::Ollama(ollama_config) => Ok(Box::new(OllamaProvider::new(ollama_config)?)),
         ProviderConfig::Anthropic(anthropic_config) => {
             Ok(Box::new(AnthropicProvider::new(anthropic_config)?))
+        }
+        ProviderConfig::Google(google_config) => Ok(Box::new(GoogleProvider::new(google_config)?)),
+        ProviderConfig::Groq(groq_config) => Ok(Box::new(GroqProvider::new(groq_config)?)),
+        ProviderConfig::OpenRouter(openrouter_config) => {
+            Ok(Box::new(OpenRouterProvider::new(openrouter_config)?))
         }
     }
 }
