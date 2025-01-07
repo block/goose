@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { execSync, spawn } from 'child_process';
+import { getBinaryPath } from './utils/binaryPath';
 import { existsSync } from 'fs';
 import log from './utils/logger';
 import os from 'node:os';
@@ -24,6 +25,29 @@ export const findAvailablePort = (): Promise<number> => {
 };
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
+// Check if goosed server is ready by polling the status endpoint
+const checkServerStatus = async (port: number, maxAttempts: number = 30, interval: number = 100): Promise<boolean> => {
+  const statusUrl = `http://127.0.0.1:${port}/status`;
+  log.info(`Checking server status at ${statusUrl}`);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(statusUrl);
+      if (response.ok) {
+        log.info(`Server is ready after ${attempt} attempts`);
+        return true;
+      }
+    } catch (error) {
+      // Expected error when server isn't ready yet
+      if (attempt === maxAttempts) {
+        log.error(`Server failed to respond after ${maxAttempts} attempts:`, error);
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+  return false;
+};
+
 export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
   // In will use this later to determine if we should start process
   const isDev = process.env.NODE_ENV === 'development';
@@ -34,25 +58,18 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
     dir = homeDir;
   }
   
-  let goosedPath: string;
-
-  if (isDev && !app.isPackaged) {
-    if (process.env.VITE_START_EMBEDDED_SERVER === 'no') {
-      log.info('Skipping starting goosed in development mode');
-      return [3000, dir];
-    }
-    // In development, use the absolute path from the project root
-    goosedPath = path.join(process.cwd(), 'src', 'bin', process.platform === 'win32' ? 'goosed.exe' : 'goosed');
-  } else {
-    // In production, use the path relative to the app resources
-    goosedPath = path.join(process.resourcesPath, 'bin', process.platform === 'win32' ? 'goosed.exe' : 'goosed');
+  // Skip starting goosed if configured in dev mode
+  if (isDev && !app.isPackaged && process.env.VITE_START_EMBEDDED_SERVER === 'no') {
+    log.info('Skipping starting goosed in development mode');
+    return [3000, dir];
   }
+
+  // Get the goosed binary path using the shared utility
+  const goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
 
   // in case we want it
   //const isPackaged = app.isPackaged;
-  
-
   log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}` );
   
   // Define additional environment variables
@@ -72,7 +89,7 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
   const env = { ...process.env, ...additionalEnv };
 
   // Spawn the goosed process with the user's home directory as cwd
-  const goosedProcess = spawn(goosedPath, [], { cwd: dir, env: env, stdio: ["ignore", "pipe", "pipe"] });
+  const goosedProcess = spawn(goosedPath, ["agent"], { cwd: dir, env: env, stdio: ["ignore", "pipe", "pipe"] });
 
   goosedProcess.stdout.on('data', (data) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
@@ -88,7 +105,16 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
 
   goosedProcess.on('error', (err) => {
     log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
+    throw err; // Propagate the error
   });
+
+  // Wait for the server to be ready
+  const isReady = await checkServerStatus(port);
+  if (!isReady) {
+    log.error(`Goosed server failed to start on port ${port}`);
+    goosedProcess.kill();
+    throw new Error(`Goosed server failed to start on port ${port}`);
+  }
 
   // Ensure goosed is terminated when the app quits
   // TODO will need to do it at tab level next
@@ -97,6 +123,7 @@ export const startGoosed = async (app, dir=null): Promise<[number, string]> => {
     goosedProcess.kill();
   });
 
+  log.info(`Goosed server successfully started on port ${port}`);
   return [port, dir];
 };
 

@@ -1,4 +1,3 @@
-use crate::errors::AgentError;
 use crate::message::{Message, MessageContent};
 use crate::providers::base::Usage;
 use crate::providers::configs::ModelConfig;
@@ -7,6 +6,7 @@ use crate::providers::utils::{
     ImageFormat,
 };
 use anyhow::{anyhow, Error};
+use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
 use serde_json::{json, Value};
 
@@ -191,7 +191,7 @@ pub fn openai_response_to_message(response: Value) -> anyhow::Result<Message> {
                     .to_string();
 
                 if !is_valid_function_name(&function_name) {
-                    let error = AgentError::ToolNotFound(format!(
+                    let error = ToolError::NotFound(format!(
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
                         function_name
                     ));
@@ -205,7 +205,7 @@ pub fn openai_response_to_message(response: Value) -> anyhow::Result<Message> {
                             ));
                         }
                         Err(e) => {
-                            let error = AgentError::InvalidParameters(format!(
+                            let error = ToolError::InvalidParameters(format!(
                                 "Could not interpret tool use parameters for id {}: {}",
                                 id, e
                             ));
@@ -579,7 +579,7 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(AgentError::ToolNotFound(msg)) => {
+                Err(ToolError::NotFound(msg)) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
                 _ => panic!("Expected ToolNotFound error"),
@@ -601,7 +601,7 @@ mod tests {
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
-                Err(AgentError::InvalidParameters(msg)) => {
+                Err(ToolError::InvalidParameters(msg)) => {
                     assert!(msg.starts_with("Could not interpret tool use parameters"));
                 }
                 _ => panic!("Expected InvalidParameters error"),

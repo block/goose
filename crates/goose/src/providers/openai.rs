@@ -112,7 +112,7 @@ mod tests {
         let config = OpenAiProviderConfig {
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
-            model: ModelConfig::new("gpt-3.5-turbo".to_string()).with_temperature(Some(0.7)),
+            model: ModelConfig::new("gpt-4o".to_string()).with_temperature(Some(0.7)),
         };
 
         let provider = OpenAiProvider::new(config).unwrap();
@@ -126,7 +126,7 @@ mod tests {
         let response_body =
             create_mock_open_ai_response(model_name, "Hello! How can I assist you today?");
 
-        let (_, provider) = _setup_mock_response(response_body).await;
+        let (mock_server, provider) = _setup_mock_response(response_body).await;
 
         // Prepare input messages
         let messages = vec![Message::user().with_text("Hello?")];
@@ -148,6 +148,7 @@ mod tests {
         assert_eq!(usage.model, model_name);
         assert_eq!(usage.cost, Some(dec!(0.00018)));
 
+        mock_server.verify().await;
         Ok(())
     }
 
@@ -156,12 +157,10 @@ mod tests {
         // Mock response for tool calling
         let response_body = create_mock_open_ai_response_with_tools("gpt-4o");
 
-        let (_, provider) = _setup_mock_response(response_body).await;
+        let (mock_server, provider) = _setup_mock_response(response_body).await;
 
         // Input messages
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
-
-        // Define the tool using builder pattern
 
         // Call the complete method
         let (message, usage) = provider
@@ -185,6 +184,7 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
         assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
 
+        mock_server.verify().await;
         Ok(())
     }
 }

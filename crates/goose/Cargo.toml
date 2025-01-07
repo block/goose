@@ -12,6 +12,7 @@ tokio = { version = "1.36", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls"], default-features = false }
 
 [dependencies]
+mcp-client = { path = "../mcp-client" }
 mcp-core = { path = "../mcp-core" }
 dirs = "5.0.1"
 anyhow = "1.0"
@@ -67,7 +68,10 @@ keyring = { version = "3.6.1", features = [
 shellexpand = "3.1.0"
 rust_decimal = "1.36.0"
 rust_decimal_macros = "1.36.0"
-tempfile = "3.8"
+ctor = "0.2.7"
+paste = "1.0"
+tower = { version = "0.4", features = ["timeout", "util"] }
+tower-service = "0.3"
 
 [dev-dependencies]
 sysinfo = "0.32.1"
@@ -77,6 +81,10 @@ tempfile = "3.8"
 mockall = "0.11"
 criterion = "0.5"
 tokio-test = "0.4"
+
+[[example]]
+name = "agent"
+path = "examples/agent.rs"
 
 [[example]]
 name = "databricks_oauth"

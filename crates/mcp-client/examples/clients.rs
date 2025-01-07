@@ -1,13 +1,11 @@
 use mcp_client::{
-    client::{ClientCapabilities, ClientInfo, McpClient, McpClientImpl},
-    service::TransportService,
-    transport::{SseTransport, StdioTransport},
+    client::{ClientCapabilities, ClientInfo, McpClient},
+    transport::{SseTransport, StdioTransport, Transport},
 };
 use rand::Rng;
 use rand::SeedableRng;
 use std::sync::Arc;
 use std::time::Duration;
-use tower::ServiceBuilder;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -20,15 +18,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // Create two separate clients with stdio transport
-    let client1 = create_stdio_client("client1", "1.0.0")?;
-    let client2 = create_stdio_client("client2", "1.0.0")?;
-    let client3 = create_sse_client("client3", "1.0.0")?;
+    let client1 = create_stdio_client("client1", "1.0.0").await?;
+    let client2 = create_stdio_client("client2", "1.0.0").await?;
+    let client3 = create_sse_client("client3", "1.0.0").await?;
 
     // Initialize both clients
-    let mut clients: Vec<Box<dyn McpClient + Send + Sync>> = Vec::new();
-    clients.push(client1);
-    clients.push(client2);
-    clients.push(client3);
+    let mut clients = vec![client1, client2, client3];
 
     // Initialize all clients
     for (i, client) in clients.iter_mut().enumerate() {
@@ -74,15 +69,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 1 => {
-                    println!("\n{i}: Listing tools for client 3 (sse)");
-                    match clients[2].list_tools().await {
-                        Ok(tools) => {
-                            println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
-                        }
-                        Err(e) => println!("  {i}: -> Error: {}", e),
-                    }
-                }
-                2 => {
                     println!("\n{i}: Calling tool for client 2 (stdio)");
                     match clients[1]
                         .call_tool("git_status", serde_json::json!({ "repo_path": "." }))
@@ -92,6 +78,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "  {i}: -> Tool execution result, is_error: {:?}",
                             result.is_error
                         ),
+                        Err(e) => println!("  {i}: -> Error: {}", e),
+                    }
+                }
+                2 => {
+                    println!("\n{i}: Listing tools for client 3 (sse)");
+                    match clients[2].list_tools().await {
+                        Ok(tools) => {
+                            println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
+                        }
                         Err(e) => println!("  {i}: -> Error: {}", e),
                     }
                 }
@@ -123,22 +118,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn create_stdio_client(
+async fn create_stdio_client(
     _name: &str,
     _version: &str,
-) -> Result<Box<dyn McpClient + Send + Sync>, Box<dyn std::error::Error>> {
+) -> Result<McpClient, Box<dyn std::error::Error>> {
     let transport = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()]);
-    // TODO: Add timeout middleware
-    let service = ServiceBuilder::new().service(TransportService::new(transport));
-    Ok(Box::new(McpClientImpl::new(service)))
+    Ok(McpClient::new(transport.start().await?))
 }
 
-fn create_sse_client(
+async fn create_sse_client(
     _name: &str,
     _version: &str,
-) -> Result<Box<dyn McpClient + Send + Sync>, Box<dyn std::error::Error>> {
+) -> Result<McpClient, Box<dyn std::error::Error>> {
     let transport = SseTransport::new("http://localhost:8000/sse");
-    // TODO: Add timeout middleware
-    let service = ServiceBuilder::new().service(TransportService::new(transport));
-    Ok(Box::new(McpClientImpl::new(service)))
+    Ok(McpClient::new(transport.start().await?))
 }

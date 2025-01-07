@@ -1,21 +1,23 @@
 use async_trait::async_trait;
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[non_exhaustive]
+#[derive(Error, Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum ToolError {
     #[error("Invalid parameters: {0}")]
     InvalidParameters(String),
     #[error("Execution failed: {0}")]
     ExecutionError(String),
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
     #[error("Schema error: {0}")]
     SchemaError(String),
     #[error("Tool not found: {0}")]
     NotFound(String),
 }
+
+pub type ToolResult<T> = std::result::Result<T, ToolError>;
 
 #[derive(Error, Debug)]
 pub enum ResourceError {
@@ -24,8 +26,6 @@ pub enum ResourceError {
     #[error("Resource not found: {0}")]
     NotFound(String),
 }
-
-pub type Result<T> = std::result::Result<T, ToolError>;
 
 /// Trait for implementing MCP tools
 #[async_trait]
@@ -40,7 +40,7 @@ pub trait ToolHandler: Send + Sync + 'static {
     fn schema(&self) -> Value;
 
     /// Execute the tool with the given parameters
-    async fn call(&self, params: Value) -> Result<Value>;
+    async fn call(&self, params: Value) -> ToolResult<Value>;
 }
 
 /// Trait for implementing MCP resources
@@ -53,11 +53,11 @@ pub trait ResourceTemplateHandler: Send + Sync + 'static {
     fn schema() -> Value;
 
     /// Get the resource value
-    async fn get(&self, params: Value) -> Result<String>;
+    async fn get(&self, params: Value) -> ToolResult<String>;
 }
 
 /// Helper function to generate JSON schema for a type
-pub fn generate_schema<T: JsonSchema>() -> Result<Value> {
+pub fn generate_schema<T: JsonSchema>() -> ToolResult<Value> {
     let schema = schemars::schema_for!(T);
     serde_json::to_value(schema).map_err(|e| ToolError::SchemaError(e.to_string()))
 }

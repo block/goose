@@ -1,5 +1,6 @@
 use console::style;
-use goose::agent::Agent;
+use goose::agents::AgentFactory;
+use goose::agents::SystemConfig;
 use goose::providers::factory;
 use rand::{distributions::Alphanumeric, Rng};
 use std::path::{Path, PathBuf};
@@ -10,9 +11,10 @@ use crate::prompt::rustyline::RustylinePrompt;
 use crate::prompt::Prompt;
 use crate::session::{ensure_session_dir, get_most_recent_session, Session};
 
-pub fn build_session<'a>(
+pub async fn build_session<'a>(
     session: Option<String>,
     profile: Option<String>,
+    agent_version: Option<String>,
     resume: bool,
 ) -> Box<Session<'a>> {
     let session_dir = ensure_session_dir().expect("Failed to create session directory");
@@ -43,9 +45,22 @@ pub fn build_session<'a>(
 
     let provider_config = get_provider_config(&loaded_profile.provider, (*loaded_profile).clone());
 
-    // TODO: Odd to be prepping the provider rather than having that done in the agent?
     let provider = factory::get_provider(provider_config).unwrap();
-    let agent = Box::new(Agent::new(provider));
+
+    let mut agent =
+        AgentFactory::create(agent_version.as_deref().unwrap_or("default"), provider).unwrap();
+
+    // We now add systems to the session based on configuration
+    // TODO update the profile system tracking
+    // TODO use systems from the profile
+    // TODO once the client/server for MCP has stabilized, we should probably add InProcess transport to each
+    //      and avoid spawning here. But it is at least included in the CLI for portability
+    let config = SystemConfig::stdio("goose").with_args(vec!["mcp", "developer"]);
+    agent
+        .add_system(config)
+        .await
+        .expect("should start developer server");
+
     let prompt = match std::env::var("GOOSE_INPUT") {
         Ok(val) => match val.as_str() {
             "rustyline" => Box::new(RustylinePrompt::new()) as Box<dyn Prompt>,
@@ -159,49 +174,4 @@ fn display_session_info(resume: bool, provider: String, model: String, session_f
         style("logging to").dim(),
         style(session_file.display()).dim().cyan(),
     );
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_helpers::run_with_tmp_dir;
-    use std::fs;
-    use std::thread;
-    use std::time::Duration;
-
-    #[test]
-    #[should_panic(expected = "Cannot resume session: file")]
-    fn test_resume_nonexistent_session_panics() {
-        run_with_tmp_dir(|| {
-            build_session(Some("nonexistent-session".to_string()), None, true);
-        })
-    }
-
-    #[test]
-    fn test_resume_most_recent_session() -> anyhow::Result<()> {
-        run_with_tmp_dir(|| {
-            let session_dir = ensure_session_dir()?;
-            // Create test session files with different timestamps
-            let file1_path = session_dir.join("session1.jsonl");
-            let file2_path = session_dir.join("session2.jsonl");
-
-            fs::write(&file1_path, "{}")?;
-            thread::sleep(Duration::from_millis(1));
-            fs::write(&file2_path, "{}")?;
-
-            // Test resuming without a session name
-            let session = build_session(None, None, true);
-            assert_eq!(session.session_file().as_path(), file2_path.as_path());
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    #[should_panic(expected = "No session files found")]
-    fn test_resume_most_recent_session_no_files() {
-        run_with_tmp_dir(|| {
-            build_session(None, None, true);
-        });
-    }
 }

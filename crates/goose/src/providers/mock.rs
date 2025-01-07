@@ -21,7 +21,7 @@ impl MockProvider {
     pub fn new(responses: Vec<Message>) -> Self {
         Self {
             responses: Arc::new(Mutex::new(responses)),
-            model_config: ModelConfig::new("mock-model".to_string()),
+            model_config: ModelConfig::new("mock".to_string()),
         }
     }
 
@@ -62,7 +62,7 @@ impl Provider for MockProvider {
         }
     }
 
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
+    fn get_usage(&self, _data: &Value) -> Result<Usage> {
         Ok(Usage::new(None, None, None))
     }
 }

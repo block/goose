@@ -8,13 +8,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::sync::Mutex;
-use tower::ServiceExt; // for Service::ready()
+use tower::{Service, ServiceExt};
+
+use crate::transport::TransportHandle; // for Service::ready()
 
 /// Error type for MCP client operations.
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Service error: {0}")]
-    Service(#[from] super::service::ServiceError),
+    #[error("Transport error: {0}")]
+    Transport(#[from] super::transport::Error),
 
     #[error("RPC error: code={code}, message={message}")]
     RpcError { code: i32, message: String },
@@ -49,47 +51,17 @@ pub struct InitializeParams {
     pub client_info: ClientInfo,
 }
 
-/// The MCP client trait defining the interface for MCP operations.
-#[async_trait::async_trait]
-pub trait McpClient: Send + Sync + 'static {
-    /// Initialize the connection with the server.
-    async fn initialize(
-        &self,
-        info: ClientInfo,
-        capabilities: ClientCapabilities,
-    ) -> Result<InitializeResult, Error>;
-
-    /// List available resources.
-    async fn list_resources(&self) -> Result<ListResourcesResult, Error>;
-
-    /// Read a resource's content.
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error>;
-
-    /// List available tools.
-    async fn list_tools(&self) -> Result<ListToolsResult, Error>;
-
-    /// Call a specific tool with arguments.
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error>;
-}
-
-/// Standard implementation of the MCP client that sends requests via the provided service.
-pub struct McpClientImpl<S> {
-    service: Mutex<S>,
+/// The MCP client is the interface for MCP operations.
+pub struct McpClient {
+    service: Mutex<TransportHandle>,
     next_id: AtomicU64,
 }
 
-impl<S> McpClientImpl<S>
-where
-    S: tower::Service<
-            JsonRpcMessage,
-            Response = JsonRpcMessage,
-            Error = super::service::ServiceError,
-        > + Send,
-    S::Future: Send,
-{
-    pub fn new(service: S) -> Self {
+impl McpClient {
+    pub fn new(transport_handle: TransportHandle) -> Self {
+        // Takes TransportHandle directly
         Self {
-            service: Mutex::new(service),
+            service: Mutex::new(transport_handle),
             next_id: AtomicU64::new(1),
         }
     }
@@ -161,21 +133,8 @@ where
         service.call(notification).await?;
         Ok(())
     }
-}
 
-#[async_trait::async_trait]
-impl<S> McpClient for McpClientImpl<S>
-where
-    S: tower::Service<
-            JsonRpcMessage,
-            Response = JsonRpcMessage,
-            Error = super::service::ServiceError,
-        > + Send
-        + Sync
-        + 'static,
-    S::Future: Send,
-{
-    async fn initialize(
+    pub async fn initialize(
         &self,
         info: ClientInfo,
         capabilities: ClientCapabilities,
@@ -195,21 +154,21 @@ where
         Ok(result)
     }
 
-    async fn list_resources(&self) -> Result<ListResourcesResult, Error> {
+    pub async fn list_resources(&self) -> Result<ListResourcesResult, Error> {
         self.send_request("resources/list", serde_json::json!({}))
             .await
     }
 
-    async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error> {
+    pub async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error> {
         let params = serde_json::json!({ "uri": uri });
         self.send_request("resources/read", params).await
     }
 
-    async fn list_tools(&self) -> Result<ListToolsResult, Error> {
+    pub async fn list_tools(&self) -> Result<ListToolsResult, Error> {
         self.send_request("tools/list", serde_json::json!({})).await
     }
 
-    async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+    pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
         let params = serde_json::json!({ "name": name, "arguments": arguments });
         self.send_request("tools/call", params).await
     }

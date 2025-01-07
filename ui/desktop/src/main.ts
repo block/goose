@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
+import { getBinaryPath } from './utils/binaryPath';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, powerSaveBlocker } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
@@ -37,19 +38,19 @@ const checkApiCredentials = () => {
 
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//  
-  const isDatabricksConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
+  //{env-macro-start}//    
+  const apiKeyProvidersValid =
+  ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
     process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;
-
-  const isOpenAIDirectConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'openai' &&
-    process.env.GOOSE_PROVIDER__HOST === 'https://api.openai.com' &&
     process.env.GOOSE_PROVIDER__MODEL &&
     process.env.GOOSE_PROVIDER__API_KEY;
+    
+  const optionalApiKeyProvidersValid =
+    ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+    process.env.GOOSE_PROVIDER__HOST &&
+    process.env.GOOSE_PROVIDER__MODEL;    
 
-  return isDatabricksConfigValid || isOpenAIDirectConfigValid
+  return apiKeyProvidersValid|| optionalApiKeyProvidersValid;
   //{env-macro-end}//
 };
 
@@ -382,7 +383,8 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
-  // Power save blocker ID
+
+// Power save blocker ID
 let powerSaveBlockerId: number | null = null;
 
 // Handle power save blocker
@@ -407,8 +409,14 @@ let powerSaveBlockerId: number | null = null;
     return false;
 });
 
-// Handle metadata fetching from main process
-ipcMain.handle('fetch-metadata', async (_, url) => {
+  // Handle binary path requests
+  ipcMain.handle('get-binary-path', (event, binaryName) => {
+    return getBinaryPath(app, binaryName);
+  });
+
+  // Handle metadata fetching from main process
+  ipcMain.handle('fetch-metadata', async (_, url) => {
+
     try {
       const response = await fetch(url, {
         headers: {

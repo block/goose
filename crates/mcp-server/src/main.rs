@@ -1,4 +1,5 @@
 use anyhow::Result;
+use mcp_core::content::Content;
 use mcp_core::handler::ResourceError;
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
@@ -41,9 +42,17 @@ impl CounterRouter {
         let counter = self.counter.lock().await;
         Ok(*counter)
     }
+
+    fn _create_resource_text(&self, uri: &str, name: &str) -> Resource {
+        Resource::new(uri, Some("text/plain".to_string()), Some(name.to_string())).unwrap()
+    }
 }
 
 impl Router for CounterRouter {
+    fn name(&self) -> String {
+        "counter".to_string()
+    }
+
     fn instructions(&self) -> String {
         "This server provides a counter tool that can increment and decrement values. The counter starts at 0 and can be modified using the 'increment' and 'decrement' tools. Use 'get_value' to check the current count.".to_string()
     }
@@ -88,7 +97,7 @@ impl Router for CounterRouter {
         &self,
         tool_name: &str,
         _arguments: Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolError>> + Send + 'static>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>> {
         let this = self.clone();
         let tool_name = tool_name.to_string();
 
@@ -96,15 +105,15 @@ impl Router for CounterRouter {
             match tool_name.as_str() {
                 "increment" => {
                     let value = this.increment().await?;
-                    Ok(Value::Number(value.into()))
+                    Ok(vec![Content::text(value.to_string())])
                 }
                 "decrement" => {
                     let value = this.decrement().await?;
-                    Ok(Value::Number(value.into()))
+                    Ok(vec![Content::text(value.to_string())])
                 }
                 "get_value" => {
                     let value = this.get_value().await?;
-                    Ok(Value::Number(value.into()))
+                    Ok(vec![Content::text(value.to_string())])
                 }
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
@@ -112,12 +121,10 @@ impl Router for CounterRouter {
     }
 
     fn list_resources(&self) -> Vec<Resource> {
-        vec![Resource::new(
-            "memo://insights",
-            Some("text/plain".to_string()),
-            Some("memo-resource".to_string()),
-        )
-        .unwrap()]
+        vec![
+            self._create_resource_text("str:////Users/to/some/path/", "cwd"),
+            self._create_resource_text("memo://insights", "memo-name"),
+        ]
     }
 
     fn read_resource(
@@ -127,6 +134,10 @@ impl Router for CounterRouter {
         let uri = uri.to_string();
         Box::pin(async move {
             match uri.as_str() {
+                "str:////Users/to/some/path/" => {
+                    let cwd = "/Users/to/some/path/";
+                    Ok(cwd.to_string())
+                }
                 "memo://insights" => {
                     let memo =
                         "Business Intelligence Memo\n\nAnalysis has revealed 5 key insights ...";

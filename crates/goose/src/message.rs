@@ -5,22 +5,22 @@
 ///
 /// The content of the messages uses MCP types to avoid additional conversions
 /// when interacting with MCP servers.
-use crate::errors::AgentResult;
 use chrono::Utc;
 use mcp_core::content::{Content, ImageContent, TextContent};
+use mcp_core::handler::ToolResult;
 use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolRequest {
     pub id: String,
-    pub tool_call: AgentResult<ToolCall>,
+    pub tool_call: ToolResult<ToolCall>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolResponse {
     pub id: String,
-    pub tool_result: AgentResult<Vec<Content>>,
+    pub tool_result: ToolResult<Vec<Content>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -48,14 +48,14 @@ impl MessageContent {
         })
     }
 
-    pub fn tool_request<S: Into<String>>(id: S, tool_call: AgentResult<ToolCall>) -> Self {
+    pub fn tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
         })
     }
 
-    pub fn tool_response<S: Into<String>>(id: S, tool_result: AgentResult<Vec<Content>>) -> Self {
+    pub fn tool_response<S: Into<String>>(id: S, tool_result: ToolResult<Vec<Content>>) -> Self {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
@@ -158,7 +158,7 @@ impl Message {
     pub fn with_tool_request<S: Into<String>>(
         self,
         id: S,
-        tool_call: AgentResult<ToolCall>,
+        tool_call: ToolResult<ToolCall>,
     ) -> Self {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
@@ -167,7 +167,7 @@ impl Message {
     pub fn with_tool_response<S: Into<String>>(
         self,
         id: S,
-        result: AgentResult<Vec<Content>>,
+        result: ToolResult<Vec<Content>>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
     }

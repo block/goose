@@ -1,4 +1,4 @@
-use mcp_core::handler::{Result, ToolError, ToolHandler};
+use mcp_core::handler::{ToolError, ToolHandler};
 use mcp_macros::tool;
 
 #[tokio::main]
@@ -33,7 +33,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         operation = "The operation to perform (add, subtract, multiply, divide)"
     )
 )]
-async fn calculator(x: i32, y: i32, operation: String) -> Result<i32> {
+async fn calculator(x: i32, y: i32, operation: String) -> Result<i32, ToolError> {
     match operation.as_str() {
         "add" => Ok(x + y),
         "subtract" => Ok(x - y),

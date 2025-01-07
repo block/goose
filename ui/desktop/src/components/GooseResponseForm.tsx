@@ -4,6 +4,20 @@ import ReactMarkdown from 'react-markdown';
 import { Button } from './ui/button';
 import { cn } from '../utils';
 
+interface FormField {
+  label: string;
+  type: 'text' | 'textarea';
+  name: string;
+  placeholder: string;
+  required: boolean;
+}
+
+interface DynamicForm {
+  title: string;
+  description: string;
+  fields: FormField[];
+}
+
 interface GooseResponseFormProps {
   message: string;
   metadata: any;
@@ -12,11 +26,13 @@ interface GooseResponseFormProps {
 
 export default function GooseResponseForm({ message: _message, metadata, append }: GooseResponseFormProps) {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
   const prevStatusRef = useRef<string | null>(null);
 
   let isQuestion = false;
   let isOptions = false;
-  let options = [];
+  let options: Array<{ optionTitle: string; optionDescription: string }> = [];
+  let dynamicForm: DynamicForm | null = null;
 
   if (metadata) {
     window.electron.logInfo('metadata:'+ JSON.stringify(metadata, null, 2));
@@ -26,6 +42,16 @@ export default function GooseResponseForm({ message: _message, metadata, append 
   const currentStatus = metadata?.[0] ?? null;
   isQuestion = currentStatus === "QUESTION";
   isOptions = metadata?.[1] === "OPTIONS";
+
+  // Parse dynamic form data if it exists in metadata[3]
+  if (metadata?.[3]) {
+    try {
+      dynamicForm = JSON.parse(metadata[3]);
+    } catch (err) {
+      console.error("Failed to parse form data:", err);
+      dynamicForm = null;
+    }
+  }
 
   if (isQuestion && isOptions && metadata?.[2]) {
     try {
@@ -92,13 +118,35 @@ export default function GooseResponseForm({ message: _message, metadata, append 
     }
   };
 
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (dynamicForm) {
+      const message = {
+        content: JSON.stringify(formValues),
+        role: "user",
+      };
+      append(message);
+    }
+  };
+
+  const handleFormChange = (name: string, value: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
   if (!metadata) {
     return null;
   }
 
+  function isForm(f: DynamicForm) {
+    return f && f.title && f.description && f.fields && Array.isArray(f.fields) && f.fields.length > 0;
+  }
+
   return (
     <div className="space-y-4">
-      {isQuestion && !isOptions && (
+      {isQuestion && !isOptions && !isForm(dynamicForm) && (
         <div className="flex items-center gap-4 p-4 rounded-lg bg-tool-card dark:bg-tool-card-dark border dark:border-dark-border">
           <Button
             onClick={handleAccept}
@@ -110,7 +158,7 @@ export default function GooseResponseForm({ message: _message, metadata, append 
           </Button>
         </div>
       )}
-      {isQuestion && isOptions && options.length > 0 && (
+      {isQuestion && isOptions && Array.isArray(options) && options.length > 0 && (
         <div className="space-y-4">
           {options.map((opt, index) => (
             <div
@@ -139,6 +187,56 @@ export default function GooseResponseForm({ message: _message, metadata, append 
             Select plan
           </Button>
         </div>
+      )}
+      {isForm(dynamicForm) && !isOptions && (
+        <form onSubmit={handleFormSubmit} className="space-y-4 p-4 rounded-lg bg-tool-card dark:bg-tool-card-dark border dark:border-dark-border">
+          <h2 className="text-xl font-bold mb-2 dark:text-gray-100">{dynamicForm.title}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{dynamicForm.description}</p>
+          
+          {dynamicForm.fields.map((field) => (
+            <div key={field.name} className="space-y-2">
+              <label 
+                htmlFor={field.name}
+                className="block text-sm font-medium text-gray-700 dark:text-gray-200"
+              >
+                {field.label}
+                {field.required && <span className="text-red-500 ml-1">*</span>}
+              </label>
+              {field.type === 'textarea' ? (
+                <textarea
+                  id={field.name}
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  required={field.required}
+                  value={formValues[field.name] || ''}
+                  onChange={(e) => handleFormChange(field.name, e.target.value)}
+                  className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                  rows={4}
+                />
+              ) : (
+                <input
+                  type="text"
+                  id={field.name}
+                  name={field.name}
+                  placeholder={field.placeholder}
+                  required={field.required}
+                  value={formValues[field.name] || ''}
+                  onChange={(e) => handleFormChange(field.name, e.target.value)}
+                  className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                />
+              )}
+            </div>
+          ))}
+          
+          <Button
+            type="submit"
+            variant="default"
+            className="w-full sm:w-auto mt-4 dark:bg-button-dark"
+          >
+            <GPSIcon size={14} />
+            Submit Form
+          </Button>
+        </form>
       )}
     </div>
   );

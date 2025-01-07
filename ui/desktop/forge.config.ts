@@ -1,24 +1,31 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 
-module.exports = {
-  packagerConfig: {
-    asar: true,
-    extraResource: ['src/bin', 'src/images'],
-    icon: 'src/images/icon',
-    osxSign: {
-      entitlements: 'entitlements.plist',
-      'entitlements-inherit': 'entitlements.plist',
-      'gatekeeper-assess': false,
-      hardenedRuntime: true,
-      identity: 'Developer ID Application: Michael Neale (W2L75AE9HQ)',
-    },
-    osxNotarize: {
-      appleId: process.env['APPLE_ID'],
-      appleIdPassword: process.env['APPLE_ID_PASSWORD'],
-      teamId: process.env['APPLE_TEAM_ID']
-    },
+let cfg = {
+  asar: true,
+  extraResource: ['src/bin', 'src/images'],
+  icon: 'src/images/icon',
+  osxSign: {
+    entitlements: 'entitlements.plist',
+    'entitlements-inherit': 'entitlements.plist',
+    'gatekeeper-assess': false,
+    hardenedRuntime: true,
+    identity: 'Developer ID Application: Michael Neale (W2L75AE9HQ)',
   },
+  osxNotarize: {
+    appleId: process.env['APPLE_ID'],
+    appleIdPassword: process.env['APPLE_ID_PASSWORD'],
+    teamId: process.env['APPLE_TEAM_ID']
+  },
+}
+
+if (process.env['APPLE_ID'] === undefined) {
+  delete cfg.osxNotarize;
+  delete cfg.osxSign;
+}
+
+module.exports = {
+  packagerConfig: cfg,
   rebuildConfig: {},
   makers: [
     {
