@@ -157,7 +157,7 @@ mod tests {
         // Mock response for tool calling
         let response_body = create_mock_open_ai_response_with_tools("gpt-4o");
 
-        let (_, provider) = _setup_mock_server(response_body).await;
+        let (mock_server, provider) = _setup_mock_server(response_body).await;
 
         // Input messages
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
@@ -184,6 +184,7 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(TEST_OUTPUT_TOKENS));
         assert_eq!(usage.usage.total_tokens, Some(TEST_TOTAL_TOKENS));
 
+        mock_server.verify().await;
         Ok(())
     }
 

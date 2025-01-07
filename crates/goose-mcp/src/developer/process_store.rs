@@ -24,6 +24,7 @@ pub fn remove_process(pid: u32) -> bool {
 }
 
 /// Kill all stored processes
+#[allow(dead_code)]
 pub fn kill_processes() {
     let mut killed_processes = Vec::new();
     {

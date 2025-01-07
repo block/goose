@@ -1,8 +1,7 @@
 use anyhow::Result;
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientImpl};
-use mcp_client::{service::TransportService, transport::SseTransport};
+use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient};
+use mcp_client::transport::{SseTransport, Transport};
 use std::time::Duration;
-use tower::ServiceBuilder;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -12,19 +11,18 @@ async fn main() -> Result<()> {
         .with_env_filter(
             EnvFilter::from_default_env()
                 .add_directive("mcp_client=debug".parse().unwrap())
-                .add_directive("eventsource_client=debug".parse().unwrap()),
+                .add_directive("eventsource_client=info".parse().unwrap()),
         )
         .init();
 
     // Create the base transport
     let transport = SseTransport::new("http://localhost:8000/sse");
 
-    // Build service
-    // TODO: Add timeout middleware
-    let service = ServiceBuilder::new().service(TransportService::new(transport));
+    // Start transport
+    let handle = transport.start().await?;
 
     // Create client
-    let client = McpClientImpl::new(service);
+    let client = McpClient::new(handle);
     println!("Client created\n");
 
     // Initialize
@@ -53,7 +51,15 @@ async fn main() -> Result<()> {
             serde_json::json!({ "message": "Client with SSE transport - calling a tool" }),
         )
         .await?;
-    println!("Tool result: {tool_result:?}");
+    println!("Tool result: {tool_result:?}\n");
+
+    // List resources
+    let resources = client.list_resources().await?;
+    println!("Resources: {resources:?}\n");
+
+    // Read resource
+    let resource = client.read_resource("echo://fixedresource").await?;
+    println!("Resource: {resource:?}\n");
 
     Ok(())
 }

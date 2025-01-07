@@ -152,9 +152,4 @@ impl Prompt for RustylinePrompt {
     fn close(&self) {
         // No cleanup required
     }
-
-    #[cfg(test)]
-    fn as_any(&self) -> &dyn std::any::Any {
-        panic!("Not implemented");
-    }
 }

@@ -96,7 +96,7 @@ pub fn unescape_json_values(value: &Value) -> Value {
             Value::Object(new_map)
         }
         Value::Array(arr) => {
-            let new_array: Vec<Value> = arr.iter().map(|v| unescape_json_values(v)).collect();
+            let new_array: Vec<Value> = arr.iter().map(unescape_json_values).collect();
             Value::Array(new_array)
         }
         Value::String(s) => {

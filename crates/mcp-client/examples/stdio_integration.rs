@@ -1,11 +1,8 @@
 // This example shows how to use the mcp-client crate to interact with a server that has a simple counter tool.
 // The server is started by running `cargo run -p mcp-server` in the root of the mcp-server crate.
 use anyhow::Result;
-use mcp_client::client::{
-    ClientCapabilities, ClientInfo, Error as ClientError, McpClient, McpClientImpl,
-};
-use mcp_client::{service::TransportService, transport::StdioTransport};
-use tower::ServiceBuilder;
+use mcp_client::client::{ClientCapabilities, ClientInfo, Error as ClientError, McpClient};
+use mcp_client::transport::{StdioTransport, Transport};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -28,12 +25,11 @@ async fn main() -> Result<(), ClientError> {
             .collect(),
     );
 
-    // Build service
-    // TODO: Add timeout middleware
-    let service = ServiceBuilder::new().service(TransportService::new(transport));
+    // Start the transport to get a handle
+    let transport_handle = transport.start().await.unwrap();
 
     // Create client
-    let client = McpClientImpl::new(service);
+    let client = McpClient::new(transport_handle);
 
     // Initialize
     let server_info = client
@@ -68,6 +64,14 @@ async fn main() -> Result<(), ClientError> {
     // Call tool 'get_value'
     let get_value_result = client.call_tool("get_value", serde_json::json!({})).await?;
     println!("Tool result for 'get_value': {get_value_result:?}\n");
+
+    // List resources
+    let resources = client.list_resources().await?;
+    println!("Resources: {resources:?}\n");
+
+    // Read resource
+    let resource = client.read_resource("memo://insights").await?;
+    println!("Resource: {resource:?}\n");
 
     Ok(())
 }

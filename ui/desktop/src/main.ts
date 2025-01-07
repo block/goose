@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
+import { getBinaryPath } from './utils/binaryPath';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, powerSaveBlocker } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
@@ -34,23 +35,20 @@ const parseArgs = () => {
 };
 
 const checkApiCredentials = () => {
-
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//  
-  const isDatabricksConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
-    process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;
+  const apiKeyProvidersValid =
+    ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+      process.env.GOOSE_PROVIDER__HOST &&
+      process.env.GOOSE_PROVIDER__MODEL &&
+      process.env.GOOSE_PROVIDER__API_KEY;
 
-  const isOpenAIDirectConfigValid =
-    process.env.GOOSE_PROVIDER__TYPE === 'openai' &&
-    process.env.GOOSE_PROVIDER__HOST === 'https://api.openai.com' &&
-    process.env.GOOSE_PROVIDER__MODEL &&
-    process.env.GOOSE_PROVIDER__API_KEY;
+  const optionalApiKeyProvidersValid =
+    ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+      process.env.GOOSE_PROVIDER__HOST &&
+      process.env.GOOSE_PROVIDER__MODEL;
 
-  return isDatabricksConfigValid || isOpenAIDirectConfigValid
-  //{env-macro-end}//
+  return apiKeyProvidersValid || optionalApiKeyProvidersValid;
 };
 
 const generateSecretKey = () => {
@@ -118,11 +116,19 @@ const createChat = async (app, query?: string, dir?: string) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
-  const [port, working_dir] = await startGoosed(app, dir);  
+  const maybeStartGoosed = async () => {
+    if (checkApiCredentials()) {
+      return startGoosed(app, dir);
+    } else {
+      return [0, ''];
+    }
+  }
+
+  const [port, working_dir] = await maybeStartGoosed();
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
-    vibrancy: 'under-window',
+    vibrancy: 'window',
     width: 750,
     height: 800,
     minWidth: 650,
@@ -382,10 +388,11 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
-  // Power save blocker ID
-let powerSaveBlockerId: number | null = null;
 
-// Handle power save blocker
+  // Power save blocker ID
+  let powerSaveBlockerId: number | null = null;
+
+  // Handle power save blocker
   ipcMain.handle('start-power-save-blocker', () => {
   log.info('Starting power save blocker...');
   if (powerSaveBlockerId === null) {
@@ -407,8 +414,13 @@ let powerSaveBlockerId: number | null = null;
     return false;
 });
 
-// Handle metadata fetching from main process
-ipcMain.handle('fetch-metadata', async (_, url) => {
+  // Handle binary path requests
+  ipcMain.handle('get-binary-path', (event, binaryName) => {
+    return getBinaryPath(app, binaryName);
+  });
+
+  // Handle metadata fetching from main process
+  ipcMain.handle('fetch-metadata', async (_, url) => {
     try {
       const response = await fetch(url, {
         headers: {

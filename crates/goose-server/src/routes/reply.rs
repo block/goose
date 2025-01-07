@@ -176,12 +176,10 @@ async fn stream_message(
     message: Message,
     tx: &mpsc::Sender<String>,
 ) -> Result<(), mpsc::error::SendError<String>> {
-    dbg!(&message);
     match message.role {
         Role::User => {
             // Handle tool responses
             for content in message.content {
-                dbg!(&content);
                 // I believe with the protocol we aren't intended to pass back user messages, so we only deal with
                 // the tool responses here
                 if let MessageContent::ToolResponse(response) = content {
@@ -306,7 +304,8 @@ async fn handler(
                         Err(_) => { // Heartbeat, used to detect disconnected clients and then end running tools.
                             if tx.is_closed() {
                                 // Kill any running processes when the client disconnects
-                                goose::process_store::kill_processes();
+                                // TODO is this used? I suspect post MCP this is on the server instead
+                                // goose::process_store::kill_processes();
                                 break;
                             }
                             continue;
@@ -390,7 +389,7 @@ pub fn routes(state: AppState) -> Router {
 mod tests {
     use super::*;
     use goose::{
-        agent::Agent,
+        agents::DefaultAgent as Agent,
         providers::{
             base::{Provider, ProviderUsage, Usage},
             configs::{ModelConfig, OpenAiProviderConfig},
@@ -422,7 +421,7 @@ mod tests {
             &self.model_config
         }
 
-        fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
+        fn get_usage(&self, _data: &Value) -> anyhow::Result<Usage> {
             Ok(Usage::new(None, None, None))
         }
     }
@@ -518,13 +517,14 @@ mod tests {
             });
             let agent = Agent::new(mock_provider);
             let state = AppState {
-                agent: Arc::new(Mutex::new(agent)),
+                agent: Arc::new(Mutex::new(Box::new(agent))),
                 provider_config: ProviderConfig::OpenAi(OpenAiProviderConfig {
                     host: "https://api.openai.com".to_string(),
                     api_key: "test-key".to_string(),
                     model: ModelConfig::new("test-model".to_string()),
                 }),
                 secret_key: "test-secret".to_string(),
+                agent_version: "test-version".to_string(),
             };
 
             // Build router

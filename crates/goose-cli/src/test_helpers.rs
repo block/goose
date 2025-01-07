@@ -37,6 +37,7 @@ pub fn run_profile_with_tmp_dir<F: FnOnce() -> T, T>(profile: &str, func: F) -> 
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 pub async fn run_with_tmp_dir_async<F, Fut, T>(func: F) -> T
 where
     F: FnOnce() -> Fut,
@@ -60,10 +61,11 @@ where
 }
 
 #[cfg(test)]
-use std::path::PathBuf;
+use std::path::Path;
+
 #[cfg(test)]
 /// Setup a goose profile for testing, and an optional profile string
-fn setup_profile(temp_dir_path: &PathBuf, profile_string: Option<&str>) {
+fn setup_profile(temp_dir_path: &Path, profile_string: Option<&str>) {
     use std::fs;
 
     let profile_path = temp_dir_path
