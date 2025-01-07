@@ -20,7 +20,7 @@ Goose is your on-machine developer agent, automating engineering tasks seamlessl
     <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
   </a>
   <a href="https://discord.gg/7GaTvbDwga">
-    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">
+    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Discord&color=blueviolet" alt="Discord">
   </a>
 </p>
 
@@ -123,4 +123,4 @@ Let us know what you think in our [Discussions][discussions] or the [**`#goose`*
 [gh-issues]: https://github.com/block/goose/issues
 [van-code]: https://github.com/block-open-source/goose-plugins/blob/de98cd6c29f8e7cd3b6ace26535f24ac57c9effa/src/goose_plugins/toolkits/artify.py
 [discussions]: https://github.com/block/goose/discussions
-[goose-channel]: https://discord.com/channels/1287729918100246654/1287729920319033345
+[goose-channel]: https://discord.gg/block-opensource

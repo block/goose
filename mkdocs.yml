@@ -22,6 +22,7 @@ theme:
     - navigation.instant
     - navigation.sections
     - navigation.top
+    - navigation.social
     - navigation.tracking
     - navigation.expand
     - search.share
@@ -37,6 +38,7 @@ theme:
     code: Roboto Mono
   favicon: assets/logo.ico
   icon:
+    fontawesome: true 
     logo: assets/logo.ico
 # plugins
 plugins:
@@ -68,7 +70,11 @@ extra:
   annotate:
     json:
       - .s2
-  social: []
+  social:
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/block-opensource
+    - icon: fontawesome/brands/github
+      link: https://github.com/block/goose
   analytics:
     provider: google
     property: !ENV GOOGLE_ANALYTICS_KEY
