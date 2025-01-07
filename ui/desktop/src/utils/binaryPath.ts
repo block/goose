@@ -1,6 +1,8 @@
 import path from 'node:path';
+import { App } from 'electron';
 
-export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
+
+export const getBinaryPath = (app: App, binaryName: string): string => {
   const isDev = process.env.NODE_ENV === 'development';
   const isPackaged = app.isPackaged;
 
