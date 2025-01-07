@@ -64,7 +64,7 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
         <Bird />
       </div>
       <div className="text-center space-y-4 max-w-2xl w-full">
-        <h2 className="text-2xl font-semibold text-gray-800">API Key Required</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">Credentials Required</h2>
         <p className="text-gray-600 mb-4">
           To use Goose, you need to set environment variables for one of the following providers:
         </p>
@@ -94,8 +94,7 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
             </pre>
           </Collapsible>
         </div>
-
-        <p className="text-sm text-gray-500 mt-4">
+        <p className="text-gray-600 mt-4">
           After setting these variables, restart Goose for the changes to take effect.
         </p>
       </div>

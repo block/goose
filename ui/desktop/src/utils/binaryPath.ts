@@ -1,4 +1,5 @@
 import path from 'node:path';
+import Electron from 'electron';
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
   const isDev = process.env.NODE_ENV === 'development';

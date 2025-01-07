@@ -35,23 +35,20 @@ const parseArgs = () => {
 };
 
 const checkApiCredentials = () => {
-
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//    
   const apiKeyProvidersValid =
-  ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
-    process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL &&
-    process.env.GOOSE_PROVIDER__API_KEY;
-    
+    ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+      process.env.GOOSE_PROVIDER__HOST &&
+      process.env.GOOSE_PROVIDER__MODEL &&
+      process.env.GOOSE_PROVIDER__API_KEY;
+
   const optionalApiKeyProvidersValid =
     ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
-    process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;    
+      process.env.GOOSE_PROVIDER__HOST &&
+      process.env.GOOSE_PROVIDER__MODEL;
 
-  return apiKeyProvidersValid|| optionalApiKeyProvidersValid;
-  //{env-macro-end}//
+  return apiKeyProvidersValid || optionalApiKeyProvidersValid;
 };
 
 const generateSecretKey = () => {
@@ -119,7 +116,15 @@ const createChat = async (app, query?: string, dir?: string) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
-  const [port, working_dir] = await startGoosed(app, dir);  
+  const maybeStartGoosed = async () => {
+    if (checkApiCredentials()) {
+      return startGoosed(app, dir);
+    } else {
+      return [0, ''];
+    }
+  }
+
+  const [port, working_dir] = await maybeStartGoosed();
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
