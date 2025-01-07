@@ -21,7 +21,6 @@ contextBridge.exposeInMainWorld('electron', {
   selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
-  getBinaryPath: (binaryName) => ipcRenderer.invoke('get-binary-path', binaryName),
   on: (channel, callback) => {
     if (channel === 'fatal-error') {
       ipcRenderer.on(channel, callback);

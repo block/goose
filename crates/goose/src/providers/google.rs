@@ -1,3 +1,4 @@
+use crate::errors::AgentError;
 use crate::message::{Message, MessageContent};
 use crate::providers::base::{Provider, ProviderUsage, Usage};
 use crate::providers::configs::{GoogleProviderConfig, ModelConfig, ProviderModelConfig};
@@ -5,7 +6,6 @@ use crate::providers::utils::{
     handle_response, is_valid_function_name, sanitize_function_name, unescape_json_values,
 };
 use async_trait::async_trait;
-use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
 use reqwest::Client;
 use serde_json::{json, Map, Value};
@@ -182,7 +182,7 @@ impl GoogleProvider {
                     ];
                     parameters.insert(
                         "parameters".to_string(),
-                        json!(process_map(
+                        json!(self.process_map(
                             tool_input_schema,
                             &accepted_tool_schema_attributes,
                             None
@@ -194,6 +194,43 @@ impl GoogleProvider {
             .collect()
     }
 
+    fn process_map(
+        &self,
+        map: &Map<String, Value>,
+        accepted_keys: &[String],
+        parent_key: Option<&str>, // Track the parent key
+    ) -> Value {
+        let mut filtered_map: Map<String, serde_json::Value> = map
+            .iter()
+            .filter_map(|(key, value)| {
+                let should_remove =
+                    !accepted_keys.contains(key) && parent_key != Some("properties");
+                if should_remove {
+                    return None;
+                }
+                // Process nested maps recursively
+                let filtered_value = match value {
+                    Value::Object(nested_map) => self.process_map(
+                        &nested_map
+                            .iter()
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect(),
+                        accepted_keys,
+                        Some(key),
+                    ),
+                    _ => value.clone(),
+                };
+
+                Some((key.clone(), filtered_value))
+            })
+            .collect();
+        if parent_key != Some("properties") && !filtered_map.contains_key("type") {
+            filtered_map.insert("type".to_string(), Value::String("string".to_string()));
+        }
+
+        Value::Object(filtered_map)
+    }
+
     fn google_response_to_message(&self, response: Value) -> anyhow::Result<Message> {
         let mut content = Vec::new();
         let binding = vec![];
@@ -201,7 +238,7 @@ impl GoogleProvider {
             .get("candidates")
             .and_then(|v| v.as_array())
             .unwrap_or(&binding);
-        let candidate = candidates.first();
+        let candidate = candidates.get(0);
         let role = Role::Assistant;
         let created = chrono::Utc::now().timestamp();
         if candidate.is_none() {
@@ -230,17 +267,17 @@ impl GoogleProvider {
                     .unwrap_or_default()
                     .to_string();
                 if !is_valid_function_name(&name) {
-                    let error = ToolError::NotFound(format!(
+                    let error = AgentError::ToolNotFound(format!(
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
                         name
                     ));
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
                     let parameters = function_call.get("args");
-                    if let Some(params) = parameters {
+                    if parameters.is_some() {
                         content.push(MessageContent::tool_request(
                             id,
-                            Ok(ToolCall::new(&name, params.clone())),
+                            Ok(ToolCall::new(&name, parameters.unwrap().clone())),
                         ));
                     }
                 }
@@ -252,41 +289,6 @@ impl GoogleProvider {
             content,
         })
     }
-}
-
-fn process_map(
-    map: &Map<String, Value>,
-    accepted_keys: &[String],
-    parent_key: Option<&str>, // Track the parent key
-) -> Value {
-    let mut filtered_map: Map<String, serde_json::Value> = map
-        .iter()
-        .filter_map(|(key, value)| {
-            let should_remove = !accepted_keys.contains(key) && parent_key != Some("properties");
-            if should_remove {
-                return None;
-            }
-            // Process nested maps recursively
-            let filtered_value = match value {
-                Value::Object(nested_map) => process_map(
-                    &nested_map
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect(),
-                    accepted_keys,
-                    Some(key),
-                ),
-                _ => value.clone(),
-            };
-
-            Some((key.clone(), filtered_value))
-        })
-        .collect();
-    if parent_key != Some("properties") && !filtered_map.contains_key("type") {
-        filtered_map.insert("type".to_string(), Value::String("string".to_string()));
-    }
-
-    Value::Object(filtered_map)
 }
 
 #[async_trait]
@@ -308,12 +310,12 @@ impl Provider for GoogleProvider {
         );
         payload.insert(
             "contents".to_string(),
-            json!(self.messages_to_google_spec(messages)),
+            json!(self.messages_to_google_spec(&messages)),
         );
         if !tools.is_empty() {
             payload.insert(
                 "tools".to_string(),
-                json!({"functionDeclarations": self.tools_to_google_spec(tools)}),
+                json!({"functionDeclarations": self.tools_to_google_spec(&tools)}),
             );
         }
         let mut generation_config = Map::new();
@@ -366,7 +368,7 @@ impl Provider for GoogleProvider {
 #[cfg(test)] // Only compiles this module when running tests
 mod tests {
     use super::*;
-
+    use crate::errors::AgentResult;
     use crate::providers::mock_server::{
         create_mock_google_ai_response, create_mock_google_ai_response_with_tools,
         create_test_tool, get_expected_function_call_arguments, setup_mock_server,
@@ -485,8 +487,11 @@ mod tests {
     #[test]
     fn test_message_to_google_spec_tool_result_message() {
         let provider = set_up_provider();
-        let tool_result: Vec<Content> = vec![Content::text("Hello")];
-        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let tool_result: AgentResult<Vec<Content>> = Ok(vec![Content::text("Hello")]);
+        let messages = vec![set_up_tool_response_message(
+            "response_id",
+            tool_result.unwrap(),
+        )];
         let payload = provider.messages_to_google_spec(&messages);
         assert_eq!(payload.len(), 1, "Expected 1 message in payload");
         assert_eq!(payload[0]["role"], "model", "Message should be model role");
@@ -651,7 +656,10 @@ mod tests {
             "Message should have exactly one content item"
         );
         if let Err(error) = &message.content[0].as_tool_request().unwrap().tool_call {
-            assert!(matches!(error, ToolError::NotFound(_)));
+            assert!(
+                matches!(error, AgentError::ToolNotFound(_)),
+                "Expected ToolNotFound error"
+            );
         } else {
             panic!("Expected tool request error");
         }

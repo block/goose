@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import { loadZshEnv } from './utils/loadEnv';
-import { getBinaryPath } from './utils/binaryPath';
 import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, powerSaveBlocker } from 'electron';
 import path from 'node:path';
 import { startGoosed } from './goosed';
@@ -38,19 +37,19 @@ const checkApiCredentials = () => {
 
   loadZshEnv(app.isPackaged);
 
-  //{env-macro-start}//    
-  const apiKeyProvidersValid =
-  ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
+  //{env-macro-start}//  
+  const isDatabricksConfigValid =
+    process.env.GOOSE_PROVIDER__TYPE === 'databricks' &&
     process.env.GOOSE_PROVIDER__HOST &&
+    process.env.GOOSE_PROVIDER__MODEL;
+
+  const isOpenAIDirectConfigValid =
+    process.env.GOOSE_PROVIDER__TYPE === 'openai' &&
+    process.env.GOOSE_PROVIDER__HOST === 'https://api.openai.com' &&
     process.env.GOOSE_PROVIDER__MODEL &&
     process.env.GOOSE_PROVIDER__API_KEY;
-    
-  const optionalApiKeyProvidersValid =
-    ['ollama', 'databricks'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
-    process.env.GOOSE_PROVIDER__HOST &&
-    process.env.GOOSE_PROVIDER__MODEL;    
 
-  return apiKeyProvidersValid|| optionalApiKeyProvidersValid;
+  return isDatabricksConfigValid || isOpenAIDirectConfigValid
   //{env-macro-end}//
 };
 
@@ -115,22 +114,11 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-
-
 const createChat = async (app, query?: string, dir?: string) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
-
-  const maybeStartGoosed = async () => {
-    if (checkApiCredentials()) {
-      return startGoosed(app, dir);
-    } else {
-      return [0, ''];
-    }
-  }
-
-  const [port, working_dir] = await maybeStartGoosed();  
+  const [port, working_dir] = await startGoosed(app, dir);  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
@@ -394,8 +382,7 @@ app.whenReady().then(async () => {
     app.exit(0);
   });
 
-
-// Power save blocker ID
+  // Power save blocker ID
 let powerSaveBlockerId: number | null = null;
 
 // Handle power save blocker
@@ -420,14 +407,8 @@ let powerSaveBlockerId: number | null = null;
     return false;
 });
 
-  // Handle binary path requests
-  ipcMain.handle('get-binary-path', (event, binaryName) => {
-    return getBinaryPath(app, binaryName);
-  });
-
-  // Handle metadata fetching from main process
-  ipcMain.handle('fetch-metadata', async (_, url) => {
-
+// Handle metadata fetching from main process
+ipcMain.handle('fetch-metadata', async (_, url) => {
     try {
       const response = await fetch(url, {
         headers: {

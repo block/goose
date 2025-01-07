@@ -11,7 +11,7 @@ import Input from './components/Input';
 import MoreMenu from './components/MoreMenu';
 import BottomMenu from './components/BottomMenu';
 import LoadingGoose from './components/LoadingGoose';
-
+import { ApiKeyWarning } from './components/ApiKeyWarning';
 import { askAi } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -23,6 +23,7 @@ const CURRENT_VERSION = '0.0.0';
 // Get the last version from localStorage
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
+
 
 export interface Chat {
   id: number;
@@ -317,35 +318,6 @@ function ChatContent({
   );
 }
 
-// Function to send the system configuration to the server
-const addSystemConfig = async () => {
-  console.log("calling add system")
-  
-  const systemConfig = {
-    type: "Stdio",
-    cmd: await window.electron.getBinaryPath('goosed'),
-    args: ["mcp", "developer"]
-  };
-
-  try {
-    const response = await fetch(getApiUrl('/systems/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(systemConfig)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add system config: ${response.statusText}`);
-    }
-
-    console.log('Successfully added system config');
-  } catch (error) {
-    console.log('Error adding system config:', error);
-  }
-};
-
 export default function ChatWindow() {
   // Shared function to create a chat window
   const openNewChatWindow = () => {
@@ -370,6 +342,9 @@ export default function ChatWindow() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  // Check if API key is missing from the window arguments
+  const apiCredsMissing = window.electron.getConfig().apiCredsMissing;
 
   // Get initial query and history from URL parameters
   const searchParams = new URLSearchParams(window.location.search);
@@ -410,17 +385,16 @@ export default function ChatWindow() {
     setMode(newMode);
   };
 
-  // Initialize system config when window loads
-  useEffect(() => {
-    addSystemConfig();
-  }, []);
-  
   window.electron.logInfo('ChatWindow loaded');
 
   return (
     <div className="relative w-screen h-screen overflow-hidden dark:bg-dark-window-gradient bg-window-gradient flex flex-col">
       <div className="titlebar-drag-region" />
-      {showWelcome && (!window.appConfig.get("REQUEST_DIR")) ? (
+      {apiCredsMissing ? (
+        <div className="w-full h-full">
+          <ApiKeyWarning className="w-full h-full" />
+        </div>
+      ) : showWelcome && (!window.appConfig.get("REQUEST_DIR")) ? (
         <div className="w-full h-full">
           <WelcomeScreen className="w-full h-full" onDismiss={handleWelcomeDismiss} />
         </div>

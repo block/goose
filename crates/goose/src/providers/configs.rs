@@ -15,7 +15,6 @@ pub enum ProviderConfig {
     Anthropic(AnthropicProviderConfig),
     Google(GoogleProviderConfig),
     Groq(GroqProviderConfig),
-    OpenRouter(OpenAiProviderConfig),
 }
 
 /// Configuration for model-specific settings and limits

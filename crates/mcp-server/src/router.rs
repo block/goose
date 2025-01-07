@@ -78,7 +78,6 @@ impl CapabilitiesBuilder {
 }
 
 pub trait Router: Send + Sync + 'static {
-    fn name(&self) -> String;
     // in the protocol, instructions are optional but we make it required
     fn instructions(&self) -> String;
     fn capabilities(&self) -> ServerCapabilities;
@@ -87,7 +86,7 @@ pub trait Router: Send + Sync + 'static {
         &self,
         tool_name: &str,
         arguments: Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ToolError>> + Send + 'static>>;
     fn list_resources(&self) -> Vec<mcp_core::resource::Resource>;
     fn read_resource(
         &self,
@@ -113,7 +112,7 @@ pub trait Router: Send + Sync + 'static {
                 protocol_version: "2024-11-05".to_string(),
                 capabilities: self.capabilities().clone(),
                 server_info: Implementation {
-                    name: self.name(),
+                    name: "mcp-server".to_string(),
                     version: env!("CARGO_PKG_VERSION").to_string(),
                 },
                 instructions: Some(self.instructions()),
@@ -165,7 +164,7 @@ pub trait Router: Send + Sync + 'static {
 
             let result = match self.call_tool(name, arguments).await {
                 Ok(result) => CallToolResult {
-                    content: result,
+                    content: vec![Content::text(result.to_string())],
                     is_error: false,
                 },
                 Err(err) => CallToolResult {
