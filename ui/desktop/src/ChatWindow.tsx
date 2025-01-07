@@ -24,6 +24,8 @@ const CURRENT_VERSION = '0.0.0';
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
 
+window.electron.logInfo('ChatWindow loaded');
+
 
 export interface Chat {
   id: number;
@@ -419,9 +421,7 @@ export default function ChatWindow() {
   // Initialize system config when window loads
   useEffect(() => {
     addSystemConfig();
-  }, []);
-
-  window.electron.logInfo('ChatWindow loaded');
+  }, []);  
 
   return (
     <div className="relative w-screen h-screen overflow-hidden dark:bg-dark-window-gradient bg-window-gradient flex flex-col">

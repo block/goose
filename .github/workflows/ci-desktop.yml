@@ -52,6 +52,19 @@ jobs:
     - name: copy binary
       run: cp target/release/goosed ui/desktop/src/bin/goosed
 
+    - name: Test goosed agent directly
+      run: |
+        # Make sure the binary is there
+        ls -la ui/desktop/src/bin/goosed
+
+        # Set any environment variables goosed might need
+        export GOOSE_SERVER__PORT=3000
+        export GOOSE_SERVER__SECRET_KEY="mysecret"
+
+        # Run goosed with the "agent" subcommand
+        ui/desktop/src/bin/goosed agent
+        echo "goosed agent exited with code $?"      
+
     - name: Set up Node.js
       uses: actions/setup-node@v2
       with:
