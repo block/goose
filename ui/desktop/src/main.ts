@@ -115,11 +115,22 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
+
+
 const createChat = async (app, query?: string, dir?: string) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
-  const [port, working_dir] = await startGoosed(app, dir);  
+
+  const maybeStartGoosed = async () => {
+    if (checkApiCredentials()) {
+      return startGoosed(app, dir);
+    } else {
+      return [0, ''];
+    }
+  }
+
+  const [port, working_dir] = await maybeStartGoosed();  
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },

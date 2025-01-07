@@ -11,7 +11,7 @@ import Input from './components/Input';
 import MoreMenu from './components/MoreMenu';
 import BottomMenu from './components/BottomMenu';
 import LoadingGoose from './components/LoadingGoose';
-import { ApiKeyWarning } from './components/ApiKeyWarning';
+
 import { askAi } from './utils/askAI';
 import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
@@ -23,9 +23,6 @@ const CURRENT_VERSION = '0.0.0';
 // Get the last version from localStorage
 const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
 const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
-
-window.electron.logInfo('ChatWindow loaded');
-
 
 export interface Chat {
   id: number;
@@ -323,8 +320,6 @@ function ChatContent({
 // Function to send the system configuration to the server
 const addSystemConfig = async () => {
   console.log("calling add system")
-  // Get the app instance from electron
-  const app = window.electron.app;
   
   const systemConfig = {
     type: "Stdio",
@@ -376,9 +371,6 @@ export default function ChatWindow() {
     };
   }, []);
 
-  // Check if API key is missing from the window arguments
-  const apiCredsMissing = window.electron.getConfig().apiCredsMissing;
-
   // Get initial query and history from URL parameters
   const searchParams = new URLSearchParams(window.location.search);
   const initialQuery = searchParams.get('initialQuery');
@@ -421,16 +413,14 @@ export default function ChatWindow() {
   // Initialize system config when window loads
   useEffect(() => {
     addSystemConfig();
-  }, []);  
+  }, []);
+  
+  window.electron.logInfo('ChatWindow loaded');
 
   return (
     <div className="relative w-screen h-screen overflow-hidden dark:bg-dark-window-gradient bg-window-gradient flex flex-col">
       <div className="titlebar-drag-region" />
-      {apiCredsMissing ? (
-        <div className="w-full h-full">
-          <ApiKeyWarning className="w-full h-full" />
-        </div>
-      ) : showWelcome && (!window.appConfig.get("REQUEST_DIR")) ? (
+      {showWelcome && (!window.appConfig.get("REQUEST_DIR")) ? (
         <div className="w-full h-full">
           <WelcomeScreen className="w-full h-full" onDismiss={handleWelcomeDismiss} />
         </div>

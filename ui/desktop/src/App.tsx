@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import LauncherWindow from './LauncherWindow';
 import ChatWindow from './ChatWindow';
 import ErrorScreen from './components/ErrorScreen';
+import { ApiKeyWarning } from './components/ApiKeyWarning';
 
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -21,8 +22,17 @@ export default function App() {
     };
   }, []);
 
+  // Check API credentials
+  const apiCredsMissing = window.electron.getConfig().apiCredsMissing;
+
   if (fatalError) {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
+  }
+
+  if (apiCredsMissing && !isLauncher) {
+    return <div className="relative w-screen h-screen overflow-hidden dark:bg-dark-window-gradient bg-window-gradient flex flex-col">
+      <ApiKeyWarning className="w-full h-full" />
+    </div>;
   }
   
   return isLauncher ? <LauncherWindow /> : <ChatWindow />;
