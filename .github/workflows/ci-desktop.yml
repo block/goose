@@ -60,6 +60,9 @@ jobs:
         # Set any environment variables goosed might need
         export GOOSE_SERVER__PORT=3000
         export GOOSE_SERVER__SECRET_KEY="mysecret"
+        export GOOSE_PROVIDER__TYPE="databricks"
+        export GOOSE_PROVIDER__HOST="http://ignore"
+        export GOOSE_PROVIDER__MODEL="ignore"        
 
         # Run goosed with the "agent" subcommand
         ui/desktop/src/bin/goosed agent
