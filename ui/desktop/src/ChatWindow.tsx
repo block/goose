@@ -85,7 +85,7 @@ function ChatContent({
       setProgressMessage(`Executing tool: ${toolCall.toolName}`);
       requestAnimationFrame(() => scrollToBottom('instant'));
     },
-    onResponse: (response) => { 
+    onResponse: (response) => {
       if (!response.ok) {
         setProgressMessage('An error occurred while receiving the response.');
         updateWorking(Working.Idle);
