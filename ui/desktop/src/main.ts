@@ -13,6 +13,14 @@ import { EnvToggles, loadSettings, saveSettings, updateEnvironmentVariables, cre
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
+// deep linking
+// This event is fired when the user opens "goose://..."
+// Handle the protocol. In this case, we choose to show an Error Box.
+app.on('open-url', (event, url) => {
+  dialog.showErrorBox('Welcome Back', `You arrived from: ${url}`)
+})
+
+
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
@@ -464,3 +472,5 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+

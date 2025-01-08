@@ -17,6 +17,12 @@ let cfg = {
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
     teamId: process.env['APPLE_TEAM_ID']
   },
+  protocols: [
+    {
+      name: "GooseProtocol",     // The macOS CFBundleURLName
+      schemes: ["goose"]         // The macOS CFBundleURLSchemes array
+    }
+  ]
 }
 
 if (process.env['APPLE_ID'] === undefined) {
