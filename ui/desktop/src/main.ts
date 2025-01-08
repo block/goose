@@ -37,6 +37,10 @@ const parseArgs = () => {
 const checkApiCredentials = () => {
   loadZshEnv(app.isPackaged);
 
+  
+  //{env-macro-start}//
+  //needed when goose is bundled for a specific provider
+
   const apiKeyProvidersValid =
     ['openai', 'anthropic', 'google', 'groq', 'openrouter'].includes(process.env.GOOSE_PROVIDER__TYPE) &&
       process.env.GOOSE_PROVIDER__HOST &&
@@ -49,6 +53,9 @@ const checkApiCredentials = () => {
       process.env.GOOSE_PROVIDER__MODEL;
 
   return apiKeyProvidersValid || optionalApiKeyProvidersValid;
+  
+  //needed when goose is bundled for a specific provider:
+  //{env-macro-end}//
 };
 
 const generateSecretKey = () => {
