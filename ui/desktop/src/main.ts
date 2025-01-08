@@ -389,19 +389,17 @@ app.whenReady().then(async () => {
   });
 
 
-  // Power save blocker ID
   let powerSaveBlockerId: number | null = null;
 
-  // Handle power save blocker
   ipcMain.handle('start-power-save-blocker', () => {
-  log.info('Starting power save blocker...');
-  if (powerSaveBlockerId === null) {
-    powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-    log.info('Started power save blocker');
-    return true;
-  }
-  return false;
-});
+    log.info('Starting power save blocker...');
+    if (powerSaveBlockerId === null) {
+      powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      log.info('Started power save blocker');
+      return true;
+    }
+    return false;
+  });
 
   ipcMain.handle('stop-power-save-blocker', () => {
     log.info('Stopping power save blocker...');
@@ -412,7 +410,7 @@ app.whenReady().then(async () => {
       return true;
     }
     return false;
-});
+  });
 
   // Handle binary path requests
   ipcMain.handle('get-binary-path', (event, binaryName) => {
