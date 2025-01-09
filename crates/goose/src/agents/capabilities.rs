@@ -183,14 +183,23 @@ impl Capabilities {
         let mut tools = Vec::new();
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let client_tools = client_guard.list_tools().await?;
+            let mut client_tools = client_guard.list_tools(None).await?;
 
-            for tool in client_tools.tools {
-                tools.push(Tool::new(
-                    format!("{}__{}", name, tool.name),
-                    &tool.description,
-                    tool.input_schema,
-                ));
+            loop {
+                for tool in client_tools.tools {
+                    tools.push(Tool::new(
+                        format!("{}__{}", name, tool.name),
+                        &tool.description,
+                        tool.input_schema,
+                    ));
+                }
+
+                // exit loop when there are no more pages
+                if client_tools.next_cursor.is_none() {
+                    break;
+                }
+
+                client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
             }
         }
         Ok(tools)
@@ -202,7 +211,7 @@ impl Capabilities {
 
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let resources = client_guard.list_resources().await?;
+            let resources = client_guard.list_resources(None).await?;
 
             for resource in resources.resources {
                 // Skip reading the resource if it's not marked active

@@ -36,7 +36,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Connected to server: {server_info:?}\n");
 
     // List tools
-    let tools = client.list_tools().await?;
+    let tools = client.list_tools(None).await?;
     println!("Available tools: {tools:?}\n");
 
     // Call tool 'git_status' with arguments = {"repo_path": "."}
@@ -46,7 +46,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Tool result: {tool_result:?}\n");
 
     // List resources
-    let resources = client.list_resources().await?;
+    let resources = client.list_resources(None).await?;
     println!("Available resources: {resources:?}\n");
 
     Ok(())

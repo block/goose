@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // List tools
-    let tools = client.list_tools().await?;
+    let tools = client.list_tools(None).await?;
     println!("Available tools: {tools:?}\n");
 
     // Call tool
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     println!("Tool result: {tool_result:?}\n");
 
     // List resources
-    let resources = client.list_resources().await?;
+    let resources = client.list_resources(None).await?;
     println!("Resources: {resources:?}\n");
 
     // Read resource

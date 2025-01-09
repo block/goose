@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // List tools for all clients
     for (i, client) in clients.iter_mut().enumerate() {
-        let tools = client.list_tools().await?;
+        let tools = client.list_tools(None).await?;
         println!("\nClient {} tools: {:?}", i + 1, tools);
     }
 
@@ -61,7 +61,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match rng.gen_range(0..4) {
                 0 => {
                     println!("\n{i}: Listing tools for client 1 (stdio)");
-                    match clients[0].list_tools().await {
+                    match clients[0].list_tools(None).await {
                         Ok(tools) => {
                             println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
                         }
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 2 => {
                     println!("\n{i}: Listing tools for client 3 (sse)");
-                    match clients[2].list_tools().await {
+                    match clients[2].list_tools(None).await {
                         Ok(tools) => {
                             println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
                         }

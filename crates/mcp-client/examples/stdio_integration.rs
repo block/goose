@@ -44,7 +44,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Connected to server: {server_info:?}\n");
 
     // List tools
-    let tools = client.list_tools().await?;
+    let tools = client.list_tools(None).await?;
     println!("Available tools: {tools:?}\n");
 
     // Call tool 'increment' tool 3 times
@@ -66,7 +66,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Tool result for 'get_value': {get_value_result:?}\n");
 
     // List resources
-    let resources = client.list_resources().await?;
+    let resources = client.list_resources(None).await?;
     println!("Resources: {resources:?}\n");
 
     // Read resource
