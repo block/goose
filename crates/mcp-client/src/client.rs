@@ -1,16 +1,16 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::transport::TransportHandle;
 use mcp_core::protocol::{
     CallToolResult, InitializeResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification,
     JsonRpcRequest, JsonRpcResponse, ListResourcesResult, ListToolsResult, ReadResourceResult,
+    ServerCapabilities, METHOD_NOT_FOUND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::sync::Mutex;
-use tower::{Service, ServiceExt};
-
-use crate::transport::TransportHandle; // for Service::ready()
+use tower::{Service, ServiceExt}; // for Service::ready()
 
 /// Error type for MCP client operations.
 #[derive(Debug, Error)]
@@ -26,6 +26,9 @@ pub enum Error {
 
     #[error("Unexpected response from server")]
     UnexpectedResponse,
+
+    #[error("Not initialized")]
+    NotInitialized,
 
     #[error("Timeout or service not ready")]
     NotReady,
@@ -55,6 +58,7 @@ pub struct InitializeParams {
 pub struct McpClient {
     service: Mutex<TransportHandle>,
     next_id: AtomicU64,
+    server_capabilities: Option<ServerCapabilities>,
 }
 
 impl McpClient {
@@ -63,6 +67,7 @@ impl McpClient {
         Self {
             service: Mutex::new(transport_handle),
             next_id: AtomicU64::new(1),
+            server_capabilities: None, // set during initialization
         }
     }
 
@@ -135,7 +140,7 @@ impl McpClient {
     }
 
     pub async fn initialize(
-        &self,
+        &mut self,
         info: ClientInfo,
         capabilities: ClientCapabilities,
     ) -> Result<InitializeResult, Error> {
@@ -151,24 +156,80 @@ impl McpClient {
         self.send_notification("notifications/initialized", serde_json::json!({}))
             .await?;
 
+        self.server_capabilities = Some(result.capabilities.clone());
+
         Ok(result)
     }
 
+    fn completed_initialization(&self) -> bool {
+        self.server_capabilities.is_some()
+    }
+
     pub async fn list_resources(&self) -> Result<ListResourcesResult, Error> {
+        if !self.completed_initialization() {
+            return Err(Error::NotInitialized);
+        }
+        // If resources is not supported, return an empty list
+        if self
+            .server_capabilities
+            .as_ref()
+            .unwrap()
+            .resources
+            .is_none()
+        {
+            return Ok(ListResourcesResult { resources: vec![] });
+        }
+
         self.send_request("resources/list", serde_json::json!({}))
             .await
     }
 
     pub async fn read_resource(&self, uri: &str) -> Result<ReadResourceResult, Error> {
+        if !self.completed_initialization() {
+            return Err(Error::NotInitialized);
+        }
+        // If resources is not supported, return an error
+        if self
+            .server_capabilities
+            .as_ref()
+            .unwrap()
+            .resources
+            .is_none()
+        {
+            return Err(Error::RpcError {
+                code: METHOD_NOT_FOUND,
+                message: "Server does not support 'resources' capability".to_string(),
+            });
+        }
+
         let params = serde_json::json!({ "uri": uri });
         self.send_request("resources/read", params).await
     }
 
     pub async fn list_tools(&self) -> Result<ListToolsResult, Error> {
+        if !self.completed_initialization() {
+            return Err(Error::NotInitialized);
+        }
+        // If tools is not supported, return an empty list
+        if self.server_capabilities.as_ref().unwrap().tools.is_none() {
+            return Ok(ListToolsResult { tools: vec![] });
+        }
+
         self.send_request("tools/list", serde_json::json!({})).await
     }
 
     pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<CallToolResult, Error> {
+        if !self.completed_initialization() {
+            return Err(Error::NotInitialized);
+        }
+        // If tools is not supported, return an error
+        if self.server_capabilities.as_ref().unwrap().tools.is_none() {
+            return Err(Error::RpcError {
+                code: METHOD_NOT_FOUND,
+                message: "Server does not support 'tools' capability".to_string(),
+            });
+        }
+
         let params = serde_json::json!({ "name": name, "arguments": arguments });
         self.send_request("tools/call", params).await
     }

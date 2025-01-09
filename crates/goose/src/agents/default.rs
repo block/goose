@@ -58,7 +58,6 @@ impl DefaultAgent {
             &resources,
             Some(model_name),
         );
-
         let mut status_content: Vec<String> = Vec::new();
 
         if approx_count > target_limit {
@@ -217,6 +216,7 @@ impl Agent for DefaultAgent {
         }
 
         // Update conversation history for the start of the reply
+        let resources = capabilities.get_resources().await?;
         let mut messages = self
             .prepare_inference(
                 &system_prompt,
@@ -224,8 +224,12 @@ impl Agent for DefaultAgent {
                 messages,
                 &Vec::new(),
                 estimated_limit,
-                &capabilities.provider().get_model_config().model_name,
-                &capabilities.get_resources().await?,
+                &capabilities
+                    .provider()
+                    .get_model_config()
+                    .model_name
+                    .clone(),
+                &resources,
             )
             .await?;
 

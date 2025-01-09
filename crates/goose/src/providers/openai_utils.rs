@@ -89,6 +89,9 @@ pub fn messages_to_openai_spec(
                                             "content": [convert_image(&image, image_format)]
                                         }));
                                     }
+                                    Content::Resource(resource) => {
+                                        tool_content.push(Content::text(resource.get_text()));
+                                    }
                                     _ => {
                                         tool_content.push(content);
                                     }

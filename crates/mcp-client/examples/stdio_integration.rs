@@ -29,7 +29,7 @@ async fn main() -> Result<(), ClientError> {
     let transport_handle = transport.start().await.unwrap();
 
     // Create client
-    let client = McpClient::new(transport_handle);
+    let mut client = McpClient::new(transport_handle);
 
     // Initialize
     let server_info = client

@@ -21,7 +21,7 @@ async fn main() -> Result<(), ClientError> {
     let transport_handle = transport.start().await?;
 
     // 3) Create the client
-    let client = McpClient::new(transport_handle);
+    let mut client = McpClient::new(transport_handle);
 
     // Initialize
     let server_info = client
@@ -44,6 +44,10 @@ async fn main() -> Result<(), ClientError> {
         .call_tool("git_status", serde_json::json!({ "repo_path": "." }))
         .await?;
     println!("Tool result: {tool_result:?}\n");
+
+    // List resources
+    let resources = client.list_resources().await?;
+    println!("Available resources: {resources:?}\n");
 
     Ok(())
 }

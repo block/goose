@@ -2,6 +2,7 @@
 /// The various content types can be display to humans but also understood by models
 /// They include optional annotations used to help inform agent usage
 use super::role::Role;
+use crate::resource::ResourceContents;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -50,10 +51,28 @@ pub struct ImageContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmbeddedResource {
+    resource: ResourceContents,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<Annotations>,
+}
+
+impl EmbeddedResource {
+    pub fn get_text(&self) -> String {
+        match &self.resource {
+            ResourceContents::TextResourceContents { text, .. } => text.clone(),
+            _ => String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Content {
     Text(TextContent),
     Image(ImageContent),
+    Resource(EmbeddedResource),
 }
 
 impl Content {
@@ -68,6 +87,24 @@ impl Content {
         Content::Image(ImageContent {
             data: data.into(),
             mime_type: mime_type.into(),
+            annotations: None,
+        })
+    }
+
+    pub fn resource(resource: ResourceContents) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource,
+            annotations: None,
+        })
+    }
+
+    pub fn embedded_text<S: Into<String>, T: Into<String>>(uri: S, content: T) -> Self {
+        Content::Resource(EmbeddedResource {
+            resource: ResourceContents::TextResourceContents {
+                uri: uri.into(),
+                mime_type: Some("text".to_string()),
+                text: content.into(),
+            },
             annotations: None,
         })
     }
@@ -93,6 +130,7 @@ impl Content {
         let annotations = match &mut self {
             Content::Text(text) => &mut text.annotations,
             Content::Image(image) => &mut image.annotations,
+            Content::Resource(resource) => &mut resource.annotations,
         };
         *annotations = Some(match annotations.take() {
             Some(mut a) => {
@@ -118,6 +156,7 @@ impl Content {
         let annotations = match &mut self {
             Content::Text(text) => &mut text.annotations,
             Content::Image(image) => &mut image.annotations,
+            Content::Resource(resource) => &mut resource.annotations,
         };
         *annotations = Some(match annotations.take() {
             Some(mut a) => {
@@ -138,6 +177,10 @@ impl Content {
         match self {
             Content::Text(text) => text.annotations.as_ref().and_then(|a| a.audience.as_ref()),
             Content::Image(image) => image.annotations.as_ref().and_then(|a| a.audience.as_ref()),
+            Content::Resource(resource) => resource
+                .annotations
+                .as_ref()
+                .and_then(|a| a.audience.as_ref()),
         }
     }
 
@@ -146,6 +189,7 @@ impl Content {
         match self {
             Content::Text(text) => text.annotations.as_ref().and_then(|a| a.priority),
             Content::Image(image) => image.annotations.as_ref().and_then(|a| a.priority),
+            Content::Resource(resource) => resource.annotations.as_ref().and_then(|a| a.priority),
         }
     }
 
@@ -153,6 +197,7 @@ impl Content {
         match self {
             Content::Text(text) => Content::text(text.text.clone()),
             Content::Image(image) => Content::image(image.data.clone(), image.mime_type.clone()),
+            Content::Resource(resource) => Content::resource(resource.resource.clone()),
         }
     }
 }

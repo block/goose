@@ -236,3 +236,28 @@ where
         Ok(())
     }
 }
+
+// Define a specific service implementation that we need for any
+// Any router implements this
+pub trait BoundedService:
+    Service<
+        JsonRpcRequest,
+        Response = JsonRpcResponse,
+        Error = BoxError,
+        Future = Pin<Box<dyn Future<Output = Result<JsonRpcResponse, BoxError>> + Send>>,
+    > + Send
+    + 'static
+{
+}
+
+// Implement it for any type that meets the bounds
+impl<T> BoundedService for T where
+    T: Service<
+            JsonRpcRequest,
+            Response = JsonRpcResponse,
+            Error = BoxError,
+            Future = Pin<Box<dyn Future<Output = Result<JsonRpcResponse, BoxError>> + Send>>,
+        > + Send
+        + 'static
+{
+}

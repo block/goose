@@ -319,7 +319,7 @@ function ChatContent({
 }
 
 // Function to send the system configuration to the server
-const addSystemConfig = async () => {
+const addSystemConfig = async (system: string) => {
   console.log("calling add system")
   // Get the app instance from electron
   const app = window.electron.app;
@@ -327,7 +327,7 @@ const addSystemConfig = async () => {
   const systemConfig = {
     type: "Stdio",
     cmd: await window.electron.getBinaryPath('goosed'),
-    args: ["mcp", "developer"]
+    args: ["mcp", system]
   };
 
   try {
@@ -340,12 +340,12 @@ const addSystemConfig = async () => {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to add system config: ${response.statusText}`);
+      throw new Error(`Failed to add system config for ${system}: ${response.statusText}`);
     }
 
-    console.log('Successfully added system config');
+    console.log(`Successfully added system config for ${system}`);
   } catch (error) {
-    console.log('Error adding system config:', error);
+    console.log(`Error adding system config for ${system}:`, error);
   }
 };
 
@@ -418,7 +418,7 @@ export default function ChatWindow() {
 
   // Initialize system config when window loads
   useEffect(() => {
-    addSystemConfig();
+    addSystemConfig("developer");
   }, []);
 
   window.electron.logInfo('ChatWindow loaded');

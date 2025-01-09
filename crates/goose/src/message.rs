@@ -107,6 +107,10 @@ impl From<Content> for MessageContent {
         match content {
             Content::Text(text) => MessageContent::Text(text),
             Content::Image(image) => MessageContent::Image(image),
+            Content::Resource(resource) => MessageContent::Text(TextContent {
+                text: resource.get_text(),
+                annotations: None,
+            }),
         }
     }
 }

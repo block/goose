@@ -1,14 +1,18 @@
 use anyhow::Result;
-use goose_mcp::DeveloperRouter;
+use goose_mcp::NonDeveloperRouter;
+use goose_mcp::{Developer2Router, DeveloperRouter, JetBrainsRouter};
 use mcp_server::router::RouterService;
-use mcp_server::{ByteTransport, Server};
+use mcp_server::{BoundedService, ByteTransport, Server};
 use tokio::io::{stdin, stdout};
 
 pub async fn run_server(name: &str) -> Result<()> {
     tracing::info!("Starting MCP server");
 
-    let router = match name {
-        "developer" => Some(RouterService(DeveloperRouter::new())),
+    let router: Option<Box<dyn BoundedService>> = match name {
+        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
+        "developer2" => Some(Box::new(RouterService(Developer2Router::new()))),
+        "nondeveloper" => Some(Box::new(RouterService(NonDeveloperRouter::new()))),
+        "jetbrains" => Some(Box::new(RouterService(JetBrainsRouter::new()))),
         _ => None,
     };
 

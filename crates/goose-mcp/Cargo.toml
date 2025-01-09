@@ -27,7 +27,12 @@ kill_tree = "0.2.4"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
 xcap = "0.0.14"
+reqwest = { version = "0.11", features = ["json"] }
+async-trait = "0.1"
+parking_lot = "0.12"
+chrono = { version = "0.4.38", features = ["serde"] }
+dirs = "5.0.1"
+tempfile = "3.8"
 
 [dev-dependencies]
 sysinfo = "0.32.1"
-tempfile = "3.8"

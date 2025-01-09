@@ -19,6 +19,20 @@ pub struct Capabilities {
     provider_usage: Mutex<Vec<ProviderUsage>>,
 }
 
+/// Sanitizes a string by replacing invalid characters with underscores.
+/// Valid characters match [a-zA-Z0-9_-]
+fn sanitize(input: String) -> String {
+    let mut result = String::with_capacity(input.len());
+    for c in input.chars() {
+        result.push(if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+            c
+        } else {
+            '_'
+        });
+    }
+    result
+}
+
 impl Capabilities {
     /// Create a new Capabilities with the specified provider
     pub fn new(provider: Box<dyn Provider>) -> Self {
@@ -33,7 +47,7 @@ impl Capabilities {
     /// Add a new MCP system based on the provided client type
     // TODO IMPORTANT need to ensure this times out if the system command is broken!
     pub async fn add_system(&mut self, config: SystemConfig) -> SystemResult<()> {
-        let client: McpClient = match config {
+        let mut client: McpClient = match config {
             SystemConfig::Sse { ref uri } => {
                 let transport = SseTransport::new(uri);
                 McpClient::new(transport.start().await?)
@@ -64,7 +78,7 @@ impl Capabilities {
 
         // Store the client
         self.clients.insert(
-            init_result.server_info.name.clone(),
+            sanitize(init_result.server_info.name.clone()),
             Arc::new(Mutex::new(client)),
         );
 

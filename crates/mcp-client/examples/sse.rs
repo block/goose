@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let handle = transport.start().await?;
 
     // Create client
-    let client = McpClient::new(handle);
+    let mut client = McpClient::new(handle);
     println!("Client created\n");
 
     // Initialize
