@@ -120,6 +120,7 @@ impl StdioTransport {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .kill_on_drop(true)
+            // 0 sets the process group ID equal to the process ID
             .process_group(0) // don't inherit signal handling from parent process
             .spawn()
             .map_err(|e| Error::Other(e.to_string()))?;
