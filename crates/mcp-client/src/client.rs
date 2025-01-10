@@ -187,7 +187,7 @@ impl McpClient {
         }
 
         let payload = next_cursor
-            .map(|cursor| serde_json::json!({"next_cursor": cursor}))
+            .map(|cursor| serde_json::json!({"cursor": cursor}))
             .unwrap_or_else(|| serde_json::json!({}));
 
         self.send_request("resources/list", payload).await
@@ -228,7 +228,7 @@ impl McpClient {
         }
 
         let payload = next_cursor
-            .map(|cursor| serde_json::json!({"next_cursor": cursor}))
+            .map(|cursor| serde_json::json!({"cursor": cursor}))
             .unwrap_or_else(|| serde_json::json!({}));
 
         self.send_request("tools/list", payload).await
