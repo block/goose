@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Message, useChat } from './ai-sdk-fork/useChat';
 import { Route, Routes, Navigate } from 'react-router-dom';
-import { getApiUrl } from './config';
+import { getApiUrl, getSecretKey } from './config';
 import { Card } from './components/ui/card';
 import { ScrollArea } from './components/ui/scroll-area';
 import Splash from './components/Splash';
@@ -335,6 +335,7 @@ const addSystemConfig = async (system: string) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
       },
       body: JSON.stringify(systemConfig)
     });

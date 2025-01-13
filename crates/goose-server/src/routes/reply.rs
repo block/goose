@@ -254,6 +254,16 @@ async fn handler(
     headers: HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     // Check protocol header (optional in our case)
     if let Some(protocol) = headers.get("x-protocol") {
         if protocol.to_str().map(|p| p != "data").unwrap_or(true) {
@@ -335,8 +345,19 @@ struct AskResponse {
 // simple ask an AI for a response, non streaming
 async fn ask_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<AskRequest>,
 ) -> Result<Json<AskResponse>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
     let agent = state.agent.clone();
     let agent = agent.lock().await;
 
@@ -545,6 +566,7 @@ mod tests {
                 .uri("/ask")
                 .method("POST")
                 .header("content-type", "application/json")
+                .header("x-secret-key", "test-secret")
                 .body(Body::from(
                     serde_json::to_string(&AskRequest {
                         prompt: "test prompt".to_string(),
