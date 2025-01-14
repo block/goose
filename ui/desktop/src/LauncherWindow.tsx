@@ -3,6 +3,8 @@ import React, { useRef, useState } from 'react';
 declare global {
   interface Window {
     electron: {
+      logInfo(msg: string): unknown;
+      on(channel: string, arg1: (event: any, message: any) => void): unknown;
       stopPowerSaveBlocker(): unknown;
       startPowerSaveBlocker(): unknown;
       hideWindow: () => void;

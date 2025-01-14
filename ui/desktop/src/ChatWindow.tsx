@@ -420,6 +420,12 @@ export default function ChatWindow() {
   // Initialize system config when window loads
   useEffect(() => {
     addSystemConfig("developer");
+
+    // Listen for test message from main process
+    window.electron.on('add-system', (event, message) => {
+      console.log('Received test message for add-system:', message);
+      // You can add more handling here like updating state or UI
+    });
   }, []);
 
   window.electron.logInfo('ChatWindow loaded');

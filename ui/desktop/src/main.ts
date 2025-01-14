@@ -16,8 +16,21 @@ if (started) app.quit();
 // deep linking
 // This event is fired when the user opens "goose://..."
 // Handle the protocol. In this case, we choose to show an Error Box.
-app.on('open-url', (event, url) => {
-  dialog.showErrorBox('Welcome Back', `You arrived from: ${url}`)
+app.on('open-url', async (event, url) => {
+  // Prevent default handling
+  event.preventDefault();
+  dialog.showErrorBox('DEEP LINK:', `You arrived from: ${url}`)
+  
+  // Create a new window if none exist
+  if (BrowserWindow.getAllWindows().length === 0) {
+    await createChat(app);
+  }
+
+  // Send message to all existing windows
+  BrowserWindow.getAllWindows().forEach(window => {
+    window.webContents.send('add-system', `Deep link triggered: ${url}`);
+  });
+
 })
 
 
