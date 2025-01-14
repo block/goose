@@ -31,8 +31,17 @@ pub enum Error {
     #[error("Timeout or service not ready")]
     NotReady,
 
-    #[error("Box error: {0}")]
+    #[error("{0}")]
     BoxError(Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("Call to '{server}' failed for '{method}' with params '{params}'. Error: {source}")]
+    McpServerError {
+        method: String,
+        server: String,
+        params: Value,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 impl From<Box<dyn std::error::Error + Send + Sync>> for Error {
@@ -122,10 +131,18 @@ where
             jsonrpc: "2.0".to_string(),
             id: Some(id),
             method: method.to_string(),
-            params: Some(params),
+            params: Some(params.clone()),
         });
 
-        let response_msg = service.call(request).await.map_err(Into::into)?;
+        let response_msg = service
+            .call(request)
+            .await
+            .map_err(|e| Error::MCPServerError {
+                server: self.server_info.as_ref().unwrap().name.clone(),
+                method: method.to_string(),
+                params: params.clone(),
+                source: Box::new(e.into()),
+            })?;
 
         match response_msg {
             JsonRpcMessage::Response(JsonRpcResponse {
