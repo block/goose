@@ -174,7 +174,8 @@ export default function MoreMenu() {
             )}
 
             {/* Versions Menu */}
-            {versions && versions.available_versions.length > 0 && (
+            {/* NOTE from alexhancock on 1/14/2025 - disabling temporarily until we figure out where this will go in settings */}
+            {false && versions && versions.available_versions.length > 0 && (
               <>
                 <button
                   onClick={() => setShowVersions(!showVersions)}
