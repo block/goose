@@ -12,7 +12,6 @@ export const getSecretKey = (): string => {
 
 
 // add MCP system from a goose://extension url 
-// eg: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={“VAR”:”VALUE”}
 export const addMCPSystem = async (url: string) => {
   console.log("adding MCP from URL", url);
   if (!url.startsWith("goose://extension")) {
@@ -30,14 +29,14 @@ export const addMCPSystem = async (url: string) => {
     throw new Error("Missing required 'cmd' parameter in the URL");
   }
 
-  const argsParam = parsedUrl.searchParams.get("args");
-  const args = argsParam ? argsParam.split(",") : [];
+  const argsParam = parsedUrl.searchParams.getAll("arg");
+  const args = argsParam;
 
   const environmentParam = parsedUrl.searchParams.get("environment");
   console.log("environmentParam", environmentParam);
   const env = environmentParam ? JSON.parse(environmentParam) : {};
 
-  addMCP(system, args as [string], env as [{ string: string }]);
+  addMCP(system, args, env);
 }
 
 // add a MCP system
