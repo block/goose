@@ -2,11 +2,16 @@ use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Digest;
 use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Mutex as TokioMutex};
+
+lazy_static! {
+    static ref OAUTH_MUTEX: TokioMutex<()> = TokioMutex::new(());
+}
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -280,6 +285,9 @@ pub(crate) async fn get_oauth_token_async(
     redirect_url: &str,
     scopes: &[String],
 ) -> Result<String> {
+    // Acquire the global mutex to ensure only one OAuth flow runs at a time
+    let _guard = OAUTH_MUTEX.lock().await;
+
     let token_cache = TokenCache::new(host, client_id, scopes);
 
     // Try cache first
