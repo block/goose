@@ -234,8 +234,8 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
       },
     };
 
-    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&environment={\"KEYHERE\":\"VALUEHERE\"}");    
-    //app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory");    
+    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&env=KEYHERE:::VALUEHERE");    
+    
     
   });
 

@@ -31,16 +31,22 @@ export const addMCPSystem = async (url: string) => {
 
   const argsParam = parsedUrl.searchParams.getAll("arg");
   const args = argsParam;
+  
+  const envList = parsedUrl.searchParams.getAll("env");
 
-  const environmentParam = parsedUrl.searchParams.get("environment");
-  console.log("environmentParam", environmentParam);
-  const env = environmentParam ? JSON.parse(environmentParam) : {};
+  // split env based on ::: delimiter to a map
+  const envs = envList.reduce((acc, env) => {
+    const [key, value] = env.split(":::");
+    acc[key] = value;
+    return acc;
+  }, {} as Record<string, string>);
+  console.log("envs", envs);
 
-  addMCP(system, args, env);
+  addMCP(system, args, envs);
 }
 
 // add a MCP system
-export const addMCP = async (system: string, args: string[], env?: [{ string: string }]) => {
+export const addMCP = async (system: string, args: string[], envs?: Record<string, string>) => {
 
   // allowlist the CMD
   const allowedCMDs = ['npx', 'uvx', 'goosed'];
@@ -59,7 +65,7 @@ export const addMCP = async (system: string, args: string[], env?: [{ string: st
     type: "Stdio",
     cmd: system,
     args: args,
-    env: env
+    envs: envs
   };
 
   try {
@@ -72,11 +78,11 @@ export const addMCP = async (system: string, args: string[], env?: [{ string: st
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to add system config for ${system} args: ${args} env: ${env}: ${response.statusText}`);
+      throw new Error(`Failed to add system config for ${system} args: ${args} envs: ${envs}: ${response.statusText}`);
     }
     console.log(`Successfully added MCP config for ${system} args: ${args}`);
   } catch (error) {
-    console.log(`Error adding MCP config for ${system} args: ${args} env: ${env}:`, error);
+    console.log(`Error adding MCP config for ${system} args: ${args} envs: ${envs}:`, error);
   }
 
 };
