@@ -36,7 +36,7 @@ export const addMCPSystem = async (url: string) => {
 
   // split env based on ::: delimiter to a map
   const envs = envList.reduce((acc, env) => {
-    const [key, value] = env.split(":::");
+    const [key, value] = env.split("=");
     acc[key] = value;
     return acc;
   }, {} as Record<string, string>);
