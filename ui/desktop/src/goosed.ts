@@ -123,6 +123,16 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
     throw err; // Propagate the error
   });
 
+  // Wait for the server to be ready
+  const isReady = await checkServerStatus(port);
+  log.info(`Goosed isReady ${isReady}`);
+  if (!isReady) {
+    log.error(`Goosed server failed to start on port ${port}`);
+    goosedProcess.kill();
+    throw new Error(`Goosed server failed to start on port ${port}`);
+  }
+
+
   // Ensure goosed is terminated when the app quits
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
