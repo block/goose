@@ -392,8 +392,8 @@ export default function ChatWindow() {
 
     // Listen for test message from main process
     window.electron.on('add-system', (event, message) => {
-      console.log('Received test message for add-system:', message);
-      // You can add more handling here like updating state or UI
+      console.log('Received message for add-system:', message); 
+      addMCPSystem(message);
     });
   }, []);
 

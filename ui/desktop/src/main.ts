@@ -26,10 +26,26 @@ app.on('open-url', async (event, url) => {
     await createChat(app);
   }
 
-  // Send message to all existing windows
-  BrowserWindow.getAllWindows().forEach(window => {
-    window.webContents.send('add-system', `Deep link triggered: ${url}`);
+  // example URL: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={“VAR”:”VALUE”}
+  const parsedUrl = new URL(url);
+  const system = parsedUrl.searchParams.get("cmd");
+  const description = parsedUrl.searchParams.get("description");
+  const website = parsedUrl.searchParams.get("website");
+  
+  const result = dialog.showMessageBoxSync({
+    type: 'question',
+    buttons: ['Yes', 'No'],
+    title: 'Add System',
+    detail: `Description: ${description} ${website}`,
+    message: `Add MCP system ${system}?`
   });
+  if (result === 0) {
+    // Add the system
+    // Send message to all existing windows
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('add-system', `Deep link triggered: ${url}`);
+    });
+  }
 
 })
 
@@ -210,8 +226,8 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
 
     // Send message to all existing windows
     BrowserWindow.getAllWindows().forEach(window => {
-      const url = "goose://test123";
-      window.webContents.send('add-system', `Deep link triggered: ${url}`);
+      const url = "goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={\"VAR\":\"VALUE\"}";
+      window.webContents.send('add-system', url);
     });
     
   });
