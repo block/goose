@@ -1,7 +1,7 @@
 use mcp_core::protocol::{
-    CallToolResult, InitializeResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification,
-    JsonRpcRequest, JsonRpcResponse, ListResourcesResult, ListToolsResult, ReadResourceResult,
-    ServerCapabilities, METHOD_NOT_FOUND,
+    CallToolResult, Implementation, InitializeResult, JsonRpcError, JsonRpcMessage,
+    JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ListResourcesResult, ListToolsResult,
+    ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -91,6 +91,7 @@ where
     service: Mutex<S>,
     next_id: AtomicU64,
     server_capabilities: Option<ServerCapabilities>,
+    server_info: Option<Implementation>,
 }
 
 impl<S> McpClient<S>
@@ -104,6 +105,7 @@ where
             service: Mutex::new(service),
             next_id: AtomicU64::new(1),
             server_capabilities: None,
+            server_info: None,
         }
     }
 
@@ -212,6 +214,8 @@ where
             .await?;
 
         self.server_capabilities = Some(result.capabilities.clone());
+
+        self.server_info = Some(result.server_info.clone());
 
         Ok(result)
     }
