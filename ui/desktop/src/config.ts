@@ -19,7 +19,6 @@ export const addMCPSystem = async (url: string) => {
     console.log("Invalid URL: URL must use the goose://extension scheme");
   }
 
-  
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== "goose:") {
@@ -42,14 +41,19 @@ export const addMCPSystem = async (url: string) => {
 }
 
 // add a MCP system
-export const addMCP = async (system: string, args: [string], env: [{ string: string }]) => {
+export const addMCP = async (system: string, args: string[], env?: [{ string: string }]) => {
 
   // allowlist the CMD
-  const allowedCMDs = ['npx', 'uvx'];
+  const allowedCMDs = ['npx', 'uvx', 'goosed'];
 
   if (!allowedCMDs.includes(system)) {
     console.error(`System ${system} is not supported right now`);
     return;
+  }
+
+  if (system === 'goosed') {
+    // if its something built in - we will append the path to the binary
+    system = await window.electron.getBinaryPath('goosed');
   }
 
   const systemConfig = {
@@ -76,33 +80,4 @@ export const addMCP = async (system: string, args: [string], env: [{ string: str
     console.log(`Error adding MCP config for ${system} args: ${args} env: ${env}:`, error);
   }
 
-};
-
-// this adds a built in MCP from the goosed binary
-export const addBuiltInSystem = async (system: string) => {
-  console.log("calling add system for built in")
-  
-  const systemConfig = {
-    type: "Stdio",
-    cmd: await window.electron.getBinaryPath('goosed'),
-    args: ["mcp", system]
-  };
-
-  try {
-    const response = await fetch(getApiUrl('/systems/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(systemConfig)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add system config for ${system}: ${response.statusText}`);
-    }
-
-    console.log(`Successfully added system config for ${system}`);
-  } catch (error) {
-    console.log(`Error adding system config for ${system}:`, error);
-  }
 };

@@ -18,32 +18,31 @@ if (started) app.quit();
 // Handle the protocol. In this case, we choose to show an Error Box.
 app.on('open-url', async (event, url) => {
   // Prevent default handling
-  event.preventDefault();
-  dialog.showErrorBox('DEEP LINK:', `You arrived from: ${url}`)
-  
+  event.preventDefault();  
   // Create a new window if none exist
   if (BrowserWindow.getAllWindows().length === 0) {
     await createChat(app);
   }
 
-  // example URL: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={“VAR”:”VALUE”}
+  // example URL: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={"VAR":"VALUE"}
   const parsedUrl = new URL(url);
   const system = parsedUrl.searchParams.get("cmd");
+  const args = parsedUrl.searchParams.get("args");
   const description = parsedUrl.searchParams.get("description");
   const website = parsedUrl.searchParams.get("website");
   
   const result = dialog.showMessageBoxSync({
     type: 'question',
     buttons: ['Yes', 'No'],
-    title: 'Add System',
-    detail: `Description: ${description} ${website}`,
-    message: `Add MCP system ${system}?`
+    title: 'Add MCP system',
+    detail: `${system} ${args}`,
+    message: `Add extension ${description} from ${website}?`
   });
   if (result === 0) {
     // Add the system
     // Send message to all existing windows
     BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('add-system', `Deep link triggered: ${url}`);
+      window.webContents.send('add-system', url);
     });
   }
 
@@ -223,14 +222,23 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   // DevTools
   globalShortcut.register('Alt+Command+I', () => {
     mainWindow.webContents.openDevTools();
+  });
 
-    // Send message to all existing windows
-    BrowserWindow.getAllWindows().forEach(window => {
-      const url = "goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={\"VAR\":\"VALUE\"}";
-      window.webContents.send('add-system', url);
-    });
+  globalShortcut.register('Alt+Command+Y', () => {
+    mainWindow.webContents.openDevTools();
+    console.log("Y PRESSED ABOUT TO TRY TO INSTALL MCP");
+
+    // FOR TESTING ONLY
+    const mockEvent = {
+      preventDefault: () => {
+        console.log('Default handling prevented.');
+      },
+    };
+
+    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={\"VAR\":\"VALUE\"}");    
     
   });
+
 
   windowMap.set(windowId, mainWindow);
   mainWindow.on('closed', () => {
