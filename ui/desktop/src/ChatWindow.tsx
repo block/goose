@@ -15,7 +15,7 @@ import { ScrollArea } from './components/ui/scroll-area';
 import UserMessage from './components/UserMessage';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import WingToWing, { Working } from './components/WingToWing';
-import { addSystemConfig, getApiUrl } from './config';
+import { addBuiltInSystem, addMCPSystem, getApiUrl } from './config';
 import { askAi } from './utils/askAI';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
@@ -388,7 +388,7 @@ export default function ChatWindow() {
 
   // Initialize system config when window loads
   useEffect(() => {
-    addSystemConfig("developer");
+    addBuiltInSystem("developer");
 
     // Listen for test message from main process
     window.electron.on('add-system', (event, message) => {

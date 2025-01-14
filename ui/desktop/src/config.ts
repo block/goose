@@ -10,10 +10,48 @@ export const getSecretKey = (): string => {
   return window.appConfig.get('secretKey');
 }
 
+// add a MCP system
+export const addMCPSystem = async (system: string, args: [string], env: [{ string: string }]) => {
 
-// Function to send the system configuration to the server
-export const addSystemConfig = async (system: string) => {
-  console.log("calling add system")
+  console.log("calling add system for MCP")
+
+  // allowlist the CMD
+  const allowedCMDs = ['npx', 'uvx'];
+
+  if (!allowedCMDs.includes(system)) {
+    console.error(`System ${system} is not supported right now`);
+    return;
+  }
+
+  const systemConfig = {
+    type: "Stdio",
+    cmd: system,
+    args: args,
+    env: env
+  };
+
+  try {
+    const response = await fetch(getApiUrl('/systems/add'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(systemConfig)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to add system config for ${system} args: ${args} env: ${env}: ${response.statusText}`);
+    }
+    console.log(`Successfully added MCP config for ${system} args: ${args}`);
+  } catch (error) {
+    console.log(`Error adding MCP config for ${system} args: ${args} env: ${env}:`, error);
+  }
+
+};
+
+
+export const addBuiltInSystem = async (system: string) => {
+  console.log("calling add system for built in")
   
   const systemConfig = {
     type: "Stdio",

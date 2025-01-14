@@ -207,6 +207,13 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   // DevTools
   globalShortcut.register('Alt+Command+I', () => {
     mainWindow.webContents.openDevTools();
+
+    // Send message to all existing windows
+    BrowserWindow.getAllWindows().forEach(window => {
+      const url = "goose://test123";
+      window.webContents.send('add-system', `Deep link triggered: ${url}`);
+    });
+    
   });
 
   windowMap.set(windowId, mainWindow);
