@@ -24,7 +24,7 @@ app.on('open-url', async (event, url) => {
     await createChat(app);
   }
 
-  // example URL: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={"VAR":"VALUE"}
+  // example URL: goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=memory subsystem&website=example.com&environment={"VAR":"VALUE"}
   const parsedUrl = new URL(url);
   const system = parsedUrl.searchParams.get("cmd");
   const args = parsedUrl.searchParams.get("args");
@@ -235,7 +235,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
       },
     };
 
-    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=this is my mcp&website=blah.com&environment={\"VAR\":\"VALUE\"}");    
+    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&args=-y,@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&environment={\"VAR\":\"VALUE\"}");    
     
   });
 
