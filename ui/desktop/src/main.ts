@@ -129,11 +129,11 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     if (checkApiCredentials()) {
       return startGoosed(app, dir);
     } else {
-      return [0, '', ''];
+      return [0, '', null];
     }
   }
 
-  const [port, working_dir, agentVersion] = await maybeStartGoosed();
+  const [port, working_dir, goosedProcess] = await maybeStartGoosed();
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
@@ -152,7 +152,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
         ...appConfig, 
         GOOSE_SERVER__PORT: port, 
         GOOSE_WORKING_DIR: working_dir,
-        GOOSE_AGENT_VERSION: agentVersion,
         REQUEST_DIR: dir 
       })],
     },
@@ -192,6 +191,13 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
   });
+
+  mainWindow.on('closed', () => {
+    if (goosedProcess) {
+      goosedProcess?.kill();
+    }
+  });
+
 };
 
 const createTray = () => {
@@ -207,46 +213,12 @@ const createTray = () => {
   const tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Window', click: showWindow },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ]);
 
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
-};
-
-const showWindow = () => {
-  const windows = BrowserWindow.getAllWindows();
-
-  if (windows.length === 0) {
-    log.info("No windows are currently open.");
-    return;
-  }
-
-  // Define the initial offset values
-  const initialOffsetX = 30;
-  const initialOffsetY = 30;
-
-  // Iterate over all windows
-  windows.forEach((win, index) => {
-    const currentBounds = win.getBounds();
-    const newX = currentBounds.x + initialOffsetX * index;
-    const newY = currentBounds.y + initialOffsetY * index;
-
-    win.setBounds({
-      x: newX,
-      y: newY,
-      width: currentBounds.width,
-      height: currentBounds.height,
-    });
-
-    if (!win.isVisible()) {
-      win.show();
-    }
-
-    win.focus();
-  });
 };
 
 const buildRecentFilesMenu = () => {
