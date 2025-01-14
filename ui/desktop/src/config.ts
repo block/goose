@@ -73,6 +73,7 @@ export const addMCP = async (system: string, args: string[], envs?: Record<strin
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
       },
       body: JSON.stringify(systemConfig)
     });

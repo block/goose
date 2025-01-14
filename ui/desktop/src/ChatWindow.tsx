@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
 import { Message, useChat } from './ai-sdk-fork/useChat';
+
+import { Route, Routes, Navigate } from 'react-router-dom';
+import { getApiUrl, addMCP, addMCPSystem } from './config';
 import { ApiKeyWarning } from './components/ApiKeyWarning';
 import BottomMenu from './components/BottomMenu';
 import FlappyGoose from './components/FlappyGoose';
@@ -15,7 +17,6 @@ import { ScrollArea } from './components/ui/scroll-area';
 import UserMessage from './components/UserMessage';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import WingToWing, { Working } from './components/WingToWing';
-import { addMCP, addMCPSystem, getApiUrl } from './config';
 import { askAi } from './utils/askAI';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
@@ -318,6 +319,7 @@ function ChatContent({
     </div>
   );
 }
+
 
 export default function ChatWindow() {
   // Shared function to create a chat window
