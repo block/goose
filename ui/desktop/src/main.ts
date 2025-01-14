@@ -27,15 +27,15 @@ app.on('open-url', async (event, url) => {
   const parsedUrl = new URL(url);
   const system = parsedUrl.searchParams.get("cmd");
   const args = parsedUrl.searchParams.getAll("arg");
-  const description = parsedUrl.searchParams.get("description");
-  const website = parsedUrl.searchParams.get("website");
+  const description = parsedUrl.searchParams.get("description") || "";
+  const website = parsedUrl.searchParams.get("website") || "";
   
   const result = dialog.showMessageBoxSync({
     type: 'question',
     buttons: ['Yes', 'No'],
     title: 'Add MCP system',
-    detail: `${system} ${args}`,
-    message: `Add extension ${description} from ${website}?`
+    detail: `${description} ${website} ${system} ${args}`.trim(),
+    message: `Add extension to goose?`
   });
   if (result === 0) {
     // Add the system
@@ -234,7 +234,8 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
       },
     };
 
-    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&environment={\"VAR\":\"VALUE\"}");    
+    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&environment={\"KEYHERE\":\"VALUEHERE\"}");    
+    //app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory");    
     
   });
 
