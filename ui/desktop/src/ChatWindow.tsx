@@ -15,7 +15,7 @@ import { ScrollArea } from './components/ui/scroll-area';
 import UserMessage from './components/UserMessage';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import WingToWing, { Working } from './components/WingToWing';
-import { getApiUrl } from './config';
+import { addSystemConfig, getApiUrl } from './config';
 import { askAi } from './utils/askAI';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
@@ -318,37 +318,6 @@ function ChatContent({
     </div>
   );
 }
-
-// Function to send the system configuration to the server
-const addSystemConfig = async (system: string) => {
-  console.log("calling add system")
-  // Get the app instance from electron
-  const app = window.electron.app;
-  
-  const systemConfig = {
-    type: "Stdio",
-    cmd: await window.electron.getBinaryPath('goosed'),
-    args: ["mcp", system]
-  };
-
-  try {
-    const response = await fetch(getApiUrl('/systems/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(systemConfig)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add system config for ${system}: ${response.statusText}`);
-    }
-
-    console.log(`Successfully added system config for ${system}`);
-  } catch (error) {
-    console.log(`Error adding system config for ${system}:`, error);
-  }
-};
 
 export default function ChatWindow() {
   // Shared function to create a chat window
