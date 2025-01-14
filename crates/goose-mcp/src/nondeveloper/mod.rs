@@ -577,7 +577,10 @@ impl Router for NonDeveloperRouter {
     }
 
     fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new().with_tools(true).build()
+        CapabilitiesBuilder::new()
+            .with_tools(false)
+            .with_resources(false, false)
+            .build()
     }
 
     fn list_tools(&self) -> Vec<Tool> {

@@ -1,15 +1,8 @@
-use std::{
-    collections::HashMap,
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use async_trait::async_trait;
 use mcp_core::protocol::JsonRpcMessage;
+use std::collections::HashMap;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, RwLock};
-use tower::Service;
 
 /// A generic error type for transport operations.
 #[derive(Debug, Error)]
@@ -46,6 +39,15 @@ pub enum Error {
 
     #[error("Unexpected transport error: {0}")]
     Other(String),
+
+    #[error("Box error: {0}")]
+    BoxError(Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl From<Box<dyn std::error::Error + Send + Sync>> for Error {
+    fn from(err: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        Error::BoxError(err)
+    }
 }
 
 /// A message that can be sent through the transport
@@ -59,63 +61,46 @@ pub struct TransportMessage {
 
 /// A generic asynchronous transport trait with channel-based communication
 #[async_trait]
-pub trait Transport: Send + Sync + 'static {
+pub trait Transport {
+    type Handle: TransportHandle;
+
     /// Start the transport and establish the underlying connection.
     /// Returns the transport handle for sending messages.
-    async fn start(&self) -> Result<TransportHandle, Error>;
+    async fn start(&self) -> Result<Self::Handle, Error>;
 
     /// Close the transport and free any resources.
     async fn close(&self) -> Result<(), Error>;
 }
 
-#[derive(Clone)]
-pub struct TransportHandle {
-    sender: mpsc::Sender<TransportMessage>,
+#[async_trait]
+pub trait TransportHandle: Send + Sync + Clone + 'static {
+    async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error>;
 }
 
-impl TransportHandle {
-    pub async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
-        match message {
-            JsonRpcMessage::Request(request) => {
-                let (respond_to, response) = oneshot::channel();
-                let msg = TransportMessage {
-                    message: JsonRpcMessage::Request(request),
-                    response_tx: Some(respond_to),
-                };
-                self.sender
-                    .send(msg)
-                    .await
-                    .map_err(|_| Error::ChannelClosed)?;
-                Ok(response.await.map_err(|_| Error::ChannelClosed)??)
-            }
-            JsonRpcMessage::Notification(notification) => {
-                let msg = TransportMessage {
-                    message: JsonRpcMessage::Notification(notification),
-                    response_tx: None,
-                };
-                self.sender
-                    .send(msg)
-                    .await
-                    .map_err(|_| Error::ChannelClosed)?;
-                Ok(JsonRpcMessage::Nil) // Explicitly return None for notifications
-            }
-            _ => Err(Error::Other("Unsupported message type".to_string())),
+// Helper function that contains the common send implementation
+pub async fn send_message(
+    sender: &mpsc::Sender<TransportMessage>,
+    message: JsonRpcMessage,
+) -> Result<JsonRpcMessage, Error> {
+    match message {
+        JsonRpcMessage::Request(request) => {
+            let (respond_to, response) = oneshot::channel();
+            let msg = TransportMessage {
+                message: JsonRpcMessage::Request(request),
+                response_tx: Some(respond_to),
+            };
+            sender.send(msg).await.map_err(|_| Error::ChannelClosed)?;
+            Ok(response.await.map_err(|_| Error::ChannelClosed)??)
         }
-    }
-}
-
-impl Service<JsonRpcMessage> for TransportHandle {
-    type Response = JsonRpcMessage;
-    type Error = Error; // Using Transport's Error directly
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, message: JsonRpcMessage) -> Self::Future {
-        let this = self.clone();
-        Box::pin(async move { this.send(message).await })
+        JsonRpcMessage::Notification(notification) => {
+            let msg = TransportMessage {
+                message: JsonRpcMessage::Notification(notification),
+                response_tx: None,
+            };
+            sender.send(msg).await.map_err(|_| Error::ChannelClosed)?;
+            Ok(JsonRpcMessage::Nil)
+        }
+        _ => Err(Error::Other("Unsupported message type".to_string())),
     }
 }
 

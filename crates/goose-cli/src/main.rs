@@ -8,7 +8,6 @@ mod logging;
 mod profile;
 mod prompt;
 mod session;
-mod systems;
 
 use commands::agent_version::AgentCommand;
 use commands::configure::handle_configure;
@@ -21,8 +20,6 @@ use std::io::{self, Read};
 
 #[cfg(test)]
 mod test_helpers;
-
-use crate::systems::system_handler::{add_system, remove_system};
 
 #[derive(Parser)]
 #[command(author, about, long_about = None)]
@@ -65,13 +62,6 @@ enum Command {
             long_help = "Specify which model to use for this profile."
         )]
         model: Option<String>,
-    },
-
-    /// Manage system prompts and behaviors
-    #[command(about = "Manage the systems that goose can operate")]
-    System {
-        #[command(subcommand)]
-        action: SystemCommands,
     },
 
     /// Manage system prompts and behaviors
@@ -187,29 +177,6 @@ enum Command {
     Agents(AgentCommand),
 }
 
-#[derive(Subcommand)]
-enum SystemCommands {
-    /// Add a new system prompt
-    #[command(about = "Add a new system prompt from URL")]
-    Add {
-        #[arg(
-            help = "URL of the system prompt to add",
-            long_help = "URL pointing to a file containing the system prompt to be added."
-        )]
-        url: String,
-    },
-
-    /// Remove an existing system prompt
-    #[command(about = "Remove an existing system prompt")]
-    Remove {
-        #[arg(
-            help = "URL of the system prompt to remove",
-            long_help = "URL of the system prompt that should be removed from the configuration."
-        )]
-        url: String,
-    },
-}
-
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum CliProviderVariant {
     OpenAi,
@@ -235,16 +202,6 @@ async fn main() -> Result<()> {
             let _ = handle_configure(profile_name, provider, model).await;
             return Ok(());
         }
-        Some(Command::System { action }) => match action {
-            SystemCommands::Add { url } => {
-                add_system(url).await.unwrap();
-                return Ok(());
-            }
-            SystemCommands::Remove { url } => {
-                remove_system(url).await.unwrap();
-                return Ok(());
-            }
-        },
         Some(Command::Mcp { name }) => {
             let _ = run_server(&name).await;
         }

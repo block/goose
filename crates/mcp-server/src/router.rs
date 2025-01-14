@@ -136,7 +136,10 @@ pub trait Router: Send + Sync + 'static {
         async move {
             let tools = self.list_tools();
 
-            let result = ListToolsResult { tools };
+            let result = ListToolsResult {
+                tools,
+                next_cursor: None,
+            };
             let mut response = self.create_response(req.id);
             response.result =
                 Some(serde_json::to_value(result).map_err(|e| {
@@ -191,7 +194,10 @@ pub trait Router: Send + Sync + 'static {
         async move {
             let resources = self.list_resources();
 
-            let result = ListResourcesResult { resources };
+            let result = ListResourcesResult {
+                resources,
+                next_cursor: None,
+            };
             let mut response = self.create_response(req.id);
             response.result =
                 Some(serde_json::to_value(result).map_err(|e| {

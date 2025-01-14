@@ -1,4 +1,4 @@
-use super::base::{Provider, ProviderUsage, Usage};
+use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use super::configs::{ModelConfig, OllamaProviderConfig, ProviderModelConfig};
 use super::utils::{get_model, handle_response};
 use crate::message::Message;
@@ -59,7 +59,7 @@ impl Provider for OllamaProvider {
             cost
         )
     )]
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -80,6 +80,13 @@ impl Provider for OllamaProvider {
 
     fn get_usage(&self, data: &Value) -> Result<Usage> {
         get_openai_usage(data)
+    }
+}
+
+#[async_trait]
+impl Moderation for OllamaProvider {
+    async fn moderate_content(&self, _content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }
 

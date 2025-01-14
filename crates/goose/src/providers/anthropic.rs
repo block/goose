@@ -6,8 +6,7 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::time::Duration;
 
-use super::base::ProviderUsage;
-use super::base::{Provider, Usage};
+use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
 use super::configs::{AnthropicProviderConfig, ModelConfig, ProviderModelConfig};
 use super::model_pricing::cost;
 use super::model_pricing::model_pricing_for;
@@ -205,7 +204,7 @@ impl Provider for AnthropicProvider {
             cost
         )
     )]
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -285,6 +284,13 @@ impl Provider for AnthropicProvider {
     }
 }
 
+#[async_trait]
+impl Moderation for AnthropicProvider {
+    async fn moderate_content(&self, _content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::providers::configs::ModelConfig;
@@ -340,7 +346,7 @@ mod tests {
         let messages = vec![Message::user().with_text("Hello?")];
 
         let (message, usage) = provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete_internal("You are a helpful assistant.", &messages, &[])
             .await?;
 
         if let MessageContent::Text(text) = &message.content[0] {
@@ -399,7 +405,7 @@ mod tests {
         );
 
         let (message, usage) = provider
-            .complete("You are a helpful assistant.", &messages, &[tool])
+            .complete_internal("You are a helpful assistant.", &messages, &[tool])
             .await?;
 
         if let MessageContent::ToolRequest(tool_request) = &message.content[0] {

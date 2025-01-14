@@ -169,6 +169,7 @@ impl Developer2Router {
         let child = Command::new("bash")
             .stdout(Stdio::piped()) // These two pipes required to capture output later.
             .stderr(Stdio::piped())
+            .stdin(Stdio::null())
             .kill_on_drop(true) // Critical so that the command is killed when the agent.reply stream is interrupted.
             .arg("-c")
             .arg(cmd_with_redirect)
@@ -483,7 +484,10 @@ impl Router for Developer2Router {
     }
 
     fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new().with_tools(true).build()
+        CapabilitiesBuilder::new()
+            .with_tools(false)
+            .with_resources(false, false)
+            .build()
     }
 
     fn list_tools(&self) -> Vec<Tool> {

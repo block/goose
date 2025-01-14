@@ -1,6 +1,11 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
-use mcp_client::client::{ClientCapabilities, ClientInfo, Error as ClientError, McpClient};
-use mcp_client::transport::{StdioTransport, Transport};
+use mcp_client::{
+    ClientCapabilities, ClientInfo, Error as ClientError, McpClient, McpClientTrait, McpService,
+    StdioTransport, Transport,
+};
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -15,13 +20,16 @@ async fn main() -> Result<(), ClientError> {
         .init();
 
     // 1) Create the transport
-    let transport = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()]);
+    let transport = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()], HashMap::new());
 
     // 2) Start the transport to get a handle
     let transport_handle = transport.start().await?;
 
-    // 3) Create the client
-    let mut client = McpClient::new(transport_handle);
+    // 3) Create the service with timeout middleware
+    let service = McpService::with_timeout(transport_handle, Duration::from_secs(10));
+
+    // 4) Create the client with the middleware-wrapped service
+    let mut client = McpClient::new(service);
 
     // Initialize
     let server_info = client
@@ -36,7 +44,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Connected to server: {server_info:?}\n");
 
     // List tools
-    let tools = client.list_tools().await?;
+    let tools = client.list_tools(None).await?;
     println!("Available tools: {tools:?}\n");
 
     // Call tool 'git_status' with arguments = {"repo_path": "."}
@@ -46,7 +54,7 @@ async fn main() -> Result<(), ClientError> {
     println!("Tool result: {tool_result:?}\n");
 
     // List resources
-    let resources = client.list_resources().await?;
+    let resources = client.list_resources(None).await?;
     println!("Available resources: {resources:?}\n");
 
     Ok(())

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
@@ -6,7 +7,7 @@ use mcp_core::protocol::JsonRpcMessage;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use super::{Error, PendingRequests, Transport, TransportHandle, TransportMessage};
+use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
 
 /// A `StdioTransport` uses a child process's stdin/stdout as a communication channel.
 ///
@@ -100,26 +101,47 @@ impl StdioActor {
     }
 }
 
+#[derive(Clone)]
+pub struct StdioTransportHandle {
+    sender: mpsc::Sender<TransportMessage>,
+}
+
+#[async_trait::async_trait]
+impl TransportHandle for StdioTransportHandle {
+    async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
+        send_message(&self.sender, message).await
+    }
+}
+
 pub struct StdioTransport {
     command: String,
     args: Vec<String>,
+    env: HashMap<String, String>,
 }
 
 impl StdioTransport {
-    pub fn new<S: Into<String>>(command: S, args: Vec<String>) -> Self {
+    pub fn new<S: Into<String>>(
+        command: S,
+        args: Vec<String>,
+        env: HashMap<String, String>,
+    ) -> Self {
         Self {
             command: command.into(),
             args,
+            env: env,
         }
     }
 
     async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout), Error> {
         let mut process = Command::new(&self.command)
+            .envs(&self.env)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .kill_on_drop(true)
+            // 0 sets the process group ID equal to the process ID
+            .process_group(0) // don't inherit signal handling from parent process
             .spawn()
             .map_err(|e| Error::Other(e.to_string()))?;
 
@@ -139,7 +161,9 @@ impl StdioTransport {
 
 #[async_trait]
 impl Transport for StdioTransport {
-    async fn start(&self) -> Result<TransportHandle, Error> {
+    type Handle = StdioTransportHandle;
+
+    async fn start(&self) -> Result<Self::Handle, Error> {
         let (process, stdin, stdout) = self.spawn_process().await?;
         let (message_tx, message_rx) = mpsc::channel(32);
 
@@ -153,7 +177,7 @@ impl Transport for StdioTransport {
 
         tokio::spawn(actor.run());
 
-        let handle = TransportHandle { sender: message_tx };
+        let handle = StdioTransportHandle { sender: message_tx };
         Ok(handle)
     }
 

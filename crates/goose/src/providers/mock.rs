@@ -1,4 +1,4 @@
-use super::base::ProviderUsage;
+use super::base::{Moderation, ModerationResult, ProviderUsage};
 use crate::message::Message;
 use crate::providers::base::{Provider, Usage};
 use crate::providers::configs::ModelConfig;
@@ -40,7 +40,7 @@ impl Provider for MockProvider {
         &self.model_config
     }
 
-    async fn complete(
+    async fn complete_internal(
         &self,
         _system_prompt: &str,
         _messages: &[Message],
@@ -64,5 +64,12 @@ impl Provider for MockProvider {
 
     fn get_usage(&self, _data: &Value) -> Result<Usage> {
         Ok(Usage::new(None, None, None))
+    }
+}
+
+#[async_trait]
+impl Moderation for MockProvider {
+    async fn moderate_content(&self, _content: &str) -> Result<ModerationResult> {
+        Ok(ModerationResult::new(false, None, None))
     }
 }

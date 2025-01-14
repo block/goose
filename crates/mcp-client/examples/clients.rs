@@ -1,11 +1,12 @@
 use mcp_client::{
-    client::{ClientCapabilities, ClientInfo, McpClient},
+    client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait},
     transport::{SseTransport, StdioTransport, Transport},
+    McpService,
 };
 use rand::Rng;
 use rand::SeedableRng;
-use std::sync::Arc;
 use std::time::Duration;
+use std::{collections::HashMap, sync::Arc};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -17,13 +18,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
 
-    // Create two separate clients with stdio transport
-    let client1 = create_stdio_client("client1", "1.0.0").await?;
-    let client2 = create_stdio_client("client2", "1.0.0").await?;
-    let client3 = create_sse_client("client3", "1.0.0").await?;
+    let transport1 = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()], HashMap::new());
+    let handle1 = transport1.start().await?;
+    let service1 = McpService::with_timeout(handle1, Duration::from_secs(30));
+    let client1 = McpClient::new(service1);
+
+    let transport2 = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()], HashMap::new());
+    let handle2 = transport2.start().await?;
+    let service2 = McpService::with_timeout(handle2, Duration::from_secs(30));
+    let client2 = McpClient::new(service2);
+
+    let transport3 = SseTransport::new("http://localhost:8000/sse", HashMap::new());
+    let handle3 = transport3.start().await?;
+    let service3 = McpService::with_timeout(handle3, Duration::from_secs(10));
+    let client3 = McpClient::new(service3);
 
     // Initialize both clients
-    let mut clients = vec![client1, client2, client3];
+    let mut clients: Vec<Box<dyn McpClientTrait>> =
+        vec![Box::new(client1), Box::new(client2), Box::new(client3)];
 
     // Initialize all clients
     for (i, client) in clients.iter_mut().enumerate() {
@@ -40,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // List tools for all clients
     for (i, client) in clients.iter_mut().enumerate() {
-        let tools = client.list_tools().await?;
+        let tools = client.list_tools(None).await?;
         println!("\nClient {} tools: {:?}", i + 1, tools);
     }
 
@@ -61,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match rng.gen_range(0..4) {
                 0 => {
                     println!("\n{i}: Listing tools for client 1 (stdio)");
-                    match clients[0].list_tools().await {
+                    match clients[0].list_tools(None).await {
                         Ok(tools) => {
                             println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
                         }
@@ -83,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 2 => {
                     println!("\n{i}: Listing tools for client 3 (sse)");
-                    match clients[2].list_tools().await {
+                    match clients[2].list_tools(None).await {
                         Ok(tools) => {
                             println!("  {i}: -> Got tools, first one: {:?}", tools.tools.first())
                         }
@@ -116,20 +128,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-async fn create_stdio_client(
-    _name: &str,
-    _version: &str,
-) -> Result<McpClient, Box<dyn std::error::Error>> {
-    let transport = StdioTransport::new("uvx", vec!["mcp-server-git".to_string()]);
-    Ok(McpClient::new(transport.start().await?))
-}
-
-async fn create_sse_client(
-    _name: &str,
-    _version: &str,
-) -> Result<McpClient, Box<dyn std::error::Error>> {
-    let transport = SseTransport::new("http://localhost:8000/sse");
-    Ok(McpClient::new(transport.start().await?))
 }

@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::ProviderUsage;
+use super::base::{Moderation, ModerationResult, ProviderUsage};
 use super::base::{Provider, Usage};
 use super::configs::OpenAiProviderConfig;
 use super::configs::{ModelConfig, ProviderModelConfig};
@@ -17,12 +17,26 @@ use crate::providers::openai_utils::{
     openai_response_to_message,
 };
 use mcp_core::tool::Tool;
+use serde::Serialize;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
+pub const OPEN_AI_MODERATION_MODEL: &str = "omni-moderation-latest";
 
 pub struct OpenAiProvider {
     client: Client,
     config: OpenAiProviderConfig,
+}
+
+#[derive(Serialize)]
+struct OpenAiModerationRequest {
+    input: String,
+    model: String,
+}
+
+impl OpenAiModerationRequest {
+    pub fn new(input: String, model: String) -> Self {
+        Self { input, model }
+    }
 }
 
 impl OpenAiProvider {
@@ -70,7 +84,7 @@ impl Provider for OpenAiProvider {
             cost
         )
     )]
-    async fn complete(
+    async fn complete_internal(
         &self,
         system: &str,
         messages: &[Message],
@@ -101,6 +115,51 @@ impl Provider for OpenAiProvider {
 
     fn get_usage(&self, data: &Value) -> Result<Usage> {
         get_openai_usage(data)
+    }
+}
+
+#[async_trait]
+impl Moderation for OpenAiProvider {
+    async fn moderate_content_internal(&self, content: &str) -> Result<ModerationResult> {
+        let url = format!("{}/v1/moderations", self.config.host.trim_end_matches('/'));
+
+        let request =
+            OpenAiModerationRequest::new(content.to_string(), OPEN_AI_MODERATION_MODEL.to_string());
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .json(&request)
+            .send()
+            .await?;
+
+        let response_json = handle_response(serde_json::to_value(&request)?, response)
+            .await?
+            .unwrap();
+
+        let flagged = response_json["results"][0]["flagged"]
+            .as_bool()
+            .unwrap_or(false);
+        if flagged {
+            let categories = response_json["results"][0]["categories"]
+                .as_object()
+                .unwrap();
+            let category_scores = response_json["results"][0]["category_scores"].clone();
+            return Ok(ModerationResult::new(
+                flagged,
+                Some(
+                    categories
+                        .iter()
+                        .filter(|(_, value)| value.as_bool().unwrap_or(false))
+                        .map(|(key, _)| key.to_string())
+                        .collect(),
+                ),
+                Some(category_scores),
+            ));
+        } else {
+            return Ok(ModerationResult::new(flagged, None, None));
+        }
     }
 }
 
@@ -145,7 +204,7 @@ mod tests {
 
         // Call the complete method
         let (message, usage) = provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete_internal("You are a helpful assistant.", &messages, &[])
             .await?;
 
         // Assert the response
@@ -176,7 +235,7 @@ mod tests {
 
         // Call the complete method
         let (message, usage) = provider
-            .complete(
+            .complete_internal(
                 "You are a helpful assistant.",
                 &messages,
                 &[create_test_tool()],

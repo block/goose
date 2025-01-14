@@ -6,6 +6,8 @@ use url::Url;
 
 use crate::content::Annotations;
 
+const EPSILON: f32 = 1e-6; // Tolerance for floating point comparison
+
 /// Represents a resource in the system with metadata
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -115,6 +117,20 @@ impl Resource {
     pub fn with_priority(mut self, priority: f32) -> Self {
         self.annotations.as_mut().unwrap().priority = Some(priority);
         self
+    }
+
+    /// Mark the resource as active, i.e. set its priority to 1.0
+    pub fn mark_active(self) -> Self {
+        self.with_priority(1.0)
+    }
+
+    // Check if the resource is active
+    pub fn is_active(&self) -> bool {
+        if let Some(priority) = self.priority() {
+            (priority - 1.0).abs() < EPSILON
+        } else {
+            false
+        }
     }
 
     /// Returns the priority of the resource, if set

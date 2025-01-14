@@ -1,21 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { Message, useChat } from './ai-sdk-fork/useChat';
-import { Route, Routes, Navigate } from 'react-router-dom';
-import { getApiUrl } from './config';
+import { ApiKeyWarning } from './components/ApiKeyWarning';
+import BottomMenu from './components/BottomMenu';
+import FlappyGoose from './components/FlappyGoose';
+import GooseMessage from './components/GooseMessage';
+import Input from './components/Input';
+import LoadingGoose from './components/LoadingGoose';
+import MoreMenu from './components/MoreMenu';
+import Settings from './components/settings/Settings';
+import Splash from './components/Splash';
 import { Card } from './components/ui/card';
 import { ScrollArea } from './components/ui/scroll-area';
-import Splash from './components/Splash';
-import GooseMessage from './components/GooseMessage';
 import UserMessage from './components/UserMessage';
-import Input from './components/Input';
-import MoreMenu from './components/MoreMenu';
-import BottomMenu from './components/BottomMenu';
-import LoadingGoose from './components/LoadingGoose';
-import { ApiKeyWarning } from './components/ApiKeyWarning';
-import { askAi } from './utils/askAI';
-import WingToWing, { Working } from './components/WingToWing';
 import { WelcomeScreen } from './components/WelcomeScreen';
-import FlappyGoose from './components/FlappyGoose';
+import WingToWing, { Working } from './components/WingToWing';
+import { getApiUrl } from './config';
+import { askAi } from './utils/askAI';
 
 // update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
 const CURRENT_VERSION = '0.0.0';
@@ -453,6 +454,7 @@ export default function ChatWindow() {
                   />
                 }
               />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/chat/1" replace />} />
             </Routes>
           </div>

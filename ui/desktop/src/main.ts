@@ -1,14 +1,14 @@
+import { exec } from 'child_process';
 import 'dotenv/config';
-import { loadZshEnv } from './utils/loadEnv';
-import { getBinaryPath } from './utils/binaryPath';
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, Notification, MenuItem, dialog, powerSaveBlocker } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, MenuItem, Notification, powerSaveBlocker, Tray } from 'electron';
+import started from "electron-squirrel-startup";
 import path from 'node:path';
 import { startGoosed } from './goosed';
-import started from "electron-squirrel-startup";
+import { getBinaryPath } from './utils/binaryPath';
+import { loadZshEnv } from './utils/loadEnv';
 import log from './utils/logger';
-import { exec } from 'child_process';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { EnvToggles, loadSettings, saveSettings, updateEnvironmentVariables, createEnvironmentMenu } from './utils/settings';
+import { createEnvironmentMenu, EnvToggles, loadSettings, saveSettings, updateEnvironmentVariables } from './utils/settings';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -78,6 +78,7 @@ let appConfig = {
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_SERVER__PORT: 0,
   GOOSE_WORKING_DIR: '',
+  GOOSE_AGENT_VERSION: '',
   secretKey: generateSecretKey(),
 };
 
@@ -122,12 +123,13 @@ const createLauncher = () => {
   });
 };
 
-
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string) => {
+const createChat = async (app, query?: string, dir?: string, version?: string) => {
+  const env = version ? { GOOSE_AGENT_VERSION: version } : {};
+
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
@@ -135,11 +137,12 @@ const createChat = async (app, query?: string, dir?: string) => {
     if (checkApiCredentials()) {
       return startGoosed(app, dir);
     } else {
-      return [0, ''];
+      return [0, '', ''];
     }
   }
 
-  const [port, working_dir] = await maybeStartGoosed();
+  const [port, working_dir, agentVersion] = await maybeStartGoosed();
+
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
     trafficLightPosition: { x: 16, y: 10 },
@@ -153,7 +156,13 @@ const createChat = async (app, query?: string, dir?: string) => {
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ ...appConfig, GOOSE_SERVER__PORT: port, GOOSE_WORKING_DIR: working_dir, REQUEST_DIR: dir })],
+      additionalArguments: [JSON.stringify({ 
+        ...appConfig, 
+        GOOSE_SERVER__PORT: port, 
+        GOOSE_WORKING_DIR: working_dir,
+        GOOSE_AGENT_VERSION: agentVersion,
+        REQUEST_DIR: dir 
+      })],
     },
   });
 
@@ -214,7 +223,6 @@ const createTray = () => {
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
 };
-
 
 const showWindow = () => {
   const windows = BrowserWindow.getAllWindows();
@@ -381,8 +389,8 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query) => {
-    createChat(app, query);
+  ipcMain.on('create-chat-window', (_, query, dir, version) => {
+    createChat(app, query, dir, version);
   });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {

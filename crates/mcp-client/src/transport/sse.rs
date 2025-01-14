@@ -4,12 +4,13 @@ use eventsource_client::{Client, SSE};
 use futures::TryStreamExt;
 use mcp_core::protocol::{JsonRpcMessage, JsonRpcRequest};
 use reqwest::Client as HttpClient;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
 use tracing::warn;
 
-use super::{Transport, TransportHandle};
+use super::{send_message, Transport, TransportHandle};
 
 // Timeout for the endpoint discovery
 const ENDPOINT_TIMEOUT_SECS: u64 = 5;
@@ -203,15 +204,29 @@ impl SseActor {
 }
 
 #[derive(Clone)]
+pub struct SseTransportHandle {
+    sender: mpsc::Sender<TransportMessage>,
+}
+
+#[async_trait::async_trait]
+impl TransportHandle for SseTransportHandle {
+    async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
+        send_message(&self.sender, message).await
+    }
+}
+
+#[derive(Clone)]
 pub struct SseTransport {
     sse_url: String,
+    env: HashMap<String, String>,
 }
 
 /// The SSE transport spawns an `SseActor` on `start()`.
 impl SseTransport {
-    pub fn new<S: Into<String>>(sse_url: S) -> Self {
+    pub fn new<S: Into<String>>(sse_url: S, env: HashMap<String, String>) -> Self {
         Self {
             sse_url: sse_url.into(),
+            env: env,
         }
     }
 
@@ -237,7 +252,14 @@ impl SseTransport {
 
 #[async_trait]
 impl Transport for SseTransport {
-    async fn start(&self) -> Result<TransportHandle, Error> {
+    type Handle = SseTransportHandle;
+
+    async fn start(&self) -> Result<Self::Handle, Error> {
+        // Set environment variables
+        for (key, value) in &self.env {
+            std::env::set_var(key, value);
+        }
+
         // Create a channel for outgoing TransportMessages
         let (tx, rx) = mpsc::channel(32);
 
@@ -262,7 +284,7 @@ impl Transport for SseTransport {
         )
         .await
         {
-            Ok(_) => Ok(TransportHandle { sender: tx }),
+            Ok(_) => Ok(SseTransportHandle { sender: tx }),
             Err(e) => Err(Error::SseConnection(e.to_string())),
         }
     }

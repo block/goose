@@ -62,6 +62,7 @@ kill_tree = "0.2.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 wiremock = "0.6.0"
+indicatif = "0.17"
 
 
 keyring = { version = "3.6.1", features = [
