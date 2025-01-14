@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import 'dotenv/config';
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, MenuItem, Notification, powerSaveBlocker, Tray } from 'electron';
 import started from "electron-squirrel-startup";
@@ -455,13 +455,12 @@ app.whenReady().then(async () => {
   ipcMain.on('open-in-chrome', (_, url) => {
     // On macOS, use the 'open' command with Chrome
     if (process.platform === 'darwin') {
-      exec(`open -a "Google Chrome" "${url}"`);
+      spawn('open', ['-a', 'Google Chrome', url]);
     } else if (process.platform === 'win32') {
-      // On Windows, use start command
-      exec(`start chrome "${url}"`);
-    } else {
+      // On Windows, start is built-in command of cmd.exe
+      spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);    } else {
       // On Linux, use xdg-open with chrome
-      exec(`xdg-open "${url}"`);
+      spawn('xdg-open', [url]);
     }
   });
 });
