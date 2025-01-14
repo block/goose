@@ -298,6 +298,9 @@ where
         }
 
         let params = serde_json::json!({ "name": name, "arguments": arguments });
+
+        // TODO ERROR: check that if there is an error, we send back is_error: true with msg
+        // https://modelcontextprotocol.io/docs/concepts/tools#error-handling-2
         self.send_request("tools/call", params).await
     }
 }

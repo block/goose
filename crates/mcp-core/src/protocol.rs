@@ -1,5 +1,11 @@
 /// The protocol messages exchanged between client and server
-use crate::{content::Content, resource::Resource, resource::ResourceContents, tool::Tool};
+use crate::{
+    content::Content,
+    prompt::{Prompt, PromptMessage},
+    resource::Resource,
+    resource::ResourceContents,
+    tool::Tool,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -213,6 +219,18 @@ pub struct ListToolsResult {
 pub struct CallToolResult {
     pub content: Vec<Content>,
     pub is_error: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct ListPromptsResult {
+    pub prompts: Vec<Prompt>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct GetPromptResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub messages: Vec<PromptMessage>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

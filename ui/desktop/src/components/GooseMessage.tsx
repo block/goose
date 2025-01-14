@@ -39,7 +39,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         </div>
 
         {urls.length > 0 && (
-          <div className="flex mt-[16px]">
+          <div className="flex flex-wrap mt-[16px]">
             {urls.map((url, index) => (
               <LinkPreview key={index} url={url} />
             ))}
@@ -47,7 +47,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         )}
 
         {/* enable or disable prompts here */}
-        {metadata && (
+        {/* NOTE from alexhancock on 1/14/2025 - disabling again temporarily due to non-determinism in when the forms show up */}
+        {false && metadata && (
           <div className="flex mt-[16px]">
             <GooseResponseForm
               message={message.content}

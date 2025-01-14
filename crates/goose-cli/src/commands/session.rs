@@ -56,7 +56,7 @@ pub async fn build_session<'a>(
     // TODO once the client/server for MCP has stabilized, we should probably add InProcess transport to each
     //      and avoid spawning here. But it is at least included in the CLI for portability
 
-    let system = std::env::var("GOOSE_SYSTEM").unwrap_or("developer".to_string());
+    let system = std::env::var("GOOSE_SYSTEM").unwrap_or("developer2".to_string());
     let config = SystemConfig::stdio(
         std::env::current_exe()
             .expect("should find the current executable")

@@ -1,7 +1,7 @@
-import React from 'react';
-import { Card } from './ui/card';
-import { Bird } from './ui/icons';
-import { ChevronDown } from 'lucide-react';
+import React from "react";
+import { Card } from "./ui/card";
+import { Bird } from "./ui/icons";
+import { ChevronDown } from "./icons";
 
 interface ApiKeyWarningProps {
   className?: string;
@@ -13,7 +13,11 @@ interface CollapsibleProps {
   defaultOpen?: boolean;
 }
 
-function Collapsible({ title, children, defaultOpen = false }: CollapsibleProps) {
+function Collapsible({
+  title,
+  children,
+  defaultOpen = false,
+}: CollapsibleProps) {
   const [isOpen, setIsOpen] = React.useState(defaultOpen);
 
   return (
@@ -25,15 +29,11 @@ function Collapsible({ title, children, defaultOpen = false }: CollapsibleProps)
         <span className="font-medium">{title}</span>
         <ChevronDown
           className={`w-5 h-5 transition-transform ${
-            isOpen ? 'transform rotate-180' : ''
+            isOpen ? "transform rotate-180" : ""
           }`}
         />
       </button>
-      {isOpen && (
-        <div className="px-4 py-2 border-t">
-          {children}
-        </div>
-      )}
+      {isOpen && <div className="px-4 py-2 border-t">{children}</div>}
     </div>
   );
 }
@@ -59,16 +59,21 @@ export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
 
 export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
   return (
-    <Card className={`flex flex-col items-center p-8 space-y-6 bg-card-gradient w-full h-full ${className}`}>
+    <Card
+      className={`flex flex-col items-center p-8 space-y-6 bg-card-gradient w-full h-full ${className}`}
+    >
       <div className="w-16 h-16">
         <Bird />
       </div>
       <div className="text-center space-y-4 max-w-2xl w-full">
-        <h2 className="text-2xl font-semibold text-gray-800">Credentials Required</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">
+          Credentials Required
+        </h2>
         <p className="text-gray-600 mb-4">
-          To use Goose, you need to set environment variables for one of the following providers:
+          To use Goose, you need to set environment variables for one of the
+          following providers:
         </p>
-        
+
         <div className="text-left">
           <Collapsible title="OpenAI Configuration" defaultOpen={true}>
             <pre className="bg-gray-50 p-4 rounded-md text-sm">
@@ -95,7 +100,8 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
           </Collapsible>
         </div>
         <p className="text-gray-600 mt-4">
-          After setting these variables, restart Goose for the changes to take effect.
+          After setting these variables, restart Goose for the changes to take
+          effect.
         </p>
       </div>
     </Card>

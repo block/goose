@@ -390,7 +390,7 @@ export default function ChatWindow() {
 
   useEffect(() => {
     // add boot up built in systems:
-    addMCP("goosed", ["mcp", "developer"]);
+    addMCP("goosed", ["mcp", "developer2"]);
 
     // Listen for add-system from main process (eg deep link)
     window.electron.on('add-system', (_, link) => {
