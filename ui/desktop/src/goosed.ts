@@ -34,23 +34,22 @@ const fetchAgentVersion = async (port: number): Promise<string> => {
   }
 };
 
-// Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
 const checkServerStatus = async (port: number, maxAttempts: number = 60, interval: number = 100): Promise<boolean> => {
   const statusUrl = `http://127.0.0.1:${port}/status`;
-  log.info(`Checking server status at ${statusUrl}`);
+  log.info(`Checking goosed server status at ${statusUrl}`);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await fetch(statusUrl);
       if (response.ok) {
-        log.info(`Server is ready after ${attempt} attempts`);
+        log.info(`goosed server is ready`);
         return true;
       }
     } catch (error) {
       // Expected error when server isn't ready yet
       if (attempt === maxAttempts) {
-        log.error(`Server failed to respond after ${maxAttempts} attempts:`, error);
+        log.error(`goosed server failed to respond after ${maxAttempts} attempts:`, error);
       }
     }
     await new Promise(resolve => setTimeout(resolve, interval));
@@ -58,7 +57,7 @@ const checkServerStatus = async (port: number, maxAttempts: number = 60, interva
   return false;
 };
 
-export const startGoosed = async (app, dir=null, env={}): Promise<[number, string, string]> => {
+export const startGoosed = async (app, dir=null, env={}, maxRestartAttempts = 5): Promise<[number, string, string]> => {
   // In will use this later to determine if we should start process
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -78,63 +77,77 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
   const goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
 
-  // in case we want it
-  //const isPackaged = app.isPackaged;
-  log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}` );
+  log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}`);
   
   // Define additional environment variables
   const additionalEnv = {
-    // Set HOME for UNIX-like systems
     HOME: homeDir,
-    // Set USERPROFILE for Windows
     USERPROFILE: homeDir,
-
-    // start with the port specified 
     GOOSE_SERVER__PORT: String(port),
-
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
-    
-    // Add any additional environment variables passed in
     ...env
   };
 
   // Merge parent environment with additional environment variables
   const processEnv = { ...process.env, ...additionalEnv };
 
-  // Spawn the goosed process with the user's home directory as cwd
-  const goosedProcess = spawn(goosedPath, ["agent"], { cwd: dir, env: processEnv, stdio: ["ignore", "pipe", "pipe"] });
+  let restartAttempts = 0;
+  let goosedProcess = null;
 
-  goosedProcess.stdout.on('data', (data) => {
-    log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
-  });
+  const startProcess = async () => {
+    goosedProcess = spawn(goosedPath, ["agent"], {
+      cwd: dir,
+      env: processEnv,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
 
-  goosedProcess.stderr.on('data', (data) => {
-    log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
-  });
+    goosedProcess.stdout.on('data', (data) => {
+      log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
+    });
 
-  goosedProcess.on('close', (code) => {
-    log.info(`goosed process exited with code ${code} for port ${port} and dir ${dir}`);
-  });
+    goosedProcess.stderr.on('data', (data) => {
+      log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
+    });
 
-  goosedProcess.on('error', (err) => {
-    log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
-    throw err; // Propagate the error
-  });
+    goosedProcess.on('error', (err) => {
+      log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
+    });
 
-  // Wait for the server to be ready
-  const isReady = await checkServerStatus(port);
-  log.info(`Goosed isReady ${isReady}`);
-  if (!isReady) {
-    log.error(`Goosed server failed to start on port ${port}`);
-    goosedProcess.kill();
-    throw new Error(`Goosed server failed to start on port ${port}`);
+    const isReady = await checkServerStatus(port);
+
+    if (!isReady) {
+      throw new Error('Server failed to start');
+    }
+  };
+
+  // Initial start
+  try {
+    await startProcess();
+  } catch (error) {
+    log.error('Initial start failed:', error);
+    throw error;
   }
 
+  // Handle crashes by attempting to restart a max number of five times
+  goosedProcess.on('close', async (code) => {
+    log.info(`goosed process exited with code ${code} for port ${port} and dir ${dir}`);
+    if (code !== 0 && restartAttempts < maxRestartAttempts) {
+      restartAttempts++;
+      log.info(`Attempting restart ${restartAttempts}/${maxRestartAttempts}`);
+      try {
+        await startProcess();
+      } catch (error) {
+        log.error(`Restart attempt ${restartAttempts} failed:`, error);
+      }
+    }
+  });
+
   // Ensure goosed is terminated when the app quits
-  // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
-    goosedProcess.kill();
+    if (goosedProcess) {
+      goosedProcess.kill();
+    }
   });
 
   // Wait for the server to start and fetch the agent version
