@@ -6,11 +6,13 @@ use std::{
 
 use mcp_core::{
     content::Content,
-    handler::{ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ToolError},
+    prompt::{Prompt, PromptMessage, PromptMessageRole},
     protocol::{
-        CallToolResult, Implementation, InitializeResult, JsonRpcRequest, JsonRpcResponse,
-        ListResourcesResult, ListToolsResult, PromptsCapability, ReadResourceResult,
-        ResourcesCapability, ServerCapabilities, ToolsCapability,
+        CallToolResult, GetPromptResult, Implementation, InitializeResult, JsonRpcRequest,
+        JsonRpcResponse, ListPromptsResult, ListResourcesResult, ListToolsResult,
+        PromptsCapability, ReadResourceResult, ResourcesCapability, ServerCapabilities,
+        ToolsCapability,
     },
     ResourceContents,
 };
@@ -93,6 +95,15 @@ pub trait Router: Send + Sync + 'static {
         &self,
         uri: &str,
     ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>>;
+    fn list_prompts(&self) -> Option<Vec<Prompt>> {
+        None
+    }
+    fn get_prompt(
+        &self,
+        _prompt_name: &str,
+    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+        None
+    }
 
     // Helper method to create base response
     fn create_response(&self, id: Option<u64>) -> JsonRpcResponse {
@@ -241,6 +252,149 @@ pub trait Router: Send + Sync + 'static {
             Ok(response)
         }
     }
+
+    fn handle_prompts_list(
+        &self,
+        req: JsonRpcRequest,
+    ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
+        async move {
+            let prompts = self.list_prompts().unwrap_or_default();
+
+            let result = ListPromptsResult { prompts };
+
+            let mut response = self.create_response(req.id);
+            response.result =
+                Some(serde_json::to_value(result).map_err(|e| {
+                    RouterError::Internal(format!("JSON serialization error: {}", e))
+                })?);
+
+            Ok(response)
+        }
+    }
+
+    fn handle_prompts_get(
+        &self,
+        req: JsonRpcRequest,
+    ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
+        async move {
+            // Validate and extract parameters
+            let params = req
+                .params
+                .ok_or_else(|| RouterError::InvalidParams("Missing parameters".into()))?;
+
+            // Extract "name" field
+            let prompt_name = params
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| RouterError::InvalidParams("Missing prompt name".into()))?;
+
+            // Extract "arguments" field
+            let arguments = params
+                .get("arguments")
+                .and_then(Value::as_object)
+                .ok_or_else(|| RouterError::InvalidParams("Missing arguments object".into()))?;
+
+            // Fetch the prompt definition first
+            let prompt = match self.list_prompts() {
+                Some(prompts) => prompts
+                    .into_iter()
+                    .find(|p| p.name == prompt_name)
+                    .ok_or_else(|| {
+                        RouterError::PromptNotFound(format!("Prompt '{}' not found", prompt_name))
+                    })?,
+                None => return Err(RouterError::PromptNotFound("No prompts available".into())),
+            };
+
+            // Validate required arguments
+            for arg in &prompt.arguments {
+                if arg.required
+                    && (!arguments.contains_key(&arg.name)
+                        || arguments
+                            .get(&arg.name)
+                            .and_then(Value::as_str)
+                            .map_or(true, str::is_empty))
+                {
+                    return Err(RouterError::InvalidParams(format!(
+                        "Missing required argument: '{}'",
+                        arg.name
+                    )));
+                }
+            }
+
+            // Now get the prompt content
+            let description = self
+                .get_prompt(prompt_name)
+                .ok_or_else(|| RouterError::PromptNotFound("Prompt not found".into()))?
+                .await
+                .map_err(|e| RouterError::Internal(e.to_string()))?;
+
+            // Validate prompt arguments for potential security issues from user text input
+            // Checks:
+            // - Prompt must be less than 10000 total characters
+            // - Argument keys must be less than 1000 characters
+            // - Argument values must be less than 1000 characters
+            // - Dangerous patterns, eg "../", "//", "\\\\", "<script>", "{{", "}}"
+            for (key, value) in arguments.iter() {
+                // Check for empty or overly long keys/values
+                if key.is_empty() || key.len() > 1000 {
+                    return Err(RouterError::InvalidParams(
+                        "Argument keys must be between 1-1000 characters".into(),
+                    ));
+                }
+
+                let value_str = value.as_str().unwrap_or_default();
+                if value_str.len() > 1000 {
+                    return Err(RouterError::InvalidParams(
+                        "Argument values must not exceed 1000 characters".into(),
+                    ));
+                }
+
+                // Check for potentially dangerous patterns
+                let dangerous_patterns = ["../", "//", "\\\\", "<script>", "{{", "}}"];
+                for pattern in dangerous_patterns {
+                    if key.contains(pattern) || value_str.contains(pattern) {
+                        return Err(RouterError::InvalidParams(format!(
+                            "Arguments contain potentially unsafe pattern: {}",
+                            pattern
+                        )));
+                    }
+                }
+            }
+
+            // Validate the prompt description length
+            if description.len() > 10000 {
+                return Err(RouterError::Internal(
+                    "Prompt description exceeds maximum allowed length".into(),
+                ));
+            }
+
+            // Create a mutable copy of the description to fill in arguments
+            let mut description_filled = description.clone();
+
+            // Replace each argument placeholder with its value from the arguments object
+            for (key, value) in arguments {
+                let placeholder = format!("{{{}}}", key);
+                description_filled =
+                    description_filled.replace(&placeholder, value.as_str().unwrap_or_default());
+            }
+
+            let messages = vec![PromptMessage::new_text(
+                PromptMessageRole::User,
+                format!("{}", description_filled),
+            )];
+
+            // Build the final response
+            let mut response = self.create_response(req.id);
+            response.result = Some(
+                serde_json::to_value(GetPromptResult {
+                    description: Some(description_filled),
+                    messages,
+                })
+                .map_err(|e| RouterError::Internal(format!("JSON serialization error: {}", e)))?,
+            );
+            Ok(response)
+        }
+    }
 }
 
 pub struct RouterService<T>(pub T);
@@ -267,6 +421,8 @@ where
                 "tools/call" => this.handle_tools_call(req).await,
                 "resources/list" => this.handle_resources_list(req).await,
                 "resources/read" => this.handle_resources_read(req).await,
+                "prompts/list" => this.handle_prompts_list(req).await,
+                "prompts/get" => this.handle_prompts_get(req).await,
                 _ => {
                     let mut response = this.create_response(req.id);
                     response.error = Some(RouterError::MethodNotFound(req.method).into());

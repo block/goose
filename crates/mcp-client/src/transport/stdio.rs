@@ -143,17 +143,17 @@ impl StdioTransport {
             // 0 sets the process group ID equal to the process ID
             .process_group(0) // don't inherit signal handling from parent process
             .spawn()
-            .map_err(|e| Error::Other(e.to_string()))?;
+            .map_err(|e| Error::StdioProcessError(e.to_string()))?;
 
         let stdin = process
             .stdin
             .take()
-            .ok_or_else(|| Error::Other("Failed to get stdin".into()))?;
+            .ok_or_else(|| Error::StdioProcessError("Failed to get stdin".into()))?;
 
         let stdout = process
             .stdout
             .take()
-            .ok_or_else(|| Error::Other("Failed to get stdout".into()))?;
+            .ok_or_else(|| Error::StdioProcessError("Failed to get stdout".into()))?;
 
         Ok((process, stdin, stdout))
     }

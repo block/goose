@@ -107,15 +107,18 @@ impl DefaultAgent {
             new_messages.push(msg.clone());
         }
 
-        // Finally add the status messages
-        let message_use =
-            Message::assistant().with_tool_request("000", Ok(ToolCall::new("status", json!({}))));
+        // Finally add the status messages if status_str is not empty
+        // The status_str is empty for the first message when no systems are added
+        if !status_str.is_empty() {
+            let message_use = Message::assistant()
+                .with_tool_request("000", Ok(ToolCall::new("status", json!({}))));
 
-        let message_result =
-            Message::user().with_tool_response("000", Ok(vec![Content::text(status_str)]));
+            let message_result =
+                Message::user().with_tool_response("000", Ok(vec![Content::text(status_str)]));
 
-        new_messages.push(message_use);
-        new_messages.push(message_result);
+            new_messages.push(message_use);
+            new_messages.push(message_result);
+        }
 
         Ok(new_messages)
     }

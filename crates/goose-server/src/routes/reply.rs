@@ -162,7 +162,7 @@ impl ProtocolFormatter {
 
     fn format_error(error: &str) -> String {
         // Error messages start with "3:" in the new protocol.
-        format!("3:{}\n", error)
+        format!("3:\"{}\"\n", error)
     }
 
     fn format_moderation_error(error: &ModerationError) -> String {

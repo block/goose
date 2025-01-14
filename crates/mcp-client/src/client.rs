@@ -1,7 +1,7 @@
 use mcp_core::protocol::{
-    CallToolResult, InitializeResult, JsonRpcError, JsonRpcMessage, JsonRpcNotification,
-    JsonRpcRequest, JsonRpcResponse, ListResourcesResult, ListToolsResult, ReadResourceResult,
-    ServerCapabilities, METHOD_NOT_FOUND,
+    CallToolResult, Implementation, InitializeResult, JsonRpcError, JsonRpcMessage,
+    JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ListResourcesResult, ListToolsResult,
+    ReadResourceResult, ServerCapabilities, METHOD_NOT_FOUND,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -9,6 +9,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use tokio::sync::Mutex;
 use tower::{Service, ServiceExt}; // for Service::ready()
+
+pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 /// Error type for MCP client operations.
 #[derive(Debug, Error)]
@@ -31,13 +33,26 @@ pub enum Error {
     #[error("Timeout or service not ready")]
     NotReady,
 
-    #[error("Box error: {0}")]
-    BoxError(Box<dyn std::error::Error + Send + Sync>),
+    #[error("Request timed out")]
+    Timeout(#[from] tower::timeout::error::Elapsed),
+
+    #[error("Error from mcp-server: {0}")]
+    ServerBoxError(BoxError),
+
+    #[error("Call to '{server}' failed for '{method}' with params '{params}'. {source}")]
+    McpServerError {
+        method: String,
+        server: String,
+        params: Value,
+        #[source]
+        source: BoxError,
+    },
 }
 
-impl From<Box<dyn std::error::Error + Send + Sync>> for Error {
-    fn from(err: Box<dyn std::error::Error + Send + Sync>) -> Self {
-        Error::BoxError(err)
+// BoxError from mcp-server gets converted to our Error type
+impl From<BoxError> for Error {
+    fn from(err: BoxError) -> Self {
+        Error::ServerBoxError(err)
     }
 }
 
@@ -91,6 +106,7 @@ where
     service: Mutex<S>,
     next_id: AtomicU64,
     server_capabilities: Option<ServerCapabilities>,
+    server_info: Option<Implementation>,
 }
 
 impl<S> McpClient<S>
@@ -104,6 +120,7 @@ where
             service: Mutex::new(service),
             next_id: AtomicU64::new(1),
             server_capabilities: None,
+            server_info: None,
         }
     }
 
@@ -120,10 +137,18 @@ where
             jsonrpc: "2.0".to_string(),
             id: Some(id),
             method: method.to_string(),
-            params: Some(params),
+            params: Some(params.clone()),
         });
 
-        let response_msg = service.call(request).await.map_err(Into::into)?;
+        let response_msg = service
+            .call(request)
+            .await
+            .map_err(|e| Error::McpServerError {
+                server: self.server_info.as_ref().unwrap().name.clone(),
+                method: method.to_string(),
+                params: params.clone(),
+                source: Box::new(e.into()),
+            })?;
 
         match response_msg {
             JsonRpcMessage::Response(JsonRpcResponse {
@@ -174,10 +199,19 @@ where
         let notification = JsonRpcMessage::Notification(JsonRpcNotification {
             jsonrpc: "2.0".to_string(),
             method: method.to_string(),
-            params: Some(params),
+            params: Some(params.clone()),
         });
 
-        service.call(notification).await.map_err(Into::into)?;
+        service
+            .call(notification)
+            .await
+            .map_err(|e| Error::McpServerError {
+                server: self.server_info.as_ref().unwrap().name.clone(),
+                method: method.to_string(),
+                params: params.clone(),
+                source: Box::new(e.into()),
+            })?;
+
         Ok(())
     }
 
@@ -212,6 +246,8 @@ where
             .await?;
 
         self.server_capabilities = Some(result.capabilities.clone());
+
+        self.server_info = Some(result.server_info.clone());
 
         Ok(result)
     }
@@ -298,6 +334,9 @@ where
         }
 
         let params = serde_json::json!({ "name": name, "arguments": arguments });
+
+        // TODO ERROR: check that if there is an error, we send back is_error: true with msg
+        // https://modelcontextprotocol.io/docs/concepts/tools#error-handling-2
         self.send_request("tools/call", params).await
     }
 }

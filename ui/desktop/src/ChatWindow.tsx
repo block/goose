@@ -421,9 +421,10 @@ export default function ChatWindow() {
 
   // Initialize system config when window loads
   useEffect(() => {
+
     // wait a few seconds before adding the system config
     setTimeout(() => {
-      addSystemConfig("developer");
+      addSystemConfig("developer2");
     }, 3000);
     
   }, []);

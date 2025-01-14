@@ -461,21 +461,6 @@ mod tests {
                 {"role": "user", "content": "Hello"}
             ]
         });
-        let expected_moderation_request_body = json!({
-            "messages": [
-                {"role": "user", "content": "Hello"}
-            ]
-        });
-        // Set up the mock to intercept the request and respond with the mocked response
-        Mock::given(method("POST"))
-            .and(path("/serving-endpoints/moderation/invocations"))
-            .and(header("Authorization", "Bearer test_token"))
-            .and(body_json(expected_moderation_request_body.clone()))
-            .respond_with(ResponseTemplate::new(200).set_body_json(moderator_mock_response))
-            .expect(1) // Expect exactly one matching request
-            .mount(&mock_server)
-            .await;
-
         // Set up the mock to intercept the request and respond with the mocked response
         Mock::given(method("POST"))
             .and(path("/serving-endpoints/my-databricks-model/invocations"))
