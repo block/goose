@@ -1,7 +1,9 @@
 use crate::message::Message;
 use include_dir::{include_dir, Dir};
+use indicatif::{ProgressBar, ProgressStyle};
 use mcp_core::tool::Tool;
 use std::collections::HashMap;
+use std::time::Duration;
 use tokenizers::tokenizer::Tokenizer;
 
 // Embed the tokenizer files directory
@@ -25,6 +27,18 @@ impl Default for TokenCounter {
 
 impl TokenCounter {
     fn load_tokenizer(&mut self, tokenizer_key: &str) {
+        // Create a spinner that will show during both loading and parsing
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+
+        // Start spinner for loading phase
+        pb.set_message(format!("Loading {} tokenizer from disk...", tokenizer_key));
+        pb.enable_steady_tick(Duration::from_millis(120));
+
         // Load from embedded tokenizer files. The tokenizer_key must match the directory name.
         let tokenizer_path = format!("{}/tokenizer.json", tokenizer_key);
         let file_content = TOKENIZER_FILES
@@ -33,13 +47,18 @@ impl TokenCounter {
             .ok_or_else(|| format!("Embedded tokenizer file not found: {}", tokenizer_path))
             .unwrap();
 
+        // Update spinner for parsing phase
+        pb.set_message(format!("Initializing {} tokenizer...", tokenizer_key));
+
         let tokenizer = Tokenizer::from_bytes(file_content);
 
         match tokenizer {
             Ok(tokenizer) => {
                 self.tokenizers.insert(tokenizer_key.to_string(), tokenizer);
+                pb.finish_and_clear();
             }
             Err(e) => {
+                pb.finish_and_clear();
                 eprintln!("Failed to load tokenizer {}: {}", tokenizer_key, e);
             }
         }

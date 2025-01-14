@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use mcp_client::client::Error as ClientError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -7,7 +9,7 @@ use thiserror::Error;
 pub enum SystemError {
     #[error("Failed to start the MCP server from configuration `{0}` within 60 seconds")]
     Initialization(SystemConfig),
-    #[error("Failed a client call to an MCP server")]
+    #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
     #[error("Transport error: {0}")]
     Transport(#[from] mcp_client::transport::Error),
@@ -15,25 +17,63 @@ pub enum SystemError {
 
 pub type SystemResult<T> = Result<T, SystemError>;
 
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct Envs {
+    /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
+    #[serde(default)]
+    #[serde(flatten)]
+    map: HashMap<String, String>,
+}
+
+impl Envs {
+    pub fn new(map: HashMap<String, String>) -> Self {
+        Self { map }
+    }
+
+    pub fn default() -> Self {
+        Self::new(HashMap::new())
+    }
+
+    pub fn get_env(&self) -> HashMap<String, String> {
+        self.map
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+}
+
 /// Represents the different types of MCP systems that can be added to the manager
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum SystemConfig {
     /// Server-sent events client with a URI endpoint
-    Sse { uri: String },
+    Sse {
+        uri: String,
+        #[serde(default)]
+        envs: Envs,
+    },
     /// Standard I/O client with command and arguments
-    Stdio { cmd: String, args: Vec<String> },
+    Stdio {
+        cmd: String,
+        args: Vec<String>,
+        #[serde(default)]
+        envs: Envs,
+    },
 }
 
 impl SystemConfig {
     pub fn sse<S: Into<String>>(uri: S) -> Self {
-        Self::Sse { uri: uri.into() }
+        Self::Sse {
+            uri: uri.into(),
+            envs: Envs::default(),
+        }
     }
 
     pub fn stdio<S: Into<String>>(cmd: S) -> Self {
         Self::Stdio {
             cmd: cmd.into(),
             args: vec![],
+            envs: Envs::default(),
         }
     }
 
@@ -43,8 +83,9 @@ impl SystemConfig {
         S: Into<String>,
     {
         match self {
-            Self::Stdio { cmd, .. } => Self::Stdio {
+            Self::Stdio { cmd, envs, .. } => Self::Stdio {
                 cmd,
+                envs,
                 args: args.into_iter().map(Into::into).collect(),
             },
             other => other,
@@ -55,8 +96,8 @@ impl SystemConfig {
 impl std::fmt::Display for SystemConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SystemConfig::Sse { uri } => write!(f, "SSE({})", uri),
-            SystemConfig::Stdio { cmd, args } => write!(f, "Stdio({} {})", cmd, args.join(" ")),
+            SystemConfig::Sse { uri, .. } => write!(f, "SSE({})", uri),
+            SystemConfig::Stdio { cmd, args, .. } => write!(f, "Stdio({} {})", cmd, args.join(" ")),
         }
     }
 }

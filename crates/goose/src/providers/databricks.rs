@@ -17,7 +17,9 @@ use crate::providers::openai_utils::{
 use mcp_core::tool::Tool;
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "claude-3-5-sonnet-2";
+pub const INPUT_GUARDRAIL: &str = "input_guardrail";
 
+#[derive(Debug)]
 pub struct DatabricksProvider {
     client: Client,
     config: DatabricksProviderConfig,
@@ -65,6 +67,35 @@ impl DatabricksProvider {
             .await?;
 
         handle_response(payload, response).await?
+    }
+
+    async fn handle_moderation_response(&self, response: reqwest::Response) -> Result<Value> {
+        match response.status() {
+            reqwest::StatusCode::OK => {
+                let payload = response.json().await?;
+                Ok(payload)
+            }
+            reqwest::StatusCode::BAD_REQUEST => {
+                let error_body: Value = response.json().await?;
+
+                // Check if this is a moderation error
+                if let Some(finish_reason) = error_body.get("finishReason") {
+                    if finish_reason == "input_guardrail_triggered" {
+                        return Ok(error_body);
+                    }
+                }
+                // Not a moderation error, return the original error
+                Err(anyhow::anyhow!("Bad request: {}", error_body))
+            }
+            status => {
+                let error_body: Value = response.json().await?;
+                Err(anyhow::anyhow!(
+                    "Moderation request failed with status: {}\nPayload {}",
+                    status,
+                    error_body
+                ))
+            }
+        }
     }
 }
 
@@ -133,6 +164,7 @@ impl Provider for DatabricksProvider {
                 .collect(),
         );
 
+        // Make request
         let response = self.post(payload.clone()).await?;
 
         // Raise specific error if context length is exceeded
@@ -151,6 +183,7 @@ impl Provider for DatabricksProvider {
         let model = get_model(&response);
         let cost = cost(&usage, &model_pricing_for(&model));
         super::utils::emit_debug_trace(&self.config, &payload, &response, &usage, cost);
+
         Ok((message, ProviderUsage::new(model, usage, cost)))
     }
 
@@ -161,7 +194,59 @@ impl Provider for DatabricksProvider {
 
 #[async_trait]
 impl Moderation for DatabricksProvider {
-    async fn moderate_content(&self, _content: &str) -> Result<ModerationResult> {
+    async fn moderate_content_internal(&self, content: &str) -> Result<ModerationResult> {
+        let url = format!(
+            "{}/serving-endpoints/moderation/invocations",
+            self.config.host.trim_end_matches('/')
+        );
+
+        let auth_header = self.ensure_auth_header().await?;
+        let payload = json!({
+            "messages": [
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ]
+        });
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", auth_header)
+            .json(&payload)
+            .send()
+            .await?;
+
+        // let response: Value = response.json().await?;
+        // let response = handle_response(payload, response).await??;
+        let response = self.handle_moderation_response(response).await?;
+
+        // Check if we got a moderation result
+        if let Some(input_guardrail) = response.get(INPUT_GUARDRAIL) {
+            if let Some(first_result) = input_guardrail.as_array().and_then(|arr| arr.first()) {
+                if let Some(flagged) = first_result.get("flagged").and_then(|f| f.as_bool()) {
+                    // Extract categories if they exist and if content is flagged
+                    let categories = if flagged {
+                        first_result
+                            .get("categories")
+                            .and_then(|cats| cats.as_object())
+                            .map(|cats| {
+                                cats.iter()
+                                    .filter(|(_, v)| v.as_bool().unwrap_or(false))
+                                    .map(|(k, _)| k.to_string())
+                                    .collect::<Vec<_>>()
+                            })
+                    } else {
+                        None
+                    };
+
+                    return Ok(ModerationResult::new(flagged, categories, None));
+                }
+            }
+        }
+
+        // If we get here, there was no moderation result, so the content is considered safe
         Ok(ModerationResult::new(false, None, None))
     }
 }
@@ -174,8 +259,176 @@ mod tests {
     use crate::providers::mock_server::{
         create_mock_open_ai_response, TEST_INPUT_TOKENS, TEST_OUTPUT_TOKENS, TEST_TOTAL_TOKENS,
     };
+    use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_moderation_flagged_content() -> Result<()> {
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Mock response for moderation with flagged content
+        let mock_response = json!({
+            "usage": {
+                "prompt_tokens": 199,
+                "total_tokens": 199
+            },
+            "input_guardrail": [{
+                "flagged": true,
+                "categories": {
+                    "violent-crimes": false,
+                    "non-violent-crimes": true,
+                    "sex-crimes": false,
+                    "child-exploitation": false,
+                    "specialized-advice": false,
+                    "privacy": false,
+                    "intellectual-property": false,
+                    "indiscriminate-weapons": false,
+                    "hate": false,
+                    "self-harm": false,
+                    "sexual-content": false
+                }
+            }],
+            "finishReason": "input_guardrail_triggered"
+        });
+
+        // Set up the mock
+        Mock::given(method("POST"))
+            .and(path("/serving-endpoints/moderation/invocations"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Create the DatabricksProvider
+        let config = DatabricksProviderConfig {
+            host: mock_server.uri(),
+            auth: DatabricksAuth::Token("test_token".to_string()),
+            model: ModelConfig::new("my-databricks-model".to_string()),
+            image_format: crate::providers::utils::ImageFormat::Anthropic,
+        };
+
+        let provider = DatabricksProvider::new(config)?;
+
+        // Test moderation
+        let result = provider.moderate_content("test content").await?;
+
+        assert!(result.flagged);
+        assert_eq!(result.categories.unwrap(), vec!["non-violent-crimes"]);
+        assert!(result.category_scores.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_moderation_safe_content() -> Result<()> {
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Mock response for safe content (regular chat response)
+        let mock_response = json!({
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            },
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "This is a safe response"
+                },
+                "finish_reason": "stop"
+            }]
+        });
+
+        // Set up the mock
+        Mock::given(method("POST"))
+            .and(path("/serving-endpoints/moderation/invocations"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Create the DatabricksProvider
+        let config = DatabricksProviderConfig {
+            host: mock_server.uri(),
+            auth: DatabricksAuth::Token("test_token".to_string()),
+            model: ModelConfig::new("my-databricks-model".to_string()),
+            image_format: crate::providers::utils::ImageFormat::Anthropic,
+        };
+
+        let provider = DatabricksProvider::new(config)?;
+
+        // Test moderation
+        let result = provider.moderate_content("safe content").await?;
+
+        assert!(!result.flagged);
+        assert!(result.categories.is_none());
+        assert!(result.category_scores.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_moderation_explicit_safe() -> Result<()> {
+        // Start a mock server
+        let mock_server = MockServer::start().await;
+
+        // Mock response for explicitly safe content
+        let mock_response = json!({
+            "usage": {
+                "prompt_tokens": 199,
+                "total_tokens": 199
+            },
+            "input_guardrail": [{
+                "flagged": false,
+                "categories": {
+                    "violent-crimes": false,
+                    "non-violent-crimes": false,
+                    "sex-crimes": false,
+                    "child-exploitation": false,
+                    "specialized-advice": false,
+                    "privacy": false,
+                    "intellectual-property": false,
+                    "indiscriminate-weapons": false,
+                    "hate": false,
+                    "self-harm": false,
+                    "sexual-content": false
+                }
+            }]
+        });
+
+        // Set up the mock
+        Mock::given(method("POST"))
+            .and(path("/serving-endpoints/moderation/invocations"))
+            .and(header("Authorization", "Bearer test_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_response))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        // Create the DatabricksProvider
+        let config = DatabricksProviderConfig {
+            host: mock_server.uri(),
+            auth: DatabricksAuth::Token("test_token".to_string()),
+            model: ModelConfig::new("my-databricks-model".to_string()),
+            image_format: crate::providers::utils::ImageFormat::Anthropic,
+        };
+
+        let provider = DatabricksProvider::new(config)?;
+
+        // Test moderation
+        let result = provider.moderate_content("explicitly safe content").await?;
+
+        assert!(!result.flagged);
+        assert!(result.categories.is_none());
+        assert!(result.category_scores.is_none());
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_databricks_completion_with_token() -> Result<()> {
@@ -185,6 +438,21 @@ mod tests {
         // Mock response for completion
         let mock_response = create_mock_open_ai_response("my-databricks-model", "Hello!");
 
+        let moderator_mock_response = json!({
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            },
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "This is a safe response"
+                },
+                "finish_reason": "stop"
+            }]
+        });
+
         // Expected request body
         let system = "You are a helpful assistant.";
         let expected_request_body = json!({
@@ -193,6 +461,20 @@ mod tests {
                 {"role": "user", "content": "Hello"}
             ]
         });
+        let expected_moderation_request_body = json!({
+            "messages": [
+                {"role": "user", "content": "Hello"}
+            ]
+        });
+        // Set up the mock to intercept the request and respond with the mocked response
+        Mock::given(method("POST"))
+            .and(path("/serving-endpoints/moderation/invocations"))
+            .and(header("Authorization", "Bearer test_token"))
+            .and(body_json(expected_moderation_request_body.clone()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(moderator_mock_response))
+            .expect(1) // Expect exactly one matching request
+            .mount(&mock_server)
+            .await;
 
         // Set up the mock to intercept the request and respond with the mocked response
         Mock::given(method("POST"))

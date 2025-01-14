@@ -103,20 +103,9 @@ pub async fn handle_configure(
             .interact()?
     };
 
-    // Forward any existing systems from the profile if present
-    let additional_systems =
-        existing_profile.map_or(Vec::new(), |profile| profile.additional_systems.clone());
-
-    if !additional_systems.is_empty() {
-        let _ = cliclack::log::info(
-            format!("We kept the existing systems from your {} profile. You can edit this with `goose system`", profile_name)
-        );
-    }
-
     let profile = Profile {
         provider: provider_name.to_string(),
         model: model.clone(),
-        additional_systems,
         temperature: None,
         context_limit: None,
         max_tokens: None,

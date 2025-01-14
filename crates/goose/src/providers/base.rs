@@ -4,6 +4,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::select;
 use tokio::sync::RwLock;
 
@@ -11,6 +12,15 @@ use super::configs::ModelConfig;
 use crate::message::{Message, MessageContent};
 use mcp_core::role::Role;
 use mcp_core::tool::Tool;
+
+#[derive(Error, Debug)]
+pub enum ModerationError {
+    #[error("Content was flagged for moderation in categories: {categories}")]
+    ContentFlagged {
+        categories: String,
+        category_scores: Option<serde_json::Value>,
+    },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -197,10 +207,10 @@ pub trait Provider: Send + Sync + Moderation {
                     let categories = result.categories
                         .unwrap_or_else(|| vec!["unknown".to_string()])
                         .join(", ");
-                    return Err(anyhow::anyhow!(
-                        "Content was flagged for moderation in categories: {}",
-                        categories
-                    ));
+                    return Err(ModerationError::ContentFlagged {
+                        categories,
+                        category_scores: result.category_scores,
+                    }.into());
                 }
 
                 // Moderation passed, wait for completion
@@ -215,10 +225,10 @@ pub trait Provider: Send + Sync + Moderation {
                     let categories = moderation_result.categories
                         .unwrap_or_else(|| vec!["unknown".to_string()])
                         .join(", ");
-                    return Err(anyhow::anyhow!(
-                        "Content was flagged for moderation in categories: {}",
-                        categories
-                    ));
+                    return Err(ModerationError::ContentFlagged {
+                        categories,
+                        category_scores: moderation_result.category_scores,
+                    }.into());
                 }
 
                 Ok(completion_result)
@@ -338,10 +348,8 @@ mod tests {
         let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Content was flagged"));
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<ModerationError>().is_some());
     }
 
     #[tokio::test]
@@ -407,10 +415,8 @@ mod tests {
         let result = provider.complete("system", &[test_message], &[]).await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Content was flagged"));
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<ModerationError>().is_some());
     }
 
     #[tokio::test]

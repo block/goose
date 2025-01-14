@@ -7,13 +7,14 @@ import {
 import React, { useEffect, useState } from 'react';
 import { FaMoon, FaSun } from 'react-icons/fa';
 import VertDots from './ui/VertDots';
-
+import { useNavigate } from 'react-router-dom';
 interface VersionInfo {
     current_version: string;
     available_versions: string[];
 }
 
 export default function MoreMenu() {
+    const navigate = useNavigate(); 
     const [open, setOpen] = useState(false);
     const [versions, setVersions] = useState<VersionInfo | null>(null);
     const [showVersions, setShowVersions] = useState(false);
@@ -181,6 +182,19 @@ export default function MoreMenu() {
                                     </div>
                                 )}
                             </>
+                        )}
+
+                        {/* Settings Menu */}
+                        {process.env.NODE_ENV === 'development' && (
+                            <button
+                                onClick={() => {
+                                    setOpen(false);
+                                    navigate('/settings');
+                                }}
+                                className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
+                            >
+                                Settings
+                            </button>
                         )}
                         
                         <button

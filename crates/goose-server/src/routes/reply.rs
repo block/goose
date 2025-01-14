@@ -9,6 +9,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::message::{Message, MessageContent};
+use goose::providers::base::ModerationError;
 use mcp_core::{content::Content, role::Role};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -159,6 +160,23 @@ impl ProtocolFormatter {
         format!("a:{}\n", response)
     }
 
+    fn format_error(error: &str) -> String {
+        // Error messages start with "3:" in the new protocol.
+        format!("3:{}\n", error)
+    }
+
+    fn format_moderation_error(error: &ModerationError) -> String {
+        let error_part = match error {
+            ModerationError::ContentFlagged { categories, .. } => {
+                format!(
+                    "Content was flagged by moderation in the following categories: {}",
+                    categories
+                )
+            }
+        };
+        format!("3:\"{}\"\n", error_part)
+    }
+
     fn format_finish(reason: &str) -> String {
         // Finish messages start with "d:"
         let finish = json!({
@@ -193,8 +211,12 @@ async fn stream_message(
                             .await?;
                         }
                         Err(err) => {
+                            // Send an error message first
+                            tx.send(ProtocolFormatter::format_error(&err.to_string()))
+                                .await?;
+                            // Then send an empty tool response to maintain the protocol
                             let result =
-                                vec![Content::text(format!("Error {}", err)).with_priority(0.0)];
+                                vec![Content::text(format!("Error: {}", err)).with_priority(0.0)];
                             tx.send(ProtocolFormatter::format_tool_response(
                                 &response.id,
                                 &result,
@@ -209,22 +231,24 @@ async fn stream_message(
             for content in message.content {
                 match content {
                     MessageContent::ToolRequest(request) => {
-                        if let Ok(tool_call) = request.tool_call {
-                            tx.send(ProtocolFormatter::format_tool_call(
-                                &request.id,
-                                &tool_call.name,
-                                &tool_call.arguments,
-                            ))
-                            .await?;
-                        } else {
-                            // if the llm generates an invalid object tool call, we still have
-                            // to include it in the history. It always comes with a response indicating the error
-                            tx.send(ProtocolFormatter::format_tool_call(
-                                &request.id,
-                                "invalid name",
-                                &json!({}),
-                            ))
-                            .await?;
+                        match request.tool_call {
+                            Ok(tool_call) => {
+                                tx.send(ProtocolFormatter::format_tool_call(
+                                    &request.id,
+                                    &tool_call.name,
+                                    &tool_call.arguments,
+                                ))
+                                .await?;
+                            }
+                            Err(err) => {
+                                // Send a placeholder tool call to maintain protocol
+                                tx.send(ProtocolFormatter::format_tool_call(
+                                    &request.id,
+                                    "invalid_tool",
+                                    &json!({"error": err.to_string()}),
+                                ))
+                                .await?;
+                            }
                         }
                     }
                     MessageContent::Text(text) => {
@@ -288,6 +312,18 @@ async fn handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {}", e);
+                // Check if it's a moderation error
+                if let Some(moderation_error) = e.downcast_ref::<ModerationError>() {
+                    let _ = tx
+                        .send(ProtocolFormatter::format_moderation_error(moderation_error))
+                        .await;
+                    // Kill the stream since we encountered a moderation error
+                } else {
+                    // Send a generic error message
+                    let _ = tx
+                        .send(ProtocolFormatter::format_error(&e.to_string()))
+                        .await;
+                }
                 // Send a finish message with error as the reason
                 let _ = tx.send(ProtocolFormatter::format_finish("error")).await;
                 return;
@@ -301,11 +337,18 @@ async fn handler(
                         Ok(Some(Ok(message))) => {
                             if let Err(e) = stream_message(message, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
+                                let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
                                 break;
                             }
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
+                            // Check if it's a moderation error
+                            if let Some(moderation_error) = e.downcast_ref::<ModerationError>() {
+                                let _ = tx.send(ProtocolFormatter::format_moderation_error(moderation_error)).await;
+                            } else {
+                                let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
+                            }
                             break;
                         }
                         Ok(None) => {
@@ -523,6 +566,27 @@ mod tests {
         let formatted = ProtocolFormatter::format_tool_response("123", &result);
         assert!(formatted.starts_with("a:"));
         assert!(formatted.contains("\"toolCallId\":\"123\""));
+
+        // Test error formatting
+        let formatted = ProtocolFormatter::format_error("Test error");
+        println!("Formatted error: {}", formatted);
+        assert!(formatted.starts_with("3:"));
+        assert!(formatted.contains("Test error"));
+
+        // Test moderation error formatting
+        let moderation_error = ModerationError::ContentFlagged {
+            categories: "hate, violence".to_string(),
+            category_scores: Some(json!({
+                "hate": 0.9,
+                "violence": 0.8
+            })),
+        };
+        let formatted = ProtocolFormatter::format_moderation_error(&moderation_error);
+        println!("{}", formatted);
+        assert!(formatted.starts_with("3:"));
+        assert!(
+            formatted.contains("Content was flagged by moderation in the following categories:")
+        );
 
         // Test finish formatting
         let formatted = ProtocolFormatter::format_finish("stop");

@@ -1,15 +1,17 @@
 use chrono::{DateTime, TimeZone, Utc};
+use mcp_client::McpService;
 use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use super::system::{SystemConfig, SystemError, SystemInfo, SystemResult};
 use crate::prompt_template::load_prompt_file;
 use crate::providers::base::{Provider, ProviderUsage};
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient};
+use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
 use mcp_core::{Content, Tool, ToolCall, ToolError, ToolResult};
 
@@ -20,7 +22,7 @@ static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
 
 /// Manages MCP clients and their interactions
 pub struct Capabilities {
-    clients: HashMap<String, Arc<Mutex<McpClient>>>,
+    clients: HashMap<String, Arc<Mutex<Box<dyn McpClientTrait>>>>,
     instructions: HashMap<String, String>,
     provider: Box<dyn Provider>,
     provider_usage: Mutex<Vec<ProviderUsage>>,
@@ -87,14 +89,22 @@ impl Capabilities {
     /// Add a new MCP system based on the provided client type
     // TODO IMPORTANT need to ensure this times out if the system command is broken!
     pub async fn add_system(&mut self, config: SystemConfig) -> SystemResult<()> {
-        let mut client: McpClient = match config {
-            SystemConfig::Sse { ref uri } => {
-                let transport = SseTransport::new(uri);
-                McpClient::new(transport.start().await?)
+        let mut client: Box<dyn McpClientTrait> = match config {
+            SystemConfig::Sse { ref uri, ref envs } => {
+                let transport = SseTransport::new(uri, envs.get_env());
+                let handle = transport.start().await?;
+                let service = McpService::with_timeout(handle, Duration::from_secs(10));
+                Box::new(McpClient::new(service))
             }
-            SystemConfig::Stdio { ref cmd, ref args } => {
-                let transport = StdioTransport::new(cmd, args.to_vec());
-                McpClient::new(transport.start().await?)
+            SystemConfig::Stdio {
+                ref cmd,
+                ref args,
+                ref envs,
+            } => {
+                let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
+                let handle = transport.start().await?;
+                let service = McpService::with_timeout(handle, Duration::from_secs(10));
+                Box::new(McpClient::new(service))
             }
         };
 
@@ -183,14 +193,23 @@ impl Capabilities {
         let mut tools = Vec::new();
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let client_tools = client_guard.list_tools().await?;
+            let mut client_tools = client_guard.list_tools(None).await?;
 
-            for tool in client_tools.tools {
-                tools.push(Tool::new(
-                    format!("{}__{}", name, tool.name),
-                    &tool.description,
-                    tool.input_schema,
-                ));
+            loop {
+                for tool in client_tools.tools {
+                    tools.push(Tool::new(
+                        format!("{}__{}", name, tool.name),
+                        &tool.description,
+                        tool.input_schema,
+                    ));
+                }
+
+                // exit loop when there are no more pages
+                if client_tools.next_cursor.is_none() {
+                    break;
+                }
+
+                client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
             }
         }
         Ok(tools)
@@ -202,7 +221,7 @@ impl Capabilities {
 
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let resources = client_guard.list_resources().await?;
+            let resources = client_guard.list_resources(None).await?;
 
             for resource in resources.resources {
                 // Skip reading the resource if it's not marked active
@@ -258,7 +277,10 @@ impl Capabilities {
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<Arc<Mutex<McpClient>>> {
+    fn get_client_for_tool(
+        &self,
+        prefixed_name: &str,
+    ) -> Option<Arc<Mutex<Box<dyn McpClientTrait>>>> {
         prefixed_name
             .split_once("__")
             .and_then(|(client_name, _)| self.clients.get(client_name))

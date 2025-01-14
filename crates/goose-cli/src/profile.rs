@@ -14,8 +14,6 @@ use std::path::PathBuf;
 pub struct Profile {
     pub provider: String,
     pub model: String,
-    #[serde(default)]
-    pub additional_systems: Vec<AdditionalSystem>,
     pub temperature: Option<f32>,
     pub context_limit: Option<usize>,
     pub max_tokens: Option<i32>,
@@ -25,12 +23,6 @@ pub struct Profile {
 #[derive(Serialize, Deserialize)]
 pub struct Profiles {
     pub profile_items: HashMap<String, Profile>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct AdditionalSystem {
-    pub name: String,
-    pub location: String,
 }
 
 pub fn profile_path() -> Result<PathBuf> {
