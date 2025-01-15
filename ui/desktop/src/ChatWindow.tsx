@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Message, useChat } from "./ai-sdk-fork/useChat";
 import { Route, Routes, Navigate } from "react-router-dom";
-import { getApiUrl, getSecretKey } from "./config";
+import { getApiUrl, getSecretKey, addMCP, addMCPSystem } from "./config";
 import BottomMenu from "./components/BottomMenu";
 import FlappyGoose from "./components/FlappyGoose";
 import GooseMessage from "./components/GooseMessage";
@@ -15,7 +15,6 @@ import { ScrollArea } from "./components/ui/scroll-area";
 import UserMessage from "./components/UserMessage";
 import WingToWing, { Working } from "./components/WingToWing";
 import { askAi } from "./utils/askAI";
-import mockKeychain from "./services/mockKeychain";
 import { ProviderSetupModal } from "./components/ProviderSetupModal";
 import {
   providers,
@@ -332,37 +331,6 @@ function ChatContent({
   );
 }
 
-// Function to send the system configuration to the server
-const addSystemConfig = async (system: string) => {
-  console.log("calling add system");
-  const systemConfig = {
-    type: "Stdio",
-    cmd: await window.electron.getBinaryPath("goosed"),
-    args: ["mcp", system],
-  };
-
-  try {
-    const response = await fetch(getApiUrl("/systems/add"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Secret-Key": getSecretKey(),
-      },
-      body: JSON.stringify(systemConfig),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to add system config for ${system}: ${response.statusText}`
-      );
-    }
-
-    console.log(`Successfully added system config for ${system}`);
-  } catch (error) {
-    console.log(`Error adding system config for ${system}:`, error);
-  }
-};
-
 export default function ChatWindow() {
   // Shared function to create a chat window
   const openNewChatWindow = () => {
@@ -377,7 +345,7 @@ export default function ChatWindow() {
         event.preventDefault(); // Prevent default browser behavior
         openNewChatWindow();
       }
-    };
+    };    
 
     // Add event listener
     window.addEventListener("keydown", handleKeyDown);
@@ -386,6 +354,14 @@ export default function ChatWindow() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
+  }, []);
+
+  useEffect(() => {
+    // Listen for add-system from main process for a goose:// deep link
+    window.electron.on('add-system', (_, link) => {
+      console.log('Received message for add-system:', link); 
+      addMCPSystem(link);
+    });
   }, []);
 
   // Get initial query and history from URL parameters
@@ -468,6 +444,10 @@ export default function ChatWindow() {
 
     return response;
   };
+
+  const addSystemConfig = async (system: string) => {
+    await addMCP("goosed", ["mcp", system]);
+  }
 
   const initializeSystem = async (provider: ProviderOption) => {
     try {

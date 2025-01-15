@@ -43,7 +43,7 @@ export const addMCPSystem = async (url: string) => {
   console.log("envs", envs);
 
   addMCP(system, args, envs);
-}
+};
 
 // add a MCP system
 export const addMCP = async (system: string, args: string[], envs?: Record<string, string>) => {
