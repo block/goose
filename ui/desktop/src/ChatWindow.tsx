@@ -1,60 +1,3 @@
-<<<<<<< HEAD
-import React, { useEffect, useRef, useState } from 'react';
-import { Message, useChat } from './ai-sdk-fork/useChat';
-
-import { Route, Routes, Navigate } from 'react-router-dom';
-import { getApiUrl, addMCP, addMCPSystem } from './config';
-import { ApiKeyWarning } from './components/ApiKeyWarning';
-import BottomMenu from './components/BottomMenu';
-import FlappyGoose from './components/FlappyGoose';
-import GooseMessage from './components/GooseMessage';
-import Input from './components/Input';
-import LoadingGoose from './components/LoadingGoose';
-import MoreMenu from './components/MoreMenu';
-import Settings from './components/settings/Settings';
-import Splash from './components/Splash';
-import { Card } from './components/ui/card';
-import { ScrollArea } from './components/ui/scroll-area';
-import UserMessage from './components/UserMessage';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import WingToWing, { Working } from './components/WingToWing';
-import { askAi } from './utils/askAI';
-
-// update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
-const CURRENT_VERSION = '0.0.0';
-
-// Get the last version from localStorage
-const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
-const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
-||||||| 5d4a4dc4
-import React, { useEffect, useRef, useState } from 'react';
-import { Message, useChat } from './ai-sdk-fork/useChat';
-
-import { Route, Routes, Navigate } from 'react-router-dom';
-import { getApiUrl, getSecretKey } from './config';
-import { ApiKeyWarning } from './components/ApiKeyWarning';
-import BottomMenu from './components/BottomMenu';
-import FlappyGoose from './components/FlappyGoose';
-import GooseMessage from './components/GooseMessage';
-import Input from './components/Input';
-import LoadingGoose from './components/LoadingGoose';
-import MoreMenu from './components/MoreMenu';
-import Settings from './components/settings/Settings';
-import Splash from './components/Splash';
-import { Card } from './components/ui/card';
-import { ScrollArea } from './components/ui/scroll-area';
-import UserMessage from './components/UserMessage';
-import { WelcomeScreen } from './components/WelcomeScreen';
-import WingToWing, { Working } from './components/WingToWing';
-import { askAi } from './utils/askAI';
-
-// update this when you want to show the welcome screen again - doesn't have to be an actual version, just anything woudln't have been seen before
-const CURRENT_VERSION = '0.0.0';
-
-// Get the last version from localStorage
-const getLastSeenVersion = () => localStorage.getItem('lastSeenVersion');
-const setLastSeenVersion = (version: string) => localStorage.setItem('lastSeenVersion', version);
-=======
 import React, { useEffect, useRef, useState } from "react";
 import { Message, useChat } from "./ai-sdk-fork/useChat";
 import { Route, Routes, Navigate } from "react-router-dom";
@@ -82,7 +25,6 @@ import {
   OPENAI_DEFAULT_MODEL,
   ANTHROPIC_DEFAULT_MODEL,
 } from "./utils/providerUtils";
->>>>>>> v1.0
 
 declare global {
   interface Window {
@@ -390,40 +332,6 @@ function ChatContent({
   );
 }
 
-<<<<<<< HEAD
-||||||| 5d4a4dc4
-// Function to send the system configuration to the server
-const addSystemConfig = async (system: string) => {
-  console.log("calling add system")
-  // Get the app instance from electron
-  const app = window.electron.app;
-  
-  const systemConfig = {
-    type: "Stdio",
-    cmd: await window.electron.getBinaryPath('goosed'),
-    args: ["mcp", system]
-  };
-
-  try {
-    const response = await fetch(getApiUrl('/systems/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify(systemConfig)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add system config for ${system}: ${response.statusText}`);
-    }
-
-    console.log(`Successfully added system config for ${system}`);
-  } catch (error) {
-    console.log(`Error adding system config for ${system}:`, error);
-  }
-};
-=======
 // Function to send the system configuration to the server
 const addSystemConfig = async (system: string) => {
   console.log("calling add system");
@@ -454,7 +362,6 @@ const addSystemConfig = async (system: string) => {
     console.log(`Error adding system config for ${system}:`, error);
   }
 };
->>>>>>> v1.0
 
 export default function ChatWindow() {
   // Shared function to create a chat window
@@ -515,26 +422,9 @@ export default function ChatWindow() {
     setMode(newMode);
   };
 
-<<<<<<< HEAD
-||||||| 5d4a4dc4
-  // Initialize system config when window loads
-=======
   window.electron.logInfo("ChatWindow loaded");
 
->>>>>>> v1.0
   useEffect(() => {
-<<<<<<< HEAD
-    // add boot up built in systems:
-    addMCP("goosed", ["mcp", "developer"]);
-
-    // Listen for add-system from main process (eg deep link)
-    window.electron.on('add-system', (_, link) => {
-      console.log('Received message for add-system:', link); 
-      addMCPSystem(link);
-    });
-||||||| 5d4a4dc4
-    addSystemConfig("developer");
-=======
     // Check if we already have a provider set
     const storedProvider = localStorage.getItem("GOOSE_PROVIDER");
 
@@ -543,7 +433,6 @@ export default function ChatWindow() {
     } else {
       setShowWelcomeModal(true);
     }
->>>>>>> v1.0
   }, []);
 
   const storeSecret = async (key: string, value: string) => {
