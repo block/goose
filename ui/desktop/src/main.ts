@@ -190,9 +190,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   windowMap.set(windowId, mainWindow);
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-  });
-
-  mainWindow.on('closed', () => {
     if (goosedProcess) {
       goosedProcess?.kill();
     }
@@ -213,6 +210,7 @@ const createTray = () => {
   const tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show Window', click: showWindow },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ]);
@@ -220,6 +218,40 @@ const createTray = () => {
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
 };
+
+const showWindow = () => {
+  const windows = BrowserWindow.getAllWindows();
+
+  if (windows.length === 0) {
+    log.info("No windows are currently open.");
+    return;
+  }
+
+  // Define the initial offset values
+  const initialOffsetX = 30;
+  const initialOffsetY = 30;
+
+  // Iterate over all windows
+  windows.forEach((win, index) => {
+    const currentBounds = win.getBounds();
+    const newX = currentBounds.x + initialOffsetX * index;
+    const newY = currentBounds.y + initialOffsetY * index;
+
+    win.setBounds({
+      x: newX,
+      y: newY,
+      width: currentBounds.width,
+      height: currentBounds.height,
+    });
+
+    if (!win.isVisible()) {
+      win.show();
+    }
+
+    win.focus();
+  });
+};
+
 
 const buildRecentFilesMenu = () => {
   const recentDirs = loadRecentDirs();
