@@ -453,6 +453,10 @@ export default function ChatWindow() {
     try {
       await addAgent(provider);
       await addSystemConfig("developer2");
+      // add system from deep link up front
+      if (window.appConfig.get('DEEP_LINK')) {
+        await addMCPSystem(window.appConfig.get('DEEP_LINK'));
+      }
     } catch (error) {
       console.error("Failed to initialize system:", error);
       throw error;

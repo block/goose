@@ -20,9 +20,7 @@ app.on('open-url', async (event, url) => {
   // Prevent default handling
   event.preventDefault();  
   // Create a new window if none exist
-  if (BrowserWindow.getAllWindows().length === 0) {
-    await createChat(app);
-  }
+  
 
   const parsedUrl = new URL(url);
   const system = parsedUrl.searchParams.get("cmd");
@@ -38,11 +36,12 @@ app.on('open-url', async (event, url) => {
     message: `Add extension to goose?`
   });
   if (result === 0) {
+    await createChat(app, undefined, undefined, undefined, url);
     // Add the system
     // Send message to all existing windows
-    BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('add-system', url);
-    });
+    //BrowserWindow.getAllWindows().forEach(window => {
+    //  window.webContents.send('add-system', url);
+    //});
   }
 
 })
@@ -138,7 +137,7 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string, version?: string) => {
+const createChat = async (app, query?: string, dir?: string, version?: string, deepLink?: string) => {
   const env = version ? { GOOSE_AGENT_VERSION: version } : {};
 
   // Apply current environment settings before creating chat
@@ -164,7 +163,8 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
         GOOSE_PORT: port,
         GOOSE_WORKING_DIR: working_dir,
         GOOSE_AGENT_VERSION: agentVersion,
-        REQUEST_DIR: dir 
+        REQUEST_DIR: dir,
+        DEEP_LINK: deepLink,
       })],
     },
   });
