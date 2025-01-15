@@ -50,10 +50,3 @@ where
             .service(McpService::new(transport))
     }
 }
-
-// Implement From<tower::timeout::error::Elapsed> for our Error type
-impl From<tower::timeout::error::Elapsed> for Error {
-    fn from(_: tower::timeout::error::Elapsed) -> Self {
-        Error::Timeout
-    }
-}

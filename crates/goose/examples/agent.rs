@@ -2,20 +2,14 @@ use dotenv::dotenv;
 use futures::StreamExt;
 use goose::agents::{AgentFactory, SystemConfig};
 use goose::message::Message;
-use goose::providers::configs::{DatabricksProviderConfig, ProviderConfig};
-use goose::providers::get_provider;
+use goose::providers::databricks::DatabricksProvider;
 
 #[tokio::main]
 async fn main() {
     // Setup a model provider from env vars
     let _ = dotenv();
-    let host =
-        std::env::var("DATABRICKS_HOST").expect("DATABRICKS_HOST environment variable is required");
-    let model = std::env::var("DATABRICKS_MODEL")
-        .expect("DATABRICKS_MODEL environment variable is required");
 
-    let config = ProviderConfig::Databricks(DatabricksProviderConfig::with_oauth(host, model));
-    let provider = get_provider(config).expect("should create provider");
+    let provider = Box::new(DatabricksProvider::from_env().expect("should create provider"));
 
     // Setup an agent with the developer system
     let mut agent = AgentFactory::create("default", provider).expect("default should exist");

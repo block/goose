@@ -2,10 +2,7 @@ use anyhow::Result;
 use dotenv::dotenv;
 use goose::{
     message::Message,
-    providers::{
-        configs::{DatabricksProviderConfig, ProviderConfig},
-        factory::get_provider,
-    },
+    providers::{base::Provider, databricks::DatabricksProvider},
 };
 
 #[tokio::main]
@@ -13,17 +10,11 @@ async fn main() -> Result<()> {
     // Load environment variables from .env file
     dotenv().ok();
 
-    // Get required environment variables
-    let host =
-        std::env::var("DATABRICKS_HOST").expect("DATABRICKS_HOST environment variable is required");
-    let model = std::env::var("DATABRICKS_MODEL")
-        .expect("DATABRICKS_MODEL environment variable is required");
-
-    // Create the Databricks provider configuration with OAuth
-    let config = ProviderConfig::Databricks(DatabricksProviderConfig::with_oauth(host, model));
+    // Clear any token to force OAuth
+    std::env::remove_var("DATABRICKS_TOKEN");
 
     // Create the provider
-    let provider = get_provider(config)?;
+    let provider = DatabricksProvider::from_env()?;
 
     // Create a simple message
     let message = Message::user().with_text("Tell me a short joke about programming.");

@@ -1,17 +1,9 @@
 use anyhow::Result;
 use dotenv::dotenv;
 use goose::message::{Message, MessageContent};
-use goose::providers::configs::OllamaProviderConfig;
-use goose::providers::ollama::{OLLAMA_HOST, OLLAMA_MODEL};
+use goose::providers::base::Provider;
+use goose::providers::{databricks, ollama, openai};
 use mcp_core::tool::Tool;
-
-use goose::providers::{
-    base::Provider,
-    configs::{
-        DatabricksAuth, DatabricksProviderConfig, ModelConfig, OpenAiProviderConfig, ProviderConfig,
-    },
-    factory::get_provider,
-};
 
 /// Generic test harness for any Provider implementation
 struct ProviderTester {
@@ -19,10 +11,10 @@ struct ProviderTester {
 }
 
 impl ProviderTester {
-    fn new(config: ProviderConfig) -> Result<Self> {
-        Ok(Self {
-            provider: get_provider(config)?,
-        })
+    fn new<T: Provider + Send + Sync + 'static>(provider: T) -> Self {
+        Self {
+            provider: Box::new(provider),
+        }
     }
 
     async fn test_basic_response(&self) -> Result<()> {
@@ -107,18 +99,13 @@ async fn test_openai_provider() -> Result<()> {
     load_env();
 
     // Skip if credentials aren't available
-    if std::env::var("OPENAI_API_KEY").is_err() || std::env::var("OPENAI_MODEL").is_err() {
+    if std::env::var("OPENAI_API_KEY").is_err() {
         println!("Skipping OpenAI tests - credentials not configured");
         return Ok(());
     }
 
-    let config = ProviderConfig::OpenAi(OpenAiProviderConfig {
-        host: "https://api.openai.com".to_string(),
-        api_key: std::env::var("OPENAI_API_KEY")?,
-        model: ModelConfig::new(std::env::var("OPENAI_MODEL")?),
-    });
-
-    let tester = ProviderTester::new(config)?;
+    let provider = openai::OpenAiProvider::from_env()?;
+    let tester = ProviderTester::new(provider);
     tester.run_test_suite().await?;
 
     Ok(())
@@ -129,22 +116,13 @@ async fn test_databricks_provider() -> Result<()> {
     load_env();
 
     // Skip if credentials aren't available
-    if std::env::var("DATABRICKS_HOST").is_err()
-        || std::env::var("DATABRICKS_TOKEN").is_err()
-        || std::env::var("DATABRICKS_MODEL").is_err()
-    {
+    if std::env::var("DATABRICKS_HOST").is_err() || std::env::var("DATABRICKS_TOKEN").is_err() {
         println!("Skipping Databricks tests - credentials not configured");
         return Ok(());
     }
 
-    let config = ProviderConfig::Databricks(DatabricksProviderConfig {
-        host: std::env::var("DATABRICKS_HOST")?,
-        model: ModelConfig::new(std::env::var("DATABRICKS_MODEL")?),
-        auth: DatabricksAuth::Token(std::env::var("DATABRICKS_TOKEN")?),
-        image_format: goose::providers::utils::ImageFormat::Anthropic,
-    });
-
-    let tester = ProviderTester::new(config)?;
+    let provider = databricks::DatabricksProvider::from_env()?;
+    let tester = ProviderTester::new(provider);
     tester.run_test_suite().await?;
 
     Ok(())
@@ -155,19 +133,15 @@ async fn test_databricks_provider_oauth() -> Result<()> {
     load_env();
 
     // Skip if credentials aren't available
-    if std::env::var("DATABRICKS_HOST").is_err() || std::env::var("DATABRICKS_MODEL").is_err() {
+    if std::env::var("DATABRICKS_HOST").is_err() {
         println!("Skipping Databricks OAuth tests - credentials not configured");
         return Ok(());
     }
 
-    let config = ProviderConfig::Databricks(DatabricksProviderConfig {
-        host: std::env::var("DATABRICKS_HOST")?,
-        model: ModelConfig::new(std::env::var("DATABRICKS_MODEL")?),
-        auth: DatabricksAuth::oauth(std::env::var("DATABRICKS_HOST")?),
-        image_format: goose::providers::utils::ImageFormat::Anthropic,
-    });
-
-    let tester = ProviderTester::new(config)?;
+    // Clear any token to force OAuth
+    std::env::remove_var("DATABRICKS_TOKEN");
+    let provider = databricks::DatabricksProvider::from_env()?;
+    let tester = ProviderTester::new(provider);
     tester.run_test_suite().await?;
 
     Ok(())
@@ -178,20 +152,8 @@ async fn test_databricks_provider_oauth() -> Result<()> {
 async fn test_ollama_provider() -> Result<()> {
     load_env();
 
-    // Skip if model isin't set (specified in ci)
-    if std::env::var("OLLAMA_MODEL").is_err() {
-        println!("Skipping Ollama tests - model not configured");
-        return Ok(());
-    }
-
-    let config = ProviderConfig::Ollama(OllamaProviderConfig {
-        host: std::env::var("OLLAMA_HOST").unwrap_or_else(|_| String::from(OLLAMA_HOST)),
-        model: ModelConfig::new(
-            std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| String::from(OLLAMA_MODEL)),
-        ),
-    });
-
-    let tester = ProviderTester::new(config)?;
+    let provider = ollama::OllamaProvider::from_env()?;
+    let tester = ProviderTester::new(provider);
     tester.run_test_suite().await?;
 
     Ok(())

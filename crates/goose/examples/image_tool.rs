@@ -3,10 +3,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use dotenv::dotenv;
 use goose::{
     message::Message,
-    providers::{
-        configs::{DatabricksProviderConfig, ModelConfig, OpenAiProviderConfig, ProviderConfig},
-        factory::get_provider,
-    },
+    providers::{databricks::DatabricksProvider, openai::OpenAiProvider},
 };
 use mcp_core::{
     content::Content,
@@ -20,27 +17,13 @@ async fn main() -> Result<()> {
     // Load environment variables from .env file
     dotenv().ok();
 
-    // Get required environment variables
-    let api_key =
-        std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY environment variable is required");
+    // Create providers
+    let providers: Vec<Box<dyn goose::providers::base::Provider + Send + Sync>> = vec![
+        Box::new(DatabricksProvider::from_env()?),
+        Box::new(OpenAiProvider::from_env()?),
+    ];
 
-    // Create the Databricks provider configuration with OAuth
-    let host =
-        std::env::var("DATABRICKS_HOST").expect("DATABRICKS_HOST environment variable is required");
-    let model = std::env::var("DATABRICKS_MODEL")
-        .expect("DATABRICKS_MODEL environment variable is required");
-
-    let config1 = ProviderConfig::Databricks(DatabricksProviderConfig::with_oauth(host, model));
-    let config2 = ProviderConfig::OpenAi(OpenAiProviderConfig {
-        host: "https://api.openai.com".into(),
-        api_key,
-        model: ModelConfig::new("gpt-4o".into()),
-    });
-
-    for config in [config1, config2] {
-        // Create the provider
-        let provider = get_provider(config)?;
-
+    for provider in providers {
         // Read and encode test image
         let image_data = fs::read("crates/goose/examples/test_assets/test_image.png")?;
         let base64_image = BASE64.encode(image_data);

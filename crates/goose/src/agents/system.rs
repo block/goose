@@ -11,6 +11,8 @@ pub enum SystemError {
     Initialization(SystemConfig),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
+    #[error("Messages exceeded context-limit and could not be truncated to fit.")]
+    ContextLimit,
     #[error("Transport error: {0}")]
     Transport(#[from] mcp_client::transport::Error),
 }

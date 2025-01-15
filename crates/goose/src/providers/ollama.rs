@@ -1,5 +1,5 @@
 use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
-use super::configs::{ModelConfig, OllamaProviderConfig, ProviderModelConfig};
+use super::configs::ModelConfig;
 use super::utils::{get_model, handle_response};
 use crate::message::Message;
 use crate::providers::openai_utils::{
@@ -15,36 +15,43 @@ use std::time::Duration;
 pub const OLLAMA_HOST: &str = "http://localhost:11434";
 pub const OLLAMA_MODEL: &str = "qwen2.5";
 
+#[derive(serde::Serialize)]
 pub struct OllamaProvider {
+    #[serde(skip)]
     client: Client,
-    config: OllamaProviderConfig,
+    host: String,
+    model: ModelConfig,
 }
 
 impl OllamaProvider {
-    pub fn new(config: OllamaProviderConfig) -> Result<Self> {
+    pub fn from_env() -> Result<Self> {
+        let host = std::env::var("OLLAMA_HOST").unwrap_or_else(|_| OLLAMA_HOST.to_string());
+        let model_name = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| OLLAMA_MODEL.to_string());
+
         let client = Client::builder()
-            .timeout(Duration::from_secs(600)) // 10 minutes timeout
+            .timeout(Duration::from_secs(600))
             .build()?;
 
-        Ok(Self { client, config })
+        Ok(Self {
+            client,
+            host,
+            model: ModelConfig::new(model_name),
+        })
     }
 
     async fn post(&self, payload: Value) -> Result<Value> {
-        let url = format!(
-            "{}/v1/chat/completions",
-            self.config.host.trim_end_matches('/')
-        );
+        let url = format!("{}/v1/chat/completions", self.host.trim_end_matches('/'));
 
         let response = self.client.post(&url).json(&payload).send().await?;
 
-        handle_response(payload, response).await?
+        handle_response(payload, response).await
     }
 }
 
 #[async_trait]
 impl Provider for OllamaProvider {
     fn get_model_config(&self) -> &ModelConfig {
-        self.config.model_config()
+        &self.model
     }
 
     #[tracing::instrument(
@@ -65,7 +72,7 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)> {
-        let payload = create_openai_request_payload(&self.config.model, system, messages, tools)?;
+        let payload = create_openai_request_payload(&self.model, system, messages, tools)?;
 
         let response = self.post(payload.clone()).await?;
 
@@ -74,7 +81,7 @@ impl Provider for OllamaProvider {
         let usage = self.get_usage(&response)?;
         let model = get_model(&response);
         let cost = None;
-        super::utils::emit_debug_trace(&self.config, &payload, &response, &usage, cost);
+        super::utils::emit_debug_trace(self, &payload, &response, &usage, cost);
         Ok((message, ProviderUsage::new(model, usage, cost)))
     }
 
@@ -104,13 +111,13 @@ mod tests {
 
     async fn _setup_mock_server(response_body: Value) -> (MockServer, OllamaProvider) {
         let mock_server = setup_mock_server("/v1/chat/completions", response_body).await;
-        // Create the OllamaProvider with the mock server's URL as the host
-        let config = OllamaProviderConfig {
+
+        let provider = OllamaProvider {
+            client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             model: ModelConfig::new(OLLAMA_MODEL.to_string()),
         };
 
-        let provider = OllamaProvider::new(config).unwrap();
         (mock_server, provider)
     }
 
@@ -211,22 +218,18 @@ mod tests {
     async fn test_server_error() -> Result<()> {
         let mock_server = setup_mock_server_with_response_code("/v1/chat/completions", 500).await;
 
-        let config = OllamaProviderConfig {
+        let provider = OllamaProvider {
+            client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             model: ModelConfig::new(OLLAMA_MODEL.to_string()),
         };
-
-        let provider = OllamaProvider::new(config)?;
         let messages = vec![Message::user().with_text("Hello?")];
         let result = provider
             .complete("You are a helpful assistant.", &messages, &[])
             .await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Server error: 500"));
+        assert!(result.unwrap_err().to_string().starts_with("Server error"));
 
         Ok(())
     }

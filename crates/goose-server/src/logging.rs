@@ -34,17 +34,21 @@ fn get_log_directory() -> Result<PathBuf> {
 /// - File-based logging with JSON formatting (DEBUG level)
 /// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
-pub fn setup_logging() -> Result<()> {
+pub fn setup_logging(name: Option<&str>) -> Result<()> {
     // Set up file appender for goose module logs
     let log_dir = get_log_directory()?;
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
+    // Create log file name by prefixing with timestamp
+    let log_filename = if name.is_some() {
+        format!("{}-{}.log", timestamp, name.unwrap())
+    } else {
+        format!("{}.log", timestamp)
+    };
+
     // Create non-rolling file appender for detailed logs
-    let file_appender = tracing_appender::rolling::RollingFileAppender::new(
-        Rotation::NEVER,
-        log_dir,
-        &format!("goosed_{}.log", timestamp),
-    );
+    let file_appender =
+        tracing_appender::rolling::RollingFileAppender::new(Rotation::NEVER, log_dir, log_filename);
 
     // Create JSON file logging layer
     let file_layer = fmt::layer()
@@ -67,7 +71,11 @@ pub fn setup_logging() -> Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         // Set default levels for different modules
         EnvFilter::new("")
-            // Set goose module to INFO only
+            // Set mcp-server module to DEBUG
+            .add_directive("mcp_server=debug".parse().unwrap())
+            // Set mcp-client to DEBUG
+            .add_directive("mcp_client=debug".parse().unwrap())
+            // Set goose module to DEBUG
             .add_directive("goose=debug".parse().unwrap())
             // Set goose-server to INFO
             .add_directive("goose_server=info".parse().unwrap())

@@ -12,6 +12,7 @@ schemars = "0.8"
 anyhow = "1.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 url = "2.5"
+base64 = "0.21"
 
 [dev-dependencies]
 tempfile = "3.8"

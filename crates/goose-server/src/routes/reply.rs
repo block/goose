@@ -162,7 +162,8 @@ impl ProtocolFormatter {
 
     fn format_error(error: &str) -> String {
         // Error messages start with "3:" in the new protocol.
-        format!("3:{}\n", error)
+        let encoded_error = serde_json::to_string(error).unwrap_or_else(|_| String::new());
+        format!("3:{}\n", encoded_error)
     }
 
     fn format_moderation_error(error: &ModerationError) -> String {
@@ -308,6 +309,17 @@ async fn handler(
     // Spawn task to handle streaming
     tokio::spawn(async move {
         let agent = agent.lock().await;
+        let agent = match agent.as_ref() {
+            Some(agent) => agent,
+            None => {
+                let _ = tx
+                    .send(ProtocolFormatter::format_error("No agent configured"))
+                    .await;
+                let _ = tx.send(ProtocolFormatter::format_finish("error")).await;
+                return;
+            }
+        };
+
         let mut stream = match agent.reply(&messages).await {
             Ok(stream) => stream,
             Err(e) => {
@@ -403,6 +415,7 @@ async fn ask_handler(
 
     let agent = state.agent.clone();
     let agent = agent.lock().await;
+    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
@@ -454,10 +467,8 @@ mod tests {
     use super::*;
     use goose::{
         agents::DefaultAgent as Agent,
-        providers::{
-            base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage},
-            configs::{ModelConfig, OpenAiProviderConfig},
-        },
+        providers::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage},
+        providers::configs::ModelConfig,
     };
     use mcp_core::tool::Tool;
 
@@ -597,7 +608,6 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
-        use goose::providers::configs::{ModelConfig, ProviderConfig};
         use std::sync::Arc;
         use tokio::sync::Mutex;
         use tower::ServiceExt;
@@ -612,14 +622,8 @@ mod tests {
             });
             let agent = Agent::new(mock_provider);
             let state = AppState {
-                agent: Arc::new(Mutex::new(Box::new(agent))),
-                provider_config: ProviderConfig::OpenAi(OpenAiProviderConfig {
-                    host: "https://api.openai.com".to_string(),
-                    api_key: "test-key".to_string(),
-                    model: ModelConfig::new("test-model".to_string()),
-                }),
+                agent: Arc::new(Mutex::new(Some(Box::new(agent)))),
                 secret_key: "test-secret".to_string(),
-                agent_version: "test-version".to_string(),
             };
 
             // Build router

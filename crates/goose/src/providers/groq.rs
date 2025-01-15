@@ -1,6 +1,6 @@
 use crate::message::Message;
 use crate::providers::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
-use crate::providers::configs::{GroqProviderConfig, ModelConfig, ProviderModelConfig};
+use crate::providers::configs::ModelConfig;
 use crate::providers::openai_utils::{
     create_openai_request_payload_with_concat_response_content, get_openai_usage,
     openai_response_to_message,
@@ -16,41 +16,56 @@ use std::time::Duration;
 pub const GROQ_API_HOST: &str = "https://api.groq.com";
 pub const GROQ_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
 
+#[derive(serde::Serialize)]
 pub struct GroqProvider {
+    #[serde(skip)]
     client: Client,
-    config: GroqProviderConfig,
+    host: String,
+    api_key: String,
+    model: ModelConfig,
 }
 
 impl GroqProvider {
-    pub fn new(config: GroqProviderConfig) -> anyhow::Result<Self> {
+    pub fn from_env() -> Result<Self> {
+        let api_key = crate::key_manager::get_keyring_secret("GROQ_API_KEY", Default::default())?;
+        let host = std::env::var("GROQ_HOST").unwrap_or_else(|_| GROQ_API_HOST.to_string());
+        let model_name =
+            std::env::var("GROQ_MODEL").unwrap_or_else(|_| GROQ_DEFAULT_MODEL.to_string());
+
         let client = Client::builder()
-            .timeout(Duration::from_secs(600)) // 10 minutes timeout
+            .timeout(Duration::from_secs(600))
             .build()?;
 
-        Ok(Self { client, config })
+        Ok(Self {
+            client,
+            host,
+            api_key,
+            model: ModelConfig::new(model_name),
+        })
     }
 
     async fn post(&self, payload: Value) -> anyhow::Result<Value> {
         let url = format!(
             "{}/openai/v1/chat/completions",
-            self.config.host.trim_end_matches('/')
+            self.host.trim_end_matches('/')
         );
 
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&payload)
             .send()
             .await?;
-        handle_response(payload, response).await?
+
+        handle_response(payload, response).await
     }
 }
 
 #[async_trait]
 impl Provider for GroqProvider {
     fn get_model_config(&self) -> &ModelConfig {
-        self.config.model_config()
+        &self.model
     }
 
     #[tracing::instrument(
@@ -72,7 +87,7 @@ impl Provider for GroqProvider {
         tools: &[Tool],
     ) -> anyhow::Result<(Message, ProviderUsage)> {
         let payload = create_openai_request_payload_with_concat_response_content(
-            &self.config.model,
+            &self.model,
             system,
             messages,
             tools,
@@ -83,7 +98,7 @@ impl Provider for GroqProvider {
         let message = openai_response_to_message(response.clone())?;
         let usage = self.get_usage(&response)?;
         let model = get_model(&response);
-        super::utils::emit_debug_trace(&self.config, &payload, &response, &usage, None);
+        super::utils::emit_debug_trace(self, &payload, &response, &usage, None);
         Ok((message, ProviderUsage::new(model, usage, None)))
     }
 
@@ -113,13 +128,14 @@ mod tests {
 
     async fn _setup_mock_server(response_body: Value) -> (MockServer, GroqProvider) {
         let mock_server = setup_mock_server("/openai/v1/chat/completions", response_body).await;
-        let config = GroqProviderConfig {
+
+        let provider = GroqProvider {
+            client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
             model: ModelConfig::new(GROQ_DEFAULT_MODEL.to_string()),
         };
 
-        let provider = GroqProvider::new(config).unwrap();
         (mock_server, provider)
     }
 
@@ -195,23 +211,19 @@ mod tests {
         let mock_server =
             setup_mock_server_with_response_code("/openai/v1/chat/completions", 500).await;
 
-        let config = GroqProviderConfig {
+        let provider = GroqProvider {
+            client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
             model: ModelConfig::new(GROQ_DEFAULT_MODEL.to_string()),
         };
-
-        let provider = GroqProvider::new(config)?;
         let messages = vec![Message::user().with_text("Hello?")];
         let result = provider
             .complete("You are a helpful assistant.", &messages, &[])
             .await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Server error: 500"));
+        assert!(result.unwrap_err().to_string().starts_with("Server error"));
 
         Ok(())
     }

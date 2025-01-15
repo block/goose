@@ -1,36 +1,19 @@
 use super::{
-    anthropic::AnthropicProvider, base::Provider, configs::ProviderConfig,
-    databricks::DatabricksProvider, google::GoogleProvider, groq::GroqProvider,
-    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    anthropic::AnthropicProvider, base::Provider, databricks::DatabricksProvider,
+    google::GoogleProvider, groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    openrouter::OpenRouterProvider,
 };
 use anyhow::Result;
-use strum_macros::EnumIter;
 
-#[derive(EnumIter, Debug)]
-pub enum ProviderType {
-    OpenAi,
-    Databricks,
-    Ollama,
-    Anthropic,
-    Google,
-    Groq,
-    OpenRouter,
-}
-
-pub fn get_provider(config: ProviderConfig) -> Result<Box<dyn Provider + Send + Sync>> {
-    match config {
-        ProviderConfig::OpenAi(openai_config) => Ok(Box::new(OpenAiProvider::new(openai_config)?)),
-        ProviderConfig::Databricks(databricks_config) => {
-            Ok(Box::new(DatabricksProvider::new(databricks_config)?))
-        }
-        ProviderConfig::Ollama(ollama_config) => Ok(Box::new(OllamaProvider::new(ollama_config)?)),
-        ProviderConfig::Anthropic(anthropic_config) => {
-            Ok(Box::new(AnthropicProvider::new(anthropic_config)?))
-        }
-        ProviderConfig::Google(google_config) => Ok(Box::new(GoogleProvider::new(google_config)?)),
-        ProviderConfig::Groq(groq_config) => Ok(Box::new(GroqProvider::new(groq_config)?)),
-        ProviderConfig::OpenRouter(openrouter_config) => {
-            Ok(Box::new(OpenRouterProvider::new(openrouter_config)?))
-        }
+pub fn get_provider(name: &str) -> Result<Box<dyn Provider + Send + Sync>> {
+    match name {
+        "openai" => Ok(Box::new(OpenAiProvider::from_env()?)),
+        "anthropic" => Ok(Box::new(AnthropicProvider::from_env()?)),
+        "databricks" => Ok(Box::new(DatabricksProvider::from_env()?)),
+        "groq" => Ok(Box::new(GroqProvider::from_env()?)),
+        "ollama" => Ok(Box::new(OllamaProvider::from_env()?)),
+        "openrouter" => Ok(Box::new(OpenRouterProvider::from_env()?)),
+        "google" => Ok(Box::new(GoogleProvider::from_env()?)),
+        _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }

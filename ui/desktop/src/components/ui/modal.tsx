@@ -1,15 +1,15 @@
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { Close } from "../icons";
 import { cn } from "../../utils";
 
-const Modal = DialogPrimitive.Root
+const Modal = DialogPrimitive.Root;
 
-const ModalTrigger = DialogPrimitive.Trigger
+const ModalTrigger = DialogPrimitive.Trigger;
 
-const ModalPortal = DialogPrimitive.Portal
+const ModalPortal = DialogPrimitive.Portal;
 
-const ModalClose = DialogPrimitive.Close
+const ModalClose = DialogPrimitive.Close;
 
 const ModalOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
@@ -17,14 +17,11 @@ const ModalOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-black/50",
-      className
-    )}
+    className={cn("fixed inset-0 z-50 bg-black/50", className)}
     {...props}
   />
-))
-ModalOverlay.displayName = "ModalOverlay"
+));
+ModalOverlay.displayName = "ModalOverlay";
 
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
@@ -42,13 +39,13 @@ const ModalContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
-        <X className="h-4 w-4" />
+        <Close className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </ModalPortal>
-))
-ModalContent.displayName = "ModalContent"
+));
+ModalContent.displayName = "ModalContent";
 
 const ModalHeader = ({
   className,
@@ -61,8 +58,8 @@ const ModalHeader = ({
     )}
     {...props}
   />
-)
-ModalHeader.displayName = "ModalHeader"
+);
+ModalHeader.displayName = "ModalHeader";
 
 const ModalFooter = ({
   className,
@@ -75,8 +72,8 @@ const ModalFooter = ({
     )}
     {...props}
   />
-)
-ModalFooter.displayName = "ModalFooter"
+);
+ModalFooter.displayName = "ModalFooter";
 
 const ModalTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
@@ -90,8 +87,8 @@ const ModalTitle = React.forwardRef<
     )}
     {...props}
   />
-))
-ModalTitle.displayName = "ModalTitle"
+));
+ModalTitle.displayName = "ModalTitle";
 
 const ModalDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
@@ -102,8 +99,8 @@ const ModalDescription = React.forwardRef<
     className={cn("text-sm text-muted-foreground", className)}
     {...props}
   />
-))
-ModalDescription.displayName = "ModalDescription"
+));
+ModalDescription.displayName = "ModalDescription";
 
 export {
   Modal,
@@ -116,4 +113,4 @@ export {
   ModalFooter,
   ModalTitle,
   ModalDescription,
-}
+};

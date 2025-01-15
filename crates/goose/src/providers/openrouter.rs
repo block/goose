@@ -4,11 +4,8 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::ProviderUsage;
-use super::base::{Moderation, ModerationResult};
-use super::base::{Provider, Usage};
-use super::configs::OpenAiProviderConfig;
-use super::configs::{ModelConfig, ProviderModelConfig};
+use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
+use super::configs::ModelConfig;
 use super::model_pricing::cost;
 use super::model_pricing::model_pricing_for;
 use super::utils::{emit_debug_trace, get_model, handle_response};
@@ -21,45 +18,61 @@ use mcp_core::tool::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
 
+#[derive(serde::Serialize)]
 pub struct OpenRouterProvider {
+    #[serde(skip)]
     client: Client,
-    config: OpenAiProviderConfig,
+    host: String,
+    api_key: String,
+    model: ModelConfig,
 }
 
 impl OpenRouterProvider {
-    pub fn new(config: OpenAiProviderConfig) -> Result<Self> {
+    pub fn from_env() -> Result<Self> {
+        let api_key =
+            crate::key_manager::get_keyring_secret("OPENROUTER_API_KEY", Default::default())?;
+        let host = std::env::var("OPENROUTER_HOST")
+            .unwrap_or_else(|_| "https://openrouter.ai".to_string());
+        let model_name = std::env::var("OPENROUTER_MODEL")
+            .unwrap_or_else(|_| OPENROUTER_DEFAULT_MODEL.to_string());
+
         let client = Client::builder()
-            .timeout(Duration::from_secs(600)) // 10 minutes timeout
+            .timeout(Duration::from_secs(600))
             .build()?;
 
-        Ok(Self { client, config })
+        Ok(Self {
+            client,
+            host,
+            api_key,
+            model: ModelConfig::new(model_name),
+        })
     }
 
     async fn post(&self, payload: Value) -> Result<Value> {
         let url = format!(
             "{}/api/v1/chat/completions",
-            self.config.host.trim_end_matches('/')
+            self.host.trim_end_matches('/')
         );
 
         let response = self
             .client
             .post(&url)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://github.com/block/goose")
             .header("X-Title", "Goose")
             .json(&payload)
             .send()
             .await?;
 
-        handle_response(payload, response).await?
+        handle_response(payload, response).await
     }
 }
 
 #[async_trait]
 impl Provider for OpenRouterProvider {
     fn get_model_config(&self) -> &ModelConfig {
-        self.config.model_config()
+        &self.model
     }
 
     #[tracing::instrument(
@@ -82,7 +95,7 @@ impl Provider for OpenRouterProvider {
     ) -> Result<(Message, ProviderUsage)> {
         // Create the base payload
         let payload = create_openai_request_payload_with_concat_response_content(
-            &self.config.model,
+            &self.model,
             system,
             messages,
             tools,
@@ -104,7 +117,7 @@ impl Provider for OpenRouterProvider {
         let usage = self.get_usage(&response)?;
         let model = get_model(&response);
         let cost = cost(&usage, &model_pricing_for(&model));
-        emit_debug_trace(&self.config, &payload, &response, &usage, cost);
+        emit_debug_trace(self, &payload, &response, &usage, cost);
         Ok((message, ProviderUsage::new(model, usage, cost)))
     }
 
@@ -136,14 +149,13 @@ mod tests {
     async fn _setup_mock_response(response_body: Value) -> (MockServer, OpenRouterProvider) {
         let mock_server = setup_mock_server("/api/v1/chat/completions", response_body).await;
 
-        // Create the OpenRouterProvider with the mock server's URL as the host
-        let config = OpenAiProviderConfig {
+        let provider = OpenRouterProvider {
+            client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
             model: ModelConfig::new("gpt-3.5-turbo".to_string()).with_temperature(Some(0.7)),
         };
 
-        let provider = OpenRouterProvider::new(config).unwrap();
         (mock_server, provider)
     }
 

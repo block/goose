@@ -1,5 +1,5 @@
 use super::base::Usage;
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result};
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rust_decimal::Decimal;
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tracing::debug;
 
+use crate::providers::errors::ProviderError;
 use mcp_core::content::ImageContent;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -35,19 +36,34 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-pub async fn handle_response(payload: Value, response: Response) -> Result<Result<Value>, Error> {
-    Ok(match response.status() {
-        StatusCode::OK => Ok(response.json().await?),
-        status if status == StatusCode::TOO_MANY_REQUESTS || status.as_u16() >= 500 => {
-            // Implement retry logic here if needed
-            Err(anyhow!("Server error: {}", status))
+// Maps a non-ok response status to a ProviderError
+pub async fn non_ok_response_to_provider_error(
+    payload: Value,
+    response: Response,
+) -> ProviderError {
+    match response.status() {
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}", response.status(), response.text().await.unwrap_or_default()))
         }
-        _ => Err(anyhow!(
-            "Request failed: {}\nPayload: {}",
-            response.status(),
-            payload
-        )),
-    })
+        StatusCode::TOO_MANY_REQUESTS => {
+            ProviderError::RateLimitExceeded(format!("Rate limit exceeded. Please retry after some time. Status: {}", response.status()))
+        }
+        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+            ProviderError::ServerError(format!("Server error occurred. Status: {}", response.status()))
+        }
+        _ => ProviderError::RequestFailed(format!("Request failed with status: {}. Payload: {}", response.status(), payload))
+    }
+}
+
+pub async fn handle_response(payload: Value, response: Response) -> Result<Value, Error> {
+    match response.status() {
+        StatusCode::OK => Ok(response.json().await?),
+        _ => {
+            let provider_error = non_ok_response_to_provider_error(payload, response).await;
+            Err(anyhow::anyhow!(provider_error.to_string()))
+        }
+    }
 }
 
 pub fn sanitize_function_name(name: &str) -> String {
@@ -60,17 +76,15 @@ pub fn is_valid_function_name(name: &str) -> bool {
     re.is_match(name)
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("Context length exceeded. Message: {0}")]
-pub struct ContextLengthExceededError(pub String);
-
-pub fn check_bedrock_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
+pub fn check_bedrock_context_length_error(error: &Value) -> Option<ProviderError> {
     let external_message = error
         .get("external_model_message")?
         .get("message")?
         .as_str()?;
     if external_message.to_lowercase().contains("too long") {
-        Some(ContextLengthExceededError(external_message.to_string()))
+        Some(ProviderError::ContextLengthExceeded(
+            external_message.to_string(),
+        ))
     } else {
         None
     }
@@ -175,7 +189,7 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(
             result.unwrap().to_string(),
-            "Context length exceeded. Message: Input is too long for requested model."
+            "Context length exceeded: Input is too long for requested model."
         );
 
         let error = json!({

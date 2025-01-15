@@ -4,6 +4,7 @@ mod default;
 mod factory;
 mod reference;
 mod system;
+mod truncate;
 
 pub use agent::Agent;
 pub use capabilities::Capabilities;

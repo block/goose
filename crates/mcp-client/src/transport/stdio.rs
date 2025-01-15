@@ -43,6 +43,11 @@ impl StdioActor {
                 } // EOF
                 Ok(_) => {
                     if let Ok(message) = serde_json::from_str::<JsonRpcMessage>(&line) {
+                        tracing::debug!(
+                            message = ?message,
+                            "Received incoming message"
+                        );
+
                         if let JsonRpcMessage::Response(response) = &message {
                             if let Some(id) = &response.id {
                                 pending_requests.respond(&id.to_string(), Ok(message)).await;
@@ -52,7 +57,7 @@ impl StdioActor {
                     line.clear();
                 }
                 Err(e) => {
-                    eprintln!("Error reading line: {}", e);
+                    tracing::error!(error = ?e, "Error reading line");
                     break;
                 }
             }
@@ -75,6 +80,8 @@ impl StdioActor {
                 }
             };
 
+            tracing::debug!(message = ?transport_msg.message, "Sending outgoing message");
+
             if let Some(response_tx) = transport_msg.response_tx {
                 if let JsonRpcMessage::Request(request) = &transport_msg.message {
                     if let Some(id) = &request.id {
@@ -87,13 +94,13 @@ impl StdioActor {
                 .write_all(format!("{}\n", message_str).as_bytes())
                 .await
             {
-                eprintln!("write_all failed: {:?}", e);
+                tracing::error!(error = ?e, "Error writing message to child process");
                 pending_requests.clear().await;
                 break;
             }
 
             if let Err(e) = stdin.flush().await {
-                eprintln!("flush failed: {:?}", e);
+                tracing::error!(error = ?e, "Error flushing message to child process");
                 pending_requests.clear().await;
                 break;
             }
@@ -143,17 +150,17 @@ impl StdioTransport {
             // 0 sets the process group ID equal to the process ID
             .process_group(0) // don't inherit signal handling from parent process
             .spawn()
-            .map_err(|e| Error::Other(e.to_string()))?;
+            .map_err(|e| Error::StdioProcessError(e.to_string()))?;
 
         let stdin = process
             .stdin
             .take()
-            .ok_or_else(|| Error::Other("Failed to get stdin".into()))?;
+            .ok_or_else(|| Error::StdioProcessError("Failed to get stdin".into()))?;
 
         let stdout = process
             .stdout
             .take()
-            .ok_or_else(|| Error::Other("Failed to get stdout".into()))?;
+            .ok_or_else(|| Error::StdioProcessError("Failed to get stdout".into()))?;
 
         Ok((process, stdin, stdout))
     }

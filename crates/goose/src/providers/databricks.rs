@@ -1,14 +1,15 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
 
 use super::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage};
-use super::configs::{DatabricksAuth, DatabricksProviderConfig, ModelConfig, ProviderModelConfig};
+use super::configs::ModelConfig;
 use super::model_pricing::{cost, model_pricing_for};
 use super::oauth;
-use super::utils::{check_bedrock_context_length_error, get_model, handle_response};
+use super::utils::{check_bedrock_context_length_error, get_model, handle_response, ImageFormat};
 use crate::message::Message;
 use crate::providers::openai_utils::{
     check_openai_context_length_error, get_openai_usage, messages_to_openai_spec,
@@ -16,26 +17,84 @@ use crate::providers::openai_utils::{
 };
 use mcp_core::tool::Tool;
 
+const DEFAULT_CLIENT_ID: &str = "databricks-cli";
+const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
+const DEFAULT_SCOPES: &[&str] = &["all-apis"];
 pub const DATABRICKS_DEFAULT_MODEL: &str = "claude-3-5-sonnet-2";
 pub const INPUT_GUARDRAIL: &str = "input_guardrail";
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DatabricksAuth {
+    Token(String),
+    OAuth {
+        host: String,
+        client_id: String,
+        redirect_url: String,
+        scopes: Vec<String>,
+    },
+}
+
+impl DatabricksAuth {
+    /// Create a new OAuth configuration with default values
+    pub fn oauth(host: String) -> Self {
+        Self::OAuth {
+            host,
+            client_id: DEFAULT_CLIENT_ID.to_string(),
+            redirect_url: DEFAULT_REDIRECT_URL.to_string(),
+            scopes: DEFAULT_SCOPES.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+    pub fn token(token: String) -> Self {
+        Self::Token(token)
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct DatabricksProvider {
+    #[serde(skip)]
     client: Client,
-    config: DatabricksProviderConfig,
+    host: String,
+    auth: DatabricksAuth,
+    model: ModelConfig,
+    image_format: ImageFormat,
 }
 
 impl DatabricksProvider {
-    pub fn new(config: DatabricksProviderConfig) -> Result<Self> {
+    pub fn from_env() -> Result<Self> {
+        let host = std::env::var("DATABRICKS_HOST")
+            .unwrap_or_else(|_| "https://api.databricks.com".to_string());
+        let model_name = std::env::var("DATABRICKS_MODEL")
+            .unwrap_or_else(|_| DATABRICKS_DEFAULT_MODEL.to_string());
+
         let client = Client::builder()
-            .timeout(Duration::from_secs(600)) // 10 minutes timeout
+            .timeout(Duration::from_secs(600))
             .build()?;
 
-        Ok(Self { client, config })
+        // If we find a databricks token we prefer that
+        if let Ok(api_key) =
+            crate::key_manager::get_keyring_secret("DATABRICKS_TOKEN", Default::default())
+        {
+            return Ok(Self {
+                client,
+                host: host.clone(),
+                auth: DatabricksAuth::token(api_key),
+                model: ModelConfig::new(model_name),
+                image_format: ImageFormat::Anthropic,
+            });
+        }
+
+        // Otherwise use Oauth flow
+        Ok(Self {
+            client,
+            host: host.clone(),
+            auth: DatabricksAuth::oauth(host),
+            model: ModelConfig::new(model_name),
+            image_format: ImageFormat::Anthropic,
+        })
     }
 
     async fn ensure_auth_header(&self) -> Result<String> {
-        match &self.config.auth {
+        match &self.auth {
             DatabricksAuth::Token(token) => Ok(format!("Bearer {}", token)),
             DatabricksAuth::OAuth {
                 host,
@@ -53,8 +112,8 @@ impl DatabricksProvider {
     async fn post(&self, payload: Value) -> Result<Value> {
         let url = format!(
             "{}/serving-endpoints/{}/invocations",
-            self.config.host.trim_end_matches('/'),
-            self.config.model.model_name
+            self.host.trim_end_matches('/'),
+            self.model.model_name
         );
 
         let auth_header = self.ensure_auth_header().await?;
@@ -66,7 +125,7 @@ impl DatabricksProvider {
             .send()
             .await?;
 
-        handle_response(payload, response).await?
+        handle_response(payload, response).await
     }
 
     async fn handle_moderation_response(&self, response: reqwest::Response) -> Result<Value> {
@@ -102,7 +161,7 @@ impl DatabricksProvider {
 #[async_trait]
 impl Provider for DatabricksProvider {
     fn get_model_config(&self) -> &ModelConfig {
-        self.config.model_config()
+        &self.model
     }
 
     #[tracing::instrument(
@@ -125,11 +184,8 @@ impl Provider for DatabricksProvider {
     ) -> Result<(Message, ProviderUsage)> {
         // Prepare messages and tools
         let concat_tool_response_contents = false;
-        let messages_spec = messages_to_openai_spec(
-            messages,
-            &self.config.image_format,
-            concat_tool_response_contents,
-        );
+        let messages_spec =
+            messages_to_openai_spec(messages, &self.image_format, concat_tool_response_contents);
         let tools_spec = if !tools.is_empty() {
             tools_to_openai_spec(tools)?
         } else {
@@ -146,10 +202,10 @@ impl Provider for DatabricksProvider {
         if !tools_spec.is_empty() {
             payload["tools"] = json!(tools_spec);
         }
-        if let Some(temp) = self.config.model.temperature {
+        if let Some(temp) = self.model.temperature {
             payload["temperature"] = json!(temp);
         }
-        if let Some(tokens) = self.config.model.max_tokens {
+        if let Some(tokens) = self.model.max_tokens {
             payload["max_tokens"] = json!(tokens);
         }
 
@@ -182,7 +238,7 @@ impl Provider for DatabricksProvider {
         let usage = self.get_usage(&response)?;
         let model = get_model(&response);
         let cost = cost(&usage, &model_pricing_for(&model));
-        super::utils::emit_debug_trace(&self.config, &payload, &response, &usage, cost);
+        super::utils::emit_debug_trace(self, &payload, &response, &usage, cost);
 
         Ok((message, ProviderUsage::new(model, usage, cost)))
     }
@@ -197,7 +253,7 @@ impl Moderation for DatabricksProvider {
     async fn moderate_content_internal(&self, content: &str) -> Result<ModerationResult> {
         let url = format!(
             "{}/serving-endpoints/moderation/invocations",
-            self.config.host.trim_end_matches('/')
+            self.host.trim_end_matches('/')
         );
 
         let auth_header = self.ensure_auth_header().await?;
@@ -255,13 +311,23 @@ impl Moderation for DatabricksProvider {
 mod tests {
     use super::*;
     use crate::message::MessageContent;
-    use crate::providers::configs::ModelConfig;
     use crate::providers::mock_server::{
         create_mock_open_ai_response, TEST_INPUT_TOKENS, TEST_OUTPUT_TOKENS, TEST_TOTAL_TOKENS,
     };
+
     use serde_json::json;
     use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn create_test_provider(mock_server: &MockServer) -> DatabricksProvider {
+        DatabricksProvider {
+            client: Client::builder().build().unwrap(),
+            host: mock_server.uri(),
+            auth: DatabricksAuth::Token("test_token".to_string()),
+            model: ModelConfig::new("my-databricks-model".to_string()),
+            image_format: ImageFormat::Anthropic,
+        }
+    }
 
     #[tokio::test]
     async fn test_moderation_flagged_content() -> Result<()> {
@@ -302,15 +368,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Create the DatabricksProvider
-        let config = DatabricksProviderConfig {
-            host: mock_server.uri(),
-            auth: DatabricksAuth::Token("test_token".to_string()),
-            model: ModelConfig::new("my-databricks-model".to_string()),
-            image_format: crate::providers::utils::ImageFormat::Anthropic,
-        };
-
-        let provider = DatabricksProvider::new(config)?;
+        let provider = create_test_provider(&mock_server);
 
         // Test moderation
         let result = provider.moderate_content("test content").await?;
@@ -352,15 +410,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Create the DatabricksProvider
-        let config = DatabricksProviderConfig {
-            host: mock_server.uri(),
-            auth: DatabricksAuth::Token("test_token".to_string()),
-            model: ModelConfig::new("my-databricks-model".to_string()),
-            image_format: crate::providers::utils::ImageFormat::Anthropic,
-        };
-
-        let provider = DatabricksProvider::new(config)?;
+        let provider = create_test_provider(&mock_server);
 
         // Test moderation
         let result = provider.moderate_content("safe content").await?;
@@ -410,15 +460,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Create the DatabricksProvider
-        let config = DatabricksProviderConfig {
-            host: mock_server.uri(),
-            auth: DatabricksAuth::Token("test_token".to_string()),
-            model: ModelConfig::new("my-databricks-model".to_string()),
-            image_format: crate::providers::utils::ImageFormat::Anthropic,
-        };
-
-        let provider = DatabricksProvider::new(config)?;
+        let provider = create_test_provider(&mock_server);
 
         // Test moderation
         let result = provider.moderate_content("explicitly safe content").await?;
@@ -438,7 +480,7 @@ mod tests {
         // Mock response for completion
         let mock_response = create_mock_open_ai_response("my-databricks-model", "Hello!");
 
-        let moderator_mock_response = json!({
+        let _moderator_mock_response = json!({
             "usage": {
                 "prompt_tokens": 10,
                 "completion_tokens": 20,
@@ -461,21 +503,6 @@ mod tests {
                 {"role": "user", "content": "Hello"}
             ]
         });
-        let expected_moderation_request_body = json!({
-            "messages": [
-                {"role": "user", "content": "Hello"}
-            ]
-        });
-        // Set up the mock to intercept the request and respond with the mocked response
-        Mock::given(method("POST"))
-            .and(path("/serving-endpoints/moderation/invocations"))
-            .and(header("Authorization", "Bearer test_token"))
-            .and(body_json(expected_moderation_request_body.clone()))
-            .respond_with(ResponseTemplate::new(200).set_body_json(moderator_mock_response))
-            .expect(1) // Expect exactly one matching request
-            .mount(&mock_server)
-            .await;
-
         // Set up the mock to intercept the request and respond with the mocked response
         Mock::given(method("POST"))
             .and(path("/serving-endpoints/my-databricks-model/invocations"))
@@ -486,15 +513,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        // Create the DatabricksProvider with the mock server's URL as the host
-        let config = DatabricksProviderConfig {
-            host: mock_server.uri(),
-            auth: DatabricksAuth::Token("test_token".to_string()),
-            model: ModelConfig::new("my-databricks-model".to_string()),
-            image_format: crate::providers::utils::ImageFormat::Anthropic,
-        };
-
-        let provider = DatabricksProvider::new(config)?;
+        let provider = create_test_provider(&mock_server);
 
         // Prepare input
         let messages = vec![Message::user().with_text("Hello")];

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
+pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 /// A generic error type for transport operations.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -13,41 +14,23 @@ pub enum Error {
     #[error("Transport was not connected or is already closed")]
     NotConnected,
 
-    #[error("Invalid URL provided")]
-    InvalidUrl,
-
-    #[error("Connection timeout")]
-    Timeout,
-
-    #[error("Failed to send message")]
-    SendFailed,
-
     #[error("Channel closed")]
     ChannelClosed,
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
-    #[error("HTTP error: {status} - {message}")]
-    HttpError { status: u16, message: String },
+    #[error("Unsupported message type. JsonRpcMessage can only be Request or Notification.")]
+    UnsupportedMessage,
+
+    #[error("Stdio process error: {0}")]
+    StdioProcessError(String),
 
     #[error("SSE connection error: {0}")]
     SseConnection(String),
 
-    #[error("Connection closed by server")]
-    ConnectionClosed,
-
-    #[error("Unexpected transport error: {0}")]
-    Other(String),
-
-    #[error("Box error: {0}")]
-    BoxError(Box<dyn std::error::Error + Send + Sync>),
-}
-
-impl From<Box<dyn std::error::Error + Send + Sync>> for Error {
-    fn from(err: Box<dyn std::error::Error + Send + Sync>) -> Self {
-        Error::BoxError(err)
-    }
+    #[error("HTTP error: {status} - {message}")]
+    HttpError { status: u16, message: String },
 }
 
 /// A message that can be sent through the transport
@@ -100,7 +83,7 @@ pub async fn send_message(
             sender.send(msg).await.map_err(|_| Error::ChannelClosed)?;
             Ok(JsonRpcMessage::Nil)
         }
-        _ => Err(Error::Other("Unsupported message type".to_string())),
+        _ => Err(Error::UnsupportedMessage),
     }
 }
 

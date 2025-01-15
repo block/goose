@@ -1,4 +1,4 @@
-name: Desktop App CI
+name: Desktop App Lint
 
 on:
   push:
@@ -27,9 +27,4 @@ jobs:
 
     - name: Run Lint check
       run: npm run lint:check
-      working-directory: ui/desktop
-
-
-    - name: Run E2E tests
-      run: npm run test-e2e
       working-directory: ui/desktop

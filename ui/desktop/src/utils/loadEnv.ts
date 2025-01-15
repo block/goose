@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import log from './logger';
+import fs from 'node:fs';
 
 export function loadZshEnv(isProduction: boolean = false): void {
   // Only proceed if running on macOS and in production mode
@@ -14,6 +15,13 @@ export function loadZshEnv(isProduction: boolean = false): void {
   try {
     // Execute zsh and source the zshrc file, then export all environment variables
     const zshrcPath = path.join(process.env.HOME || '', '.zshrc');
+
+    // if no file then return
+    if (!fs.existsSync(zshrcPath)) {
+      console.log('No zshrc file found');
+      return;
+    }
+
     const envStr = execSync(`/bin/zsh -c 'source ${zshrcPath} && env'`, {
       encoding: 'utf-8'
     });

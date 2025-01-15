@@ -6,7 +6,7 @@ use tracing::info;
 
 pub async fn run() -> Result<()> {
     // Initialize logging
-    crate::logging::setup_logging()?;
+    crate::logging::setup_logging(Some(&"goosed"))?;
 
     // Load configuration
     let settings = configuration::Settings::new()?;
@@ -15,13 +15,8 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    // Create app state
-    let state = state::AppState::new(
-        settings.provider.into_config(),
-        secret_key.clone(),
-        settings.agent_version,
-    )
-    .await?;
+    // Create app state - agent will start as None
+    let state = state::AppState::new(secret_key.clone()).await?;
 
     // Create router with CORS support
     let cors = CorsLayer::new()
@@ -32,7 +27,7 @@ pub async fn run() -> Result<()> {
     let app = crate::routes::configure(state).layer(cors);
 
     // Run server
-    let listener = tokio::net::TcpListener::bind(settings.server.socket_addr()).await?;
+    let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
     info!("listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
     Ok(())

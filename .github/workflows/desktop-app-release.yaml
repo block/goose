@@ -1,4 +1,4 @@
-name: Desktop App Release
+name: Desktop App Build
 
 on:
   push:
@@ -102,6 +102,51 @@ jobs:
       with:
         name: Goose-darwin-arm64
         path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
+
+    - name: Quick launch test (macOS)
+      run: |
+        # Ensure no quarantine attributes (if needed)
+        xattr -cr "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+
+
+        echo "Opening Goose.app..."
+        open -g "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+        
+        # Give the app a few seconds to start and write logs
+        sleep 5
+        
+        # Check if it's running
+        if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
+          echo "App appears to be running."
+        else
+          echo "App did not stay open. Possible crash or startup error."
+          exit 1
+        fi
+
+        LOGFILE="$HOME/Library/Application Support/Goose/logs/main.log"
+
+        # Print the log and verify "Starting goosed"
+        if [ -f "$LOGFILE" ]; then
+          echo "===== Log file contents ====="
+          cat "$LOGFILE"
+          echo "============================="
+
+          # Check for evidence it ran in the logs:
+          if grep -F "ChatWindow loaded" "$LOGFILE"; then
+            echo "Confirmed: 'Starting goosed' found in logs!"
+          else
+            echo "Did not find 'Starting goosed' in logs. Failing..."
+            exit 1
+          fi
+        else
+          echo "No log file found at $LOGFILE. Exiting with failure."
+          exit 1
+        fi
+
+        # Kill the app to clean up
+        pkill -f "Goose.app/Contents/MacOS/Goose"
+
+
 
   release:
     name: Release

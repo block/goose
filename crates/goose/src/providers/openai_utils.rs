@@ -1,9 +1,9 @@
 use crate::message::{Message, MessageContent};
 use crate::providers::base::Usage;
 use crate::providers::configs::ModelConfig;
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
-    convert_image, is_valid_function_name, sanitize_function_name, ContextLengthExceededError,
-    ImageFormat,
+    convert_image, is_valid_function_name, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use mcp_core::ToolError;
@@ -336,7 +336,7 @@ pub fn create_openai_request_payload_with_concat_response_content(
     )
 }
 
-pub fn check_openai_context_length_error(error: &Value) -> Option<ContextLengthExceededError> {
+pub fn check_openai_context_length_error(error: &Value) -> Option<ProviderError> {
     let code = error.get("code")?.as_str()?;
     if code == "context_length_exceeded" || code == "string_above_max_length" {
         let message = error
@@ -344,7 +344,7 @@ pub fn check_openai_context_length_error(error: &Value) -> Option<ContextLengthE
             .and_then(|m| m.as_str())
             .unwrap_or("Unknown error")
             .to_string();
-        Some(ContextLengthExceededError(message))
+        Some(ProviderError::ContextLengthExceeded(message))
     } else {
         None
     }
@@ -627,7 +627,7 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(
             result.unwrap().to_string(),
-            "Context length exceeded. Message: This message is too long"
+            "Context length exceeded: This message is too long"
         );
 
         let error = json!({

@@ -1,5 +1,5 @@
 use crate::profile::{
-    find_existing_profile, get_provider_config, profile_path, save_profile, Profile,
+    find_existing_profile, profile_path, save_profile, set_provider_env_vars, Profile,
 };
 use cliclack::spinner;
 use console::style;
@@ -112,11 +112,13 @@ pub async fn handle_configure(
         estimate_factor: None,
     };
 
+    // Set environment variables for provider configuration
+    set_provider_env_vars(&provider_name, &profile);
+
     // Confirm everything is configured correctly by calling a model!
-    let provider_config = get_provider_config(&provider_name, profile.clone());
     let spin = spinner();
     spin.start("Checking your configuration...");
-    let provider = factory::get_provider(provider_config).unwrap();
+    let provider = factory::get_provider(&provider_name).unwrap();
     let message = Message::user().with_text("Please give a nice welcome messsage (one sentence) and let them know they are all set to use this agent");
     let result = provider.complete("You are an AI agent called Goose. You use tools of connected systems to solve problems.", &[message], &[]).await;
 

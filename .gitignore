@@ -27,3 +27,5 @@ Cargo.lock
 # Hermit
 /.hermit/
 /bin/
+
+debug_*.txt

@@ -1,8 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import Send from './ui/Send';
-import Stop from './ui/Stop';
-import { Paperclip } from 'lucide-react';
+import React, { useRef, useState, useEffect } from "react";
+import { Button } from "./ui/button";
+import Stop from "./ui/Stop";
+import { Attach, Send } from "./icons";
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -23,9 +22,9 @@ export default function Input({
   handleSubmit,
   disabled = false,
   isLoading = false,
-  onStop
+  onStop,
 }: InputProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -34,7 +33,10 @@ export default function Input({
     }
   }, [disabled, value]);
 
-  const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
+  const useAutosizeTextArea = (
+    textAreaRef: HTMLTextAreaElement | null,
+    value: string
+  ) => {
     useEffect(() => {
       if (textAreaRef) {
         textAreaRef.style.height = "0px"; // Reset height
@@ -55,11 +57,11 @@ export default function Input({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (evt.key === 'Enter' && !evt.shiftKey) {
+    if (evt.key === "Enter" && !evt.shiftKey) {
       evt.preventDefault();
       if (value.trim()) {
-        handleSubmit(new CustomEvent('submit', { detail: { value } }));
-        setValue('');
+        handleSubmit(new CustomEvent("submit", { detail: { value } }));
+        setValue("");
       }
     }
   };
@@ -67,8 +69,8 @@ export default function Input({
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim()) {
-      handleSubmit(new CustomEvent('submit', { detail: { value } }));
-      setValue('');
+      handleSubmit(new CustomEvent("submit", { detail: { value } }));
+      setValue("");
     }
   };
 
@@ -81,7 +83,10 @@ export default function Input({
   };
 
   return (
-    <form onSubmit={onFormSubmit} className="flex relative h-auto px-[16px] pr-[68px] py-[1rem]">
+    <form
+      onSubmit={onFormSubmit}
+      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem]"
+    >
       <textarea
         autoFocus
         id="dynamic-textarea"
@@ -95,10 +100,10 @@ export default function Input({
         style={{
           minHeight: `${minHeight}px`,
           maxHeight: `${maxHeight}px`,
-          overflowY: 'auto'
+          overflowY: "auto",
         }}
         className={`w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-14 resize-none ${
-          disabled ? 'cursor-not-allowed opacity-50' : ''
+          disabled ? "cursor-not-allowed opacity-50" : ""
         }`}
       />
       <Button
@@ -107,11 +112,11 @@ export default function Input({
         variant="ghost"
         onClick={handleFileSelect}
         disabled={disabled}
-        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-          disabled ? 'opacity-50 cursor-not-allowed' : ''
+        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 [&_svg]:size-5 ${
+          disabled ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
-        <Paperclip size={20} />
+        <Attach />
       </Button>
       {isLoading ? (
         <Button
@@ -119,7 +124,7 @@ export default function Input({
           size="icon"
           variant="ghost"
           onClick={onStop}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-100 dark:bg-indigo-800 dark:text-indigo-200 text-indigo-600 hover:opacity-50"
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-100 dark:bg-indigo-800 dark:text-indigo-200 text-indigo-600 hover:opacity-50 [&_svg]:size-5"
         >
           <Stop size={24} />
         </Button>
@@ -129,11 +134,11 @@ export default function Input({
           size="icon"
           variant="ghost"
           disabled={disabled || !value.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-            disabled || !value.trim() ? 'opacity-50 cursor-not-allowed' : ''
+          className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 [&_svg]:size-5 ${
+            disabled || !value.trim() ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
-          <Send size={24} />
+          <Send />
         </Button>
       )}
     </form>

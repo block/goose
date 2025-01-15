@@ -1,5 +1,6 @@
 mod lang;
 mod process_store;
+mod prompts;
 
 use anyhow::Result;
 use base64::Engine;
@@ -17,7 +18,8 @@ use tokio::process::Command;
 use url::Url;
 
 use mcp_core::{
-    handler::{ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ToolError},
+    prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
@@ -35,6 +37,7 @@ use xcap::{Monitor, Window};
 
 pub struct DeveloperRouter {
     tools: Vec<Tool>,
+    prompts: Vec<Prompt>,
     // The cwd, active_resources, and file_history are shared across threads
     // so we need to use an Arc to ensure thread safety
     cwd: Arc<Mutex<PathBuf>>,
@@ -162,6 +165,8 @@ impl DeveloperRouter {
             }),
         );
 
+        let prompts = prompts::create_prompts();
+
         let instructions = formatdoc! {r#"
             The developer system is loaded in the directory listed below.
             You can use the shell tool to run any command that would work on the relevant operating system.
@@ -206,6 +211,7 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
             ],
+            prompts: prompts,
             cwd: Arc::new(Mutex::new(cwd)),
             active_resources: Arc::new(Mutex::new(resources)),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -616,7 +622,7 @@ impl DeveloperRouter {
             windows.into_iter().map(|w| w.title().to_string()).collect();
 
         Ok(vec![
-            Content::text("The following windows are available.")
+            Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
                 .with_audience(vec![Role::Assistant]),
             Content::text(format!("Available windows:\n{}", window_titles.join("\n")))
                 .with_audience(vec![Role::User])
@@ -779,6 +785,7 @@ impl Router for DeveloperRouter {
     fn capabilities(&self) -> ServerCapabilities {
         CapabilitiesBuilder::new()
             .with_tools(false)
+            .with_prompts(false)
             .with_resources(false, false)
             .build()
     }
@@ -831,12 +838,59 @@ impl Router for DeveloperRouter {
             }
         })
     }
+
+    fn list_prompts(&self) -> Option<Vec<Prompt>> {
+        Some(self.prompts.clone())
+    }
+
+    fn get_prompt(
+        &self,
+        prompt_name: &str,
+    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+        // Validate prompt name is not empty
+        if prompt_name.trim().is_empty() {
+            return Some(Box::pin(async move {
+                Err(PromptError::InvalidParameters(
+                    "Prompt name cannot be empty".to_string(),
+                ))
+            }));
+        }
+
+        let prompt_name = prompt_name.to_string();
+        let prompts = self.prompts.clone();
+
+        Some(Box::pin(async move {
+            // Check if prompts list is empty
+            if prompts.is_empty() {
+                return Err(PromptError::InternalError(
+                    "No prompts available".to_string(),
+                ));
+            }
+
+            // Find the prompt with matching name
+            if let Some(prompt) = prompts.iter().find(|p| p.name == prompt_name) {
+                // Validate description is not empty
+                if prompt.description.trim().is_empty() {
+                    return Err(PromptError::InternalError(format!(
+                        "Prompt '{}' has an empty description",
+                        prompt_name
+                    )));
+                }
+                return Ok(prompt.description.to_string());
+            }
+            Err(PromptError::NotFound(format!(
+                "Prompt '{}' not found",
+                prompt_name
+            )))
+        }))
+    }
 }
 
 impl Clone for DeveloperRouter {
     fn clone(&self) -> Self {
         Self {
             tools: self.tools.clone(),
+            prompts: self.prompts.clone(),
             cwd: Arc::clone(&self.cwd),
             active_resources: Arc::clone(&self.active_resources),
             file_history: Arc::clone(&self.file_history),

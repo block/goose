@@ -2,6 +2,7 @@ pub mod anthropic;
 pub mod base;
 pub mod configs;
 pub mod databricks;
+pub mod errors;
 pub mod factory;
 pub mod mock;
 pub mod model_pricing;

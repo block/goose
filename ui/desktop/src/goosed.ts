@@ -22,7 +22,7 @@ export const findAvailablePort = (): Promise<number> => {
 // Function to fetch agent version from the server
 const fetchAgentVersion = async (port: number): Promise<string> => {
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/agent/versions`);
+    const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -59,21 +59,12 @@ const checkServerStatus = async (port: number, maxAttempts: number = 60, interva
 };
 
 export const startGoosed = async (app, dir=null, env={}): Promise<[number, string, string]> => {
-  // In will use this later to determine if we should start process
-  const isDev = process.env.NODE_ENV === 'development';
-
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   if (!dir) {
     dir = homeDir;
   }
   
-  // Skip starting goosed if configured in dev mode
-  if (isDev && !app.isPackaged && process.env.VITE_START_EMBEDDED_SERVER === 'no') {
-    log.info('Skipping starting goosed in development mode');
-    return [3000, dir, 'dev'];
-  }
-
   // Get the goosed binary path using the shared utility
   const goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
@@ -90,7 +81,7 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
     USERPROFILE: homeDir,
 
     // start with the port specified 
-    GOOSE_SERVER__PORT: String(port),
+    GOOSE_PORT: String(port),
 
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
     

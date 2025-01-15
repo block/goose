@@ -27,6 +27,16 @@ pub enum ResourceError {
     NotFound(String),
 }
 
+#[derive(Error, Debug)]
+pub enum PromptError {
+    #[error("Invalid parameters: {0}")]
+    InvalidParameters(String),
+    #[error("Internal error: {0}")]
+    InternalError(String),
+    #[error("Prompt not found: {0}")]
+    NotFound(String),
+}
+
 /// Trait for implementing MCP tools
 #[async_trait]
 pub trait ToolHandler: Send + Sync + 'static {

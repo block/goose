@@ -53,7 +53,7 @@ pub struct ImageContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddedResource {
-    resource: ResourceContents,
+    pub resource: ResourceContents,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annotations: Option<Annotations>,
 }
