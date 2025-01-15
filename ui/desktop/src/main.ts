@@ -159,14 +159,31 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     );
   }
 
-  // DevTools
-  globalShortcut.register('Alt+Command+I', () => {
-    mainWindow.webContents.openDevTools();
+  // DevTools shortcut management
+  const registerDevToolsShortcut = (window: BrowserWindow) => {
+    globalShortcut.register('Alt+Command+I', () => {
+      window.webContents.openDevTools();
+    });
+  };
+
+  const unregisterDevToolsShortcut = () => {
+    globalShortcut.unregister('Alt+Command+I');
+  };
+
+  // Register shortcut when window is focused
+  mainWindow.on('focus', () => {
+    registerDevToolsShortcut(mainWindow);
+  });
+
+  // Unregister shortcut when window loses focus
+  mainWindow.on('blur', () => {
+    unregisterDevToolsShortcut();
   });
 
   windowMap.set(windowId, mainWindow);
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+    unregisterDevToolsShortcut();
   });
 };
 
