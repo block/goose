@@ -10,7 +10,6 @@
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "bundle:preconfigured": "./bundle.py && npm run make && echo 'resetting main' && git checkout src/main.ts && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
     "bundle:default": "npm run make && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "electron-forge start > /tmp/out.txt & ELECTRON_PID=$! && sleep 12 && if grep -q 'renderer: ChatWindow loaded' /tmp/out.txt; then echo 'process is running'; pkill -f electron; else echo 'not starting correctly'; cat /tmp/out.txt; pkill -f electron; exit 1; fi",
