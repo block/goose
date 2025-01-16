@@ -61,7 +61,11 @@ mod tests {
     fn test_session_logging() {
         run_with_tmp_dir(|| {
             let home_dir = dirs::home_dir().unwrap();
-            let log_file = home_dir.join(".config").join("goose").join("logs").join("goose.log");
+            let log_file = home_dir
+                .join(".config")
+                .join("goose")
+                .join("logs")
+                .join("goose.log");
 
             log_usage(
                 "path.txt".to_string(),
