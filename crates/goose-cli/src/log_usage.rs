@@ -61,7 +61,7 @@ mod tests {
     fn test_session_logging() {
         run_with_tmp_dir(|| {
             let home_dir = dirs::home_dir().unwrap();
-            let log_dir = home_dir.join(".config").join("goose").join("logs");
+            let log_file = home_dir.join(".config").join("goose").join("logs").join("goose.log");
 
             log_usage(
                 "path.txt".to_string(),
@@ -73,12 +73,10 @@ mod tests {
             );
 
             // Check if log file exists and contains the expected content
-            let log_file = log_dir.join("goose.log");
-            assert!(log_file.exists());
+            assert!(log_file.exists(), "Log file should exist");
 
             let log_content = std::fs::read_to_string(&log_file).unwrap();
-            let log: SessionLog =
-                serde_json::from_str(log_content.lines().last().unwrap()).unwrap();
+            let log: SessionLog = serde_json::from_str(&log_content).unwrap();
 
             assert!(log.session_file.contains("path.txt"));
             assert_eq!(log.usage[0].usage.input_tokens, Some(10));
@@ -86,6 +84,9 @@ mod tests {
             assert_eq!(log.usage[0].usage.total_tokens, Some(30));
             assert_eq!(log.usage[0].model, "model");
             assert_eq!(log.usage[0].cost, Some(dec!(0.5)));
+
+            // Remove the log file after test
+            std::fs::remove_file(&log_file).ok();
         })
     }
 }
