@@ -1,7 +1,6 @@
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
-use tokio::runtime::Handle;
 
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
