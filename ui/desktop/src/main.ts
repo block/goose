@@ -30,18 +30,18 @@ app.on('open-url', async (event, url) => {
   
   const result = dialog.showMessageBoxSync({
     type: 'question',
-    buttons: ['Yes', 'No'],
+    buttons: ['Add to new session', 'Add to any current sessions','Cancel'],
     title: 'Add MCP system',
     detail: `${description} ${website} ${system} ${args}`.trim(),
     message: `Add extension to goose?`
   });
+
   if (result === 0) {
     await createChat(app, undefined, undefined, undefined, url);
-    // Add the system
-    // Send message to all existing windows
-    //BrowserWindow.getAllWindows().forEach(window => {
-    //  window.webContents.send('add-system', url);
-    //});
+  } else if (result === 1) {
+    BrowserWindow.getAllWindows().forEach(window => {
+      window.webContents.send('add-system', url);
+    });
   }
 
 })
