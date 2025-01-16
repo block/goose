@@ -1,6 +1,7 @@
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
+use tokio::runtime::Handle;
 
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
@@ -186,10 +187,10 @@ impl GoogleDriveRouter {
             .list()
             .q(format!("name contains '{}'", query).as_str())
             .order_by("viewedByMeTime desc")
+            .param("fields", "files(id, name, mimeType, modifiedTime, size)")
+            .page_size(10)
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
-            .page_size(10)
-            .param("fields", "files(id, name, mimeType, modifiedTime, size)")
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
             .add_scope(Scope::Readonly)
             .doit()
@@ -203,8 +204,8 @@ impl GoogleDriveRouter {
             Ok(r) => {
                 let content =
                     r.1.files
-                        .map(|fs| {
-                            fs.into_iter().map(|f| {
+                        .map(|files| {
+                            files.into_iter().map(|f| {
                                 format!(
                                     "{} ({}) (uri: {})",
                                     f.name.unwrap_or_default(),
@@ -391,6 +392,67 @@ impl GoogleDriveRouter {
             self.get_google_file(&drive_uri, include_images).await
         }
     }
+
+    async fn read_google_resource(&self, uri: String) -> Result<String, ResourceError> {
+        self.read(json!({"uri": uri}))
+            .await
+            .map_err(|e| ResourceError::ExecutionError(e.to_string()))
+            .map(|contents| {
+                contents
+                    .into_iter()
+                    .map(|content| content.as_text().unwrap_or_default().to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+    }
+
+    async fn list_google_resources(&self, params: Value) -> Vec<Resource> {
+        let next_page_token = params.get("cursor").and_then(|q| q.as_str());
+
+        let mut query = self
+            .drive
+            .files()
+            .list()
+            .order_by("viewedByMeTime desc")
+            .page_size(10)
+            .param("fields", "nextPageToken, files(id, name, mimeType)")
+            .supports_all_drives(true)
+            .include_items_from_all_drives(true)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(Scope::Readonly);
+
+        // add a next token if we have one
+        if let Some(token) = next_page_token {
+            query = query.page_token(token)
+        }
+
+        let result = query.doit().await;
+
+        match result {
+            Err(_) => {
+                //Err(ResourceError::ExecutionError(format!(
+                //    "Failed to execute google drive list query, {}.",
+                //    e,
+                //)));
+                vec![]
+            }
+            Ok(r) => {
+                r.1.files
+                    .map(|files| {
+                        files.into_iter().map(|f| Resource {
+                            uri: f.id.unwrap_or_default(),
+                            mime_type: f.mime_type.unwrap_or_default(),
+                            name: f.name.unwrap_or_default(),
+                            description: None,
+                            annotations: None,
+                        })
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+            }
+        }
+    }
 }
 
 impl Router for GoogleDriveRouter {
@@ -405,7 +467,7 @@ impl Router for GoogleDriveRouter {
     fn capabilities(&self) -> ServerCapabilities {
         CapabilitiesBuilder::new()
             .with_tools(false)
-            //.with_resources(false, false)
+            .with_resources(false, false)
             .build()
     }
 
@@ -430,16 +492,19 @@ impl Router for GoogleDriveRouter {
     }
 
     fn list_resources(&self) -> Vec<Resource> {
-        //TODO: implement
-        Vec::new()
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(async { self.list_google_resources(json!({})).await })
+        })
     }
 
     fn read_resource(
         &self,
-        _uri: &str,
+        uri: &str,
     ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        //TODO: implement
-        Box::pin(async move { Ok("".to_string()) })
+        let this = self.clone();
+        let uri_clone = uri.to_string();
+        Box::pin(async move { this.read_google_resource(uri_clone).await })
     }
 }
 
