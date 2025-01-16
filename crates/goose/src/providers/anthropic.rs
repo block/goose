@@ -62,10 +62,11 @@ impl AnthropicProvider {
             }
         }
 
-        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions, 
+        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
         // will be cached as a single prefix.
         if let Some(last_tool) = tool_specs.last_mut() {
-            last_tool.as_object_mut()
+            last_tool
+                .as_object_mut()
                 .unwrap()
                 .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
         }
@@ -150,11 +151,11 @@ impl AnthropicProvider {
                     "text": "Ignore"
                 }]
             }));
-        } 
+        }
 
         // Add "cache_control" to the last and second-to-last "user" messages.
-        // During each turn, we mark the final message with cache_control so the conversation can be 
-        // incrementally cached. The second-to-last user message is also marked for caching with the 
+        // During each turn, we mark the final message with cache_control so the conversation can be
+        // incrementally cached. The second-to-last user message is also marked for caching with the
         // cache_control parameter, so that this checkpoint can read from the previous cache.
         let mut user_count = 0;
         for message in anthropic_messages.iter_mut().rev() {
@@ -162,10 +163,10 @@ impl AnthropicProvider {
                 if let Some(content) = message.get_mut("content") {
                     if let Some(content_array) = content.as_array_mut() {
                         if let Some(last_content) = content_array.last_mut() {
-                            last_content
-                                .as_object_mut()
-                                .unwrap()
-                                .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+                            last_content.as_object_mut().unwrap().insert(
+                                "cache_control".to_string(),
+                                json!({ "type": "ephemeral" }),
+                            );
                         }
                     }
                 }
