@@ -138,9 +138,13 @@ impl Prompt for RustylinePrompt {
     }
 
     fn load_user_message_history(&mut self, messages: Vec<Message>) {
+        if !messages.is_empty() {
+            println!("\nPrevious prompts for resuming session:");
+        }
         for message in messages.into_iter().filter(|m| m.role == Role::User) {
             for content in message.content {
                 if let Some(text) = content.as_text() {
+                    println!("> {}", text);
                     if let Err(e) = self.editor.add_history_entry(text) {
                         eprintln!("Failed to add to history: {}", e);
                     }
