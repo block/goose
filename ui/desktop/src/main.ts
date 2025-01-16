@@ -88,7 +88,6 @@ let appConfig = {
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
-  GOOSE_AGENT_VERSION: '',
   secretKey: generateSecretKey(),
 };
 
@@ -143,7 +142,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
-  const [port, working_dir, agentVersion] = await startGoosed(app, dir);
+  const [port, working_dir, goosedProcess] = await startGoosed(app, dir);
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: 'hidden',
@@ -162,7 +161,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
         ...appConfig, 
         GOOSE_PORT: port,
         GOOSE_WORKING_DIR: working_dir,
-        GOOSE_AGENT_VERSION: agentVersion,
         REQUEST_DIR: dir,
         DEEP_LINK: deepLink,
       })],
@@ -236,7 +234,10 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
     unregisterDevToolsShortcut();
+    goosedProcess.kill();
   });
+
+  
 };
 
 const createTray = () => {

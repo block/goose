@@ -3,6 +3,8 @@ import { createServer } from 'net';
 import os from 'node:os';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
+import { ChildProcessByStdio } from 'node:child_process';
+import { Readable } from 'node:stream';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
@@ -19,20 +21,6 @@ export const findAvailablePort = (): Promise<number> => {
   });
 };
 
-// Function to fetch agent version from the server
-const fetchAgentVersion = async (port: number): Promise<string> => {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data.current_version;
-  } catch (error) {
-    log.error('Failed to fetch agent version:', error);
-    return 'unknown';
-  }
-};
 
 // Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
@@ -58,7 +46,7 @@ const checkServerStatus = async (port: number, maxAttempts: number = 60, interva
   return false;
 };
 
-export const startGoosed = async (app, dir=null, env={}): Promise<[number, string, string]> => {
+export const startGoosed = async (app, dir=null, env={}): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   if (!dir) {
@@ -128,10 +116,7 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
     goosedProcess.kill();
   });
 
-  // Wait for the server to start and fetch the agent version
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Give the server time to start
-  const agentVersion = await fetchAgentVersion(port);
 
   log.info(`Goosed server successfully started on port ${port}`);
-  return [port, dir, agentVersion];
+  return [port, dir, goosedProcess];
 };
