@@ -161,8 +161,8 @@ impl AnthropicProvider {
             if message.get("role") == Some(&json!("user")) {
                 if let Some(content) = message.get_mut("content") {
                     if let Some(content_array) = content.as_array_mut() {
-                        for content_item in content_array {
-                            content_item
+                        if let Some(last_content) = content_array.last_mut() {
+                            last_content
                                 .as_object_mut()
                                 .unwrap()
                                 .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
