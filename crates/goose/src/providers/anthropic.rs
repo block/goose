@@ -62,7 +62,24 @@ impl AnthropicProvider {
             }
         }
 
+        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
+        // will be cached as a single prefix.
+        if let Some(last_tool) = tool_specs.last_mut() {
+            last_tool
+                .as_object_mut()
+                .unwrap()
+                .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+        }
+
         tool_specs
+    }
+
+    fn system_to_anthropic_spec(system: &str) -> Value {
+        json!([{
+            "type": "text",
+            "text": system,
+            "cache_control": { "type": "ephemeral" }
+        }])
     }
 
     fn messages_to_anthropic_spec(messages: &[Message]) -> Vec<Value> {
@@ -134,6 +151,30 @@ impl AnthropicProvider {
                     "text": "Ignore"
                 }]
             }));
+        }
+
+        // Add "cache_control" to the last and second-to-last "user" messages.
+        // During each turn, we mark the final message with cache_control so the conversation can be
+        // incrementally cached. The second-to-last user message is also marked for caching with the
+        // cache_control parameter, so that this checkpoint can read from the previous cache.
+        let mut user_count = 0;
+        for message in anthropic_messages.iter_mut().rev() {
+            if message.get("role") == Some(&json!("user")) {
+                if let Some(content) = message.get_mut("content") {
+                    if let Some(content_array) = content.as_array_mut() {
+                        if let Some(last_content) = content_array.last_mut() {
+                            last_content.as_object_mut().unwrap().insert(
+                                "cache_control".to_string(),
+                                json!({ "type": "ephemeral" }),
+                            );
+                        }
+                    }
+                }
+                user_count += 1;
+                if user_count >= 2 {
+                    break;
+                }
+            }
         }
 
         anthropic_messages
@@ -225,6 +266,7 @@ impl Provider for AnthropicProvider {
     ) -> Result<(Message, ProviderUsage)> {
         let anthropic_messages = Self::messages_to_anthropic_spec(messages);
         let tool_specs = Self::tools_to_anthropic_spec(tools);
+        let system_spec = Self::system_to_anthropic_spec(system);
 
         // Check if we have any messages to send
         if anthropic_messages.is_empty() {
@@ -242,7 +284,7 @@ impl Provider for AnthropicProvider {
             payload
                 .as_object_mut()
                 .unwrap()
-                .insert("system".to_string(), json!(system));
+                .insert("system".to_string(), json!(system_spec));
         }
 
         // Add tools if present
@@ -348,7 +390,9 @@ mod tests {
             "stop_sequence": null,
             "usage": {
                 "input_tokens": 12,
-                "output_tokens": 15
+                "output_tokens": 15,
+                "cache_creation_input_tokens": 12,
+                "cache_read_input_tokens": 0
             }
         });
 
@@ -394,7 +438,9 @@ mod tests {
             "stop_sequence": null,
             "usage": {
                 "input_tokens": 15,
-                "output_tokens": 20
+                "output_tokens": 20,
+                "cache_creation_input_tokens": 15,
+                "cache_read_input_tokens": 0,
             }
         });
 
