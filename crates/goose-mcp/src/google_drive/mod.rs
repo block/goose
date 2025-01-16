@@ -76,8 +76,11 @@ impl GoogleDriveRouter {
         let credentials_path_str = env::var("GOOGLE_DRIVE_CREDENTIALS_PATH")
             .unwrap_or_else(|_| "./gdrive-server-credentials.json".to_string());
 
-        let keyfile_path = Path::new(&keyfile_path_str);
-        let credentials_path = Path::new(&credentials_path_str);
+        let expanded_keyfile = shellexpand::tilde(keyfile_path_str.as_str());
+        let keyfile_path = Path::new(expanded_keyfile.as_ref());
+
+        let expanded_credentials = shellexpand::tilde(credentials_path_str.as_str());
+        let credentials_path = Path::new(expanded_credentials.as_ref());
 
         tracing::info!(
             credentials_path = credentials_path_str,
