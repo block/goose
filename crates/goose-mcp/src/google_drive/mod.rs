@@ -17,7 +17,7 @@ use mcp_core::content::Content;
 
 use google_drive3::{
     self,
-    api::{ File, Scope},
+    api::{File, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
     yup_oauth2::{
@@ -28,14 +28,14 @@ use google_drive3::{
     DriveHub,
 };
 
-use http_body_util::{BodyExt};
+use http_body_util::BodyExt;
 
 /// async function to be pinned by the `present_user_url` method of the trait
 /// we use the existing `DefaultInstalledFlowDelegate::present_user_url` method as a fallback for
 /// when the browser did not open for example, the user still see's the URL.
 async fn browser_user_url(url: &str, need_code: bool) -> Result<String, String> {
-    if webbrowser::open(url).is_ok() {
-        println!("webbrowser was successfully opened.");
+    if webbrowser::open(url).is_err() {
+        println!("Please open this URL in your browser:\n{}", url);
     }
     let def_delegate = DefaultInstalledFlowDelegate;
     def_delegate.present_user_url(url, need_code).await
@@ -102,15 +102,6 @@ impl GoogleDriveRouter {
         .build()
         .await
         .expect("expected successful authentication");
-
-        //let scopes = &["https://www.googleapis.com/auth/drive.readonly"];
-
-        //// token(<scopes>) is the one important function of this crate; it does everything to
-        //// obtain a token that can be sent e.g. as Bearer token.
-        //// ignore success case, handle errors
-        //if let Err(e) = auth.token(scopes).await {
-        //    eprintln!("Unable to successfully authenticate: {}", e);
-        //}
 
         let client =
             hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
