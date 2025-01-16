@@ -34,7 +34,9 @@ use http_body_util::BodyExt;
 /// we use the existing `DefaultInstalledFlowDelegate::present_user_url` method as a fallback for
 /// when the browser did not open for example, the user still see's the URL.
 async fn browser_user_url(url: &str, need_code: bool) -> Result<String, String> {
-    if webbrowser::open(url).is_err() {
+    tracing::info!(oauth_url = url, "Attempting OAuth login flow");
+    if let Err(e) = webbrowser::open(url) {
+        tracing::debug!(oauth_url = url, error = ?e, "Failed to open OAuth flow");
         println!("Please open this URL in your browser:\n{}", url);
     }
     let def_delegate = DefaultInstalledFlowDelegate;
@@ -77,8 +79,17 @@ impl GoogleDriveRouter {
         let keyfile_path = Path::new(&keyfile_path_str);
         let credentials_path = Path::new(&credentials_path_str);
 
+        tracing::info!(
+            credentials_path = credentials_path_str,
+            keyfile_path = keyfile_path_str,
+            "Google Drive MCP server authentication config paths"
+        );
+
         if !keyfile_path.exists() && oauth_config.is_ok() {
-            // TODO: add tracing
+            tracing::debug!(
+                oauth_config = ?oauth_config,
+                "Google Drive MCP server OAuth config"
+            );
             // attempt to create the path
             if let Some(parent_dir) = keyfile_path.parent() {
                 let _ = fs::create_dir_all(parent_dir);
@@ -162,9 +173,60 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let instructions = indoc::formatdoc! {r#"
+            Google Drive MCP Server Instructions
+
+            ## Overview
+            The Google Drive MCP server provides two main tools for interacting with Google Drive files:
+            1. search - Find files in your Google Drive
+            2. read - Read file contents directly using a uri in the `gdrive:///uri` format
+
+            ## Available Tools
+
+            ### 1. Search Tool
+            Search for files in Google Drive, by name and ordered by most recently viewedByMeTime.
+            Returns: List of files with their names, MIME types, and IDs
+
+            ### 2. Read File Tool
+            Read a file's contents using its ID, and optionally include images as base64 encoded data.
+            The default is to exclude images, to include images set includeImages to true in the query.
+
+            Images take up a large amount of context, this should only be used if a
+            user explicity needs the image data.
+
+            ## File Format Handling
+            The server automatically handles different file types:
+            - Google Docs → Markdown
+            - Google Sheets → CSV
+            - Google Presentations → Plain text
+            - Google Drawings → PNG
+            - Text/JSON files → UTF-8 text
+            - Binary files → Base64 encoded
+
+            ## Common Usage Pattern
+
+            1. First, search for the file you want to read, searching by name.
+            2. Then, use the file URI from the search results to read its contents.
+
+            ## Best Practices
+            1. Always use search first to find the correct file URI
+            2. Search results include file types (MIME types) to help identify the right file
+            3. Search is limited to 10 results per query, so use specific search terms
+            4. The server has read-only access to Google Drive
+
+            ## Error Handling
+            If you encounter errors:
+            1. Verify the file URI is correct
+            2. Ensure you have access to the file
+            3. Check if the file format is supported
+            4. Verify the server is properly configured
+
+            Remember: Always use the tools in sequence - search first to get the file URI, then read to access the contents.
+        "#};
+
         Self {
             tools: vec![search_tool, read_tool],
-            instructions: "".to_string(),
+            instructions,
             drive,
         }
     }
@@ -226,7 +288,7 @@ impl GoogleDriveRouter {
     async fn fetch_file_metadata(&self, uri: &str) -> Result<File, ToolError> {
         self.drive
             .files()
-            .get(&uri)
+            .get(uri)
             .param("fields", "mimeType")
             .supports_all_drives(true)
             .clear_scopes()
@@ -265,7 +327,7 @@ impl GoogleDriveRouter {
         let result = self
             .drive
             .files()
-            .export(&uri, export_mime_type)
+            .export(uri, export_mime_type)
             .param("alt", "media")
             .clear_scopes()
             .add_scope(Scope::Readonly)
@@ -312,7 +374,7 @@ impl GoogleDriveRouter {
         let result = self
             .drive
             .files()
-            .get(&uri)
+            .get(uri)
             .param("alt", "media")
             .clear_scopes()
             .add_scope(Scope::Readonly)
