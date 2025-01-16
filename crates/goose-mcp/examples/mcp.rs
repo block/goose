@@ -1,6 +1,6 @@
 // An example script to run an MCP server
 use anyhow::Result;
-use goose_mcp::DeveloperRouter;
+use goose_mcp::{DeveloperRouter, MemoryRouter};
 use mcp_server::router::RouterService;
 use mcp_server::{ByteTransport, Server};
 use tokio::io::{stdin, stdout};
@@ -10,7 +10,7 @@ use tracing_subscriber::{self, EnvFilter};
 #[tokio::main]
 async fn main() -> Result<()> {
     // Set up file appender for logging
-    let file_appender = RollingFileAppender::new(Rotation::DAILY, "logs", "mcp-server.log");
+    let file_appender = RollingFileAppender::new(Rotation::DAILY, "logs", "goose-mcp-example.log");
 
     // Initialize the tracing subscriber with file and stdout logging
     tracing_subscriber::fmt()
@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     tracing::info!("Starting MCP server");
 
     // Create an instance of our counter router
-    let router = RouterService(DeveloperRouter::new());
+    let router = RouterService(MemoryRouter::new());
 
     // Create and run the server
     let server = Server::new(router);
