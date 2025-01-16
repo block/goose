@@ -197,12 +197,14 @@ impl GoogleDriveRouter {
             Images take up a large amount of context, this should only be used if a
             user explicity needs the image data.
 
+            Limitations: Google Sheets exporting only supports reading the first sheet. This is an important limitation that should
+            be communicated to the user whenever dealing with a Google Sheet (mimeType: application/vnd.google-apps.spreadsheet).
+
             ## File Format Handling
             The server automatically handles different file types:
             - Google Docs → Markdown
             - Google Sheets → CSV
             - Google Presentations → Plain text
-            - Google Drawings → PNG
             - Text/JSON files → UTF-8 text
             - Binary files → Base64 encoded
 
