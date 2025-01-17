@@ -1,19 +1,39 @@
 use console::style;
 use goose::agents::AgentFactory;
-use goose::agents::SystemConfig;
 use goose::providers::factory;
 use rand::{distributions::Alphanumeric, Rng};
 use std::path::{Path, PathBuf};
 use std::process;
 
-use crate::profile::{load_profiles, set_provider_env_vars, Profile};
+use crate::config::Config;
 use crate::prompt::rustyline::RustylinePrompt;
 use crate::prompt::Prompt;
 use crate::session::{ensure_session_dir, get_most_recent_session, Session};
 
+/// Get the provider and model to use, following priority:
+/// 1. CLI arguments
+/// 2. Environment variables
+/// 3. Config file
+fn get_provider_and_model(
+    cli_provider: Option<String>,
+    cli_model: Option<String>,
+    config: &Config,
+) -> (String, String) {
+    let provider = cli_provider
+        .or_else(|| std::env::var("GOOSE_PROVIDER").ok())
+        .unwrap_or_else(|| config.default_provider.clone());
+
+    let model = cli_model
+        .or_else(|| std::env::var("GOOSE_MODEL").ok())
+        .unwrap_or_else(|| config.default_model.clone());
+
+    (provider, model)
+}
+
 pub async fn build_session<'a>(
     session: Option<String>,
-    profile: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
     agent_version: Option<String>,
     resume: bool,
 ) -> Box<Session<'a>> {
@@ -41,34 +61,34 @@ pub async fn build_session<'a>(
         );
     }
 
-    let loaded_profile = load_profile(profile);
+    let config_path = Config::config_path().expect("should identify default config path");
 
-    // Set environment variables for provider configuration
-    set_provider_env_vars(&loaded_profile.provider, &loaded_profile);
+    if !config_path.exists() {
+        println!("No configuration found. Please run 'goose configure' first.");
+        process::exit(1);
+    }
 
-    let provider = factory::get_provider(&loaded_profile.provider).unwrap();
+    let config = Config::load().unwrap_or_else(|_| {
+        println!("The loaded configuration from {} was invalid", config_path.display());
+        println!(" please edit the file to make it valid or consider deleting and recreating it via `goose configure`");
+        process::exit(1);
+    });
+
+    let (provider_name, model_name) = get_provider_and_model(provider, model, &config);
+    let provider = factory::get_provider(&provider_name).unwrap();
 
     let mut agent =
         AgentFactory::create(agent_version.as_deref().unwrap_or("default"), provider).unwrap();
 
-    // We now add systems to the session based on configuration
-    // TODO update the profile system tracking
-    // TODO use systems from the profile
-    // TODO once the client/server for MCP has stabilized, we should probably add InProcess transport to each
-    //      and avoid spawning here. But it is at least included in the CLI for portability
-
-    let system = std::env::var("GOOSE_SYSTEM").unwrap_or("developer2".to_string());
-    let config = SystemConfig::stdio(
-        std::env::current_exe()
-            .expect("should find the current executable")
-            .to_str()
-            .expect("should resolve executable to string path"),
-    )
-    .with_args(vec!["mcp", &system]);
-    agent
-        .add_system(config)
-        .await
-        .expect("should start developer server");
+    // Add configured systems
+    for (name, _) in config.systems.iter() {
+        if let Some(system_config) = config.get_system_config(name) {
+            agent
+                .add_system(system_config.clone())
+                .await
+                .expect(&format!("Failed to start system: {}", name));
+        }
+    }
 
     let prompt = match std::env::var("GOOSE_INPUT") {
         Ok(val) => match val.as_str() {
@@ -78,12 +98,7 @@ pub async fn build_session<'a>(
         Err(_) => Box::new(RustylinePrompt::new()),
     };
 
-    display_session_info(
-        resume,
-        loaded_profile.provider,
-        loaded_profile.model,
-        session_file.as_path(),
-    );
+    display_session_info(resume, provider_name, model_name, session_file.as_path());
     Box::new(Session::new(agent, prompt, session_file))
 }
 
@@ -132,36 +147,6 @@ fn generate_new_session_path(session_dir: &Path) -> PathBuf {
             );
         }
     }
-}
-
-fn load_profile(profile_name: Option<String>) -> Box<Profile> {
-    let configure_profile_message = "Please create a profile first via goose configure.";
-    let profiles = load_profiles().unwrap();
-    let loaded_profile = if profiles.is_empty() {
-        println!("No profiles found. {}", configure_profile_message);
-        process::exit(1);
-    } else {
-        match profile_name {
-            Some(name) => match profiles.get(name.as_str()) {
-                Some(profile) => Box::new(profile.clone()),
-                None => {
-                    println!(
-                        "Profile '{}' not found. {}",
-                        name, configure_profile_message
-                    );
-                    process::exit(1);
-                }
-            },
-            None => match profiles.get("default") {
-                Some(profile) => Box::new(profile.clone()),
-                None => {
-                    println!("No 'default' profile found. {}", configure_profile_message);
-                    process::exit(1);
-                }
-            },
-        }
-    };
-    loaded_profile
 }
 
 fn display_session_info(resume: bool, provider: String, model: String, session_file: &Path) {

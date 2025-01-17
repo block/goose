@@ -1,11 +1,11 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use goose::agents::AgentFactory;
 
 mod commands;
+mod config;
 mod log_usage;
 mod logging;
-mod profile;
 mod prompt;
 mod session;
 
@@ -14,8 +14,9 @@ use commands::configure::handle_configure;
 use commands::mcp::run_server;
 use commands::session::build_session;
 use commands::version::print_version;
+use config::Config;
+use console::style;
 use logging::setup_logging;
-use profile::has_no_profiles;
 use std::io::{self, Read};
 
 #[cfg(test)]
@@ -33,18 +34,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Configure Goose settings and profiles
-    #[command(about = "Configure Goose settings and profiles")]
+    /// Configure Goose settings
+    #[command(about = "Configure Goose settings")]
     Configure {
-        /// Name of the profile to configure
-        #[arg(
-            short('n'),
-            long,
-            help = "Profile name to configure",
-            long_help = "Create or modify a named configuration profile. Use 'default' for the default profile."
-        )]
-        profile_name: Option<String>,
-
         /// AI Provider to use
         #[arg(
             short,
@@ -59,7 +51,7 @@ enum Command {
             short,
             long,
             help = "Model to use (e.g., 'gpt-4', 'llama2')",
-            long_help = "Specify which model to use for this profile."
+            long_help = "Specify which model to use."
         )]
         model: Option<String>,
     },
@@ -81,15 +73,23 @@ enum Command {
         )]
         name: Option<String>,
 
-        /// Configuration profile to use
+        /// Provider to use (overrides config)
         #[arg(
             short,
             long,
-            value_name = "PROFILE",
-            help = "Configuration profile to use (e.g., 'default')",
-            long_help = "Use a specific configuration profile. Profiles contain settings like API keys and model preferences."
+            help = "Provider to use (e.g., 'openai', 'anthropic')",
+            long_help = "Override the default provider from config"
         )]
-        profile: Option<String>,
+        provider: Option<String>,
+
+        /// Model to use (overrides config)
+        #[arg(
+            short,
+            long,
+            help = "Model to use (e.g., 'gpt-4', 'claude-3')",
+            long_help = "Override the default model from config"
+        )]
+        model: Option<String>,
 
         /// Agent version to use (e.g., 'default', 'v1')
         #[arg(
@@ -123,16 +123,6 @@ enum Command {
         )]
         instructions: Option<String>,
 
-        /// Configuration profile to use
-        #[arg(
-            short,
-            long,
-            value_name = "PROFILE",
-            help = "Configuration profile to use (e.g., 'default')",
-            long_help = "Use a specific configuration profile. Profiles contain settings like API keys and model preferences."
-        )]
-        profile: Option<String>,
-
         /// Input text containing commands
         #[arg(
             short = 't',
@@ -142,6 +132,24 @@ enum Command {
             long_help = "Input text containing commands for Goose. Use this in lieu of the instructions argument."
         )]
         input_text: Option<String>,
+
+        /// Provider to use (overrides config)
+        #[arg(
+            short,
+            long,
+            help = "Provider to use (e.g., 'openai', 'anthropic')",
+            long_help = "Override the default provider from config"
+        )]
+        provider: Option<String>,
+
+        /// Model to use (overrides config)
+        #[arg(
+            short,
+            long,
+            help = "Model to use (e.g., 'gpt-4', 'claude-3')",
+            long_help = "Override the default model from config"
+        )]
+        model: Option<String>,
 
         /// Name for this run session
         #[arg(
@@ -194,12 +202,8 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
-        Some(Command::Configure {
-            profile_name,
-            provider,
-            model,
-        }) => {
-            let _ = handle_configure(profile_name, provider, model).await;
+        Some(Command::Configure { provider, model }) => {
+            let _ = handle_configure(provider, model).await;
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
@@ -207,7 +211,8 @@ async fn main() -> Result<()> {
         }
         Some(Command::Session {
             name,
-            profile,
+            provider,
+            model,
             agent,
             resume,
         }) => {
@@ -226,7 +231,7 @@ async fn main() -> Result<()> {
                 }
             }
 
-            let mut session = build_session(name, profile, agent, resume).await;
+            let mut session = build_session(name, provider, model, agent, resume).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
 
             let _ = session.start().await;
@@ -235,7 +240,8 @@ async fn main() -> Result<()> {
         Some(Command::Run {
             instructions,
             input_text,
-            profile,
+            provider,
+            model,
             name,
             agent,
             resume,
@@ -267,7 +273,7 @@ async fn main() -> Result<()> {
                     .expect("Failed to read from stdin");
                 stdin
             };
-            let mut session = build_session(name, profile, agent, resume).await;
+            let mut session = build_session(name, provider, model, agent, resume).await;
             let _ = session.headless_start(contents.clone()).await;
             return Ok(());
         }
@@ -276,9 +282,14 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         None => {
-            println!("No command provided - Run 'goose help' to see available commands.");
-            if has_no_profiles().unwrap_or(false) {
-                println!("\nRun 'goose configure' to setup goose for the first time.");
+            Cli::command().print_help()?;
+            println!();
+            if Config::load().is_err() {
+                println!(
+                    "\n  {}: Run '{}' to setup goose for the first time",
+                    style("Tip").green().italic(),
+                    style("goose configure").cyan()
+                );
             }
         }
     }

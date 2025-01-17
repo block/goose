@@ -106,6 +106,22 @@ impl Capabilities {
                 let service = McpService::with_timeout(handle, Duration::from_secs(100));
                 Box::new(McpClient::new(service))
             }
+            SystemConfig::Builtin { ref name } => {
+                // For builtin systems, we run the current executable with mcp and system name
+                let cmd = std::env::current_exe()
+                    .expect("should find the current executable")
+                    .to_str()
+                    .expect("should resolve executable to string path")
+                    .to_string();
+                let transport = StdioTransport::new(
+                    &cmd,
+                    vec!["mcp".to_string(), name.clone()],
+                    HashMap::new(),
+                );
+                let handle = transport.start().await?;
+                let service = McpService::with_timeout(handle, Duration::from_secs(100));
+                Box::new(McpClient::new(service))
+            }
         };
 
         // Initialize the client with default capabilities
