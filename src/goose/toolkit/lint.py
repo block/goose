@@ -7,9 +7,9 @@ def lint_toolkits() -> None:
         first_line_of_docstring = toolkit.__doc__.split("\n")[0]
         assert len(first_line_of_docstring.split(" ")) > 5, f"`{toolkit_name}` toolkit docstring is too short"
         assert len(first_line_of_docstring.split(" ")) < 12, f"`{toolkit_name}` toolkit docstring is too long"
-        assert first_line_of_docstring[
-            0
-        ].isupper(), f"`{toolkit_name}` toolkit docstring must start with a capital letter"
+        assert first_line_of_docstring[0].isupper(), (
+            f"`{toolkit_name}` toolkit docstring must start with a capital letter"
+        )
 
 
 def lint_providers() -> None:
@@ -18,6 +18,6 @@ def lint_providers() -> None:
         first_line_of_docstring = provider.__doc__.split("\n")[0]
         assert len(first_line_of_docstring.split(" ")) > 5, f"`{provider_name}` provider docstring is too short"
         assert len(first_line_of_docstring.split(" ")) < 20, f"`{provider_name}` provider docstring is too long"
-        assert first_line_of_docstring[
-            0
-        ].isupper(), f"`{provider_name}` provider docstring must start with a capital letter"
+        assert first_line_of_docstring[0].isupper(), (
+            f"`{provider_name}` provider docstring must start with a capital letter"
+        )

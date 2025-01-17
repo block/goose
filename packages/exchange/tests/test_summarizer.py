@@ -75,9 +75,9 @@ def test_context_summarizer_rewrite(exchange_instance: Exchange, summarizer_inst
 
     # Ensure roles alternate in the output
     for i in range(1, len(exchange_instance.messages)):
-        assert (
-            exchange_instance.messages[i - 1].role != exchange_instance.messages[i].role
-        ), "Messages must alternate between user and assistant"
+        assert exchange_instance.messages[i - 1].role != exchange_instance.messages[i].role, (
+            "Messages must alternate between user and assistant"
+        )
 
 
 MESSAGE_SEQUENCE = [

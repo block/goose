@@ -13,7 +13,7 @@ from prompt_toolkit.lexers import Lexer
 def completion_for_command(target_string: str) -> re.Pattern[str]:
     escaped_string = re.escape(target_string)
     vals = [f"(?:{escaped_string[:i]}(?=$))" for i in range(len(escaped_string), 0, -1)]
-    return re.compile(rf'(?<!\S)\/({"|".join(vals)})(?:\s^|$)')
+    return re.compile(rf"(?<!\S)\/({'|'.join(vals)})(?:\s^|$)")
 
 
 def command_itself(target_string: str) -> re.Pattern[str]:

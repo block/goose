@@ -40,6 +40,9 @@ Rules designed to control or manage the output of the model. Moderators that cur
 
 - `passive`: does not actively intervene in every response
 - `truncate`: truncates the first contexts when the contexts exceed the max token size
+- `synopsis`: instead of truncating, it uses LLMs to summarize and condense context dynamically, keeping relevant information while staying under the token limit.
+
+> **Important:** `synopsis` only works when the `synopsis` toolkit is enabled. Be sure to update your [`profile.yml` configurations](https://block.github.io/goose/guidance/getting-started.html#configuring-goose-with-the-profilesyaml-file) to enable both.
 
 
 #### toolkits

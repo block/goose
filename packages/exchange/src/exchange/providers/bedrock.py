@@ -119,7 +119,7 @@ class AwsClient(httpx.Client):
         credential_scope = f"{date_stamp}/{self.region}/{service}/aws4_request"
         string_to_sign = (
             f"{algorithm}\n{amz_date}\n{credential_scope}\n"
-            f'{hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()}'
+            f"{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
         )
 
         # Create the signing key

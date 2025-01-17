@@ -2,14 +2,7 @@ from goose.toolkit.utils import parse_plan
 
 
 def test_parse_plan_simple():
-    plan_str = (
-        "Here is python repo\n"
-        "-use uv\n"
-        "-do not use poetry\n\n"
-        "Now you should:\n\n"
-        "-Open a file\n"
-        "-Run a test"
-    )
+    plan_str = "Here is python repo\n-use uv\n-do not use poetry\n\nNow you should:\n\n-Open a file\n-Run a test"
     expected_result = {
         "kickoff_message": "Here is python repo\n-use uv\n-do not use poetry\n\nNow you should:",
         "tasks": ["Open a file", "Run a test"],
@@ -57,7 +50,7 @@ def test_parse_plan_empty_kickoff_message():
 
 
 def test_parse_plan_with_numbers():
-    plan_str = "Here is python repo\n" "Now you should:\n\n" "-1 Open a file\n" "-2 Run a test"
+    plan_str = "Here is python repo\nNow you should:\n\n-1 Open a file\n-2 Run a test"
     expected_result = {
         "kickoff_message": "Here is python repo\nNow you should:",
         "tasks": ["1 Open a file", "2 Run a test"],
