@@ -91,6 +91,19 @@ pub fn deserialize_messages(file: File) -> Result<Vec<Message>> {
     Ok(messages)
 }
 
+pub fn print_previous_prompts(messages: Vec<Message>) {
+    if !messages.is_empty() {
+        println!("\nPrevious prompts for resuming session:");
+    }
+    for message in messages.into_iter().filter(|m| m.role == Role::User) {
+        for content in message.content {
+            if let Some(text) = content.as_text() {
+                println!("> {}", text);
+            }
+        }
+    }
+}
+
 // Session management
 pub struct Session<'a> {
     agent: Box<dyn Agent>,
@@ -121,6 +134,7 @@ impl<'a> Session<'a> {
         };
 
         prompt.load_user_message_history(messages.clone());
+        print_previous_prompts(messages.clone());
 
         Session {
             agent,
