@@ -1,15 +1,18 @@
-# This workflow is triggered by a comment on an issue or PR with the text "/bundle-desktop".
+# This workflow is triggered by a comment on an issue or PR with the text ".bundle"
 # It bundles the Desktop App, then creates a PR comment with a link to download the app.
+
+# IMPORTANT: issue_comment workflows only use files found on "main" branch to run.
+# Do NOT allow on: pull_request since that allows a user to alter a file in a PR and exfil secrets for example.
+# Only using issue_comment is the suggested workflow type. Comments on pull requests, and issues will trigger the issue_comment workflow event.
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
 
-# permissions needed for reacting to IssueOps commands on issues and PRs
+# permissions needed for reacting to IssueOps commands on PRs
 permissions:
   pull-requests: write
-  issues: write
   checks: read
+  # issues: write
 
 name: Workflow to Bundle Desktop App
 
@@ -19,18 +22,18 @@ concurrency:
 
 jobs:
   trigger-on-command:
-    name: Trigger on "/bundle-desktop" PR comment
+    name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     steps:
       - uses: github/command@v1.3.0
         id: command
         with:
-          command: "/bundle-desktop"
+          command: ".bundle"
           reaction: "eyes"
           allowed_contexts: pull_request
 
   bundle-desktop:
-    # Only run this if "/bundle-desktop" command is detected.
+    # Only run this if ".bundle" command is detected.
     if: ${{ steps.command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     secrets:
