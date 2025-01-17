@@ -30,6 +30,7 @@ http = "1.0"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
+once_cell = "1.18"
 
 [[bin]]
 name = "goosed"

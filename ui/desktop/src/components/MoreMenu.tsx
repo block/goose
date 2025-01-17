@@ -246,6 +246,18 @@ export default function MoreMenu() {
             >
               Reset Provider
             </button>
+            {/* Provider keys settings */}
+            {process.env.NODE_ENV === "development" && (
+                <button
+                    onClick={() => {
+                      setOpen(false);
+                      navigate("/keys");
+                    }}
+                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
+                >
+                  Provider Settings (alpha)
+                </button>
+            )}
           </div>
         </PopoverContent>
       </PopoverPortal>

@@ -85,6 +85,11 @@ pub fn save_to_keyring(key_name: &str, key_val: &str) -> std::result::Result<(),
     kr.set_password(key_val).map_err(KeyManagerError::from)
 }
 
+pub fn delete_from_keyring(key_name: &str) -> std::result::Result<(), KeyManagerError> {
+    let kr = Entry::new("goose", key_name)?;
+    kr.delete_credential().map_err(KeyManagerError::from)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -98,6 +103,27 @@ mod tests {
     fn cleanup_keyring(key: &str) -> Result<(), KeyManagerError> {
         let kr = Entry::new("goose", key)?;
         kr.delete_credential().map_err(KeyManagerError::from)
+    }
+
+    #[test]
+    fn test_delete_from_keyring() {
+        let key_name = format!("{}{}", TEST_ENV_PREFIX, "DELETE_KEY");
+
+        // Save a value to the keyring
+        save_to_keyring(&key_name, "test_value").unwrap();
+
+        // Verify it exists
+        let kr = Entry::new("goose", &key_name).unwrap();
+        assert_eq!(kr.get_password().unwrap(), "test_value");
+
+        // Delete the keyring entry
+        let result = delete_from_keyring(&key_name);
+        assert!(result.is_ok());
+
+        // Verify deletion
+        let kr = Entry::new("goose", &key_name).unwrap();
+        let password_result = kr.get_password();
+        assert!(password_result.is_err());
     }
 
     #[test]

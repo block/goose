@@ -13,10 +13,10 @@ export function showToast(message: string, type: 'success' | 'error') {
     toast.textContent = message;
     document.body.appendChild(toast);
     
-    // Animate out
+    // Animate out after 5 seconds instead of 2
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateY(1rem)';
         setTimeout(() => toast.remove(), 300);
-    }, 2000);
+    }, 5000);
 } 

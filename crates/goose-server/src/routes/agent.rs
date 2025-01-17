@@ -7,6 +7,7 @@ use axum::{
 };
 use goose::{agents::AgentFactory, providers::factory};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -23,6 +24,28 @@ struct CreateAgentRequest {
 #[derive(Serialize)]
 struct CreateAgentResponse {
     version: String,
+}
+
+#[derive(Deserialize)]
+struct ProviderFile {
+    name: String,
+    description: String,
+    models: Vec<String>,
+    required_keys: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ProviderDetails {
+    name: String,
+    description: String,
+    models: Vec<String>,
+    required_keys: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ProviderList {
+    id: String,
+    details: ProviderDetails,
 }
 
 async fn get_versions() -> Json<VersionsResponse> {
@@ -64,9 +87,33 @@ async fn create_agent(
     Ok(Json(CreateAgentResponse { version }))
 }
 
+async fn list_providers() -> Json<Vec<ProviderList>> {
+    let contents = include_str!("providers_and_keys.json");
+
+    let providers: HashMap<String, ProviderFile> =
+        serde_json::from_str(contents).expect("Failed to parse providers_and_keys.json");
+
+    let response: Vec<ProviderList> = providers
+        .into_iter()
+        .map(|(id, provider)| ProviderList {
+            id,
+            details: ProviderDetails {
+                name: provider.name,
+                description: provider.description,
+                models: provider.models,
+                required_keys: provider.required_keys,
+            },
+        })
+        .collect();
+
+    // Return the response as JSON.
+    Json(response)
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
+        .route("/agent/providers", get(list_providers))
         .route("/agent", post(create_agent))
         .with_state(state)
 }
