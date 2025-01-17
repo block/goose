@@ -1,6 +1,7 @@
 use anyhow::Result;
 use goose_mcp::{
-    Developer2Router, DeveloperRouter, JetBrainsRouter, MemoryRouter, NonDeveloperRouter,
+    Developer2Router, DeveloperRouter, GoogleDriveRouter, JetBrainsRouter, MemoryRouter,
+    NonDeveloperRouter,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -17,6 +18,10 @@ pub async fn run_server(name: &str) -> Result<()> {
         "developer2" => Some(Box::new(RouterService(Developer2Router::new()))),
         "nondeveloper" => Some(Box::new(RouterService(NonDeveloperRouter::new()))),
         "jetbrains" => Some(Box::new(RouterService(JetBrainsRouter::new()))),
+        "google_drive" => {
+            let router = GoogleDriveRouter::new().await;
+            Some(Box::new(RouterService(router)))
+        }
         "memory" => Some(Box::new(RouterService(MemoryRouter::new()))),
         _ => None,
     };
