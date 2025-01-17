@@ -353,7 +353,7 @@ impl GoogleDriveRouter {
                             response
                         };
 
-                        Ok(vec![Content::text(content)])
+                        Ok(vec![Content::text(content).with_priority(0.1)])
                     } else {
                         Err(ToolError::ExecutionError(format!(
                             "Failed to export google drive to string, {}.",
@@ -405,7 +405,7 @@ impl GoogleDriveRouter {
                                 response
                             };
 
-                            Ok(vec![Content::text(content)])
+                            Ok(vec![Content::text(content).with_priority(0.1)])
                         } else {
                             Err(ToolError::ExecutionError(format!(
                                 "Failed to convert google drive to string, {}.",
