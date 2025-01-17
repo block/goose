@@ -42,7 +42,7 @@ export function KeyItem({ keyData, onEdit, onCopy }: KeyItemProps) {
             <Tooltip content="Copy to clipboard">
               <button
                 onClick={handleCopy}
-                className="ml-2 text-indigo-500 hover:text-indigo-600"
+                className="ml-3 text-gray-400 hover:text-gray-600"
               >
                 <Copy className="h-5 w-5" />
               </button>
@@ -51,7 +51,7 @@ export function KeyItem({ keyData, onEdit, onCopy }: KeyItemProps) {
           <Tooltip content="Edit">
             <button
               onClick={() => onEdit(keyData)}
-              className="text-indigo-500 hover:text-indigo-600"
+              className="text-gray-400 hover:text-gray-600"
             >
               <Edit />
             </button>

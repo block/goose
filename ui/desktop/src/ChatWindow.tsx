@@ -16,10 +16,7 @@ import UserMessage from "./components/UserMessage";
 import WingToWing, { Working } from "./components/WingToWing";
 import { askAi } from "./utils/askAI";
 import { ProviderSetupModal } from "./components/ProviderSetupModal";
-import {
-  providers,
-  ProviderOption,
-} from "./utils/providerUtils";
+import { providers, ProviderOption } from "./utils/providerUtils";
 
 declare global {
   interface Window {
@@ -122,6 +119,7 @@ function ChatContent({
       window.electron.logInfo("last interaction:" + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) {
         // 60000ms = 1 minute
+
         window.electron.showNotification({
           title: "Goose finished the task.",
           body: "Click here to expand.",
@@ -243,17 +241,16 @@ function ChatContent({
   };
 
   return (
-    <div className="chat-content flex flex-col w-full h-screen items-center justify-center p-[10px]">
-      <div className="relative block h-[20px] w-full">
+    <div className="chat-content flex flex-col w-full h-screen items-center justify-center">
+      <div className="relative flex items-center h-[36px] w-full">
         <MoreMenu />
       </div>
-      <Card className="flex flex-col flex-1 h-[calc(100vh-95px)] w-full bg-card-gradient dark:bg-dark-card-gradient mt-0 border-none rounded-2xl relative">
+      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-card-gradient dark:bg-dark-card-gradient mt-0 border-none relative">
         {messages.length === 0 ? (
           <Splash append={append} />
         ) : (
           <ScrollArea className="flex-1 px-[10px]" id="chat-scroll-area">
-            <div className="block h-10" />
-            <div>
+            <div className="pt-4">
               {messages.map((message) => (
                 <div key={message.id}>
                   {message.role === "user" ? (
@@ -318,7 +315,6 @@ function ChatContent({
           isLoading={isLoading}
           onStop={onStopGoose}
         />
-        <div className="self-stretch h-px bg-black/5 dark:bg-white/5 rounded-sm" />
         <BottomMenu hasMessages={hasMessages} />
       </Card>
 
@@ -341,7 +337,7 @@ export default function ChatWindow() {
         event.preventDefault(); // Prevent default browser behavior
         openNewChatWindow();
       }
-    };    
+    };
 
     // Add event listener
     window.addEventListener("keydown", handleKeyDown);
@@ -354,8 +350,8 @@ export default function ChatWindow() {
 
   useEffect(() => {
     // Listen for add-system from main process for a goose:// deep link
-    window.electron.on('add-system', (_, link) => {
-      console.log('Received message for add-system:', link); 
+    window.electron.on("add-system", (_, link) => {
+      console.log("Received message for add-system:", link);
       addMCPSystem(link);
     });
   }, []);
@@ -399,7 +395,8 @@ export default function ChatWindow() {
   useEffect(() => {
     // Check if we already have a provider set
     const config = window.electron.getConfig();
-    const storedProvider = config.GOOSE_PROVIDER || localStorage.getItem("GOOSE_PROVIDER");
+    const storedProvider =
+      config.GOOSE_PROVIDER || localStorage.getItem("GOOSE_PROVIDER");
 
     if (storedProvider) {
       setShowWelcomeModal(false);
@@ -444,15 +441,15 @@ export default function ChatWindow() {
 
   const addSystemConfig = async (system: string) => {
     await addMCP("goosed", ["mcp", system]);
-  }
+  };
 
   const initializeSystem = async (provider: string) => {
     try {
       await addAgent(provider);
       await addSystemConfig("developer2");
       // add system from deep link up front
-      if (window.appConfig.get('DEEP_LINK')) {
-        await addMCPSystem(window.appConfig.get('DEEP_LINK'));
+      if (window.appConfig.get("DEEP_LINK")) {
+        await addMCPSystem(window.appConfig.get("DEEP_LINK"));
       }
     } catch (error) {
       console.error("Failed to initialize system:", error);
@@ -488,7 +485,8 @@ export default function ChatWindow() {
   useEffect(() => {
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
-      const storedProvider = config.GOOSE_PROVIDER || localStorage.getItem("GOOSE_PROVIDER");
+      const storedProvider =
+        config.GOOSE_PROVIDER || localStorage.getItem("GOOSE_PROVIDER");
       if (storedProvider) {
         try {
           await initializeSystem(storedProvider);

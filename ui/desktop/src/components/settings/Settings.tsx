@@ -177,127 +177,125 @@ export default function Settings() {
   };
 
   return (
-    <div className="h-screen w-full p-[10px]">
-      <Card className="h-full w-full bg-card-gradient dark:bg-dark-card-gradient border-none rounded-2xl p-6">
-        <div className="h-full w-full bg-white dark:bg-gray-800 rounded-2xl overflow-hidden p-4">
-          <ScrollArea className="h-full w-full">
-            <div className="flex min-h-full">
-              {/* Left Navigation */}
-              <div className="w-48 border-r border-gray-100 dark:border-gray-700 px-6">
-                <div className="sticky top-8">
-                  <button
-                    onClick={handleExit}
-                    className="flex items-center gap-2 text-gray-600 hover:text-gray-800 
+    <div className="h-screen w-full pt-[36px]">
+      <div className="h-full w-full bg-white dark:bg-gray-800 overflow-hidden p-2 pt-0">
+        <ScrollArea className="h-full w-full">
+          <div className="flex min-h-full">
+            {/* Left Navigation */}
+            <div className="w-48 border-r border-gray-100 dark:border-gray-700 px-2 pt-2">
+              <div className="sticky top-8">
+                <button
+                  onClick={handleExit}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-800 
                                             dark:text-gray-400 dark:hover:text-gray-200 mb-16 mt-4"
-                  >
-                    <Back className="w-4 h-4" />
-                    <span>Back</span>
-                  </button>
-                  <div className="space-y-2">
-                    {["Models", "Extensions", "Keys"].map((section) => (
-                      <button
-                        key={section}
-                        onClick={(e) => handleNavClick(section, e)}
-                        className="block w-full text-left px-3 py-2 rounded-lg transition-colors
+                >
+                  <Back className="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+                <div className="space-y-2">
+                  {["Models", "Extensions", "Keys"].map((section) => (
+                    <button
+                      key={section}
+                      onClick={(e) => handleNavClick(section, e)}
+                      className="block w-full text-left px-3 py-2 rounded-lg transition-colors
                                                     text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-                      >
-                        {section}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Content Area */}
-              <div className="flex-1 px-8 py-8">
-                <div className="max-w-3xl space-y-12">
-                  {/* Models Section */}
-                  <section id="models">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-semibold">Models</h2>
-                      <button
-                        onClick={() => setAddModelOpen(true)}
-                        className="text-indigo-500 hover:text-indigo-600 font-medium"
-                      >
-                        Add Models
-                      </button>
-                    </div>
-                    {settings.models.map((model) => (
-                      <ToggleableItem
-                        key={model.id}
-                        {...model}
-                        onToggle={handleModelToggle}
-                      />
-                    ))}
-                  </section>
-
-                  {/* Extensions Section */}
-                  <section id="extensions">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-semibold">Extensions</h2>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      {EXTENSIONS_DESCRIPTION}
-                    </p>
-                    {settings.extensions.map((ext) => (
-                      <ToggleableItem
-                        key={ext.id}
-                        {...ext}
-                        onToggle={handleExtensionToggle}
-                      />
-                    ))}
-                  </section>
-
-                  {/* Keys Section */}
-                  <section id="keys">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-semibold">Keys</h2>
-                      <button
-                        onClick={() => setAddKeyOpen(true)}
-                        className="text-indigo-500 hover:text-indigo-600 font-medium"
-                      >
-                        Add new key
-                      </button>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      {EXTENSIONS_DESCRIPTION}
-                    </p>
-                    {settings.keys.map((keyItem) => (
-                      <KeyItem
-                        key={keyItem.id}
-                        keyData={keyItem}
-                        onEdit={setEditingKey}
-                        onCopy={handleCopyKey}
-                      />
-                    ))}
-
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAllKeys(true)}
-                        className="w-full text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400"
-                      >
-                        Reveal All Keys (Dev Only)
-                      </Button>
-                    </div>
-                  </section>
-
-                  {/* Reset Button */}
-                  <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
-                    <Button
-                      onClick={() => setShowResetConfirm(true)}
-                      variant="destructive"
-                      className="w-full"
                     >
-                      Reset to Default Settings
-                    </Button>
-                  </div>
+                      {section}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
-          </ScrollArea>
-        </div>
-      </Card>
+
+            {/* Content Area */}
+            <div className="flex-1 px-16 py-8 pt-[20px]">
+              <div className="max-w-3xl space-y-12">
+                {/* Models Section */}
+                <section id="models">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold">Models</h2>
+                    <button
+                      onClick={() => setAddModelOpen(true)}
+                      className="text-indigo-500 hover:text-indigo-600 font-medium"
+                    >
+                      Add Models
+                    </button>
+                  </div>
+                  {settings.models.map((model) => (
+                    <ToggleableItem
+                      key={model.id}
+                      {...model}
+                      onToggle={handleModelToggle}
+                    />
+                  ))}
+                </section>
+
+                {/* Extensions Section */}
+                <section id="extensions">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold">Extensions</h2>
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    {EXTENSIONS_DESCRIPTION}
+                  </p>
+                  {settings.extensions.map((ext) => (
+                    <ToggleableItem
+                      key={ext.id}
+                      {...ext}
+                      onToggle={handleExtensionToggle}
+                    />
+                  ))}
+                </section>
+
+                {/* Keys Section */}
+                <section id="keys">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold">Keys</h2>
+                    <button
+                      onClick={() => setAddKeyOpen(true)}
+                      className="text-indigo-500 hover:text-indigo-600 font-medium"
+                    >
+                      Add new key
+                    </button>
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    {EXTENSIONS_DESCRIPTION}
+                  </p>
+                  {settings.keys.map((keyItem) => (
+                    <KeyItem
+                      key={keyItem.id}
+                      keyData={keyItem}
+                      onEdit={setEditingKey}
+                      onCopy={handleCopyKey}
+                    />
+                  ))}
+
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAllKeys(true)}
+                      className="w-full text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400"
+                    >
+                      Reveal All Keys (Dev Only)
+                    </Button>
+                  </div>
+                </section>
+
+                {/* Reset Button */}
+                <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
+                  <Button
+                    onClick={() => setShowResetConfirm(true)}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    Reset to Default Settings
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Reset Confirmation Dialog */}
       <Modal open={showResetConfirm} onOpenChange={setShowResetConfirm}>

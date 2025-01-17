@@ -85,7 +85,7 @@ export default function Input({
   return (
     <form
       onSubmit={onFormSubmit}
-      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem]"
+      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t dark:border-gray-700"
     >
       <textarea
         autoFocus
@@ -112,7 +112,7 @@ export default function Input({
         variant="ghost"
         onClick={handleFileSelect}
         disabled={disabled}
-        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 [&_svg]:size-5 ${
+        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
           disabled ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
@@ -134,7 +134,7 @@ export default function Input({
           size="icon"
           variant="ghost"
           disabled={disabled || !value.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 [&_svg]:size-5 ${
+          className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
             disabled || !value.trim() ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >

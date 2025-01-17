@@ -126,7 +126,7 @@ export default function MoreMenu() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="z-[100] absolute top-[-4px] right-[10px] w-[20px] h-[20px] cursor-pointer no-drag">
+        <button className="z-[100] absolute top-2 right-[10px] w-[20px] h-[20px] cursor-pointer no-drag">
           <More />
         </button>
       </PopoverTrigger>
