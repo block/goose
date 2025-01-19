@@ -1,4 +1,3 @@
-
 // Helper to construct API endpoints
 export const getApiUrl = (endpoint: string): string => {  
   const baseUrl = window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT');
@@ -10,10 +9,68 @@ export const getSecretKey = (): string => {
   return window.appConfig.get('secretKey');
 }
 
+// Environment variables type matching Rust's Envs
+export type Envs = Record<string, string>;
 
-// add MCP system from a goose://extension url 
-export const addMCPSystem = async (url: string) => {
-  console.log("adding MCP from URL", url);
+// SystemConfig type matching the Rust version
+export type SystemConfig =
+  | {
+      type: "sse";
+      uri: string;
+      envs?: Envs;
+    }
+  | {
+      type: "stdio";
+      cmd: string;
+      args: string[];
+      envs?: Envs;
+    }
+  | {
+      type: "builtin";
+      name: string;
+    };
+
+// Extend Goosed with a new system configuration
+export const extendGoosed = async (config: SystemConfig) => {
+  // allowlist the CMD for stdio type
+  if (config.type === "stdio") {
+    const allowedCMDs = ['npx', 'uvx', 'goosed'];
+    if (!allowedCMDs.includes(config.cmd)) {
+      console.error(`System ${config.cmd} is not supported right now`);
+      return;
+    }
+
+    // if its goosed - we will update the path to the binary
+    if (config.cmd === 'goosed') {
+      config = {
+        ...config,
+        cmd: await window.electron.getBinaryPath('goosed')
+      };
+    }
+  }
+
+  try {
+    const response = await fetch(getApiUrl('/systems/add'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify(config)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to add system config: ${response.statusText}`);
+    }
+    console.log(`Successfully added system config: ${JSON.stringify(config)}`);
+  } catch (error) {
+    console.log(`Error adding system config:`, error);
+  }
+};
+
+// Extend Goosed from a goose://extension URL
+export const extendGoosedFromUrl = async (url: string) => {
+  console.log("extending Goosed from URL", url);
   if (!url.startsWith("goose://extension")) {
     console.log("Invalid URL: URL must use the goose://extension scheme");
   }
@@ -24,14 +81,12 @@ export const addMCPSystem = async (url: string) => {
     throw new Error("Invalid protocol: URL must use the goose:// scheme");
   }
 
-  const system = parsedUrl.searchParams.get("cmd");
-  if (!system) {
+  const cmd = parsedUrl.searchParams.get("cmd");
+  if (!cmd) {
     throw new Error("Missing required 'cmd' parameter in the URL");
   }
 
-  const argsParam = parsedUrl.searchParams.getAll("arg");
-  const args = argsParam;
-  
+  const args = parsedUrl.searchParams.getAll("arg");
   const envList = parsedUrl.searchParams.getAll("env");
 
   // split env based on delimiter to a map
@@ -40,50 +95,14 @@ export const addMCPSystem = async (url: string) => {
     acc[key] = value;
     return acc;
   }, {} as Record<string, string>);
-  console.log("envs", envs);
 
-  addMCP(system, args, envs);
-};
-
-// add a MCP system
-export const addMCP = async (system: string, args: string[], envs?: Record<string, string>) => {
-
-  // allowlist the CMD
-  const allowedCMDs = ['npx', 'uvx', 'goosed'];
-
-  if (!allowedCMDs.includes(system)) {
-    console.error(`System ${system} is not supported right now`);
-    return;
-  }
-
-  if (system === 'goosed') {
-    // if its something built in - we will append the path to the binary
-    system = await window.electron.getBinaryPath('goosed');
-  }
-
-  const systemConfig = {
-    type: "Stdio",
-    cmd: system,
-    args: args,
-    envs: envs
+  // Create a SystemConfig from the URL parameters
+  const config: SystemConfig = {
+    type: "stdio",
+    cmd,
+    args,
+    envs: Object.keys(envs).length > 0 ? envs : undefined
   };
 
-  try {
-    const response = await fetch(getApiUrl('/systems/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify(systemConfig)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to add system config for ${system} args: ${args} envs: ${envs}: ${response.statusText}`);
-    }
-    console.log(`Successfully added MCP config for ${system} args: ${args}`);
-  } catch (error) {
-    console.log(`Error adding MCP config for ${system} args: ${args} envs: ${envs}:`, error);
-  }
-
+  await extendGoosed(config);
 };

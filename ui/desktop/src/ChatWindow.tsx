@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Message, useChat } from "./ai-sdk-fork/useChat";
 import { Route, Routes, Navigate } from "react-router-dom";
-import { getApiUrl, getSecretKey, addMCP, addMCPSystem } from "./config";
+import { getApiUrl, getSecretKey, extendGoosed, extendGoosedFromUrl } from "./config";
 import BottomMenu from "./components/BottomMenu";
 import FlappyGoose from "./components/FlappyGoose";
 import GooseMessage from "./components/GooseMessage";
@@ -356,7 +356,7 @@ export default function ChatWindow() {
     // Listen for add-system from main process for a goose:// deep link
     window.electron.on("add-system", (_, link) => {
       console.log("Received message for add-system:", link);
-      addMCPSystem(link);
+      extendGoosedFromUrl(link);
     });
   }, []);
 

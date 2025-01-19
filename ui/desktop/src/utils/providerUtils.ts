@@ -1,4 +1,4 @@
-import {addMCP, addMCPSystem, getApiUrl, getSecretKey  } from "../config";
+import { extendGoosed, extendGoosedFromUrl, getApiUrl, getSecretKey } from "../config";
 
 export const SELECTED_PROVIDER_KEY = "GOOSE_PROVIDER__API_KEY"
 
@@ -40,7 +40,6 @@ export async function getProvidersList(): Promise<Provider[]> {
   const data = await response.json();
   console.log("Raw API Response:", data); // Log the raw response
 
-
   // Format the response into an array of providers
   return data.map((item: any) => ({
     id: item.id, // Root-level ID
@@ -68,26 +67,22 @@ const addAgent = async (provider: string) => {
   return response;
 };
 
-const addSystemConfig = async (system: string) => {
-  await addMCP("goosed", ["mcp", system]);
-};
-
 export const initializeSystem = async (provider: string) => {
   try {
     console.log("initializing with provider", provider)
     await addAgent(provider);
-    await addSystemConfig("developer2");
+    await extendGoosed({
+      type: "builtin",
+      name: "developer2"
+    });
 
     // Handle deep link if present
     const deepLink = window.appConfig.get('DEEP_LINK');
     if (deepLink) {
-      await addMCPSystem(deepLink);
+      await extendGoosedFromUrl(deepLink);
     }
   } catch (error) {
     console.error("Failed to initialize system:", error);
     throw error;
   }
 };
-
-
-
