@@ -61,8 +61,10 @@ pub struct DatabricksProvider {
 
 impl DatabricksProvider {
     pub fn from_env() -> Result<Self> {
-        let host = std::env::var("DATABRICKS_HOST")
-            .unwrap_or_else(|_| "https://api.databricks.com".to_string());
+        // Although we don't need host to be stored secretly, we use the keyring to make
+        // it easier to coordinate with configuration. We could consider a non secret storage tool
+        // elsewhere in the future
+        let host = crate::key_manager::get_keyring_secret("DATABRICKS_HOST", Default::default())?;
         let model_name = std::env::var("DATABRICKS_MODEL")
             .unwrap_or_else(|_| DATABRICKS_DEFAULT_MODEL.to_string());
 

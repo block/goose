@@ -367,7 +367,7 @@ mod tests {
             client: Client::builder().build().unwrap(),
             host: mock_server.uri(),
             api_key: "test_api_key".to_string(),
-            model: ModelConfig::new("claude-3-sonnet-20241022".to_string())
+            model: ModelConfig::new("claude-3-5-sonnet-latest".to_string())
                 .with_temperature(Some(0.7))
                 .with_context_limit(Some(200_000)),
         };
@@ -433,7 +433,7 @@ mod tests {
                     "expression": "2 + 2"
                 }
             }],
-            "model": "claude-3-sonnet-20240229",
+            "model": "claude-3-5-sonnet-latest",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {
@@ -490,7 +490,7 @@ mod tests {
                 "type": "text",
                 "text": "Hello!"
             }],
-            "model": "claude-3-sonnet-20240229",
+            "model": "claude-3-5-sonnet-latest",
             "stop_reason": "end_turn",
             "stop_sequence": null,
             "usage": {

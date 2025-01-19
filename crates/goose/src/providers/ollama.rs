@@ -25,7 +25,11 @@ pub struct OllamaProvider {
 
 impl OllamaProvider {
     pub fn from_env() -> Result<Self> {
-        let host = std::env::var("OLLAMA_HOST").unwrap_or_else(|_| OLLAMA_HOST.to_string());
+        // Although we don't need host to be stored secretly, we use the keyring to make
+        // it easier to coordinate with configuration. We could consider a non secret storage tool
+        // elsewhere in the future
+        let host = crate::key_manager::get_keyring_secret("OLLAMA_HOST", Default::default())
+            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
         let model_name = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| OLLAMA_MODEL.to_string());
 
         let client = Client::builder()
