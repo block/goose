@@ -127,7 +127,7 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
 fi
 
 # --- 8) Auto-configure Goose (Optional) ---
-CONFIG_ARGS="-n default"
+CONFIG_ARGS=""
 if [ -n "${GOOSE_PROVIDER:-}" ]; then
   CONFIG_ARGS="$CONFIG_ARGS -p $GOOSE_PROVIDER"
 fi
