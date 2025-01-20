@@ -2,15 +2,15 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use goose::token_counter::TokenCounter;
 
 fn benchmark_tokenization(c: &mut Criterion) {
-    let counter = TokenCounter::new();
     let lengths = [1_000, 5_000, 10_000, 50_000, 100_000, 124_000, 200_000];
-    let models = ["gpt-4o", "claude-3.5-sonnet"];
+    let tokenizer_names = ["Xenova--gpt-4o", "Xenova--claude-tokenizer"];
 
-    for &length in &lengths {
-        for model_name in models {
+    for tokenizer_name in tokenizer_names {
+        let counter = TokenCounter::new(tokenizer_name);
+        for &length in &lengths {
             let text = "hello ".repeat(length);
-            c.bench_function(&format!("{}_{}_tokens", model_name, length), |b| {
-                b.iter(|| counter.count_tokens(black_box(&text), Some(model_name)))
+            c.bench_function(&format!("{}_{}_tokens", tokenizer_name, length), |b| {
+                b.iter(|| counter.count_tokens(black_box(&text)))
             });
         }
     }

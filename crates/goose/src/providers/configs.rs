@@ -3,11 +3,19 @@ use serde::{Deserialize, Serialize};
 const DEFAULT_CONTEXT_LIMIT: usize = 200_000;
 const DEFAULT_ESTIMATE_FACTOR: f32 = 0.8;
 
+// Tokenizer names, used to infer from model name
+pub const GPT_4O_TOKENIZER: &str = "Xenova--gpt-4o";
+pub const CLAUDE_TOKENIZER: &str = "Xenova--claude-tokenizer";
+
 /// Configuration for model-specific settings and limits
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelConfig {
     /// The name of the model to use
     pub model_name: String,
+    // Optional tokenizer name (corresponds to the sanitized HuggingFace tokenizer name)
+    // "Xenova/gpt-4o" -> "Xenova/gpt-4o"
+    // If not provided, best attempt will be made to infer from model name or default
+    pub tokenizer_name: String,
     /// Optional explicit context limit that overrides any defaults
     pub context_limit: Option<usize>,
     /// Optional temperature setting (0.0 - 1.0)
@@ -28,13 +36,24 @@ impl ModelConfig {
     /// 3. Global default (128_000) (in get_context_limit)
     pub fn new(model_name: String) -> Self {
         let context_limit = Self::get_model_specific_limit(&model_name);
+        let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
         Self {
             model_name,
+            tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature: None,
             max_tokens: None,
             estimate_factor: None,
+        }
+    }
+
+    fn infer_tokenizer_name(model_name: &str) -> &'static str {
+        if model_name.contains("claude") {
+            CLAUDE_TOKENIZER
+        } else {
+            // Default tokenizer
+            GPT_4O_TOKENIZER
         }
     }
 
@@ -83,6 +102,11 @@ impl ModelConfig {
     pub fn with_estimate_factor(mut self, factor: Option<f32>) -> Self {
         self.estimate_factor = factor;
         self
+    }
+
+    // Get the tokenizer name
+    pub fn tokenizer_name(&self) -> &str {
+        &self.tokenizer_name
     }
 
     /// Get the context_limit for the current model

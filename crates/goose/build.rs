@@ -3,13 +3,7 @@ use std::fs;
 use std::path::Path;
 
 const BASE_DIR: &str = "../../tokenizer_files";
-const MODELS: &[&str] = &[
-    "Xenova/claude-tokenizer",
-    "Xenova/gemma-2-tokenizer",
-    "Xenova/gpt-4o",
-    "Qwen/Qwen2.5-Coder-32B-Instruct",
-    "Xenova/llama3-tokenizer",
-];
+const TOKENIZERS: &[&str] = &["Xenova/gpt-4o", "Xenova/claude-tokenizer"];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -18,8 +12,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", BASE_DIR);
 
-    for model in MODELS {
-        download_tokenizer(model).await?;
+    for tokenizer_name in TOKENIZERS {
+        download_tokenizer(tokenizer_name).await?;
     }
 
     Ok(())

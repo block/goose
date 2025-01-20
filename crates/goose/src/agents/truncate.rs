@@ -23,9 +23,10 @@ pub struct TruncateAgent {
 
 impl TruncateAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
+        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
-            _token_counter: TokenCounter::new(),
+            _token_counter: token_counter,
         }
     }
 
@@ -35,7 +36,6 @@ impl TruncateAgent {
         tools: &[Tool],
         messages: &[Message],
         target_limit: usize,
-        model_name: &str,
         resource_items: &mut [ResourceItem],
     ) -> SystemResult<Vec<Message>> {
         // Flatten all resource content into a vector of strings
@@ -44,14 +44,13 @@ impl TruncateAgent {
             .map(|item| item.content.clone())
             .collect();
 
-        let model = Some(model_name);
         let approx_count =
             self._token_counter
-                .count_everything(system_prompt, messages, tools, &resources, model);
+                .count_everything(system_prompt, messages, tools, &resources);
 
         let mut new_messages = messages.to_vec();
         if approx_count > target_limit {
-            let user_msg_size = self.text_content_size(new_messages.last(), model);
+            let user_msg_size = self.text_content_size(new_messages.last());
             if user_msg_size > target_limit {
                 debug!(
                     "[WARNING] User message {} exceeds token budget {}.",
@@ -61,7 +60,7 @@ impl TruncateAgent {
                 return Err(SystemError::ContextLimit);
             }
 
-            new_messages = self.chop_front_messages(messages, approx_count, target_limit, model);
+            new_messages = self.chop_front_messages(messages, approx_count, target_limit);
             if new_messages.is_empty() {
                 return Err(SystemError::ContextLimit);
             }
@@ -70,13 +69,13 @@ impl TruncateAgent {
         Ok(new_messages)
     }
 
-    fn text_content_size(&self, message: Option<&Message>, model: Option<&str>) -> usize {
+    fn text_content_size(&self, message: Option<&Message>) -> usize {
         let text = message
             .and_then(|msg| msg.content.first())
             .and_then(|c| c.as_text());
 
         if let Some(txt) = text {
-            let count = self._token_counter.count_tokens(txt, model);
+            let count = self._token_counter.count_tokens(txt);
             return count;
         }
 
@@ -90,7 +89,6 @@ impl TruncateAgent {
         messages: &[Message],
         approx_count: usize,
         target_limit: usize,
-        model: Option<&str>,
     ) -> Vec<Message> {
         debug!(
             "[WARNING] Conversation history has size: {} exceeding the token budget of {}. \
@@ -107,7 +105,7 @@ impl TruncateAgent {
             if current_tokens < target_limit || trimmed_items.is_empty() {
                 break;
             }
-            let count = self.text_content_size(Some(msg), model);
+            let count = self.text_content_size(Some(msg));
             let _ = trimmed_items.pop_front().unwrap();
             // Subtract removed message’s token_count
             current_tokens = current_tokens.saturating_sub(count as usize);
@@ -151,7 +149,6 @@ impl Agent for TruncateAgent {
                 &tools,
                 messages,
                 _estimated_limit,
-                &capabilities.provider().get_model_config().model_name,
                 &mut capabilities.get_resources().await?,
             )
             .await?;
@@ -209,7 +206,6 @@ impl Agent for TruncateAgent {
                     &tools,
                     &messages,
                     _estimated_limit,
-                    &capabilities.provider().get_model_config().model_name,
                     &mut capabilities.get_resources().await?
                 ).await?;
 
