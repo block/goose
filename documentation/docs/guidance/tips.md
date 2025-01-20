@@ -1,5 +1,4 @@
 ---
-sidebar_position: 4
 title: Quick Tips
 ---
 ##  Tips for working with Goose:

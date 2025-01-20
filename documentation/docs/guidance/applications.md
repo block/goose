@@ -1,5 +1,4 @@
 ---
-sidebar_position: 6
 title: Applications of Goose
 ---
 
