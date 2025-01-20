@@ -97,9 +97,9 @@ This file will be read into the Goose system prompt if it is present in the curr
 
 Check out the [guide on using .goosehints][using-goosehints] for more tips.
 
-> [!NOTE]
-> `.goosehints` follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables.
-
+:::tip
+`.goosehints` follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables.
+:::
 
 [providers]: https://block.github.io/goose/plugins/providers.html
 [jinja-guide]: https://jinja.palletsprojects.com/en/3.1.x/

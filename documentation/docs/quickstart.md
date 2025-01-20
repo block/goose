@@ -29,11 +29,9 @@ pipx install goose-ai
 #### Set up a provider
 Goose works with a set of [supported LLM providers][providers] that you can obtain an API key from if you don't already have one. You'll be prompted to set an API key if you haven't set one previously when you run Goose.
 
->[!TIP]
-> **Billing:**
->
-> You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests.
->
+:::info Billing
+ You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests.
+:::
 
 
 #### Start a session

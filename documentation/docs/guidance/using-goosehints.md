@@ -7,10 +7,10 @@ title: Using Goosehints
 
 `.goosehints` are text files used within the Goose environment to provide additional context about your project and improve the communication between the developer and Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
 
->[!TIP]
-> **Developer toolkit required**
->
-> To make use of the hints file, you need to have the `developer` toolkit [enabled](https://block.github.io/goose/plugins/using-toolkits.html).
+:::info Developer toolkit required
+
+To make use of the hints file, you need to have the `developer` toolkit [enabled](https://block.github.io/goose/plugins/using-toolkits.html).
+:::
 
 This guide will walk you through creating and using your `.goosehints` file to streamline your workflow with custom instructions and context.
 

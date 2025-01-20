@@ -28,9 +28,9 @@ default:
 
 When you run `goose session start`, you will be prompted to enter your Google API Key.
 
-> [!NOTE] 
-> At the moment, the `synopsis` toolkit isn't supported by Google Gemini, so we use the `developer` toolkit to interact with the API. 
-
+:::info 
+At the moment, the `synopsis` toolkit isn't supported by Google Gemini, so we use the `developer` toolkit to interact with the API. 
+:::
 
 
 

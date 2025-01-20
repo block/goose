@@ -71,9 +71,9 @@ You may want to make more frequent changes to your provider setup or similar to 
 as a developer. You can use environment variables to change things on the fly without redoing
 your configuration.
 
-> [!TIP]
-> At the moment, we are still updating some of the CLI configuration to make sure this is
-> respected.
+:::info
+At the moment, we are still updating some of the CLI configuration to make sure this is respected.
+:::
 
 You can change the provider goose points to via the `GOOSE_PROVIDER` env var. If you already
 have a credential for that provider in your keychain from previously setting up, it should
