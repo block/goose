@@ -1,6 +1,6 @@
 import { supported_providers, required_keys, provider_aliases } from "../models/hardcoded_stuff";
 import { useActiveKeys } from "../api_keys/ActiveKeysContext";
-import { ProviderSetupModal } from "../modals/ProviderSetupModal";
+import { ProviderSetupModal } from "../ProviderSetupModal";
 import React from "react";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@radix-ui/react-accordion";
 import {Check, ChevronDown, Edit2, Plus, X} from "lucide-react";

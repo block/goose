@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Message, useChat } from "./ai-sdk-fork/useChat";
-import { Route, Routes, Navigate } from "react-router-dom";
-import { getApiUrl, getSecretKey, extendGoosed, extendGoosedFromUrl } from "./config";
+import { getApiUrl, getSecretKey } from "./config";
+import { extendGoosedFromUrl } from "./extensions";
 import BottomMenu from "./components/BottomMenu";
 import FlappyGoose from "./components/FlappyGoose";
 import GooseMessage from "./components/GooseMessage";
@@ -360,9 +360,9 @@ export default function ChatWindow() {
   }, []);
 
   useEffect(() => {
-    // Listen for add-system from main process for a goose:// deep link
-    window.electron.on("add-system", (_, link) => {
-      console.log("Received message for add-system:", link);
+    // Listen for goose:// deep links
+    window.electron.on("add-extension", (_, link) => {
+      console.log("Received message for add-extension:", link);
       extendGoosedFromUrl(link);
     });
   }, []);
@@ -479,6 +479,7 @@ export default function ChatWindow() {
       if (storedProvider) {
         try {
           await initializeSystem(storedProvider, storedModel);
+
           if (!storedModel) {
             // get the default model
             const modelName = getDefaultModel(storedProvider.toLowerCase())
