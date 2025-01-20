@@ -39,7 +39,7 @@ export const extendGoosed = async (config: SystemConfig) => {
       console.error(`System ${config.cmd} is not supported right now`);
       return;
     }
-
+    
     // if its goosed - we will update the path to the binary
     if (config.cmd === 'goosed') {
       config = {
@@ -55,6 +55,15 @@ export const extendGoosed = async (config: SystemConfig) => {
         cmd: await window.electron.getBinaryPath('npx')
       };
     }
+
+    if (config.cmd === 'uvx') {
+      // use our special uvx shim which uses hermit.
+      config = {
+        ...config,
+        cmd: await window.electron.getBinaryPath('uvx')
+      };
+    }
+
       
 
   }
