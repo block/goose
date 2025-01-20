@@ -9,6 +9,7 @@ on:
       - 'docs/**'
     branches:
       - v1.0
+  workflow_dispatch:
 
 name: CI
 
@@ -97,3 +98,10 @@ jobs:
       - name: Run Lint
         run: npm run lint:check
         working-directory: ui/desktop
+
+  # Faster Desktop App build for PRs only
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    if: github.event_name == 'pull_request'
+    with:
+      signing: false
