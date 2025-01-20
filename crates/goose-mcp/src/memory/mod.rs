@@ -342,33 +342,29 @@ impl MemoryRouter {
         match tool_call.name.as_str() {
             "remember_memory" => {
                 let args = MemoryArgs::from_value(&tool_call.arguments)?;
-                let data = args
-                    .data
-                    .as_deref()
-                    .filter(|d| !d.is_empty())
-                    .ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "Data must exist when remembering a memory",
-                        )
-                    })?;
+                let data = args.data.filter(|d| !d.is_empty()).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Data must exist when remembering a memory",
+                    )
+                })?;
                 self.remember("context", args.category, data, &args.tags, args.is_global)?;
                 Ok(format!("Stored memory in category: {}", args.category))
             }
             "retrieve_memories" => {
                 let args = MemoryArgs::from_value(&tool_call.arguments)?;
-                let memories = self.retrieve(&args.category, args.is_global)?;
+                let memories = self.retrieve(args.category, args.is_global)?;
                 Ok(format!("Retrieved memories: {:?}", memories))
             }
             "remove_memory_category" => {
                 let args = MemoryArgs::from_value(&tool_call.arguments)?;
-                self.clear_memory(&args.category, args.is_global)?;
+                self.clear_memory(args.category, args.is_global)?;
                 Ok(format!("Cleared memories in category: {}", args.category))
             }
             "remove_specific_memory" => {
                 let args = MemoryArgs::from_value(&tool_call.arguments)?;
                 let memory_content = tool_call.arguments["memory_content"].as_str().unwrap();
-                self.remove_specific_memory(&args.category, memory_content, args.is_global)?;
+                self.remove_specific_memory(args.category, memory_content, args.is_global)?;
                 Ok(format!(
                     "Removed specific memory from category: {}",
                     args.category

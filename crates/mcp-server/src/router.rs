@@ -1,9 +1,3 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use mcp_core::{
     content::Content,
     handler::{PromptError, ResourceError, ToolError},
@@ -17,6 +11,11 @@ use mcp_core::{
     ResourceContents,
 };
 use serde_json::Value;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use tower_service::Service;
 
 use crate::{BoxError, RouterError};
@@ -79,29 +78,23 @@ impl CapabilitiesBuilder {
     }
 }
 
+type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>;
+type ToolFuture = Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
+type ResourceFuture = Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>>;
+
 pub trait Router: Send + Sync + 'static {
     fn name(&self) -> String;
     // in the protocol, instructions are optional but we make it required
     fn instructions(&self) -> String;
     fn capabilities(&self) -> ServerCapabilities;
     fn list_tools(&self) -> Vec<mcp_core::tool::Tool>;
-    fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Value,
-    ) -> Pin<Box<dyn Future<Output = Result<Vec<Content>, ToolError>> + Send + 'static>>;
+    fn call_tool(&self, tool_name: &str, arguments: Value) -> ToolFuture;
     fn list_resources(&self) -> Vec<mcp_core::resource::Resource>;
-    fn read_resource(
-        &self,
-        uri: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>>;
+    fn read_resource(&self, uri: &str) -> ResourceFuture;
     fn list_prompts(&self) -> Option<Vec<Prompt>> {
         None
     }
-    fn get_prompt(
-        &self,
-        _prompt_name: &str,
-    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+    fn get_prompt(&self, _prompt_name: &str) -> Option<PromptFuture> {
         None
     }
 
@@ -380,7 +373,7 @@ pub trait Router: Send + Sync + 'static {
 
             let messages = vec![PromptMessage::new_text(
                 PromptMessageRole::User,
-                format!("{}", description_filled),
+                description_filled.to_string(),
             )];
 
             // Build the final response

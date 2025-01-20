@@ -61,7 +61,7 @@ pub trait BatchManager: Send + Sync + 'static {
     fn is_empty(&self) -> bool;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SpanTracker {
     active_spans: HashMap<u64, String>, // span_id -> observation_id. span_id in Tracing is u64 whereas Langfuse requires UUID v4 strings
     current_trace_id: Option<String>,
@@ -69,10 +69,7 @@ pub struct SpanTracker {
 
 impl SpanTracker {
     pub fn new() -> Self {
-        Self {
-            active_spans: HashMap::new(),
-            current_trace_id: None,
-        }
+        Self::default()
     }
 
     pub fn add_span(&mut self, span_id: u64, observation_id: String) {
@@ -246,7 +243,7 @@ where
 
         let parent_span_id = ctx
             .span_scope(id)
-            .and_then(|scope| scope.skip(1).next())
+            .and_then(|mut scope| scope.nth(1))
             .map(|parent| parent.id().into_u64());
 
         let mut visitor = JsonVisitor::new();
@@ -338,9 +335,13 @@ mod tests {
     use tokio::sync::mpsc;
     use tracing::dispatcher;
 
+    // Type aliases for complex types
+    type EventsVec = Option<Arc<Mutex<Vec<(String, Value)>>>>;
+    type SpanDataType = Arc<Mutex<Vec<(String, Value)>>>;
+
     struct TestFixture {
         original_subscriber: Option<dispatcher::Dispatch>,
-        events: Option<Arc<Mutex<Vec<(String, Value)>>>>,
+        events: EventsVec,
     }
 
     impl TestFixture {
@@ -383,12 +384,12 @@ mod tests {
     }
 
     struct MockBatchManager {
-        events: Arc<Mutex<Vec<(String, Value)>>>,
+        events: SpanDataType,
         sender: mpsc::UnboundedSender<(String, Value)>,
     }
 
     impl MockBatchManager {
-        fn new(events: Arc<Mutex<Vec<(String, Value)>>>) -> Self {
+        fn new(events: SpanDataType) -> Self {
             let (sender, mut receiver) = mpsc::unbounded_channel();
             let events_clone = events.clone();
 

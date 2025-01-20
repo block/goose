@@ -24,7 +24,7 @@ pub async fn handle_configure(
 
     if !config_exists {
         // First time setup flow
-        println!("");
+        println!();
         println!(
             "{}",
             style("Welcome to goose! Let's get you set up with a provider.").dim()
@@ -33,7 +33,7 @@ pub async fn handle_configure(
             "{}",
             style("  you can rerun this command later to update your configuration").dim()
         );
-        println!("");
+        println!();
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
         configure_provider_dialog(provided_provider, provided_model).await?;
         println!(
@@ -43,7 +43,7 @@ pub async fn handle_configure(
         );
         Ok(())
     } else {
-        println!("");
+        println!();
         println!(
             "{}",
             style("This will update your existing config file").dim()
@@ -53,7 +53,7 @@ pub async fn handle_configure(
             style("  if you prefer, you can edit it directly at").dim(),
             Config::config_path()?.display()
         );
-        println!("");
+        println!();
 
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
         let action = cliclack::select("What would you like to configure?")
@@ -117,7 +117,7 @@ pub async fn configure_provider_dialog(
     for key in get_required_keys(&provider_name).iter() {
         // If the key is in the keyring, ask if we want to overwrite
         if get_keyring_secret(key, KeyRetrievalStrategy::KeyringOnly).is_ok() {
-            let _ = cliclack::log::info(format!("{} is already available in the keyring", key));
+            cliclack::log::info(format!("{} is already available in the keyring", key))?;
             if cliclack::confirm("Would you like to overwrite this value?").interact()? {
                 let value = cliclack::password(format!("Enter the value for {}", key))
                     .mask('▪')
@@ -128,7 +128,7 @@ pub async fn configure_provider_dialog(
         }
         // If the key is in the env, ask if we want to save to keyring
         else if let Ok(value) = get_keyring_secret(key, KeyRetrievalStrategy::EnvironmentOnly) {
-            let _ = cliclack::log::info(format!("Detected {} in env, we can use this from your environment.\nIt will need to continue to be set in future goose usage.", key));
+            cliclack::log::info(format!("Detected {} in env, we can use this from your environment.\nIt will need to continue to be set in future goose usage.", key))?;
             if cliclack::confirm("Would you like to save it to your keyring?").interact()? {
                 save_to_keyring(key, &value)?;
             }
@@ -178,18 +178,18 @@ pub async fn configure_provider_dialog(
                 spin.stop("No response content available");
             }
 
-            let _ = match config.save() {
+            match config.save() {
                 Ok(()) => {
                     let msg = format!("Configuration saved to: {:?}", Config::config_path()?);
-                    cliclack::outro(msg)
+                    cliclack::outro(msg)?;
                 }
-                Err(e) => cliclack::outro(format!("Failed to save configuration: {}", e)),
+                Err(e) => cliclack::outro(format!("Failed to save configuration: {}", e))?,
             };
         }
         Err(e) => {
             println!("{:?}", e);
             spin.stop("We could not connect!");
-            let _ = cliclack::outro("Try rerunning configure and check your credentials.");
+            cliclack::outro("Try rerunning configure and check your credentials.")?;
         }
     }
 
@@ -227,9 +227,7 @@ pub fn toggle_systems_dialog() -> Result<(), Box<dyn Error>> {
     let mut config = Config::load().unwrap_or_default();
 
     if config.systems.is_empty() {
-        let _ = cliclack::outro(
-            "No systems configured yet. Run configure and add some systems first.",
-        )?;
+        cliclack::outro("No systems configured yet. Run configure and add some systems first.")?;
         return Ok(());
     }
 
@@ -267,12 +265,12 @@ pub fn toggle_systems_dialog() -> Result<(), Box<dyn Error>> {
     }
 
     config.save()?;
-    let _ = cliclack::outro("System settings updated successfully")?;
+    cliclack::outro("System settings updated successfully")?;
     Ok(())
 }
 
 pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
-    println!("");
+    println!();
     println!(
         "{}",
         style("Configure will help you add systems that goose can use").dim()
@@ -281,7 +279,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
         "{}",
         style("  systems provide tools and capabilities to the AI agent").dim()
     );
-    println!("");
+    println!();
 
     cliclack::intro(style(" goose-configure-systems ").on_cyan().black())?;
 
@@ -328,7 +326,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Enabled {} system", style(system).green()))?;
+            cliclack::outro(format!("Enabled {} system", style(system).green()))?;
         }
         "stdio" => {
             let systems = config.systems.clone();
@@ -361,23 +359,22 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
             let cmd = parts.next().unwrap_or("").to_string();
             let args: Vec<String> = parts.map(String::from).collect();
 
-            let add_env =
-                cliclack::confirm("Would you like to add environment variables?").interact()?;
-
             let mut envs = HashMap::new();
-            while add_env {
-                let key = cliclack::input("Environment variable name:")
-                    .placeholder("API_KEY")
-                    .interact()?;
+            if cliclack::confirm("Would you like to add environment variables?").interact()? {
+                loop {
+                    let key = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
 
-                let value = cliclack::password("Environment variable value:")
-                    .mask('▪')
-                    .interact()?;
+                    let value = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
 
-                envs.insert(key, value);
+                    envs.insert(key, value);
 
-                if !cliclack::confirm("Add another environment variable?").interact()? {
-                    break;
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
                 }
             }
 
@@ -393,7 +390,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} system", style(name).green()))?;
         }
         "sse" => {
             let systems = config.systems.clone();
@@ -423,23 +420,22 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
-            let add_env =
-                cliclack::confirm("Would you like to add environment variables?").interact()?;
-
             let mut envs = HashMap::new();
-            while add_env {
-                let key = cliclack::input("Environment variable name:")
-                    .placeholder("API_KEY")
-                    .interact()?;
+            if cliclack::confirm("Would you like to add environment variables?").interact()? {
+                loop {
+                    let key = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
 
-                let value = cliclack::password("Environment variable value:")
-                    .mask('▪')
-                    .interact()?;
+                    let value = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
 
-                envs.insert(key, value);
+                    envs.insert(key, value);
 
-                if !cliclack::confirm("Add another environment variable?").interact()? {
-                    break;
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
                 }
             }
 
@@ -454,7 +450,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} system", style(name).green()))?;
         }
         _ => unreachable!(),
     };

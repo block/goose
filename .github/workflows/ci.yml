@@ -74,9 +74,8 @@ jobs:
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           cargo test
 
-      ## TODO: Need to decide if we wanna error out on clippy warnings. It was not being used before. 
-      # - name: Run Cargo Clippy (Lint)
-      #   run: cargo clippy -- -D warnings
+      - name: Run Cargo Clippy (Lint)
+        run: cargo clippy -- -D warnings
 
   desktop-lint:
     name: Lint Electron Desktop App

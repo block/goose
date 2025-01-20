@@ -211,7 +211,7 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
             ],
-            prompts: prompts,
+            prompts,
             cwd: Arc::new(Mutex::new(cwd)),
             active_resources: Arc::new(Mutex::new(resources)),
             file_history: Arc::new(Mutex::new(HashMap::new())),

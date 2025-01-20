@@ -80,9 +80,7 @@ impl TruncateAgent {
             return count;
         }
 
-        let default_size = 0;
-
-        default_size
+        0 // no text present
     }
 
     fn chop_front_messages(
@@ -110,12 +108,12 @@ impl TruncateAgent {
             let count = self.text_content_size(Some(msg), model);
             let _ = trimmed_items.pop_front().unwrap();
             // Subtract removed message’s token_count
-            current_tokens = current_tokens.saturating_sub(count as usize);
+            current_tokens = current_tokens.saturating_sub(count);
         }
 
         // use trimmed message-history
-        let new_messages = Vec::from(trimmed_items);
-        new_messages
+
+        Vec::from(trimmed_items)
     }
 }
 

@@ -86,7 +86,7 @@ pub async fn build_session<'a>(
             agent
                 .add_system(system_config.clone())
                 .await
-                .expect(&format!("Failed to start system: {}", name));
+                .unwrap_or_else(|_| panic!("Failed to start system: {}", name));
         }
     }
 

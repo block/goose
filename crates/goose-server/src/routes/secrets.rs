@@ -76,7 +76,7 @@ static PROVIDER_ENV_REQUIREMENTS: Lazy<HashMap<String, ProviderConfig>> = Lazy::
 fn check_key_status(key: &str) -> (bool, Option<String>) {
     if let Ok(_value) = std::env::var(key) {
         (true, Some("env".to_string()))
-    } else if let Ok(_) = get_keyring_secret(key, KeyRetrievalStrategy::KeyringOnly) {
+    } else if get_keyring_secret(key, KeyRetrievalStrategy::KeyringOnly).is_ok() {
         (true, Some("keyring".to_string()))
     } else {
         (false, None)

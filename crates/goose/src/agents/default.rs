@@ -21,6 +21,17 @@ pub struct DefaultAgent {
     token_counter: TokenCounter,
 }
 
+/// Parameters for inference preparation
+struct InferenceParams<'a> {
+    system_prompt: &'a str,
+    tools: &'a [Tool],
+    messages: &'a [Message],
+    pending: &'a [Message],
+    target_limit: usize,
+    model_name: String,
+    resource_items: &'a mut [ResourceItem],
+}
+
 impl DefaultAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
         Self {
@@ -30,46 +41,38 @@ impl DefaultAgent {
     }
 
     /// Setup the next inference by budgeting the context window
-    async fn prepare_inference(
-        &self,
-        system_prompt: &str,
-        tools: &[Tool],
-        messages: &[Message],
-        pending: &[Message],
-        target_limit: usize,
-        model_name: &str,
-        resource_items: &mut [ResourceItem],
-    ) -> SystemResult<Vec<Message>> {
+    async fn prepare_inference(&self, params: InferenceParams<'_>) -> SystemResult<Vec<Message>> {
         // Flatten all resource content into a vector of strings
-        let resources: Vec<String> = resource_items
+        let resources: Vec<String> = params
+            .resource_items
             .iter()
             .map(|item| item.content.clone())
             .collect();
 
         let approx_count = self.token_counter.count_everything(
-            system_prompt,
-            messages,
-            tools,
+            params.system_prompt,
+            params.messages,
+            params.tools,
             &resources,
-            Some(model_name),
+            Some(&params.model_name),
         );
         let mut status_content: Vec<String> = Vec::new();
 
-        if approx_count > target_limit {
-            println!("[WARNING] Token budget exceeded. Current count: {} \n Difference: {} tokens over buget. Removing context", approx_count, approx_count - target_limit);
+        if approx_count > params.target_limit {
+            println!("[WARNING] Token budget exceeded. Current count: {} \n Difference: {} tokens over buget. Removing context", approx_count, approx_count - params.target_limit);
 
-            for item in resource_items.iter_mut() {
+            for item in params.resource_items.iter_mut() {
                 if item.token_count.is_none() {
                     let count = self
                         .token_counter
-                        .count_tokens(&item.content, Some(model_name))
+                        .count_tokens(&item.content, Some(&params.model_name))
                         as u32;
                     item.token_count = Some(count);
                 }
             }
 
             // Get all resource items, sort, then trim till we're under target limit
-            let mut trimmed_items: Vec<ResourceItem> = resource_items.to_vec();
+            let mut trimmed_items: Vec<ResourceItem> = params.resource_items.to_vec();
 
             // Sorts by timestamp (newest to oldest)
             // Priority will be 1.0 for active resources so no need to compare
@@ -77,9 +80,9 @@ impl DefaultAgent {
 
             // Remove resources until we're under target limit
             let mut current_tokens = approx_count;
-            while current_tokens > target_limit && !trimmed_items.is_empty() {
+            while current_tokens > params.target_limit && !trimmed_items.is_empty() {
                 let removed = trimmed_items.pop().unwrap();
-                // Subtract removed item’s token_count
+                // Subtract removed item's token_count
                 if let Some(tc) = removed.token_count {
                     current_tokens = current_tokens.saturating_sub(tc as usize);
                 }
@@ -91,7 +94,7 @@ impl DefaultAgent {
             }
         } else {
             // Create status messages from all resources when no trimming needed
-            for item in resource_items {
+            for item in params.resource_items {
                 status_content.push(format!("{}\n```\n{}\n```\n", item.name, item.content));
             }
         }
@@ -100,10 +103,10 @@ impl DefaultAgent {
         let status_str = status_content.join("\n");
 
         // Create a new messages vector with our changes
-        let mut new_messages = messages.to_vec();
+        let mut new_messages = params.messages.to_vec();
 
         // Add pending messages
-        for msg in pending {
+        for msg in params.pending {
             new_messages.push(msg.clone());
         }
 
@@ -165,6 +168,11 @@ impl Agent for DefaultAgent {
             .provider()
             .get_model_config()
             .get_estimated_limit();
+        let model_name = capabilities
+            .provider()
+            .get_model_config()
+            .model_name
+            .clone();
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -176,17 +184,18 @@ impl Agent for DefaultAgent {
         }
 
         // Update conversation history for the start of the reply
-        let mut messages = self
-            .prepare_inference(
-                &system_prompt,
-                &tools,
-                messages,
-                &Vec::new(),
-                estimated_limit,
-                &capabilities.provider().get_model_config().model_name,
-                &mut capabilities.get_resources().await?,
-            )
-            .await?;
+        let mut resource_items = capabilities.get_resources().await?;
+        let params = InferenceParams {
+            system_prompt: &system_prompt,
+            tools: &tools,
+            messages,
+            pending: &[],
+            target_limit: estimated_limit,
+            model_name: model_name.clone(),
+            resource_items: &mut resource_items,
+        };
+
+        let mut messages = self.prepare_inference(params).await?;
 
         Ok(Box::pin(async_stream::try_stream! {
             let _reply_guard = reply_span.enter();
@@ -247,9 +256,18 @@ impl Agent for DefaultAgent {
                     }
                 }
 
-
                 let pending = vec![response, message_tool_response];
-                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending, estimated_limit, &capabilities.provider().get_model_config().model_name, &mut capabilities.get_resources().await?).await?;
+                let mut resource_items = capabilities.get_resources().await?;
+                let params = InferenceParams {
+                    system_prompt: &system_prompt,
+                    tools: &tools,
+                    messages: &messages,
+                    pending: &pending,
+                    target_limit: estimated_limit,
+                    model_name: model_name.clone(),
+                    resource_items: &mut resource_items,
+                };
+                messages = self.prepare_inference(params).await?;
             }
         }))
     }

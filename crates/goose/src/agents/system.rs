@@ -32,10 +32,6 @@ impl Envs {
         Self { map }
     }
 
-    pub fn default() -> Self {
-        Self::new(HashMap::new())
-    }
-
     pub fn get_env(&self) -> HashMap<String, String> {
         self.map
             .iter()
