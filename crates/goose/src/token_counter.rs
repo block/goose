@@ -1,120 +1,118 @@
-use crate::message::Message;
 use include_dir::{include_dir, Dir};
-use indicatif::{ProgressBar, ProgressStyle};
-use mcp_core::tool::Tool;
-use std::collections::HashMap;
-use std::time::Duration;
+use mcp_core::Tool;
+use std::error::Error;
+use std::fs;
+use std::path::Path;
 use tokenizers::tokenizer::Tokenizer;
 
-// Embed the tokenizer files directory
+use crate::message::Message;
+
+// The embedded directory with all possible tokenizer files.
+// If one of them doesn’t exist, we’ll download it at startup.
 static TOKENIZER_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../tokenizer_files");
 
+/// The `TokenCounter` now stores exactly one `Tokenizer`.
 pub struct TokenCounter {
-    tokenizers: HashMap<String, Tokenizer>,
-}
-
-const GPT_4O_TOKENIZER_KEY: &str = "Xenova--gpt-4o";
-const CLAUDE_TOKENIZER_KEY: &str = "Xenova--claude-tokenizer";
-const GOOGLE_TOKENIZER_KEY: &str = "Xenova--gemma-2-tokenizer";
-const QWEN_TOKENIZER_KEY: &str = "Qwen--Qwen2.5-Coder-32B-Instruct";
-const LLAMA_TOKENIZER_KEY: &str = "Xenova--llama3-tokenizer";
-
-impl Default for TokenCounter {
-    fn default() -> Self {
-        Self::new()
-    }
+    tokenizer: Tokenizer,
 }
 
 impl TokenCounter {
-    fn load_tokenizer(&mut self, tokenizer_key: &str) {
-        // Create a spinner that will show during both loading and parsing
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-
-        // Start spinner for loading phase
-        pb.set_message(format!("Loading {} tokenizer from disk...", tokenizer_key));
-        pb.enable_steady_tick(Duration::from_millis(120));
-
-        // Load from embedded tokenizer files. The tokenizer_key must match the directory name.
-        let tokenizer_path = format!("{}/tokenizer.json", tokenizer_key);
-        let file_content = TOKENIZER_FILES
-            .get_file(&tokenizer_path)
-            .map(|f| f.contents())
-            .ok_or_else(|| format!("Embedded tokenizer file not found: {}", tokenizer_path))
-            .unwrap();
-
-        // Update spinner for parsing phase
-        pb.set_message(format!("Initializing {} tokenizer...", tokenizer_key));
-
-        let tokenizer = Tokenizer::from_bytes(file_content);
-
-        match tokenizer {
-            Ok(tokenizer) => {
-                self.tokenizers.insert(tokenizer_key.to_string(), tokenizer);
-                pb.finish_and_clear();
-            }
+    /// Creates a new `TokenCounter` using the given HuggingFace tokenizer name.
+    ///
+    /// * `tokenizer_name` might look like "Xenova--gpt-4o"
+    ///   or "Qwen--Qwen2.5-Coder-32B-Instruct", etc.
+    pub fn new(tokenizer_name: &str) -> Self {
+        match Self::load_from_embedded(tokenizer_name) {
+            Ok(tokenizer) => Self { tokenizer },
             Err(e) => {
-                pb.finish_and_clear();
-                eprintln!("Failed to load tokenizer {}: {}", tokenizer_key, e);
+                println!(
+                    "Tokenizer '{}' not found in embedded dir: {}",
+                    tokenizer_name, e
+                );
+                println!("Attempting to download tokenizer and load...");
+                // Fallback to download tokenizer and load from disk
+                match Self::download_and_load(tokenizer_name) {
+                    Ok(counter) => counter,
+                    Err(e) => panic!("Failed to initialize tokenizer: {}", e),
+                }
             }
         }
     }
 
-    pub fn new() -> Self {
-        let mut counter = TokenCounter {
-            tokenizers: HashMap::new(),
-        };
-        // Add default tokenizers
-        for tokenizer_key in [
-            GPT_4O_TOKENIZER_KEY,
-            CLAUDE_TOKENIZER_KEY,
-            GOOGLE_TOKENIZER_KEY,
-            QWEN_TOKENIZER_KEY,
-            LLAMA_TOKENIZER_KEY,
-        ] {
-            counter.load_tokenizer(tokenizer_key);
+    /// Load tokenizer bytes from the embedded directory (via `include_dir!`).
+    fn load_from_embedded(tokenizer_name: &str) -> Result<Tokenizer, Box<dyn Error>> {
+        let tokenizer_file_path = format!("{}/tokenizer.json", tokenizer_name);
+        let file = TOKENIZER_FILES
+            .get_file(&tokenizer_file_path)
+            .ok_or_else(|| {
+                format!(
+                    "Tokenizer file not found in embedded: {}",
+                    tokenizer_file_path
+                )
+            })?;
+        let contents = file.contents();
+        let tokenizer = Tokenizer::from_bytes(contents)
+            .map_err(|e| format!("Failed to parse tokenizer bytes: {}", e))?;
+        Ok(tokenizer)
+    }
+
+    /// Fallback: If not found in embedded, we look in `base_dir` on disk.
+    /// If not on disk, we download from Hugging Face, then load from disk.
+    fn download_and_load(tokenizer_name: &str) -> Result<Self, Box<dyn Error>> {
+        let local_dir = std::env::temp_dir().join(tokenizer_name);
+        let local_json_path = local_dir.join("tokenizer.json");
+
+        // If the file doesn't already exist, we download from HF
+        if !Path::new(&local_json_path).exists() {
+            eprintln!("Tokenizer file not on disk, downloading…");
+            let repo_id = tokenizer_name.replace("--", "/");
+            // e.g. "Xenova--llama3-tokenizer" -> "Xenova/llama3-tokenizer"
+            Self::download_tokenizer(&repo_id, &local_dir)?;
         }
-        counter
+
+        // Load from disk
+        let file_content = fs::read(&local_json_path)?;
+        let tokenizer = Tokenizer::from_bytes(&file_content)
+            .map_err(|e| format!("Failed to parse tokenizer after download: {}", e))?;
+
+        Ok(Self { tokenizer })
     }
 
-    pub fn add_tokenizer(&mut self, tokenizer_key: &str) {
-        self.load_tokenizer(tokenizer_key);
+    /// Download from Hugging Face into the local directory if not already present.
+    /// Synchronous version using a blocking runtime for simplicity.
+    fn download_tokenizer(repo_id: &str, download_dir: &Path) -> Result<(), Box<dyn Error>> {
+        fs::create_dir_all(download_dir)?;
+
+        let file_url = format!(
+            "https://huggingface.co/{}/resolve/main/tokenizer.json",
+            repo_id
+        );
+        let file_path = download_dir.join("tokenizer.json");
+
+        // Blocking for example: just spawn a short-lived runtime
+        let content = tokio::runtime::Runtime::new()?.block_on(async {
+            let response = reqwest::get(&file_url).await?;
+            if !response.status().is_success() {
+                let error_msg =
+                    format!("Failed to download tokenizer: status {}", response.status());
+                return Err(Box::<dyn Error>::from(error_msg));
+            }
+            let bytes = response.bytes().await?;
+            Ok(bytes)
+        })?;
+
+        fs::write(&file_path, content)?;
+
+        Ok(())
     }
 
-    fn model_to_tokenizer_key(model_name: Option<&str>) -> &str {
-        let model_name = model_name.unwrap_or("gpt-4o").to_lowercase();
-        if model_name.contains("claude") {
-            CLAUDE_TOKENIZER_KEY
-        } else if model_name.contains("qwen") {
-            QWEN_TOKENIZER_KEY
-        } else if model_name.contains("gemini") {
-            GOOGLE_TOKENIZER_KEY
-        } else if model_name.contains("llama") {
-            LLAMA_TOKENIZER_KEY
-        } else {
-            // default
-            GPT_4O_TOKENIZER_KEY
-        }
-    }
-
-    fn get_tokenizer(&self, model_name: Option<&str>) -> &Tokenizer {
-        let tokenizer_key = Self::model_to_tokenizer_key(model_name);
-        self.tokenizers
-            .get(tokenizer_key)
-            .expect("Tokenizer not found")
-    }
-
-    pub fn count_tokens(&self, text: &str, model_name: Option<&str>) -> usize {
-        let tokenizer = self.get_tokenizer(model_name);
-        let encoding = tokenizer.encode(text, false).unwrap();
+    /// Count tokens for a piece of text using our single tokenizer.
+    pub fn count_tokens(&self, text: &str) -> usize {
+        let encoding = self.tokenizer.encode(text, false).unwrap();
         encoding.len()
     }
 
-    fn count_tokens_for_tools(&self, tools: &[Tool], model_name: Option<&str>) -> usize {
+    fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
         // Token counts for different function components
         let func_init = 7; // Tokens for function initialization
         let prop_init = 3; // Tokens for properties initialization
@@ -130,7 +128,7 @@ impl TokenCounter {
                 let name = &tool.name;
                 let description = &tool.description.trim_end_matches('.');
                 let line = format!("{}:{}", name, description);
-                func_token_count += self.count_tokens(&line, model_name); // Add tokens for name and description
+                func_token_count += self.count_tokens(&line); // Add tokens for name and description
 
                 if let serde_json::Value::Object(properties) = &tool.input_schema["properties"] {
                     if !properties.is_empty() {
@@ -144,14 +142,14 @@ impl TokenCounter {
                                 .unwrap_or("")
                                 .trim_end_matches('.');
                             let line = format!("{}:{}:{}", p_name, p_type, p_desc);
-                            func_token_count += self.count_tokens(&line, model_name);
+                            func_token_count += self.count_tokens(&line);
                             if let Some(enum_values) = value["enum"].as_array() {
                                 func_token_count =
                                     func_token_count.saturating_add_signed(enum_init); // Add tokens if property has enum list
                                 for item in enum_values {
                                     if let Some(item_str) = item.as_str() {
                                         func_token_count += enum_item;
-                                        func_token_count += self.count_tokens(item_str, model_name);
+                                        func_token_count += self.count_tokens(item_str);
                                     }
                                 }
                             }
@@ -170,7 +168,6 @@ impl TokenCounter {
         system_prompt: &str,
         messages: &[Message],
         tools: &[Tool],
-        model_name: Option<&str>,
     ) -> usize {
         // <|im_start|>ROLE<|im_sep|>MESSAGE<|im_end|>
         let tokens_per_message = 4;
@@ -178,7 +175,7 @@ impl TokenCounter {
         // Count tokens in the system prompt
         let mut num_tokens = 0;
         if !system_prompt.is_empty() {
-            num_tokens += self.count_tokens(system_prompt, model_name) + tokens_per_message;
+            num_tokens += self.count_tokens(system_prompt) + tokens_per_message;
         }
 
         for message in messages {
@@ -187,7 +184,7 @@ impl TokenCounter {
             for content in &message.content {
                 // content can either be text response or tool request
                 if let Some(content_text) = content.as_text() {
-                    num_tokens += self.count_tokens(content_text, model_name);
+                    num_tokens += self.count_tokens(content_text);
                 } else if let Some(tool_request) = content.as_tool_request() {
                     // TODO: count tokens for tool request
                     let tool_call = tool_request.tool_call.as_ref().unwrap();
@@ -195,9 +192,9 @@ impl TokenCounter {
                         "{}:{}:{}",
                         tool_request.id, tool_call.name, tool_call.arguments
                     );
-                    num_tokens += self.count_tokens(&text, model_name);
+                    num_tokens += self.count_tokens(&text);
                 } else if let Some(tool_response_text) = content.as_tool_response_text() {
-                    num_tokens += self.count_tokens(&tool_response_text, model_name);
+                    num_tokens += self.count_tokens(&tool_response_text);
                 } else {
                     // unsupported content type such as image - pass
                     continue;
@@ -207,7 +204,7 @@ impl TokenCounter {
 
         // Count tokens for tools if provided
         if !tools.is_empty() {
-            num_tokens += self.count_tokens_for_tools(tools, model_name);
+            num_tokens += self.count_tokens_for_tools(tools);
         }
 
         // Every reply is primed with <|start|>assistant<|message|>
@@ -222,13 +219,12 @@ impl TokenCounter {
         messages: &[Message],
         tools: &[Tool],
         resources: &[String],
-        model_name: Option<&str>,
     ) -> usize {
-        let mut num_tokens = self.count_chat_tokens(system_prompt, messages, tools, model_name);
+        let mut num_tokens = self.count_chat_tokens(system_prompt, messages, tools);
 
         if !resources.is_empty() {
             for resource in resources {
-                num_tokens += self.count_tokens(resource, model_name);
+                num_tokens += self.count_tokens(resource);
             }
         }
         num_tokens
@@ -238,40 +234,39 @@ impl TokenCounter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::MessageContent;
+    use crate::message::{Message, MessageContent}; // or however your `Message` is imported
+    use crate::providers::configs::{CLAUDE_TOKENIZER, GPT_4O_TOKENIZER};
     use mcp_core::role::Role;
+    use mcp_core::tool::Tool;
     use serde_json::json;
 
     #[test]
-    fn test_add_tokenizer_and_count_tokens() {
-        let mut counter = TokenCounter::new();
-        counter.add_tokenizer(QWEN_TOKENIZER_KEY);
-        let text = "Hey there!";
-        let count = counter.count_tokens(text, Some("qwen2.5-ollama"));
-        println!("Token count for '{}': {:?}", text, count);
-        assert_eq!(count, 3);
-    }
+    fn test_claude_tokenizer() {
+        let counter = TokenCounter::new(CLAUDE_TOKENIZER);
 
-    // Update the default tokenizer test similarly
-    #[test]
-    fn test_specific_claude_tokenizer() {
-        let counter = TokenCounter::new();
         let text = "Hello, how are you?";
-        let count = counter.count_tokens(text, Some("claude-3-5-sonnet-2"));
+        let count = counter.count_tokens(text);
         println!("Token count for '{}': {:?}", text, count);
-        assert_eq!(count, 6);
+
+        // The old test expected 6 tokens
+        assert_eq!(count, 6, "Claude tokenizer token count mismatch");
     }
 
     #[test]
-    fn test_default_gpt_4o_tokenizer() {
-        let counter = TokenCounter::new();
-        let count = counter.count_tokens("Hey there!", None);
-        assert_eq!(count, 3);
+    fn test_gpt_4o_tokenizer() {
+        let counter = TokenCounter::new(GPT_4O_TOKENIZER);
+
+        let text = "Hey there!";
+        let count = counter.count_tokens(text);
+        println!("Token count for '{}': {:?}", text, count);
+
+        // The old test expected 3 tokens
+        assert_eq!(count, 3, "GPT-4o tokenizer token count mismatch");
     }
 
     #[test]
     fn test_count_chat_tokens() {
-        let token_counter = TokenCounter::new();
+        let counter = TokenCounter::new(GPT_4O_TOKENIZER);
 
         let system_prompt =
             "You are a helpful assistant that can answer questions about the weather.";
@@ -317,17 +312,43 @@ mod tests {
             }),
         }];
 
-        let token_count_without_tools =
-            token_counter.count_chat_tokens(system_prompt, &messages, &[], Some("gpt-4o"));
+        let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);
         println!("Total tokens without tools: {}", token_count_without_tools);
 
-        let token_count_with_tools =
-            token_counter.count_chat_tokens(system_prompt, &messages, &tools, Some("gpt-4o"));
+        let token_count_with_tools = counter.count_chat_tokens(system_prompt, &messages, &tools);
         println!("Total tokens with tools: {}", token_count_with_tools);
 
-        // The token count for messages without tools is calculated using the tokenizer - https://tiktokenizer.vercel.app/
-        // The token count for messages with tools is taken from tiktoken github repo example (notebook)
+        // The old test used 56 / 124 for GPT-4o. Adjust if your actual tokenizer changes
         assert_eq!(token_count_without_tools, 56);
         assert_eq!(token_count_with_tools, 124);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_if_provided_tokenizer_doesnt_exist() {
+        // This should panic because the tokenizer doesn't exist
+        // in the embedded directory and the download fails
+
+        TokenCounter::new("nonexistent-tokenizer");
+    }
+
+    // Optional test to confirm that fallback download works if not found in embedded:
+    // Ignored cause this actually downloads a tokenizer from Hugging Face
+    #[test]
+    #[ignore]
+    fn test_download_tokenizer_successfully_if_not_embedded() {
+        let non_embedded_key = "openai-community/gpt2";
+        let counter = TokenCounter::new(non_embedded_key);
+
+        // If it downloads successfully, we can do a quick count to ensure it's valid
+        let text = "print('hello world')";
+        let count = counter.count_tokens(text);
+        println!(
+            "Downloaded tokenizer, token count for '{}': {}",
+            text, count
+        );
+
+        // https://tiktokenizer.vercel.app/?model=gpt2
+        assert!(count == 5, "Expected 5 tokens from downloaded tokenizer");
     }
 }

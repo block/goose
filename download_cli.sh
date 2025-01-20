@@ -135,8 +135,13 @@ if [ -n "${GOOSE_MODEL:-}" ]; then
   CONFIG_ARGS="$CONFIG_ARGS -m $GOOSE_MODEL"
 fi
 
+# Print a different message based on whether CONFIG_ARGS is set
 echo ""
-echo "Configuring Goose with: '$CONFIG_ARGS'"
+if [ -n "$CONFIG_ARGS" ]; then
+  echo "Configuring Goose with: '$CONFIG_ARGS'"
+else
+  echo "Configuring Goose"
+fi
 echo ""
 "$GOOSE_BIN_DIR/$OUT_FILE" configure $CONFIG_ARGS
 

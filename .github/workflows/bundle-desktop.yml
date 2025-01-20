@@ -5,17 +5,27 @@
 #  - pr-comment-bundle-desktop.yml
 on:
   workflow_call:
+    inputs:
+      signing:
+        description: 'Whether to perform signing and notarization'
+        required: false
+        default: false
     secrets:
       CERTIFICATE_OSX_APPLICATION:
-        required: true
+        description: 'Certificate for macOS application signing'
+        required: false
       CERTIFICATE_PASSWORD:
-        required: true
+        description: 'Password for the macOS certificate'
+        required: false
       APPLE_ID:
-        required: true
+        description: 'Apple ID for notarization'
+        required: false
       APPLE_ID_PASSWORD:
-        required: true
+        description: 'Password for the Apple ID'
+        required: false
       APPLE_TEAM_ID:
-        required: true
+        description: 'Apple Team ID'
+        required: false
 
 name: Reusable workflow to bundle desktop app
 
@@ -24,6 +34,32 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
     steps:
+      # Validate Signing Secrets if signing is enabled
+      - name: Validate Signing Secrets
+        if: ${{ inputs.signing }}
+        run: |
+          if [[ -z "${{ secrets.CERTIFICATE_OSX_APPLICATION }}" ]]; then
+            echo "Error: CERTIFICATE_OSX_APPLICATION secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.CERTIFICATE_PASSWORD }}" ]]; then
+            echo "Error: CERTIFICATE_PASSWORD secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_ID }}" ]]; then
+            echo "Error: APPLE_ID secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_ID_PASSWORD }}" ]]; then
+            echo "Error: APPLE_ID_PASSWORD secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_TEAM_ID }}" ]]; then
+            echo "Error: APPLE_TEAM_ID secret is required for signing."
+            exit 1
+          fi
+          echo "All required signing secrets are present."
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -62,7 +98,9 @@ jobs:
       - name: Copy binary into Electron folder
         run: cp target/release/goosed ui/desktop/src/bin/goosed
 
+      # Conditional Signing Step - we skip this for faster builds
       - name: Add MacOS certs for signing and notarization
+        if: ${{ inputs.signing }}
         run: ./add-macos-cert.sh
         working-directory: ui/desktop
         env:
@@ -94,9 +132,9 @@ jobs:
           fi
         working-directory: ui/desktop
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
+          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
 
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4

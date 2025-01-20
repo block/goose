@@ -22,9 +22,10 @@ pub struct ReferenceAgent {
 
 impl ReferenceAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
+        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
-            _token_counter: TokenCounter::new(),
+            _token_counter: token_counter,
         }
     }
 }

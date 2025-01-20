@@ -9,7 +9,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::message::{Message, MessageContent};
-use goose::providers::base::ModerationError;
+
 use mcp_core::{content::Content, role::Role};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -166,18 +166,6 @@ impl ProtocolFormatter {
         format!("3:{}\n", encoded_error)
     }
 
-    fn format_moderation_error(error: &ModerationError) -> String {
-        let error_part = match error {
-            ModerationError::ContentFlagged { categories, .. } => {
-                format!(
-                    "Content was flagged by moderation in the following categories: {}",
-                    categories
-                )
-            }
-        };
-        format!("3:\"{}\"\n", error_part)
-    }
-
     fn format_finish(reason: &str) -> String {
         // Finish messages start with "d:"
         let finish = json!({
@@ -324,19 +312,9 @@ async fn handler(
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {}", e);
-                // Check if it's a moderation error
-                if let Some(moderation_error) = e.downcast_ref::<ModerationError>() {
-                    let _ = tx
-                        .send(ProtocolFormatter::format_moderation_error(moderation_error))
-                        .await;
-                    // Kill the stream since we encountered a moderation error
-                } else {
-                    // Send a generic error message
-                    let _ = tx
-                        .send(ProtocolFormatter::format_error(&e.to_string()))
-                        .await;
-                }
-                // Send a finish message with error as the reason
+                let _ = tx
+                    .send(ProtocolFormatter::format_error(&e.to_string()))
+                    .await;
                 let _ = tx.send(ProtocolFormatter::format_finish("error")).await;
                 return;
             }
@@ -355,12 +333,7 @@ async fn handler(
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
-                            // Check if it's a moderation error
-                            if let Some(moderation_error) = e.downcast_ref::<ModerationError>() {
-                                let _ = tx.send(ProtocolFormatter::format_moderation_error(moderation_error)).await;
-                            } else {
-                                let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
-                            }
+                            let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
                             break;
                         }
                         Ok(None) => {
@@ -467,7 +440,7 @@ mod tests {
     use super::*;
     use goose::{
         agents::DefaultAgent as Agent,
-        providers::base::{Moderation, ModerationResult, Provider, ProviderUsage, Usage},
+        providers::base::{Provider, ProviderUsage, Usage},
         providers::configs::ModelConfig,
     };
     use mcp_core::tool::Tool;
@@ -480,34 +453,24 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Provider for MockProvider {
-        async fn complete_internal(
-            &self,
-            _system_prompt: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-            Ok((
-                Message::assistant().with_text("Mock response"),
-                ProviderUsage::new("mock".to_string(), Usage::default(), None),
-            ))
-        }
-
         fn get_model_config(&self) -> &ModelConfig {
             &self.model_config
         }
 
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage)> {
+            Ok((
+                Message::assistant().with_text("Mock response"),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+
         fn get_usage(&self, _data: &Value) -> anyhow::Result<Usage> {
             Ok(Usage::new(None, None, None))
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl Moderation for MockProvider {
-        async fn moderate_content(
-            &self,
-            _content: &str,
-        ) -> Result<ModerationResult, anyhow::Error> {
-            Ok(ModerationResult::new(false, None, None))
         }
     }
 
@@ -583,21 +546,6 @@ mod tests {
         println!("Formatted error: {}", formatted);
         assert!(formatted.starts_with("3:"));
         assert!(formatted.contains("Test error"));
-
-        // Test moderation error formatting
-        let moderation_error = ModerationError::ContentFlagged {
-            categories: "hate, violence".to_string(),
-            category_scores: Some(json!({
-                "hate": 0.9,
-                "violence": 0.8
-            })),
-        };
-        let formatted = ProtocolFormatter::format_moderation_error(&moderation_error);
-        println!("{}", formatted);
-        assert!(formatted.starts_with("3:"));
-        assert!(
-            formatted.contains("Content was flagged by moderation in the following categories:")
-        );
 
         // Test finish formatting
         let formatted = ProtocolFormatter::format_finish("stop");

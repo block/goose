@@ -23,9 +23,10 @@ pub struct DefaultAgent {
 
 impl DefaultAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
+        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
-            token_counter: TokenCounter::new(),
+            token_counter: token_counter,
         }
     }
 
@@ -37,7 +38,6 @@ impl DefaultAgent {
         messages: &[Message],
         pending: &[Message],
         target_limit: usize,
-        model_name: &str,
         resource_items: &mut [ResourceItem],
     ) -> SystemResult<Vec<Message>> {
         // Flatten all resource content into a vector of strings
@@ -46,13 +46,9 @@ impl DefaultAgent {
             .map(|item| item.content.clone())
             .collect();
 
-        let approx_count = self.token_counter.count_everything(
-            system_prompt,
-            messages,
-            tools,
-            &resources,
-            Some(model_name),
-        );
+        let approx_count =
+            self.token_counter
+                .count_everything(system_prompt, messages, tools, &resources);
         let mut status_content: Vec<String> = Vec::new();
 
         if approx_count > target_limit {
@@ -60,10 +56,7 @@ impl DefaultAgent {
 
             for item in resource_items.iter_mut() {
                 if item.token_count.is_none() {
-                    let count = self
-                        .token_counter
-                        .count_tokens(&item.content, Some(model_name))
-                        as u32;
+                    let count = self.token_counter.count_tokens(&item.content) as u32;
                     item.token_count = Some(count);
                 }
             }
@@ -183,7 +176,6 @@ impl Agent for DefaultAgent {
                 messages,
                 &Vec::new(),
                 estimated_limit,
-                &capabilities.provider().get_model_config().model_name,
                 &mut capabilities.get_resources().await?,
             )
             .await?;
@@ -249,7 +241,7 @@ impl Agent for DefaultAgent {
 
 
                 let pending = vec![response, message_tool_response];
-                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending, estimated_limit, &capabilities.provider().get_model_config().model_name, &mut capabilities.get_resources().await?).await?;
+                messages = self.prepare_inference(&system_prompt, &tools, &messages, &pending, estimated_limit, &mut capabilities.get_resources().await?).await?;
             }
         }))
     }

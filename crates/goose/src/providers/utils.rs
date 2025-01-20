@@ -2,7 +2,6 @@ use super::base::Usage;
 use anyhow::{Error, Result};
 use regex::Regex;
 use reqwest::{Response, StatusCode};
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tracing::debug;
@@ -137,7 +136,6 @@ pub fn emit_debug_trace<T: serde::Serialize>(
     payload: &impl serde::Serialize,
     response: &Value,
     usage: &Usage,
-    cost: Option<Decimal>,
 ) {
     // Handle both Map<String, Value> and Value payload types
     let payload_str = match serde_json::to_value(payload) {
@@ -152,7 +150,6 @@ pub fn emit_debug_trace<T: serde::Serialize>(
         input_tokens = ?usage.input_tokens.unwrap_or_default(),
         output_tokens = ?usage.output_tokens.unwrap_or_default(),
         total_tokens = ?usage.total_tokens.unwrap_or_default(),
-        cost = ?cost.unwrap_or_default()
     );
 }
 

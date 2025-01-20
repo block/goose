@@ -13,11 +13,7 @@ use serde_json::{json, Value};
 /// Convert internal Message format to OpenAI's API message specification
 ///   some openai compatible endpoints use the anthropic image spec at the content level
 ///   even though the message structure is otherwise following openai, the enum switches this
-pub fn messages_to_openai_spec(
-    messages: &[Message],
-    image_format: &ImageFormat,
-    concat_tool_response_contents: bool,
-) -> Vec<Value> {
+pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages {
         let mut converted = json!({
@@ -97,19 +93,14 @@ pub fn messages_to_openai_spec(
                                     }
                                 }
                             }
-                            let tool_response_content: Value = match concat_tool_response_contents {
-                                true => {
-                                    json!(tool_content
-                                        .iter()
-                                        .map(|content| match content {
-                                            Content::Text(text) => text.text.clone(),
-                                            _ => String::new(),
-                                        })
-                                        .collect::<Vec<String>>()
-                                        .join(" "))
-                                }
-                                false => json!(tool_content),
-                            };
+                            let tool_response_content: Value = json!(tool_content
+                                .iter()
+                                .map(|content| match content {
+                                    Content::Text(text) => text.text.clone(),
+                                    _ => String::new(),
+                                })
+                                .collect::<Vec<String>>()
+                                .join(" "));
 
                             // First add the tool response with all content
                             output.push(json!({
@@ -147,7 +138,7 @@ pub fn messages_to_openai_spec(
 }
 
 /// Convert internal Tool format to OpenAI's API tool specification
-pub fn tools_to_openai_spec(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
+pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
 
@@ -170,7 +161,7 @@ pub fn tools_to_openai_spec(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
 }
 
 /// Convert OpenAI's API response to internal Message format
-pub fn openai_response_to_message(response: Value) -> anyhow::Result<Message> {
+pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     let original = response["choices"][0]["message"].clone();
     let mut content = Vec::new();
 
@@ -227,7 +218,7 @@ pub fn openai_response_to_message(response: Value) -> anyhow::Result<Message> {
     })
 }
 
-pub fn get_openai_usage(data: &Value) -> anyhow::Result<Usage> {
+pub fn get_usage(data: &Value) -> anyhow::Result<Usage> {
     let usage = data
         .get("usage")
         .ok_or_else(|| anyhow!("No usage data in response"))?;
@@ -254,40 +245,21 @@ pub fn get_openai_usage(data: &Value) -> anyhow::Result<Usage> {
     Ok(Usage::new(input_tokens, output_tokens, total_tokens))
 }
 
-pub fn create_openai_request_payload(
+pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
-) -> anyhow::Result<Value, Error> {
-    create_openai_request_payload_handling_concat_response_content(
-        model_config,
-        system,
-        messages,
-        tools,
-        false,
-    )
-}
-
-fn create_openai_request_payload_handling_concat_response_content(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-    concat_tool_response_contents: bool,
+    image_format: &ImageFormat,
 ) -> anyhow::Result<Value, Error> {
     let system_message = json!({
         "role": "system",
         "content": system
     });
 
-    let messages_spec = messages_to_openai_spec(
-        messages,
-        &ImageFormat::OpenAi,
-        concat_tool_response_contents,
-    );
+    let messages_spec = format_messages(messages, image_format);
     let tools_spec = if !tools.is_empty() {
-        tools_to_openai_spec(tools)?
+        format_tools(tools)?
     } else {
         vec![]
     };
@@ -321,22 +293,7 @@ fn create_openai_request_payload_handling_concat_response_content(
     Ok(payload)
 }
 
-pub fn create_openai_request_payload_with_concat_response_content(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> anyhow::Result<Value, Error> {
-    create_openai_request_payload_handling_concat_response_content(
-        model_config,
-        system,
-        messages,
-        tools,
-        true,
-    )
-}
-
-pub fn check_openai_context_length_error(error: &Value) -> Option<ProviderError> {
+pub fn is_context_length_error(error: &Value) -> Option<ProviderError> {
     let code = error.get("code")?.as_str()?;
     if code == "context_length_exceeded" || code == "string_above_max_length" {
         let message = error
@@ -377,9 +334,9 @@ mod tests {
     }"#;
 
     #[test]
-    fn test_messages_to_openai_spec() -> anyhow::Result<()> {
+    fn test_format_messages() -> anyhow::Result<()> {
         let message = Message::user().with_text("Hello");
-        let spec = messages_to_openai_spec(&[message], &ImageFormat::OpenAi, false);
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -388,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tools_to_openai_spec() -> anyhow::Result<()> {
+    fn test_format_tools() -> anyhow::Result<()> {
         let tool = Tool::new(
             "test_tool",
             "A test tool",
@@ -404,7 +361,7 @@ mod tests {
             }),
         );
 
-        let spec = tools_to_openai_spec(&[tool])?;
+        let spec = format_tools(&[tool])?;
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["type"], "function");
@@ -413,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn test_messages_to_openai_spec_complex() -> anyhow::Result<()> {
+    fn test_format_messages_complex() -> anyhow::Result<()> {
         let mut messages = vec![
             Message::assistant().with_text("Hello!"),
             Message::user().with_text("How are you?"),
@@ -433,7 +390,7 @@ mod tests {
         messages
             .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
 
-        let spec = messages_to_openai_spec(&messages, &ImageFormat::OpenAi, true);
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 4);
         assert_eq!(spec[0]["role"], "assistant");
@@ -450,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn test_messages_to_openai_spec_not_concat_tool_response_content() -> anyhow::Result<()> {
+    fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(ToolCall::new("example", json!({"param1": "value1"}))),
@@ -466,20 +423,20 @@ mod tests {
         messages
             .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
 
-        let spec = messages_to_openai_spec(&messages, &ImageFormat::OpenAi, false);
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 2);
         assert_eq!(spec[0]["role"], "assistant");
         assert!(spec[0]["tool_calls"].is_array());
         assert_eq!(spec[1]["role"], "tool");
-        assert_eq!(spec[1]["content"][0]["text"], "Result");
+        assert_eq!(spec[1]["content"], "Result");
         assert_eq!(spec[1]["tool_call_id"], spec[0]["tool_calls"][0]["id"]);
 
         Ok(())
     }
 
     #[test]
-    fn test_tools_to_openai_spec_duplicate() -> anyhow::Result<()> {
+    fn test_format_tools_duplicate() -> anyhow::Result<()> {
         let tool1 = Tool::new(
             "test_tool",
             "Test tool",
@@ -510,7 +467,7 @@ mod tests {
             }),
         );
 
-        let result = tools_to_openai_spec(&[tool1, tool2]);
+        let result = format_tools(&[tool1, tool2]);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -521,14 +478,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tools_to_openai_spec_empty() -> anyhow::Result<()> {
-        let spec = tools_to_openai_spec(&[])?;
+    fn test_format_tools_empty() -> anyhow::Result<()> {
+        let spec = format_tools(&[])?;
         assert!(spec.is_empty());
         Ok(())
     }
 
     #[test]
-    fn test_openai_response_to_message_text() -> anyhow::Result<()> {
+    fn test_response_to_message_text() -> anyhow::Result<()> {
         let response = json!({
             "choices": [{
                 "role": "assistant",
@@ -543,7 +500,7 @@ mod tests {
             }
         });
 
-        let message = openai_response_to_message(response)?;
+        let message = response_to_message(response)?;
         assert_eq!(message.content.len(), 1);
         if let MessageContent::Text(text) = &message.content[0] {
             assert_eq!(text.text, "Hello from John Cena!");
@@ -556,9 +513,9 @@ mod tests {
     }
 
     #[test]
-    fn test_openai_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
+    fn test_response_to_message_valid_toolrequest() -> anyhow::Result<()> {
         let response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        let message = openai_response_to_message(response)?;
+        let message = response_to_message(response)?;
 
         assert_eq!(message.content.len(), 1);
         if let MessageContent::ToolRequest(request) = &message.content[0] {
@@ -573,12 +530,12 @@ mod tests {
     }
 
     #[test]
-    fn test_openai_response_to_message_invalid_func_name() -> anyhow::Result<()> {
+    fn test_response_to_message_invalid_func_name() -> anyhow::Result<()> {
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
             json!("invalid fn");
 
-        let message = openai_response_to_message(response)?;
+        let message = response_to_message(response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -595,12 +552,12 @@ mod tests {
     }
 
     #[test]
-    fn test_openai_response_to_message_json_decode_error() -> anyhow::Result<()> {
+    fn test_response_to_message_json_decode_error() -> anyhow::Result<()> {
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             json!("invalid json {");
 
-        let message = openai_response_to_message(response)?;
+        let message = response_to_message(response)?;
 
         if let MessageContent::ToolRequest(request) = &message.content[0] {
             match &request.tool_call {
@@ -617,13 +574,13 @@ mod tests {
     }
 
     #[test]
-    fn test_check_openai_context_length_error() {
+    fn test_is_context_length_error() {
         let error = json!({
             "code": "context_length_exceeded",
             "message": "This message is too long"
         });
 
-        let result = check_openai_context_length_error(&error);
+        let result = is_context_length_error(&error);
         assert!(result.is_some());
         assert_eq!(
             result.unwrap().to_string(),
@@ -635,7 +592,7 @@ mod tests {
             "message": "Some other error"
         });
 
-        let result = check_openai_context_length_error(&error);
+        let result = is_context_length_error(&error);
         assert!(result.is_none());
     }
 }

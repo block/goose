@@ -9,6 +9,7 @@ on:
       - 'docs/**'
     branches:
       - v1.0
+  workflow_dispatch:
 
 name: CI
 
@@ -40,13 +41,6 @@ jobs:
           sudo apt update -y
           sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-      - name: Start gnome-keyring
-        # run gnome-keyring with 'foobar' as password for the login keyring
-        # this will create a new login keyring and unlock it
-        # the login password doesn't matter, but the keyring must be unlocked for the tests to work
-        run: |
-          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -76,27 +70,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.com/install.sh | sh
-
-      - name: Start Ollama
+      - name: Build and Test
         run: |
-          # Run the background, in a way that survives to the next step
-          nohup ollama serve > ollama.log 2>&1 &
-          # Block using the ready endpoint
-          time curl --retry 5 --retry-connrefused --retry-delay 1 -sf http://localhost:11434
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          cargo test
 
-      - name: Test Ollama Model
-        run: ollama run qwen2.5 hello || cat ollama.log
-
-      - name: Build Rust Project
-        run: cargo build
-
-      - name: Run Tests
-        run: cargo test --verbose
-        env:
-          OLLAMA_MODEL: "qwen2.5"
-      
       ## TODO: Need to decide if we wanna error out on clippy warnings. It was not being used before. 
       # - name: Run Cargo Clippy (Lint)
       #   run: cargo clippy -- -D warnings
@@ -120,3 +98,10 @@ jobs:
       - name: Run Lint
         run: npm run lint:check
         working-directory: ui/desktop
+
+  # Faster Desktop App build for PRs only
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    if: github.event_name == 'pull_request'
+    with:
+      signing: false
