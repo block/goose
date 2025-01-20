@@ -47,6 +47,16 @@ export const extendGoosed = async (config: SystemConfig) => {
         cmd: await window.electron.getBinaryPath('goosed')
       };
     }
+
+    if (config.cmd === 'npx') {
+      // use our special npx shim which uses hermit.
+      config = {
+        ...config,
+        cmd: await window.electron.getBinaryPath('npx')
+      };
+    }
+      
+
   }
 
   try {
