@@ -61,6 +61,9 @@ log "hermit: $(which hermit)"
 log "node: $(which node)"
 log "npx: $(which npx)"
 
+# Set default registry to npm
+export NPM_CONFIG_REGISTRY="https://registry.npmjs.org/"
+
 # Final step: Execute npx with passed arguments
 log "Executing 'npx' command with arguments: $*"
 npx "$@" || log "Failed to execute 'npx' with arguments: $*"
