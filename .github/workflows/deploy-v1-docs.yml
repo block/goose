@@ -1,0 +1,34 @@
+name: Deploy v1 Docs (Docusaurus in /documentation)
+
+on:
+  push:
+    branches:
+      - v1-docs
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the branch
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18 
+
+      - name: Install dependencies
+        working-directory: ./documentation
+        run: npm install
+
+      - name: Build the site
+        working-directory: ./documentation
+        run: npm run build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./documentation/build # Docusaurus outputs the site here by default
+          destination_dir: v1 # Deploy the site to the 'v1' subfolder
