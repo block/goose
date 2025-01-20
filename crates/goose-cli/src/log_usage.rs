@@ -50,7 +50,6 @@ pub fn log_usage(session_file: String, usage: Vec<ProviderUsage>) {
 #[cfg(test)]
 mod tests {
     use goose::providers::base::{ProviderUsage, Usage};
-    use rust_decimal_macros::dec;
 
     use crate::{
         log_usage::{log_usage, SessionLog},
@@ -72,7 +71,6 @@ mod tests {
                 vec![ProviderUsage::new(
                     "model".to_string(),
                     Usage::new(Some(10), Some(20), Some(30)),
-                    Some(dec!(0.5)),
                 )],
             );
 
@@ -87,7 +85,6 @@ mod tests {
             assert_eq!(log.usage[0].usage.output_tokens, Some(20));
             assert_eq!(log.usage[0].usage.total_tokens, Some(30));
             assert_eq!(log.usage[0].model, "model");
-            assert_eq!(log.usage[0].cost, Some(dec!(0.5)));
 
             // Remove the log file after test
             std::fs::remove_file(&log_file).ok();
