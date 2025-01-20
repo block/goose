@@ -14,8 +14,10 @@ in your tool specification.
 {% for system in systems %}
 
 ## {{system.name}}
-{{system.description}}
-
+{% if system.has_resources %}
+{{system.name}} supports resources, you can use platform__read_resource,
+and platform__list_resources on this system.
+{% endif %}
 {% if system.instructions %}### Instructions
 {{system.instructions}}{% endif %}
 {% endfor %}
