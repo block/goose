@@ -67,8 +67,9 @@ impl OpenRouterProvider {
     }
 }
 
-// For anthropic model, we can enable prompt caching to save cost. Since openrouter is the OpenAI compatible
-// endpoint, we need to modify the open ai request to have anthropic fields.
+/// Update the request when using anthropic model.
+/// For anthropic model, we can enable prompt caching to save cost. Since openrouter is the OpenAI compatible
+/// endpoint, we need to modify the open ai request to have anthropic cache control field.
 fn update_request_for_anthropic(original_payload: &Value) -> Value {
     let mut payload = original_payload.clone();
 
