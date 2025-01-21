@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
+use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -13,6 +14,7 @@ use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
 use mcp_core::{Content, Tool, ToolCall, ToolError, ToolResult};
+use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
 // This is to ensure that the resource is considered less important than resources with a more recent timestamp
@@ -23,6 +25,7 @@ static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
 pub struct Capabilities {
     clients: HashMap<String, Arc<Mutex<Box<dyn McpClientTrait>>>>,
     instructions: HashMap<String, String>,
+    resource_capable_systems: HashSet<String>,
     provider: Box<dyn Provider>,
     provider_usage: Mutex<Vec<ProviderUsage>>,
 }
@@ -80,9 +83,14 @@ impl Capabilities {
         Self {
             clients: HashMap::new(),
             instructions: HashMap::new(),
+            resource_capable_systems: HashSet::new(),
             provider,
             provider_usage: Mutex::new(Vec::new()),
         }
+    }
+
+    pub fn supports_resources(&self) -> bool {
+        !self.resource_capable_systems.is_empty()
     }
 
     /// Add a new MCP system based on the provided client type
@@ -139,6 +147,12 @@ impl Capabilities {
         if let Some(instructions) = init_result.instructions {
             self.instructions
                 .insert(init_result.server_info.name.clone(), instructions);
+        }
+
+        // if the server is capable if resources we track it
+        if init_result.capabilities.resources.is_some() {
+            self.resource_capable_systems
+                .insert(sanitize(init_result.server_info.name.clone()));
         }
 
         // Store the client
@@ -278,7 +292,8 @@ impl Capabilities {
             .keys()
             .map(|name| {
                 let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                SystemInfo::new(name, "", &instructions)
+                let has_resources = self.resource_capable_systems.contains(name);
+                SystemInfo::new(name, &instructions, has_resources)
             })
             .collect();
 
@@ -297,25 +312,195 @@ impl Capabilities {
             .map(Arc::clone)
     }
 
+    // Function that gets executed for read_resource tool
+    async fn read_resource(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let uri = params
+            .get("uri")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'uri' parameter".to_string()))?;
+
+        let system_name = params.get("system_name").and_then(|v| v.as_str());
+
+        // If system name is provided, we can just look it up
+        if system_name.is_some() {
+            let result = self
+                .read_resource_from_system(uri, system_name.unwrap())
+                .await?;
+            return Ok(result);
+        }
+
+        // If system name is not provided, we need to search for the resource across all systems
+        // Loop through each system and try to read the resource, don't raise an error if the resource is not found
+        // TODO: do we want to find if a provided uri is in multiple systems?
+        // currently it will reutrn the first match and skip any systems
+        for system_name in self.resource_capable_systems.iter() {
+            let result = self.read_resource_from_system(uri, system_name).await;
+            match result {
+                Ok(result) => return Ok(result),
+                Err(_) => continue,
+            }
+        }
+
+        // None of the systems had the resource so we raise an error
+        let available_systems = self
+            .clients
+            .keys()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        let error_msg = format!(
+            "Resource with uri '{}' not found. Here are the available systems: {}",
+            uri, available_systems
+        );
+
+        Err(ToolError::InvalidParameters(error_msg))
+    }
+
+    async fn read_resource_from_system(
+        &self,
+        uri: &str,
+        system_name: &str,
+    ) -> Result<Vec<Content>, ToolError> {
+        let available_systems = self
+            .clients
+            .keys()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        let error_msg = format!(
+            "System '{}' not found. Here are the available systems: {}",
+            system_name, available_systems
+        );
+
+        let client = self
+            .clients
+            .get(system_name)
+            .ok_or(ToolError::InvalidParameters(error_msg))?;
+
+        let client_guard = client.lock().await;
+        let read_result = client_guard.read_resource(uri).await.map_err(|_| {
+            ToolError::ExecutionError(format!("Could not read resource with uri: {}", uri))
+        })?;
+
+        let mut result = Vec::new();
+        for content in read_result.contents {
+            // Only reading the text resource content; skipping the blob content cause it's too long
+            if let mcp_core::resource::ResourceContents::TextResourceContents { text, .. } = content
+            {
+                let content_str = format!("{}\n\n{}", uri, text);
+                result.push(Content::text(content_str));
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn list_resources_from_system(
+        &self,
+        system_name: &str,
+    ) -> Result<Vec<Content>, ToolError> {
+        let client = self.clients.get(system_name).ok_or_else(|| {
+            ToolError::InvalidParameters(format!("System {} is not valid", system_name))
+        })?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .list_resources(None)
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!(
+                    "Unable to list resources for {}, {:?}",
+                    system_name, e
+                ))
+            })
+            .map(|lr| {
+                let resource_list = lr
+                    .resources
+                    .into_iter()
+                    .map(|r| format!("{} - {}, uri: ({})", system_name, r.name, r.uri))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+
+                vec![Content::text(resource_list)]
+            })
+    }
+
+    async fn list_resources(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let system = params.get("system").and_then(|v| v.as_str());
+
+        match system {
+            Some(system_name) => {
+                // Handle single system case
+                self.list_resources_from_system(system_name).await
+            }
+            None => {
+                // Handle all systems case using FuturesUnordered
+                let mut futures = FuturesUnordered::new();
+
+                // Create futures for each resource_capable_system
+                for system_name in &self.resource_capable_systems {
+                    futures.push(async move { self.list_resources_from_system(system_name).await });
+                }
+
+                let mut all_resources = Vec::new();
+                let mut errors = Vec::new();
+
+                // Process results as they complete
+                while let Some(result) = futures.next().await {
+                    match result {
+                        Ok(content) => {
+                            all_resources.extend(content);
+                        }
+                        Err(tool_error) => {
+                            errors.push(tool_error);
+                        }
+                    }
+                }
+
+                // Log any errors that occurred
+                if !errors.is_empty() {
+                    tracing::error!(
+                        errors = ?errors
+                            .into_iter()
+                            .map(|e| format!("{:?}", e))
+                            .collect::<Vec<_>>(),
+                        "errors from listing resources"
+                    );
+                }
+
+                Ok(all_resources)
+            }
+        }
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call), fields(input, output))]
     pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> ToolResult<Vec<Content>> {
-        let client = self
-            .get_client_for_tool(&tool_call.name)
-            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
+        let result = if tool_call.name == "platform__read_resource" {
+            // Check if the tool is read_resource and handle it separately
+            self.read_resource(tool_call.arguments.clone()).await
+        } else if tool_call.name == "platform__list_resources" {
+            self.list_resources(tool_call.arguments.clone()).await
+        } else {
+            // Else, dispatch tool call based on the prefix naming convention
+            let client = self
+                .get_client_for_tool(&tool_call.name)
+                .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
-        let tool_name = tool_call
-            .name
-            .split("__")
-            .nth(1)
-            .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
+            let tool_name = tool_call
+                .name
+                .split("__")
+                .nth(1)
+                .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
-        let client_guard = client.lock().await;
-        let result = client_guard
-            .call_tool(tool_name, tool_call.clone().arguments)
-            .await
-            .map(|result| result.content)
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            let client_guard = client.lock().await;
+
+            client_guard
+                .call_tool(tool_name, tool_call.clone().arguments)
+                .await
+                .map(|result| result.content)
+                .map_err(|e| ToolError::ExecutionError(e.to_string()))
+        };
 
         debug!(
             "input" = serde_json::to_string(&tool_call).unwrap(),

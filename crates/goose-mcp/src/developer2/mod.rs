@@ -620,10 +620,7 @@ impl Router for Developer2Router {
     }
 
     fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new()
-            .with_tools(false)
-            .with_resources(false, false)
-            .build()
+        CapabilitiesBuilder::new().with_tools(false).build()
     }
 
     fn list_tools(&self) -> Vec<Tool> {

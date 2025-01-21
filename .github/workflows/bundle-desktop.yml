@@ -10,6 +10,7 @@ on:
         description: 'Whether to perform signing and notarization'
         required: false
         default: false
+        type: boolean
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'
@@ -116,7 +117,25 @@ jobs:
         run: npm ci
         working-directory: ui/desktop
 
-      - name: Make default Goose App
+      - name: Make Unsigned App
+        if: ${{ !inputs.signing }}
+        run: |
+          attempt=0
+          max_attempts=2
+          until [ $attempt -ge $max_attempts ]; do
+            npm run bundle:default && break
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt failed. Retrying..."
+            sleep 5
+          done
+          if [ $attempt -ge $max_attempts ]; then
+            echo "Action failed after $max_attempts attempts."
+            exit 1
+          fi
+        working-directory: ui/desktop
+
+      - name: Make Signed App
+        if: ${{ inputs.signing }}
         run: |
           attempt=0
           max_attempts=2
@@ -132,9 +151,9 @@ jobs:
           fi
         working-directory: ui/desktop
         env:
-          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4

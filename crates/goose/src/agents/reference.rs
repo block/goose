@@ -13,7 +13,10 @@ use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
-use serde_json::Value;
+use indoc::indoc;
+use mcp_core::tool::Tool;
+use serde_json::{json, Value};
+
 /// Reference implementation of an Agent
 pub struct ReferenceAgent {
     capabilities: Mutex<Capabilities>,
@@ -66,7 +69,52 @@ impl Agent for ReferenceAgent {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
         let mut capabilities = self.capabilities.lock().await;
-        let tools = capabilities.get_prefixed_tools().await?;
+        let mut tools = capabilities.get_prefixed_tools().await?;
+        // we add in the read_resource tool by default
+        // TODO: make sure there is no collision with another system's tool name
+        let read_resource_tool = Tool::new(
+            "platform__read_resource".to_string(),
+            indoc! {r#"
+                Read a resource from a system.
+
+                Resources allow systems to share data that provide context to LLMs, such as
+                files, database schemas, or application-specific information. This tool searches for the
+                resource URI in the provided system, and reads in the resource content. If no system
+                is provided, the tool will search all systems for the resource.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "required": ["uri"],
+                "properties": {
+                    "uri": {"type": "string", "description": "Resource URI"},
+                    "system_name": {"type": "string", "description": "Optional system name"}
+                }
+            }),
+        );
+
+        let list_resources_tool = Tool::new(
+            "platform__list_resources".to_string(),
+            indoc! {r#"
+                List resources from a system(s).
+
+                Resources allow systems to share data that provide context to LLMs, such as
+                files, database schemas, or application-specific information. This tool lists resources
+                in the provided system, and returns a list for the user to browse. If no system
+                is provided, the tool will search all systems for the resource.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "system_name": {"type": "string", "description": "Optional system name"}
+                }
+            }),
+        );
+
+        if capabilities.supports_resources() {
+            tools.push(read_resource_tool);
+            tools.push(list_resources_tool);
+        }
+
         let system_prompt = capabilities.get_system_prompt().await;
         let _estimated_limit = capabilities
             .provider()
