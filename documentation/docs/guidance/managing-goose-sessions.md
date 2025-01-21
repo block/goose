@@ -1,7 +1,3 @@
----
-sidebar_position: 3
----
-
 # Managing Goose Sessions
 
 Goose sessions are your way to interact with Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, end, save, resume, and delete a session. 

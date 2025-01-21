@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Goose in action
 
 This page is frequently updated with the latest use-cases and applications of Goose!
