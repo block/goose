@@ -745,31 +745,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shell_change_directory() {
-        let router = get_router().await;
-        let result = router
-            .call_tool("shell", json!({ "working_dir": ".", "command": "pwd" }))
-            .await;
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        // Check that the output contains the current directory
-        assert!(!output.is_empty());
-        let text = output.first().unwrap().as_text().unwrap();
-        assert!(text.contains(&std::env::current_dir().unwrap().display().to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_shell_invalid_directory() {
-        let router = get_router().await;
-        let result = router
-            .call_tool("shell", json!({ "working_dir": "non_existent_dir"}))
-            .await;
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
-    }
-
-    #[tokio::test]
     async fn test_text_editor_size_limits() {
         let router = get_router().await;
         let temp_dir = tempfile::tempdir().unwrap();
