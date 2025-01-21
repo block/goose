@@ -687,8 +687,8 @@ mod tests {
     use super::*;
     use lazy_static::lazy_static;
     use serde_json::json;
-    use std::fs;
     use std::sync::Mutex;
+    use std::{env, fs};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -741,8 +741,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_text_editor_size_limits() {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
         let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Test file size limit
         {
@@ -799,11 +801,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_text_editor_write_and_view_file() {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
@@ -847,11 +851,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_text_editor_str_replace() {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
@@ -920,11 +926,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_text_editor_undo_edit() {
+        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
