@@ -1,8 +1,3 @@
----
-sidebar_position: 4
----
-
-
 # Contributing
 
 We welcome Pull Requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an [issue][issues] before starting.
