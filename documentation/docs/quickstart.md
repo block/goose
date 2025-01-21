@@ -7,9 +7,9 @@ title: Quickstart
 
 ## Quickstart guide
 
-Goose is a developer agent that supercharges your software development by automating coding tasks directly in your terminal using its powerful CLI. This Quickstart guide will show you how to get the CLI up and running in just a few minutes.
+Goose is a developer agent that supercharges your software development by automating an array of coding tasks directly in your terminal. This Quickstart guide will show you how to get the CLI up and running in just a few minutes.
 
-For those who prefer a graphical interface, Goose also offers a desktop UI. See [Getting Started with Goose Desktop][goose-ui] for more details.
+For those who prefer an interface, Goose also offers a desktop UI. See [Getting Started with Goose Desktop][goose-ui] for more details.
 
 ### CLI Installation
 
