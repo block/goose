@@ -43,44 +43,6 @@ impl Default for DeveloperRouter {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lazy_static::lazy_static;
-    use std::fs;
-    use std::sync::Mutex;
-    use tempfile::TempDir;
-
-    lazy_static! {
-        static ref TEST_MUTEX: Mutex<()> = Mutex::new(());
-    }
-
-    #[test]
-    fn test_goosehints_when_present() {
-        let _lock = TEST_MUTEX.lock().unwrap();
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        fs::write(".goosehints", "Test hint content").unwrap();
-        let router = DeveloperRouter::new();
-        let instructions = router.instructions();
-
-        assert!(instructions.contains("Test hint content"));
-    }
-
-    #[test]
-    fn test_goosehints_when_missing() {
-        let _lock = TEST_MUTEX.lock().unwrap();
-        let dir = TempDir::new().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-
-        let router = DeveloperRouter::new();
-        let instructions = router.instructions();
-
-        assert!(!instructions.contains("Project Hints"));
-    }
-}
-
 impl DeveloperRouter {
     pub fn new() -> Self {
         // TODO consider rust native search tools, we could use
@@ -723,8 +685,41 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lazy_static::lazy_static;
     use serde_json::json;
+    use std::fs;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
     use tokio::sync::OnceCell;
+
+    lazy_static! {
+        static ref TEST_MUTEX: Mutex<()> = Mutex::new(());
+    }
+
+    #[test]
+    fn test_goosehints_when_present() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        fs::write(".goosehints", "Test hint content").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Test hint content"));
+    }
+
+    #[test]
+    fn test_goosehints_when_missing() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(!instructions.contains("Project Hints"));
+    }
 
     static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
 
