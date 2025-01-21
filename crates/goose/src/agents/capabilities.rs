@@ -584,7 +584,7 @@ mod tests {
             match name {
                 "tool" | "test__tool" => Ok(CallToolResult {
                     content: vec![],
-                    is_error: false,
+                    is_error: None,
                 }),
                 _ => Err(Error::NotInitialized),
             }

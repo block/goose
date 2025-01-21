@@ -218,7 +218,8 @@ pub struct ListToolsResult {
 #[serde(rename_all = "camelCase")]
 pub struct CallToolResult {
     pub content: Vec<Content>,
-    pub is_error: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_error: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

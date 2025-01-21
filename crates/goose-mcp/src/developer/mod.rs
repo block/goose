@@ -687,8 +687,8 @@ mod tests {
     use super::*;
     use lazy_static::lazy_static;
     use serde_json::json;
+    use std::fs;
     use std::sync::Mutex;
-    use std::{env, fs};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
