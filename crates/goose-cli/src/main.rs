@@ -117,9 +117,9 @@ enum Command {
         #[arg(
             short,
             long,
-            required = true,
             value_name = "FILE",
-            help = "Path to instruction file containing commands"
+            help = "Path to instruction file containing commands",
+            conflicts_with = "input_text"
         )]
         instructions: Option<String>,
 
@@ -129,7 +129,8 @@ enum Command {
             long = "text",
             value_name = "TEXT",
             help = "Input text to provide to Goose directly",
-            long_help = "Input text containing commands for Goose. Use this in lieu of the instructions argument."
+            long_help = "Input text containing commands for Goose. Use this in lieu of the instructions argument.",
+            conflicts_with = "instructions"
         )]
         input_text: Option<String>,
 
@@ -246,6 +247,12 @@ async fn main() -> Result<()> {
             agent,
             resume,
         }) => {
+            // Validate that we have some input source
+            if instructions.is_none() && input_text.is_none() {
+                eprintln!("Error: Must provide either --instructions or --text");
+                std::process::exit(1);
+            }
+
             if let Some(agent_version) = agent.clone() {
                 if !AgentFactory::available_versions().contains(&agent_version.as_str()) {
                     eprintln!("Error: Invalid agent version '{}'", agent_version);

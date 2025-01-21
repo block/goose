@@ -10,6 +10,7 @@ use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::groq::GROQ_DEFAULT_MODEL;
 use goose::providers::ollama::OLLAMA_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
+use goose::providers::openrouter::OPENROUTER_DEFAULT_MODEL;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -98,6 +99,7 @@ pub async fn configure_provider_dialog(
             "anthropic".to_string(),
             "google".to_string(),
             "groq".to_string(),
+            "openrouter".to_string(),
         ];
         let provider = cliclack::select("Which model provider should we use?")
             .initial_value(&config.default_provider)
@@ -107,7 +109,8 @@ pub async fn configure_provider_dialog(
                 (&providers[2], "Ollama", "Local open source models"),
                 (&providers[3], "Anthropic", "Claude models"),
                 (&providers[4], "Google Gemini", "Gemini models"),
-                (&providers[5], "Groq", "AI models"),
+                (&providers[5], "Groq", "Fast inference"),
+                (&providers[6], "OpenRouter", "Router for many models"),
             ])
             .interact()?;
         provider.to_string()
@@ -204,6 +207,7 @@ pub fn get_recommended_model(provider_name: &str) -> &str {
         "anthropic" => ANTHROPIC_DEFAULT_MODEL,
         "google" => GOOGLE_DEFAULT_MODEL,
         "groq" => GROQ_DEFAULT_MODEL,
+        "openrouter" => OPENROUTER_DEFAULT_MODEL,
         _ => panic!("Invalid provider name"),
     }
 }
@@ -216,6 +220,7 @@ pub fn get_required_keys(provider_name: &str) -> Vec<&'static str> {
         "anthropic" => vec!["ANTHROPIC_API_KEY"],
         "google" => vec!["GOOGLE_API_KEY"],
         "groq" => vec!["GROQ_API_KEY"],
+        "openrouter" => vec!["OPENROUTER_API_KEY"],
         _ => panic!("Invalid provider name"),
     }
 }

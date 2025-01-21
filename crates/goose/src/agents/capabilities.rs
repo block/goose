@@ -100,7 +100,7 @@ impl Capabilities {
             SystemConfig::Sse { ref uri, ref envs } => {
                 let transport = SseTransport::new(uri, envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(100));
+                let service = McpService::with_timeout(handle, Duration::from_secs(300));
                 Box::new(McpClient::new(service))
             }
             SystemConfig::Stdio {
@@ -110,7 +110,7 @@ impl Capabilities {
             } => {
                 let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(100));
+                let service = McpService::with_timeout(handle, Duration::from_secs(300));
                 Box::new(McpClient::new(service))
             }
             SystemConfig::Builtin { ref name } => {
@@ -126,7 +126,7 @@ impl Capabilities {
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(100));
+                let service = McpService::with_timeout(handle, Duration::from_secs(300));
                 Box::new(McpClient::new(service))
             }
         };
