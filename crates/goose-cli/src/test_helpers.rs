@@ -19,24 +19,6 @@ pub fn run_with_tmp_dir<F: FnOnce() -> T, T>(func: F) -> T {
 }
 
 #[cfg(test)]
-pub fn run_profile_with_tmp_dir<F: FnOnce() -> T, T>(profile: &str, func: F) -> T {
-    use std::ffi::OsStr;
-    use tempfile::tempdir;
-
-    let temp_dir = tempdir().unwrap();
-    let temp_dir_path = temp_dir.path().to_path_buf();
-    setup_profile(&temp_dir_path, Some(profile));
-
-    temp_env::with_vars(
-        [
-            ("HOME", Some(temp_dir_path.as_os_str())),
-            ("DATABRICKS_HOST", Some(OsStr::new("tmp_host_url"))),
-        ],
-        func,
-    )
-}
-
-#[cfg(test)]
 #[allow(dead_code)]
 pub async fn run_with_tmp_dir_async<F, Fut, T>(func: F) -> T
 where
