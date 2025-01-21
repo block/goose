@@ -119,7 +119,7 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
             }
         }
     }
-    return payload;
+    payload
 }
 
 fn create_request_based_on_model(
