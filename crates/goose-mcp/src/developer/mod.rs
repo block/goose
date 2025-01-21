@@ -719,3 +719,308 @@ impl Clone for DeveloperRouter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use tokio::sync::OnceCell;
+
+    static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
+
+    async fn get_router() -> &'static DeveloperRouter {
+        DEV_ROUTER
+            .get_or_init(|| async { DeveloperRouter::new() })
+            .await
+    }
+
+    #[tokio::test]
+    async fn test_shell_missing_parameters() {
+        let router = get_router().await;
+        let result = router.call_tool("shell", json!({})).await;
+
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+    }
+
+    #[tokio::test]
+    async fn test_shell_change_directory() {
+        let router = get_router().await;
+        let result = router
+            .call_tool("shell", json!({ "working_dir": ".", "command": "pwd" }))
+            .await;
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        // Check that the output contains the current directory
+        assert!(!output.is_empty());
+        let text = output.first().unwrap().as_text().unwrap();
+        assert!(text.contains(&std::env::current_dir().unwrap().display().to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_shell_invalid_directory() {
+        let router = get_router().await;
+        let result = router
+            .call_tool("shell", json!({ "working_dir": "non_existent_dir"}))
+            .await;
+        assert!(result.is_err());
+        let err = result.err().unwrap();
+        assert!(matches!(err, ToolError::InvalidParameters(_)));
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_size_limits() {
+        let router = get_router().await;
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        // Test file size limit
+        {
+            let large_file_path = temp_dir.path().join("large.txt");
+            let large_file_str = large_file_path.to_str().unwrap();
+
+            // Create a file larger than 2MB
+            let content = "x".repeat(3 * 1024 * 1024); // 3MB
+            std::fs::write(&large_file_path, content).unwrap();
+
+            let result = router
+                .call_tool(
+                    "text_editor",
+                    json!({
+                        "command": "view",
+                        "path": large_file_str
+                    }),
+                )
+                .await;
+
+            assert!(result.is_err());
+            let err = result.err().unwrap();
+            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert!(err.to_string().contains("too large"));
+        }
+
+        // Test character count limit
+        {
+            let many_chars_path = temp_dir.path().join("many_chars.txt");
+            let many_chars_str = many_chars_path.to_str().unwrap();
+
+            // Create a file with more than 2^20 characters but less than 2MB
+            let content = "x".repeat((1 << 20) + 1); // 2^20 + 1 characters
+            std::fs::write(&many_chars_path, content).unwrap();
+
+            let result = router
+                .call_tool(
+                    "text_editor",
+                    json!({
+                        "command": "view",
+                        "path": many_chars_str
+                    }),
+                )
+                .await;
+
+            assert!(result.is_err());
+            let err = result.err().unwrap();
+            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert!(err.to_string().contains("too many characters"));
+        }
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_write_and_view_file() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+
+        // Create a new file
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": "Hello, world!"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // View the file
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        assert!(!view_result.is_empty());
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+        assert!(text.contains("Hello, world!"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_str_replace() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+
+        // Create a new file
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": "Hello, world!"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Replace string
+        let replace_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "str_replace",
+                    "path": file_path_str,
+                    "old_str": "world",
+                    "new_str": "Rust"
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = replace_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(text.contains("has been edited, and the section now reads"));
+
+        // View the file to verify the change
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+        assert!(text.contains("Hello, Rust!"));
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_text_editor_undo_edit() {
+        let router = get_router().await;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        let file_path_str = file_path.to_str().unwrap();
+
+        // Create a new file
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": file_path_str,
+                    "file_text": "First line"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Replace string
+        router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "str_replace",
+                    "path": file_path_str,
+                    "old_str": "First line",
+                    "new_str": "Second line"
+                }),
+            )
+            .await
+            .unwrap();
+
+        // Undo the edit
+        let undo_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "undo_edit",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = undo_result.first().unwrap().as_text().unwrap();
+        assert!(text.contains("Undid the last edit"));
+
+        // View the file to verify the undo
+        let view_result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "view",
+                    "path": file_path_str
+                }),
+            )
+            .await
+            .unwrap();
+
+        let text = view_result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+        assert!(text.contains("First line"));
+
+        temp_dir.close().unwrap();
+    }
+}
