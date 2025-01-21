@@ -171,12 +171,24 @@ pub fn default_response_renderer(tool_response: &ToolResponse, theme: &str) {
 
 pub fn default_print_request_header(call: &ToolCall) {
     // Print the tool name with an emoji
-    let parts: Vec<_> = call.name.split("__").collect();
+
+    // use rsplit to handle any prefixed tools with more underscores
+    // unicode gets converted to underscores during sanitization
+    let parts: Vec<_> = call.name.rsplit("__").collect();
 
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
-        style(parts.get(1).unwrap_or(&"unknown")),
-        style(parts.first().unwrap_or(&"unknown")).magenta().dim(),
+        style(parts.first().unwrap_or(&"unknown")),
+        style(
+            parts
+                .split_first()
+                // client name is the rest of the split, reversed
+                // reverse the iterator and re-join on __
+                .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
+                .unwrap_or_else(|| "unknown".to_string())
+        )
+        .magenta()
+        .dim(),
     );
     print_newline();
     println!("{}", tool_header);

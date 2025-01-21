@@ -68,10 +68,10 @@ impl ResourceItem {
 fn sanitize(input: String) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
-        result.push(if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-            c
-        } else {
-            '_'
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue, // effectively "strip" whitespace
+            _ => '_',                           // Replace any other non-ASCII character with '_'
         });
     }
     result
@@ -306,9 +306,24 @@ impl Capabilities {
         &self,
         prefixed_name: &str,
     ) -> Option<Arc<Mutex<Box<dyn McpClientTrait>>>> {
+        // use rsplit to handle any prefixed tools with more underscores
+        // unicode gets converted to underscores during sanitization
         prefixed_name
-            .split_once("__")
-            .and_then(|(client_name, _)| self.clients.get(client_name))
+            .rsplit("__")
+            .collect::<Vec<_>>()
+            .split_first()
+            .and_then(|(_, client_parts)| {
+                // client name is the rest of the split, reversed
+                // reverse the iterator and re-join on __
+                let name = client_parts
+                    .iter()
+                    .rev()
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join("__");
+
+                self.clients.get(&name)
+            })
             .map(Arc::clone)
     }
 
@@ -487,10 +502,11 @@ impl Capabilities {
                 .get_client_for_tool(&tool_call.name)
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
+            // rsplit returns the iterator in reverse, tool_name is then at 0
             let tool_name = tool_call
                 .name
-                .split("__")
-                .nth(1)
+                .rsplit("__")
+                .nth(0)
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
             let client_guard = client.lock().await;
