@@ -305,26 +305,11 @@ impl Capabilities {
     fn get_client_for_tool(
         &self,
         prefixed_name: &str,
-    ) -> Option<Arc<Mutex<Box<dyn McpClientTrait>>>> {
-        // use rsplit to handle any prefixed tools with more underscores
-        // unicode gets converted to underscores during sanitization
-        prefixed_name
-            .rsplit("__")
-            .collect::<Vec<_>>()
-            .split_first()
-            .and_then(|(_, client_parts)| {
-                // client name is the rest of the split, reversed
-                // reverse the iterator and re-join on __
-                let name = client_parts
-                    .iter()
-                    .rev()
-                    .copied()
-                    .collect::<Vec<_>>()
-                    .join("__");
-
-                self.clients.get(&name)
-            })
-            .map(Arc::clone)
+    ) -> Option<(&str, Arc<Mutex<Box<dyn McpClientTrait>>>)> {
+        self.clients
+            .iter()
+            .find(|(key, _)| prefixed_name.starts_with(*key))
+            .map(|(name, client)| (name.as_str(), Arc::clone(client)))
     }
 
     // Function that gets executed for read_resource tool
@@ -498,15 +483,15 @@ impl Capabilities {
             self.list_resources(tool_call.arguments.clone()).await
         } else {
             // Else, dispatch tool call based on the prefix naming convention
-            let client = self
+            let (client_name, client) = self
                 .get_client_for_tool(&tool_call.name)
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
             // rsplit returns the iterator in reverse, tool_name is then at 0
             let tool_name = tool_call
                 .name
-                .rsplit("__")
-                .nth(0)
+                .strip_prefix(client_name)
+                .and_then(|s| s.strip_prefix("__"))
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
             let client_guard = client.lock().await;
@@ -524,5 +509,226 @@ impl Capabilities {
         );
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::Message;
+    use crate::providers::base::{Provider, ProviderUsage, Usage};
+    use crate::providers::configs::ModelConfig;
+    use mcp_client::client::Error;
+    use mcp_client::client::McpClientTrait;
+    use mcp_core::protocol::{
+        CallToolResult, InitializeResult, ListResourcesResult, ListToolsResult, ReadResourceResult,
+    };
+    use serde_json::json;
+
+    // Mock Provider implementation for testing
+    #[derive(Clone)]
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for MockProvider {
+        fn get_model_config(&self) -> &ModelConfig {
+            &self.model_config
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage)> {
+            Ok((
+                Message::assistant().with_text("Mock response"),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_usage(&self, _data: &serde_json::Value) -> anyhow::Result<Usage> {
+            Ok(Usage::new(None, None, None))
+        }
+    }
+
+    struct MockClient {}
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for MockClient {
+        async fn initialize(
+            &mut self,
+            _info: ClientInfo,
+            _capabilities: ClientCapabilities,
+        ) -> Result<InitializeResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn list_resources(
+            &self,
+            _next_cursor: Option<String>,
+        ) -> Result<ListResourcesResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn list_tools(&self, _next_cursor: Option<String>) -> Result<ListToolsResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn call_tool(&self, name: &str, _arguments: Value) -> Result<CallToolResult, Error> {
+            match name {
+                "tool" | "test__tool" => Ok(CallToolResult {
+                    content: vec![],
+                    is_error: false,
+                }),
+                _ => Err(Error::NotInitialized),
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_client_for_tool() {
+        let mock_model_config =
+            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+
+        let mut capabilities = Capabilities::new(Box::new(MockProvider {
+            model_config: mock_model_config,
+        }));
+
+        // Add some mock clients
+        capabilities.clients.insert(
+            sanitize("test_client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__cli__ent__".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("client 🚀".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // Test basic case
+        assert!(capabilities
+            .get_client_for_tool("test_client__tool")
+            .is_some());
+
+        // Test leading underscores
+        assert!(capabilities.get_client_for_tool("__client__tool").is_some());
+
+        // Test multiple underscores in client name, and ending with __
+        assert!(capabilities
+            .get_client_for_tool("__cli__ent____tool")
+            .is_some());
+
+        // Test unicode in tool name, "client 🚀" should become "client_"
+        assert!(capabilities.get_client_for_tool("client___tool").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_tool_call() {
+        // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
+        // tool_names
+        let mock_model_config =
+            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+
+        let mut capabilities = Capabilities::new(Box::new(MockProvider {
+            model_config: mock_model_config,
+        }));
+
+        // Add some mock clients
+        capabilities.clients.insert(
+            sanitize("test_client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__cli__ent__".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("client 🚀".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // verify a normal tool call
+        let tool_call = ToolCall {
+            name: "test_client__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        let tool_call = ToolCall {
+            name: "test_client__test__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // verify a multiple underscores dispatch
+        let tool_call = ToolCall {
+            name: "__cli__ent____tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // Test unicode in tool name, "client 🚀" should become "client_"
+        let tool_call = ToolCall {
+            name: "client___tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        let tool_call = ToolCall {
+            name: "client___test__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // this should error out, specifically for an ToolError::ExecutionError
+        let invalid_tool_call = ToolCall {
+            name: "client___tools".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(invalid_tool_call).await;
+        assert!(matches!(
+            result.err().unwrap(),
+            ToolError::ExecutionError(_)
+        ));
+
+        // this should error out, specifically with an ToolError::NotFound
+        // this client doesn't exist
+        let invalid_tool_call = ToolCall {
+            name: "_client__tools".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(invalid_tool_call).await;
+        assert!(matches!(result.err().unwrap(), ToolError::NotFound(_)));
     }
 }
