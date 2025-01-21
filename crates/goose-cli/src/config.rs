@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use goose::agents::SystemConfig;
 
-const DEFAULT_SYSTEM: &str = "developer2";
+const DEFAULT_SYSTEM: &str = "developer";
 
 /// Core configuration for Goose CLI
 #[derive(Debug, Deserialize, Serialize)]

@@ -77,8 +77,13 @@ pub async fn build_session<'a>(
     let (provider_name, model_name) = get_provider_and_model(provider, model, &config);
     let provider = factory::get_provider(&provider_name).unwrap();
 
-    let mut agent =
-        AgentFactory::create(agent_version.as_deref().unwrap_or("default"), provider).unwrap();
+    let mut agent = AgentFactory::create(
+        agent_version
+            .as_deref()
+            .unwrap_or(AgentFactory::default_version()),
+        provider,
+    )
+    .unwrap();
 
     // Add configured systems
     for (name, _) in config.systems.iter() {

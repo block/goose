@@ -48,7 +48,7 @@ impl AgentFactory {
 
     /// Get the default version name
     pub fn default_version() -> &'static str {
-        "reference"
+        "truncate"
     }
 }
 

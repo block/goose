@@ -439,7 +439,7 @@ pub fn routes(state: AppState) -> Router {
 mod tests {
     use super::*;
     use goose::{
-        agents::DefaultAgent as Agent,
+        agents::AgentFactory,
         providers::base::{Provider, ProviderUsage, Usage},
         providers::configs::ModelConfig,
     };
@@ -568,9 +568,9 @@ mod tests {
             let mock_provider = Box::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = Agent::new(mock_provider);
+            let mut agent = AgentFactory::create("reference", mock_provider).unwrap();
             let state = AppState {
-                agent: Arc::new(Mutex::new(Some(Box::new(agent)))),
+                agent: Arc::new(Mutex::new(Some(agent))),
                 secret_key: "test-secret".to_string(),
             };
 

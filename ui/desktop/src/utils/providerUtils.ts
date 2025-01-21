@@ -73,7 +73,7 @@ export const initializeSystem = async (provider: string) => {
     await addAgent(provider);
     await extendGoosed({
       type: "builtin",
-      name: "developer2"
+      name: "developer"
     });
 
     // Handle deep link if present

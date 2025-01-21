@@ -304,7 +304,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
         "built-in" => {
             let system = cliclack::select("Which built-in system would you like to enable?")
                 .item(
-                    "developer2",
+                    "developer",
                     "Developer Tools",
                     "Code editing and shell access",
                 )

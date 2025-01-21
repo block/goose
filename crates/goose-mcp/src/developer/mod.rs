@@ -1,14 +1,11 @@
 mod lang;
-mod process_store;
-mod prompts;
 
 use anyhow::Result;
 use base64::Engine;
-use indoc::{formatdoc, indoc};
+use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    fs,
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
@@ -18,8 +15,7 @@ use tokio::process::Command;
 use url::Url;
 
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    prompt::Prompt,
+    handler::{ResourceError, ToolError},
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
@@ -30,18 +26,13 @@ use mcp_server::Router;
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 
+use indoc::indoc;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use tracing::info;
 use xcap::{Monitor, Window};
 
 pub struct DeveloperRouter {
     tools: Vec<Tool>,
-    prompts: Vec<Prompt>,
-    // The cwd, active_resources, and file_history are shared across threads
-    // so we need to use an Arc to ensure thread safety
-    cwd: Arc<Mutex<PathBuf>>,
-    active_resources: Arc<Mutex<HashMap<String, Resource>>>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     instructions: String,
 }
@@ -54,71 +45,70 @@ impl Default for DeveloperRouter {
 
 impl DeveloperRouter {
     pub fn new() -> Self {
+        // TODO consider rust native search tools, we could use
+        // https://docs.rs/ignore/latest/ignore/
+
         let bash_tool = Tool::new(
-            "bash",
+            "shell".to_string(),
             indoc! {r#"
-                Run a bash command in the shell in the current working directory
-                  - You can use multiline commands or && to execute multiple in one pass
-                  - Directory changes **are not** persisted from one command to the next
-                  - Sourcing files **is not** persisted from one command to the next
+                Execute a command in the shell.
 
-                For example, you can use this style to execute python in a virtualenv
-                "source .venv/bin/active && python example1.py"
+                This will return the output and error concatenated into a single string, as
+                you would see from running on the command line. There will also be an indication
+                of if the command succeeded or failed.
 
-                but need to repeat the source for subsequent commands in that virtualenv
-                "source .venv/bin/active && python example2.py"
-            "#},
+                Avoid commands that produce a large amount of ouput, and consider piping those outputs to files.
+                If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
+                this tool does not run indefinitely.
+
+                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
+                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
+                  - To locate a file by name: `rg --files | rg example.py`
+                  - To locate consent inside files: `rg 'class Example'`
+            "#}.to_string(),
             json!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
-                    "command": {
-                        "type": "string",
-                        "default": null,
-                        "description": "The bash shell command to run."
-                    },
+                    "command": {"type": "string"}
                 }
             }),
         );
 
         let text_editor_tool = Tool::new(
-            "text_editor",
+            "text_editor".to_string(),
             indoc! {r#"
                 Perform text editing operations on files.
 
                 The `command` parameter specifies the operation to perform. Allowed options are:
                 - `view`: View the content of a file.
-                - `write`: Write a file with the given content (create a new file or overwrite an existing).
+                - `write`: Create or overwrite a file with the given content
                 - `str_replace`: Replace a string in a file with a new string.
                 - `undo_edit`: Undo the last edit made to a file.
-            "#},
+
+                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
+                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+
+                To use the str_replace command, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
+                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
+                ambiguous. The entire original string will be replaced with `new_str`.
+            "#}.to_string(),
             json!({
                 "type": "object",
                 "required": ["command", "path"],
                 "properties": {
                     "path": {
-                        "type": "string",
-                        "description": "Path to the file. Can be absolute or relative to the system CWD"
+                        "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.",
+                        "type": "string"
                     },
                     "command": {
+                        "type": "string",
                         "enum": ["view", "write", "str_replace", "undo_edit"],
-                        "description": "The command to run."
+                        "description": "Allowed options are: `view`, `write`, `str_replace`, undo_edit`."
                     },
-                    "new_str": {
-                        "type": "string",
-                        "default": null,
-                        "description": "Required for the `str_replace` command."
-                    },
-                    "old_str": {
-                        "type": "string",
-                        "default": null,
-                        "description": "Required for the `str_replace` command."
-                    },
-                    "file_text": {
-                        "type": "string",
-                        "default": null,
-                        "description": "Required for `write` command."
-                    },
+                    "old_str": {"type": "string"},
+                    "new_str": {"type": "string"},
+                    "file_text": {"type": "string"}
                 }
             }),
         );
@@ -165,44 +155,23 @@ impl DeveloperRouter {
             }),
         );
 
-        let prompts = prompts::create_prompts();
-
         let instructions = formatdoc! {r#"
-            The developer system is loaded in the directory listed below.
+            The developer system gives you the capabilities to edit code files and run shell commands,
+            and can be used to solve a wide range of problems.
+
             You can use the shell tool to run any command that would work on the relevant operating system.
-            Use the shell tool as needed to locate files or interact with the project. Only files
-            that have been read or modified using the edit tools will show up in the active files list.
+            Use the shell tool as needed to locate files or interact with the project.
 
-            bash
-              - Prefer ripgrep - `rg` - when you need to locate content, it will respected ignored files for
-            efficiency. **Avoid find and ls -r**
-                - to locate files by name: `rg --files | rg example.py`
-                - to locate consent inside files: `rg 'class Example'`
-              - The operating system for these commands is {os}
+            Your windows/screen tools can be used for visual debugging. You should not use these tools unless
+            prompted to, but you can mention they are available if they are relevant.
 
+            operating system: {os}
+            current directory: {cwd}
 
-            text_edit
-              - Always use 'view' command first before any edit operations
-              - File edits are tracked and can be undone with 'undo'
-              - String replacements must match exactly once in the file
-              - Line numbers start at 1 for insert operations
-
-            The write mode will do a full overwrite of the existing file, while the str_replace mode will edit it
-            using a find and replace. Choose the mode which will make the edit as simple as possible to execute.
             "#,
             os=std::env::consts::OS,
+            cwd=std::env::current_dir().expect("should have a current working dir").to_string_lossy(),
         };
-
-        let cwd = std::env::current_dir().unwrap();
-        let mut resources = HashMap::new();
-        let uri = format!("str:///{}", cwd.display());
-        let resource = Resource::new(
-            uri.clone(),
-            Some("text".to_string()),
-            Some("cwd".to_string()),
-        )
-        .unwrap();
-        resources.insert(uri, resource);
 
         Self {
             tools: vec![
@@ -211,44 +180,27 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
             ],
-            prompts,
-            cwd: Arc::new(Mutex::new(cwd)),
-            active_resources: Arc::new(Mutex::new(resources)),
             file_history: Arc::new(Mutex::new(HashMap::new())),
             instructions,
         }
     }
 
-    // Helper method to mark a resource as active, and insert it into the active_resources map
-    fn add_active_resource(&self, uri: &str, resource: Resource) {
-        self.active_resources
-            .lock()
-            .unwrap()
-            .insert(uri.to_string(), resource.mark_active());
-    }
-
-    // Helper method to check if a resource is already an active one
-    // Tries to get the resource and then checks if it is active
-    fn is_active_resource(&self, uri: &str) -> bool {
-        self.active_resources
-            .lock()
-            .unwrap()
-            .get(uri)
-            .is_some_and(|r| r.is_active())
-    }
-
     // Helper method to resolve a path relative to cwd
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ToolError> {
-        let cwd = self.cwd.lock().unwrap();
+        let cwd = std::env::current_dir().expect("should have a current working dir");
         let expanded = shellexpand::tilde(path_str);
         let path = Path::new(expanded.as_ref());
-        let resolved_path = if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            cwd.join(path)
-        };
 
-        Ok(resolved_path)
+        let suggestion = cwd.join(path);
+
+        match path.is_absolute() {
+            true => Ok(path.to_path_buf()),
+            false => Err(ToolError::InvalidParameters(format!(
+                "The path {} is not an absolute path, did you possibly mean {}?",
+                path_str,
+                suggestion.to_string_lossy(),
+            ))),
+        }
     }
 
     // Implement bash tool functionality
@@ -261,15 +213,9 @@ impl DeveloperRouter {
                     "The command string is required".to_string(),
                 ))?;
 
-        // Disallow commands that should use other tools
-        if command.trim_start().starts_with("cat") {
-            return Err(ToolError::InvalidParameters(
-                "Do not use `cat` to read files, use the view mode on the text editor tool"
-                    .to_string(),
-            ));
-        }
-        // TODO consider enforcing ripgrep over find?
+        // TODO consider command suggestions and safety rails
 
+        // TODO be more careful about backgrounding, revisit interleave
         // Redirect stderr to stdout to interleave outputs
         let cmd_with_redirect = format!("{} 2>&1", command);
 
@@ -284,28 +230,13 @@ impl DeveloperRouter {
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        // Store the process ID with the command as the key
-        let pid: Option<u32> = child.id();
-        if let Some(pid) = pid {
-            process_store::store_process(pid);
-        }
-
         // Wait for the command to complete and get output
         let output = child
             .wait_with_output()
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        // Remove the process ID from the store
-        if let Some(pid) = pid {
-            process_store::remove_process(pid);
-        }
-
-        let output_str = format!(
-            "Finished with Status Code: {}\nOutput:\n{}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout)
-        );
+        let output_str = String::from_utf8_lossy(&output.stdout);
         Ok(vec![
             Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
             Content::text(output_str)
@@ -314,7 +245,6 @@ impl DeveloperRouter {
         ])
     }
 
-    // Implement text_editor tool functionality
     async fn text_editor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -386,12 +316,10 @@ impl DeveloperRouter {
                 )));
             }
 
-            // Create a new resource and add it to active_resources
             let uri = Url::from_file_path(path)
                 .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
                 .to_string();
 
-            // Read the content once
             let content = std::fs::read_to_string(path)
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
 
@@ -404,14 +332,6 @@ impl DeveloperRouter {
                     MAX_CHAR_COUNT
                 )));
             }
-
-            // Create and store the resource
-            let resource =
-                Resource::new(uri.clone(), Some("text".to_string()), None).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to create resource: {}", e))
-                })?;
-
-            self.add_active_resource(&uri, resource);
 
             let language = lang::get_language_identifier(path);
             let formatted = formatdoc! {"
@@ -428,11 +348,7 @@ impl DeveloperRouter {
             // The LLM gets just a quick update as we expect the file to view in the status
             // but we send a low priority message for the human
             Ok(vec![
-                Content::text(format!(
-                    "The file content for {} is now available in the system status.",
-                    path.display()
-                ))
-                .with_audience(vec![Role::Assistant]),
+                Content::embedded_text(uri, content).with_audience(vec![Role::Assistant]),
                 Content::text(formatted)
                     .with_audience(vec![Role::User])
                     .with_priority(0.0),
@@ -450,35 +366,15 @@ impl DeveloperRouter {
         path: &PathBuf,
         file_text: &str,
     ) -> Result<Vec<Content>, ToolError> {
-        // Get the URI for the file
-        let uri = Url::from_file_path(path)
-            .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
-            .to_string();
-
-        // Check if file already exists and is active
-        if path.exists() && !self.is_active_resource(&uri) {
-            return Err(ToolError::InvalidParameters(format!(
-                "File '{}' exists but is not active. View it first before overwriting.",
-                path.display()
-            )));
-        }
-
-        // Save history for undo
-        self.save_file_history(path)?;
-
         // Write to the file
         std::fs::write(path, file_text)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
-        // Create and store resource
-
-        let resource = Resource::new(uri.clone(), Some("text".to_string()), None)
-            .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
-        self.add_active_resource(&uri, resource);
-
         // Try to detect the language from the file extension
         let language = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
 
+        // The assistant output does not show the file again because the content is already in the tool request
+        // but we do show it to the user here
         Ok(vec![
             Content::text(format!("Successfully wrote to {}", path.display()))
                 .with_audience(vec![Role::Assistant]),
@@ -503,21 +399,10 @@ impl DeveloperRouter {
         old_str: &str,
         new_str: &str,
     ) -> Result<Vec<Content>, ToolError> {
-        // Get the URI for the file
-        let uri = Url::from_file_path(path)
-            .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
-            .to_string();
-
         // Check if file exists and is active
         if !path.exists() {
             return Err(ToolError::InvalidParameters(format!(
-                "File '{}' does not exist",
-                path.display()
-            )));
-        }
-        if !self.is_active_resource(&uri) {
-            return Err(ToolError::InvalidParameters(format!(
-                "You must view '{}' before editing it",
+                "File '{}' does not exist, you can write a new file with the `write` command",
                 path.display()
             )));
         }
@@ -535,7 +420,7 @@ impl DeveloperRouter {
         }
         if content.matches(old_str).count() == 0 {
             return Err(ToolError::InvalidParameters(
-                "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including spacing.".into(),
+                "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".into(),
             ));
         }
 
@@ -547,36 +432,57 @@ impl DeveloperRouter {
         std::fs::write(path, &new_content)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
-        // Update resource
-        if let Some(resource) = self.active_resources.lock().unwrap().get_mut(&uri) {
-            resource.update_timestamp();
-        }
-
         // Try to detect the language from the file extension
         let language = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
 
+        // Show a snippet of the changed content with context
+        const SNIPPET_LINES: usize = 4;
+
+        // Count newlines before the replacement to find the line number
+        let replacement_line = content
+            .split(old_str)
+            .next()
+            .expect("should split on already matched content")
+            .matches('\n')
+            .count();
+
+        // Calculate start and end lines for the snippet
+        let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
+        let end_line = replacement_line + SNIPPET_LINES + new_str.matches('\n').count();
+
+        // Get the relevant lines for our snippet
+        let lines: Vec<&str> = new_content.lines().collect();
+        let snippet = lines
+            .iter()
+            .skip(start_line)
+            .take(end_line - start_line + 1)
+            .cloned()
+            .collect::<Vec<&str>>()
+            .join("\n");
+
+        let output = formatdoc! {r#"
+            ```{language}
+            {snippet}
+            ```
+            "#,
+            language=language,
+            snippet=snippet
+        };
+
+        let success_message = formatdoc! {r#"
+            The file {} has been edited, and the section now reads:
+            {}
+            Review the changes above for errors. Undo and edit the file again if necessary!
+            "#,
+            path.display(),
+            output
+        };
+
         Ok(vec![
-            Content::text("Successfully replaced text").with_audience(vec![Role::Assistant]),
-            Content::text(formatdoc! {r#"
-                ### {path}
-
-                *Before*:
-                ```{language}
-                {old_str}
-                ```
-
-                *After*:
-                ```{language}
-                {new_str}
-                ```
-                "#,
-                path=path.display(),
-                language=language,
-                old_str=old_str,
-                new_str=new_str,
-            })
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
+            Content::text(success_message).with_audience(vec![Role::Assistant]),
+            Content::text(output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.2),
         ])
     }
 
@@ -613,7 +519,6 @@ impl DeveloperRouter {
         Ok(())
     }
 
-    // Implement window listing functionality
     async fn list_windows(&self, _params: Value) -> Result<Vec<Content>, ToolError> {
         let windows = Window::all()
             .map_err(|_| ToolError::ExecutionError("Failed to list windows".into()))?;
@@ -703,74 +608,6 @@ impl DeveloperRouter {
                 .with_priority(0.0),
         ])
     }
-
-    async fn read_resource_internal(&self, uri: &str) -> Result<String, ResourceError> {
-        // Ensure the resource exists in the active resources map
-        let active_resources = self.active_resources.lock().unwrap();
-        let resource = active_resources
-            .get(uri)
-            .ok_or_else(|| ResourceError::NotFound(format!("Resource '{}' not found", uri)))?;
-
-        let url =
-            Url::parse(uri).map_err(|e| ResourceError::NotFound(format!("Invalid URI: {}", e)))?;
-
-        // Read content based on scheme and mime_type
-        match url.scheme() {
-            "file" => {
-                let path = url
-                    .to_file_path()
-                    .map_err(|_| ResourceError::NotFound("Invalid file path in URI".into()))?;
-
-                // Ensure file exists
-                if !path.exists() {
-                    return Err(ResourceError::NotFound(format!(
-                        "File does not exist: {}",
-                        path.display()
-                    )));
-                }
-
-                match resource.mime_type.as_str() {
-                    "text" => {
-                        // Read the file as UTF-8 text
-                        fs::read_to_string(&path).map_err(|e| {
-                            ResourceError::ExecutionError(format!("Failed to read file: {}", e))
-                        })
-                    }
-                    "blob" => {
-                        // Read as bytes, base64 encode
-                        let bytes = fs::read(&path).map_err(|e| {
-                            ResourceError::ExecutionError(format!("Failed to read file: {}", e))
-                        })?;
-                        Ok(base64::prelude::BASE64_STANDARD.encode(bytes))
-                    }
-                    mime_type => Err(ResourceError::ExecutionError(format!(
-                        "Unsupported mime type: {}",
-                        mime_type
-                    ))),
-                }
-            }
-            "str" => {
-                // For str:// URIs, we only support text
-                if resource.mime_type != "text" {
-                    return Err(ResourceError::ExecutionError(format!(
-                        "str:// URI only supports text mime type, got {}",
-                        resource.mime_type
-                    )));
-                }
-
-                // The `Url::path()` gives us the portion after `str:///`
-                let content_encoded = url.path().trim_start_matches('/');
-                let decoded = urlencoding::decode(content_encoded).map_err(|e| {
-                    ResourceError::ExecutionError(format!("Failed to decode str:// content: {}", e))
-                })?;
-                Ok(decoded.into_owned())
-            }
-            scheme => Err(ResourceError::NotFound(format!(
-                "Unsupported URI scheme: {}",
-                scheme
-            ))),
-        }
-    }
 }
 
 impl Router for DeveloperRouter {
@@ -783,11 +620,7 @@ impl Router for DeveloperRouter {
     }
 
     fn capabilities(&self) -> ServerCapabilities {
-        CapabilitiesBuilder::new()
-            .with_tools(false)
-            .with_prompts(false)
-            .with_resources(false, false)
-            .build()
+        CapabilitiesBuilder::new().with_tools(false).build()
     }
 
     fn list_tools(&self) -> Vec<Tool> {
@@ -803,7 +636,7 @@ impl Router for DeveloperRouter {
         let tool_name = tool_name.to_string();
         Box::pin(async move {
             match tool_name.as_str() {
-                "bash" => this.bash(arguments).await,
+                "shell" => this.bash(arguments).await,
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
@@ -812,77 +645,16 @@ impl Router for DeveloperRouter {
         })
     }
 
+    // TODO see if we can make it easy to skip implementing these
     fn list_resources(&self) -> Vec<Resource> {
-        let resources = self
-            .active_resources
-            .lock()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect();
-        info!("Listing resources: {:?}", resources);
-        resources
+        Vec::new()
     }
 
     fn read_resource(
         &self,
-        uri: &str,
+        _uri: &str,
     ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
-        let this = self.clone();
-        let uri = uri.to_string();
-        info!("Reading resource: {}", uri);
-        Box::pin(async move {
-            match this.read_resource_internal(&uri).await {
-                Ok(content) => Ok(content),
-                Err(e) => Err(e),
-            }
-        })
-    }
-
-    fn list_prompts(&self) -> Option<Vec<Prompt>> {
-        Some(self.prompts.clone())
-    }
-
-    fn get_prompt(
-        &self,
-        prompt_name: &str,
-    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
-        // Validate prompt name is not empty
-        if prompt_name.trim().is_empty() {
-            return Some(Box::pin(async move {
-                Err(PromptError::InvalidParameters(
-                    "Prompt name cannot be empty".to_string(),
-                ))
-            }));
-        }
-
-        let prompt_name = prompt_name.to_string();
-        let prompts = self.prompts.clone();
-
-        Some(Box::pin(async move {
-            // Check if prompts list is empty
-            if prompts.is_empty() {
-                return Err(PromptError::InternalError(
-                    "No prompts available".to_string(),
-                ));
-            }
-
-            // Find the prompt with matching name
-            if let Some(prompt) = prompts.iter().find(|p| p.name == prompt_name) {
-                // Validate description is not empty
-                if prompt.description.trim().is_empty() {
-                    return Err(PromptError::InternalError(format!(
-                        "Prompt '{}' has an empty description",
-                        prompt_name
-                    )));
-                }
-                return Ok(prompt.description.to_string());
-            }
-            Err(PromptError::NotFound(format!(
-                "Prompt '{}' not found",
-                prompt_name
-            )))
-        }))
+        Box::pin(async move { Ok("".to_string()) })
     }
 }
 
@@ -890,408 +662,8 @@ impl Clone for DeveloperRouter {
     fn clone(&self) -> Self {
         Self {
             tools: self.tools.clone(),
-            prompts: self.prompts.clone(),
-            cwd: Arc::clone(&self.cwd),
-            active_resources: Arc::clone(&self.active_resources),
             file_history: Arc::clone(&self.file_history),
             instructions: self.instructions.clone(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use tokio::sync::OnceCell;
-
-    static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
-
-    async fn get_router() -> &'static DeveloperRouter {
-        DEV_ROUTER
-            .get_or_init(|| async { DeveloperRouter::new() })
-            .await
-    }
-
-    #[tokio::test]
-    async fn test_bash_missing_parameters() {
-        let router = get_router().await;
-        let result = router.call_tool("bash", json!({})).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
-    }
-
-    #[tokio::test]
-    async fn test_bash_change_directory() {
-        let router = get_router().await;
-        let result = router
-            .call_tool("bash", json!({ "working_dir": ".", "command": "pwd" }))
-            .await;
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        // Check that the output contains the current directory
-        assert!(!output.is_empty());
-        let text = output.first().unwrap().as_text().unwrap();
-        assert!(text.contains(&std::env::current_dir().unwrap().display().to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_bash_invalid_directory() {
-        let router = get_router().await;
-        let result = router
-            .call_tool("bash", json!({ "working_dir": "non_existent_dir" }))
-            .await;
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::InvalidParameters(_)));
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_size_limits() {
-        let router = get_router().await;
-        let temp_dir = tempfile::tempdir().unwrap();
-
-        // Test file size limit
-        {
-            let large_file_path = temp_dir.path().join("large.txt");
-            let large_file_str = large_file_path.to_str().unwrap();
-
-            // Create a file larger than 2MB
-            let content = "x".repeat(3 * 1024 * 1024); // 3MB
-            std::fs::write(&large_file_path, content).unwrap();
-
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": large_file_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too large"));
-        }
-
-        // Test character count limit
-        {
-            let many_chars_path = temp_dir.path().join("many_chars.txt");
-            let many_chars_str = many_chars_path.to_str().unwrap();
-
-            // Create a file with more than 2^20 characters but less than 2MB
-            let content = "x".repeat((1 << 20) + 1); // 2^20 + 1 characters
-            std::fs::write(&many_chars_path, content).unwrap();
-
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": many_chars_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
-        }
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_write_and_view_file() {
-        let router = get_router().await;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-
-        // Create a new file
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "write",
-                    "path": file_path_str,
-                    "file_text": "Hello, world!"
-                }),
-            )
-            .await
-            .unwrap();
-
-        // View the file
-        let view_result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        assert!(!view_result.is_empty());
-        let text = view_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("The file content for"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_str_replace() {
-        let router = get_router().await;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-
-        // Create a new file
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "write",
-                    "path": file_path_str,
-                    "file_text": "Hello, world!"
-                }),
-            )
-            .await
-            .unwrap();
-
-        // View the file to make it active
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        // Replace string
-        let replace_result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "str_replace",
-                    "path": file_path_str,
-                    "old_str": "world",
-                    "new_str": "Rust"
-                }),
-            )
-            .await
-            .unwrap();
-
-        let text = replace_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Successfully replaced text"));
-
-        // View the file again
-        let view_result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        let text = view_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("The file content for"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_read_resource() {
-        let router = get_router().await;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let test_content = "Hello, world!";
-        std::fs::write(&file_path, test_content).unwrap();
-
-        let uri = Url::from_file_path(&file_path).unwrap().to_string();
-
-        // Test text mime type with file:// URI
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let resource = Resource::new(uri.clone(), Some("text".to_string()), None).unwrap();
-            active_resources.insert(uri.clone(), resource);
-        }
-        let content = router.read_resource(&uri).await.unwrap();
-        assert_eq!(content, test_content);
-
-        // Test blob mime type with file:// URI
-        let blob_path = temp_dir.path().join("test.bin");
-        let blob_content = b"Binary content";
-        std::fs::write(&blob_path, blob_content).unwrap();
-        let blob_uri = Url::from_file_path(&blob_path).unwrap().to_string();
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let resource = Resource::new(blob_uri.clone(), Some("blob".to_string()), None).unwrap();
-            active_resources.insert(blob_uri.clone(), resource);
-        }
-        let encoded_content = router.read_resource(&blob_uri).await.unwrap();
-        assert_eq!(
-            base64::prelude::BASE64_STANDARD
-                .decode(encoded_content)
-                .unwrap(),
-            blob_content
-        );
-
-        // Test str:// URI with text mime type
-        let str_uri = format!("str:///{}", test_content);
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let resource = Resource::new(str_uri.clone(), Some("text".to_string()), None).unwrap();
-            active_resources.insert(str_uri.clone(), resource);
-        }
-        let str_content = router.read_resource(&str_uri).await.unwrap();
-        assert_eq!(str_content, test_content);
-
-        // Test str:// URI with blob mime type (should fail)
-        let str_blob_uri = format!("str:///{}", test_content);
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let resource =
-                Resource::new(str_blob_uri.clone(), Some("blob".to_string()), None).unwrap();
-            active_resources.insert(str_blob_uri.clone(), resource);
-        }
-        let error = router.read_resource(&str_blob_uri).await.unwrap_err();
-        assert!(matches!(error, ResourceError::ExecutionError(_)));
-        assert!(error.to_string().contains("only supports text mime type"));
-
-        // Test invalid URI
-        let error = router.read_resource("invalid://uri").await.unwrap_err();
-        assert!(matches!(error, ResourceError::NotFound(_)));
-
-        // Test file:// URI without registration
-        let non_registered = Url::from_file_path(temp_dir.path().join("not_registered.txt"))
-            .unwrap()
-            .to_string();
-        let error = router.read_resource(&non_registered).await.unwrap_err();
-        assert!(matches!(error, ResourceError::NotFound(_)));
-
-        // Test file:// URI with non-existent file but registered
-        let non_existent = Url::from_file_path(temp_dir.path().join("non_existent.txt"))
-            .unwrap()
-            .to_string();
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let resource =
-                Resource::new(non_existent.clone(), Some("text".to_string()), None).unwrap();
-            active_resources.insert(non_existent.clone(), resource);
-        }
-        let error = router.read_resource(&non_existent).await.unwrap_err();
-        assert!(matches!(error, ResourceError::NotFound(_)));
-        assert!(error.to_string().contains("does not exist"));
-
-        // Test invalid mime type
-        let invalid_mime = Url::from_file_path(&file_path).unwrap().to_string();
-        {
-            let mut active_resources = router.active_resources.lock().unwrap();
-            let mut resource =
-                Resource::new(invalid_mime.clone(), Some("text".to_string()), None).unwrap();
-            resource.mime_type = "invalid".to_string();
-            active_resources.insert(invalid_mime.clone(), resource);
-        }
-        let error = router.read_resource(&invalid_mime).await.unwrap_err();
-        assert!(matches!(error, ResourceError::ExecutionError(_)));
-        assert!(error.to_string().contains("Unsupported mime type"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_text_editor_undo_edit() {
-        let router = get_router().await;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-
-        // Create a new file
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "write",
-                    "path": file_path_str,
-                    "file_text": "First line"
-                }),
-            )
-            .await
-            .unwrap();
-
-        // View the file to make it active
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        // Replace string
-        router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "str_replace",
-                    "path": file_path_str,
-                    "old_str": "First line",
-                    "new_str": "Second line"
-                }),
-            )
-            .await
-            .unwrap();
-
-        // Undo the edit
-        let undo_result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "undo_edit",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
-
-        // View the file again
-        let view_result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": file_path_str
-                }),
-            )
-            .await
-            .unwrap();
-
-        let text = view_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("The file content for"));
-
-        temp_dir.close().unwrap();
     }
 }

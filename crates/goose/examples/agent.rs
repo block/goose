@@ -12,7 +12,7 @@ async fn main() {
     let provider = Box::new(DatabricksProvider::from_env().expect("should create provider"));
 
     // Setup an agent with the developer system
-    let mut agent = AgentFactory::create("default", provider).expect("default should exist");
+    let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
 
     let config = SystemConfig::stdio("./target/debug/developer");
     agent.add_system(config).await.unwrap();
