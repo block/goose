@@ -21,9 +21,11 @@ use serde_json::Value;
 static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
     LazyLock::new(|| Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
 
+type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
+
 /// Manages MCP clients and their interactions
 pub struct Capabilities {
-    clients: HashMap<String, Arc<Mutex<Box<dyn McpClientTrait>>>>,
+    clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_systems: HashSet<String>,
     provider: Box<dyn Provider>,
@@ -302,10 +304,7 @@ impl Capabilities {
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(
-        &self,
-        prefixed_name: &str,
-    ) -> Option<(&str, Arc<Mutex<Box<dyn McpClientTrait>>>)> {
+    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(&str, McpClientBox)> {
         self.clients
             .iter()
             .find(|(key, _)| prefixed_name.starts_with(*key))
