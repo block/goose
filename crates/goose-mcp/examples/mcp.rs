@@ -1,6 +1,6 @@
 // An example script to run an MCP server
 use anyhow::Result;
-use goose_mcp::{DeveloperRouter, MemoryRouter};
+use goose_mcp::MemoryRouter;
 use mcp_server::router::RouterService;
 use mcp_server::{ByteTransport, Server};
 use tokio::io::{stdin, stdout};

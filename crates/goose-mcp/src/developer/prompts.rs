@@ -16,8 +16,8 @@ pub fn create_prompts() -> Vec<Prompt> {
             .arguments
             .into_iter()
             .map(|arg| PromptArgument {
-                name: arg.name.into(),
-                description: arg.description.into(),
+                name: arg.name,
+                description: arg.description,
                 required: arg.required,
             })
             .collect();

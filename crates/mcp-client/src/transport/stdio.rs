@@ -135,7 +135,7 @@ impl StdioTransport {
         Self {
             command: command.into(),
             args,
-            env: env,
+            env,
         }
     }
 

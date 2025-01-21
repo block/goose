@@ -4,6 +4,8 @@ use std::{
     task::{Context, Poll},
 };
 
+type PromptFuture = Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>;
+
 use mcp_core::{
     content::Content,
     handler::{PromptError, ResourceError, ToolError},
@@ -98,10 +100,7 @@ pub trait Router: Send + Sync + 'static {
     fn list_prompts(&self) -> Option<Vec<Prompt>> {
         None
     }
-    fn get_prompt(
-        &self,
-        _prompt_name: &str,
-    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+    fn get_prompt(&self, _prompt_name: &str) -> Option<PromptFuture> {
         None
     }
 
@@ -380,7 +379,7 @@ pub trait Router: Send + Sync + 'static {
 
             let messages = vec![PromptMessage::new_text(
                 PromptMessageRole::User,
-                format!("{}", description_filled),
+                description_filled.to_string(),
             )];
 
             // Build the final response

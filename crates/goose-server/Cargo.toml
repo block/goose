@@ -25,7 +25,6 @@ tracing-appender = "0.2"
 tokio-stream = "0.1"
 anyhow = "1.0"
 bytes = "1.5"
-http-body-util = "0.1"
 http = "1.0"
 config = { version = "0.14.1", features = ["toml"] }
 thiserror = "1.0"
@@ -37,7 +36,5 @@ name = "goosed"
 path = "src/main.rs"
 
 [dev-dependencies]
-serial_test = "3.2.0"
 tower = "0.5"
 async-trait = "0.1"
-tempfile = "3.15.0"

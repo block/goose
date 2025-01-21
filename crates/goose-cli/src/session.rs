@@ -28,7 +28,7 @@ pub fn get_most_recent_session() -> Result<PathBuf> {
     let session_dir = ensure_session_dir()?;
     let mut entries = fs::read_dir(&session_dir)?
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "jsonl"))
+        .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
         .collect::<Vec<_>>();
 
     if entries.is_empty() {

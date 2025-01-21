@@ -52,7 +52,7 @@ impl JetBrainsProxy {
 
         let response = match self
             .client
-            .get(&format!("{}/mcp/list_tools", endpoint))
+            .get(format!("{}/mcp/list_tools", endpoint))
             .send()
             .await
         {
@@ -168,7 +168,7 @@ impl JetBrainsProxy {
         debug!("Sending list_tools request to {}/mcp/list_tools", endpoint);
         let response = match self
             .client
-            .get(&format!("{}/mcp/list_tools", endpoint))
+            .get(format!("{}/mcp/list_tools", endpoint))
             .send()
             .await
         {
@@ -264,7 +264,7 @@ impl JetBrainsProxy {
 
         let response = self
             .client
-            .post(&format!("{}/mcp/{}", endpoint, name))
+            .post(format!("{}/mcp/{}", endpoint, name))
             .json(&args)
             .send()
             .await?;

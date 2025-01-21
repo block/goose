@@ -226,7 +226,7 @@ impl SseTransport {
     pub fn new<S: Into<String>>(sse_url: S, env: HashMap<String, String>) -> Self {
         Self {
             sse_url: sse_url.into(),
-            env: env,
+            env,
         }
     }
 

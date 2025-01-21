@@ -6,7 +6,7 @@ use tracing::info;
 
 pub async fn run() -> Result<()> {
     // Initialize logging
-    crate::logging::setup_logging(Some(&"goosed"))?;
+    crate::logging::setup_logging(Some("goosed"))?;
 
     // Load configuration
     let settings = configuration::Settings::new()?;

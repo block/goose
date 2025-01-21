@@ -32,10 +32,6 @@ impl Envs {
         Self { map }
     }
 
-    pub fn default() -> Self {
-        Self::new(HashMap::new())
-    }
-
     pub fn get_env(&self) -> HashMap<String, String> {
         self.map
             .iter()
@@ -66,6 +62,14 @@ pub enum SystemConfig {
     /// Built-in system that is part of the goose binary
     #[serde(rename = "builtin")]
     Builtin { name: String },
+}
+
+impl Default for SystemConfig {
+    fn default() -> Self {
+        Self::Builtin {
+            name: String::from("default"),
+        }
+    }
 }
 
 impl SystemConfig {

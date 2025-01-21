@@ -24,7 +24,7 @@ pub async fn handle_configure(
 
     if !config_exists {
         // First time setup flow
-        println!("");
+        println!();
         println!(
             "{}",
             style("Welcome to goose! Let's get you set up with a provider.").dim()
@@ -33,7 +33,7 @@ pub async fn handle_configure(
             "{}",
             style("  you can rerun this command later to update your configuration").dim()
         );
-        println!("");
+        println!();
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
         configure_provider_dialog(provided_provider, provided_model).await?;
         println!(
@@ -43,7 +43,7 @@ pub async fn handle_configure(
         );
         Ok(())
     } else {
-        println!("");
+        println!();
         println!(
             "{}",
             style("This will update your existing config file").dim()
@@ -53,7 +53,7 @@ pub async fn handle_configure(
             style("  if you prefer, you can edit it directly at").dim(),
             Config::config_path()?.display()
         );
-        println!("");
+        println!();
 
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
         let action = cliclack::select("What would you like to configure?")
@@ -227,9 +227,7 @@ pub fn toggle_systems_dialog() -> Result<(), Box<dyn Error>> {
     let mut config = Config::load().unwrap_or_default();
 
     if config.systems.is_empty() {
-        let _ = cliclack::outro(
-            "No systems configured yet. Run configure and add some systems first.",
-        )?;
+        cliclack::outro("No systems configured yet. Run configure and add some systems first.")?;
         return Ok(());
     }
 
@@ -267,12 +265,12 @@ pub fn toggle_systems_dialog() -> Result<(), Box<dyn Error>> {
     }
 
     config.save()?;
-    let _ = cliclack::outro("System settings updated successfully")?;
+    cliclack::outro("System settings updated successfully")?;
     Ok(())
 }
 
 pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
-    println!("");
+    println!();
     println!(
         "{}",
         style("Configure will help you add systems that goose can use").dim()
@@ -281,7 +279,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
         "{}",
         style("  systems provide tools and capabilities to the AI agent").dim()
     );
-    println!("");
+    println!();
 
     cliclack::intro(style(" goose-configure-systems ").on_cyan().black())?;
 
@@ -328,7 +326,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Enabled {} system", style(system).green()))?;
+            cliclack::outro(format!("Enabled {} system", style(system).green()))?;
         }
         "stdio" => {
             let systems = config.systems.clone();
@@ -365,19 +363,21 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
-            while add_env {
-                let key = cliclack::input("Environment variable name:")
-                    .placeholder("API_KEY")
-                    .interact()?;
+            if add_env {
+                loop {
+                    let key = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
 
-                let value = cliclack::password("Environment variable value:")
-                    .mask('▪')
-                    .interact()?;
+                    let value = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
 
-                envs.insert(key, value);
+                    envs.insert(key, value);
 
-                if !cliclack::confirm("Add another environment variable?").interact()? {
-                    break;
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
                 }
             }
 
@@ -393,7 +393,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} system", style(name).green()))?;
         }
         "sse" => {
             let systems = config.systems.clone();
@@ -427,19 +427,21 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
-            while add_env {
-                let key = cliclack::input("Environment variable name:")
-                    .placeholder("API_KEY")
-                    .interact()?;
+            if add_env {
+                loop {
+                    let key = cliclack::input("Environment variable name:")
+                        .placeholder("API_KEY")
+                        .interact()?;
 
-                let value = cliclack::password("Environment variable value:")
-                    .mask('▪')
-                    .interact()?;
+                    let value = cliclack::password("Environment variable value:")
+                        .mask('▪')
+                        .interact()?;
 
-                envs.insert(key, value);
+                    envs.insert(key, value);
 
-                if !cliclack::confirm("Add another environment variable?").interact()? {
-                    break;
+                    if !cliclack::confirm("Add another environment variable?").interact()? {
+                        break;
+                    }
                 }
             }
 
@@ -454,7 +456,7 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            let _ = cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} system", style(name).green()))?;
         }
         _ => unreachable!(),
     };

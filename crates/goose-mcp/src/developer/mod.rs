@@ -211,7 +211,7 @@ impl DeveloperRouter {
                 list_windows_tool,
                 screen_capture_tool,
             ],
-            prompts: prompts,
+            prompts,
             cwd: Arc::new(Mutex::new(cwd)),
             active_resources: Arc::new(Mutex::new(resources)),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -234,7 +234,7 @@ impl DeveloperRouter {
             .lock()
             .unwrap()
             .get(uri)
-            .map_or(false, |r| r.is_active())
+            .is_some_and(|r| r.is_active())
     }
 
     // Helper method to resolve a path relative to cwd

@@ -77,8 +77,6 @@ fn default_port() -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
-    use std::env;
 
     #[test]
     fn test_socket_addr_conversion() {
