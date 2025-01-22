@@ -1,78 +1,92 @@
-# Goose CLI Commands
+# goose CLI Commands
 
-Goose provides a command-line interface (CLI) with various commands to manage sessions, toolkits, and more. Below is a list of the available commands and their descriptions:
+goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their  descriptions:
 
-## Goose CLI
+## Commands
 
-### `version`
+### help
 
-**Usage:**
-```sh
-  goose version
-```
-
-Lists the version of Goose and any associated plugins.
-
-### `session`
-
-#### `start`
+This command is used for displaying the help menu for the Goose CLI
 
 **Usage:**
-```sh
-  goose session start [--profile PROFILE] [--log-level [DEBUG|INFO|WARNING|ERROR|CRITICAL]] [--tracing]
+```bash
+goose --help
 ```
 
-Starts a new Goose session.
+### --version
 
-If you want to enable locally hosted Langfuse tracing, pass the --tracing flag after starting your local Langfuse server as outlined in the [Contributing Guide's][contributing] Development guidelines.
-
-#### `resume`
+This command is used for checking the current Goose version you have installed
 
 **Usage:**
-```sh
-  goose session resume [NAME] [--profile PROFILE]
+```bash
+goose --version
 ```
 
-Resumes an existing Goose session.
+### agents
 
-#### `run`
-
-Goose can run one off plans: 
+This command is used for listing all available agents.
 
 **Usage:**
-```sh
-  goose run plan.md
+```bash
+goose agents
 ```
 
-It will run this plan, or sequence of tasks, to completion as a one shot task.
+### `mcp <name>`
 
-#### `list`
+Run one of the mcp servers bundled with goose, specified by the `<name>` parameter.
 
 **Usage:**
-```sh
-  goose session list
+```bash
+goose mcp <name>
 ```
 
-Lists all Goose sessions.
+### `session [options]`
 
-#### `clear`
+Start or resume interactive chat sessions with goose. 
+
+**Options:**
+- **`-n, --name <NAME>`** : Name for the chat session (e.g., `'project-x'`)
+
+- **`-p, --provider <PROVIDER>`**: Provider to use (e.g., `'openai'`, `'anthropic'`)
+
+- **`-m, --model <MODEL>`**:Model to use (e.g., `'gpt-4'`, `'claude-3'`)
+
+- **`-a, --agent <AGENT>`**: Agent version to use (e.g., `'default'`, `'v1'`), defaults to `'default'`
+
+- **`-r, --resume`**: Resume a previous session (last used or specified by `--session`)
+
 
 **Usage:**
-```sh
-  goose session clear [--keep KEEP]
+```bash
+goose session --resume
 ```
 
-Deletes old Goose sessions, keeping the most recent ones as specified by the `--keep` option.
+### run
 
-### `toolkit`
+Execute commands from an instruction file or stdin
 
-#### `list`
+- **`-i, --instructions <FILE>`**: Path to instruction file containing commands  
+- **`-t, --text <TEXT>`**: Input text to provide to Goose directly  
+- **`-p, --provider <PROVIDER>`**: Provider to use (e.g., 'openai', 'anthropic')  
+- **`-m, --model <MODEL>`**: Model to use (e.g., 'gpt-4', 'claude-3')  
+- **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')  
+- **`-a, --agent <AGENT>`**: Agent version to use (e.g., 'default', 'v1')  
+- **`-r, --resume`**: Resume from a previous run  
 
 **Usage:**
-```sh
-  goose toolkit list
+```bash
+goose run --instructions plan.md
 ```
 
-Lists all available toolkits with their descriptions.
+### `configure [options]`
 
-[contributing]: https://block.github.io/goose/contributing.html
+Configure Goose settings - set providers, models etc. Can be run without any arguments.
+
+- **`-p, --provider <PROVIDER>`**: AI Provider to use (e.g., 'openai', 'databricks', 'ollama')
+- **`-m, --model <MODEL>`**: Model to use (e.g., 'gpt-4', 'llama2')
+
+
+**Usage:**
+```bash
+goose configure
+```

@@ -5,8 +5,8 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Codename Goose',
-  tagline: 'Goose is your on-machine developer agent, automating engineering tasks seamlessly within your IDE or terminal',
+  title: 'codename goose',
+  tagline: 'goose is your on-machine developer agent, automating engineering tasks seamlessly within your IDE or terminal',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
@@ -68,7 +68,7 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     navbar: {
-      title: 'Codename Goose',
+      title: 'codename goose',
       logo: {
         alt: 'Block Logo',
         src: 'img/logo.png',
@@ -102,7 +102,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Install Goose',
+              label: 'Install goose',
               to: '/docs/installation',
             },
           ],
