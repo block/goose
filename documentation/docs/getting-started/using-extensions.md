@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 Goose Extensions are add-ons that provide are a way to extend the functionality of Goose. They also provide a way to connect Goose with applications and tools you already use in your workflow. These extensions can be used to add new features, automate tasks, or integrate with other systems.
 
 ### Adding An Extension
-You can expand Goose's capabilities by adding extensions. Built-in extensions are pre-installed with Goose, while external extensions can be integrated via the MCP framework.
+You can expand Goose's capabilities by adding extensions. Built-in extensions are pre-installed with Goose, while external extensions can be integrated via [Anthropic's Model Context Protocol (MCP)][mcp].
 
 <Tabs>
   <TabItem value="cli" label="Goose CLI" default>
