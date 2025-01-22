@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 
 use async_trait::async_trait;
 use mcp_core::protocol::JsonRpcMessage;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
 use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
@@ -18,18 +18,54 @@ pub struct StdioActor {
     _process: Child, // we store the process to keep it alive
     stdin: ChildStdin,
     stdout: ChildStdout,
+    stderr: ChildStderr,
 }
 
 impl StdioActor {
-    pub async fn run(self) {
-        tokio::join!(
-            Self::handle_incoming_messages(self.stdout, self.pending_requests.clone()),
-            Self::handle_outgoing_messages(
-                self.receiver,
-                self.stdin,
-                self.pending_requests.clone()
-            )
+    pub async fn run(mut self) {
+        use tokio::pin;
+
+        let incoming = Self::handle_incoming_messages(self.stdout, self.pending_requests.clone());
+        let outgoing = Self::handle_outgoing_messages(
+            self.receiver,
+            self.stdin,
+            self.pending_requests.clone(),
         );
+
+        // take ownership of futures for tokio::select
+        pin!(incoming);
+        pin!(outgoing);
+
+        // Use select! to wait for either I/O completion or process exit
+        tokio::select! {
+            result = &mut incoming => {
+                tracing::debug!("Stdin handler completed: {:?}", result);
+            }
+            result = &mut outgoing => {
+                tracing::debug!("Stdout handler completed: {:?}", result);
+            }
+            // capture the status so we don't need to wait for a timeout
+            status = self._process.wait() => {
+                if let Ok(status) = status {
+                    if !status.success() {
+                        tracing::error!("Process exited with status: {}", status);
+                    }
+                } else {
+                    tracing::debug!("Error waiting for process: {:?}", status);
+                }
+            }
+        }
+
+        let mut stderr_buffer = Vec::new();
+        // ignore response of bytes read
+        if self.stderr.read_to_end(&mut stderr_buffer).await.is_ok() {
+            tracing::error!(
+                "Process exited with stderr {:?}",
+                String::from_utf8_lossy(&stderr_buffer)
+            )
+        }
+        // Clean up regardless of which path we took
+        self.pending_requests.clear().await;
     }
 
     async fn handle_incoming_messages(stdout: ChildStdout, pending_requests: Arc<PendingRequests>) {
@@ -38,7 +74,7 @@ impl StdioActor {
         loop {
             match reader.read_line(&mut line).await {
                 Ok(0) => {
-                    eprintln!("Child process ended (EOF on stdout)");
+                    tracing::error!("Child process ended (EOF on stdout)");
                     break;
                 } // EOF
                 Ok(_) => {
@@ -139,13 +175,13 @@ impl StdioTransport {
         }
     }
 
-    async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout), Error> {
+    async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout, ChildStderr), Error> {
         let mut process = Command::new(&self.command)
             .envs(&self.env)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
             // 0 sets the process group ID equal to the process ID
             .process_group(0) // don't inherit signal handling from parent process
@@ -162,7 +198,12 @@ impl StdioTransport {
             .take()
             .ok_or_else(|| Error::StdioProcessError("Failed to get stdout".into()))?;
 
-        Ok((process, stdin, stdout))
+        let stderr = process
+            .stderr
+            .take()
+            .ok_or_else(|| Error::StdioProcessError("Failed to get stderr".into()))?;
+
+        Ok((process, stdin, stdout, stderr))
     }
 }
 
@@ -171,7 +212,7 @@ impl Transport for StdioTransport {
     type Handle = StdioTransportHandle;
 
     async fn start(&self) -> Result<Self::Handle, Error> {
-        let (process, stdin, stdout) = self.spawn_process().await?;
+        let (process, stdin, stdout, stderr) = self.spawn_process().await?;
         let (message_tx, message_rx) = mpsc::channel(32);
 
         let actor = StdioActor {
@@ -180,6 +221,7 @@ impl Transport for StdioTransport {
             _process: process,
             stdin,
             stdout,
+            stderr,
         };
 
         tokio::spawn(actor.run());
