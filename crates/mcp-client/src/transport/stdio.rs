@@ -57,12 +57,13 @@ impl StdioActor {
         }
 
         let mut stderr_buffer = Vec::new();
-        // ignore response of bytes read
-        if self.stderr.read_to_end(&mut stderr_buffer).await.is_ok() {
-            tracing::error!(
-                "Process exited with stderr {:?}",
-                String::from_utf8_lossy(&stderr_buffer)
-            )
+        if let Ok(bytes) = self.stderr.read_to_end(&mut stderr_buffer).await {
+            if bytes > 0 {
+                tracing::error!(
+                    "Process exited with stderr {:?}",
+                    String::from_utf8_lossy(&stderr_buffer)
+                )
+            }
         }
         // Clean up regardless of which path we took
         self.pending_requests.clear().await;
