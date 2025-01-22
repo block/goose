@@ -2,106 +2,109 @@
 sidebar_position: 2
 title: Using Extensions
 ---
-# Configuring Goose
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-## Profiles
+# Using Extensions
 
-If you need to customize goose, one way is via editing: `~/.config/goose/profiles.yaml`.
+Goose Extensions are add-ons that provide are a way to extend the functionality of Goose. They also provide a way to connect Goose with applications and tools you already use in your workflow. These extensions can be used to add new features, automate tasks, or integrate with other systems.
 
-By default, it looks like this:
+### Adding An Extension
+You can expand Goose's capabilities by adding extensions. Built-in extensions are pre-installed with Goose, while external extensions can be integrated via the MCP framework.
 
-```yaml
-default:
-  provider: open-ai
-  processor: gpt-4o
-  accelerator: gpt-4o-mini
-  moderator: passive
-  toolkits:
-    - name: developer
-      requires: {}
-```
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    
+    **To add a Built-in, Command-line or Remote extension:**
 
-If you run `goose session start` without the `--profile` flag it will use the `default` profile automatically.
+    1. run the following command:
+    ```sh
+    goose configure
+    ```
+    2. Select `Add Extension` from the menu.
+    3. Choose the type of extension you’d like to add:
+        - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
+        - `Command-Line Extension`: Add a local command or script to run as an extension.
+        - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+    4. Follow the prompts based on the type of extension you selected.
 
-### Fields
+    **Example: Adding Built-in Extension**
 
-#### provider
+    To select an option during configuration, hover over it and press Enter.
 
-`provider` specifies the chosen LLM provider by the user. You can set up multiple profiles with different providers. Goose will use the provider specified in the profile to interact with the LLM. Here is the list of [supported LLM providers][providers]
-
-
-#### processor
-
-This is the model used for the main Goose loop and main tools -- it should be be capable of complex, multi-step tasks such as writing code and executing commands. Example: `gpt-4o`. You should choose the model based the provider you configured.
-
-#### accelerator
-
-Small model for fast, lightweight tasks. Example: `gpt-4o-mini`. You should choose the model based the provider you configured.
-
-#### moderator
-
-Rules designed to control or manage the output of the model. Moderators that currently are supported by Goose:
-
-- `passive`: does not actively intervene in every response
-- `truncate`: truncates the first contexts when the contexts exceed the max token size
+    ```sh 
+    What would you like to configure?
+      Configure Providers
+      Toggle Extensions
+    > Add Extension
 
 
-#### toolkits
-These are modular add-ons that enhance the functionality of Goose. Each toolkit provides specific capabilities or integrations that can be tailored to meet particular needs or use cases e.g `browser`, `developer`, `screen` etc. 
+    What type of extension would you like to add?
+    > Built-in Extension
+      Command-line Extension
+      Remote Extension
 
-To list available toolkits, use the following command:
+    Which Built-in extension would you like to enable?
+      Developer Tools
+      Non Developer
+    > Jetbrains
+    ```
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+    **Extensions can be installed directly from the [directory page][extensions-directory] to the Goose UI as shown below.** 
+    
+    ![Install Extension](../assets/guides/install-extension-ui.png)
+  </TabItem>
+</Tabs>
 
-```
-  goose toolkit list
-```
+### Toggle Extensions
 
+You can manage extensions by enabling or disabling them based on your workflow needs. Built-in tools in the CLI and UI allow you to toggle extensions on or off as required.
 
-## Adding a toolkit
-To make a toolkit available to Goose, add it to your project's pyproject.toml. For example in the Goose pyproject.toml file:
-```
-[project.entry-points."goose.toolkit"]
-developer = "goose.toolkit.developer:Developer"
-github = "goose.toolkit.github:Github"
-# Add a line like this - the key becomes the name used in profiles
-my-new-toolkit = "goose.toolkit.my_toolkits:MyNewToolkit"  # this is the path to the class that implements the toolkit
-```
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    **To enable or disable extensions that are already installed:** 
 
-Then to set up a profile that uses it, add something to `~/.config/goose/profiles.yaml`:
-```yaml
-my-profile:
-  provider: openai
-  processor: gpt-4o
-  accelerator: gpt-4o-mini
-  moderator: passive
-  toolkits:  # new toolkit gets added here
-    - developer
-    - my-new-toolkit
-```
+    1. Run the following command to open up Goose's configurations:
+    ```sh
+    goose configure
+    ```
+    2. Select `Toggle Extensions` from the menu.
+    3. A list of already installed extensions will populate.
+    4. Press the `space bar` to toggle the extension `enabled` or `disabled`. 
 
-And now you can run Goose with this new profile to use the new toolkit!
+    **Example:**
 
-```sh
-goose session start --profile my-profile
-```
+    To select an option during configuration, hover over it and press Enter.
+    ```sh
+    What would you like to configure?
+      Configure Providers
+    > Toggle Extensions
+      Add Extension
 
-Or, if you're developing a new toolkit and want to test it:
-```sh
-uv run goose session start --profile my-profile
-```
+    Enable systems: (use "space" to toggle and "enter" to submit)
+    [ ] Developer Tools 
+    [X] JetBrains
+    ```
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+  **To enable or disable extensions that are already installed:**
 
+  1. Click the three dots in the top-right corner of the application.
+  2. Select `Settings` from the menu, then click on the `Extensions` section.
+  2. Use the toggle switch next to each extension to enable or disable it.
 
-## Tuning Goose to your repo
+  ![Install Extension](../assets/guides/manage-extensions-ui.png)
 
-Goose ships with the ability to read in the contents of a file named `.goosehints` from your repo. If you find yourself repeating the same information across sessions to Goose, this file is the right place to add this information.
+  </TabItem>
+</Tabs>
 
-This file will be read into the Goose system prompt if it is present in the current working directory.
+## Additional Resources
 
-Check out the [guide on using .goosehints][using-goosehints] for more tips.
-
-:::tip
-`.goosehints` follows [jinja templating rules][jinja-guide] in case you want to leverage templating to insert file contents or variables.
-:::
+Visit the [Installation Guide][installation-guide] for detailed instructions on how to update your LLM provider.
 
 [providers]: https://block.github.io/goose/plugins/providers.html
-[jinja-guide]: https://jinja.palletsprojects.com/en/3.1.x/
-[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html
+[handling-rate-limits]: https://block.github.io/goose/v1/docs/guidance/handling-llm-rate-limits-with-goose
+[mcp]: https://www.anthropic.com/news/model-context-protocol
+[installation-guide]: http://localhost:3000/goose/v1/docs/installation#update-a-provider
+[extensions-directory]: https://silver-disco-nvm6v4e.pages.github.io/
