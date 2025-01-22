@@ -7,7 +7,7 @@ use thiserror::Error;
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
-    #[error("Failed to start the MCP server from configuration `{0}` within 60 seconds")]
+    #[error("Failed to start the MCP server from configuration `{0}`")]
     Initialization(ExtensionConfig),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
