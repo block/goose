@@ -685,20 +685,15 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lazy_static::lazy_static;
     use serde_json::json;
+    use serial_test::serial;
     use std::fs;
-    use std::sync::Mutex;
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
-    lazy_static! {
-        static ref TEST_MUTEX: Mutex<()> = Mutex::new(());
-    }
-
     #[test]
+    #[serial]
     fn test_goosehints_when_present() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
@@ -710,8 +705,8 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_goosehints_when_missing() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
@@ -740,8 +735,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_text_editor_size_limits() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
@@ -800,8 +795,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_text_editor_write_and_view_file() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
@@ -850,8 +845,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_text_editor_str_replace() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
@@ -925,8 +920,8 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_text_editor_undo_edit() {
-        let _lock = TEST_MUTEX.lock().unwrap();
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
