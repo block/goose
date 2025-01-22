@@ -5,7 +5,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'Goose Documentation',
+  title: 'Codename Goose',
   tagline: 'Goose is your on-machine developer agent, automating engineering tasks seamlessly within your IDE or terminal',
   favicon: 'img/favicon.ico',
 
@@ -68,7 +68,7 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     navbar: {
-      title: 'Goose Documentation',
+      title: 'Codename Goose',
       logo: {
         alt: 'Block Logo',
         src: 'img/logo.png',
@@ -111,10 +111,6 @@ const config: Config = {
           title: 'Community',
           items: [
             {
-              label: 'GitHub',
-              href: 'https://github.com/block/goose',
-            },
-            {
               label: 'Discord',
               href: 'https://discord.gg/block-opensource',
             },
@@ -122,6 +118,14 @@ const config: Config = {
               label: 'YouTube',
               href: 'https://www.youtube.com/@goose.videos',
             },
+            {
+              label: 'LinkedIn',
+              href: 'https://www.linkedin.com/company/block-opensource',
+            },
+            {
+              label: 'Twitter / X',
+              href: 'https://x.com/blockopensource',
+            },                       
           ],
         },
         {
@@ -138,7 +142,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Block, Inc.`,
     },
     prism: {
       theme: prismThemes.github,
