@@ -46,11 +46,11 @@ You can also bring in any third-party extension of your choice using the [MCP se
 
     Extensions can be installed directly from the directory to the Goose UI as shown below. 
 
-    ![Install Extension](./assets/guides/install-extension-ui.png)
+    ![Install Extension](../assets/guides/install-extension-ui.png)
 
     They can then be toggled on or off from the Extensions tab under settings.
 
-    ![Manage Extensions](./assets/guides/manage-extensions-ui.png)
+    ![Manage Extensions](../assets/guides/manage-extensions-ui.png)
 
   </TabItem>
 </Tabs>

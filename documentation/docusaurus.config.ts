@@ -85,6 +85,7 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
+        
         {to: '/blog', label: 'Blog', position: 'left'},
         {href: 'https://discord.gg/block-opensource', label: 'Discord', position: 'left'},
         {
@@ -101,8 +102,8 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs',
+              label: 'Install Goose',
+              to: '/docs/installation',
             },
           ],
         },

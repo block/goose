@@ -1,3 +1,6 @@
+---
+title: Troubleshooting Guide
+---
 # Errors
 
 Error handling is a key performance-driving part of `goose`. There are many ways that the non-determinism

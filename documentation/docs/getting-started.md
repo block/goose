@@ -1,6 +1,6 @@
 ---
-sidebar_position: 1
-title: "Getting Started"
+title: "Getting Started (TBD)"
+draft: true
 ---
 
 # Your first run with Goose
@@ -142,9 +142,9 @@ To run Goose with this plan with the arguments `dep=pytest,repo=github`, you wou
 ```sh
 goose run plan.md --args dep=pytest,repo=github
 ```
-
-[configuration]: ../configuration.md
+Update below to correct urls if needed 
+<!-- [configuration]: [../configuration.md]
 [available-toolkits]: ../plugins/available-toolkits.md
 [providers]: ../plugins/providers.md
 [goose-plugins]:https://github.com/block-open-source/goose-plugins
-[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html
+[using-goosehints]: https://block.github.com/goose/guidance/using-goosehints.html -->
