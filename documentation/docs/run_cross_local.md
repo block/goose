@@ -1,3 +1,6 @@
+---
+draft: true
+---
 # Instructions for running cross to test release builds locally
 
 ## Prerequisites

@@ -1,5 +1,6 @@
 ---
-title: Configuration
+sidebar_position: 2
+title: Using Extensions
 ---
 # Configuring Goose
 

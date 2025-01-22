@@ -1,0 +1,8 @@
+{
+  "label": "Configuration",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Extend goose functionalities with extensions and custom configurations"
+  }
+}
