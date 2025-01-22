@@ -1,6 +1,6 @@
-# goose CLI Commands
+# Goose CLI Commands
 
-goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their  descriptions:
+Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their  descriptions:
 
 ## Commands
 
