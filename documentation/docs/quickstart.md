@@ -2,41 +2,73 @@
 sidebar_position: 2
 title: Quickstart
 ---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Goose in 5 minutes
 
 ## Quickstart guide
 
-Goose is a developer agent that supercharges your software development by automating an array of coding tasks directly in your terminal. This Quickstart guide will show you how to get the CLI up and running in just a few minutes.
+Goose is a developer agent that supercharges your software development by automating an array of coding tasks directly in your terminal. This Quickstart guide will show you how to get started with Goose, whether you prefer using the command-line interface (CLI) or the desktop UI.
 
-For those who prefer an interface, Goose also offers a desktop UI. See [Getting Started with Goose Desktop][goose-ui] for more details.
+### Installation
 
-### CLI Installation
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    #### Installing the Goose CLI
+    To install Goose, run the following script on macOS or Linux. 
 
-To install Goose CLI, you can download and run the following installation script:
+    ```sh
+    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
+    ```
+    This script will fetch the latest version of Goose and set it up on your system.
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+    #### Installing the Goose UI
 
-``` sh
-curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
-```
-
-This script will fetch the latest version of Goose and set it up on your system.
+    To install the Goose desktop UI, follow these steps: 
+    1. Visit the [Goose Releases page](https://github.com/block/goose/releases/tag/stable)
+    2. Download the `Goose.zip` file.
+    3. Open the downloaded `Goose.zip` file and launch the desktop application.
+  </TabItem>
+</Tabs>
 
 ### Running Goose
 
 #### Set up a provider
 Goose works with a set of [supported LLM providers][providers] that you can obtain an API key from if you don't already have one. You'll be prompted to set an API key if you haven't set one previously when you run Goose.
 
+The process will look similar to the example below:
+
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    ![Set Up a Provider](./assets/guides/set-up-provider.png)
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+    ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
+  </TabItem>
+</Tabs>
+
 :::info Billing
  You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests. Some providers also have rate limits on API usage, which can affect your experience. Check out our [Handling Rate Limits][handling-rate-limits] guide to learn how to efficiently manage these limits while using Goose.
 :::
 
 #### Start a session
+<Tabs>
+    <TabItem value="cli" label="Goose CLI" default>
+        From your terminal, navigate to the directory you'd like to start from and run:
+        ```sh
+        goose session 
+        ```
+    </TabItem>
+    <TabItem value="ui" label="Goose UI">
+        Starting a session in the Goose UI is straightforward. After choosing your provider, you’ll see the session interface ready for use.
+        
+        Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately. 
 
-From your terminal, navigate to the directory you'd like to start from and run:
-
-```sh
-goose session start
-```
+        ![Install Extension](./assets/guides/ui-session-interface.png)
+    </TabItem>
+</Tabs>
 
 #### Make Goose do the work for you
 You will see the Goose prompt `G❯`:
@@ -55,14 +87,14 @@ Now you are interacting with Goose in conversational sessions. Think of it like 
 
 #### Exit the session
 
-If you are looking to exit, use `CTRL+D`.
+If you are looking to exit, use `CTRL+C`.
 
 #### Resume a session
 
 When you exit a session, it will save the history in `~/.config/goose/sessions` directory. You can then resume your last saved session later, using:
 
 ``` sh
-goose session resume
+goose session --resume
 ```
 
 Check out the [Managing Goose sessions][managing-sessions] to learn more about working with sessions in Goose.
