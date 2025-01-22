@@ -1,4 +1,4 @@
-/// Content sent around agents, systems, and LLMs
+/// Content sent around agents, extensions, and LLMs
 /// The various content types can be display to humans but also understood by models
 /// They include optional annotations used to help inform agent usage
 use super::role::Role;

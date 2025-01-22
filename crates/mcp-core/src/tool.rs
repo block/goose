@@ -30,7 +30,7 @@ impl Tool {
     }
 }
 
-/// A tool call request that a system can execute
+/// A tool call request that an extension can execute
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolCall {

@@ -1,6 +1,6 @@
 use cliclack::spinner;
 use console::style;
-use goose::agents::{system::Envs, SystemConfig};
+use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::key_manager::{get_keyring_secret, save_to_keyring, KeyRetrievalStrategy};
 use goose::message::Message;
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
@@ -14,7 +14,7 @@ use goose::providers::openrouter::OPENROUTER_DEFAULT_MODEL;
 use std::collections::HashMap;
 use std::error::Error;
 
-use crate::config::{Config, SystemEntry};
+use crate::config::{Config, ExtensionEntry};
 
 pub async fn handle_configure(
     provided_provider: Option<String>,
@@ -38,7 +38,7 @@ pub async fn handle_configure(
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
         configure_provider_dialog(provided_provider, provided_model).await?;
         println!(
-            "\n  {}: Run '{}' again to adjust your config or add systems",
+            "\n  {}: Run '{}' again to adjust your config or add extensions",
             style("Tip").green().italic(),
             style("goose configure").cyan()
         );
@@ -65,15 +65,15 @@ pub async fn handle_configure(
             )
             .item(
                 "toggle",
-                "Toggle Systems",
-                "Enable or disable connected systems",
+                "Toggle Extensions",
+                "Enable or disable connected extensions",
             )
-            .item("add", "Add System", "Connect to a new system")
+            .item("add", "Add Extension", "Connect to a new extension")
             .interact()?;
 
         match action {
-            "toggle" => toggle_systems_dialog(),
-            "add" => configure_systems_dialog(),
+            "toggle" => toggle_extensions_dialog(),
+            "add" => configure_extensions_dialog(),
             "providers" => configure_provider_dialog(provided_provider, provided_model).await,
             _ => unreachable!(),
         }
@@ -167,7 +167,7 @@ pub async fn configure_provider_dialog(
     spin.start("Checking your configuration...");
     let provider = factory::get_provider(&provider_name).unwrap();
     let message = Message::user().with_text("Please give a nice welcome messsage (one sentence) and let them know they are all set to use this agent");
-    let result = provider.complete("You are an AI agent called Goose. You use tools of connected systems to solve problems.", &[message], &[]).await;
+    let result = provider.complete("You are an AI agent called Goose. You use tools of connected extensions to solve problems.", &[message], &[]).await;
 
     match result {
         Ok((message, _usage)) => {
@@ -225,89 +225,96 @@ pub fn get_required_keys(provider_name: &str) -> Vec<&'static str> {
     }
 }
 
-/// Configure systems that can be used with goose
-/// Dialog for toggling which systems are enabled/disabled
-pub fn toggle_systems_dialog() -> Result<(), Box<dyn Error>> {
+/// Configure extensions that can be used with goose
+/// Dialog for toggling which extensions are enabled/disabled
+pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     // Load existing config
     let mut config = Config::load().unwrap_or_default();
 
-    if config.systems.is_empty() {
-        cliclack::outro("No systems configured yet. Run configure and add some systems first.")?;
+    if config.extensions.is_empty() {
+        cliclack::outro(
+            "No extensions configured yet. Run configure and add some extensions first.",
+        )?;
         return Ok(());
     }
 
-    // Create a list of system names and their enabled status
-    let mut system_status: Vec<(String, bool)> = Vec::new();
-    for (name, entry) in config.systems.iter() {
-        system_status.push((name.clone(), entry.enabled));
+    // Create a list of extension names and their enabled status
+    let mut extension_status: Vec<(String, bool)> = Vec::new();
+    for (name, entry) in config.extensions.iter() {
+        extension_status.push((name.clone(), entry.enabled));
     }
 
-    // Get currently enabled systems for the selection
-    let enabled_systems: Vec<&String> = system_status
+    // Get currently enabled extensions for the selection
+    let enabled_extensions: Vec<&String> = extension_status
         .iter()
         .filter(|(_, enabled)| *enabled)
         .map(|(name, _)| name)
         .collect();
 
-    // Let user toggle systems
-    let selected =
-        cliclack::multiselect("enable systems: (use \"space\" to toggle and \"enter\" to submit)")
-            .required(false)
-            .items(
-                &system_status
-                    .iter()
-                    .map(|(name, _)| (name, name.as_str(), ""))
-                    .collect::<Vec<_>>(),
-            )
-            .initial_values(enabled_systems)
-            .interact()?;
+    // Let user toggle extensions
+    let selected = cliclack::multiselect(
+        "enable extensions: (use \"space\" to toggle and \"enter\" to submit)",
+    )
+    .required(false)
+    .items(
+        &extension_status
+            .iter()
+            .map(|(name, _)| (name, name.as_str(), ""))
+            .collect::<Vec<_>>(),
+    )
+    .initial_values(enabled_extensions)
+    .interact()?;
 
     // Update the config with new enabled/disabled status
-    for (name, _) in system_status.iter() {
-        if let Some(entry) = config.systems.get_mut(name) {
+    for (name, _) in extension_status.iter() {
+        if let Some(entry) = config.extensions.get_mut(name) {
             entry.enabled = selected.contains(&name);
         }
     }
 
     config.save()?;
-    cliclack::outro("System settings updated successfully")?;
+    cliclack::outro("Extension settings updated successfully")?;
     Ok(())
 }
 
-pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
+pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
     println!();
     println!(
         "{}",
-        style("Configure will help you add systems that goose can use").dim()
+        style("Configure will help you add extensions that goose can use").dim()
     );
     println!(
         "{}",
-        style("  systems provide tools and capabilities to the AI agent").dim()
+        style("  extensions provide tools and capabilities to the AI agent").dim()
     );
     println!();
 
-    cliclack::intro(style(" goose-configure-systems ").on_cyan().black())?;
+    cliclack::intro(style(" goose-configure-extensions ").on_cyan().black())?;
 
     // Load existing config or create new one
     let mut config = Config::load().unwrap_or_default();
 
-    let system_type = cliclack::select("What type of system would you like to add?")
+    let extension_type = cliclack::select("What type of extension would you like to add?")
         .item(
             "built-in",
-            "Built-in System",
-            "Use a system that comes with Goose",
+            "Built-in Extension",
+            "Use an extension that comes with Goose",
         )
         .item(
             "stdio",
-            "Command-line System",
+            "Command-line Extension",
             "Run a local command or script",
         )
-        .item("sse", "Remote System", "Connect to a remote system via SSE")
+        .item(
+            "sse",
+            "Remote Extension",
+            "Connect to a remote extension via SSE",
+        )
         .interact()?;
 
-    match system_type {
+    match extension_type {
         "built-in" => {
-            let system = cliclack::select("Which built-in system would you like to enable?")
+            let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
                     "developer",
                     "Developer Tools",
@@ -321,27 +328,27 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .interact()?;
 
-            config.systems.insert(
-                system.to_string(),
-                SystemEntry {
+            config.extensions.insert(
+                extension.to_string(),
+                ExtensionEntry {
                     enabled: true,
-                    config: SystemConfig::Builtin {
-                        name: system.to_string(),
+                    config: ExtensionConfig::Builtin {
+                        name: extension.to_string(),
                     },
                 },
             );
 
-            cliclack::outro(format!("Enabled {} system", style(system).green()))?;
+            cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
         }
         "stdio" => {
-            let systems = config.systems.clone();
-            let name: String = cliclack::input("What would you like to call this system?")
-                .placeholder("my-system")
+            let extensions = config.extensions.clone();
+            let name: String = cliclack::input("What would you like to call this extension?")
+                .placeholder("my-extension")
                 .validate(move |input: &String| {
                     if input.is_empty() {
                         Err("Please enter a name")
-                    } else if systems.contains_key(input) {
-                        Err("A system with this name already exists")
+                    } else if extensions.contains_key(input) {
+                        Err("An extension with this name already exists")
                     } else {
                         Ok(())
                     }
@@ -386,11 +393,11 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            config.systems.insert(
+            config.extensions.insert(
                 name.clone(),
-                SystemEntry {
+                ExtensionEntry {
                     enabled: true,
-                    config: SystemConfig::Stdio {
+                    config: ExtensionConfig::Stdio {
                         cmd,
                         args,
                         envs: Envs::new(envs),
@@ -398,17 +405,17 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 },
             );
 
-            cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
         "sse" => {
-            let systems = config.systems.clone();
-            let name: String = cliclack::input("What would you like to call this system?")
-                .placeholder("my-remote-system")
+            let extensions = config.extensions.clone();
+            let name: String = cliclack::input("What would you like to call this extension?")
+                .placeholder("my-remote-extension")
                 .validate(move |input: &String| {
                     if input.is_empty() {
                         Err("Please enter a name")
-                    } else if systems.contains_key(input) {
-                        Err("A system with this name already exists")
+                    } else if extensions.contains_key(input) {
+                        Err("An extension with this name already exists")
                     } else {
                         Ok(())
                     }
@@ -450,18 +457,18 @@ pub fn configure_systems_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            config.systems.insert(
+            config.extensions.insert(
                 name.clone(),
-                SystemEntry {
+                ExtensionEntry {
                     enabled: true,
-                    config: SystemConfig::Sse {
+                    config: ExtensionConfig::Sse {
                         uri,
                         envs: Envs::new(envs),
                     },
                 },
             );
 
-            cliclack::outro(format!("Added {} system", style(name).green()))?;
+            cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
         _ => unreachable!(),
     };

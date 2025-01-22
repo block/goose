@@ -15,12 +15,17 @@ import UserMessage from "./components/UserMessage";
 import WingToWing, { Working } from "./components/WingToWing";
 import { askAi } from "./utils/askAI";
 import {
+  getStoredModel,
   Provider,
 } from "./utils/providerUtils";
 import { ChatLayout } from "./components/chat_window/ChatLayout"
 import { ChatRoutes } from "./components/chat_window/ChatRoutes"
 import { WelcomeModal } from "./components/welcome_screen/WelcomeModal"
 import { getStoredProvider, initializeSystem } from './utils/providerUtils'
+import {useModel} from "./components/settings/models/ModelContext";
+import {useRecentModels} from "./components/settings/models/RecentModels";
+import {createSelectedModel} from "./components/settings/models/utils";
+import {getDefaultModel} from "./components/settings/models/hardcoded_stuff";
 
 declare global {
   interface Window {
@@ -332,6 +337,8 @@ export default function ChatWindow() {
   const openNewChatWindow = () => {
     window.electron.createChatWindow();
   };
+  const { switchModel, currentModel} = useModel(); // Access switchModel via useModel
+  const { addRecentModel } = useRecentModels(); // Access addRecentModel from useRecentModels
 
   // Add keyboard shortcut handler
   useEffect(() => {
@@ -365,8 +372,8 @@ export default function ChatWindow() {
   const initialQuery = searchParams.get("initialQuery");
   const historyParam = searchParams.get("history");
   const initialHistory = historyParam
-    ? JSON.parse(decodeURIComponent(historyParam))
-    : [];
+      ? JSON.parse(decodeURIComponent(historyParam))
+      : [];
 
   const [chats, setChats] = useState<Chat[]>(() => {
     const firstChat = {
@@ -379,7 +386,7 @@ export default function ChatWindow() {
 
   const [selectedChatId, setSelectedChatId] = useState(1);
   const [mode, setMode] = useState<"expanded" | "compact">(
-    initialQuery ? "compact" : "expanded"
+      initialQuery ? "compact" : "expanded"
   );
   const [working, setWorking] = useState<Working>(Working.Idle);
   const [progressMessage, setProgressMessage] = useState<string>("");
@@ -415,7 +422,7 @@ export default function ChatWindow() {
         "Content-Type": "application/json",
         "X-Secret-Key": getSecretKey(),
       },
-      body: JSON.stringify({ key, value }),
+      body: JSON.stringify({key, value}),
     });
 
     if (!response.ok) {
@@ -438,10 +445,24 @@ export default function ChatWindow() {
       await storeSecret(secretKey, trimmedKey);
 
       // Initialize the system with the selected provider
-      await initializeSystem(selectedProvider.id);
+      await initializeSystem(selectedProvider.id, null);
+
+      // get the default model
+      const modelName = getDefaultModel(selectedProvider.id)
+
+      // create model object
+      const model = createSelectedModel(selectedProvider.id, modelName)
+
+      // Call the context's switchModel to track the set model state in the front end
+      switchModel(model);
+
+      // Keep track of the recently used models
+      addRecentModel(model);
+
 
       // Save provider selection and close modal
       localStorage.setItem("GOOSE_PROVIDER", selectedProvider.id);
+      console.log("set up provider with default model", selectedProvider.id, modelName)
       setShowWelcomeModal(false);
     } catch (error) {
       console.error("Failed to setup provider:", error);
@@ -454,9 +475,25 @@ export default function ChatWindow() {
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
       const storedProvider = getStoredProvider(config);
+      const storedModel = getStoredModel()
       if (storedProvider) {
         try {
-          await initializeSystem(storedProvider);
+          await initializeSystem(storedProvider, storedModel);
+          if (!storedModel) {
+            // get the default model
+            const modelName = getDefaultModel(storedProvider.toLowerCase())
+
+            // create model object
+            const model = createSelectedModel(storedProvider.toLowerCase(), modelName)
+
+            // Call the context's switchModel to track the set model state in the front end
+            switchModel(model);
+
+            // Keep track of the recently used models
+            addRecentModel(model);
+
+            console.log("set up provider with default model", storedProvider, modelName)
+          }
         } catch (error) {
           console.error("Failed to initialize with stored provider:", error);
         }
@@ -467,27 +504,29 @@ export default function ChatWindow() {
   }, []);
 
   return (
-      <ChatLayout mode={mode}>
-        <ChatRoutes
-            chats={chats}
-            setChats={setChats}
-            selectedChatId={selectedChatId}
-            setSelectedChatId={setSelectedChatId}
-            setProgressMessage={setProgressMessage}
-            setWorking={setWorking}
-        />
-        <WingToWing
-            onExpand={toggleMode}
-            progressMessage={progressMessage}
-            working={working}
-        />
-        {showWelcomeModal && (
-            <WelcomeModal
-                selectedProvider={selectedProvider}
-                setSelectedProvider={setSelectedProvider}
-                onSubmit={handleModalSubmit}
-            />
-        )}
-      </ChatLayout>
+      <div>
+        <ChatLayout mode={mode}>
+          <ChatRoutes
+              chats={chats}
+              setChats={setChats}
+              selectedChatId={selectedChatId}
+              setSelectedChatId={setSelectedChatId}
+              setProgressMessage={setProgressMessage}
+              setWorking={setWorking}
+          />
+          <WingToWing
+              onExpand={toggleMode}
+              progressMessage={progressMessage}
+              working={working}
+          />
+          {showWelcomeModal && (
+              <WelcomeModal
+                  selectedProvider={selectedProvider}
+                  setSelectedProvider={setSelectedProvider}
+                  onSubmit={handleModalSubmit}
+              />
+          )}
+        </ChatLayout>
+      </div>
   );
 }

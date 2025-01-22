@@ -5,24 +5,24 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use goose::agents::SystemConfig;
+use goose::agents::ExtensionConfig;
 
-const DEFAULT_SYSTEM: &str = "developer";
+const DEFAULT_EXTENSION: &str = "developer";
 
 /// Core configuration for Goose CLI
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub default_provider: String,
     pub default_model: String,
-    pub systems: HashMap<String, SystemEntry>,
+    pub extensions: HashMap<String, ExtensionEntry>,
 }
 
-/// A system configuration entry with an enabled flag and configuration
+/// An extension configuration entry with an enabled flag and configuration
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct SystemEntry {
+pub struct ExtensionEntry {
     pub enabled: bool,
     #[serde(flatten)]
-    pub config: SystemConfig,
+    pub config: ExtensionConfig,
 }
 
 impl Config {
@@ -54,9 +54,9 @@ impl Config {
         Ok(())
     }
 
-    /// Get the system configuration if enabled
-    pub fn get_system_config(&self, name: &str) -> Option<SystemConfig> {
-        let entry = self.systems.get(name)?;
+    /// Get the extension configuration if enabled
+    pub fn get_extension_config(&self, name: &str) -> Option<ExtensionConfig> {
+        let entry = self.extensions.get(name)?;
         if entry.enabled {
             Some(entry.config.clone())
         } else {
@@ -70,12 +70,12 @@ impl Default for Config {
         Self {
             default_provider: "".to_string(),
             default_model: "".to_string(),
-            systems: HashMap::from([(
-                DEFAULT_SYSTEM.to_string(),
-                SystemEntry {
+            extensions: HashMap::from([(
+                DEFAULT_EXTENSION.to_string(),
+                ExtensionEntry {
                     enabled: true,
-                    config: SystemConfig::Builtin {
-                        name: DEFAULT_SYSTEM.to_string(),
+                    config: ExtensionConfig::Builtin {
+                        name: DEFAULT_EXTENSION.to_string(),
                     },
                 },
             )]),
@@ -96,33 +96,33 @@ mod tests {
 default_provider: openai
 default_model: gpt-4
 
-# System configurations showing all possible variants
-systems:
-  # Built-in system that just needs to be enabled
+# Extension configurations showing all possible variants
+extensions:
+  # Built-in extension that just needs to be enabled
   developer:
     enabled: true
     type: builtin
     name: developer
 
-  # Built-in system that is disabled
+  # Built-in extension that is disabled
   unused:
     enabled: false
     type: builtin
     name: unused
 
-  # Full stdio system configuration with all options
+  # Full stdio extension configuration with all options
   python:
     enabled: true
     type: stdio
     cmd: python3
     args:
       - "-m"
-      - "goose.systems.python"
+      - "goose.extensions.python"
     envs:
       PYTHONPATH: /path/to/python
       DEBUG: "true"
 
-  # Full SSE system configuration
+  # Full SSE extension configuration
   remote:
     enabled: true
     type: sse
@@ -131,8 +131,8 @@ systems:
       API_KEY: secret
       DEBUG: "true"
 
-  # Disabled full system configuration
-  disabled_system:
+  # Disabled full extension configuration
+  disabled_extension:
     enabled: false
     type: stdio
     cmd: test
@@ -145,59 +145,59 @@ systems:
         assert_eq!(config.default_provider, "openai");
         assert_eq!(config.default_model, "gpt-4");
 
-        // Check builtin enabled system
-        match &config.systems.get("developer").unwrap().config {
-            SystemConfig::Builtin { name } => assert_eq!(name, "developer"),
-            _ => panic!("Expected builtin system config"),
+        // Check builtin enabled extension
+        match &config.extensions.get("developer").unwrap().config {
+            ExtensionConfig::Builtin { name } => assert_eq!(name, "developer"),
+            _ => panic!("Expected builtin extension config"),
         }
-        assert!(config.systems.get("developer").unwrap().enabled);
+        assert!(config.extensions.get("developer").unwrap().enabled);
 
-        // Check builtin disabled system
-        match &config.systems.get("unused").unwrap().config {
-            SystemConfig::Builtin { name } => assert_eq!(name, "unused"),
-            _ => panic!("Expected builtin system config"),
+        // Check builtin disabled extension
+        match &config.extensions.get("unused").unwrap().config {
+            ExtensionConfig::Builtin { name } => assert_eq!(name, "unused"),
+            _ => panic!("Expected builtin extension config"),
         }
-        assert!(!config.systems.get("unused").unwrap().enabled);
+        assert!(!config.extensions.get("unused").unwrap().enabled);
 
-        // Check full stdio system
-        let python = config.systems.get("python").unwrap();
+        // Check full stdio extension
+        let python = config.extensions.get("python").unwrap();
         assert!(python.enabled);
         match &python.config {
-            SystemConfig::Stdio { cmd, args, envs } => {
+            ExtensionConfig::Stdio { cmd, args, envs } => {
                 assert_eq!(cmd, "python3");
                 assert_eq!(
                     args,
-                    &vec!["-m".to_string(), "goose.systems.python".to_string()]
+                    &vec!["-m".to_string(), "goose.extensions.python".to_string()]
                 );
                 let env = envs.get_env();
                 assert_eq!(env.get("PYTHONPATH").unwrap(), "/path/to/python");
                 assert_eq!(env.get("DEBUG").unwrap(), "true");
             }
-            _ => panic!("Expected stdio system config"),
+            _ => panic!("Expected stdio extension config"),
         }
 
-        // Check full SSE system
-        let remote = config.systems.get("remote").unwrap();
+        // Check full SSE extension
+        let remote = config.extensions.get("remote").unwrap();
         assert!(remote.enabled);
         match &remote.config {
-            SystemConfig::Sse { uri, envs } => {
+            ExtensionConfig::Sse { uri, envs } => {
                 assert_eq!(uri, "http://localhost:8000/events");
                 let env = envs.get_env();
                 assert_eq!(env.get("API_KEY").unwrap(), "secret");
                 assert_eq!(env.get("DEBUG").unwrap(), "true");
             }
-            _ => panic!("Expected sse system config"),
+            _ => panic!("Expected sse extension config"),
         }
 
-        // Check disabled full system
-        assert!(!config.systems.get("disabled_system").unwrap().enabled);
+        // Check disabled full extension
+        assert!(!config.extensions.get("disabled_extension").unwrap().enabled);
 
-        // Test the get_system_config helper
-        assert!(config.get_system_config("developer").is_some());
-        assert!(config.get_system_config("unused").is_none());
-        assert!(config.get_system_config("python").is_some());
-        assert!(config.get_system_config("remote").is_some());
-        assert!(config.get_system_config("disabled_system").is_none());
-        assert!(config.get_system_config("nonexistent").is_none());
+        // Test the get_extension_config helper
+        assert!(config.get_extension_config("developer").is_some());
+        assert!(config.get_extension_config("unused").is_none());
+        assert!(config.get_extension_config("python").is_some());
+        assert!(config.get_extension_config("remote").is_some());
+        assert!(config.get_extension_config("disabled_extension").is_none());
+        assert!(config.get_extension_config("nonexistent").is_none());
     }
 }

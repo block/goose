@@ -1,23 +1,28 @@
 import { extendGoosed, extendGoosedFromUrl, getApiUrl, getSecretKey } from "../config";
-
-export const SELECTED_PROVIDER_KEY = "GOOSE_PROVIDER__API_KEY"
-
-export interface ProviderOption {
-  id: string;
-  name: string;
-  description: string;
-  models: string;
-}
-
-export const OPENAI_ENDPOINT_PLACEHOLDER = "https://api.openai.com";
-export const ANTHROPIC_ENDPOINT_PLACEHOLDER = "https://api.anthropic.com";
-export const OPENAI_DEFAULT_MODEL = "gpt-4"
-export const ANTHROPIC_DEFAULT_MODEL = "claude-3-sonnet"
+import {GOOSE_MODEL, GOOSE_PROVIDER} from "../env_vars";
+import { Model } from "../components/settings/models/ModelContext"
 
 export function getStoredProvider(config: any): string | null {
   console.log("config goose provider", config.GOOSE_PROVIDER)
-  console.log("local storage goose provider", localStorage.getItem("GOOSE_PROVIDER"))
-  return config.GOOSE_PROVIDER || localStorage.getItem("GOOSE_PROVIDER");
+  console.log("local storage goose provider", localStorage.getItem(GOOSE_PROVIDER))
+  return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
+}
+
+export function getStoredModel(): string | null {
+  const storedModel = localStorage.getItem("GOOSE_MODEL"); // Adjust key name if necessary
+  console.log("local storage goose model", storedModel);
+
+  if (storedModel) {
+    try {
+      const modelInfo: Model = JSON.parse(storedModel);
+      return modelInfo.name || null; // Return name if it exists, otherwise null
+    } catch (error) {
+      console.error("Error parsing GOOSE_MODEL from local storage:", error);
+      return null; // Return null if parsing fails
+    }
+  }
+
+  return null; // Return null if storedModel is not found
 }
 
 export interface Provider {
@@ -50,14 +55,14 @@ export async function getProvidersList(): Promise<Provider[]> {
   }));
 }
 
-const addAgent = async (provider: string) => {
+const addAgent = async (provider: string, model: string) => {
   const response = await fetch(getApiUrl("/agent"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Secret-Key": getSecretKey(),
     },
-    body: JSON.stringify({ provider: provider }),
+    body: JSON.stringify({ provider: provider, model: model }),
   });
 
   if (!response.ok) {
@@ -67,10 +72,10 @@ const addAgent = async (provider: string) => {
   return response;
 };
 
-export const initializeSystem = async (provider: string) => {
+export const initializeSystem = async (provider: string, model: string) => {
   try {
-    console.log("initializing with provider", provider)
-    await addAgent(provider);
+    console.log("initializing with provider", provider, "model", model)
+    await addAgent(provider, model);
     await extendGoosed({
       type: "builtin",
       name: "developer"

@@ -38,4 +38,5 @@ http-body-util = "0.1.2"
 regex = "1.11.1"
 
 [dev-dependencies]
+serial_test = "3.0.0"
 sysinfo = "0.32.1"

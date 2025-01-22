@@ -7,7 +7,7 @@ use tracing::{debug, instrument};
 
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
-use crate::agents::system::{SystemConfig, SystemResult};
+use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -35,28 +35,28 @@ impl ReferenceAgent {
 
 #[async_trait]
 impl Agent for ReferenceAgent {
-    async fn add_system(&mut self, system: SystemConfig) -> SystemResult<()> {
+    async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
         let mut capabilities = self.capabilities.lock().await;
-        capabilities.add_system(system).await
+        capabilities.add_extension(extension).await
     }
 
-    async fn remove_system(&mut self, name: &str) {
+    async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities
-            .remove_system(name)
+            .remove_extension(name)
             .await
-            .expect("Failed to remove system");
+            .expect("Failed to remove extension");
     }
 
-    async fn list_systems(&self) -> Vec<String> {
+    async fn list_extensions(&self) -> Vec<String> {
         let capabilities = self.capabilities.lock().await;
         capabilities
-            .list_systems()
+            .list_extensions()
             .await
-            .expect("Failed to list systems")
+            .expect("Failed to list extensions")
     }
 
-    async fn passthrough(&self, _system: &str, _request: Value) -> SystemResult<Value> {
+    async fn passthrough(&self, _extension: &str, _request: Value) -> ExtensionResult<Value> {
         // TODO implement
         Ok(Value::Null)
     }
@@ -71,23 +71,23 @@ impl Agent for ReferenceAgent {
         let mut capabilities = self.capabilities.lock().await;
         let mut tools = capabilities.get_prefixed_tools().await?;
         // we add in the read_resource tool by default
-        // TODO: make sure there is no collision with another system's tool name
+        // TODO: make sure there is no collision with another extension's tool name
         let read_resource_tool = Tool::new(
             "platform__read_resource".to_string(),
             indoc! {r#"
-                Read a resource from a system.
+                Read a resource from an extension.
 
-                Resources allow systems to share data that provide context to LLMs, such as
+                Resources allow extensions to share data that provide context to LLMs, such as
                 files, database schemas, or application-specific information. This tool searches for the
-                resource URI in the provided system, and reads in the resource content. If no system
-                is provided, the tool will search all systems for the resource.
+                resource URI in the provided extension, and reads in the resource content. If no extension
+                is provided, the tool will search all extensions for the resource.
             "#}.to_string(),
             json!({
                 "type": "object",
                 "required": ["uri"],
                 "properties": {
                     "uri": {"type": "string", "description": "Resource URI"},
-                    "system_name": {"type": "string", "description": "Optional system name"}
+                    "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
             }),
         );
@@ -95,17 +95,17 @@ impl Agent for ReferenceAgent {
         let list_resources_tool = Tool::new(
             "platform__list_resources".to_string(),
             indoc! {r#"
-                List resources from a system(s).
+                List resources from an extension(s).
 
-                Resources allow systems to share data that provide context to LLMs, such as
+                Resources allow extensions to share data that provide context to LLMs, such as
                 files, database schemas, or application-specific information. This tool lists resources
-                in the provided system, and returns a list for the user to browse. If no system
-                is provided, the tool will search all systems for the resource.
+                in the provided extension, and returns a list for the user to browse. If no extension
+                is provided, the tool will search all extensions for the resource.
             "#}.to_string(),
             json!({
                 "type": "object",
                 "properties": {
-                    "system_name": {"type": "string", "description": "Optional system name"}
+                    "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
             }),
         );
@@ -115,7 +115,7 @@ impl Agent for ReferenceAgent {
             tools.push(list_resources_tool);
         }
 
-        let system_prompt = capabilities.get_system_prompt().await;
+        let extension_prompt = capabilities.get_extension_prompt().await;
         let _estimated_limit = capabilities
             .provider()
             .get_model_config()
@@ -138,7 +138,7 @@ impl Agent for ReferenceAgent {
             loop {
                 // Get completion from provider
                 let (response, usage) = capabilities.provider().complete(
-                    &system_prompt,
+                    &extension_prompt,
                     &messages,
                     &tools,
                 ).await?;

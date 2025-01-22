@@ -9,10 +9,10 @@ import {
   getSecretsSettings,
   transformProviderSecretsResponse,
   transformSecrets,
-} from './providers/utils';
-import { ProviderSetupModal } from "../welcome_screen/ProviderSetupModal";
-import { Provider } from './providers/types'
-import { ProviderCard } from './providers/ProviderCard'
+} from './providers/old_stuff/utils';
+import { ProviderSetupModal } from "./modals/ProviderSetupModal";
+import { Provider } from './providers/old_stuff/types'
+import { ProviderCard } from './providers/old_stuff/ProviderCard'
 import { ConfirmDeletionModal } from './modals/ConfirmDeletionModal'
 
 
@@ -42,8 +42,6 @@ export default function Keys() {
         //   { key: "OPENAI_OTHER_KEY", location: "none", is_set: false }
         // ]
         const transformedSecrets = transformSecrets(data)
-        console.log("transformedSecrets", transformedSecrets)
-
         setSecrets(transformedSecrets);
 
         // Check and expand active provider
@@ -92,7 +90,6 @@ export default function Keys() {
       showToast("Cannot edit key set in environment. Please modify your ~/.zshrc or equivalent file.", "error");
       return;
     }
-    console.log("Key passed to handleAddOrEditKey:", key); // Debug log
     setCurrentKey(key);
     setSelectedProvider(providerName); // Set the selected provider name
     setShowSetProviderKeyModal(true); // Show the modal

@@ -1,6 +1,6 @@
 use dotenv::dotenv;
 use futures::StreamExt;
-use goose::agents::{AgentFactory, SystemConfig};
+use goose::agents::{AgentFactory, ExtensionConfig};
 use goose::message::Message;
 use goose::providers::databricks::DatabricksProvider;
 
@@ -11,15 +11,15 @@ async fn main() {
 
     let provider = Box::new(DatabricksProvider::from_env().expect("should create provider"));
 
-    // Setup an agent with the developer system
+    // Setup an agent with the developer extension
     let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
 
-    let config = SystemConfig::stdio("./target/debug/developer");
-    agent.add_system(config).await.unwrap();
+    let config = ExtensionConfig::stdio("./target/debug/developer");
+    agent.add_extension(config).await.unwrap();
 
-    println!("Systems:");
-    for system in agent.list_systems().await {
-        println!("  {}", system);
+    println!("Extensions:");
+    for extension in agent.list_extensions().await {
+        println!("  {}", extension);
     }
 
     let messages = vec![Message::user()

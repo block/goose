@@ -74,6 +74,7 @@ jobs:
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           cargo test
+        working-directory: crates
 
       - name: Lint
         run: cargo clippy -- -D warnings

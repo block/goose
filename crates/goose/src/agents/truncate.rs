@@ -6,7 +6,7 @@ use tracing::{debug, instrument};
 
 use super::Agent;
 use crate::agents::capabilities::{Capabilities, ResourceItem};
-use crate::agents::system::{SystemConfig, SystemError, SystemResult};
+use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult};
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -32,12 +32,12 @@ impl TruncateAgent {
 
     async fn enforce_ctx_limit(
         &self,
-        system_prompt: &str,
+        extension_prompt: &str,
         tools: &[Tool],
         messages: &[Message],
         target_limit: usize,
         resource_items: &mut [ResourceItem],
-    ) -> SystemResult<Vec<Message>> {
+    ) -> ExtensionResult<Vec<Message>> {
         // Flatten all resource content into a vector of strings
         let resources: Vec<String> = resource_items
             .iter()
@@ -46,13 +46,13 @@ impl TruncateAgent {
 
         let approx_count =
             self.token_counter
-                .count_everything(system_prompt, messages, tools, &resources);
+                .count_everything(extension_prompt, messages, tools, &resources);
 
         let mut new_messages = messages.to_vec();
         if approx_count > target_limit {
             new_messages = self.drop_messages(messages, approx_count, target_limit);
             if new_messages.is_empty() {
-                return Err(SystemError::ContextLimit);
+                return Err(ExtensionError::ContextLimit);
             }
         }
 
@@ -122,7 +122,7 @@ impl Agent for TruncateAgent {
         let reply_span = tracing::Span::current();
         let mut capabilities = self.capabilities.lock().await;
         let tools = capabilities.get_prefixed_tools().await?;
-        let system_prompt = capabilities.get_system_prompt().await;
+        let extension_prompt = capabilities.get_extension_prompt().await;
         let estimated_limit = capabilities
             .provider()
             .get_model_config()
@@ -138,7 +138,7 @@ impl Agent for TruncateAgent {
 
         let mut messages = self
             .enforce_ctx_limit(
-                &system_prompt,
+                &extension_prompt,
                 &tools,
                 messages,
                 estimated_limit,
@@ -152,7 +152,7 @@ impl Agent for TruncateAgent {
             loop {
                 messages = self
                     .enforce_ctx_limit(
-                        &system_prompt,
+                        &extension_prompt,
                         &tools,
                         &messages,
                         estimated_limit,
@@ -162,7 +162,7 @@ impl Agent for TruncateAgent {
 
                 // Get completion from provider
                 let (response, usage) = capabilities.provider().complete(
-                    &system_prompt,
+                    &extension_prompt,
                     &messages,
                     &tools,
                 ).await?;
@@ -220,28 +220,28 @@ impl Agent for TruncateAgent {
         }))
     }
 
-    async fn add_system(&mut self, system: SystemConfig) -> SystemResult<()> {
+    async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
         let mut capabilities = self.capabilities.lock().await;
-        capabilities.add_system(system).await
+        capabilities.add_extension(extension).await
     }
 
-    async fn remove_system(&mut self, name: &str) {
+    async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities
-            .remove_system(name)
+            .remove_extension(name)
             .await
-            .expect("Failed to remove system");
+            .expect("Failed to remove extension");
     }
 
-    async fn list_systems(&self) -> Vec<String> {
+    async fn list_extensions(&self) -> Vec<String> {
         let capabilities = self.capabilities.lock().await;
         capabilities
-            .list_systems()
+            .list_extensions()
             .await
-            .expect("Failed to list systems")
+            .expect("Failed to list extensions")
     }
 
-    async fn passthrough(&self, _system: &str, _request: Value) -> SystemResult<Value> {
+    async fn passthrough(&self, _extension: &str, _request: Value) -> ExtensionResult<Value> {
         // TODO implement
         Ok(Value::Null)
     }
@@ -277,7 +277,7 @@ mod tests {
 
         async fn complete(
             &self,
-            _system: &str,
+            _extension: &str,
             _messages: &[Message],
             _tools: &[Tool],
         ) -> anyhow::Result<(Message, ProviderUsage)> {
@@ -304,7 +304,7 @@ mod tests {
 
         let mut capabilities = agent.capabilities.lock().await;
         let tools = capabilities.get_prefixed_tools().await?;
-        let system_prompt = capabilities.get_system_prompt().await;
+        let extension_prompt = capabilities.get_extension_prompt().await;
         let estimated_limit = capabilities
             .provider()
             .get_model_config()
@@ -312,7 +312,7 @@ mod tests {
 
         let messages = agent
             .enforce_ctx_limit(
-                &system_prompt,
+                &extension_prompt,
                 &tools,
                 conversation,
                 estimated_limit,

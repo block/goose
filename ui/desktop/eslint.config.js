@@ -50,6 +50,8 @@ module.exports = [
         RequestCredentials: 'readonly',
         HeadersInit: 'readonly',
         KeyboardEvent: 'readonly',
+        MouseEvent: 'readonly', // Add MouseEvent
+        Node: 'readonly', // Add Node
         React: 'readonly',
         handleAction: 'readonly',
         requestAnimationFrame: 'readonly',
@@ -67,13 +69,13 @@ module.exports = [
       // Customize rules
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off', // We use TypeScript for prop validation
-      'react/no-unknown-property': ['error', { 
+      'react/no-unknown-property': ['error', {
         ignore: ['dark:fill'] // Allow Tailwind dark mode syntax
       }],
       'react/no-unescaped-entities': 'off', // Allow quotes in JSX
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['warn', { 
+      '@typescript-eslint/no-unused-vars': ['warn', {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_'
       }],

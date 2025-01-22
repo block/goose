@@ -568,7 +568,7 @@ mod tests {
             let mock_provider = Box::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let mut agent = AgentFactory::create("reference", mock_provider).unwrap();
+            let agent = AgentFactory::create("reference", mock_provider).unwrap();
             let state = AppState {
                 agent: Arc::new(Mutex::new(Some(agent))),
                 secret_key: "test-secret".to_string(),

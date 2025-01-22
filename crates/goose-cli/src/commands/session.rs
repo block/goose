@@ -85,13 +85,13 @@ pub async fn build_session<'a>(
     )
     .unwrap();
 
-    // Add configured systems
-    for (name, _) in config.systems.iter() {
-        if let Some(system_config) = config.get_system_config(name) {
+    // Add configured extensions
+    for (name, _) in config.extensions.iter() {
+        if let Some(extension_config) = config.get_extension_config(name) {
             agent
-                .add_system(system_config.clone())
+                .add_extension(extension_config.clone())
                 .await
-                .unwrap_or_else(|_| panic!("Failed to start system: {}", name));
+                .unwrap_or_else(|_| panic!("Failed to start extension: {}", name));
         }
     }
 

@@ -9,21 +9,18 @@ export const getSecretKey = (): string => {
   return window.appConfig.get('secretKey');
 }
 
-// Environment variables type matching Rust's Envs
-export type Envs = Record<string, string>;
-
 // SystemConfig type matching the Rust version
 export type SystemConfig =
   | {
       type: "sse";
       uri: string;
-      envs?: Envs;
+      env_keys?: string[];
     }
   | {
       type: "stdio";
       cmd: string;
       args: string[];
-      envs?: Envs;
+      env_keys?: string[];
     }
   | {
       type: "builtin";
@@ -34,38 +31,25 @@ export type SystemConfig =
 export const extendGoosed = async (config: SystemConfig) => {
   // allowlist the CMD for stdio type
   if (config.type === "stdio") {
-    const allowedCMDs = ['npx', 'uvx', 'goosed'];
+    const allowedCMDs = ['goosed', 'npx', 'uvx'];
     if (!allowedCMDs.includes(config.cmd)) {
       console.error(`System ${config.cmd} is not supported right now`);
       return;
     }
     
-    // if its goosed - we will update the path to the binary
-    if (config.cmd === 'goosed') {
+    // Update the path to the binary based on the command
+    const binaryPathMap: Record<string, string> = {
+      'goosed': await window.electron.getBinaryPath('goosed'),
+      'npx': await window.electron.getBinaryPath('npx'),
+      'uvx': await window.electron.getBinaryPath('uvx'),
+    };
+
+    if (binaryPathMap[config.cmd]) {
       config = {
         ...config,
-        cmd: await window.electron.getBinaryPath('goosed')
+        cmd: binaryPathMap[config.cmd]
       };
-    }
-
-    if (config.cmd === 'npx') {
-      // use our special npx shim which uses hermit.
-      config = {
-        ...config,
-        cmd: await window.electron.getBinaryPath('npx')
-      };
-    }
-
-    if (config.cmd === 'uvx') {
-      // use our special uvx shim which uses hermit.
-      config = {
-        ...config,
-        cmd: await window.electron.getBinaryPath('uvx')
-      };
-    }
-
-      
-
+    } 
   }
 
   try {
@@ -77,13 +61,15 @@ export const extendGoosed = async (config: SystemConfig) => {
       },
       body: JSON.stringify(config)
     });
+    const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(`Failed to add system config: ${response.statusText}`);
+    if (response.ok && !data.error) {
+      console.log(`Successfully added system config: ${JSON.stringify(config)}`);
+    } else {
+      throw new Error(data.message || `Failed to add system config: ${response.statusText}`);
     }
-    console.log(`Successfully added system config: ${JSON.stringify(config)}`);
   } catch (error) {
-    console.log(`Error adding system config:`, error);
+    console.error(`Error adding system config:`, error.message || error);
   }
 };
 
@@ -120,7 +106,7 @@ export const extendGoosedFromUrl = async (url: string) => {
     type: "stdio",
     cmd,
     args,
-    envs: Object.keys(envs).length > 0 ? envs : undefined
+    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : undefined
   };
 
   await extendGoosed(config);

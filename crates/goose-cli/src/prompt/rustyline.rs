@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::{
-    renderer::{render, BashDeveloperSystemRenderer, DefaultRenderer, ToolRenderer},
+    renderer::{render, BashDeveloperExtensionRenderer, DefaultRenderer, ToolRenderer},
     thinking::get_random_thinking_message,
     Input, InputType, Prompt, Theme,
 };
@@ -26,10 +26,10 @@ impl RustylinePrompt {
         let mut renderers: HashMap<String, Box<dyn ToolRenderer>> = HashMap::new();
         let default_renderer = DefaultRenderer;
         renderers.insert(default_renderer.tool_name(), Box::new(default_renderer));
-        let bash_dev_system_renderer = BashDeveloperSystemRenderer;
+        let bash_dev_extension_renderer = BashDeveloperExtensionRenderer;
         renderers.insert(
-            bash_dev_system_renderer.tool_name(),
-            Box::new(bash_dev_system_renderer),
+            bash_dev_extension_renderer.tool_name(),
+            Box::new(bash_dev_extension_renderer),
         );
 
         let mut editor = DefaultEditor::new().expect("Failed to create editor");

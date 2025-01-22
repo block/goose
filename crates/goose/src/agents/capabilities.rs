@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
-use super::system::{SystemConfig, SystemError, SystemInfo, SystemResult};
+use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
 use crate::prompt_template::load_prompt_file;
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
@@ -21,11 +21,13 @@ use serde_json::Value;
 static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
     LazyLock::new(|| Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
 
+type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
+
 /// Manages MCP clients and their interactions
 pub struct Capabilities {
-    clients: HashMap<String, Arc<Mutex<Box<dyn McpClientTrait>>>>,
+    clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
-    resource_capable_systems: HashSet<String>,
+    resource_capable_extensions: HashSet<String>,
     provider: Box<dyn Provider>,
     provider_usage: Mutex<Vec<ProviderUsage>>,
 }
@@ -68,10 +70,10 @@ impl ResourceItem {
 fn sanitize(input: String) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
-        result.push(if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-            c
-        } else {
-            '_'
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue, // effectively "strip" whitespace
+            _ => '_',                           // Replace any other non-ASCII character with '_'
         });
     }
     result
@@ -83,27 +85,27 @@ impl Capabilities {
         Self {
             clients: HashMap::new(),
             instructions: HashMap::new(),
-            resource_capable_systems: HashSet::new(),
+            resource_capable_extensions: HashSet::new(),
             provider,
             provider_usage: Mutex::new(Vec::new()),
         }
     }
 
     pub fn supports_resources(&self) -> bool {
-        !self.resource_capable_systems.is_empty()
+        !self.resource_capable_extensions.is_empty()
     }
 
-    /// Add a new MCP system based on the provided client type
-    // TODO IMPORTANT need to ensure this times out if the system command is broken!
-    pub async fn add_system(&mut self, config: SystemConfig) -> SystemResult<()> {
+    /// Add a new MCP extension based on the provided client type
+    // TODO IMPORTANT need to ensure this times out if the extension command is broken!
+    pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
         let mut client: Box<dyn McpClientTrait> = match config {
-            SystemConfig::Sse { ref uri, ref envs } => {
+            ExtensionConfig::Sse { ref uri, ref envs } => {
                 let transport = SseTransport::new(uri, envs.get_env());
                 let handle = transport.start().await?;
                 let service = McpService::with_timeout(handle, Duration::from_secs(300));
                 Box::new(McpClient::new(service))
             }
-            SystemConfig::Stdio {
+            ExtensionConfig::Stdio {
                 ref cmd,
                 ref args,
                 ref envs,
@@ -113,8 +115,8 @@ impl Capabilities {
                 let service = McpService::with_timeout(handle, Duration::from_secs(300));
                 Box::new(McpClient::new(service))
             }
-            SystemConfig::Builtin { ref name } => {
-                // For builtin systems, we run the current executable with mcp and system name
+            ExtensionConfig::Builtin { ref name } => {
+                // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
                     .to_str()
@@ -141,7 +143,7 @@ impl Capabilities {
         let init_result = client
             .initialize(info, capabilities)
             .await
-            .map_err(|_| SystemError::Initialization(config.clone()))?;
+            .map_err(|_| ExtensionError::Initialization(config.clone()))?;
 
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
@@ -151,7 +153,7 @@ impl Capabilities {
 
         // if the server is capable if resources we track it
         if init_result.capabilities.resources.is_some() {
-            self.resource_capable_systems
+            self.resource_capable_extensions
                 .insert(sanitize(init_result.server_info.name.clone()));
         }
 
@@ -176,17 +178,17 @@ impl Capabilities {
     }
 
     /// Get aggregated usage statistics
-    pub async fn remove_system(&mut self, name: &str) -> SystemResult<()> {
+    pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
         self.clients.remove(name);
         Ok(())
     }
 
-    pub async fn list_systems(&self) -> SystemResult<Vec<String>> {
-        let mut systems = Vec::new();
+    pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
+        let mut extensions = Vec::new();
         for name in self.clients.keys() {
-            systems.push(name.clone());
+            extensions.push(name.clone());
         }
-        Ok(systems)
+        Ok(extensions)
     }
 
     pub async fn get_usage(&self) -> Vec<ProviderUsage> {
@@ -213,7 +215,7 @@ impl Capabilities {
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> SystemResult<Vec<Tool>> {
+    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = Vec::new();
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
@@ -240,7 +242,7 @@ impl Capabilities {
     }
 
     /// Get client resources and their contents
-    pub async fn get_resources(&self) -> SystemResult<Vec<ResourceItem>> {
+    pub async fn get_resources(&self) -> ExtensionResult<Vec<ResourceItem>> {
         let mut result: Vec<ResourceItem> = Vec::new();
 
         for (name, client) in &self.clients {
@@ -284,32 +286,29 @@ impl Capabilities {
         Ok(result)
     }
 
-    /// Get the system prompt including client instructions
-    pub async fn get_system_prompt(&self) -> String {
+    /// Get the extension prompt including client instructions
+    pub async fn get_extension_prompt(&self) -> String {
         let mut context = HashMap::new();
-        let systems_info: Vec<SystemInfo> = self
+        let extensions_info: Vec<ExtensionInfo> = self
             .clients
             .keys()
             .map(|name| {
                 let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                let has_resources = self.resource_capable_systems.contains(name);
-                SystemInfo::new(name, &instructions, has_resources)
+                let has_resources = self.resource_capable_extensions.contains(name);
+                ExtensionInfo::new(name, &instructions, has_resources)
             })
             .collect();
 
-        context.insert("systems", systems_info);
-        load_prompt_file("system.md", &context).expect("Prompt should render")
+        context.insert("extensions", extensions_info);
+        load_prompt_file("extension.md", &context).expect("Prompt should render")
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(
-        &self,
-        prefixed_name: &str,
-    ) -> Option<Arc<Mutex<Box<dyn McpClientTrait>>>> {
-        prefixed_name
-            .split_once("__")
-            .and_then(|(client_name, _)| self.clients.get(client_name))
-            .map(Arc::clone)
+    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(&str, McpClientBox)> {
+        self.clients
+            .iter()
+            .find(|(key, _)| prefixed_name.starts_with(*key))
+            .map(|(name, client)| (name.as_str(), Arc::clone(client)))
     }
 
     // Function that gets executed for read_resource tool
@@ -319,62 +318,62 @@ impl Capabilities {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'uri' parameter".to_string()))?;
 
-        let system_name = params.get("system_name").and_then(|v| v.as_str());
+        let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
-        // If system name is provided, we can just look it up
-        if system_name.is_some() {
+        // If extension name is provided, we can just look it up
+        if extension_name.is_some() {
             let result = self
-                .read_resource_from_system(uri, system_name.unwrap())
+                .read_resource_from_extension(uri, extension_name.unwrap())
                 .await?;
             return Ok(result);
         }
 
-        // If system name is not provided, we need to search for the resource across all systems
-        // Loop through each system and try to read the resource, don't raise an error if the resource is not found
-        // TODO: do we want to find if a provided uri is in multiple systems?
-        // currently it will reutrn the first match and skip any systems
-        for system_name in self.resource_capable_systems.iter() {
-            let result = self.read_resource_from_system(uri, system_name).await;
+        // If extension name is not provided, we need to search for the resource across all extensions
+        // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
+        // TODO: do we want to find if a provided uri is in multiple extensions?
+        // currently it will return the first match and skip any others
+        for extension_name in self.resource_capable_extensions.iter() {
+            let result = self.read_resource_from_extension(uri, extension_name).await;
             match result {
                 Ok(result) => return Ok(result),
                 Err(_) => continue,
             }
         }
 
-        // None of the systems had the resource so we raise an error
-        let available_systems = self
+        // None of the extensions had the resource so we raise an error
+        let available_extensions = self
             .clients
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
             .join(", ");
         let error_msg = format!(
-            "Resource with uri '{}' not found. Here are the available systems: {}",
-            uri, available_systems
+            "Resource with uri '{}' not found. Here are the available extensions: {}",
+            uri, available_extensions
         );
 
         Err(ToolError::InvalidParameters(error_msg))
     }
 
-    async fn read_resource_from_system(
+    async fn read_resource_from_extension(
         &self,
         uri: &str,
-        system_name: &str,
+        extension_name: &str,
     ) -> Result<Vec<Content>, ToolError> {
-        let available_systems = self
+        let available_extensions = self
             .clients
             .keys()
             .map(|s| s.as_str())
             .collect::<Vec<&str>>()
             .join(", ");
         let error_msg = format!(
-            "System '{}' not found. Here are the available systems: {}",
-            system_name, available_systems
+            "Extension '{}' not found. Here are the available extensions: {}",
+            extension_name, available_extensions
         );
 
         let client = self
             .clients
-            .get(system_name)
+            .get(extension_name)
             .ok_or(ToolError::InvalidParameters(error_msg))?;
 
         let client_guard = client.lock().await;
@@ -395,12 +394,12 @@ impl Capabilities {
         Ok(result)
     }
 
-    async fn list_resources_from_system(
+    async fn list_resources_from_extension(
         &self,
-        system_name: &str,
+        extension_name: &str,
     ) -> Result<Vec<Content>, ToolError> {
-        let client = self.clients.get(system_name).ok_or_else(|| {
-            ToolError::InvalidParameters(format!("System {} is not valid", system_name))
+        let client = self.clients.get(extension_name).ok_or_else(|| {
+            ToolError::InvalidParameters(format!("Extension {} is not valid", extension_name))
         })?;
 
         let client_guard = client.lock().await;
@@ -410,14 +409,14 @@ impl Capabilities {
             .map_err(|e| {
                 ToolError::ExecutionError(format!(
                     "Unable to list resources for {}, {:?}",
-                    system_name, e
+                    extension_name, e
                 ))
             })
             .map(|lr| {
                 let resource_list = lr
                     .resources
                     .into_iter()
-                    .map(|r| format!("{} - {}, uri: ({})", system_name, r.name, r.uri))
+                    .map(|r| format!("{} - {}, uri: ({})", extension_name, r.name, r.uri))
                     .collect::<Vec<String>>()
                     .join("\n");
 
@@ -426,20 +425,22 @@ impl Capabilities {
     }
 
     async fn list_resources(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let system = params.get("system").and_then(|v| v.as_str());
+        let extension = params.get("extension").and_then(|v| v.as_str());
 
-        match system {
-            Some(system_name) => {
-                // Handle single system case
-                self.list_resources_from_system(system_name).await
+        match extension {
+            Some(extension_name) => {
+                // Handle single extension case
+                self.list_resources_from_extension(extension_name).await
             }
             None => {
-                // Handle all systems case using FuturesUnordered
+                // Handle all extensions case using FuturesUnordered
                 let mut futures = FuturesUnordered::new();
 
-                // Create futures for each resource_capable_system
-                for system_name in &self.resource_capable_systems {
-                    futures.push(async move { self.list_resources_from_system(system_name).await });
+                // Create futures for each resource_capable_extension
+                for extension_name in &self.resource_capable_extensions {
+                    futures.push(async move {
+                        self.list_resources_from_extension(extension_name).await
+                    });
                 }
 
                 let mut all_resources = Vec::new();
@@ -483,14 +484,15 @@ impl Capabilities {
             self.list_resources(tool_call.arguments.clone()).await
         } else {
             // Else, dispatch tool call based on the prefix naming convention
-            let client = self
+            let (client_name, client) = self
                 .get_client_for_tool(&tool_call.name)
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
+            // rsplit returns the iterator in reverse, tool_name is then at 0
             let tool_name = tool_call
                 .name
-                .split("__")
-                .nth(1)
+                .strip_prefix(client_name)
+                .and_then(|s| s.strip_prefix("__"))
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
             let client_guard = client.lock().await;
@@ -508,5 +510,226 @@ impl Capabilities {
         );
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::Message;
+    use crate::providers::base::{Provider, ProviderUsage, Usage};
+    use crate::providers::configs::ModelConfig;
+    use mcp_client::client::Error;
+    use mcp_client::client::McpClientTrait;
+    use mcp_core::protocol::{
+        CallToolResult, InitializeResult, ListResourcesResult, ListToolsResult, ReadResourceResult,
+    };
+    use serde_json::json;
+
+    // Mock Provider implementation for testing
+    #[derive(Clone)]
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for MockProvider {
+        fn get_model_config(&self) -> &ModelConfig {
+            &self.model_config
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> anyhow::Result<(Message, ProviderUsage)> {
+            Ok((
+                Message::assistant().with_text("Mock response"),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_usage(&self, _data: &serde_json::Value) -> anyhow::Result<Usage> {
+            Ok(Usage::new(None, None, None))
+        }
+    }
+
+    struct MockClient {}
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for MockClient {
+        async fn initialize(
+            &mut self,
+            _info: ClientInfo,
+            _capabilities: ClientCapabilities,
+        ) -> Result<InitializeResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn list_resources(
+            &self,
+            _next_cursor: Option<String>,
+        ) -> Result<ListResourcesResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn read_resource(&self, _uri: &str) -> Result<ReadResourceResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn list_tools(&self, _next_cursor: Option<String>) -> Result<ListToolsResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn call_tool(&self, name: &str, _arguments: Value) -> Result<CallToolResult, Error> {
+            match name {
+                "tool" | "test__tool" => Ok(CallToolResult {
+                    content: vec![],
+                    is_error: None,
+                }),
+                _ => Err(Error::NotInitialized),
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_client_for_tool() {
+        let mock_model_config =
+            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+
+        let mut capabilities = Capabilities::new(Box::new(MockProvider {
+            model_config: mock_model_config,
+        }));
+
+        // Add some mock clients
+        capabilities.clients.insert(
+            sanitize("test_client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__cli__ent__".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("client 🚀".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // Test basic case
+        assert!(capabilities
+            .get_client_for_tool("test_client__tool")
+            .is_some());
+
+        // Test leading underscores
+        assert!(capabilities.get_client_for_tool("__client__tool").is_some());
+
+        // Test multiple underscores in client name, and ending with __
+        assert!(capabilities
+            .get_client_for_tool("__cli__ent____tool")
+            .is_some());
+
+        // Test unicode in tool name, "client 🚀" should become "client_"
+        assert!(capabilities.get_client_for_tool("client___tool").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_tool_call() {
+        // test that dispatch_tool_call parses out the sanitized name correctly, and extracts
+        // tool_names
+        let mock_model_config =
+            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+
+        let mut capabilities = Capabilities::new(Box::new(MockProvider {
+            model_config: mock_model_config,
+        }));
+
+        // Add some mock clients
+        capabilities.clients.insert(
+            sanitize("test_client".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("__cli__ent__".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        capabilities.clients.insert(
+            sanitize("client 🚀".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+
+        // verify a normal tool call
+        let tool_call = ToolCall {
+            name: "test_client__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        let tool_call = ToolCall {
+            name: "test_client__test__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // verify a multiple underscores dispatch
+        let tool_call = ToolCall {
+            name: "__cli__ent____tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // Test unicode in tool name, "client 🚀" should become "client_"
+        let tool_call = ToolCall {
+            name: "client___tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        let tool_call = ToolCall {
+            name: "client___test__tool".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(tool_call).await;
+        assert!(result.is_ok());
+
+        // this should error out, specifically for an ToolError::ExecutionError
+        let invalid_tool_call = ToolCall {
+            name: "client___tools".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(invalid_tool_call).await;
+        assert!(matches!(
+            result.err().unwrap(),
+            ToolError::ExecutionError(_)
+        ));
+
+        // this should error out, specifically with an ToolError::NotFound
+        // this client doesn't exist
+        let invalid_tool_call = ToolCall {
+            name: "_client__tools".to_string(),
+            arguments: json!({}),
+        };
+
+        let result = capabilities.dispatch_tool_call(invalid_tool_call).await;
+        assert!(matches!(result.err().unwrap(), ToolError::NotFound(_)));
     }
 }

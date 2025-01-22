@@ -8,7 +8,7 @@ use crate::content::Annotations;
 
 const EPSILON: f32 = 1e-6; // Tolerance for floating point comparison
 
-/// Represents a resource in the system with metadata
+/// Represents a resource in the extension with metadata
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Resource {

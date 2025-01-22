@@ -4,11 +4,11 @@ use mcp_client::client::Error as ClientError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Errors from System operation
+/// Errors from Extension operation
 #[derive(Error, Debug)]
-pub enum SystemError {
+pub enum ExtensionError {
     #[error("Failed to start the MCP server from configuration `{0}` within 60 seconds")]
-    Initialization(SystemConfig),
+    Initialization(ExtensionConfig),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
     #[error("User Message exceeded context-limit. History could not be truncated to accomodate.")]
@@ -17,7 +17,7 @@ pub enum SystemError {
     Transport(#[from] mcp_client::transport::Error),
 }
 
-pub type SystemResult<T> = Result<T, SystemError>;
+pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Envs {
@@ -40,10 +40,10 @@ impl Envs {
     }
 }
 
-/// Represents the different types of MCP systems that can be added to the manager
+/// Represents the different types of MCP extensions that can be added to the manager
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
-pub enum SystemConfig {
+pub enum ExtensionConfig {
     /// Server-sent events client with a URI endpoint
     #[serde(rename = "sse")]
     Sse {
@@ -59,12 +59,12 @@ pub enum SystemConfig {
         #[serde(default)]
         envs: Envs,
     },
-    /// Built-in system that is part of the goose binary
+    /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
     Builtin { name: String },
 }
 
-impl Default for SystemConfig {
+impl Default for ExtensionConfig {
     fn default() -> Self {
         Self::Builtin {
             name: String::from("default"),
@@ -72,7 +72,7 @@ impl Default for SystemConfig {
     }
 }
 
-impl SystemConfig {
+impl ExtensionConfig {
     pub fn sse<S: Into<String>>(uri: S) -> Self {
         Self::Sse {
             uri: uri.into(),
@@ -104,25 +104,27 @@ impl SystemConfig {
     }
 }
 
-impl std::fmt::Display for SystemConfig {
+impl std::fmt::Display for ExtensionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SystemConfig::Sse { uri, .. } => write!(f, "SSE({})", uri),
-            SystemConfig::Stdio { cmd, args, .. } => write!(f, "Stdio({} {})", cmd, args.join(" ")),
-            SystemConfig::Builtin { name } => write!(f, "Builtin({})", name),
+            ExtensionConfig::Sse { uri, .. } => write!(f, "SSE({})", uri),
+            ExtensionConfig::Stdio { cmd, args, .. } => {
+                write!(f, "Stdio({} {})", cmd, args.join(" "))
+            }
+            ExtensionConfig::Builtin { name } => write!(f, "Builtin({})", name),
         }
     }
 }
 
-/// Information about the system used for building prompts
+/// Information about the extension used for building prompts
 #[derive(Clone, Debug, Serialize)]
-pub struct SystemInfo {
+pub struct ExtensionInfo {
     name: String,
     instructions: String,
     has_resources: bool,
 }
 
-impl SystemInfo {
+impl ExtensionInfo {
     pub fn new(name: &str, instructions: &str, has_resources: bool) -> Self {
         Self {
             name: name.to_string(),

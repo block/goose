@@ -3,6 +3,7 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "jsx": "react",
+    "lib": ["dom", "esnext"],
     "paths": {
       "@/*": ["./*"]
     }

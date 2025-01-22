@@ -1,3 +1,5 @@
+import React, { useState } from "react";
+
 export function showToast(message: string, type: 'success' | 'error') {
     const toast = document.createElement('div');
     toast.className = `
@@ -19,4 +21,20 @@ export function showToast(message: string, type: 'success' | 'error') {
         toast.style.transform = 'translateY(1rem)';
         setTimeout(() => toast.remove(), 300);
     }, 5000);
-} 
+}
+
+type ToastMessage = {
+    title: string;
+    description: string;
+};
+
+export function useToast() {
+    const [message, setMessage] = useState<ToastMessage | null>(null);
+
+    function toast(newMessage: ToastMessage) {
+        setMessage(newMessage);
+        setTimeout(() => setMessage(null), 3000); // Auto-hide after 3 seconds
+    }
+
+    return { message, toast };
+}

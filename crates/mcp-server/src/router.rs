@@ -179,11 +179,11 @@ pub trait Router: Send + Sync + 'static {
             let result = match self.call_tool(name, arguments).await {
                 Ok(result) => CallToolResult {
                     content: result,
-                    is_error: false,
+                    is_error: None,
                 },
                 Err(err) => CallToolResult {
                     content: vec![Content::text(err.to_string())],
-                    is_error: true,
+                    is_error: Some(true),
                 },
             };
 

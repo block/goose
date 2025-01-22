@@ -8,6 +8,7 @@ use axum::{
 use goose::{agents::AgentFactory, providers::factory};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -19,6 +20,7 @@ struct VersionsResponse {
 struct CreateAgentRequest {
     version: Option<String>,
     provider: String,
+    model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -71,6 +73,13 @@ async fn create_agent(
 
     if secret_key != state.secret_key {
         return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Set the environment variable for the model if provided
+    if let Some(model) = &payload.model {
+        let env_var_key = format!("{}_MODEL", payload.provider.to_uppercase());
+        env::set_var(env_var_key.clone(), model);
+        println!("Set environment variable: {}={}", env_var_key, model);
     }
 
     let provider = factory::get_provider(&payload.provider).expect("Failed to create provider");

@@ -61,7 +61,7 @@ fn setup_profile(temp_dir_path: &Path, profile_string: Option<&str>) {
         "default": {
             "provider": "databricks",
             "model": "claude-3-5-sonnet-2",
-            "additional_systems": []
+            "additional_extensions": []
         }
     }
 }"#;

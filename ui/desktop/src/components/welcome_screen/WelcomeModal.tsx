@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ProviderSetupModal } from "./ProviderSetupModal";
+import { ProviderSetupModal } from "../settings/modals/ProviderSetupModal";
 import { Card } from "../ui/card";
-import { ProviderList } from "../settings/providers/ProvidersList";
+import { ProviderList } from "../settings/providers/old_stuff/ProvidersList";
 import { getProvidersList, Provider } from "../../utils/providerUtils";
 
 export const WelcomeModal = ({

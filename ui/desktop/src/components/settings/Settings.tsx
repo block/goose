@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsType, Model, Extension, Key } from "./types";
+import { Settings as SettingsType, Model, Key } from "./types";
 import { ToggleableItem } from "./ToggleableItem";
 import { KeyItem } from "./KeyItem";
 import { AddModelDialog } from "./modals/AddModelDialog";
@@ -10,7 +10,10 @@ import { Modal, ModalContent, ModalHeader, ModalTitle } from "../ui/modal";
 import { Button } from "../ui/button";
 import { RevealKeysDialog } from "./modals/RevealKeysDialog";
 import { showToast } from "../ui/toast";
-import { Back } from "../icons";
+import BackButton from "../ui/BackButton";
+import {RecentModelsRadio, useRecentModels} from "./models/RecentModels";
+import { useHandleModelSelection} from "./models/utils";
+
 
 const EXTENSIONS_DESCRIPTION =
     "The Model Context Protocol (MCP) is a system that allows AI models to securely connect with local or remote resources using standard server setups. It works like a client-server setup and expands AI capabilities using three main components: Prompts, Resources, and Tools.";
@@ -70,6 +73,8 @@ const DEFAULT_SETTINGS: SettingsType = {
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { recentModels } = useRecentModels(); // Access recent models
+  const handleModelSelection = useHandleModelSelection();
 
   const [settings, setSettings] = React.useState<SettingsType>(() => {
     const saved = localStorage.getItem("user_settings");
@@ -80,16 +85,6 @@ export default function Settings() {
   React.useEffect(() => {
     localStorage.setItem("user_settings", JSON.stringify(settings));
   }, [settings]);
-
-  const handleModelToggle = (modelId: string) => {
-    setSettings((prev) => ({
-      ...prev,
-      models: prev.models.map((model) => ({
-        ...model,
-        enabled: model.id === modelId,
-      })),
-    }));
-  };
 
   const handleExtensionToggle = (extensionId: string) => {
     setSettings((prev) => ({
@@ -183,14 +178,12 @@ export default function Settings() {
               {/* Left Navigation */}
               <div className="w-48 border-r border-gray-100 dark:border-gray-700 px-2 pt-2">
                 <div className="sticky top-8">
-                  <button
-                      onClick={handleExit}
-                      className="flex items-center gap-2 text-gray-600 hover:text-gray-800
-                                            dark:text-gray-400 dark:hover:text-gray-200 mb-16 mt-4"
-                  >
-                    <Back className="w-4 h-4" />
-                    <span>Back</span>
-                  </button>
+                  <BackButton
+                      onClick={() => {
+                        handleExit();
+                      }}
+                      className="mb-4"
+                  />
                   <div className="space-y-2">
                     {["Models", "Extensions", "Keys"].map((section) => (
                         <button
@@ -214,19 +207,13 @@ export default function Settings() {
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-semibold">Models</h2>
                       <button
-                          onClick={() => setAddModelOpen(true)}
+                          onClick={() => navigate("/settings/more-models")}
                           className="text-indigo-500 hover:text-indigo-600 font-medium"
                       >
-                        Add Models
+                        More Models
                       </button>
                     </div>
-                    {settings.models.map((model) => (
-                        <ToggleableItem
-                            key={model.id}
-                            {...model}
-                            onToggle={handleModelToggle}
-                        />
-                    ))}
+                    <RecentModelsRadio/>
                   </section>
 
                   {/* Extensions Section */}

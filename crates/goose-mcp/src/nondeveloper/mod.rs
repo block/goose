@@ -18,7 +18,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-/// A system designed for non-developers to help them with common tasks like
+/// An extension designed for non-developers to help them with common tasks like
 /// web scraping, data processing, and automation.
 #[derive(Clone)]
 pub struct NonDeveloperRouter {
@@ -163,11 +163,11 @@ impl NonDeveloperRouter {
         let instructions = formatdoc! {r#"
             You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
             The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
-            The NonDeveloperSystem helps you with common tasks like web scraping,
+            The NonDeveloperExtension helps you with common tasks like web scraping,
             data processing, and automation without requiring programming expertise,
-            supplementing the Developer System.
+            supplementing the Developer Extension.
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
-            Using the developer system is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
+            Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
             
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
             Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
@@ -223,7 +223,7 @@ impl NonDeveloperRouter {
               - Manage your cached files
               - List, view, delete files
               - Clear all cached data
-            The system automatically manages:
+            The extension automatically manages:
             - Cache directory: {cache_dir}
             - File organization and cleanup
             "#,
@@ -569,7 +569,7 @@ impl NonDeveloperRouter {
 
 impl Router for NonDeveloperRouter {
     fn name(&self) -> String {
-        "NonDeveloperSystem".to_string()
+        "NonDeveloperExtension".to_string()
     }
 
     fn instructions(&self) -> String {

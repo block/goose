@@ -29,11 +29,11 @@ cargo build
 goose configure
 ```
 
-### Add/Remove system
+### Add/Remove extension
 
 ```
-goose system add <system_url>
-goose system remove <system_url>
+goose extension add <extension_url>
+goose extension remove <extension_url>
 ```
 
 #### OpenAI provider (default):
@@ -69,10 +69,10 @@ Goose has an electron based GUI which you can see in `ui/desktop`:
 <img width="739" alt="image" src="https://github.com/user-attachments/assets/13ff2304-8468-47e0-9de8-89d23a62ec26">
 <img width="744" alt="image" src="https://github.com/user-attachments/assets/3a825455-6cd1-406b-a459-e2c73dba024b">
 
-## Start sub system server
+## Start extension server
 
 ```sh
-cd crates/stub-system
+cd crates/stub-extension
 cargo run
 ```
 
