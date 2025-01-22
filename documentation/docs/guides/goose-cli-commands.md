@@ -61,7 +61,7 @@ Start or resume interactive chat sessions with goose.
 goose session --resume
 ```
 
-### run
+### `run [options]`
 
 Execute commands from an instruction file or stdin
 
