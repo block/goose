@@ -91,28 +91,29 @@ export function SearchBar() {
                 className="w-full pl-12 py-2 bg-background border border-muted-foreground/20 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {showResults && search && (
-                <div className="absolute z-10 w-full mt-2 bg-white border border-muted-foreground/20 rounded-md shadow-lg">
+                <div className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-800 border border-muted-foreground/20 rounded-md shadow-lg">
                     {filteredModels.length > 0 ? (
                         filteredModels.map((model, index) => (
                             <div
                                 key={model.id}
                                 ref={(el) => (resultsRef.current[index] = el)}
-                                className={`p-2 flex justify-between items-center hover:bg-muted/50 cursor-pointer ${
-                                    model.id === currentModel?.id ? "bg-muted/50" : ""
+                                className={`p-2 flex justify-between items-center hover:bg-muted/50 dark:hover:bg-gray-700 cursor-pointer ${
+                                    model.id === currentModel?.id ? "bg-muted/50 dark:bg-gray-700" : ""
                                 }`}
                             >
                                 <div>
-                                    <span className="font-medium">{model.name}</span>
-                                    <span className="ml-2 text-xs text-gray-500 italic">{model.provider}</span>
+                                    <span className="font-medium dark:text-white">{model.name}</span>
+                                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 italic">{model.provider}</span>
                                 </div>
                                 <Switch
+                                    variant="mono"
                                     checked={model.id === currentModel?.id}
                                     onCheckedChange={() => handleModelSelection(model, "SearchBar")}
                                 />
                             </div>
                         ))
                     ) : (
-                        <div className="p-2 text-muted-foreground">No models found</div>
+                        <div className="p-2 text-muted-foreground dark:text-gray-400">No models found</div>
                     )}
                 </div>
             )}

@@ -1,6 +1,6 @@
 import { supported_providers, required_keys, provider_aliases } from "../models/hardcoded_stuff";
 import { useActiveKeys } from "../api_keys/ActiveKeysContext";
-import { ProviderSetupModal } from "../modals/ProviderSetupModal";
+import { ProviderSetupModal } from "../ProviderSetupModal";
 import React from "react";
 import {Accordion, AccordionContent, AccordionItem, AccordionTrigger} from "@radix-ui/react-accordion";
 import {Check, ChevronDown, Edit2, Plus, X} from "lucide-react";
@@ -92,13 +92,22 @@ function ProviderKeyList({ keyNames, activeKeys }) {
 }
 
 function ProviderActions({ provider, onEdit, onDelete, onAdd }) {
+    if (!provider.keyName || provider.keyName.length === 0) {
+        return null;
+    }
+
     return provider.isConfigured ? (
         <div className="flex items-center gap-3">
             <Button
-                variant="outline"
+                variant="default"
                 size="default"
                 onClick={() => onEdit(provider)}
-                className="text-gray-700 dark:text-gray-300"
+                className="h-9 px-4 text-sm whitespace-nowrap shrink-0
+                    bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900
+                    rounded-full shadow-md border-none
+                    hover:bg-gray-700 hover:text-white
+                    focus:outline-none focus:ring-2 focus:ring-gray-500
+                    dark:hover:bg-gray-300 dark:hover:text-gray-900"
             >
                 <Edit2 className="h-4 w-4 mr-2" />
                 Edit Keys
@@ -107,7 +116,12 @@ function ProviderActions({ provider, onEdit, onDelete, onAdd }) {
                 variant="outline"
                 size="default"
                 onClick={() => onDelete(provider)}
-                className="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50"
+                className="h-9 px-4 text-sm whitespace-nowrap shrink-0
+                    rounded-full shadow-sm border-red-200 dark:border-red-800
+                    text-red-600 dark:text-red-500
+                    hover:bg-red-50 hover:text-red-700 hover:border-red-300
+                    dark:hover:bg-red-950/50 dark:hover:text-red-400
+                    focus:outline-none focus:ring-2 focus:ring-red-500"
             >
                 Delete Keys
             </Button>
@@ -117,7 +131,12 @@ function ProviderActions({ provider, onEdit, onDelete, onAdd }) {
             variant="default"
             size="default"
             onClick={() => onAdd(provider)}
-            className="text-indigo-50 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700 w-fit"
+            className="h-9 px-4 text-sm whitespace-nowrap shrink-0
+                bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900
+                rounded-full shadow-md border-none
+                hover:bg-gray-700 hover:text-white
+                focus:outline-none focus:ring-2 focus:ring-gray-500
+                dark:hover:bg-gray-300 dark:hover:text-gray-900"
         >
             <Plus className="h-4 w-4 mr-2" />
             Add Keys
@@ -130,7 +149,7 @@ function ProviderItem({ provider, activeKeys, onEdit, onDelete, onAdd }) {
         <AccordionItem
             key={provider.id}
             value={provider.id}
-            className="border rounded-lg px-6 bg-white dark:bg-gray-800 shadow-sm"
+            className="px-6 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
         >
             <AccordionTrigger className="hover:no-underline py-4">
                 <div className="flex items-center justify-between w-full">
@@ -307,7 +326,7 @@ export function Providers() {
                 Configure your AI model providers by adding their API keys. Your keys are stored securely and encrypted locally.
             </div>
 
-            <Accordion type="single" collapsible className="w-full space-y-4">
+            <Accordion type="single" collapsible className="w-full divide-y divide-gray-100 dark:divide-gray-700">
                 {providers.map((provider) => (
                     <ProviderItem
                         key={provider.id}

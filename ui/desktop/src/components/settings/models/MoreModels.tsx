@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Button } from "../../ui/button"
 import { RecentModels } from "./RecentModels"
 import { ProviderButtons } from "./ProviderButtons"
@@ -7,69 +7,87 @@ import { SearchBar} from "./Search";
 import { useModel} from "./ModelContext";
 import { AddModelInline } from "./AddModelInline";
 import { useNavigate } from "react-router-dom";
+import { ScrollArea } from "../../ui/scroll-area";
 
-// TODO: handle darkmode
 export default function MoreModelsPage() {
-    const { currentModel } = useModel(); // Access global state
+    const { currentModel } = useModel();
     const navigate = useNavigate();
 
     return (
-        <div className="flex min-h-screen bg-background text-foreground overflow-hidden">
-            {/* Left-hand side exit button */}
-            <aside className="w-48 border-r border-gray-100 dark:border-gray-700 px-2 pt-6">
-                <div className="sticky top-8">
-                    <BackButton />
-                </div>
-            </aside>
-
-            <div className="container max-w-6xl mx-auto p-6 overflow-y-auto">
-                {/* First row: Title and buttons */}
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-semibold">More Models</h1>
-
-                    <div className="flex items-center space-x-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => navigate("/settings/configure-providers")}
-                        >
-                            Configure Providers
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Second row: Current model */}
-                {currentModel && (
-                    <div className="mb-8">
-                        <p className="text-sm text-muted-foreground">
-                            Current model: <span className="font-medium">{currentModel.name}</span> ({currentModel.provider})
-                        </p>
-                    </div>
-                )}
-
-                {/* Main content area */}
-                <div className="space-y-8">
-                    {/* Search section */}
-                    <SearchBar />
-
-                    {/* Add model */}
-                    <AddModelInline />
-
-                    {/* Provider buttons */}
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-medium">Browse by Provider</h2>
-                        <ProviderButtons />
-                    </div>
-
-                    {/* Recent models */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-medium">Recently Used Models</h2>
+        <div className="h-screen w-full pt-[36px]">
+            <div className="h-full w-full bg-white dark:bg-gray-800 overflow-hidden p-2 pt-0">
+                <ScrollArea className="h-full w-full">
+                    <div className="flex min-h-full">
+                        {/* Left Navigation */}
+                        <div className="w-48 border-r border-gray-100 dark:border-gray-700 px-2 pt-2">
+                            <div className="sticky top-8">
+                                <BackButton className="mb-4" />
+                            </div>
                         </div>
-                        <RecentModels />
+
+                        {/* Content Area */}
+                        <div className="flex-1 px-16 py-8 pt-[20px]">
+                            <div className="max-w-3xl space-y-12">
+                                {/* Header Section */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-8">
+                                        <h1 className="text-2xl font-semibold tracking-tight">More Models</h1>
+                                        <Button
+                                            variant="default"
+                                            className="h-9 px-4 text-sm whitespace-nowrap shrink-0
+                                                bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900
+                                                rounded-full shadow-md border-none
+                                                hover:bg-gray-700 hover:text-white
+                                                focus:outline-none focus:ring-2 focus:ring-gray-500
+                                                dark:hover:bg-gray-300 dark:hover:text-gray-900"
+                                            onClick={() => navigate("/settings/configure-providers")}
+                                        >
+                                            Configure Providers
+                                        </Button>
+                                    </div>
+
+                                    {/* Current Model Info */}
+                                    {currentModel && (
+                                        <p className="text-sm text-muted-foreground mb-8">
+                                            Current model: <span className="font-medium">{currentModel.name}</span> ({currentModel.provider})
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Search Section */}
+                                <section>
+                                    <h2 className="text-lg font-medium mb-4">Search Models</h2>
+                                    <SearchBar />
+                                </section>
+
+                                {/* Add Model Section */}
+                                <section>
+                                    <h2 className="text-lg font-medium mb-4">Add Model</h2>
+                                    <AddModelInline />
+                                </section>
+
+                                {/* Provider Section */}
+                                <section>
+                                    <h2 className="text-lg font-medium mb-4">Browse by Provider</h2>
+                                    <div>
+                                        <ProviderButtons />
+                                    </div>
+                                </section>
+
+                                {/* Recent Models Section */}
+                                <section>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-lg font-medium">Recently Used Models</h2>
+                                    </div>
+                                    <div>
+                                        <RecentModels />
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </ScrollArea>
             </div>
         </div>
     );
 }
-

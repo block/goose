@@ -13,39 +13,32 @@ import { createEnvironmentMenu, EnvToggles, loadSettings, saveSettings, updateEn
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
-// deep linking
-// This event is fired when the user opens "goose://..."
-// Handle the protocol. In this case, we choose to show an Error Box.
+// Track the last focused window
+let lastFocusedWindow: BrowserWindow | null = null;
+
+// Update last focused window when any window gains focus
+app.on('browser-window-focus', (_, window) => {
+  lastFocusedWindow = window;
+});
+
+// Triggered when the user opens "goose://..." links
 app.on('open-url', async (event, url) => {
-  // Prevent default handling
-  event.preventDefault();  
-  // Create a new window if none exist
-  
+  event.preventDefault();
+  console.log('open-url:', url);
 
-  const parsedUrl = new URL(url);
-  const system = parsedUrl.searchParams.get("cmd");
-  const args = parsedUrl.searchParams.getAll("arg");
-  const description = parsedUrl.searchParams.get("description") || "";
-  const website = parsedUrl.searchParams.get("website") || "";
-  
-  const result = dialog.showMessageBoxSync({
-    type: 'question',
-    buttons: ['Add to new session', 'Add to any current sessions','Cancel'],
-    title: 'Add MCP system',
-    detail: `${description} ${website} ${system} ${args}`.trim(),
-    message: `Add extension to goose?`
-  });
+  // Get the last focused window, or the first window if none was focused
+  const targetWindow = lastFocusedWindow || BrowserWindow.getAllWindows()[0];
 
-  if (result === 0) {
-    await createChat(app, undefined, undefined, undefined, url);
-  } else if (result === 1) {
-    BrowserWindow.getAllWindows().forEach(window => {
-      window.webContents.send('add-system', url);
-    });
+  if (targetWindow) {
+    // Ensure window is visible
+    if (!targetWindow.isFocused()) {
+      targetWindow.show();
+      targetWindow.focus();
+    }
+    console.log('sending add-extension to frontend:', url);
+    targetWindow.webContents.send('add-extension', url);
   }
-
-})
-
+});
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
@@ -136,7 +129,7 @@ const createLauncher = () => {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string, version?: string, deepLink?: string) => {
+const createChat = async (app, query?: string, dir?: string, version?: string) => {
   const env = version ? { GOOSE_AGENT_VERSION: version } : {};
 
   // Apply current environment settings before creating chat
@@ -162,7 +155,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
         GOOSE_PORT: port,
         GOOSE_WORKING_DIR: working_dir,
         REQUEST_DIR: dir,
-        DEEP_LINK: deepLink,
       })],
     },
   });
@@ -206,6 +198,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
   // Register shortcut when window is focused
   mainWindow.on('focus', () => {
     registerDevToolsShortcut(mainWindow);
+    lastFocusedWindow = mainWindow;
   });
 
   // Unregister shortcut when window loses focus
@@ -213,26 +206,12 @@ const createChat = async (app, query?: string, dir?: string, version?: string, d
     unregisterDevToolsShortcut();
   });
 
-  globalShortcut.register('Alt+Command+Y', () => {
-    mainWindow.webContents.openDevTools();
-    console.log("Y PRESSED ABOUT TO TRY TO INSTALL MCP");
-
-    // FOR TESTING ONLY
-    const mockEvent = {
-      preventDefault: () => {
-        console.log('Default handling prevented.');
-      },
-    };
-
-    app.emit('open-url', mockEvent, "goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-memory&description=memory system&website=examplesite.com&env=KEYHERE=VALUEHERE");    
-    
-    
-  });
-
-
   windowMap.set(windowId, mainWindow);
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+    if (lastFocusedWindow === mainWindow) {
+      lastFocusedWindow = null;
+    }
     unregisterDevToolsShortcut();
     goosedProcess.kill();
   });
@@ -408,13 +387,97 @@ app.whenReady().then(async () => {
     }));
   }
 
-  // Add 'New Chat Window' and 'Open Directory' to File menu
+  // Add menu items to File menu
   if (fileMenu && fileMenu.submenu) {
     fileMenu.submenu.append(new MenuItem({
       label: 'New Chat Window',
       accelerator: 'CmdOrCtrl+N',
       click() {
         ipcMain.emit('create-chat-window');
+      },
+    }));
+
+    fileMenu.submenu.append(new MenuItem({
+      label: 'Install MCP Extension',
+      accelerator: 'Shift+Command+Y',
+      click() {
+        const defaultUrl = 'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
+        
+        const result = dialog.showMessageBoxSync({
+          type: 'question',
+          buttons: ['Install', 'Edit URL', 'Cancel'],
+          defaultId: 0,
+          cancelId: 2,
+          title: 'Install MCP Extension',
+          message: 'Install MCP Extension',
+          detail: `Current extension URL:\n\n${defaultUrl}`,
+        });
+
+        if (result === 0) { // User clicked Install
+          const mockEvent = {
+            preventDefault: () => {
+              console.log('Default handling prevented.');
+            },
+          };
+          app.emit('open-url', mockEvent, defaultUrl);
+        } else if (result === 1) { // User clicked Edit URL
+          // Create a simple input dialog
+          const win = new BrowserWindow({
+            width: 800,
+            height: 120,
+            resizable: false,
+            minimizable: false,
+            maximizable: false,
+            parent: BrowserWindow.getFocusedWindow(),
+            modal: true,
+            show: false,
+            webPreferences: {
+              nodeIntegration: true,
+              contextIsolation: false
+            }
+          });
+
+          win.loadURL(`data:text/html,
+            <html>
+              <body style="margin: 20px; font-family: system-ui;">
+                <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                <div style="text-align: right;">
+                  <button onclick="window.close()" style="margin-right: 10px;">Cancel</button>
+                  <button onclick="submit()" style="min-width: 80px;">Install</button>
+                </div>
+                <script>
+                  function submit() {
+                    require('electron').ipcRenderer.send('install-extension-url', document.getElementById('url').value);
+                  }
+                  // Handle Enter key
+                  document.getElementById('url').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') submit();
+                  });
+                  // Focus the input
+                  document.getElementById('url').focus();
+                  document.getElementById('url').select();
+                </script>
+              </body>
+            </html>
+          `);
+
+          win.once('ready-to-show', () => {
+            win.show();
+          });
+
+          // Handle the URL submission
+          ipcMain.once('install-extension-url', (event, url) => {
+            win.close();
+            const mockEvent = {
+              preventDefault: () => {
+                console.log('Default handling prevented.');
+              },
+            };
+            if (url && url.trim()) {
+              app.emit('open-url', mockEvent, url);
+            }
+          });
+        }
       },
     }));
   }
@@ -517,5 +580,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
-

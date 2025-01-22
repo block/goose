@@ -1,8 +1,8 @@
 import React from "react";
-import { Card } from "../../ui/card";
+import { Card } from "../ui/card";
 import { Lock } from "lucide-react";
-import { Input } from "../../ui/input";
-import { Button } from "../../ui/button";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
 // import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {

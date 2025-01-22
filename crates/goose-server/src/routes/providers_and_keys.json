@@ -24,10 +24,10 @@
         "required_keys": ["GOOGLE_API_KEY"]
     },
     "grok": {
-        "name": "Grok",
+        "name": "Groq",
         "description": "Lorem ipsum",
         "models": ["llama-3.3-70b-versatile"],
-        "required_keys": ["GROK_API_KEY"]
+        "required_keys": ["GROQ_API_KEY"]
     },
     "ollama": {
         "name": "Ollama",

@@ -11,7 +11,15 @@ export const goose_models: Model[] = [
     { id: 7, name: "claude-3-5-sonnet-latest", provider: "Anthropic" },
     { id: 8, name: "claude-3-5-haiku-latest", provider: "Anthropic" },
     { id: 9, name: "claude-3-opus-latest", provider: "Anthropic"},
-]
+    { id: 10, name: "gemini-1.5-pro", provider: "Google" },
+    { id: 11, name: "gemini-2.0-flash-exp", provider: "Google" },
+    { id: 12, name: "gemini-1.5-flash", provider: "Google" },
+    { id: 13, name: "gemini-2.0-flash-thinking-exp-01-21", provider: "Google" },
+    { id: 14, name: "gemma-2-2b-it", provider: "Google" },
+    { id: 15, name: "llama-3.3-70b-versatile", provider: "Groq" },
+    { id: 16, name: "qwen2.5", provider: "Ollama" },
+    { id: 17, name: "anthropic/claude-3.5-sonnet", provider: "OpenRouter" }
+];
 
 export const openai_models = [
     "gpt-4o-mini",
@@ -27,6 +35,26 @@ export const anthropic_models = [
     "claude-3-5-sonnet-2",
     "claude-3-5-haiku-latest",
     "claude-3-opus-latest"
+]
+
+export const google_models = [
+    "gemini-1.5-pro",
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash",
+    "gemini-2.0-flash-thinking-exp-01-21",
+    "gemma-2-2b-it"
+]
+
+export const groq_models = [
+    "llama-3.3-70b-versatile"
+]
+
+export const ollama_mdoels = [
+    "qwen2.5"
+]
+
+export const openrouter_models = [
+    "anthropic/claude-3.5-sonnet"
 ]
 
 export const default_models = {
@@ -62,15 +90,14 @@ export const supported_providers = [
     "OpenAI", "Anthropic", "Databricks", "Groq", "Google", "Ollama", "OpenRouter"
 ]
 
-// TODO: models -- update this with correct links and providers
-const model_docs_link = [
+export const model_docs_link = [
     { name: "OpenAI", href: "https://platform.openai.com/docs/models" },
     { name: "Anthropic", href: "https://docs.anthropic.com/en/docs/about-claude/models" },
-    { name: "Google", href: "https://cloud.google.com/vertex-ai" },
-    { name: "Groq", href: "https://mistral.ai/models" },
-    { name: "Databricks", href: "https://aws.amazon.com/bedrock/models" },
-    { name: "OpenRouter", href: "https://azure.microsoft.com/en-us/products/cognitive-services/openai-service" },
-    { name: "Ollama", href: "https://azure.microsoft.com/en-us/products/cognitive-services/openai-service" },
+    { name: "Google", href: "https://ai.google/get-started/our-models/" },
+    { name: "Groq", href: "https://console.groq.com/docs/models" },
+    { name: "Databricks", href: "https://docs.databricks.com/en/generative-ai/external-models/index.html" },
+    { name: "OpenRouter", href: "https://openrouter.ai/models" },
+    { name: "Ollama", href: "https://ollama.com/library" },
 ]
 
 export const provider_aliases = [

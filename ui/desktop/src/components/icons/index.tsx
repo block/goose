@@ -9,6 +9,7 @@ import More from "./More";
 import SensitiveHidden from "./SensitiveHidden";
 import SensitiveVisible from "./SensitiveVisible";
 import Send from "./Send";
+import { Gear } from "./Gear";
 
 export {
   Attach,
@@ -18,6 +19,7 @@ export {
   Close,
   Copy,
   Edit,
+  Gear,
   More,
   SensitiveHidden,
   SensitiveVisible,

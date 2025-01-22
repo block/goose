@@ -1,5 +1,6 @@
-import { extendGoosed, extendGoosedFromUrl, getApiUrl, getSecretKey } from "../config";
-import {GOOSE_MODEL, GOOSE_PROVIDER} from "../env_vars";
+import { getApiUrl, getSecretKey } from "../config";
+import { extendGoosed } from "../extensions";
+import { GOOSE_PROVIDER } from "../env_vars";
 import { Model } from "../components/settings/models/ModelContext"
 
 export function getStoredProvider(config: any): string | null {
@@ -75,17 +76,11 @@ const addAgent = async (provider: string, model: string) => {
 export const initializeSystem = async (provider: string, model: string) => {
   try {
     console.log("initializing with provider", provider, "model", model)
-    await addAgent(provider, model);
+    await addAgent(provider.toLowerCase(), model);
     await extendGoosed({
       type: "builtin",
       name: "developer"
     });
-
-    // Handle deep link if present
-    const deepLink = window.appConfig.get('DEEP_LINK');
-    if (deepLink) {
-      await extendGoosedFromUrl(deepLink);
-    }
   } catch (error) {
     console.error("Failed to initialize system:", error);
     throw error;

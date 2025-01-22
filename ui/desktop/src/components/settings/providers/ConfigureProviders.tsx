@@ -3,7 +3,7 @@ import { Providers } from "./Provider"
 import { ScrollArea } from "../../ui/scroll-area";
 import BackButton from "../../ui/BackButton";
 
-export function ProvidersPage() {
+export default function ConfigureProviders() {
     return (
         <div className="h-screen w-full pt-[36px]">
             <div className="h-full w-full bg-white dark:bg-gray-800 overflow-hidden p-2 pt-0">

@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('electron', {
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName) => ipcRenderer.invoke('get-binary-path', binaryName),
   on: (channel, callback) => {
-    if (channel === 'fatal-error' || channel === 'add-system') {
+    if (channel === 'fatal-error' || channel === 'add-extension') {
       ipcRenderer.on(channel, callback);
     }
   },

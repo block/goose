@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Message, useChat } from "./ai-sdk-fork/useChat";
-import { Route, Routes, Navigate } from "react-router-dom";
-import { getApiUrl, getSecretKey, extendGoosed, extendGoosedFromUrl } from "./config";
+import { getApiUrl, getSecretKey } from "./config";
+import { extendGoosedFromUrl } from "./extensions";
+import { useNavigate } from "react-router-dom";
 import BottomMenu from "./components/BottomMenu";
 import FlappyGoose from "./components/FlappyGoose";
 import GooseMessage from "./components/GooseMessage";
@@ -359,13 +360,17 @@ export default function ChatWindow() {
     };
   }, []);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
-    // Listen for add-system from main process for a goose:// deep link
-    window.electron.on("add-system", (_, link) => {
-      console.log("Received message for add-system:", link);
-      extendGoosedFromUrl(link);
+    // Listen for goose:// deep links
+    window.electron.on("add-extension", (_, link) => {
+      window.electron.logInfo("Received message for add-extension: " + link);
+      console.log("Received message for add-extension:", link);
+      extendGoosedFromUrl(link, navigate);
+      window.electron.logInfo("extended called: " + link);
     });
-  }, []);
+  }, [navigate]);
 
   // Get initial query and history from URL parameters
   const searchParams = new URLSearchParams(window.location.search);
@@ -479,6 +484,7 @@ export default function ChatWindow() {
       if (storedProvider) {
         try {
           await initializeSystem(storedProvider, storedModel);
+
           if (!storedModel) {
             // get the default model
             const modelName = getDefaultModel(storedProvider.toLowerCase())
@@ -514,11 +520,13 @@ export default function ChatWindow() {
               setProgressMessage={setProgressMessage}
               setWorking={setWorking}
           />
+          {/*
           <WingToWing
               onExpand={toggleMode}
               progressMessage={progressMessage}
               working={working}
           />
+          */}
           {showWelcomeModal && (
               <WelcomeModal
                   selectedProvider={selectedProvider}

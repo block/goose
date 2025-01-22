@@ -4,6 +4,36 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const reactPlugin = require('eslint-plugin-react');
 const reactHooksPlugin = require('eslint-plugin-react-hooks');
 
+// Custom rule to detect window.location.href usage
+const noWindowLocationHref = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow direct usage of window.location.href in Electron apps',
+      recommended: true,
+    },
+  },
+  create(context) {
+    return {
+      AssignmentExpression(node) {
+        if (
+          node.left.type === 'MemberExpression' &&
+          node.left.object.type === 'MemberExpression' &&
+          node.left.object.object.type === 'Identifier' &&
+          node.left.object.object.name === 'window' &&
+          node.left.object.property.name === 'location' &&
+          node.left.property.name === 'href'
+        ) {
+          context.report({
+            node,
+            message: 'Do not use window.location.href directly in Electron apps. Use React Router\'s navigate() instead.'
+          });
+        }
+      }
+    };
+  }
+};
+
 module.exports = [
   js.configs.recommended,
   {
@@ -61,6 +91,11 @@ module.exports = [
       '@typescript-eslint': tsPlugin,
       'react': reactPlugin,
       'react-hooks': reactHooksPlugin,
+      'custom': {
+        rules: {
+          'no-window-location-href': noWindowLocationHref
+        }
+      }
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
@@ -92,6 +127,7 @@ module.exports = [
       '@typescript-eslint/no-var-requires': 'warn', // Downgrade to warning for Electron main process
       'no-undef': 'error',
       'no-useless-catch': 'warn',
+      'custom/no-window-location-href': 'error'
     },
     settings: {
       react: {

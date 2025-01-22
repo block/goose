@@ -9,7 +9,7 @@ export function ToastSuccessModelSwitch(model: Model) {
             <div>Switched to {model.name}</div>
         </div>,
         {
-            position: "bottom-right",
+            position: "top-right",
             autoClose: 5000,
             hideProgressBar: true,
             closeOnClick: true,
@@ -25,7 +25,7 @@ export function ToastFailureGeneral(msg?: string) {
             <div>{msg}</div>
         </div>,
         {
-            position: "bottom-right",
+            position: "top-right",
             autoClose: 3000,
             hideProgressBar: true,
             closeOnClick: true,
