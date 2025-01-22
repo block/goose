@@ -37,13 +37,59 @@ const DEFAULT_SETTINGS: SettingsType = {
   extensions: [],
 };
 
+const BUILT_IN_EXTENSIONS = [
+  {
+    id: 'jetbrains',
+    name: 'Jetbrains',
+    type: 'stdio',
+    cmd: 'goosed',
+    args: ['mcp', 'jetbrains'],
+    description: 'Integration with Jetbrains IntelliJ IDE',
+    enabled: false,
+    env_keys: [],
+  },
+  {
+    id: 'nondeveloper',
+    name: 'Non-Developer assistant',
+    type: 'stdio',
+    cmd: 'goosed',
+    args: ['mcp', 'nondeveloper'],
+    description: "General assisant tools that don't require you to be a developer or engineer.",
+    enabled: false,
+    env_keys: [],
+  },
+  {
+    id: 'memory',
+    name: 'Memory',
+    type: 'stdio',
+    cmd: 'goosed',
+    args: ['mcp', 'memory'],
+    description: 'Teach goose your preferences as you go.',
+    enabled: false,
+    env_keys: [],
+  },
+];
+
 export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [settings, setSettings] = React.useState<SettingsType>(() => {
     const saved = localStorage.getItem('user_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    window.electron.logInfo('Settings: ' + saved);
+    let currentSettings = saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+
+    // Ensure built-in extensions are included if not already present
+    BUILT_IN_EXTENSIONS.forEach((builtIn) => {
+      const exists = currentSettings.extensions.some(
+        (ext: FullExtensionConfig) => ext.id === builtIn.id
+      );
+      if (!exists) {
+        currentSettings.extensions.push(builtIn);
+      }
+    });
+
+    return currentSettings;
   });
 
   const [extensionBeingConfigured, setExtensionBeingConfigured] =
