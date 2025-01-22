@@ -694,10 +694,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_goosehints_when_present() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
@@ -711,10 +707,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_goosehints_when_missing() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
@@ -745,10 +737,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_size_limits() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let router = get_router().await;
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
@@ -809,10 +797,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_write_and_view_file() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
@@ -863,10 +847,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_str_replace() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
@@ -942,10 +922,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_undo_edit() {
-<<<<<<< HEAD
-=======
-        let _lock = TEST_MUTEX.lock();
->>>>>>> ae481bd9 (unit test)
         let router = get_router().await;
 
         let temp_dir = tempfile::tempdir().unwrap();
