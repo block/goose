@@ -1,15 +1,8 @@
 import React from "react";
-<<<<<<<< HEAD:ui/desktop/src/components/welcome_screen/ProviderSetupModal.tsx
-import { Card } from "../ui/card";
-import { Lock } from "lucide-react";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-========
 import { Card } from "../../ui/card";
 import { Lock } from "lucide-react";
 import { Input } from "../../ui/input";
 import { Button } from "../../ui/button";
->>>>>>>> v1.0:ui/desktop/src/components/settings/modals/ProviderSetupModal.tsx
 // import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {
