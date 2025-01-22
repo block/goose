@@ -74,7 +74,11 @@ jobs:
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           cargo test
+<<<<<<< HEAD
         working-directory: crates
+=======
+        working-directory: app/unitests
+>>>>>>> 1e307bf5 (try to fix)
 
       - name: Lint
         run: cargo clippy -- -D warnings
