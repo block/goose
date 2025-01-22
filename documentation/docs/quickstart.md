@@ -117,19 +117,13 @@ You can also use process substitution to provide instructions directly from the 
 goose run <(echo "Create a new Python file that prints hello world")
 ```
 
-This will run until completion as best it can. You can also pass `--resume-session` and it will re-use the first session it finds for context.
+This will run until completion as best it can. You can also pass `--resume` and it will re-use the first session it finds for context.
 
 ### Extending Goose Functionality
 
 Goose Extensions are add-ons utilizing [Anthropic's Model Context Protocol(MCP)][MCP], that enhance Goose's functionality by connecting it with different applications and tools you already use in your workflow. Extensions can be used to add new features, automate tasks, and integrate with other systems.
 
-Goose includes both built-in and external extensions. To see the available built-in extensions, run:
-
-```sh
-goose system list
-```
-For details on adding, removing, or developing extensions, see the [Managing Goose Extensions Guide][extensions-guide].
-
+For more information on how to add or remove extensions, see the [Using Extensions Guide][extensions-guide].
 
 **Goose as a Github Action**
 
@@ -149,7 +143,7 @@ You can place a `.goosehints` file in `~/.config/goose/.goosehints` for hints pe
 [managing-sessions]: https://block.github.io/goose/guidance/managing-goose-sessions.html
 [contributing]: https://block.github.io/goose/v1/docs/contributing
 [quick-tips]: https://block.github.io/goose/v1/docs/guidance/tips
-[extensions-guide]: https://block.github.io/goose/v1/docs/managing-extensions
-[cli]: https://block.github.io/goose/v1/docs/plugins/cli
+[extensions-guide]: https://block.github.io/goose/v1/docs/getting-started/using-extensions
+[cli]: https://block.github.io/goose/v1/docs/guides/goose-cli-commands
 [goose-ui]: https://block.github.io/goose/v1/docs/plugins/cli
 [MCP]: https://www.anthropic.com/news/model-context-protocol

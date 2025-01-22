@@ -87,12 +87,21 @@ You will need to have credits in your LLM Provider account (when necessary) to b
 
 ## Running Goose
 
-You can run `goose` from the command line using:
+<Tabs>
+    <TabItem value="cli" label="Goose CLI" default>
+        From your terminal, navigate to the directory you'd like to start from and run:
+        ```sh
+        goose session 
+        ```
+    </TabItem>
+    <TabItem value="ui" label="Goose UI">
+        Starting a session in the Goose UI is straightforward. After choosing your provider, you’ll see the session interface ready for use.
+        
+        Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately. 
 
-```sh
-goose session
-```
-
+        ![Install Extension](./assets/guides/ui-session-interface.png)
+    </TabItem>
+</Tabs>
 
 ## Additional Resources
 

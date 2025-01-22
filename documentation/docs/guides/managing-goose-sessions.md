@@ -10,23 +10,24 @@ Goose sessions are your way to interact with Goose, providing a space to ask que
 To start a new session, run the following command within your terminal: 
 
 ```
-goose session start 
+goose session
 ```
 
-By default, Goose will provide a random string as the name of your session. If you'd like to provide a specific name, this is where you'd do so. For example to name your session 'react-migration', you would run:
+By default, Goose will provide a random string as the name of your session. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
 
 ```
-goose session start react-migration
+goose session -n react-migration
 ```
 You'll know your session has started when your terminal looks similar to the following:
 
 ```
-starting session | name: react-migration profile: default
+starting session | provider: openai model: gpt-4o
+logging to ~/.config/goose/sessions/react-migration.json1
 ```
 
-!!! info
-    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Getting Started Guide](https://block.github.io/goose/guidance/getting-started.html). Here is the list of [Goose-supported LLMs](https://block.github.io/goose/plugins/providers.html).
-
+:::info
+    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](https://block.github.io/goose/v1/docs/installation#set-up-a-provider). Here is the list of [Goose-supported LLMs](https://block.github.io/goose/plugins/providers.html).
+:::
 ## Exiting a Session
 
 To exit a session, hold down `Ctrl` + `C` to cancel and automatically save it. Alternatively, you can type `exit` to save and exit the session.
@@ -35,7 +36,7 @@ To exit a session, hold down `Ctrl` + `C` to cancel and automatically save it. A
 Your session will be stored locally in a path similar to:
 
 ```
-~/.config/goose/logs
+~/.config/goose/sessions
 ```
 
 This path is typically found in your `Users` folder.
@@ -45,13 +46,13 @@ This path is typically found in your `Users` folder.
 To resume your latest session, you can run the following command:
 
 ```
-goose session resume
+goose session -r
 ```
 
 To resume a specific session, you can first check the sessions you currently have by running: 
 
 ```
-goose session list 
+goose session --list 
 ```
 
 This command will display a list of all saved sessions, showing a name, date, and time for each session. The output should look similar to the following: 
@@ -66,7 +67,7 @@ This command will display a list of all saved sessions, showing a name, date, an
 To resume a specific session, run the following command: 
 
 ```
-goose session resume react-migration
+goose session -r -n react-migration
 ```
 
 ## Deleting Old Sessions
@@ -76,13 +77,9 @@ Goose allows you to delete all previously saved sessions. However, it currently 
 To delete previously saved sessions, you can run the following command:
 
 ```
-goose session clear
+goose session --clear
 ```
-You can also decide how many sessions you want to keep, starting from the most recent. To keep 2 sessions you would run the following command: 
 
-```
-goose session clear --keep 2  
-```
-!!! info
-    Once a session is deleted it can not be retrieved.
-
+:::important
+    Once a session is deleted, it can not be retrieved.
+:::
