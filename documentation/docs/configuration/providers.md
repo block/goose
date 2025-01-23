@@ -2,102 +2,115 @@
 sidebar_position: 1
 ---
 
-# Supported Providers
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-Providers in Goose mean "LLM providers" that Goose can interact with. Providers are defined in the [Exchange library][exchange-providers] for the most part, but you can define your own.
+# Supported LLM Providers
 
-As you configure your chosen provider, you add the models you want to use to the `~/.config/goose/profiles.yaml` file and you can set any necessary environment variables or API keys in your terminal. For example:
+Goose supports a variety of LLM providers to interact with. You can configure your chosen provider or see available options by running `goose configure` in the CLI or visiting the settings page on the goose UI.
+
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    1. Run: 
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+
+    ![Provider Config](../assets/guides/goose-providers-cli.png)
     
-```sh
-export PROVIDER_API_KEY="your_api_key_here"
-```
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+  **To update your LLM provider and API key:** 
+
+    1. Click on the three dots in the top-right corner.
+    2. Select `Provider Settings` from the menu.
+    3. Click Edit, enter your API key, and click `Set as Active`.
+
+  </TabItem>
+</Tabs>
 
 ## Currently Available Providers
 
-### Anthropic
-
-To use Anthropic, you need an API key, which you can obtain by signing up or logging into [Anthropic's platform](https://www.anthropic.com/). Once you have your API key and your `profiles.yaml` file updated to the provider, you can set the `ANTHROPIC_API_KEY` environment variable in your shell using: 
-
-```sh
-export ANTHROPIC_API_KEY="your_api_key_here"`.
-```
-
-```yaml title="profiles.yaml"
-default:
-  provider: anthropic
-  processor: claude-3-5-sonnet-20241022
-  accelerator: claude-3-5-sonnet-20241022
-```
-
-### Azure
-
-Azure AI services provide API keys through the Azure Portal. Visit the [Azure Portal](https://portal.azure.com/) to create a resource and obtain your key. You will need to configure Goose by updating your profile and setting appropriate environment variables.
-
-```yaml title="profiles.yaml"
-default:
-  provider: azure
-  processor: azure-gpt-4
-  accelerator: azure-gpt-3
-```
-
-### Bedrock
-
-More information can be found at [AWS Bedrock](https://aws.amazon.com/bedrock/). You need to set up your AWS credentials and configure Bedrock access accordingly in your Goose profile.
+- OpenAI
+- Databricks
+- Ollama
+- Anthropic
+- Google Gemini
+- Groq
+- OpenRouter
 
 
-```yaml title="profiles.yaml"
-default:
-  provider: bedrock
-  processor: titan-llm
-  accelerator: titan-llm-lite
-```
+## OpenAI
 
-### Databricks
+OpenAI offers powerful language models that include GPT-4, GPT-3.5-turbo, and more.
 
-To use Databricks, sign up or log into [Databricks](https://www.databricks.com/) and generate a personal access token via the user settings. Configure Goose by setting the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` environment variables.
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Select `OpenAI` from the list of available providers.
+3. Enter your `OPENAI_API_KEY` when prompted, which you can obtain by registering at [OpenAI's platform](https://platform.openai.com/api-keys).
 
-```yaml title="profiles.yaml"
-default:
-  provider: databricks
-  processor: databricks-meta-llama-3-1-70b-instruct
-  accelerator: databricks-meta-llama-3-1-70b-instruct
-```
+## Databricks
 
-### Google
+Databricks is a data analytics and AI platform that provides access to various AI models and tools. They offer integration with popular models and custom model deployment.
 
-Google Cloud AI services require you to set up a project in the [Google Cloud Console](https://console.cloud.google.com/). After enabling the relevant APIs, you should generate an API key or set up a service account. Ensure your application can access these credentials.
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Select `Databricks` as your provider.
+3. Enter your `DATABRICKS_HOST` and `DATABRICKS_TOKEN`, which can be generated in your [Databricks Account Settings](https://www.databricks.com/).
 
-```yaml title="profiles.yaml"
-default:
-  provider: google
-  processor: gemini-1.5-flash
-  accelerator: gemini-1.5-flash
-```
+## Ollama
 
-### Ollama
+Ollama is an open-source project that allows running large language models locally. It supports various open-source models and provides an API for integration.
 
-For Ollama, refer to the setup process on [Ollama's site](https://ollama.com/) for obtaining necessary credentials. Make sure your environment has all the required tokens set up.
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Select `Ollama` and follow the steps to download and set up your models as detailed on [Ollama's site](https://ollama.com/). Requires `OLLAMA_HOST`.
 
-```yaml title="profiles.yaml"
-default:
-  provider: ollama
-  processor: ollama-pro
-  accelerator: ollama-lite
-```
+## Anthropic
 
-### OpenAI
+Anthropic is an AI research company that offers advanced language models through its API. Their primary model is Claude, which comes in various versions.
 
-Register at [OpenAI's platform](https://platform.openai.com/api-keys) to obtain an API key. Configure Goose by updating your `profiles.yaml` file and setting the `OPENAI_API_KEY` in your terminal: 
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Choose `Anthropic` and provide the `ANTHROPIC_API_KEY`, obtainable via [Anthropic's platform](https://www.anthropic.com/).
 
-```sh
-export OPENAI_API_KEY="your_api_key_here"
-```
+## Google Gemini
 
-```yaml title="profiles.yaml"
-default:
-  provider: openai
-  processor: gpt-4
-  accelerator: gpt-3.5-turbo
-```
+Google Gemini is a suite of large language models developed by Google. It offers multimodal capabilities and can be accessed through the [Google AI Studio](https://ai.google.dev/gemini-api/docs).
 
-[exchange-providers]: https://github.com/block/goose/tree/main/packages/exchange/src/exchange/providers
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Pick `Google Gemini` from the list of providers and input your `GOOGLE_API_KEY`. .
+
+## Groq
+
+Groq is an AI company that offers high-performance inference for large language models. They provide access to various models through their API.
+
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+2. Select `Groq` from the list of providers and input your `GROQ_API_KEY`, set up via the [Groq Console](https://groq.com/).
+
+## OpenRouter
+
+OpenRouter is a platform that provides access to multiple AI models from various providers through a single API. It simplifies the process of using different AI models in applications.
+
+1. Run the goose configuration command and choose "Configure Providers":
+   ```sh
+   goose configure
+   ```
+
+2. Select `OpenRouter` from the list of providers and input your `OPENROUTER_API_KEY`, set up via the [OpenRouter Console](https://openrouter.ai/).
+
