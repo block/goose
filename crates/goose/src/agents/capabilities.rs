@@ -143,7 +143,7 @@ impl Capabilities {
         let init_result = client
             .initialize(info, capabilities)
             .await
-            .map_err(|_| ExtensionError::Initialization(config.clone()))?;
+            .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
