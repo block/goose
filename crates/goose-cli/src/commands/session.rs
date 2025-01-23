@@ -9,6 +9,8 @@ use crate::config::Config;
 use crate::prompt::rustyline::RustylinePrompt;
 use crate::prompt::Prompt;
 use crate::session::{ensure_session_dir, get_most_recent_session, Session};
+use goose::agents::extension::ExtensionError;
+use mcp_client::transport::Error as McpClientError;
 
 /// Get the provider and model to use, following priority:
 /// 1. CLI arguments
@@ -91,7 +93,17 @@ pub async fn build_session<'a>(
             agent
                 .add_extension(extension_config.clone())
                 .await
-                .unwrap_or_else(|_| panic!("Failed to start extension: {}", name));
+                .unwrap_or_else(|e| {
+                    let err = match e {
+                        ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => {
+                            inner
+                        }
+                        _ => e.to_string(),
+                    };
+                    println!("Failed to start extension: {}, {:?}", name, err);
+                    println!("Please check extension configuration for {}.", name);
+                    process::exit(1);
+                });
         }
     }
 

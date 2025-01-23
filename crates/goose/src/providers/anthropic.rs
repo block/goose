@@ -1,14 +1,13 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
-use reqwest::StatusCode;
 use serde_json::Value;
 use std::time::Duration;
 
 use super::base::{Provider, ProviderUsage, Usage};
 use super::configs::ModelConfig;
 use super::formats::anthropic::{create_request, get_usage, response_to_message};
-use super::utils::{emit_debug_trace, get_model, non_ok_response_to_provider_error};
+use super::utils::{emit_debug_trace, get_model, handle_response};
 use crate::message::Message;
 use mcp_core::tool::Tool;
 
@@ -56,13 +55,7 @@ impl AnthropicProvider {
             .send()
             .await?;
 
-        match response.status() {
-            StatusCode::OK => Ok(response.json().await?),
-            _ => {
-                let provider_error = non_ok_response_to_provider_error(payload, response).await;
-                Err(anyhow::anyhow!(provider_error.to_string()))
-            }
-        }
+        handle_response(payload, response).await
     }
 }
 

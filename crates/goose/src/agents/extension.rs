@@ -7,8 +7,8 @@ use thiserror::Error;
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
-    #[error("Failed to start the MCP server from configuration `{0}` within 60 seconds")]
-    Initialization(ExtensionConfig),
+    #[error("Failed to start the MCP server from configuration `{0}` `{1}`")]
+    Initialization(ExtensionConfig, ClientError),
     #[error("Failed a client call to an MCP server: {0}")]
     Client(#[from] ClientError),
     #[error("User Message exceeded context-limit. History could not be truncated to accomodate.")]

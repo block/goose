@@ -184,6 +184,41 @@ export default function Settings() {
     }
   };
 
+  const handleExtensionRemove = async () => {
+    if (!extensionBeingConfigured) return;
+
+    try {
+      // First disable the extension if it's enabled
+      if (extensionBeingConfigured.enabled) {
+        const response = await fetch(getApiUrl('/extensions/remove'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify(extensionBeingConfigured.name),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to remove extension from backend');
+        }
+      }
+
+      // Then remove it from the local settings
+      setSettings((prev) => ({
+        ...prev,
+        extensions: prev.extensions.filter((ext) => ext.id !== extensionBeingConfigured.id),
+      }));
+
+      showToast(`Successfully removed ${extensionBeingConfigured.name} extension`, 'success');
+      setExtensionBeingConfigured(null);
+      navigate('/settings', { replace: true });
+    } catch (error) {
+      console.error('Error removing extension:', error);
+      showToast('Failed to remove extension', 'error');
+    }
+  };
+
   const handleNavClick = (section: string, e: React.MouseEvent) => {
     e.preventDefault();
     const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]');
@@ -304,6 +339,7 @@ export default function Settings() {
         }}
         extension={extensionBeingConfigured}
         onSubmit={handleExtensionConfigSubmit}
+        onRemove={handleExtensionRemove}
       />
 
       <ManualExtensionModal

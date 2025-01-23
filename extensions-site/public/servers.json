@@ -1,0 +1,263 @@
+[
+  {
+    "id": "aws-kb-retrieval",
+    "name": "AWS KB Retrieval",
+    "description": "Retrieval from AWS Knowledge Base using Bedrock Agent Runtime",
+    "command": "npx -y @modelcontextprotocol/server-aws-kb-retrieval",
+    "githubStars": 120,
+    "environmentVariables": [
+      {
+        "name": "AWS_ACCESS_KEY_ID",
+        "description": "AWS access key ID",
+        "required": true
+      },
+      {
+        "name": "AWS_SECRET_ACCESS_KEY",
+        "description": "AWS secret access key",
+        "required": true
+      },
+      {
+        "name": "AWS_REGION",
+        "description": "AWS region",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "brave-search",
+    "name": "Brave Search",
+    "description": "Web and local search using Brave's Search API",
+    "command": "npx -y @modelcontextprotocol/server-brave-search",
+    "githubStars": 95,
+    "environmentVariables": [
+      {
+        "name": "BRAVE_API_KEY",
+        "description": "API key for Brave Search",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "everart",
+    "name": "EverArt",
+    "description": "AI image generation using various models",
+    "command": "npx -y @modelcontextprotocol/server-everart",
+    "githubStars": 85,
+    "environmentVariables": [
+      {
+        "name": "EVERART_API_KEY",
+        "description": "API key for EverArt service",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "everything",
+    "name": "Everything",
+    "description": "Reference / test server with prompts, resources, and tools",
+    "command": "npx -y @modelcontextprotocol/server-everything",
+    "githubStars": 75,
+    "environmentVariables": []
+  },
+  {
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Web content fetching and conversion for efficient LLM usage",
+    "command": "npx -y @modelcontextprotocol/server-fetch",
+    "githubStars": 82,
+    "environmentVariables": []
+  },
+  {
+    "id": "filesystem",
+    "name": "Filesystem",
+    "description": "Secure file operations with configurable access controls",
+    "command": "npx -y @modelcontextprotocol/server-filesystem",
+    "githubStars": 110,
+    "environmentVariables": [
+      {
+        "name": "ALLOWED_PATHS",
+        "description": "Comma-separated list of allowed filesystem paths",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "gdrive",
+    "name": "Google Drive",
+    "description": "File access and search capabilities for Google Drive",
+    "command": "npx -y @modelcontextprotocol/server-gdrive",
+    "githubStars": 92,
+    "environmentVariables": [
+      {
+        "name": "GOOGLE_CREDENTIALS",
+        "description": "Google Cloud service account credentials JSON",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "git",
+    "name": "Git",
+    "description": "Tools to read, search, and manipulate Git repositories",
+    "command": "uvx mcp-server-git",
+    "githubStars": 95,
+    "environmentVariables": [
+      {
+        "name": "GIT_REPO_PATH",
+        "description": "Path to the Git repository",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "github",
+    "name": "GitHub",
+    "description": "Repository management, file operations, and GitHub API integration",
+    "command": "npx -y @modelcontextprotocol/server-github",
+    "githubStars": 130,
+    "environmentVariables": [
+      {
+        "name": "GITHUB_TOKEN",
+        "description": "GitHub personal access token",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "gitlab",
+    "name": "GitLab",
+    "description": "GitLab API, enabling project management",
+    "command": "npx -y @modelcontextprotocol/server-gitlab",
+    "githubStars": 88,
+    "environmentVariables": [
+      {
+        "name": "GITLAB_TOKEN",
+        "description": "GitLab personal access token",
+        "required": true
+      },
+      {
+        "name": "GITLAB_URL",
+        "description": "GitLab instance URL (defaults to gitlab.com)",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "google-maps",
+    "name": "Google Maps",
+    "description": "Location services, directions, and place details",
+    "command": "npx -y @modelcontextprotocol/server-google-maps",
+    "githubStars": 87,
+    "environmentVariables": [
+      {
+        "name": "GOOGLE_MAPS_API_KEY",
+        "description": "Google Maps API key",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Knowledge graph-based persistent memory system",
+    "command": "npx -y @modelcontextprotocol/server-memory",
+    "githubStars": 105,
+    "environmentVariables": [
+      {
+        "name": "MEMORY_STORE_PATH",
+        "description": "Path to store the memory database",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "postgres",
+    "name": "PostgreSQL",
+    "description": "Read-only database access with schema inspection",
+    "command": "npx -y @modelcontextprotocol/server-postgres",
+    "githubStars": 98,
+    "environmentVariables": [
+      {
+        "name": "DATABASE_URL",
+        "description": "PostgreSQL connection string",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "puppeteer",
+    "name": "Puppeteer",
+    "description": "Browser automation and web scraping",
+    "command": "npx -y @modelcontextprotocol/server-puppeteer",
+    "githubStars": 85,
+    "environmentVariables": []
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry",
+    "description": "Retrieving and analyzing issues from Sentry.io",
+    "command": "npx -y @modelcontextprotocol/server-sentry",
+    "githubStars": 78,
+    "environmentVariables": [
+      {
+        "name": "SENTRY_AUTH_TOKEN",
+        "description": "Sentry authentication token",
+        "required": true
+      },
+      {
+        "name": "SENTRY_ORG",
+        "description": "Sentry organization slug",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "sequentialthinking",
+    "name": "Sequential Thinking",
+    "description": "Dynamic and reflective problem-solving through thought sequences",
+    "command": "npx -y @modelcontextprotocol/server-sequentialthinking",
+    "githubStars": 82,
+    "environmentVariables": []
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "description": "Channel management and messaging capabilities",
+    "command": "npx -y @modelcontextprotocol/server-slack",
+    "githubStars": 90,
+    "environmentVariables": [
+      {
+        "name": "SLACK_TOKEN",
+        "description": "Slack bot token",
+        "required": true
+      },
+      {
+        "name": "SLACK_CHANNEL",
+        "description": "Default Slack channel ID",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "sqlite",
+    "name": "Sqlite",
+    "description": "Database interaction and business intelligence capabilities",
+    "command": "npx -y @modelcontextprotocol/server-sqlite",
+    "githubStars": 85,
+    "environmentVariables": [
+      {
+        "name": "DATABASE_PATH",
+        "description": "Path to SQLite database file",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "time",
+    "name": "Time",
+    "description": "Time and timezone conversion capabilities",
+    "command": "npx -y @modelcontextprotocol/server-time",
+    "githubStars": 75,
+    "environmentVariables": []
+  }
+]

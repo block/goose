@@ -149,7 +149,10 @@ async fn add_extension(
             eprintln!("Failed to add extension configuration: {:?}", e);
             Ok(Json(ExtensionResponse {
                 error: true,
-                message: Some("Failed to add extension configuration".to_string()),
+                message: Some(format!(
+                    "Failed to add extension configuration, error: {:?}",
+                    e
+                )),
             }))
         }
     }

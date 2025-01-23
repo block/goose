@@ -10,6 +10,7 @@ interface ConfigureExtensionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: () => void;
+  onRemove: () => void;
   extension: FullExtensionConfig | null;
 }
 
@@ -17,6 +18,7 @@ export function ConfigureExtensionModal({
   isOpen,
   onClose,
   onSubmit,
+  onRemove,
   extension,
 }: ConfigureExtensionModalProps) {
   const [envValues, setEnvValues] = React.useState<Record<string, string>>({});
@@ -165,6 +167,15 @@ export function ConfigureExtensionModal({
                 className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg hover:bg-gray-50 hover:dark:text-black dark:text-white dark:border-gray-600 font-regular"
               >
                 {isSubmitting ? 'Saving...' : 'Save Configuration'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onRemove}
+                disabled={isSubmitting}
+                className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:border-gray-600 text-lg font-regular"
+              >
+                Remove Extension
               </Button>
               <Button
                 type="button"

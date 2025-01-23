@@ -51,7 +51,12 @@ pub async fn non_ok_response_to_provider_error(
         StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
             ProviderError::ServerError(format!("Server error occurred. Status: {}", response.status()))
         }
-        _ => ProviderError::RequestFailed(format!("Request failed with status: {}. Payload: {}", response.status(), payload))
+        _ => {
+            tracing::debug!(
+                "{}", format!("Provider request failed with status: {}. Payload: {}", response.status(), payload)
+            );
+            ProviderError::RequestFailed(format!("Request failed with status: {}.", response.status()))
+        }
     }
 }
 
