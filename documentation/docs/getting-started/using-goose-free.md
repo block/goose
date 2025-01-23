@@ -3,6 +3,9 @@ sidebar_position: 1
 title: Using Goose for Free
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Using Goose for Free
 
 Goose is a free and open-source developer agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 
@@ -13,27 +16,30 @@ Below, we outline a couple of free options and how to get started with them.
 ## Google Gemini
 Google Gemini provides free access to its AI capabilities with some limitations. To start using the Gemini API with Goose, you need an API Key from [Google AI studio](https://aistudio.google.com/app/apikey).
 
-Update your `~/.config/goose/profiles.yaml` file with the following configuration:
+To set up Google Gemini with Goose, follow these steps:
 
-```yaml title="profiles.yaml"
-default:
-  provider: google
-  processor: gemini-1.5-flash
-  accelerator: gemini-1.5-flash
-  moderator: passive
-  toolkits:
-  - name: developer
-    requires: {}
-```
+<Tabs>
+  <TabItem value="cli" label="Goose CLI" default>
+    1. Run: 
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+    3. Follow the prompts to choose `Google Gemini` as the provider and enter your API key. 
 
-When you run `goose session start`, you will be prompted to enter your Google API Key.
+    ![Gemini Config](../assets/guides/gemini-config-cli.png)
+    
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+  **To update your LLM provider and API key:** 
 
-:::info 
-At the moment, the `synopsis` toolkit isn't supported by Google Gemini, so we use the `developer` toolkit to interact with the API. 
-:::
+    1. Click on the three dots in the top-right corner.
+    2. Select `Provider Settings` from the menu.
+    2. Choose `Google Gemini` as provider from the list.
+    3. Click Edit, enter your API key, and click `Set as Active`.
 
-
-
+  </TabItem>
+</Tabs>
 
 ## Limitations
 
