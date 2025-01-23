@@ -1,4 +1,4 @@
-name: Deploy v1 Docs & Extensions #(/documentation and /extensions-site)
+name: Deploy v1 Docs & Extensions # (/documentation and /extensions-site)
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies and build docs
         working-directory: ./documentation
-        run:  |
+        run: |
           npm install
           npm run build
 
@@ -30,12 +30,16 @@ jobs:
           npm install
           npm run build
 
+      - name: Combine builds into one directory
+        run: |
+          mkdir combined-build
+          cp -r documentation/build/* combined-build/
+          mkdir -p combined-build/extensions
+          cp -r extensions-site/build/* combined-build/extensions/
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: |
-            ./documentation/build 
-            ./extensions-site/build:/extensions
+          publish_dir: combined-build
           destination_dir: v1 # Deploy the site to the 'v1' subfolder
