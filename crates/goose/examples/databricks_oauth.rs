@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
     std::env::remove_var("DATABRICKS_TOKEN");
 
     // Create the provider
-    let provider = DatabricksProvider::from_env()?;
+    let provider = DatabricksProvider::default();
 
     // Create a simple message
     let message = Message::user().with_text("Tell me a short joke about programming.");

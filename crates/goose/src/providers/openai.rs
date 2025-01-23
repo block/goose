@@ -4,13 +4,13 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderUsage, Usage};
-use super::configs::ModelConfig;
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::formats::openai::{
     create_request, get_usage, is_context_length_error, response_to_message,
 };
 use super::utils::{emit_debug_trace, get_model, handle_response, ImageFormat};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
@@ -24,14 +24,20 @@ pub struct OpenAiProvider {
     model: ModelConfig,
 }
 
-impl OpenAiProvider {
-    pub fn from_env() -> Result<Self> {
-        let api_key = crate::key_manager::get_keyring_secret("OPENAI_API_KEY", Default::default())?;
-        let host =
-            std::env::var("OPENAI_HOST").unwrap_or_else(|_| "https://api.openai.com".to_string());
-        let model_name =
-            std::env::var("OPENAI_MODEL").unwrap_or_else(|_| OPEN_AI_DEFAULT_MODEL.to_string());
+impl Default for OpenAiProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(OpenAiProvider::metadata().default_model);
+        OpenAiProvider::from_env(model).expect("Failed to initialize OpenAI provider")
+    }
+}
 
+impl OpenAiProvider {
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("OPENAI_API_KEY")?;
+        let host: String = config
+            .get("OPENAI_HOST")
+            .unwrap_or_else(|_| "https://api.openai.com".to_string());
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -40,7 +46,7 @@ impl OpenAiProvider {
             client,
             host,
             api_key,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -61,8 +67,21 @@ impl OpenAiProvider {
 
 #[async_trait]
 impl Provider for OpenAiProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "openai",
+            "OpenAI",
+            "GPT-4 and other OpenAI models",
+            OPEN_AI_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("OPENAI_API_KEY", true, true, None),
+                ConfigKey::new("OPENAI_HOST", false, false, Some("https://api.openai.com")),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -90,31 +109,9 @@ impl Provider for OpenAiProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_provider_construction() -> Result<()> {
-        std::env::set_var("OPENAI_API_KEY", "test-key");
-        std::env::set_var("OPENAI_HOST", "https://test.openai.com");
-        std::env::set_var("OPENAI_MODEL", "gpt-4o");
-
-        let provider = OpenAiProvider::from_env()?;
-        assert_eq!(provider.host, "https://test.openai.com");
-        assert_eq!(provider.model.model_name, "gpt-4o");
-
-        Ok(())
     }
 }

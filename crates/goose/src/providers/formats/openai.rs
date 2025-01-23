@@ -1,6 +1,6 @@
 use crate::message::{Message, MessageContent};
+use crate::model::ModelConfig;
 use crate::providers::base::Usage;
-use crate::providers::configs::ModelConfig;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, is_valid_function_name, sanitize_function_name, ImageFormat,

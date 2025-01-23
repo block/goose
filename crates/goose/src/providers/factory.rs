@@ -1,19 +1,37 @@
 use super::{
-    anthropic::AnthropicProvider, base::Provider, databricks::DatabricksProvider,
-    google::GoogleProvider, groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    anthropic::AnthropicProvider,
+    base::{Provider, ProviderMetadata},
+    databricks::DatabricksProvider,
+    google::GoogleProvider,
+    groq::GroqProvider,
+    ollama::OllamaProvider,
+    openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
 };
+use crate::model::ModelConfig;
 use anyhow::Result;
 
-pub fn get_provider(name: &str) -> Result<Box<dyn Provider + Send + Sync>> {
+pub fn providers() -> Vec<ProviderMetadata> {
+    vec![
+        AnthropicProvider::metadata(),
+        DatabricksProvider::metadata(),
+        GoogleProvider::metadata(),
+        GroqProvider::metadata(),
+        OllamaProvider::metadata(),
+        OpenAiProvider::metadata(),
+        OpenRouterProvider::metadata(),
+    ]
+}
+
+pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send + Sync>> {
     match name {
-        "openai" => Ok(Box::new(OpenAiProvider::from_env()?)),
-        "anthropic" => Ok(Box::new(AnthropicProvider::from_env()?)),
-        "databricks" => Ok(Box::new(DatabricksProvider::from_env()?)),
-        "groq" => Ok(Box::new(GroqProvider::from_env()?)),
-        "ollama" => Ok(Box::new(OllamaProvider::from_env()?)),
-        "openrouter" => Ok(Box::new(OpenRouterProvider::from_env()?)),
-        "google" => Ok(Box::new(GoogleProvider::from_env()?)),
+        "openai" => Ok(Box::new(OpenAiProvider::from_env(model)?)),
+        "anthropic" => Ok(Box::new(AnthropicProvider::from_env(model)?)),
+        "databricks" => Ok(Box::new(DatabricksProvider::from_env(model)?)),
+        "groq" => Ok(Box::new(GroqProvider::from_env(model)?)),
+        "ollama" => Ok(Box::new(OllamaProvider::from_env(model)?)),
+        "openrouter" => Ok(Box::new(OpenRouterProvider::from_env(model)?)),
+        "google" => Ok(Box::new(GoogleProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }

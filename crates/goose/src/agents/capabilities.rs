@@ -517,8 +517,8 @@ impl Capabilities {
 mod tests {
     use super::*;
     use crate::message::Message;
-    use crate::providers::base::{Provider, ProviderUsage, Usage};
-    use crate::providers::configs::ModelConfig;
+    use crate::model::ModelConfig;
+    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
@@ -534,8 +534,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Provider for MockProvider {
-        fn get_model_config(&self) -> &ModelConfig {
-            &self.model_config
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
         }
 
         async fn complete(
@@ -548,10 +552,6 @@ mod tests {
                 Message::assistant().with_text("Mock response"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
-        }
-
-        fn get_usage(&self, _data: &serde_json::Value) -> anyhow::Result<Usage> {
-            Ok(Usage::new(None, None, None))
         }
     }
 

@@ -3,12 +3,14 @@ import { Card } from '../ui/card';
 import { Lock } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
+import { required_keys } from './models/hardcoded_stuff';
 // import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {
   provider: string;
   model: string;
   endpoint: string;
+  title?: string;
   onSubmit: (apiKey: string) => void;
   onCancel: () => void;
 }
@@ -17,10 +19,12 @@ export function ProviderSetupModal({
   provider,
   model,
   endpoint,
+  title,
   onSubmit,
   onCancel,
 }: ProviderSetupModalProps) {
   const [apiKey, setApiKey] = React.useState('');
+  const keyName = required_keys[provider]?.[0] || 'API Key';
   const headerText = `Setup ${provider}`;
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +52,7 @@ export function ProviderSetupModal({
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={`Enter API key`}
+                  placeholder={keyName}
                   className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
                   required
                 />

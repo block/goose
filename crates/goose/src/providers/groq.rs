@@ -1,6 +1,6 @@
 use crate::message::Message;
-use crate::providers::base::{Provider, ProviderUsage, Usage};
-use crate::providers::configs::ModelConfig;
+use crate::model::ModelConfig;
+use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::providers::utils::{get_model, handle_response};
 use anyhow::Result;
@@ -22,12 +22,20 @@ pub struct GroqProvider {
     model: ModelConfig,
 }
 
+impl Default for GroqProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(GroqProvider::metadata().default_model);
+        GroqProvider::from_env(model).expect("Failed to initialize Groq provider")
+    }
+}
+
 impl GroqProvider {
-    pub fn from_env() -> Result<Self> {
-        let api_key = crate::key_manager::get_keyring_secret("GROQ_API_KEY", Default::default())?;
-        let host = std::env::var("GROQ_HOST").unwrap_or_else(|_| GROQ_API_HOST.to_string());
-        let model_name =
-            std::env::var("GROQ_MODEL").unwrap_or_else(|_| GROQ_DEFAULT_MODEL.to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("GROQ_API_KEY")?;
+        let host: String = config
+            .get("GROQ_HOST")
+            .unwrap_or_else(|_| GROQ_API_HOST.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -37,7 +45,7 @@ impl GroqProvider {
             client,
             host,
             api_key,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -61,8 +69,21 @@ impl GroqProvider {
 
 #[async_trait]
 impl Provider for GroqProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "groq",
+            "Groq",
+            "Fast inference with Groq hardware",
+            GROQ_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("GROQ_API_KEY", true, true, None),
+                ConfigKey::new("GROQ_HOST", false, false, Some(GROQ_API_HOST)),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -86,13 +107,9 @@ impl Provider for GroqProvider {
         let response = self.post(payload.clone()).await?;
 
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> anyhow::Result<Usage> {
-        get_usage(data)
     }
 }

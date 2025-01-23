@@ -1,6 +1,6 @@
 use crate::message::{Message, MessageContent};
+use crate::model::ModelConfig;
 use crate::providers::base::Usage;
-use crate::providers::configs::ModelConfig;
 use anyhow::{anyhow, Result};
 use mcp_core::content::Content;
 use mcp_core::role::Role;

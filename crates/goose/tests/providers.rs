@@ -219,7 +219,7 @@ async fn test_provider<F, T>(
     provider_fn: F,
 ) -> Result<()>
 where
-    F: FnOnce() -> Result<T>,
+    F: FnOnce() -> T,
     T: Provider + Send + Sync + 'static,
 {
     // We start off as failed, so that if the process panics it is seen as a failure
@@ -257,6 +257,12 @@ where
 
     // Setup the provider
     let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
+    if missing_vars {
+        println!("Skipping {} tests - credentials not configured", name);
+        TEST_REPORT.record_skip(name);
+        return Ok(());
+    }
+
     let provider = provider_fn();
 
     // Restore original environment
@@ -273,19 +279,7 @@ where
 
     std::mem::drop(lock);
 
-    if missing_vars {
-        println!("Skipping {} tests - credentials not configured", name);
-        TEST_REPORT.record_skip(name);
-        return Ok(());
-    }
-
-    if provider.is_err() {
-        println!("Could not setup {} from env", name);
-        TEST_REPORT.record_fail(name);
-        return Err(provider.err().expect("is error"));
-    }
-
-    let tester = ProviderTester::new(provider.expect("already checked"), name.to_string());
+    let tester = ProviderTester::new(provider, name.to_string());
     match tester.run_test_suite().await {
         Ok(_) => {
             TEST_REPORT.record_pass(name);
@@ -305,7 +299,7 @@ async fn test_openai_provider() -> Result<()> {
         "OpenAI",
         &["OPENAI_API_KEY"],
         None,
-        openai::OpenAiProvider::from_env,
+        openai::OpenAiProvider::default,
     )
     .await
 }
@@ -316,7 +310,7 @@ async fn test_databricks_provider() -> Result<()> {
         "Databricks",
         &["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
         None,
-        databricks::DatabricksProvider::from_env,
+        databricks::DatabricksProvider::default,
     )
     .await
 }
@@ -330,7 +324,7 @@ async fn test_databricks_provider_oauth() -> Result<()> {
         "Databricks OAuth",
         &["DATABRICKS_HOST"],
         Some(env_mods),
-        databricks::DatabricksProvider::from_env,
+        databricks::DatabricksProvider::default,
     )
     .await
 }
@@ -341,20 +335,14 @@ async fn test_ollama_provider() -> Result<()> {
         "Ollama",
         &["OLLAMA_HOST"],
         None,
-        ollama::OllamaProvider::from_env,
+        ollama::OllamaProvider::default,
     )
     .await
 }
 
 #[tokio::test]
 async fn test_groq_provider() -> Result<()> {
-    test_provider(
-        "Groq",
-        &["GROQ_API_KEY"],
-        None,
-        groq::GroqProvider::from_env,
-    )
-    .await
+    test_provider("Groq", &["GROQ_API_KEY"], None, groq::GroqProvider::default).await
 }
 
 #[tokio::test]
@@ -363,7 +351,7 @@ async fn test_anthropic_provider() -> Result<()> {
         "Anthropic",
         &["ANTHROPIC_API_KEY"],
         None,
-        anthropic::AnthropicProvider::from_env,
+        anthropic::AnthropicProvider::default,
     )
     .await
 }
@@ -374,7 +362,7 @@ async fn test_openrouter_provider() -> Result<()> {
         "OpenRouter",
         &["OPENROUTER_API_KEY"],
         None,
-        openrouter::OpenRouterProvider::from_env,
+        openrouter::OpenRouterProvider::default,
     )
     .await
 }
@@ -385,7 +373,7 @@ async fn test_google_provider() -> Result<()> {
         "Google",
         &["GOOGLE_API_KEY"],
         None,
-        google::GoogleProvider::from_env,
+        google::GoogleProvider::default,
     )
     .await
 }

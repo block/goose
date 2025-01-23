@@ -1,11 +1,10 @@
 use crate::state::AppState;
 use axum::{extract::State, routing::delete, routing::post, Json, Router};
-use goose::key_manager::{
-    delete_from_keyring, get_keyring_secret, save_to_keyring, KeyRetrievalStrategy,
-};
+use goose::config::Config;
 use http::{HeaderMap, StatusCode};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Serialize)]
@@ -34,7 +33,7 @@ async fn store_secret(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    match save_to_keyring(&request.key, &request.value) {
+    match Config::global().set_secret(&request.key, Value::String(request.value)) {
         Ok(_) => Ok(Json(SecretResponse { error: false })),
         Err(_) => Ok(Json(SecretResponse { error: true })),
     }
@@ -76,7 +75,7 @@ static PROVIDER_ENV_REQUIREMENTS: Lazy<HashMap<String, ProviderConfig>> = Lazy::
 fn check_key_status(key: &str) -> (bool, Option<String>) {
     if let Ok(_value) = std::env::var(key) {
         (true, Some("env".to_string()))
-    } else if get_keyring_secret(key, KeyRetrievalStrategy::KeyringOnly).is_ok() {
+    } else if Config::global().get_secret::<String>(key).is_ok() {
         (true, Some("keyring".to_string()))
     } else {
         (false, None)
@@ -151,7 +150,7 @@ async fn delete_secret(
     }
 
     // Attempt to delete the key
-    match delete_from_keyring(&request.key) {
+    match Config::global().delete_secret(&request.key) {
         Ok(_) => Ok(StatusCode::NO_CONTENT),
         Err(_) => Err(StatusCode::NOT_FOUND),
     }

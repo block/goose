@@ -1,10 +1,71 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use super::configs::ModelConfig;
 use crate::message::Message;
+use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
+
+/// Metadata about a provider's configuration requirements and capabilities
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderMetadata {
+    /// The unique identifier for this provider
+    pub name: String,
+    /// Display name for the provider in UIs
+    pub display_name: String,
+    /// Description of the provider's capabilities
+    pub description: String,
+    /// The default/recommended model for this provider
+    pub default_model: String,
+    /// Required configuration keys
+    pub config_keys: Vec<ConfigKey>,
+}
+
+impl ProviderMetadata {
+    pub fn new(
+        name: &str,
+        display_name: &str,
+        description: &str,
+        default_model: &str,
+        config_keys: Vec<ConfigKey>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            default_model: default_model.to_string(),
+            config_keys,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            name: "".to_string(),
+            display_name: "".to_string(),
+            description: "".to_string(),
+            default_model: "".to_string(),
+            config_keys: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConfigKey {
+    pub name: String,
+    pub required: bool,
+    pub secret: bool,
+    pub default: Option<String>,
+}
+
+impl ConfigKey {
+    pub fn new(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -44,8 +105,10 @@ use async_trait::async_trait;
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// Get the model configuration
-    fn get_model_config(&self) -> &ModelConfig;
+    /// Get the metadata for this provider type
+    fn metadata() -> ProviderMetadata
+    where
+        Self: Sized;
 
     /// Generate the next message using the configured model and other parameters
     ///
@@ -63,7 +126,8 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage)>;
 
-    fn get_usage(&self, data: &Value) -> Result<Usage>;
+    /// Get the model config from the provider
+    fn get_model_config(&self) -> ModelConfig;
 }
 
 #[cfg(test)]

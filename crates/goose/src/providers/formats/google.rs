@@ -1,6 +1,6 @@
 use crate::message::{Message, MessageContent};
+use crate::model::ModelConfig;
 use crate::providers::base::Usage;
-use crate::providers::configs::ModelConfig;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
 use mcp_core::content::Content;

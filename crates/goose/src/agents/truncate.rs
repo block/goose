@@ -258,8 +258,8 @@ register_agent!("truncate", TruncateAgent);
 mod tests {
     use crate::agents::truncate::TruncateAgent;
     use crate::message::Message;
-    use crate::providers::base::{Provider, ProviderUsage, Usage};
-    use crate::providers::configs::ModelConfig;
+    use crate::model::ModelConfig;
+    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
     use mcp_core::{Content, Tool};
     use std::iter;
 
@@ -271,8 +271,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Provider for MockProvider {
-        fn get_model_config(&self) -> &ModelConfig {
-            &self.model_config
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
         }
 
         async fn complete(
@@ -285,10 +289,6 @@ mod tests {
                 Message::assistant().with_text("Mock response"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
-        }
-
-        fn get_usage(&self, _data: &serde_json::Value) -> anyhow::Result<Usage> {
-            Ok(Usage::new(None, None, None))
         }
     }
 
@@ -365,9 +365,9 @@ mod tests {
     #[tokio::test]
     async fn test_truncation_when_conversation_history_too_big() -> anyhow::Result<()> {
         let conversation = create_basic_valid_conversation(5000, false);
-        let messages = call_enforce_ctx_limit(&*conversation).await?;
-        assert_eq!(conversation.len() > messages.len(), true);
-        assert_eq!(messages.len() > 0, true);
+        let messages = call_enforce_ctx_limit(&conversation).await?;
+        assert!(conversation.len() > messages.len());
+        assert!(!messages.is_empty());
         Ok(())
     }
 
@@ -380,18 +380,18 @@ mod tests {
         let mut conversation = create_basic_valid_conversation(3, false);
         conversation.push(Message::user().with_text(oversized_message));
 
-        let messages = call_enforce_ctx_limit(&*conversation).await;
+        let messages = call_enforce_ctx_limit(&conversation).await;
 
-        assert!(matches!(messages, Err(_, ..)));
+        assert!(messages.is_err());
         Ok(())
     }
 
     #[tokio::test]
     async fn test_truncation_when_tool_response_set_too_big() -> anyhow::Result<()> {
         let conversation = create_basic_valid_conversation(5000, true);
-        let messages = call_enforce_ctx_limit(&*conversation).await?;
-        assert_eq!(conversation.len() > messages.len(), true);
-        assert_eq!(messages.len() > 0, true);
+        let messages = call_enforce_ctx_limit(&conversation).await?;
+        assert!(conversation.len() > messages.len());
+        assert!(!messages.is_empty());
         Ok(())
     }
 }

@@ -4,11 +4,11 @@ use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderUsage, Usage};
-use super::configs::ModelConfig;
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::formats::anthropic::{create_request, get_usage, response_to_message};
 use super::utils::{emit_debug_trace, get_model, handle_response};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-3-5-sonnet-latest";
@@ -22,14 +22,20 @@ pub struct AnthropicProvider {
     model: ModelConfig,
 }
 
+impl Default for AnthropicProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(AnthropicProvider::metadata().default_model);
+        AnthropicProvider::from_env(model).expect("Failed to initialize Anthropic provider")
+    }
+}
+
 impl AnthropicProvider {
-    pub fn from_env() -> Result<Self> {
-        let api_key =
-            crate::key_manager::get_keyring_secret("ANTHROPIC_API_KEY", Default::default())?;
-        let host = std::env::var("ANTHROPIC_HOST")
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
+        let host: String = config
+            .get("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
-        let model_name = std::env::var("ANTHROPIC_MODEL")
-            .unwrap_or_else(|_| ANTHROPIC_DEFAULT_MODEL.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -39,7 +45,7 @@ impl AnthropicProvider {
             client,
             host,
             api_key,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -61,8 +67,26 @@ impl AnthropicProvider {
 
 #[async_trait]
 impl Provider for AnthropicProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "anthropic",
+            "Anthropic",
+            "Claude and other models from Anthropic",
+            ANTHROPIC_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
+                ConfigKey::new(
+                    "ANTHROPIC_HOST",
+                    false,
+                    false,
+                    Some("https://api.anthropic.com"),
+                ),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -82,13 +106,9 @@ impl Provider for AnthropicProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
     }
 }

@@ -4,7 +4,7 @@ use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
 use goose::{
     agents::{extension::Envs, ExtensionConfig},
-    key_manager::{get_keyring_secret, KeyRetrievalStrategy},
+    config::Config,
 };
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -65,6 +65,9 @@ async fn add_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Load the configuration
+    let config = Config::global();
+
     // Initialize a vector to collect any missing keys.
     let mut missing_keys = Vec::new();
 
@@ -73,7 +76,7 @@ async fn add_extension(
         ExtensionConfigRequest::Sse { uri, env_keys } => {
             let mut env_map = HashMap::new();
             for key in env_keys {
-                match get_keyring_secret(&key, KeyRetrievalStrategy::KeyringOnly) {
+                match config.get_secret(&key) {
                     Ok(value) => {
                         env_map.insert(key, value);
                     }
@@ -105,7 +108,7 @@ async fn add_extension(
         } => {
             let mut env_map = HashMap::new();
             for key in env_keys {
-                match get_keyring_secret(&key, KeyRetrievalStrategy::KeyringOnly) {
+                match config.get_secret(&key) {
                     Ok(value) => {
                         env_map.insert(key, value);
                     }

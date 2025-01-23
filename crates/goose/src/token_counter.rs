@@ -235,7 +235,7 @@ impl TokenCounter {
 mod tests {
     use super::*;
     use crate::message::{Message, MessageContent}; // or however your `Message` is imported
-    use crate::providers::configs::{CLAUDE_TOKENIZER, GPT_4O_TOKENIZER};
+    use crate::model::{CLAUDE_TOKENIZER, GPT_4O_TOKENIZER};
     use mcp_core::role::Role;
     use mcp_core::tool::Tool;
     use serde_json::json;

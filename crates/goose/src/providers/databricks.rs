@@ -5,20 +5,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderUsage, Usage};
-use super::configs::ModelConfig;
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::formats::openai::{
     create_request, get_usage, is_context_length_error, response_to_message,
 };
 use super::oauth;
 use super::utils::{get_model, handle_response, ImageFormat};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
 const DEFAULT_SCOPES: &[&str] = &["all-apis"];
-pub const DATABRICKS_DEFAULT_MODEL: &str = "claude-3-5-sonnet-2";
+pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabricksAuth {
@@ -56,28 +56,29 @@ pub struct DatabricksProvider {
     image_format: ImageFormat,
 }
 
+impl Default for DatabricksProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(DatabricksProvider::metadata().default_model);
+        DatabricksProvider::from_env(model).expect("Failed to initialize Databricks provider")
+    }
+}
+
 impl DatabricksProvider {
-    pub fn from_env() -> Result<Self> {
-        // Although we don't need host to be stored secretly, we use the keyring to make
-        // it easier to coordinate with configuration. We could consider a non secret storage tool
-        // elsewhere in the future
-        let host = crate::key_manager::get_keyring_secret("DATABRICKS_HOST", Default::default())?;
-        let model_name = std::env::var("DATABRICKS_MODEL")
-            .unwrap_or_else(|_| DATABRICKS_DEFAULT_MODEL.to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let host: String = config.get("DATABRICKS_HOST")?;
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
 
         // If we find a databricks token we prefer that
-        if let Ok(api_key) =
-            crate::key_manager::get_keyring_secret("DATABRICKS_TOKEN", Default::default())
-        {
+        if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
             return Ok(Self {
                 client,
                 host: host.clone(),
                 auth: DatabricksAuth::token(api_key),
-                model: ModelConfig::new(model_name),
+                model,
                 image_format: ImageFormat::Anthropic,
             });
         }
@@ -85,9 +86,9 @@ impl DatabricksProvider {
         // Otherwise use Oauth flow
         Ok(Self {
             client,
-            host: host.clone(),
-            auth: DatabricksAuth::oauth(host),
-            model: ModelConfig::new(model_name),
+            auth: DatabricksAuth::oauth(host.clone()),
+            host,
+            model,
             image_format: ImageFormat::Anthropic,
         })
     }
@@ -130,8 +131,21 @@ impl DatabricksProvider {
 
 #[async_trait]
 impl Provider for DatabricksProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "databricks",
+            "Databricks",
+            "Models on Databricks AI Gateway",
+            DATABRICKS_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("DATABRICKS_HOST", true, false, None),
+                ConfigKey::new("DATABRICKS_TOKEN", false, true, None),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -163,14 +177,10 @@ impl Provider for DatabricksProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
     }
 }

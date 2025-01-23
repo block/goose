@@ -440,8 +440,8 @@ mod tests {
     use super::*;
     use goose::{
         agents::AgentFactory,
+        model::ModelConfig,
         providers::base::{Provider, ProviderUsage, Usage},
-        providers::configs::ModelConfig,
     };
     use mcp_core::tool::Tool;
 
@@ -453,8 +453,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl Provider for MockProvider {
-        fn get_model_config(&self) -> &ModelConfig {
-            &self.model_config
+        fn metadata() -> goose::providers::base::ProviderMetadata {
+            goose::providers::base::ProviderMetadata::empty()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
         }
 
         async fn complete(
@@ -467,10 +471,6 @@ mod tests {
                 Message::assistant().with_text("Mock response"),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
-        }
-
-        fn get_usage(&self, _data: &Value) -> anyhow::Result<Usage> {
-            Ok(Usage::new(None, None, None))
         }
     }
 

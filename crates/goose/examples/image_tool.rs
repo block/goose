@@ -19,8 +19,8 @@ async fn main() -> Result<()> {
 
     // Create providers
     let providers: Vec<Box<dyn goose::providers::base::Provider + Send + Sync>> = vec![
-        Box::new(DatabricksProvider::from_env()?),
-        Box::new(OpenAiProvider::from_env()?),
+        Box::new(DatabricksProvider::default()),
+        Box::new(OpenAiProvider::default()),
     ];
 
     for provider in providers {

@@ -4,10 +4,10 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-use super::base::{Provider, ProviderUsage, Usage};
-use super::configs::ModelConfig;
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::utils::{emit_debug_trace, get_model, handle_response};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use crate::providers::formats::openai::{
     create_request, get_usage, is_context_length_error, response_to_message,
 };
@@ -25,14 +25,20 @@ pub struct OpenRouterProvider {
     model: ModelConfig,
 }
 
+impl Default for OpenRouterProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(OpenRouterProvider::metadata().default_model);
+        OpenRouterProvider::from_env(model).expect("Failed to initialize OpenRouter provider")
+    }
+}
+
 impl OpenRouterProvider {
-    pub fn from_env() -> Result<Self> {
-        let api_key =
-            crate::key_manager::get_keyring_secret("OPENROUTER_API_KEY", Default::default())?;
-        let host = std::env::var("OPENROUTER_HOST")
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
+        let host: String = config
+            .get("OPENROUTER_HOST")
             .unwrap_or_else(|_| "https://openrouter.ai".to_string());
-        let model_name = std::env::var("OPENROUTER_MODEL")
-            .unwrap_or_else(|_| OPENROUTER_DEFAULT_MODEL.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -42,7 +48,7 @@ impl OpenRouterProvider {
             client,
             host,
             api_key,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -149,8 +155,26 @@ fn create_request_based_on_model(
 
 #[async_trait]
 impl Provider for OpenRouterProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "openrouter",
+            "OpenRouter",
+            "Router for many model providers",
+            OPENROUTER_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("OPENROUTER_API_KEY", true, true, None),
+                ConfigKey::new(
+                    "OPENROUTER_HOST",
+                    false,
+                    false,
+                    Some("https://openrouter.ai"),
+                ),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -179,13 +203,9 @@ impl Provider for OpenRouterProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
     }
 }

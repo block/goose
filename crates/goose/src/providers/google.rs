@@ -1,6 +1,6 @@
 use crate::message::Message;
-use crate::providers::base::{Provider, ProviderUsage, Usage};
-use crate::providers::configs::ModelConfig;
+use crate::model::ModelConfig;
+use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
 use crate::providers::utils::{emit_debug_trace, handle_response, unescape_json_values};
 use anyhow::Result;
@@ -22,12 +22,20 @@ pub struct GoogleProvider {
     model: ModelConfig,
 }
 
+impl Default for GoogleProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(GoogleProvider::metadata().default_model);
+        GoogleProvider::from_env(model).expect("Failed to initialize Google provider")
+    }
+}
+
 impl GoogleProvider {
-    pub fn from_env() -> Result<Self> {
-        let api_key = crate::key_manager::get_keyring_secret("GOOGLE_API_KEY", Default::default())?;
-        let host = std::env::var("GOOGLE_HOST").unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
-        let model_name =
-            std::env::var("GOOGLE_MODEL").unwrap_or_else(|_| GOOGLE_DEFAULT_MODEL.to_string());
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
+        let host: String = config
+            .get("GOOGLE_HOST")
+            .unwrap_or_else(|_| GOOGLE_API_HOST.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -37,7 +45,7 @@ impl GoogleProvider {
             client,
             host,
             api_key,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -63,8 +71,21 @@ impl GoogleProvider {
 
 #[async_trait]
 impl Provider for GoogleProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "google",
+            "Google Gemini",
+            "Gemini models from Google AI",
+            GOOGLE_DEFAULT_MODEL,
+            vec![
+                ConfigKey::new("GOOGLE_API_KEY", true, true, None),
+                ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST)),
+            ],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -84,7 +105,7 @@ impl Provider for GoogleProvider {
 
         // Parse response
         let message = response_to_message(unescape_json_values(&response))?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = match response.get("modelVersion") {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => self.model.model_name.clone(),
@@ -92,9 +113,5 @@ impl Provider for GoogleProvider {
         emit_debug_trace(self, &payload, &response, &usage);
         let provider_usage = ProviderUsage::new(model, usage);
         Ok((message, provider_usage))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
     }
 }

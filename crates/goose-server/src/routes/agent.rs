@@ -5,7 +5,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::{agents::AgentFactory, providers::factory};
+use goose::config::Config;
+use goose::{agents::AgentFactory, model::ModelConfig, providers};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -82,7 +83,15 @@ async fn create_agent(
         println!("Set environment variable: {}={}", env_var_key, model);
     }
 
-    let provider = factory::get_provider(&payload.provider).expect("Failed to create provider");
+    let config = Config::global();
+    let model = payload.model.unwrap_or_else(|| {
+        config
+            .get("GOOSE_MODEL")
+            .expect("Did not find a model on payload or in env")
+    });
+    let model_config = ModelConfig::new(model);
+    let provider =
+        providers::create(&payload.provider, model_config).expect("Failed to create provider");
 
     let version = payload
         .version

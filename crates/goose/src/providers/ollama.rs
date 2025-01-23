@@ -1,7 +1,7 @@
-use super::base::{Provider, ProviderUsage, Usage};
-use super::configs::ModelConfig;
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::utils::{get_model, handle_response};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -21,14 +21,19 @@ pub struct OllamaProvider {
     model: ModelConfig,
 }
 
+impl Default for OllamaProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(OllamaProvider::metadata().default_model);
+        OllamaProvider::from_env(model).expect("Failed to initialize Ollama provider")
+    }
+}
+
 impl OllamaProvider {
-    pub fn from_env() -> Result<Self> {
-        // Although we don't need host to be stored secretly, we use the keyring to make
-        // it easier to coordinate with configuration. We could consider a non secret storage tool
-        // elsewhere in the future
-        let host = crate::key_manager::get_keyring_secret("OLLAMA_HOST", Default::default())
+    pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        let host: String = config
+            .get("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
-        let model_name = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| OLLAMA_MODEL.to_string());
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -37,7 +42,7 @@ impl OllamaProvider {
         Ok(Self {
             client,
             host,
-            model: ModelConfig::new(model_name),
+            model,
         })
     }
 
@@ -52,8 +57,23 @@ impl OllamaProvider {
 
 #[async_trait]
 impl Provider for OllamaProvider {
-    fn get_model_config(&self) -> &ModelConfig {
-        &self.model
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::new(
+            "ollama",
+            "Ollama",
+            "Local open source models",
+            OLLAMA_MODEL,
+            vec![ConfigKey::new(
+                "OLLAMA_HOST",
+                false,
+                false,
+                Some(OLLAMA_HOST),
+            )],
+        )
+    }
+
+    fn get_model_config(&self) -> ModelConfig {
+        self.model.clone()
     }
 
     #[tracing::instrument(
@@ -78,13 +98,9 @@ impl Provider for OllamaProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = self.get_usage(&response)?;
+        let usage = get_usage(&response)?;
         let model = get_model(&response);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
-    }
-
-    fn get_usage(&self, data: &Value) -> Result<Usage> {
-        get_usage(data)
     }
 }

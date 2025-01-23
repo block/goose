@@ -15,8 +15,9 @@ set -euo pipefail
 #
 # Environment variables:
 #   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)
-#   GOOSE_PROVIDER - Optional: provider for goose (passed to "goose configure")
-#   GOOSE_MODEL    - Optional: model for goose (passed to "goose configure")
+#   GOOSE_PROVIDER - Optional: provider for goose
+#   GOOSE_MODEL    - Optional: model for goose
+#   ** other provider specific environment variables (eg. DATABRICKS_HOST)
 ##############################################################################
 
 # --- 1) Check for curl ---
@@ -88,35 +89,18 @@ fi
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 mv goose "$GOOSE_BIN_DIR/$OUT_FILE"
 
-# --- 6) Check PATH and give instructions if needed ---
+# --- 6) Configure Goose (Optional) ---
+echo ""
+echo "Configuring Goose"
+echo ""
+"$GOOSE_BIN_DIR/$OUT_FILE" configure
+
+# --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
-  echo "Warning: $GOOSE_BIN_DIR is not in your PATH."
+  echo "Warning: Goose installed, but $GOOSE_BIN_DIR is not in your PATH."
   echo "Add it to your PATH by editing ~/.bashrc, ~/.zshrc, or similar:"
   echo "    export PATH=\"$GOOSE_BIN_DIR:\$PATH\""
   echo "Then reload your shell (e.g. 'source ~/.bashrc', 'source ~/.zshrc') to apply changes."
   echo ""
 fi
-
-# --- 7) Auto-configure Goose (Optional) ---
-CONFIG_ARGS=""
-if [ -n "${GOOSE_PROVIDER:-}" ]; then
-  CONFIG_ARGS="$CONFIG_ARGS -p $GOOSE_PROVIDER"
-fi
-if [ -n "${GOOSE_MODEL:-}" ]; then
-  CONFIG_ARGS="$CONFIG_ARGS -m $GOOSE_MODEL"
-fi
-
-# Print a different message based on whether CONFIG_ARGS is set
-echo ""
-if [ -n "$CONFIG_ARGS" ]; then
-  echo "Configuring Goose with: '$CONFIG_ARGS'"
-else
-  echo "Configuring Goose"
-fi
-echo ""
-"$GOOSE_BIN_DIR/$OUT_FILE" configure $CONFIG_ARGS
-
-echo ""
-echo "Goose installed successfully! Run '$OUT_FILE session' to get started."
-echo ""
