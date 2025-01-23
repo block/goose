@@ -42,7 +42,7 @@ export async function callCustomChatApi({
     },
     signal: abortController?.()?.signal,
     credentials,
-  }).catch(err => {
+  }).catch((err) => {
     restoreMessagesOnFailure();
     throw err;
   });
@@ -57,9 +57,7 @@ export async function callCustomChatApi({
 
   if (!response.ok) {
     restoreMessagesOnFailure();
-    throw new Error(
-      (await response.text()) ?? 'Failed to fetch the chat response.',
-    );
+    throw new Error((await response.text()) ?? 'Failed to fetch the chat response.');
   }
 
   if (!response.body) {

@@ -9,7 +9,7 @@ const mockKeychain = {
     } catch (error) {
       console.error('MockKeychain: Failed to store key:', {
         key,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
@@ -30,7 +30,7 @@ const mockKeychain = {
   async deleteKey(key: string): Promise<void> {
     console.log('MockKeychain: Deleting key:', key);
     localStorage.removeItem(KEYCHAIN_PREFIX + key);
-  }
+  },
 };
 
-export default mockKeychain; 
+export default mockKeychain;

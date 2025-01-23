@@ -50,7 +50,7 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
   } else {
     delete process.env.GOOSE_SERVER__MEMORY;
   }
-  
+
   if (envToggles.GOOSE_SERVER__NON_DEVELOPER) {
     process.env.GOOSE_SERVER__NON_DEVELOPER = 'true';
   } else {
@@ -59,7 +59,10 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
 }
 
 // Menu management
-export function createEnvironmentMenu(envToggles: EnvToggles, onToggle: (newToggles: EnvToggles) => void) {
+export function createEnvironmentMenu(
+  envToggles: EnvToggles,
+  onToggle: (newToggles: EnvToggles) => void
+) {
   return [
     {
       label: 'Enable Memory Mode',
@@ -71,7 +74,7 @@ export function createEnvironmentMenu(envToggles: EnvToggles, onToggle: (newTogg
           GOOSE_SERVER__MEMORY: menuItem.checked,
         };
         onToggle(newToggles);
-      }
+      },
     },
     {
       label: 'Enable Non-Developer Mode',
@@ -83,7 +86,7 @@ export function createEnvironmentMenu(envToggles: EnvToggles, onToggle: (newTogg
           GOOSE_SERVER__NON_DEVELOPER: menuItem.checked,
         };
         onToggle(newToggles);
-      }
-    }
+      },
+    },
   ];
 }

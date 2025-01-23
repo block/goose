@@ -22,22 +22,22 @@ async function fetchMetadata(url: string): Promise<Metadata> {
     const baseUrl = new URL(url);
 
     // Extract title
-    const title = 
+    const title =
       doc.querySelector('title')?.textContent ||
       doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
 
     // Extract description
-    const description = 
+    const description =
       doc.querySelector('meta[name="description"]')?.getAttribute('content') ||
       doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
 
     // Extract favicon
-    const faviconLink = 
+    const faviconLink =
       doc.querySelector('link[rel="icon"]') ||
       doc.querySelector('link[rel="shortcut icon"]') ||
       doc.querySelector('link[rel="apple-touch-icon"]') ||
       doc.querySelector('link[rel="apple-touch-icon-precomposed"]');
-    
+
     let favicon = faviconLink?.getAttribute('href');
     if (favicon) {
       favicon = new URL(favicon, baseUrl).toString();
@@ -57,7 +57,7 @@ async function fetchMetadata(url: string): Promise<Metadata> {
       description,
       favicon,
       image,
-      url
+      url,
     };
   } catch (error) {
     console.error('❌ Error fetching metadata:', error);
@@ -66,7 +66,7 @@ async function fetchMetadata(url: string): Promise<Metadata> {
       description: undefined,
       favicon: undefined,
       image: undefined,
-      url
+      url,
     };
   }
 }
@@ -98,32 +98,34 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
     };
 
     fetchData();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [url]);
 
   if (loading) {
     return null;
   }
-  
+
   if (error) {
     return null;
   }
-  
+
   if (!metadata || !metadata.title) {
     return null;
   }
 
   return (
-    <Card 
+    <Card
       className="max-w-[300px] truncate flex items-center bg-link-preview dark:bg-link-preview-dark p-3 transition-colors cursor-pointer"
       onClick={() => {
         window.electron.openInChrome(url);
       }}
     >
       {metadata.favicon && (
-        <img 
-          src={metadata.favicon} 
-          alt="Site favicon" 
+        <img
+          src={metadata.favicon}
+          alt="Site favicon"
           className="w-4 h-4 mr-2"
           onError={(e) => {
             e.currentTarget.style.display = 'none';
@@ -137,9 +139,9 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
         )}
       </div>
       {metadata.image && (
-        <img 
-          src={metadata.image} 
-          alt="Preview" 
+        <img
+          src={metadata.image}
+          alt="Preview"
           className="w-16 h-16 object-cover rounded ml-3"
           onError={(e) => {
             e.currentTarget.style.display = 'none';

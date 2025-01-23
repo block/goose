@@ -5,29 +5,29 @@
 /* Cash Sans */
 
 @font-face {
-  font-family: "CashSans";
-  src: url("./fonts/CashSans-Regular.woff2") format("woff2");
+  font-family: 'CashSans';
+  src: url('./fonts/CashSans-Regular.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "CashSans";
-  src: url("./fonts/CashSans-Bold.woff2") format("woff2");
+  font-family: 'CashSans';
+  src: url('./fonts/CashSans-Bold.woff2') format('woff2');
   font-weight: bold;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "CashSans";
-  src: url("./fonts/CashSansMono-Light.woff2") format("woff2");
+  font-family: 'CashSans';
+  src: url('./fonts/CashSansMono-Light.woff2') format('woff2');
   font-weight: lighter;
   font-style: normal;
 }
 
 @font-face {
-  font-family: "CashSans";
-  src: url("./fonts/CashSansMono-Regular.woff2") format("woff2");
+  font-family: 'CashSans';
+  src: url('./fonts/CashSansMono-Regular.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
 }
@@ -137,7 +137,7 @@
 
   .ask-goose-type {
     color: #000;
-    font-family: "Square Sans Mono";
+    font-family: 'Square Sans Mono';
     font-size: 16px;
     font-style: normal;
     font-weight: 600;
@@ -188,7 +188,7 @@
   .bg-inline-code {
     border-radius: 4px;
     color: rgba(255, 130, 130, 0.85);
-    font-family: "Square Sans Mono";
+    font-family: 'Square Sans Mono';
     font-size: 12px;
     font-style: normal;
     font-weight: 400;
@@ -196,7 +196,7 @@
   }
 
   .bg-inline-code:before {
-    content: "";
+    content: '';
   }
   pre:has(> code.bg-inline-code) {
     padding: 1em;
@@ -209,7 +209,7 @@
   }
 
   .bg-inline-code:after {
-    content: "";
+    content: '';
   }
 
   .dark .bg-inline-code {

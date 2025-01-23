@@ -1,21 +1,21 @@
-import { getApiUrl, getSecretKey } from "./config";
-import { NavigateFunction } from "react-router-dom";
+import { getApiUrl, getSecretKey } from './config';
+import { NavigateFunction } from 'react-router-dom';
 
 // ExtensionConfig type matching the Rust version
 export type ExtensionConfig =
   | {
-      type: "sse";
+      type: 'sse';
       uri: string;
       env_keys?: string[];
     }
   | {
-      type: "stdio";
+      type: 'stdio';
       cmd: string;
       args: string[];
       env_keys?: string[];
     }
   | {
-      type: "builtin";
+      type: 'builtin';
       name: string;
       env_keys?: string[];
     };
@@ -26,13 +26,15 @@ export type FullExtensionConfig = ExtensionConfig & {
   name: string;
   description: string;
   enabled: boolean;
-}
+};
 
 // Store extension config in user_settings
 const storeExtensionConfig = (config: FullExtensionConfig) => {
   try {
     const userSettingsStr = localStorage.getItem('user_settings');
-    const userSettings = userSettingsStr ? JSON.parse(userSettingsStr) : { models: [], extensions: [] };
+    const userSettings = userSettingsStr
+      ? JSON.parse(userSettingsStr)
+      : { models: [], extensions: [] };
 
     // Check if config already exists (based on cmd for stdio, uri for sse, name for builtin)
     const extensionExists = userSettings.extensions.some(
@@ -56,23 +58,32 @@ export const loadStoredExtensionConfigs = async (): Promise<void> => {
   try {
     const userSettingsStr = localStorage.getItem('user_settings');
 
+    //console.log('Loading stored extension configs from user_settings', userSettingsStr);
+
     if (userSettingsStr) {
       const userSettings = JSON.parse(userSettingsStr);
       const enabledExtensions = userSettings.extensions.filter((ext: any) => ext.enabled);
+      //console.log('Enabled extensions:', enabledExtensions);
 
       for (const ext of enabledExtensions) {
         // Convert extension format back to ExtensionConfig
+        console.log('Loading extension:', ext);
+
         const config: ExtensionConfig = {
           type: 'stdio', // Assuming all stored extensions are stdio type for now
-          cmd: ext.command,
-          args: [],
-          env_keys: ext.environmentVariables?.map((env: any) => env.name) || []
+          cmd: ext.cmd,
+          args: ext.args || [],
+          env_keys: ext.env_keys || [],
         };
+
+        console.log('ext config', config);
 
         await extendGoosed(config);
       }
 
-      console.log('Loaded stored extension configs from user_settings and activated extensions with agent');
+      console.log(
+        'Loaded stored extension configs from user_settings and activated extensions with agent'
+      );
     }
   } catch (error) {
     console.error('Error loading stored extension configs:', error);
@@ -81,30 +92,25 @@ export const loadStoredExtensionConfigs = async (): Promise<void> => {
 
 // Update the path to the binary based on the command
 export const replaceWithShims = async (cmd: string): Promise<string> => {
-  
-    const binaryPathMap: Record<string, string> = {
-      'goosed': await window.electron.getBinaryPath('goosed'),
-      'npx': await window.electron.getBinaryPath('npx'),
-      'uvx': await window.electron.getBinaryPath('uvx'),
-    };    
-    
-    if (binaryPathMap[cmd]) {
-      console.log("--------> Replacing command with shim ------>", cmd, binaryPathMap[cmd]);
-      cmd = binaryPathMap[cmd];
-    }    
+  const binaryPathMap: Record<string, string> = {
+    goosed: await window.electron.getBinaryPath('goosed'),
+    npx: await window.electron.getBinaryPath('npx'),
+    uvx: await window.electron.getBinaryPath('uvx'),
+  };
+
+  if (binaryPathMap[cmd]) {
+    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
+    cmd = binaryPathMap[cmd];
+  }
 
   return cmd;
-}
+};
 
 // Extend Goosed with a new system configuration
 export const extendGoosed = async (config: ExtensionConfig) => {
+  console.log('extendGoosed', config);
   // allowlist the CMD for stdio type
-  if (config.type === "stdio") {
-    const allowedCMDs = ['goosed', 'npx', 'uvx'];
-    if (!allowedCMDs.includes(config.cmd)) {
-      console.error(`System ${config.cmd} is not supported right now`);
-      return;
-    }    
+  if (config.type === 'stdio') {
     config.cmd = await replaceWithShims(config.cmd);
   }
 
@@ -115,7 +121,7 @@ export const extendGoosed = async (config: ExtensionConfig) => {
         'Content-Type': 'application/json',
         'X-Secret-Key': getSecretKey(),
       },
-      body: JSON.stringify(config)
+      body: JSON.stringify(config),
     });
     const data = await response.json();
 
@@ -139,8 +145,8 @@ const envVarsRequired = (config: ExtensionConfig): boolean => {
 
 // Extend Goosed from a goose://extension URL
 export const extendGoosedFromUrl = async (url: string, navigate: NavigateFunction) => {
-  if (!url.startsWith("goose://extension")) {
-    console.log("Invalid URL: URL must use the goose://extension scheme");
+  if (!url.startsWith('goose://extension')) {
+    console.log('Invalid URL: URL must use the goose://extension scheme');
     return;
   }
 
@@ -148,39 +154,42 @@ export const extendGoosedFromUrl = async (url: string, navigate: NavigateFunctio
 
   const parsedUrl = new URL(url);
 
-  if (parsedUrl.protocol !== "goose:") {
-    throw new Error("Invalid protocol: URL must use the goose:// scheme");
+  if (parsedUrl.protocol !== 'goose:') {
+    throw new Error('Invalid protocol: URL must use the goose:// scheme');
   }
 
-  const cmd = parsedUrl.searchParams.get("cmd");
+  const cmd = parsedUrl.searchParams.get('cmd');
 
   if (!cmd) {
     throw new Error("Missing required 'cmd' parameter in the URL");
   }
 
-  const args = parsedUrl.searchParams.getAll("arg");
-  const envList = parsedUrl.searchParams.getAll("env");
-  const id = parsedUrl.searchParams.get("id");
-  const name = parsedUrl.searchParams.get("name");
-  const description = parsedUrl.searchParams.get("description");
+  const args = parsedUrl.searchParams.getAll('arg');
+  const envList = parsedUrl.searchParams.getAll('env');
+  const id = parsedUrl.searchParams.get('id');
+  const name = parsedUrl.searchParams.get('name');
+  const description = parsedUrl.searchParams.get('description');
 
   // split env based on delimiter to a map
-  const envs = envList.reduce((acc, env) => {
-    const [key, value] = env.split("=");
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
+  const envs = envList.reduce(
+    (acc, env) => {
+      const [key, value] = env.split('=');
+      acc[key] = value;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
 
   // Create a ExtensionConfig from the URL parameters
   const config: FullExtensionConfig = {
     id,
     name,
-    type: "stdio",
+    type: 'stdio',
     cmd,
     args,
     description,
     enabled: true,
-    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : undefined
+    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : undefined,
   };
 
   // Store the extension config regardless of env vars status

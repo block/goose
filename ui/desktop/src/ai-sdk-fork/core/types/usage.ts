@@ -4,9 +4,7 @@ export interface LanguageModelUsage {
   totalTokens: number;
 }
 
-export function calculateLanguageModelUsage(
-  usage: LanguageModelUsage,
-): LanguageModelUsage {
+export function calculateLanguageModelUsage(usage: LanguageModelUsage): LanguageModelUsage {
   return {
     completionTokens: usage.completionTokens,
     promptTokens: usage.promptTokens,

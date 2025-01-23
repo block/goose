@@ -18,13 +18,14 @@ const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, onReload }) => {
           </div>
           <div
             className="p-4 text-center text-splash-pills-text whitespace-nowrap cursor-pointer bg-prev-goose-gradient dark:bg-dark-prev-goose-gradient text-prev-goose-text dark:text-prev-goose-text-dark rounded-[14px] inline-block hover:scale-[1.02] transition-all duration-150"
-            onClick={onReload}>
+            onClick={onReload}
+          >
             Reload
           </div>
         </div>
       </Card>
     </div>
   );
-}
+};
 
 export default ErrorScreen;

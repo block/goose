@@ -1,4 +1,4 @@
-import React from "react"
+import React from 'react';
 
 function SplashPill({ content, append }) {
   return (
@@ -10,14 +10,14 @@ function SplashPill({ content, append }) {
       onClick={async () => {
         const message = {
           content,
-          role: "user",
+          role: 'user',
         };
         await append(message);
       }}
     >
       <div className="line-clamp-2">{content}</div>
     </div>
-  )
+  );
 }
 
 export default function SplashPills({ append }) {
@@ -28,5 +28,5 @@ export default function SplashPills({ append }) {
       <SplashPill content="List files in my current directory" append={append} />
       <SplashPill content="Take a screenshot and summarize" append={append} />
     </div>
-  )
+  );
 }

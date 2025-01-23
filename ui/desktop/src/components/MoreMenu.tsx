@@ -1,14 +1,12 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  PopoverPortal,
-} from "@radix-ui/react-popover";
-import React, { useEffect, useState } from "react";
-import { FaMoon, FaSun } from "react-icons/fa";
-import VertDots from "./ui/VertDots";
-import { useNavigate } from "react-router-dom";
-import { More } from "./icons";
+import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-ui/react-popover';
+import React, { useEffect, useState } from 'react';
+import { FaMoon, FaSun } from 'react-icons/fa';
+import VertDots from './ui/VertDots';
+import { useNavigate } from 'react-router-dom';
+import { More } from './icons';
+import { Settings, Grid, MessageSquare } from 'lucide-react';
+import { Button } from './ui/button';
+
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
@@ -21,35 +19,31 @@ export default function MoreMenu() {
   const [showVersions, setShowVersions] = useState(false);
 
   const [useSystemTheme, setUseSystemTheme] = useState(
-    () => localStorage.getItem("use_system_theme") === "true"
+    () => localStorage.getItem('use_system_theme') === 'true'
   );
 
   const [isDarkMode, setDarkMode] = useState(() => {
-    const systemPrefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (useSystemTheme) {
       return systemPrefersDark;
     }
-    const savedTheme = localStorage.getItem("theme");
-    return savedTheme ? savedTheme === "dark" : systemPrefersDark;
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme ? savedTheme === 'dark' : systemPrefersDark;
   });
 
   useEffect(() => {
     // Fetch available versions when the menu opens
     const fetchVersions = async () => {
       try {
-        const port = window.appConfig.get("GOOSE_PORT");
-        const response = await fetch(
-          `http://127.0.0.1:${port}/agent/versions`
-        );
+        const port = window.appConfig.get('GOOSE_PORT');
+        const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         setVersions(data);
       } catch (error) {
-        console.error("Failed to fetch versions:", error);
+        console.error('Failed to fetch versions:', error);
       }
     };
 
@@ -59,7 +53,7 @@ export default function MoreMenu() {
   }, [open]);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     // Handler for system theme changes
     const handleThemeChange = (e: { matches: boolean }) => {
@@ -69,28 +63,28 @@ export default function MoreMenu() {
     };
 
     // Add listener for system theme changes
-    mediaQuery.addEventListener("change", handleThemeChange);
+    mediaQuery.addEventListener('change', handleThemeChange);
 
     // Initial setup
     if (useSystemTheme) {
       setDarkMode(mediaQuery.matches);
     } else {
-      const savedTheme = localStorage.getItem("theme");
-      setDarkMode(savedTheme ? savedTheme === "dark" : mediaQuery.matches);
+      const savedTheme = localStorage.getItem('theme');
+      setDarkMode(savedTheme ? savedTheme === 'dark' : mediaQuery.matches);
     }
 
     // Cleanup
-    return () => mediaQuery.removeEventListener("change", handleThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [useSystemTheme]);
 
   useEffect(() => {
     if (isDarkMode) {
-      document.documentElement.classList.add("dark");
+      document.documentElement.classList.add('dark');
     } else {
-      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.remove('dark');
     }
     if (!useSystemTheme) {
-      localStorage.setItem("theme", isDarkMode ? "dark" : "light");
+      localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
     }
   }, [isDarkMode, useSystemTheme]);
 
@@ -103,15 +97,13 @@ export default function MoreMenu() {
   const toggleUseSystemTheme = (event: React.ChangeEvent<HTMLInputElement>) => {
     const checked = event.target.checked;
     setUseSystemTheme(checked);
-    localStorage.setItem("use_system_theme", checked.toString());
+    localStorage.setItem('use_system_theme', checked.toString());
 
     if (checked) {
       // If enabling system theme, immediately sync with system preference
-      const systemPrefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
+      const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setDarkMode(systemPrefersDark);
-      localStorage.removeItem("theme"); // Remove manual theme setting
+      localStorage.removeItem('theme'); // Remove manual theme setting
     }
     // If disabling system theme, keep current theme state but don't update localStorage yet
   };
@@ -139,28 +131,20 @@ export default function MoreMenu() {
           <div className="flex flex-col rounded-md">
             <div className="flex items-center justify-between p-2">
               <span className="text-sm">Use System Theme</span>
-              <input
-                type="checkbox"
-                checked={useSystemTheme}
-                onChange={toggleUseSystemTheme}
-              />
+              <input type="checkbox" checked={useSystemTheme} onChange={toggleUseSystemTheme} />
             </div>
             {!useSystemTheme && (
               <div className="flex items-center justify-between p-2">
-                <span className="text-sm">
-                  {isDarkMode ? "Dark Mode" : "Light Mode"}
-                </span>
+                <span className="text-sm">{isDarkMode ? 'Dark Mode' : 'Light Mode'}</span>
                 <button
                   className={`relative inline-flex items-center h-6 rounded-full w-11 focus:outline-none border-2 ${
-                    isDarkMode
-                      ? "bg-gray-600 border-gray-600"
-                      : "bg-yellow-300 border-yellow-300"
+                    isDarkMode ? 'bg-gray-600 border-gray-600' : 'bg-yellow-300 border-yellow-300'
                   }`}
                   onClick={() => toggleTheme()}
                 >
                   <span
                     className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
-                      isDarkMode ? "translate-x-6" : "translate-x-1"
+                      isDarkMode ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   >
                     {isDarkMode ? (
@@ -182,7 +166,7 @@ export default function MoreMenu() {
                   className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 flex justify-between items-center"
                 >
                   <span>Versions</span>
-                  <span className="text-xs">{showVersions ? "▼" : "▶"}</span>
+                  <span className="text-xs">{showVersions ? '▼' : '▶'}</span>
                 </button>
                 {showVersions && (
                   <div className="pl-2 bg-gray-900">
@@ -191,13 +175,10 @@ export default function MoreMenu() {
                         key={version}
                         onClick={() => handleVersionSelect(version)}
                         className={`w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 ${
-                          version === versions.current_version
-                            ? "text-green-400"
-                            : ""
+                          version === versions.current_version ? 'text-green-400' : ''
                         }`}
                       >
-                        {version}{" "}
-                        {version === versions.current_version && "(current)"}
+                        {version} {version === versions.current_version && '(current)'}
                       </button>
                     ))}
                   </div>
@@ -206,17 +187,15 @@ export default function MoreMenu() {
             )}
 
             {/* Settings Menu */}
-            {process.env.NODE_ENV === "development" && (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  navigate("/settings");
-                }}
-                className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
-              >
-                Settings
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate('/settings');
+              }}
+              className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
+            >
+              Settings
+            </button>
 
             <button
               onClick={() => {
@@ -238,7 +217,7 @@ export default function MoreMenu() {
             </button>
             <button
               onClick={() => {
-                localStorage.removeItem("GOOSE_PROVIDER");
+                localStorage.removeItem('GOOSE_PROVIDER');
                 setOpen(false);
                 window.electron.createChatWindow();
               }}
@@ -247,16 +226,16 @@ export default function MoreMenu() {
               Reset Provider
             </button>
             {/* Provider keys settings */}
-            {process.env.NODE_ENV === "development" && (
-                <button
-                    onClick={() => {
-                      setOpen(false);
-                      navigate("/keys");
-                    }}
-                    className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
-                >
-                  Provider Settings (alpha)
-                </button>
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  navigate('/keys');
+                }}
+                className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700"
+              >
+                Provider Settings (alpha)
+              </button>
             )}
           </div>
         </PopoverContent>

@@ -1,6 +1,6 @@
 import { generateId as generateIdFunction } from '@ai-sdk/provider-utils';
 import type { JSONValue, Message } from '@ai-sdk/ui-utils';
-import {parsePartialJson, processDataStream } from '@ai-sdk/ui-utils';
+import { parsePartialJson, processDataStream } from '@ai-sdk/ui-utils';
 import { LanguageModelV1FinishReason } from '@ai-sdk/provider';
 import { LanguageModelUsage } from './core/types/usage';
 
@@ -39,10 +39,7 @@ export async function processCustomChatResponse({
   let lastEventType: 'text' | 'tool' | undefined = undefined;
 
   // Keep track of partial tool calls
-  const partialToolCalls: Record<
-    string,
-    { text: string; index: number; toolName: string }
-  > = {};
+  const partialToolCalls: Record<string, { text: string; index: number; toolName: string }> = {};
 
   let usage: LanguageModelUsage = {
     completionTokens: NaN,
@@ -154,9 +151,10 @@ export async function processCustomChatResponse({
       lastEventType = 'tool';
 
       if (partialToolCalls[value.toolCallId] != null) {
-        currentMessage.toolInvocations![
-          partialToolCalls[value.toolCallId].index
-        ] = { state: 'call', ...value };
+        currentMessage.toolInvocations![partialToolCalls[value.toolCallId].index] = {
+          state: 'call',
+          ...value,
+        };
       } else {
         if (currentMessage.toolInvocations == null) {
           currentMessage.toolInvocations = [];
@@ -171,9 +169,11 @@ export async function processCustomChatResponse({
       if (onToolCall) {
         const result = await onToolCall({ toolCall: value });
         if (result != null) {
-          currentMessage.toolInvocations![
-            currentMessage.toolInvocations!.length - 1
-          ] = { state: 'result', ...value, result };
+          currentMessage.toolInvocations![currentMessage.toolInvocations!.length - 1] = {
+            state: 'result',
+            ...value,
+            result,
+          };
         }
       }
 
@@ -191,13 +191,11 @@ export async function processCustomChatResponse({
       }
 
       const toolInvocationIndex = toolInvocations.findIndex(
-        invocation => invocation.toolCallId === value.toolCallId,
+        (invocation) => invocation.toolCallId === value.toolCallId
       );
 
       if (toolInvocationIndex === -1) {
-        throw new Error(
-          'tool_result must be preceded by a tool_call with the same toolCallId',
-        );
+        throw new Error('tool_result must be preceded by a tool_call with the same toolCallId');
       }
 
       toolInvocations[toolInvocationIndex] = {

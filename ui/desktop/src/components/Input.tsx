@@ -1,7 +1,7 @@
-import React, { useRef, useState, useEffect } from "react";
-import { Button } from "./ui/button";
-import Stop from "./ui/Stop";
-import { Attach, Send } from "./icons";
+import React, { useRef, useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import Stop from './ui/Stop';
+import { Attach, Send } from './icons';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -24,7 +24,7 @@ export default function Input({
   isLoading = false,
   onStop,
 }: InputProps) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -33,20 +33,17 @@ export default function Input({
     }
   }, [disabled, value]);
 
-  const useAutosizeTextArea = (
-    textAreaRef: HTMLTextAreaElement | null,
-    value: string
-  ) => {
+  const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
       if (textAreaRef) {
-        textAreaRef.style.height = "0px"; // Reset height
+        textAreaRef.style.height = '0px'; // Reset height
         const scrollHeight = textAreaRef.scrollHeight;
-        textAreaRef.style.height = Math.min(scrollHeight, maxHeight) + "px";
+        textAreaRef.style.height = Math.min(scrollHeight, maxHeight) + 'px';
       }
     }, [textAreaRef, value]);
   };
 
-  const minHeight = "1rem";
+  const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
   useAutosizeTextArea(textAreaRef.current, value);
@@ -57,11 +54,11 @@ export default function Input({
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (evt.key === "Enter" && !evt.shiftKey) {
+    if (evt.key === 'Enter' && !evt.shiftKey) {
       evt.preventDefault();
       if (value.trim()) {
-        handleSubmit(new CustomEvent("submit", { detail: { value } }));
-        setValue("");
+        handleSubmit(new CustomEvent('submit', { detail: { value } }));
+        setValue('');
       }
     }
   };
@@ -69,8 +66,8 @@ export default function Input({
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (value.trim()) {
-      handleSubmit(new CustomEvent("submit", { detail: { value } }));
-      setValue("");
+      handleSubmit(new CustomEvent('submit', { detail: { value } }));
+      setValue('');
     }
   };
 
@@ -100,10 +97,10 @@ export default function Input({
         style={{
           minHeight: `${minHeight}px`,
           maxHeight: `${maxHeight}px`,
-          overflowY: "auto",
+          overflowY: 'auto',
         }}
         className={`w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-14 resize-none ${
-          disabled ? "cursor-not-allowed opacity-50" : ""
+          disabled ? 'cursor-not-allowed opacity-50' : ''
         }`}
       />
       <Button
@@ -113,7 +110,7 @@ export default function Input({
         onClick={handleFileSelect}
         disabled={disabled}
         className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-          disabled ? "opacity-50 cursor-not-allowed" : ""
+          disabled ? 'opacity-50 cursor-not-allowed' : ''
         }`}
       >
         <Attach />
@@ -135,7 +132,7 @@ export default function Input({
           variant="ghost"
           disabled={disabled || !value.trim()}
           className={`absolute right-2 top-1/2 -translate-y-1/2 text-indigo-600 dark:text-indigo-300 hover:text-indigo-700 dark:hover:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 ${
-            disabled || !value.trim() ? "opacity-50 cursor-not-allowed" : ""
+            disabled || !value.trim() ? 'opacity-50 cursor-not-allowed' : ''
           }`}
         >
           <Send />

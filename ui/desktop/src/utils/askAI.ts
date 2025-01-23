@@ -179,12 +179,12 @@ export async function ask(prompt: string): Promise<string> {
 export async function askAi(messageContent: string): Promise<string[]> {
   // First, check the question classifier
   const questionClassification = await ask(getQuestionClassifierPrompt(messageContent));
-  
+
   // If READY, return early with empty responses for options
   if (questionClassification === 'READY') {
     return [questionClassification, 'NO', '[]', '{}'];
   }
-  
+
   // Otherwise, proceed with all classifiers in parallel
   const prompts = [
     Promise.resolve(questionClassification), // Reuse the result we already have
@@ -192,6 +192,6 @@ export async function askAi(messageContent: string): Promise<string[]> {
     ask(getOptionsFormatterPrompt(messageContent)),
     ask(getFormPrompt(messageContent)),
   ];
-  
+
   return Promise.all(prompts);
 }

@@ -1,14 +1,31 @@
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, MenuItem, Notification, powerSaveBlocker, Tray } from 'electron';
-import started from "electron-squirrel-startup";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  MenuItem,
+  Notification,
+  powerSaveBlocker,
+  Tray,
+} from 'electron';
+import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadZshEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { createEnvironmentMenu, EnvToggles, loadSettings, saveSettings, updateEnvironmentVariables } from './utils/settings';
+import {
+  createEnvironmentMenu,
+  EnvToggles,
+  loadSettings,
+  saveSettings,
+  updateEnvironmentVariables,
+} from './utils/settings';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -76,7 +93,7 @@ const generateSecretKey = () => {
   return key;
 };
 
-let appConfig = { 
+let appConfig = {
   GOOSE_PROVIDER: getGooseProvider(),
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
@@ -150,12 +167,14 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [JSON.stringify({ 
-        ...appConfig, 
-        GOOSE_PORT: port,
-        GOOSE_WORKING_DIR: working_dir,
-        REQUEST_DIR: dir,
-      })],
+      additionalArguments: [
+        JSON.stringify({
+          ...appConfig,
+          GOOSE_PORT: port,
+          GOOSE_WORKING_DIR: working_dir,
+          REQUEST_DIR: dir,
+        }),
+      ],
     },
   });
 
@@ -178,10 +197,9 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParam}`);
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
-      { search: queryParam.slice(1) }
-    );
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`), {
+      search: queryParam.slice(1),
+    });
   }
 
   // DevTools shortcut management
@@ -215,8 +233,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     unregisterDevToolsShortcut();
     goosedProcess.kill();
   });
-
-  
 };
 
 const createTray = () => {
@@ -234,7 +250,7 @@ const createTray = () => {
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() }
+    { label: 'Quit', click: () => app.quit() },
   ]);
 
   tray.setToolTip('Goose');
@@ -245,7 +261,7 @@ const showWindow = () => {
   const windows = BrowserWindow.getAllWindows();
 
   if (windows.length === 0) {
-    log.info("No windows are currently open.");
+    log.info('No windows are currently open.');
     return;
   }
 
@@ -276,19 +292,19 @@ const showWindow = () => {
 
 const buildRecentFilesMenu = () => {
   const recentDirs = loadRecentDirs();
-  return recentDirs.map(dir => ({
+  return recentDirs.map((dir) => ({
     label: dir,
     click: () => {
       createChat(app, undefined, dir);
-    }
+    },
   }));
 };
 
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory']
+    properties: ['openDirectory'],
   });
-  
+
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     if (replaceWindow) {
@@ -301,7 +317,7 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
 // Global error handler
 const handleFatalError = (error: Error) => {
   const windows = BrowserWindow.getAllWindows();
-  windows.forEach(win => {
+  windows.forEach((win) => {
     win.webContents.send('fatal-error', error.message || 'An unexpected error occurred');
   });
 };
@@ -319,9 +335,9 @@ process.on('unhandledRejection', (error) => {
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory']
+    properties: ['openFile', 'openDirectory'],
   });
-  
+
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
@@ -340,7 +356,7 @@ app.whenReady().then(async () => {
 
   // Parse command line arguments
   const { dirPath } = parseArgs();
-  
+
   createTray();
   const recentDirs = loadRecentDirs();
   let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
@@ -353,91 +369,105 @@ app.whenReady().then(async () => {
   const menu = Menu.getApplicationMenu();
 
   // Add Environment menu items to View menu
-  const viewMenu = menu.items.find(item => item.label === 'View');
+  const viewMenu = menu.items.find((item) => item.label === 'View');
   if (viewMenu) {
     viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
-    viewMenu.submenu.append(new MenuItem({
-      label: 'Environment',
-      submenu: Menu.buildFromTemplate(createEnvironmentMenu(envToggles, (newToggles) => {
-        envToggles = newToggles;
-        saveSettings({ envToggles: newToggles });
-        updateEnvironmentVariables(newToggles);
-      }))
-    }));
+    viewMenu.submenu.append(
+      new MenuItem({
+        label: 'Environment',
+        submenu: Menu.buildFromTemplate(
+          createEnvironmentMenu(envToggles, (newToggles) => {
+            envToggles = newToggles;
+            saveSettings({ envToggles: newToggles });
+            updateEnvironmentVariables(newToggles);
+          })
+        ),
+      })
+    );
   }
 
-  const fileMenu = menu?.items.find(item => item.label === 'File');
-  
+  const fileMenu = menu?.items.find((item) => item.label === 'File');
+
   // open goose to specific dir and set that as its working space
-  fileMenu.submenu.append(new MenuItem({
-    label: 'Open Directory...',
-    accelerator: 'CmdOrCtrl+O',
-    click() {
-      openDirectoryDialog();
-    },
-  }));
+  fileMenu.submenu.append(
+    new MenuItem({
+      label: 'Open Directory...',
+      accelerator: 'CmdOrCtrl+O',
+      click() {
+        openDirectoryDialog();
+      },
+    })
+  );
 
   // Add Recent Files submenu
   const recentFilesSubmenu = buildRecentFilesMenu();
   if (recentFilesSubmenu.length > 0) {
     fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
-    fileMenu.submenu.append(new MenuItem({
-      label: 'Recent Directories',
-      submenu: recentFilesSubmenu
-    }));
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Recent Directories',
+        submenu: recentFilesSubmenu,
+      })
+    );
   }
 
   // Add menu items to File menu
   if (fileMenu && fileMenu.submenu) {
-    fileMenu.submenu.append(new MenuItem({
-      label: 'New Chat Window',
-      accelerator: 'CmdOrCtrl+N',
-      click() {
-        ipcMain.emit('create-chat-window');
-      },
-    }));
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'New Chat Window',
+        accelerator: 'CmdOrCtrl+N',
+        click() {
+          ipcMain.emit('create-chat-window');
+        },
+      })
+    );
 
-    fileMenu.submenu.append(new MenuItem({
-      label: 'Install MCP Extension',
-      accelerator: 'Shift+Command+Y',
-      click() {
-        const defaultUrl = 'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
-        
-        const result = dialog.showMessageBoxSync({
-          type: 'question',
-          buttons: ['Install', 'Edit URL', 'Cancel'],
-          defaultId: 0,
-          cancelId: 2,
-          title: 'Install MCP Extension',
-          message: 'Install MCP Extension',
-          detail: `Current extension URL:\n\n${defaultUrl}`,
-        });
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Install MCP Extension',
+        accelerator: 'Shift+Command+Y',
+        click() {
+          const defaultUrl =
+            'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
 
-        if (result === 0) { // User clicked Install
-          const mockEvent = {
-            preventDefault: () => {
-              console.log('Default handling prevented.');
-            },
-          };
-          app.emit('open-url', mockEvent, defaultUrl);
-        } else if (result === 1) { // User clicked Edit URL
-          // Create a simple input dialog
-          const win = new BrowserWindow({
-            width: 800,
-            height: 120,
-            resizable: false,
-            minimizable: false,
-            maximizable: false,
-            parent: BrowserWindow.getFocusedWindow(),
-            modal: true,
-            show: false,
-            webPreferences: {
-              nodeIntegration: true,
-              contextIsolation: false
-            }
+          const result = dialog.showMessageBoxSync({
+            type: 'question',
+            buttons: ['Install', 'Edit URL', 'Cancel'],
+            defaultId: 0,
+            cancelId: 2,
+            title: 'Install MCP Extension',
+            message: 'Install MCP Extension',
+            detail: `Current extension URL:\n\n${defaultUrl}`,
           });
 
-          win.loadURL(`data:text/html,
+          if (result === 0) {
+            // User clicked Install
+            const mockEvent = {
+              preventDefault: () => {
+                console.log('Default handling prevented.');
+              },
+            };
+            app.emit('open-url', mockEvent, defaultUrl);
+          } else if (result === 1) {
+            // User clicked Edit URL
+            // Create a simple input dialog
+            const win = new BrowserWindow({
+              width: 800,
+              height: 120,
+              resizable: false,
+              minimizable: false,
+              maximizable: false,
+              parent: BrowserWindow.getFocusedWindow(),
+              modal: true,
+              show: false,
+              webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+              },
+            });
+
+            win.loadURL(`data:text/html,
             <html>
               <body style="margin: 20px; font-family: system-ui;">
                 <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
@@ -461,25 +491,26 @@ app.whenReady().then(async () => {
             </html>
           `);
 
-          win.once('ready-to-show', () => {
-            win.show();
-          });
+            win.once('ready-to-show', () => {
+              win.show();
+            });
 
-          // Handle the URL submission
-          ipcMain.once('install-extension-url', (event, url) => {
-            win.close();
-            const mockEvent = {
-              preventDefault: () => {
-                console.log('Default handling prevented.');
-              },
-            };
-            if (url && url.trim()) {
-              app.emit('open-url', mockEvent, url);
-            }
-          });
-        }
-      },
-    }));
+            // Handle the URL submission
+            ipcMain.once('install-extension-url', (event, url) => {
+              win.close();
+              const mockEvent = {
+                preventDefault: () => {
+                  console.log('Default handling prevented.');
+                },
+              };
+              if (url && url.trim()) {
+                app.emit('open-url', mockEvent, url);
+              }
+            });
+          }
+        },
+      })
+    );
   }
 
   Menu.setApplicationMenu(menu);
@@ -499,19 +530,18 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on('notify', (event, data) => {
-    console.log("NOTIFY", data);
+    console.log('NOTIFY', data);
     new Notification({ title: data.title, body: data.body }).show();
   });
 
   ipcMain.on('logInfo', (_, info) => {
-    log.info("from renderer:", info);
+    log.info('from renderer:', info);
   });
 
   ipcMain.on('reload-app', () => {
     app.relaunch();
     app.exit(0);
   });
-
 
   let powerSaveBlockerId: number | null = null;
 
@@ -546,8 +576,8 @@ app.whenReady().then(async () => {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; Goose/1.0)'
-        }
+          'User-Agent': 'Mozilla/5.0 (compatible; Goose/1.0)',
+        },
       });
 
       if (!response.ok) {
@@ -567,7 +597,8 @@ app.whenReady().then(async () => {
       spawn('open', ['-a', 'Google Chrome', url]);
     } else if (process.platform === 'win32') {
       // On Windows, start is built-in command of cmd.exe
-      spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);    } else {
+      spawn('cmd.exe', ['/c', 'start', '', 'chrome', url]);
+    } else {
       // On Linux, use xdg-open with chrome
       spawn('xdg-open', [url]);
     }

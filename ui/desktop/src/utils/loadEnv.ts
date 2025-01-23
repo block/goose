@@ -6,9 +6,11 @@ import fs from 'node:fs';
 export function loadZshEnv(isProduction: boolean = false): void {
   // Only proceed if running on macOS and in production mode
   if (process.platform !== 'darwin' || !isProduction) {
-    log.info(`Skipping zsh environment loading: ${
-      process.platform !== 'darwin' ? 'Not running on macOS' : 'Not in production mode'
-    }`);
+    log.info(
+      `Skipping zsh environment loading: ${
+        process.platform !== 'darwin' ? 'Not running on macOS' : 'Not in production mode'
+      }`
+    );
     return;
   }
 
@@ -23,11 +25,11 @@ export function loadZshEnv(isProduction: boolean = false): void {
     }
 
     const envStr = execSync(`/bin/zsh -c 'source ${zshrcPath} && env'`, {
-      encoding: 'utf-8'
+      encoding: 'utf-8',
     });
 
     // Parse and set environment variables
-    envStr.split('\n').forEach(line => {
+    envStr.split('\n').forEach((line) => {
       const matches = line.match(/^([^=]+)=(.*)$/);
       if (matches) {
         const [, key, value] = matches;

@@ -5,17 +5,10 @@ import { Gear } from '../../icons';
 type ExtensionItemProps = FullExtensionConfig & {
   onToggle: (id: string) => void;
   onConfigure: (extension: FullExtensionConfig) => void;
-}
+};
 
 export const ExtensionItem: React.FC<ExtensionItemProps> = (props) => {
-  const { 
-    id, 
-    name, 
-    description, 
-    enabled, 
-    onToggle, 
-    onConfigure 
-  } = props;
+  const { id, name, description, enabled, onToggle, onConfigure } = props;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-2">
@@ -36,12 +29,12 @@ export const ExtensionItem: React.FC<ExtensionItemProps> = (props) => {
           <button
             onClick={() => onToggle(id)}
             className={`relative inline-flex h-6 w-11 items-center rounded-full ${
-              enabled ? "bg-indigo-500" : "bg-gray-200 dark:bg-gray-600"
+              enabled ? 'bg-indigo-500' : 'bg-gray-200 dark:bg-gray-600'
             } transition-colors duration-200 ease-in-out focus:outline-none`}
           >
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ${
-                enabled ? "translate-x-[22px]" : "translate-x-[2px]"
+                enabled ? 'translate-x-[22px]' : 'translate-x-[2px]'
               } transition-transform duration-200 ease-in-out`}
             />
           </button>

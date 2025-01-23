@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-export default function SensitiveHidden({ className = "" }) {
+export default function SensitiveHidden({ className = '' }) {
   return (
     <svg
       width="1.5rem"

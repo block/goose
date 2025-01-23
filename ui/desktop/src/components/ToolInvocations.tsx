@@ -1,48 +1,43 @@
 import React from 'react';
 import { Card } from './ui/card';
-import Box from './ui/Box'
-import { ToolCallArguments } from "./ToolCallArguments"
-import MarkdownContent from './MarkdownContent'
-import { snakeToTitleCase } from '../utils'
+import Box from './ui/Box';
+import { ToolCallArguments } from './ToolCallArguments';
+import MarkdownContent from './MarkdownContent';
+import { snakeToTitleCase } from '../utils';
 import { LoadingPlaceholder } from './LoadingPlaceholder';
 
 export default function ToolInvocations({ toolInvocations }) {
   return (
     <div className="flex flex-col">
       {toolInvocations.map((toolInvocation) => (
-        <ToolInvocation
-          key={toolInvocation.toolCallId}
-          toolInvocation={toolInvocation}
-        />
+        <ToolInvocation key={toolInvocation.toolCallId} toolInvocation={toolInvocation} />
       ))}
     </div>
-  )
+  );
 }
-
 
 function ToolInvocation({ toolInvocation }) {
   return (
     <div className="flex flex-col w-full">
       <Card className="bg-tool-card dark:bg-tool-card-dark text-tool dark:text-tool-dark p-4 mb-2">
-          <ToolCall call={toolInvocation} />
-          {toolInvocation.state === 'result' ? (
-            <ToolResult result={toolInvocation} />
-          ) : (
-            <LoadingPlaceholder />
-          )}
+        <ToolCall call={toolInvocation} />
+        {toolInvocation.state === 'result' ? (
+          <ToolResult result={toolInvocation} />
+        ) : (
+          <LoadingPlaceholder />
+        )}
       </Card>
     </div>
-  )
+  );
 }
-
 
 interface ToolCallProps {
   call: {
-    state: 'call' | 'result'
-    toolCallId: string
-    toolName: string
-    args: Record<string, any>
-  }
+    state: 'call' | 'result';
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, any>;
+  };
 }
 
 function ToolCall({ call }: ToolCallProps) {
@@ -50,16 +45,16 @@ function ToolCall({ call }: ToolCallProps) {
     <div>
       <div className="flex items-center">
         <Box size={15} />
-        <span className="ml-[8px] text-tool-bold dark:text-tool-bold-dark">{snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf("__") + 2))}</span>
+        <span className="ml-[8px] text-tool-bold dark:text-tool-bold-dark">
+          {snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf('__') + 2))}
+        </span>
       </div>
 
-      {call.args && (
-        <ToolCallArguments args={call.args} />
-      )}
+      {call.args && <ToolCallArguments args={call.args} />}
 
       <div className="self-stretch h-px bg-black/5 dark:bg-white/5 my-[10px] rounded-sm" />
     </div>
-  )
+  );
 }
 
 interface Annotations {
@@ -72,19 +67,19 @@ interface ResultItem {
   type: 'text' | 'image';
   mimeType?: string;
   data?: string; // Base64 encoded image data
-  annotations?: Annotations,
+  annotations?: Annotations;
 }
 
 interface ToolResultProps {
   result: {
-    message?: string
-    result?: ResultItem[]
-    state?: string
-    toolCallId?: string
-    toolName?: string
-    args?: any
-    input_todo?: any
-  }
+    message?: string;
+    result?: ResultItem[];
+    state?: string;
+    toolCallId?: string;
+    toolName?: string;
+    args?: any;
+    input_todo?: any;
+  };
 }
 
 function ToolResult({ result }: ToolResultProps) {
@@ -95,41 +90,42 @@ function ToolResult({ result }: ToolResultProps) {
   if (!result || !result.result) return null;
 
   // Normalize to an array
-  const results = Array.isArray(result.result)
-    ? result.result
-    : [result.result];
+  const results = Array.isArray(result.result) ? result.result : [result.result];
 
   // Find results where either audience is not set, or it's set to a list that contains user
-  const filteredResults = results
-    .filter((item: ResultItem) => !item.annotations?.audience || item.annotations?.audience?.includes('user'))
+  const filteredResults = results.filter(
+    (item: ResultItem) =>
+      !item.annotations?.audience || item.annotations?.audience?.includes('user')
+  );
 
   if (filteredResults.length === 0) return null;
 
   const toggleExpand = (index: number) => {
-    setExpandedItems(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
+    setExpandedItems((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
     );
   };
 
   const shouldShowExpanded = (item: ResultItem, index: number) => {
-    return (item.annotations?.priority === undefined || item.annotations?.priority >= 0.5) || expandedItems.includes(index);
+    return (
+      item.annotations?.priority === undefined ||
+      item.annotations?.priority >= 0.5 ||
+      expandedItems.includes(index)
+    );
   };
 
   return (
     <div className="mt-2 pt-2">
       {filteredResults.map((item: ResultItem, index: number) => {
         const isExpanded = shouldShowExpanded(item, index);
-        const shouldMinimize = item.annotations?.priority !== undefined && item.annotations?.priority < 0.5;
+        const shouldMinimize =
+          item.annotations?.priority !== undefined && item.annotations?.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (
-              <button
-                onClick={() => toggleExpand(index)}
-                className="mb-1 p-1 flex items-center"
-              >
-                {isExpanded ? '▼ Output' : '▶ Output'} {/* Unicode triangles as expand/collapse indicators */}
+              <button onClick={() => toggleExpand(index)} className="mb-1 p-1 flex items-center">
+                {isExpanded ? '▼ Output' : '▶ Output'}{' '}
+                {/* Unicode triangles as expand/collapse indicators */}
               </button>
             )}
             {(isExpanded || !shouldMinimize) && (
@@ -154,8 +150,8 @@ function ToolResult({ result }: ToolResultProps) {
               </>
             )}
           </div>
-          );
-        })}
+        );
+      })}
     </div>
   );
 }

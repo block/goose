@@ -1,23 +1,22 @@
-import React, { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { oneLight } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { Check, Copy } from "./icons";
-import {visit} from 'unist-util-visit'
+import React, { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { Check, Copy } from './icons';
+import { visit } from 'unist-util-visit';
 
-function rehypeinlineCodeProperty(){
-  return function(tree) {
-    if (!tree)
-        return;
-    visit(tree, "element", function (node, index, parent) {
+function rehypeinlineCodeProperty() {
+  return function (tree) {
+    if (!tree) return;
+    visit(tree, 'element', function (node, index, parent) {
       if (node.tagName == 'code' && parent && parent.tagName === 'pre') {
-        node.properties.inlinecode = "false";
+        node.properties.inlinecode = 'false';
       } else {
-        node.properties.inlinecode = "true";
+        node.properties.inlinecode = 'true';
       }
-    })
-  }
+    });
+  };
 }
 
 interface MarkdownContentProps {
@@ -25,13 +24,7 @@ interface MarkdownContentProps {
   className?: string;
 }
 
-const CodeBlock = ({
-  language,
-  children,
-}: {
-  language: string;
-  children: string;
-}) => {
+const CodeBlock = ({ language, children }: { language: string; children: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
@@ -39,7 +32,7 @@ const CodeBlock = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
     } catch (err) {
-      console.error("Failed to copy text: ", err);
+      console.error('Failed to copy text: ', err);
     }
   };
 
@@ -61,14 +54,14 @@ const CodeBlock = ({
           PreTag="div"
           customStyle={{
             margin: 0,
-            width: "100%",
-            maxWidth: "100%",
+            width: '100%',
+            maxWidth: '100%',
           }}
           codeTagProps={{
             style: {
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              overflowWrap: "break-word",
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              overflowWrap: 'break-word',
             },
           }}
         >
@@ -79,12 +72,9 @@ const CodeBlock = ({
   );
 };
 
-export default function MarkdownContent({
-  content,
-  className = "",
-}: MarkdownContentProps) {
+export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
   // Determine whether dark mode is enabled
-  const isDarkMode = document.documentElement.classList.contains("dark");
+  const isDarkMode = document.documentElement.classList.contains('dark');
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
@@ -95,11 +85,9 @@ export default function MarkdownContent({
           ${className}`}
         components={{
           code({ node, className, children, inlinecode, ...props }) {
-            const match = /language-(\w+)/.exec(className || "language-text");
+            const match = /language-(\w+)/.exec(className || 'language-text');
             return inlinecode == 'false' && match ? (
-              <CodeBlock language={match[1]}>
-                {String(children).replace(/\n$/, "")}
-              </CodeBlock>
+              <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
             ) : (
               <code
                 {...props}

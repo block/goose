@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-export default function Attach({ className = "" }) {
+export default function Attach({ className = '' }) {
   return (
     <svg
       fill="none"

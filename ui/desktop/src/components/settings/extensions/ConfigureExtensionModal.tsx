@@ -42,7 +42,7 @@ export function ConfigureExtensionModal({
           const value = envValues[envKey];
           if (!value) continue;
 
-          const storeResponse = await fetch(getApiUrl("/secrets/store"), {
+          const storeResponse = await fetch(getApiUrl('/secrets/store'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ export function ConfigureExtensionModal({
           'Content-Type': 'application/json',
           'X-Secret-Key': getSecretKey(),
         },
-        body: JSON.stringify(extensionConfig)
+        body: JSON.stringify(extensionConfig),
       });
 
       if (!response.ok) {
@@ -94,7 +94,7 @@ export function ConfigureExtensionModal({
       onClose();
     } catch (error) {
       console.error('Error configuring extension:', error);
-      showToast("Failed to configure extension", "error");
+      showToast('Failed to configure extension', 'error');
     } finally {
       setIsSubmitting(false);
     }

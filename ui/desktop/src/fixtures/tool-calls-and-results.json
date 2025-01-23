@@ -20,9 +20,7 @@
         "toolName": "DeveloperExtension__bash",
         "result": [
           {
-            "audience": [
-              "assistant"
-            ],
+            "audience": ["assistant"],
             "text": "Finished with Status Code: exit status: 0\nOutput:\nPING apple.com (17.253.144.10): 56 data bytes\n64 bytes from 17.253.144.10: icmp_seq=0 ttl=51 time=21.033 ms\n64 bytes from 17.253.144.10: icmp_seq=1 ttl=51 time=19.828 ms\nRequest timeout for icmp_seq 2\n64 bytes from 17.253.144.10: icmp_seq=3 ttl=51 time=21.733 ms\n64 bytes from 17.253.144.10: icmp_seq=4 ttl=51 time=19.553 ms\n64 bytes from 17.253.144.10: icmp_seq=5 ttl=51 time=22.079 ms\n64 bytes from 17.253.144.10: icmp_seq=6 ttl=51 time=23.344 ms\n64 bytes from 17.253.144.10: icmp_seq=7 ttl=51 time=30.950 ms\n64 bytes from 17.253.144.10: icmp_seq=8 ttl=51 time=24.615 ms\n64 bytes from 17.253.144.10: icmp_seq=9 ttl=51 time=22.022 ms\n\n--- apple.com ping statistics ---\n10 packets transmitted, 9 packets received, 10.0% packet loss\nround-trip min/avg/max/stddev = 19.553/22.795/30.950/3.245 ms\n",
             "type": "text"
           }
@@ -52,9 +50,7 @@
         "toolName": "DeveloperExtension__bash",
         "result": [
           {
-            "audience": [
-              "assistant"
-            ],
+            "audience": ["assistant"],
             "text": "Finished with Status Code: exit status: 0\nOutput:\nPING apple.com (17.253.144.10): 56 data bytes\n64 bytes from 17.253.144.10: icmp_seq=0 ttl=51 time=26.032 ms\n64 bytes from 17.253.144.10: icmp_seq=1 ttl=51 time=20.094 ms\n64 bytes from 17.253.144.10: icmp_seq=2 ttl=51 time=19.911 ms\n64 bytes from 17.253.144.10: icmp_seq=3 ttl=51 time=18.858 ms\n64 bytes from 17.253.144.10: icmp_seq=4 ttl=51 time=19.156 ms\n64 bytes from 17.253.144.10: icmp_seq=5 ttl=51 time=18.081 ms\n64 bytes from 17.253.144.10: icmp_seq=6 ttl=51 time=19.812 ms\n64 bytes from 17.253.144.10: icmp_seq=7 ttl=51 time=24.239 ms\n64 bytes from 17.253.144.10: icmp_seq=8 ttl=51 time=24.469 ms\n64 bytes from 17.253.144.10: icmp_seq=9 ttl=51 time=21.594 ms\n\n--- apple.com ping statistics ---\n10 packets transmitted, 10 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 18.081/21.225/26.032/2.600 ms\n",
             "type": "text"
           }
@@ -69,9 +65,7 @@
         "toolName": "DeveloperExtension__bash",
         "result": [
           {
-            "audience": [
-              "assistant"
-            ],
+            "audience": ["assistant"],
             "text": "Finished with Status Code: exit status: 0\nOutput:\nPING google.com (64.233.180.102): 56 data bytes\n64 bytes from 64.233.180.102: icmp_seq=0 ttl=99 time=23.647 ms\n64 bytes from 64.233.180.102: icmp_seq=1 ttl=99 time=24.998 ms\n64 bytes from 64.233.180.102: icmp_seq=2 ttl=99 time=22.560 ms\n64 bytes from 64.233.180.102: icmp_seq=3 ttl=99 time=24.673 ms\n64 bytes from 64.233.180.102: icmp_seq=4 ttl=99 time=22.524 ms\n64 bytes from 64.233.180.102: icmp_seq=5 ttl=99 time=29.037 ms\n64 bytes from 64.233.180.102: icmp_seq=6 ttl=99 time=22.847 ms\n64 bytes from 64.233.180.102: icmp_seq=7 ttl=99 time=29.509 ms\n64 bytes from 64.233.180.102: icmp_seq=8 ttl=99 time=19.365 ms\n64 bytes from 64.233.180.102: icmp_seq=9 ttl=99 time=19.809 ms\n\n--- google.com ping statistics ---\n10 packets transmitted, 10 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 19.365/23.897/29.509/3.191 ms\n",
             "type": "text"
           }

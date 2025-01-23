@@ -33,17 +33,10 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
           <div className="flex items-baseline">
             <span className="text-tool-dim dark:text-tool-dim-dark mr-2">{key}:</span>
             <div className="flex-1">
-              <button
-                onClick={() => toggleKey(key)}
-                className="hover:opacity-75"
-              >
+              <button onClick={() => toggleKey(key)} className="hover:opacity-75">
                 {isExpanded ? '▼ ' : '▶ '}
               </button>
-              {!isExpanded && (
-                <span className="ml-2 text-gray-600">
-                  {value.slice(0, 60)}...
-                </span>
-              )}
+              {!isExpanded && <span className="ml-2 text-gray-600">{value.slice(0, 60)}...</span>}
             </div>
           </div>
           {isExpanded && (
@@ -61,16 +54,14 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     const content = Array.isArray(value)
       ? value.map((item, index) => `${index + 1}. ${JSON.stringify(item)}`).join('\n')
       : typeof value === 'object' && value !== null
-      ? JSON.stringify(value, null, 2)
-      : String(value);
+        ? JSON.stringify(value, null, 2)
+        : String(value);
 
     return (
       <div className="p-1">
         <div className="flex">
           <span className="font-medium mr-2">{key}:</span>
-          <pre className="whitespace-pre-wrap">
-            {content}
-          </pre>
+          <pre className="whitespace-pre-wrap">{content}</pre>
         </div>
       </div>
     );
@@ -79,9 +70,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
   return (
     <div className="mt-2">
       {Object.entries(args).map(([key, value]) => (
-        <div key={key}>
-          {renderValue(key, value)}
-        </div>
+        <div key={key}>{renderValue(key, value)}</div>
       ))}
     </div>
   );

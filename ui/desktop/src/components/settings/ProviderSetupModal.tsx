@@ -1,8 +1,8 @@
-import React from "react";
-import { Card } from "../ui/card";
-import { Lock } from "lucide-react";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
+import React from 'react';
+import { Card } from '../ui/card';
+import { Lock } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 // import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {
@@ -20,7 +20,7 @@ export function ProviderSetupModal({
   onSubmit,
   onCancel,
 }: ProviderSetupModalProps) {
-  const [apiKey, setApiKey] = React.useState("");
+  const [apiKey, setApiKey] = React.useState('');
   const headerText = `Setup ${provider}`;
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +37,7 @@ export function ProviderSetupModal({
             {/* <div className="w-[24px] h-[24px] flex items-center justify-center">
               <img src={UnionIcon} alt="Union icon" />
             </div> */}
-            <h2 className="text-2xl font-regular dark:text-white text-gray-900">
-              {headerText}
-            </h2>
+            <h2 className="text-2xl font-regular dark:text-white text-gray-900">{headerText}</h2>
           </div>
 
           {/* Form */}

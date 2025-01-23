@@ -1,13 +1,13 @@
 import { FullExtensionConfig } from '../../extensions';
 
 export interface Model {
-    id: string;
-    name: string;
-    description: string;
-    enabled: boolean;
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
 }
 
 export interface Settings {
-    models: Model[];
-    extensions: FullExtensionConfig[];
+  models: Model[];
+  extensions: FullExtensionConfig[];
 }

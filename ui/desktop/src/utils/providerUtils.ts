@@ -1,24 +1,24 @@
-import { getApiUrl, getSecretKey } from "../config";
-import { extendGoosed } from "../extensions";
-import { GOOSE_PROVIDER } from "../env_vars";
-import { Model } from "../components/settings/models/ModelContext"
+import { getApiUrl, getSecretKey } from '../config';
+import { extendGoosed } from '../extensions';
+import { GOOSE_PROVIDER } from '../env_vars';
+import { Model } from '../components/settings/models/ModelContext';
 
 export function getStoredProvider(config: any): string | null {
-  console.log("config goose provider", config.GOOSE_PROVIDER)
-  console.log("local storage goose provider", localStorage.getItem(GOOSE_PROVIDER))
+  console.log('config goose provider', config.GOOSE_PROVIDER);
+  console.log('local storage goose provider', localStorage.getItem(GOOSE_PROVIDER));
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
 }
 
 export function getStoredModel(): string | null {
-  const storedModel = localStorage.getItem("GOOSE_MODEL"); // Adjust key name if necessary
-  console.log("local storage goose model", storedModel);
+  const storedModel = localStorage.getItem('GOOSE_MODEL'); // Adjust key name if necessary
+  console.log('local storage goose model', storedModel);
 
   if (storedModel) {
     try {
       const modelInfo: Model = JSON.parse(storedModel);
       return modelInfo.name || null; // Return name if it exists, otherwise null
     } catch (error) {
-      console.error("Error parsing GOOSE_MODEL from local storage:", error);
+      console.error('Error parsing GOOSE_MODEL from local storage:', error);
       return null; // Return null if parsing fails
     }
   }
@@ -35,8 +35,8 @@ export interface Provider {
 }
 
 export async function getProvidersList(): Promise<Provider[]> {
-  const response = await fetch(getApiUrl("/agent/providers"), {
-    method: "GET",
+  const response = await fetch(getApiUrl('/agent/providers'), {
+    method: 'GET',
   });
 
   if (!response.ok) {
@@ -44,24 +44,24 @@ export async function getProvidersList(): Promise<Provider[]> {
   }
 
   const data = await response.json();
-  console.log("Raw API Response:", data); // Log the raw response
+  console.log('Raw API Response:', data); // Log the raw response
 
   // Format the response into an array of providers
   return data.map((item: any) => ({
     id: item.id, // Root-level ID
-    name: item.details?.name || "Unknown Provider", // Nested name in details
-    description: item.details?.description || "No description available.", // Nested description
+    name: item.details?.name || 'Unknown Provider', // Nested name in details
+    description: item.details?.description || 'No description available.', // Nested description
     models: item.details?.models || [], // Nested models array
     requiredKeys: item.details?.required_keys || [], // Nested required keys array
   }));
 }
 
 const addAgent = async (provider: string, model: string) => {
-  const response = await fetch(getApiUrl("/agent"), {
-    method: "POST",
+  const response = await fetch(getApiUrl('/agent'), {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "X-Secret-Key": getSecretKey(),
+      'Content-Type': 'application/json',
+      'X-Secret-Key': getSecretKey(),
     },
     body: JSON.stringify({ provider: provider, model: model }),
   });
@@ -75,14 +75,14 @@ const addAgent = async (provider: string, model: string) => {
 
 export const initializeSystem = async (provider: string, model: string) => {
   try {
-    console.log("initializing with provider", provider, "model", model)
+    console.log('initializing with provider', provider, 'model', model);
     await addAgent(provider.toLowerCase(), model);
     await extendGoosed({
-      type: "builtin",
-      name: "developer"
+      type: 'builtin',
+      name: 'developer',
     });
   } catch (error) {
-    console.error("Failed to initialize system:", error);
+    console.error('Failed to initialize system:', error);
     throw error;
   }
 };

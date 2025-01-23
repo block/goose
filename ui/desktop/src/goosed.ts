@@ -21,10 +21,13 @@ export const findAvailablePort = (): Promise<number> => {
   });
 };
 
-
 // Goose process manager. Take in the app, port, and directory to start goosed in.
 // Check if goosed server is ready by polling the status endpoint
-const checkServerStatus = async (port: number, maxAttempts: number = 60, interval: number = 100): Promise<boolean> => {
+const checkServerStatus = async (
+  port: number,
+  maxAttempts: number = 60,
+  interval: number = 100
+): Promise<boolean> => {
   const statusUrl = `http://127.0.0.1:${port}/status`;
   log.info(`Checking server status at ${statusUrl}`);
 
@@ -41,26 +44,30 @@ const checkServerStatus = async (port: number, maxAttempts: number = 60, interva
         log.error(`Server failed to respond after ${maxAttempts} attempts:`, error);
       }
     }
-    await new Promise(resolve => setTimeout(resolve, interval));
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
   return false;
 };
 
-export const startGoosed = async (app, dir=null, env={}): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
+export const startGoosed = async (
+  app,
+  dir = null,
+  env = {}
+): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
   if (!dir) {
     dir = homeDir;
   }
-  
+
   // Get the goosed binary path using the shared utility
   const goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
 
   // in case we want it
   //const isPackaged = app.isPackaged;
-  log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}` );
-  
+  log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}`);
+
   // Define additional environment variables
   const additionalEnv = {
     // Set HOME for UNIX-like systems
@@ -68,20 +75,24 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
     // Set USERPROFILE for Windows
     USERPROFILE: homeDir,
 
-    // start with the port specified 
+    // start with the port specified
     GOOSE_PORT: String(port),
 
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
-    
+
     // Add any additional environment variables passed in
-    ...env
+    ...env,
   };
 
   // Merge parent environment with additional environment variables
   const processEnv = { ...process.env, ...additionalEnv };
 
   // Spawn the goosed process with the user's home directory as cwd
-  const goosedProcess = spawn(goosedPath, ["agent"], { cwd: dir, env: processEnv, stdio: ["ignore", "pipe", "pipe"] });
+  const goosedProcess = spawn(goosedPath, ['agent'], {
+    cwd: dir,
+    env: processEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   goosedProcess.stdout.on('data', (data) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
@@ -115,7 +126,6 @@ export const startGoosed = async (app, dir=null, env={}): Promise<[number, strin
     log.info('App quitting, terminating goosed server');
     goosedProcess.kill();
   });
-
 
   log.info(`Goosed server successfully started on port ${port}`);
   return [port, dir, goosedProcess];

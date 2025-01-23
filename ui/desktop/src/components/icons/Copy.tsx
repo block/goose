@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-export default function Copy({ className = "" }) {
+export default function Copy({ className = '' }) {
   return (
     <svg
       fill="none"

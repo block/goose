@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import { Button } from "./ui/button";
-import { cn } from "../utils";
-import { Send } from "./icons";
+import React, { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import { Button } from './ui/button';
+import { cn } from '../utils';
+import { Send } from './icons';
 
 interface FormField {
   label: string;
-  type: "text" | "textarea";
+  type: 'text' | 'textarea';
   name: string;
   placeholder: string;
   required: boolean;
@@ -39,20 +39,20 @@ export default function GooseResponseForm({
   let dynamicForm: DynamicForm | null = null;
 
   if (metadata) {
-    window.electron.logInfo("metadata:" + JSON.stringify(metadata, null, 2));
+    window.electron.logInfo('metadata:' + JSON.stringify(metadata, null, 2));
   }
 
   // Process metadata outside of conditional
   const currentStatus = metadata?.[0] ?? null;
-  isQuestion = currentStatus === "QUESTION";
-  isOptions = metadata?.[1] === "OPTIONS";
+  isQuestion = currentStatus === 'QUESTION';
+  isOptions = metadata?.[1] === 'OPTIONS';
 
   // Parse dynamic form data if it exists in metadata[3]
   if (metadata?.[3]) {
     try {
       dynamicForm = JSON.parse(metadata[3]);
     } catch (err) {
-      console.error("Failed to parse form data:", err);
+      console.error('Failed to parse form data:', err);
       dynamicForm = null;
     }
   }
@@ -68,16 +68,14 @@ export default function GooseResponseForm({
         optionsData = jsonBlockMatch[1].trim(); // Extract the content inside the block
       } else {
         // Optionally, handle the case where there is no explicit ```json block
-        console.warn("No JSON block found in the provided string.");
+        console.warn('No JSON block found in the provided string.');
       }
       options = JSON.parse(optionsData);
       options = options.filter(
-        (opt) =>
-          typeof opt.optionTitle === "string" &&
-          typeof opt.optionDescription === "string"
+        (opt) => typeof opt.optionTitle === 'string' && typeof opt.optionDescription === 'string'
       );
     } catch (err) {
-      console.error("Failed to parse options data:", err);
+      console.error('Failed to parse options data:', err);
       options = [];
     }
   }
@@ -87,13 +85,12 @@ export default function GooseResponseForm({
     const currentMetadataStatus = metadata?.[0];
     const shouldNotify =
       currentMetadataStatus &&
-      (currentMetadataStatus === "QUESTION" ||
-        currentMetadataStatus === "OPTIONS") &&
+      (currentMetadataStatus === 'QUESTION' || currentMetadataStatus === 'OPTIONS') &&
       prevStatusRef.current !== currentMetadataStatus;
 
     if (shouldNotify) {
       window.electron.showNotification({
-        title: "Goose has a question for you",
+        title: 'Goose has a question for you',
         body: `Please check with Goose to approve the plan of action`,
       });
     }
@@ -107,8 +104,8 @@ export default function GooseResponseForm({
 
   const handleAccept = () => {
     const message = {
-      content: "Yes - go ahead.",
-      role: "user",
+      content: 'Yes - go ahead.',
+      role: 'user',
     };
     append(message);
   };
@@ -117,7 +114,7 @@ export default function GooseResponseForm({
     if (selectedOption !== null && options[selectedOption]) {
       const message = {
         content: `Yes - continue with: ${options[selectedOption].optionTitle}`,
-        role: "user",
+        role: 'user',
       };
       append(message);
     }
@@ -128,7 +125,7 @@ export default function GooseResponseForm({
     if (dynamicForm) {
       const message = {
         content: JSON.stringify(formValues),
-        role: "user",
+        role: 'user',
       };
       append(message);
     }
@@ -147,12 +144,7 @@ export default function GooseResponseForm({
 
   function isForm(f: DynamicForm) {
     return (
-      f &&
-      f.title &&
-      f.description &&
-      f.fields &&
-      Array.isArray(f.fields) &&
-      f.fields.length > 0
+      f && f.title && f.description && f.fields && Array.isArray(f.fields) && f.fields.length > 0
     );
   }
 
@@ -170,52 +162,43 @@ export default function GooseResponseForm({
           </Button>
         </div>
       )}
-      {isQuestion &&
-        isOptions &&
-        Array.isArray(options) &&
-        options.length > 0 && (
-          <div className="space-y-4">
-            {options.map((opt, index) => (
-              <div
-                key={index}
-                onClick={() => handleOptionClick(index)}
-                className={cn(
-                  "p-4 rounded-lg border transition-colors cursor-pointer",
-                  selectedOption === index
-                    ? "bg-primary/10 dark:bg-dark-primary border-primary dark:border-dark-primary"
-                    : "bg-tool-card dark:bg-tool-card-dark hover:bg-accent dark:hover:bg-dark-accent"
-                )}
-              >
-                <h3 className="font-semibold text-lg mb-2 dark:text-gray-100">
-                  {opt.optionTitle}
-                </h3>
-                <div className="prose prose-xs max-w-none dark:text-gray-100">
-                  <ReactMarkdown>{opt.optionDescription}</ReactMarkdown>
-                </div>
-              </div>
-            ))}
-            <Button
-              onClick={handleSubmit}
-              variant="default"
-              className="w-full sm:w-auto dark:bg-button-dark"
-              disabled={selectedOption === null}
+      {isQuestion && isOptions && Array.isArray(options) && options.length > 0 && (
+        <div className="space-y-4">
+          {options.map((opt, index) => (
+            <div
+              key={index}
+              onClick={() => handleOptionClick(index)}
+              className={cn(
+                'p-4 rounded-lg border transition-colors cursor-pointer',
+                selectedOption === index
+                  ? 'bg-primary/10 dark:bg-dark-primary border-primary dark:border-dark-primary'
+                  : 'bg-tool-card dark:bg-tool-card-dark hover:bg-accent dark:hover:bg-dark-accent'
+              )}
             >
-              <Send className="h-[14px] w-[14px]" />
-              Select plan
-            </Button>
-          </div>
-        )}
+              <h3 className="font-semibold text-lg mb-2 dark:text-gray-100">{opt.optionTitle}</h3>
+              <div className="prose prose-xs max-w-none dark:text-gray-100">
+                <ReactMarkdown>{opt.optionDescription}</ReactMarkdown>
+              </div>
+            </div>
+          ))}
+          <Button
+            onClick={handleSubmit}
+            variant="default"
+            className="w-full sm:w-auto dark:bg-button-dark"
+            disabled={selectedOption === null}
+          >
+            <Send className="h-[14px] w-[14px]" />
+            Select plan
+          </Button>
+        </div>
+      )}
       {isForm(dynamicForm) && !isOptions && (
         <form
           onSubmit={handleFormSubmit}
           className="space-y-4 p-4 rounded-lg bg-tool-card dark:bg-tool-card-dark border dark:border-dark-border"
         >
-          <h2 className="text-xl font-bold mb-2 dark:text-gray-100">
-            {dynamicForm.title}
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            {dynamicForm.description}
-          </p>
+          <h2 className="text-xl font-bold mb-2 dark:text-gray-100">{dynamicForm.title}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{dynamicForm.description}</p>
 
           {dynamicForm.fields.map((field) => (
             <div key={field.name} className="space-y-2">
@@ -226,13 +209,13 @@ export default function GooseResponseForm({
                 {field.label}
                 {field.required && <span className="text-red-500 ml-1">*</span>}
               </label>
-              {field.type === "textarea" ? (
+              {field.type === 'textarea' ? (
                 <textarea
                   id={field.name}
                   name={field.name}
                   placeholder={field.placeholder}
                   required={field.required}
-                  value={formValues[field.name] || ""}
+                  value={formValues[field.name] || ''}
                   onChange={(e) => handleFormChange(field.name, e.target.value)}
                   className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                   rows={4}
@@ -244,7 +227,7 @@ export default function GooseResponseForm({
                   name={field.name}
                   placeholder={field.placeholder}
                   required={field.required}
-                  value={formValues[field.name] || ""}
+                  value={formValues[field.name] || ''}
                   onChange={(e) => handleFormChange(field.name, e.target.value)}
                   className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                 />

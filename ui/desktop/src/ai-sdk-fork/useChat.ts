@@ -10,7 +10,7 @@ import type {
   UseChatOptions,
 } from '@ai-sdk/ui-utils';
 import { generateId as generateIdFunc } from '@ai-sdk/ui-utils';
-import { callCustomChatApi as callChatApi } from './call-custom-chat-api'
+import { callCustomChatApi as callChatApi } from './call-custom-chat-api';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import useSWR, { KeyedMutator } from 'swr';
 import { throttle } from './throttle';
@@ -31,16 +31,14 @@ export type UseChatHelpers = {
    */
   append: (
     message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   /**
    * Reload the last AI chat response for the given chat history. If the last
    * message isn't from the assistant, it will request the API to generate a
    * new response.
    */
-  reload: (
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
   /**
    * Abort the current request immediately, keep the generated tokens if any.
    */
@@ -50,23 +48,19 @@ export type UseChatHelpers = {
    * edit the messages on the client, and then trigger the `reload` method
    * manually to regenerate the AI response.
    */
-  setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
-  ) => void;
+  setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void;
   /** The current value of the input */
   input: string;
   /** setState-powered method to update the input value */
   setInput: React.Dispatch<React.SetStateAction<string>>;
   /** An input/textarea-ready onChange handler to control the value of the input */
   handleInputChange: (
-    e:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLTextAreaElement>,
+    e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>
   ) => void;
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (
     event?: { preventDefault?: () => void },
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => void;
   metadata?: object;
   /** Whether the API request is in progress */
@@ -76,10 +70,7 @@ export type UseChatHelpers = {
   data?: JSONValue[];
   /** Set the data of the chat. You can use this to transform or clear the chat data. */
   setData: (
-    data:
-      | JSONValue[]
-      | undefined
-      | ((data: JSONValue[] | undefined) => JSONValue[] | undefined),
+    data: JSONValue[] | undefined | ((data: JSONValue[] | undefined) => JSONValue[] | undefined)
   ) => void;
 };
 
@@ -106,7 +97,7 @@ const processResponseStream = async (
       }) => JSONValue)
     | undefined,
   fetch: FetchFunction | undefined,
-  keepLastMessageOnError: boolean,
+  keepLastMessageOnError: boolean
 ) => {
   // Do an optimistic update to the chat state to show the updated messages immediately:
   const previousMessages = messagesRef.current;
@@ -115,14 +106,7 @@ const processResponseStream = async (
   const constructedMessagesPayload = sendExtraMessageFields
     ? chatRequest.messages
     : chatRequest.messages.map(
-        ({
-          role,
-          content,
-          experimental_attachments,
-          data,
-          annotations,
-          toolInvocations,
-        }) => ({
+        ({ role, content, experimental_attachments, data, annotations, toolInvocations }) => ({
           role,
           content,
           ...(experimental_attachments !== undefined && {
@@ -131,7 +115,7 @@ const processResponseStream = async (
           ...(data !== undefined && { data }),
           ...(annotations !== undefined && { annotations }),
           ...(toolInvocations !== undefined && { toolInvocations }),
-        }),
+        })
       );
 
   const existingData = existingDataRef.current;
@@ -153,7 +137,7 @@ const processResponseStream = async (
     headers: {
       ...extraMetadataRef.current.headers,
       ...chatRequest.headers,
-      "X-Secret-Key": getSecretKey()
+      'X-Secret-Key': getSecretKey(),
     },
     abortController: () => abortControllerRef.current,
     restoreMessagesOnFailure() {
@@ -228,13 +212,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
  */
   maxSteps?: number;
 } = {}): UseChatHelpers & {
-  addToolResult: ({
-    toolCallId,
-    result,
-  }: {
-    toolCallId: string;
-    result: any;
-  }) => void;
+  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
 } {
   // Generate a unique id for the chat if not provided.
   const hookId = useId();
@@ -247,11 +225,9 @@ By default, it's set to 1, which means that only a single LLM call is made.
   const [initialMessagesFallback] = useState([]);
 
   // Store the chat state in SWR, using the chatId as the key to share states.
-  const { data: messages, mutate } = useSWR<Message[]>(
-    [chatKey, 'messages'],
-    null,
-    { fallbackData: initialMessages ?? initialMessagesFallback },
-  );
+  const { data: messages, mutate } = useSWR<Message[]>([chatKey, 'messages'], null, {
+    fallbackData: initialMessages ?? initialMessagesFallback,
+  });
 
   // Keep the latest messages in a ref.
   const messagesRef = useRef<Message[]>(messages || []);
@@ -260,9 +236,10 @@ By default, it's set to 1, which means that only a single LLM call is made.
   }, [messages]);
 
   // stream data
-  const { data: streamData, mutate: mutateStreamData } = useSWR<
-    JSONValue[] | undefined
-  >([chatKey, 'streamData'], null);
+  const { data: streamData, mutate: mutateStreamData } = useSWR<JSONValue[] | undefined>(
+    [chatKey, 'streamData'],
+    null
+  );
 
   // keep the latest stream data in a ref
   const streamDataRef = useRef<JSONValue[] | undefined>(streamData);
@@ -273,12 +250,13 @@ By default, it's set to 1, which means that only a single LLM call is made.
   // We store loading state in another hook to sync loading states across hook invocations
   const { data: isLoading = false, mutate: mutateLoading } = useSWR<boolean>(
     [chatKey, 'loading'],
-    null,
+    null
   );
 
-  const { data: error = undefined, mutate: setError } = useSWR<
-    undefined | Error
-  >([chatKey, 'error'], null);
+  const { data: error = undefined, mutate: setError } = useSWR<undefined | Error>(
+    [chatKey, 'error'],
+    null
+  );
 
   // Abort controller to cancel the current API call.
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -326,7 +304,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
           sendExtraMessageFields,
           experimental_prepareRequestBody,
           fetch,
-          keepLastMessageOnError,
+          keepLastMessageOnError
         );
 
         abortControllerRef.current = null;
@@ -386,26 +364,19 @@ By default, it's set to 1, which means that only a single LLM call is made.
       fetch,
       keepLastMessageOnError,
       throttleWaitMs,
-    ],
+    ]
   );
 
   const append = useCallback(
     async (
       message: Message | CreateMessage,
-      {
-        data,
-        headers,
-        body,
-        experimental_attachments,
-      }: ChatRequestOptions = {},
+      { data, headers, body, experimental_attachments }: ChatRequestOptions = {}
     ) => {
       if (!message.id) {
         message.id = generateId();
       }
 
-      const attachmentsForRequest = await prepareAttachmentsForRequest(
-        experimental_attachments,
-      );
+      const attachmentsForRequest = await prepareAttachmentsForRequest(experimental_attachments);
 
       const messages = messagesRef.current.concat({
         ...message,
@@ -417,7 +388,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
 
       return triggerRequest({ messages, headers, body, data });
     },
-    [triggerRequest, generateId],
+    [triggerRequest, generateId]
   );
 
   const reload = useCallback(
@@ -431,14 +402,13 @@ By default, it's set to 1, which means that only a single LLM call is made.
       // Remove last assistant message and retry last user message.
       const lastMessage = messages[messages.length - 1];
       return triggerRequest({
-        messages:
-          lastMessage.role === 'assistant' ? messages.slice(0, -1) : messages,
+        messages: lastMessage.role === 'assistant' ? messages.slice(0, -1) : messages,
         headers,
         body,
         data,
       });
     },
-    [triggerRequest],
+    [triggerRequest]
   );
 
   const stop = useCallback(() => {
@@ -457,15 +427,12 @@ By default, it's set to 1, which means that only a single LLM call is made.
       mutate(messages, false);
       messagesRef.current = messages;
     },
-    [mutate],
+    [mutate]
   );
 
   const setData = useCallback(
     (
-      data:
-        | JSONValue[]
-        | undefined
-        | ((data: JSONValue[] | undefined) => JSONValue[] | undefined),
+      data: JSONValue[] | undefined | ((data: JSONValue[] | undefined) => JSONValue[] | undefined)
     ) => {
       if (typeof data === 'function') {
         data = data(streamDataRef.current);
@@ -474,7 +441,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
       mutateStreamData(data, false);
       streamDataRef.current = data;
     },
-    [mutateStreamData],
+    [mutateStreamData]
   );
 
   // Input state and handlers.
@@ -484,7 +451,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
     async (
       event?: { preventDefault?: () => void },
       options: ChatRequestOptions = {},
-      metadata?: object,
+      metadata?: object
     ) => {
       event?.preventDefault?.();
 
@@ -498,7 +465,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
       }
 
       const attachmentsForRequest = await prepareAttachmentsForRequest(
-        options.experimental_attachments,
+        options.experimental_attachments
       );
 
       const messages =
@@ -510,9 +477,7 @@ By default, it's set to 1, which means that only a single LLM call is made.
               role: 'user',
               content: input,
               experimental_attachments:
-                attachmentsForRequest.length > 0
-                  ? attachmentsForRequest
-                  : undefined,
+                attachmentsForRequest.length > 0 ? attachmentsForRequest : undefined,
             });
 
       const chatRequest: ChatRequest = {
@@ -526,38 +491,30 @@ By default, it's set to 1, which means that only a single LLM call is made.
 
       setInput('');
     },
-    [input, generateId, triggerRequest],
+    [input, generateId, triggerRequest]
   );
 
   const handleInputChange = (e: any) => {
     setInput(e.target.value);
   };
 
-  const addToolResult = ({
-    toolCallId,
-    result,
-  }: {
-    toolCallId: string;
-    result: any;
-  }) => {
+  const addToolResult = ({ toolCallId, result }: { toolCallId: string; result: any }) => {
     const updatedMessages = messagesRef.current.map((message, index, arr) =>
       // update the tool calls in the last assistant message:
-      index === arr.length - 1 &&
-      message.role === 'assistant' &&
-      message.toolInvocations
+      index === arr.length - 1 && message.role === 'assistant' && message.toolInvocations
         ? {
             ...message,
-            toolInvocations: message.toolInvocations.map(toolInvocation =>
+            toolInvocations: message.toolInvocations.map((toolInvocation) =>
               toolInvocation.toolCallId === toolCallId
                 ? {
                     ...toolInvocation,
                     result,
                     state: 'result' as const,
                   }
-                : toolInvocation,
+                : toolInvocation
             ),
           }
-        : message,
+        : message
     );
 
     mutate(updatedMessages, false);
@@ -597,7 +554,7 @@ function isAssistantMessageWithCompletedToolCalls(message: Message) {
     message.role === 'assistant' &&
     message.toolInvocations &&
     message.toolInvocations.length > 0 &&
-    message.toolInvocations.every(toolInvocation => 'result' in toolInvocation)
+    message.toolInvocations.every((toolInvocation) => 'result' in toolInvocation)
   );
 }
 
@@ -617,7 +574,7 @@ function countTrailingAssistantMessages(messages: Message[]) {
 }
 
 async function prepareAttachmentsForRequest(
-  attachmentsFromOptions: FileList | Array<Attachment> | undefined,
+  attachmentsFromOptions: FileList | Array<Attachment> | undefined
 ) {
   if (attachmentsFromOptions == null) {
     return [];
@@ -625,15 +582,15 @@ async function prepareAttachmentsForRequest(
 
   if (attachmentsFromOptions instanceof FileList) {
     return Promise.all(
-      Array.from(attachmentsFromOptions).map(async attachment => {
+      Array.from(attachmentsFromOptions).map(async (attachment) => {
         const { name, type } = attachment;
 
         const dataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = readerEvent => {
+          reader.onload = (readerEvent) => {
             resolve(readerEvent.target?.result as string);
           };
-          reader.onerror = error => reject(error);
+          reader.onerror = (error) => reject(error);
           reader.readAsDataURL(attachment);
         });
 
@@ -642,7 +599,7 @@ async function prepareAttachmentsForRequest(
           contentType: type,
           url: dataUrl,
         };
-      }),
+      })
     );
   }
 

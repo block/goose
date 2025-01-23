@@ -34,5 +34,11 @@
         "description": "Lorem ipsum",
         "models": ["qwen2.5"],
         "required_keys": []
+    },
+    "openrouter": {
+        "name": "OpenRouter",
+        "description": "Lorem ipsum",
+        "models": [],
+        "required_keys": ["OPENROUTER_API_KEY"]
     }
 }

@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-export default function Send({ className = "" }) {
+export default function Send({ className = '' }) {
   return (
     <svg
       fill="none"

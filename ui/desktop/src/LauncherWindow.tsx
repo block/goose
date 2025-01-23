@@ -23,7 +23,7 @@ export default function SpotlightWindow() {
       // Create a new chat window with the query
       window.electron.createChatWindow(query);
       setQuery('');
-      inputRef.current.blur()
+      inputRef.current.blur();
     }
   };
 
