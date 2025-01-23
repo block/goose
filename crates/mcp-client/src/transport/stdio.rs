@@ -5,7 +5,7 @@ use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 use async_trait::async_trait;
 use mcp_core::protocol::JsonRpcMessage;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
 
@@ -16,6 +16,7 @@ pub struct StdioActor {
     receiver: mpsc::Receiver<TransportMessage>,
     pending_requests: Arc<PendingRequests>,
     _process: Child, // we store the process to keep it alive
+    error_sender: mpsc::Sender<Error>,
     stdin: ChildStdin,
     stdout: ChildStdout,
     stderr: ChildStderr,
@@ -46,25 +47,26 @@ impl StdioActor {
             }
             // capture the status so we don't need to wait for a timeout
             status = self._process.wait() => {
-                if let Ok(status) = status {
-                    if !status.success() {
-                        tracing::error!("Process exited with status: {}", status);
-                    }
-                } else {
-                    tracing::debug!("Error waiting for process: {:?}", status);
-                }
+                tracing::debug!("Process exited with status: {:?}", status);
             }
         }
 
+        // Then always try to read stderr before cleaning up
         let mut stderr_buffer = Vec::new();
         if let Ok(bytes) = self.stderr.read_to_end(&mut stderr_buffer).await {
-            if bytes > 0 {
-                tracing::error!(
-                    "Process exited with stderr {:?}",
-                    String::from_utf8_lossy(&stderr_buffer)
-                )
-            }
+            let err_msg = if bytes > 0 {
+                String::from_utf8_lossy(&stderr_buffer).to_string()
+            } else {
+                "Process ended unexpectedly".to_string()
+            };
+
+            tracing::error!("Process stderr: {}", err_msg);
+            let _ = self
+                .error_sender
+                .send(Error::StdioProcessError(err_msg))
+                .await;
         }
+
         // Clean up regardless of which path we took
         self.pending_requests.clear().await;
     }
@@ -106,11 +108,11 @@ impl StdioActor {
         mut stdin: ChildStdin,
         pending_requests: Arc<PendingRequests>,
     ) {
-        while let Some(transport_msg) = receiver.recv().await {
+        while let Some(mut transport_msg) = receiver.recv().await {
             let message_str = match serde_json::to_string(&transport_msg.message) {
                 Ok(s) => s,
                 Err(e) => {
-                    if let Some(tx) = transport_msg.response_tx {
+                    if let Some(tx) = transport_msg.response_tx.take() {
                         let _ = tx.send(Err(Error::Serialization(e)));
                     }
                     continue;
@@ -119,7 +121,7 @@ impl StdioActor {
 
             tracing::debug!(message = ?transport_msg.message, "Sending outgoing message");
 
-            if let Some(response_tx) = transport_msg.response_tx {
+            if let Some(response_tx) = transport_msg.response_tx.take() {
                 if let JsonRpcMessage::Request(request) = &transport_msg.message {
                     if let Some(id) = &request.id {
                         pending_requests.insert(id.to_string(), response_tx).await;
@@ -148,12 +150,29 @@ impl StdioActor {
 #[derive(Clone)]
 pub struct StdioTransportHandle {
     sender: mpsc::Sender<TransportMessage>,
+    error_receiver: Arc<Mutex<mpsc::Receiver<Error>>>,
 }
 
 #[async_trait::async_trait]
 impl TransportHandle for StdioTransportHandle {
     async fn send(&self, message: JsonRpcMessage) -> Result<JsonRpcMessage, Error> {
-        send_message(&self.sender, message).await
+        let result = send_message(&self.sender, message).await;
+        // Check for any pending errors even if send is successful
+        self.check_for_errors().await?;
+        result
+    }
+}
+
+impl StdioTransportHandle {
+    /// Check if there are any process errors
+    pub async fn check_for_errors(&self) -> Result<(), Error> {
+        match self.error_receiver.lock().await.try_recv() {
+            Ok(error) => {
+                tracing::debug!("Found error: {:?}", error);
+                Err(error)
+            }
+            Err(_) => Ok(()),
+        }
     }
 }
 
@@ -215,11 +234,13 @@ impl Transport for StdioTransport {
     async fn start(&self) -> Result<Self::Handle, Error> {
         let (process, stdin, stdout, stderr) = self.spawn_process().await?;
         let (message_tx, message_rx) = mpsc::channel(32);
+        let (error_tx, error_rx) = mpsc::channel(1);
 
         let actor = StdioActor {
             receiver: message_rx,
             pending_requests: Arc::new(PendingRequests::new()),
             _process: process,
+            error_sender: error_tx,
             stdin,
             stdout,
             stderr,
@@ -227,7 +248,10 @@ impl Transport for StdioTransport {
 
         tokio::spawn(actor.run());
 
-        let handle = StdioTransportHandle { sender: message_tx };
+        let handle = StdioTransportHandle {
+            sender: message_tx,
+            error_receiver: Arc::new(Mutex::new(error_rx)),
+        };
         Ok(handle)
     }
 
