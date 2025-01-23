@@ -44,7 +44,7 @@ const BUILT_IN_EXTENSIONS = [
     type: 'stdio',
     cmd: 'goosed',
     args: ['mcp', 'jetbrains'],
-    description: 'Integration with Jetbrains IntelliJ IDE',
+    description: 'Integration with any Jetbrains IDE',
     enabled: false,
     env_keys: [],
   },
