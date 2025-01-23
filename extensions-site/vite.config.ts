@@ -4,7 +4,7 @@ import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-const basename = process.env.REACT_APP_BASENAME || "";
+const basename = process.env.VITE_BASENAME || "";
 
 export default defineConfig({
   base: basename, 

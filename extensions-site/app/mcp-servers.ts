@@ -1,7 +1,7 @@
 import type { MCPServer } from '../types/server';
 
 export async function fetchMCPServers(): Promise<MCPServer[]> {
-  const baseUrl = import.meta.env.REACT_APP_BASENAME || "";
+  const baseUrl = import.meta.env.VITE_BASENAME || "";
   try {
     // Fetch all servers from the unified JSON file
     const response = await fetch(`${baseUrl}servers.json`);
