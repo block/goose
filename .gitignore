@@ -29,3 +29,14 @@ Cargo.lock
 /bin/
 
 debug_*.txt
+
+# Docs
+# Dependencies
+/node_modules
+
+# Production
+/build
+
+# Generated files
+.docusaurus
+.cache-loader
