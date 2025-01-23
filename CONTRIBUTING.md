@@ -1,5 +1,7 @@
 # Contributing
 
+Goose is Open Source!
+
 We welcome Pull Requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an [issue][issues] before starting.
 
 ## Prerequisites
