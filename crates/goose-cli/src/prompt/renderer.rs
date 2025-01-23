@@ -153,9 +153,11 @@ pub fn default_response_renderer(tool_response: &ToolResponse, theme: &str) {
                     .and_then(|val| val.parse::<f32>().ok())
                     .unwrap_or(0.0);
 
+                // if priority is not set OR less than or equal to min_priority, do not render
                 if content
                     .priority()
                     .is_some_and(|priority| priority <= min_priority)
+                    || content.priority().is_none()
                 {
                     continue;
                 }
