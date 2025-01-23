@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting Guide
+title: Troubleshooting
 ---
 # Errors
 
