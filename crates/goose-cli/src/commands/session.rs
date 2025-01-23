@@ -101,7 +101,8 @@ pub async fn build_session<'a>(
                         _ => e.to_string(),
                     };
                     println!("Failed to start extension: {}, {:?}", name, err);
-                    //process::exit(1);
+                    println!("Please check extension configuration for {}.", name);
+                    process::exit(1);
                 });
         }
     }
