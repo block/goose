@@ -35,7 +35,7 @@ jobs:
           mkdir combined-build
           cp -r documentation/build/* combined-build/
           mkdir -p combined-build/extensions
-          cp -r extensions-site/build/* combined-build/extensions/
+          cp -r extensions-site/build/client/* combined-build/extensions/
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v3
