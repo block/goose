@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies and build extensions-site
         working-directory: ./extensions-site
         env:
-          REACT_APP_BASENAME: "/goose/v1/extensions" # Set the base URL here for the extensions site
+          REACT_APP_BASENAME: "/goose/v1/extensions/" # Set the base URL here for the extensions site
         run: |
           npm install
           npm run build

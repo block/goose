@@ -49,7 +49,7 @@ export default function DetailPage() {
   const baseUrl = import.meta.env.REACT_APP_BASENAME || "";
 
   useEffect(() => {
-    fetch(`${baseUrl}/servers.json`)
+    fetch(`${baseUrl}servers.json`)
       .then((res) => res.json())
       .then((servers) => {
         const matchingServer = servers.find((s: Server) => s.id === id);

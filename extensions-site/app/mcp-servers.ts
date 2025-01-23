@@ -4,7 +4,7 @@ export async function fetchMCPServers(): Promise<MCPServer[]> {
   const baseUrl = import.meta.env.REACT_APP_BASENAME || "";
   try {
     // Fetch all servers from the unified JSON file
-    const response = await fetch(`${baseUrl}/servers.json`);
+    const response = await fetch(`${baseUrl}servers.json`);
     if (!response.ok) {
       throw new Error('Failed to fetch servers');
     }
