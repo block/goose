@@ -48,7 +48,7 @@ export default function DetailPage() {
   const [isCommandVisible, setIsCommandVisible] = useState(true);
 
   useEffect(() => {
-    fetch("/servers.json")
+    fetch("./servers.json")
       .then((res) => res.json())
       .then((servers) => {
         const matchingServer = servers.find((s: Server) => s.id === id);
