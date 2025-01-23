@@ -2,7 +2,6 @@
   "name": "goose-extensions-site",
   "private": true,
   "type": "module",
-  "homepage": "/goose/v1/extensions",
   "scripts": {
     "build": "cross-env NODE_ENV=production react-router build",
     "dev": "react-router dev",
