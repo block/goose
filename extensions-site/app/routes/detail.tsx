@@ -46,7 +46,7 @@ export default function DetailPage() {
   const { id } = useParams();
   const [server, setServer] = useState<Server | null>(null);
   const [isCommandVisible, setIsCommandVisible] = useState(true);
-  const serverUrl = "https://block.github.io/goose/v1/extensions/server.json";
+  const serverUrl = "https://block.github.io/goose/v1/extensions/servers.json";
 
 
   useEffect(() => {
