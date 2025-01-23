@@ -184,6 +184,51 @@ export default function Settings() {
     }
   };
 
+  const handleExtensionRemove = async (extensionId: string) => {
+    // Find the extension to remove
+    const extension = settings.extensions.find((ext) => ext.id === extensionId);
+
+    if (!extension) return;
+
+    const originalSettings = settings;
+
+    // First disable it if it's enabled
+    if (extension.enabled) {
+      try {
+        const response = await fetch(getApiUrl('/extensions/remove'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify(extension.name),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to disable extension before removal');
+        }
+      } catch (error) {
+        showToast('Error disabling extension before removal', 'error');
+        console.error('Error disabling extension:', error);
+        return;
+      }
+    }
+
+    // Then remove it from the settings
+    try {
+      setSettings((prev) => ({
+        ...prev,
+        extensions: prev.extensions.filter((ext) => ext.id !== extensionId),
+      }));
+
+      showToast('Extension removed successfully', 'success');
+    } catch (error) {
+      setSettings(originalSettings);
+      showToast('Error removing extension', 'error');
+      console.error('Error removing extension:', error);
+    }
+  };
+
   const handleNavClick = (section: string, e: React.MouseEvent) => {
     e.preventDefault();
     const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]');
@@ -285,6 +330,7 @@ export default function Settings() {
                         {...ext}
                         onToggle={handleExtensionToggle}
                         onConfigure={(extension) => setExtensionBeingConfigured(extension)}
+                        onRemove={handleExtensionRemove}
                       />
                     ))
                   )}
