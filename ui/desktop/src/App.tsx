@@ -22,9 +22,14 @@ export default function App() {
     window.electron.on('fatal-error', handleFatalError);
 
     // Load stored extension configs when the app starts
-    loadStoredExtensionConfigs().catch((error) => {
-      console.error('Failed to load stored extension configs:', error);
-    });
+    // delay this by a few seconds
+    setTimeout(() => {
+      window.electron.logInfo('App.tsx: Loading stored extension configs');
+      loadStoredExtensionConfigs().catch((error) => {
+        console.error('Failed to load stored extension configs:', error);
+        window.electron.logInfo('App.tsx: Failed to load stored extension configs ' + error);
+      });
+    }, 5000);
 
     return () => {
       window.electron.off('fatal-error', handleFatalError);

@@ -58,18 +58,25 @@ export const loadStoredExtensionConfigs = async (): Promise<void> => {
   try {
     const userSettingsStr = localStorage.getItem('user_settings');
 
+    //console.log('Loading stored extension configs from user_settings', userSettingsStr);
+
     if (userSettingsStr) {
       const userSettings = JSON.parse(userSettingsStr);
       const enabledExtensions = userSettings.extensions.filter((ext: any) => ext.enabled);
+      //console.log('Enabled extensions:', enabledExtensions);
 
       for (const ext of enabledExtensions) {
         // Convert extension format back to ExtensionConfig
+        console.log('Loading extension:', ext);
+
         const config: ExtensionConfig = {
           type: 'stdio', // Assuming all stored extensions are stdio type for now
-          cmd: ext.command,
-          args: [],
-          env_keys: ext.environmentVariables?.map((env: any) => env.name) || [],
+          cmd: ext.cmd,
+          args: ext.args || [],
+          env_keys: ext.env_keys || [],
         };
+
+        console.log('ext config', config);
 
         await extendGoosed(config);
       }
@@ -101,6 +108,7 @@ export const replaceWithShims = async (cmd: string): Promise<string> => {
 
 // Extend Goosed with a new system configuration
 export const extendGoosed = async (config: ExtensionConfig) => {
+  console.log('extendGoosed', config);
   // allowlist the CMD for stdio type
   if (config.type === 'stdio') {
     const allowedCMDs = ['goosed', 'npx', 'uvx'];
