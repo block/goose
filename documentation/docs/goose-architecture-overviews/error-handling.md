@@ -1,7 +1,7 @@
 ---
-title: Troubleshooting
+title: Error Handling in Goose
 ---
-# Errors
+# Error Handling in Goose
 
 Error handling is a key performance-driving part of `goose`. There are many ways that the non-determinism
 in the LLM can introduce an error that it can in turn recover from. In a typical goose session, its expected for there
@@ -28,5 +28,5 @@ To cover all these cases, both ToolUse and ToolResult are typically passed throu
 passed back to the LLM. A valid ToolUse might still end up in an error ToolResult, which is also passed
 back to the LLM. 
 
-The `provider`s then handle translating the agent errors into the various API specs as
-valid messages..
+The `providers` then handle translating the agent errors into the various API specs as
+valid messages.
