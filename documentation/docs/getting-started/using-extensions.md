@@ -106,5 +106,5 @@ Visit the [Installation Guide][installation-guide] for detailed instructions on 
 [providers]: https://block.github.io/goose/plugins/providers.html
 [handling-rate-limits]: https://block.github.io/goose/v1/docs/guidance/handling-llm-rate-limits-with-goose
 [mcp]: https://www.anthropic.com/news/model-context-protocol
-[installation-guide]: http://localhost:3000/goose/v1/docs/installation#update-a-provider
+[installation-guide]: https://block.github.io/goose/v1/docs/installation/#update-a-provider
 [extensions-directory]: https://silver-disco-nvm6v4e.pages.github.io/
