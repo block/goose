@@ -46,9 +46,10 @@ export default function DetailPage() {
   const { id } = useParams();
   const [server, setServer] = useState<Server | null>(null);
   const [isCommandVisible, setIsCommandVisible] = useState(true);
+  const baseUrl = import.meta.env.REACT_APP_BASENAME || "";
 
   useEffect(() => {
-    fetch("./servers.json")
+    fetch(`${baseUrl}/servers.json`)
       .then((res) => res.json())
       .then((servers) => {
         const matchingServer = servers.find((s: Server) => s.id === id);

@@ -4,8 +4,10 @@ import tailwindcss from "tailwindcss";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
+const basename = process.env.REACT_APP_BASENAME || "";
+
 export default defineConfig({
-  base: '/goose/v1/extensions/', 
+  base: basename, 
   css: {
     postcss: {
       plugins: [tailwindcss, autoprefixer],
