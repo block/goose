@@ -2,6 +2,8 @@ import { createBrowserRouter } from "react-router";
 import HomePage from "./routes/home";
 import DetailPage from "./routes/detail";
 
+const basename = "/goose/v1/extensions";
+
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -11,4 +13,7 @@ export const router = createBrowserRouter([
     path: "/detail/:id",
     element: <DetailPage />,
   },
-]);
+], 
+{
+  basename,
+});
