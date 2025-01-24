@@ -73,23 +73,24 @@ The process will look similar to the example below:
 </Tabs>
 
 #### Make Goose do the work for you
-You will see the Goose prompt `G❯`. From here, you can interact with Goose in conversational sessions. Think of it as you're giving directions to a junior developer. 
+
+You will see the Goose prompt `( O)>`. From here, you can interact with Goose in conversational sessions. Think of it as you're giving directions to a junior developer. 
 
 ```
-G❯ type your instructions here exactly as you would speak to a developer.
+( O)> type your instructions here exactly as you would speak to a developer.
 ```
 
 Here's an example:
 
 ```
-G❯ Create a JavaScript project that fetches and displays weather for a user-specified city using a public API
+( O)> Create a JavaScript project that fetches and displays weather for a user specified city using a public API
 ```
 
-You can interrupt Goose with `CTRL+D` or `ESC+Enter` at any time to help redirect its efforts.
+You can interrupt Goose with `CTRL+C` while it is running to help redirect its efforts.
 
 #### Exit the session
 
-To end a session, use `CTRL+C`.
+To end a session, use `CTRL+D` or enter `/exit`.
 
 #### Resume a session
 
@@ -110,31 +111,24 @@ Be sure to check out the available [CLI commands][cli]. If you’d like to devel
 As an alternative to the chat interface, you can also provide instructions to Goose via files. In this example, Goose will execute the commands that are specified in `instructions.md`:
 
 ```sh
-goose run instructions.md
+goose run -t "Create a new Python file that prints hello world" instructions.md
 ```
 
-Alternatively, you can use process substitution to provide instructions:
+You can also pass in a file full of instructions, or use process substitution to chain more complex commands:
 
 ```sh
-goose run <(echo "Create a new Python file that prints hello world")
+goose run -t instructions.md
+goose run -t <(echo "Create a new Python file that prints hello world")
 ```
 
-This will run until completion as best it can. You can also pass `--resume` and it will re-use the first session it finds for context:
-
-```sh
-goose run --resume more_instructions.md
-```
+This will run until completion as best it can. If you'd like to take the run and turn it into an interactive session,
+you can use `goose session --resume` to pick up where it left off.
 
 ### Extending Goose Functionality
 
 [Goose Extensions][extensions-guide] are add-ons built on the [Model Context Protocol(MCP)][MCP]. They enhance Goose's functionality by integrating with the applications and tools you already use in your workflow. Extensions can be used to add new features, access data, and integrate with other systems.
 
 For more information on how to add or remove extensions, see [Managing Extensions][extensions-guide].
-
-**Goose as a Github Action**
-
-There is an experimental [GitHub action](https://github.com/marketplace/actions/goose-ai-developer-agent) to run Goose as part of your workflow (e.g., if you ask it to fix an issue).
-
 
 ## Additional tips
 

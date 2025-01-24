@@ -31,7 +31,7 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
 
 The process will look similar to the example below:
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     ![Set Up a Provider](./assets/guides/set-up-provider.png)
   </TabItem>
@@ -39,8 +39,9 @@ The process will look similar to the example below:
     ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
+
 ### Update a Provider
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     **To update your LLM provider and API key:** 
     1. Run the following command: 
@@ -87,7 +88,7 @@ You will need to have credits in your LLM Provider account (when necessary) to b
 
 ## Running Goose
 
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="cli" label="Goose CLI" default>
         From your terminal, navigate to the directory you'd like to start from and run:
         ```sh
