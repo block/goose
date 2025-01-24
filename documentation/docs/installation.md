@@ -6,7 +6,7 @@ import TabItem from '@theme/TabItem';
 
 # Installation
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     #### Installing the Goose CLI
     To install Goose, run the following script on macOS or Linux. 

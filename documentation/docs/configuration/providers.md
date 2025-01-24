@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 You can use Goose with your preferred LLM. Goose supports a variety of LLM providers. To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Provider Settings` page in the Goose UI.
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     1. Run the following command: 
     ```sh

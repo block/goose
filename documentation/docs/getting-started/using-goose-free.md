@@ -18,7 +18,7 @@ Google Gemini provides free access to its AI capabilities with some limitations.
 
 To set up Google Gemini with Goose, follow these steps:
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     1. Run: 
     ```sh

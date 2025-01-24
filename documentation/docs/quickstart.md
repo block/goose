@@ -15,7 +15,7 @@ Goose is a developer AI agent that supercharges your software development by aut
 
 ### Installation
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     #### Installing the Goose CLI
     To install Goose, run the following script on macOS or Linux. 
@@ -42,7 +42,7 @@ Goose works with [supported LLM providers][providers]. When you first run Goose,
 
 The process will look similar to the example below:
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     ![Set Up a Provider](./assets/guides/set-up-provider.png)
   </TabItem>
@@ -56,7 +56,7 @@ The process will look similar to the example below:
 :::
 
 #### Start a session
-<Tabs>
+<Tabs groupId="interface">
     <TabItem value="cli" label="Goose CLI" default>
         From your terminal, navigate to the directory from which you'd like to start, and run:
         ```sh

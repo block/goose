@@ -12,7 +12,7 @@ Goose Extensions are add-ons that provide a way to extend the functionality of G
 ### Adding An Extension
 When you install Goose, a few built-in extensions are included. In addition, you can add external extensions that were developed on the [Model Context Protocol (MCP)][mcp].
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     
     **To add an extension:**
@@ -61,7 +61,7 @@ When you install Goose, a few built-in extensions are included. In addition, you
 
 You can manage extensions by enabling or disabling them based on your workflow needs. Both, the CLI and UI, allow you to toggle extensions on or off as necessary.
 
-<Tabs>
+<Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     **To enable or disable extensions that are already installed:** 
 
