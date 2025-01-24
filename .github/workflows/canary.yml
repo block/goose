@@ -7,7 +7,7 @@ on:
     paths-ignore:
       - 'docs/**'
     branches:
-      - v1.0
+      - main
 
 name: Canary
 

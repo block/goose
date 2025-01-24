@@ -3,12 +3,12 @@ on:
     paths-ignore:
       - 'docs/**'
     branches:
-      - v1.0
+      - main
   pull_request:
     paths-ignore:
       - 'docs/**'
     branches:
-      - v1.0
+      - main
   workflow_dispatch:
 
 name: CI

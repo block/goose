@@ -147,11 +147,12 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
+        // OpenAI's tool description max str len is 1024
         result.push(json!({
             "type": "function",
             "function": {
                 "name": tool.name,
-                "description": tool.description,
+                "description": tool.description.clone().truncate(1024),
                 "parameters": tool.input_schema,
             }
         }));

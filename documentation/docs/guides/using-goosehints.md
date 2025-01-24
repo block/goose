@@ -9,6 +9,7 @@ sidebar_position: 3
 
 :::info Developer extension required
 To make use of the hints file, you need to have the `developer` extension [enabled](../configuration/managing-extensions).
+
 :::
 
 This guide will walk you through creating and using your `.goosehints` file to streamline your workflow with custom instructions and context.

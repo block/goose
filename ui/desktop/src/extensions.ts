@@ -88,6 +88,10 @@ export const BUILT_IN_EXTENSIONS = [
   },
 ];
 
+function sanitizeName(name: string) {
+  return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
+}
+
 export async function addExtension(
   extension: FullExtensionConfig,
   silent: boolean = false
@@ -97,16 +101,16 @@ export async function addExtension(
     const config = {
       type: extension.type,
       ...(extension.type === 'stdio' && {
-        name: extension.name,
+        name: sanitizeName(extension.name),
         cmd: await replaceWithShims(extension.cmd),
         args: extension.args || [],
       }),
       ...(extension.type === 'sse' && {
-        name: extension.name,
+        name: sanitizeName(extension.name),
         uri: extension.uri,
       }),
       ...(extension.type === 'builtin' && {
-        name: extension.name.toLowerCase().replace(/-/g, '').replace(/\s/g, '_'),
+        name: sanitizeName(extension.name),
       }),
       env_keys: extension.env_keys,
     };
@@ -149,7 +153,7 @@ export async function removeExtension(name: string): Promise<Response> {
         'Content-Type': 'application/json',
         'X-Secret-Key': getSecretKey(),
       },
-      body: JSON.stringify(name),
+      body: JSON.stringify(sanitizeName(name)),
     });
 
     const data = await response.json();

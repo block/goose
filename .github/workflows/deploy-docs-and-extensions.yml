@@ -3,7 +3,7 @@ name: Deploy v1 Docs & Extensions # (/documentation and /extensions-site)
 on:
   push:
     branches:
-      - v1.0
+      - main
 
 jobs:
   deploy:

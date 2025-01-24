@@ -6,6 +6,11 @@ import TabItem from '@theme/TabItem';
 
 # Installation
 
+:::info Supported Environments
+Goose currently works only on **OSX** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+:::
+
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     #### Installing the Goose CLI
@@ -15,14 +20,28 @@ import TabItem from '@theme/TabItem';
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
     ```
     This script will fetch the latest version of Goose and set it up on your system.
+    
+    :::tip Best Practice
+    It’s best to keep Goose updated. You can update it by re-running the installation script.
+    :::
   </TabItem>
   <TabItem value="ui" label="Goose UI">
-    #### Installing the Goose UI
-
-    To install the Goose desktop UI, follow these steps: 
-    1. Visit the [Goose Releases page](https://github.com/block/goose/releases/tag/stable)
-    2. Download the `Goose.zip` file.
-    3. Open the downloaded `Goose.zip` file and launch the desktop application.
+    #### Installing the Goose Desktop Application
+    To install Goose, click the **button** below:
+      <Button 
+        label=":arrow_down: Download Goose Desktop" 
+        link="https://github.com/block/goose/releases/download/stable/Goose.zip" 
+        variant="secondary" 
+        size="lg" 
+        outline 
+      />
+    <div style={{ marginTop: '1rem' }}>  
+      1. Unzip the downloaded `Goose.zip` file.
+      2. Run the executable file to launch the Goose desktop application.
+      :::tip Best Practice
+      It’s best to keep Goose updated. You can do this by checking the [Goose GitHub Release page](https://github.com/block/goose/releases/stable) and downloading updates when available.
+      :::
+    </div>  
   </TabItem>
 </Tabs>
 

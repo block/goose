@@ -52,10 +52,11 @@ pub async fn non_ok_response_to_provider_error(
             ProviderError::ServerError(format!("Server error occurred. Status: {}", response.status()))
         }
         _ => {
+            let status = response.status();
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {}", response.status(), payload)
+                "{}", format!("Provider request failed with status: {}. Body: {:?}. Payload: {}", status, response.text().await.unwrap_or_default(), payload)
             );
-            ProviderError::RequestFailed(format!("Request failed with status: {}.", response.status()))
+            ProviderError::RequestFailed(format!("Request failed with status: {}.", status))
         }
     }
 }

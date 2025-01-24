@@ -130,7 +130,7 @@ export default function Settings() {
   };
 
   const handleExtensionRemove = async () => {
-    if (!extensionBeingConfigured || !extensionBeingConfigured.enabled) return;
+    if (!extensionBeingConfigured) return;
 
     const response = await removeExtension(extensionBeingConfigured.name);
 

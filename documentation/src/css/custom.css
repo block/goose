@@ -212,3 +212,14 @@ html {
   height: 100px;
   width: 100px;
 }
+
+/* Ensure links inside :::note sections are styled green */
+.theme-admonition a {
+  color: #2e8555; /* Replace with the specific green color from your theme */
+  text-decoration: underline; /* Match underline style */
+}
+
+.theme-admonition a:hover {
+  color: #29784c; /* Slightly darker green for hover effect */
+  text-decoration: underline;
+}
