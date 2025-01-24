@@ -53,7 +53,7 @@ export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
 export const default_models = {
   openai: 'gpt-4o',
-  anthropic: 'claude-3-5-sonnet-2',
+  anthropic: 'claude-3-5-sonnet-20241022',
   databricks: 'claude-3-5-sonnet-2',
   google: 'gemini-2.0-flash-exp',
   groq: 'llama-3.3-70b-versatile',
