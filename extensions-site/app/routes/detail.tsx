@@ -3,19 +3,24 @@ import {
   Download,
   Star,
   Terminal,
-  ChevronRight,
   ArrowLeft,
+  Info
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { useEffect, useState } from "react";
+import { fetchMCPServers } from "../mcp-servers";
 
 interface Server {
   id: string;
   name: string;
   description: string;
   command: string;
+  link: string;
+  installation_notes: string;
+  is_builtin: boolean;
+  endorsed: boolean;
   githubStars: number;
   environmentVariables: {
     name: string;
@@ -46,18 +51,31 @@ export default function DetailPage() {
   const { id } = useParams();
   const [server, setServer] = useState<Server | null>(null);
   const [isCommandVisible, setIsCommandVisible] = useState(true);
-  const serverUrl = "https://block.github.io/goose/v1/extensions/servers.json";
-
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetch(serverUrl)
-      .then((res) => res.json())
-      .then((servers) => {
-        const matchingServer = servers.find((s: Server) => s.id === id);
-        if (matchingServer) {
-          setServer(matchingServer);
+    const loadServer = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const servers = await fetchMCPServers();
+        const foundServer = servers.find((s) => s.id === id);
+        if (!foundServer) {
+          setError(`Server with ID "${id}" not found`);
+          return;
         }
-      });
+        setServer(foundServer);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        setError(`Failed to load server: ${errorMessage}`);
+        console.error("Error loading server:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadServer();
   }, [id]);
 
   if (!server) {
@@ -134,22 +152,33 @@ export default function DetailPage() {
               <p className="text-xl text-textSubtle">{server.description}</p>
               {/* <Button className="mt-4">Download Goose for desktop</Button> */}
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-textStandard">
-                <Terminal className="h-4 w-4" />
-                <h4 className="font-medium">Command</h4>
-              </div>
-              <code className="block bg-gray-100 dark:bg-gray-900 p-2 rounded text-sm dark:text-gray-300">
-                goose session --with-extension "{server.command}"
-              </code>
+            <div>
+              <p className="text-md text-textSubtle">{server.installation_notes}</p>
             </div>
 
-            {server.environmentVariables.length > 0 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-medium dark:text-gray-300">
-                  Environment Variables
-                </h2>
+            <div className="space-y-2">
+              {server.is_builtin ? (
+                <div className="flex items-center gap-2 text-sm dark:text-gray-300">
+                  <Info className="h-4 w-4" />
+                  Can be enabled in the goose settings page
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-textStandard">
+                    <Terminal className="h-4 w-4" />
+                    <h4 className="font-medium">Command</h4>
+                  </div>
+                  <code className="block bg-gray-100 dark:bg-gray-900 p-2 rounded text-sm dark:text-gray-300">
+                    {`goose session --with-extension "${server.command}"`}
+                  </code>
+                </>
+              )}
+            </div>
+            <div className="space-y-4">
+              <h2 className="text-lg font-medium dark:text-gray-300">
+                Environment Variables
+              </h2>
+              {server.environmentVariables.length > 0 ? (
                 <div className="">
                   {server.environmentVariables.map((env) => (
                     <div
@@ -170,8 +199,13 @@ export default function DetailPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-gray-600 dark:text-gray-400 text-sm flex items-center gap-2">
+                  <Info className="h-4 w-4" />
+                  No environment variables needed
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -185,15 +219,29 @@ export default function DetailPage() {
                 rel="noopener noreferrer"
                 className="no-underline"
               >
-                <Button
-                  size="icon"
-                  variant="link"
-                  className="group/download flex items-center justify-center text-xs leading-[14px] text-textSubtle px-0 transition-all"
-                  title="Install with Goose"
-                >
-                  <span>Install</span>
-                  <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
-                </Button>
+                {server.is_builtin ? (
+                  <div
+                    className="inline-block"
+                    title="This extension is built into goose and can be enabled in the settings page"
+                  >
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 text-xs cursor-help"
+                    >
+                      Built-in
+                    </Badge>
+                  </div>
+                ) : (
+                  <Button
+                    size="icon"
+                    variant="link"
+                    className="group/download flex items-center justify-center text-xs leading-[14px] text-textSubtle px-0 transition-all"
+                    title="Install with Goose"
+                  >
+                    <span>Install</span>
+                    <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
+                  </Button>
+                )}
               </a>
             </div>
           </CardContent>

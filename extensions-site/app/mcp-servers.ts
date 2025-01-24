@@ -1,21 +1,22 @@
 import type { MCPServer } from '../types/server';
 
 export async function fetchMCPServers(): Promise<MCPServer[]> {
-  const baseUrl = import.meta.env.VITE_BASENAME || "";
   try {
-    // Fetch all servers from the unified JSON file
-    const response = await fetch(`${baseUrl}servers.json`);
+    // Use absolute path from root
+    const url = '/servers.json';
+    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error('Failed to fetch servers');
-    }
-    
-    const servers = await response.json();
+      throw new Error(`Failed to fetch servers: ${response.status} ${response.statusText}`);
+    }    
+    const text = await response.text();
+    const servers = JSON.parse(text);
     return servers.sort((a, b) => b.githubStars - a.githubStars);
   } catch (error) {
     console.error('Error fetching servers:', error);
     throw error;
   }
 }
+
 
 export async function searchMCPServers(query: string): Promise<MCPServer[]> {
   const allServers = await fetchMCPServers();

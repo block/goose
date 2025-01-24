@@ -89,19 +89,26 @@ export default function HomePage() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {/* <AnimatePresence> */}
-            {servers.map((server, index) => (
-              <motion.div
-                key={server.id}
-                initial={{
-                  opacity: 0,
-                }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <ServerCard key={server.id} server={server} />
-              </motion.div>
-            ))}
+            {servers
+              .sort((a, b) => {
+                // Sort built-in servers first
+                if (a.is_builtin && !b.is_builtin) return -1;
+                if (!a.is_builtin && b.is_builtin) return 1;
+                return 0;
+              })
+              .map((server, index) => (
+                <motion.div
+                  key={server.id}
+                  initial={{
+                    opacity: 0,
+                  }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <ServerCard key={server.id} server={server} />
+                </motion.div>
+              ))}
             {/* </AnimatePresence> */}
           </div>
         )}

@@ -1,263 +1,150 @@
 [
   {
-    "id": "aws-kb-retrieval",
-    "name": "AWS KB Retrieval",
-    "description": "Retrieval from AWS Knowledge Base using Bedrock Agent Runtime",
-    "command": "npx -y @modelcontextprotocol/server-aws-kb-retrieval",
-    "githubStars": 120,
-    "environmentVariables": [
-      {
-        "name": "AWS_ACCESS_KEY_ID",
-        "description": "AWS access key ID",
-        "required": true
-      },
-      {
-        "name": "AWS_SECRET_ACCESS_KEY",
-        "description": "AWS secret access key",
-        "required": true
-      },
-      {
-        "name": "AWS_REGION",
-        "description": "AWS region",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "brave-search",
-    "name": "Brave Search",
-    "description": "Web and local search using Brave's Search API",
-    "command": "npx -y @modelcontextprotocol/server-brave-search",
-    "githubStars": 95,
-    "environmentVariables": [
-      {
-        "name": "BRAVE_API_KEY",
-        "description": "API key for Brave Search",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "everart",
-    "name": "EverArt",
-    "description": "AI image generation using various models",
-    "command": "npx -y @modelcontextprotocol/server-everart",
-    "githubStars": 85,
-    "environmentVariables": [
-      {
-        "name": "EVERART_API_KEY",
-        "description": "API key for EverArt service",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "everything",
-    "name": "Everything",
-    "description": "Reference / test server with prompts, resources, and tools",
-    "command": "npx -y @modelcontextprotocol/server-everything",
-    "githubStars": 75,
+    "id": "developer",
+    "name": "Developer",
+    "description": "Built-in developer tools for file editing and shell command execution",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/developer",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
     "environmentVariables": []
   },
   {
-    "id": "fetch",
-    "name": "Fetch",
-    "description": "Web content fetching and conversion for efficient LLM usage",
-    "command": "npx -y @modelcontextprotocol/server-fetch",
-    "githubStars": 82,
+    "id": "nondeveloper",
+    "name": "Non-developer",
+    "description": "Built-in tools for non-developer tasks and system interactions",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/nondeveloper",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
     "environmentVariables": []
   },
   {
-    "id": "filesystem",
-    "name": "Filesystem",
-    "description": "Secure file operations with configurable access controls",
-    "command": "npx -y @modelcontextprotocol/server-filesystem",
-    "githubStars": 110,
-    "environmentVariables": [
-      {
-        "name": "ALLOWED_PATHS",
-        "description": "Comma-separated list of allowed filesystem paths",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "gdrive",
+    "id": "google_drive",
     "name": "Google Drive",
-    "description": "File access and search capabilities for Google Drive",
-    "command": "npx -y @modelcontextprotocol/server-gdrive",
-    "githubStars": 92,
+    "description": "Built-in Google Drive integration for file management and access",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/google_drive",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. Can be accessed via goose://extension?cmd=goosed&arg=mcp&arg=google_drive&description=google_drive deeplink.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
     "environmentVariables": [
       {
-        "name": "GOOGLE_CREDENTIALS",
-        "description": "Google Cloud service account credentials JSON",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "git",
-    "name": "Git",
-    "description": "Tools to read, search, and manipulate Git repositories",
-    "command": "uvx mcp-server-git",
-    "githubStars": 95,
-    "environmentVariables": [
-      {
-        "name": "GIT_REPO_PATH",
-        "description": "Path to the Git repository",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "github",
-    "name": "GitHub",
-    "description": "Repository management, file operations, and GitHub API integration",
-    "command": "npx -y @modelcontextprotocol/server-github",
-    "githubStars": 130,
-    "environmentVariables": [
-      {
-        "name": "GITHUB_TOKEN",
-        "description": "GitHub personal access token",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "gitlab",
-    "name": "GitLab",
-    "description": "GitLab API, enabling project management",
-    "command": "npx -y @modelcontextprotocol/server-gitlab",
-    "githubStars": 88,
-    "environmentVariables": [
-      {
-        "name": "GITLAB_TOKEN",
-        "description": "GitLab personal access token",
+        "name": "GOOGLE_DRIVE_OAUTH_PATH",
+        "description": "Path to the OAuth config file (required)",
         "required": true
       },
       {
-        "name": "GITLAB_URL",
-        "description": "GitLab instance URL (defaults to gitlab.com)",
-        "required": false
-      }
-    ]
-  },
-  {
-    "id": "google-maps",
-    "name": "Google Maps",
-    "description": "Location services, directions, and place details",
-    "command": "npx -y @modelcontextprotocol/server-google-maps",
-    "githubStars": 87,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_MAPS_API_KEY",
-        "description": "Google Maps API key",
+        "name": "GOOGLE_DRIVE_CREDENTIALS_PATH",
+        "description": "Path to store OAuth credentials (required)",
         "required": true
+      },
+      {
+        "name": "GOOGLE_DRIVE_OAUTH_CONFIG",
+        "description": "OAuth config JSON string (optional, if not provided expects valid config file at GOOGLE_DRIVE_OAUTH_PATH)",
+        "required": false
       }
     ]
   },
   {
     "id": "memory",
     "name": "Memory",
-    "description": "Knowledge graph-based persistent memory system",
+    "description": "Built-in memory system for persistent context and information storage",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/memory",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "jetbrains",
+    "name": "JetBrains",
+    "description": "Built-in JetBrains IDE integration for development workflows",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/jetbrains",
+    "installation_notes": "This is a built-in extension that comes with Goose by default. Can be accessed via goose://extension?cmd=goosed&arg=mcp&arg=jetbrains deeplink.",
+    "is_builtin": true,
+    "endorsed": true,
+    "githubStars": 356,
+    "environmentVariables": []
+  },
+  {
+    "id": "knowledge_graph_memory",
+    "name": "Knowledge Graph Memory",
+    "description": "Graph-based memory system for persistent knowledge storage",
     "command": "npx -y @modelcontextprotocol/server-memory",
-    "githubStars": 105,
-    "environmentVariables": [
-      {
-        "name": "MEMORY_STORE_PATH",
-        "description": "Path to store the memory database",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "postgres",
-    "name": "PostgreSQL",
-    "description": "Read-only database access with schema inspection",
-    "command": "npx -y @modelcontextprotocol/server-postgres",
-    "githubStars": 98,
-    "environmentVariables": [
-      {
-        "name": "DATABASE_URL",
-        "description": "PostgreSQL connection string",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "puppeteer",
-    "name": "Puppeteer",
-    "description": "Browser automation and web scraping",
-    "command": "npx -y @modelcontextprotocol/server-puppeteer",
-    "githubStars": 85,
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+    "installation_notes": "Install using npx package manager. Note: Default memory graph location may be hard to find where npx installs the module.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
     "environmentVariables": []
   },
   {
-    "id": "sentry",
-    "name": "Sentry",
-    "description": "Retrieving and analyzing issues from Sentry.io",
-    "command": "npx -y @modelcontextprotocol/server-sentry",
-    "githubStars": 78,
-    "environmentVariables": [
-      {
-        "name": "SENTRY_AUTH_TOKEN",
-        "description": "Sentry authentication token",
-        "required": true
-      },
-      {
-        "name": "SENTRY_ORG",
-        "description": "Sentry organization slug",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "sequentialthinking",
-    "name": "Sequential Thinking",
-    "description": "Dynamic and reflective problem-solving through thought sequences",
-    "command": "npx -y @modelcontextprotocol/server-sequentialthinking",
-    "githubStars": 82,
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Web content fetching and processing capabilities",
+    "command": "uvx mcp-server-fetch",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+    "installation_notes": "Install using uvx package manager. Note: Some sites may block access via robots.txt.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
     "environmentVariables": []
   },
   {
-    "id": "slack",
-    "name": "Slack",
-    "description": "Channel management and messaging capabilities",
-    "command": "npx -y @modelcontextprotocol/server-slack",
-    "githubStars": 90,
-    "environmentVariables": [
-      {
-        "name": "SLACK_TOKEN",
-        "description": "Slack bot token",
-        "required": true
-      },
-      {
-        "name": "SLACK_CHANNEL",
-        "description": "Default Slack channel ID",
-        "required": false
-      }
-    ]
-  },
-  {
-    "id": "sqlite",
-    "name": "Sqlite",
-    "description": "Database interaction and business intelligence capabilities",
-    "command": "npx -y @modelcontextprotocol/server-sqlite",
-    "githubStars": 85,
-    "environmentVariables": [
-      {
-        "name": "DATABASE_PATH",
-        "description": "Path to SQLite database file",
-        "required": true
-      }
-    ]
-  },
-  {
-    "id": "time",
-    "name": "Time",
-    "description": "Time and timezone conversion capabilities",
-    "command": "npx -y @modelcontextprotocol/server-time",
-    "githubStars": 75,
+    "id": "git",
+    "name": "Git",
+    "description": "Git version control system integration",
+    "command": "npx -y @modelcontextprotocol/server-git",
+    "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
+    "installation_notes": "Install using npx package manager. Note: Does not support git push, merge or rebase operations.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 7271,
     "environmentVariables": []
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily Web Search",
+    "description": "Web search capabilities powered by Tavily",
+    "command": "uvx mcp-tavily",
+    "link": "https://github.com/RamXX/mcp-tavily",
+    "installation_notes": "Install using uvx package manager. Requires Tavily API key.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 4,
+    "environmentVariables": [
+      {
+        "name": "TAVILY_API_KEY",
+        "description": "API key for Tavily web search service",
+        "required": true
+      }
+    ]
+  },
+  {
+    "id": "figma",
+    "name": "Figma",
+    "description": "Figma design tool integration",
+    "command": "npx -y @hapins/figma-mcp",
+    "link": "https://www.npmjs.com/package/@hapins/figma-mcp",
+    "installation_notes": "Install using npx package manager. Requires Figma access token from user settings.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 0,
+    "environmentVariables": [
+      {
+        "name": "FIGMA_ACCESS_TOKEN",
+        "description": "Access token from Figma user settings",
+        "required": true
+      }
+    ]
   }
 ]
