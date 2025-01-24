@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       continue: ${{ steps.command.outputs.continue }}
-      comment_id: ${{ steps.command.outputs.comment_id }}
     steps:
       - uses: github/command@v1.3.0
         id: command
@@ -63,9 +62,8 @@ jobs:
           merge-multiple: true
 
       - name: Comment on PR with download link
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
-          comment-id: ${{ needs.trigger-on-command.outputs.comment_id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ### Desktop App for this PR
