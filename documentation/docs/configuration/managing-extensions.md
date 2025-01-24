@@ -35,10 +35,27 @@ You can add extensions to Goose through the CLI or the UI.
   2. Select `Settings` from the menu.
   3. Under `Extensions`, you can add (+) a new extension manually, 
   4. Or [`Browse Extensions`][extensions] to find curated extensions.
+  5. Click 'Install' on extension you'd like to add and it installs right in the Goose app.
   </TabItem>
 </Tabs>
 
+## Removing Extensions
 
+You can remove extensions installed on Goose 
+
+<Tabs groupId="interface">
+<TabItem value="cli" label="Goose CLI" default>
+    At the moment, you can remove extensions by editing the config file directly, which is stored in `~/.config/goose/config.yaml`.
+  </TabItem>
+  <TabItem value="ui" label="Goose UI">
+
+  1. Locate the menu (...) in the top right corner of the Goose UI.
+  2. Select `Settings` from the menu.
+  3. Under `Extensions`, find the extension you'd like to remove and click on the settings icon beside it.
+  4. In the dialog that appears, click `Remove Extension`.
+
+  </TabItem>
+</Tabs>
 
 ## Built-in Extensions
 Out of the box, Goose is installed with a few extensions out of the box but with only the `Developer` extension enabled by default.
