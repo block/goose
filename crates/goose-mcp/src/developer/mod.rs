@@ -723,13 +723,19 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_shell_missing_parameters() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
         let router = get_router().await;
         let result = router.call_tool("shell", json!({})).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
         assert!(matches!(err, ToolError::InvalidParameters(_)));
+
+        temp_dir.close().unwrap();
     }
 
     #[tokio::test]
