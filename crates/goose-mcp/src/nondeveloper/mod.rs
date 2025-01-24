@@ -64,7 +64,7 @@ impl NonDeveloperRouter {
                 - text (for HTML pages)
                 - json (for API responses)
                 - binary (for images and other files)
-                
+
                 The content is cached locally and can be accessed later using the cache_path
                 returned in the response.
             "#},
@@ -91,7 +91,7 @@ impl NonDeveloperRouter {
             indoc! {r#"
                 Control the computer using AppleScript (macOS only).
                 Allows automation of applications and system features through AppleScript.
-                
+
                 Common uses:
                 - Control applications (Mail, Safari, iTunes, etc.)
                 - System settings and notifications
@@ -101,7 +101,7 @@ impl NonDeveloperRouter {
                 - Media management
                 - Combining with the screenshot tool to help user achieve tasks.
 
-                It allows users to control applications and system features programmatically. 
+                It allows users to control applications and system features programmatically.
                 Here's an overview of what AppleScript can automate:
                     Application Control
                         Launch, quit, or manage applications.
@@ -152,7 +152,7 @@ impl NonDeveloperRouter {
             indoc! {r#"
                 Create and run small scripts for automation tasks.
                 Supports Shell and Ruby (on macOS).
-                
+
                 The script is saved to a temporary file and executed.
                 Consider using shell script (bash) for most simple tasks first.
                 Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
@@ -227,12 +227,12 @@ impl NonDeveloperRouter {
             The NonDeveloperExtension helps you with common tasks like web scraping,
             data processing, and automation and computer control without requiring programming expertise,
             supplementing the Developer Extension.
-            
+
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
-            
+
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
-            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
+            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can.
             You can also guide them steps if they can help out as you go along.
 
             There is already a screenshot tool available you can use if needed to see what is on screen.
@@ -242,13 +242,13 @@ impl NonDeveloperRouter {
               - Create and run simple automation scripts
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
-              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it: 
+              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it:
                     AppleScript is a powerful scripting language designed for automating tasks on macOS such as: Integration with Other Scripts
                             Execute shell scripts, Ruby scripts, or other automation scripts.
                             Combine workflows across scripting languages.
                     Complex Workflows
                         Automate multi-step tasks involving multiple apps or system features.
-                        Create scheduled tasks using Calendar or other scheduling apps.                
+                        Create scheduled tasks using Calendar or other scheduling apps.
 
               - use the screenshot tool if needed to help with tasks
 
