@@ -21,7 +21,7 @@ export default function SplashPills({ append }) {
   return (
     <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
       <SplashPill
-        content="What can goose do?"
+        content="What can you do?"
         append={append}
         className="bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:!text-black border-none hover:bg-slate"
       />

@@ -74,7 +74,7 @@ export const BUILT_IN_EXTENSIONS = [
     type: 'builtin',
     env_keys: [],
   },
-  {
+  /* TODO re-enable when we have a smoother auth flow {
     id: 'google_drive',
     name: 'Google Drive',
     description: 'Built-in Google Drive integration for file management and access',
@@ -85,7 +85,7 @@ export const BUILT_IN_EXTENSIONS = [
       'GOOGLE_DRIVE_CREDENTIALS_PATH',
       'GOOGLE_DRIVE_OAUTH_CONFIG',
     ],
-  },
+  },*/
 ];
 
 function sanitizeName(name: string) {
