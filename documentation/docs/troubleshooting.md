@@ -28,6 +28,11 @@ For particularly large or complex tasks, consider breaking them into smaller ses
 :::
 
 ---
+### Context Length Exceeded Error
+
+This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
+
+---
 
 ### Handling Rate Limit Errors
 Goose may encounter a `429 error` (rate limit exceeded) when interacting with LLM providers. The recommended solution is to use OpenRouter. See [Handling LLM Rate Limits][handling-rate-limits] for more info.
@@ -74,4 +79,4 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [installation]: /docs/installation
 [discord]: https://discord.gg/block-opensource
-
+[goosehints]: /docs/guides/using-goosehints
