@@ -1,0 +1,225 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
+    format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
+    format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Semibold.woff2)
+    format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Bold.woff2)
+    format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+
+  /* arcade colors */
+  --constant-white: #ffffff;
+  --constant-black: #000000;
+  --grey-10: #101010;
+  --grey-20: #1e1e1e;
+  --grey-50: #666666;
+  --grey-60: #959595;
+  --grey-80: #cccccc;
+  --grey-85: #dadada;
+  --grey-90: #e8e8e8;
+  --grey-95: #f0f0f0;
+  --dark-grey-15: #1a1a1a;
+  --dark-grey-25: #232323;
+  --dark-grey-30: #2a2a2a;
+  --dark-grey-40: #333333;
+  --dark-grey-45: #595959;
+  --dark-grey-60: #878787;
+  --dark-grey-90: #e1e1e1;
+
+  --background-app: var(--constant-white);
+  --background-prominent: var(--grey-80);
+  --background-standard: var(--grey-90);
+  --background-subtle: var(--grey-95);
+
+  --border-divider: var(--grey-90);
+  --border-inverse: var(--constant-white);
+  --border-prominent: var(--grey-10);
+  --border-standard: var(--grey-60);
+  --border-subtle: var(--grey-90);
+
+  --icon-disabled: var(--grey-60);
+  --icon-extra-subtle: var(--grey-60);
+  --icon-inverse: var(--constant-white);
+  --icon-prominent: var(--grey-10);
+  --icon-standard: var(--grey-20);
+  --icon-subtle: var(--grey-50);
+
+  --text-placeholder: var(--grey-60);
+  --text-prominent: var(--grey-10);
+  --text-standard: var(--grey-20);
+  --text-subtle: var(--grey-50);
+  --text-inverse: var(--constant-white);
+
+  --button-primary-background: var(--constant-black);
+
+  /* overrides */
+
+  --ifm-button-border-radius: 999px;
+  --ifm-font-family-base: "Cash Sans", sans-serif;
+  --ifm-font-size-base: 16px;
+  --ifm-button-font-weight: var(--ifm-font-weight-normal);
+  --ifm-navbar-item-padding-horizontal: 32px;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-background-color: var(--background-app);
+  --ifm-background-color: var(--background-app);
+  --ifm-hero-text-color: var(--text-standard);
+  --ifm-heading-font-weight: var(--ifm-font-weight-semibold);
+  --ifm-footer-background-color: var(--background-app);
+  --ifm-color-primary: var(--constant-black);
+  --ifm-footer-link-color: var(--text-standard);
+  --ifm-navbar-link-hover-color: var(--text-subtle);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme="dark"] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+
+  /* arcade colors */
+  --background-app: var(--constant-black);
+  --background-prominent: var(--dark-grey-40);
+  --background-standard: var(--dark-grey-25);
+  --background-subtle: var(--dark-grey-15);
+
+  --border-divider: var(--dark-grey-25);
+  --border-inverse: var(--constant-black);
+  --border-prominent: var(--constant-white);
+  --border-standard: var(--dark-grey-45);
+  --border-subtle: var(--dark-grey-25);
+
+  --icon-disabled: var(--dark-grey-45);
+  --icon-extra-subtle: var(--dark-grey-45);
+  --icon-inverse: var(--constant-black);
+  --icon-prominent: var(--constant-white);
+  --icon-standard: var(--dark-grey-90);
+  --icon-subtle: var(--dark-grey-60);
+
+  --text-placeholder: var(--dark-grey-45);
+  --text-prominent: var(--constant-white);
+  --text-standard: var(--dark-grey-90);
+  --text-subtle: var(--dark-grey-60);
+  --text-inverse: var(--constant-black);
+
+  --button-primary-background: var(--constant-white);
+}
+
+/* overrides */
+
+.button {
+  display: flex;
+  align-items: center;
+  padding: 8px 24px;
+  font-weight: var(--ifm-font-weight-semibold);
+  font-size: var(--ifm-font-size-base);
+  color: var(--text-standard);
+  border: none;
+}
+
+.button--primary {
+  background: var(--button-primary-background);
+  color: var(--text-inverse);
+}
+
+.button svg {
+  margin-right: 0.75rem;
+}
+
+.hero--primary {
+  background: var(--background-app);
+  color: var(--text-standard);
+}
+
+html {
+  background-color: var(--background-app);
+}
+
+.hero .container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.hero__title {
+  max-width: 280px;
+  text-align: center;
+  line-height: 0.8;
+  margin-bottom: 32px;
+}
+
+.hero__subtitle {
+  max-width: 600px;
+  margin-bottom: 32px;
+}
+
+.footer .container {
+  border-top: 2px solid var(--border-prominent);
+  padding-top: 24px;
+}
+
+/* net new */
+
+.hero--logo svg {
+  height: 100px;
+  width: 100px;
+}
+
+/* Ensure links inside :::note sections are styled green */
+.theme-admonition a {
+  color: #2e8555; /* Replace with the specific green color from your theme */
+  text-decoration: underline; /* Match underline style */
+}
+
+.theme-admonition a:hover {
+  color: #29784c; /* Slightly darker green for hover effect */
+  text-decoration: underline;
+}

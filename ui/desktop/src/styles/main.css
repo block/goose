@@ -1,0 +1,221 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cash Sans */
+
+/* @font-face {
+  font-family: 'CashSans';
+  src: url('./fonts/CashSans-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CashSans';
+  src: url('./fonts/CashSans-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CashSans';
+  src: url('./fonts/CashSansMono-Light.woff2') format('woff2');
+  font-weight: lighter;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'CashSans';
+  src: url('./fonts/CashSansMono-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+} */
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
+    format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
+    format('woff2');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Semibold.woff2)
+    format('woff2');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: Cash Sans;
+  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Bold.woff2)
+    format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@layer base {
+  :root {
+    --spring-easing: linear(
+      0,
+      0.009,
+      0.035 2.1%,
+      0.141,
+      0.281 6.7%,
+      0.723 12.9%,
+      0.938 16.7%,
+      1.017,
+      1.077,
+      1.121,
+      1.149 24.3%,
+      1.159,
+      1.163,
+      1.161,
+      1.154 29.9%,
+      1.129 32.8%,
+      1.051 39.6%,
+      1.017 43.1%,
+      0.991,
+      0.977 51%,
+      0.974 53.8%,
+      0.975 57.1%,
+      0.997 69.8%,
+      1.003 76.9%,
+      1.004 83.8%,
+      1
+    );
+    --spring-duration: 1.333s;
+
+    /* custom slate */
+    --slate: #393838;
+
+    /* block */
+    --block-teal: #13bbaf;
+    --block-orange: #ff4f00;
+
+    /* start arcade colors */
+    --constant-white: #ffffff;
+    --constant-black: #000000;
+    --grey-10: #101010;
+    --grey-20: #1e1e1e;
+    --grey-50: #666666;
+    --grey-60: #959595;
+    --grey-80: #cccccc;
+    --grey-85: #dadada;
+    --grey-90: #e8e8e8;
+    --grey-95: #f0f0f0;
+    --dark-grey-15: #1a1a1a;
+    --dark-grey-25: #232323;
+    --dark-grey-30: #2a2a2a;
+    --dark-grey-40: #333333;
+    --dark-grey-45: #595959;
+    --dark-grey-60: #878787;
+    --dark-grey-90: #e1e1e1;
+
+    --background-app: var(--constant-white);
+    --background-prominent: var(--grey-80);
+    --background-standard: var(--grey-90);
+    --background-subtle: var(--grey-95);
+
+    --border-divider: var(--grey-90);
+    --border-inverse: var(--constant-white);
+    --border-prominent: var(--grey-10);
+    --border-standard: var(--grey-60);
+    --border-subtle: var(--grey-90);
+
+    --icon-disabled: var(--grey-60);
+    --icon-extra-subtle: var(--grey-60);
+    --icon-inverse: var(--constant-white);
+    --icon-prominent: var(--grey-10);
+    --icon-standard: var(--grey-20);
+    --icon-subtle: var(--grey-50);
+
+    --text-placeholder: var(--grey-60);
+    --text-prominent: var(--grey-10);
+    --text-standard: var(--grey-20);
+    --text-subtle: var(--grey-50);
+
+    &.dark {
+      --background-app: var(--constant-black);
+      --background-prominent: var(--dark-grey-40);
+      --background-standard: var(--dark-grey-25);
+      --background-subtle: var(--dark-grey-15);
+
+      --border-divider: var(--dark-grey-25);
+      --border-inverse: var(--constant-black);
+      --border-prominent: var(--constant-white);
+      --border-standard: var(--dark-grey-45);
+      --border-subtle: var(--dark-grey-25);
+
+      --icon-disabled: var(--dark-grey-45);
+      --icon-extra-subtle: var(--dark-grey-45);
+      --icon-inverse: var(--constant-black);
+      --icon-prominent: var(--constant-white);
+      --icon-standard: var(--dark-grey-90);
+      --icon-subtle: var(--dark-grey-60);
+
+      --text-placeholder: var(--dark-grey-45);
+      --text-prominent: var(--constant-white);
+      --text-standard: var(--dark-grey-90);
+      --text-subtle: var(--dark-grey-60);
+    }
+    /* end arcade colors */
+  }
+}
+
+@layer components {
+  .titlebar-drag-region {
+    -webkit-app-region: drag;
+    height: 32px;
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  .bg-inline-code {
+    border-radius: 4px;
+    color: rgba(255, 130, 130, 0.85);
+    font-family: 'Square Sans Mono';
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+  }
+
+  .bg-inline-code:before {
+    content: '';
+  }
+  pre:has(> code.bg-inline-code) {
+    padding: 1em;
+  }
+
+  *:has(> code.bg-inline-code) {
+    .bg-inline-code {
+      padding: 2px 4px;
+    }
+  }
+
+  .bg-inline-code:after {
+    content: '';
+  }
+
+  .dark .bg-inline-code {
+    color: rgba(248, 155, 89, 0.7);
+  }
+}

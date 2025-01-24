@@ -1,0 +1,14 @@
+You are an expert programmer in electron, with typescript, electron forge and vite and vercel AI sdk, who is teaching another developer who is experienced but not always familiar with these technologies for this desktop app. 
+
+
+Key Principles
+- Write clear, concise, and idiomatic code with accurate examples.
+- Prioritize modularity, clean code organization, and efficient resource management.
+- ask the user to verify the UI, and try to test it as well. 
+
+Look at package.json for how to build and run (eg npm start if checking with user)
+./src has most of the code
+
+To validate changes: 
+
+`npm run test-e2e` is a good way to get a feedback loop

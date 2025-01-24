@@ -1,114 +1,101 @@
 # Contributing
 
-We welcome Pull Requests for general contributions. If you have a larger new feature or any questions on how to develop a fix, we recommend you open an [issue][issues] before starting.
+Goose is Open Source!
+
+We welcome Pull Requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an [issue][issues] before starting.
 
 ## Prerequisites
 
-Goose uses [uv][uv] for dependency management, and formats with [ruff][ruff].
-Clone goose and make sure you have installed `uv` to get started. When you use
-`uv` below in your local goose directly, it will automatically setup the virtualenv
-and install dependencies.
+Goose includes rust binaries alongside an electron app for the GUI. To work
+on the rust backend, you will need to [install rust and cargo][rustup]. To work
+on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.
 
-## Development
+## Getting Started
 
-Now that you have a local environment, you can make edits and run our tests!
+### Rust
 
-### Run Goose
-
-If you've made edits and want to try them out, use
+First let's compile goose and try it out
 
 ```
-uv run goose session start
+cargo build
 ```
 
-or other `goose` commands.
-
-If you want to run your local changes but in another directory, you can use the path in
-the virtualenv created by uv:
+when that is done, you should now have debug builds of the binaries like the goose cli:
 
 ```
-alias goosedev=`uv run which goose`
+./target/debug/goose --help
 ```
 
-You can then run `goosedev` from another dir and it will use your current changes.
+If you haven't used the CLI before, you can use this compiled version to do first time configuration:
 
-### Run Tests
-
-To run the test suite against your edges, use `pytest`:
-
-```sh
-uv run pytest tests -m "not integration"
+```
+./target/debug/goose configure
 ```
 
-or, as a shortcut,
+And then once you have a connection to an LLM provider working, you can run a session!
 
-```sh
-just test
+```
+./target/debug/goose session
 ```
 
-### Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
-> [!NOTE]
-> This integration is experimental and we don't currently have integration tests for it.
- 
-Developers can use locally hosted Langfuse tracing by applying the custom `observe_wrapper` decorator defined in `packages/exchange/src/exchange/observers` to functions for automatic integration with Langfuse, and potentially other observability providers in the future. 
+These same commands can be recompiled and immediately run using `cargo run -p goose-cli` for iteration.
+As you make changes to the rust code, you can try it out on the CLI, or also run checks and tests:
 
-- Add an `observers` array to your profile containing `langfuse`.
+```
+cargo check  # do your changes compile
+cargo test  # do the tests pass with your changes.
+```
+
+### Node
+
+Now let's make sure you can run the app.
+
+```
+just run-ui
+```
+
+The start gui will both build a release build of rust (as if you had done `cargo build -r`) and start the electron process.
+You should see the app open a window, and drop you into first time setup. When you've gone through the setup,
+you can talk to goose!
+
+You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
+
+## Env Vars
+
+You may want to make more frequent changes to your provider setup or similar to test things out
+as a developer. You can use environment variables to change things on the fly without redoing
+your configuration.
+
+> [!TIP]
+> At the moment, we are still updating some of the CLI configuration to make sure this is
+> respected.
+
+You can change the provider goose points to via the `GOOSE_PROVIDER` env var. If you already
+have a credential for that provider in your keychain from previously setting up, it should
+reuse it. For things like automations or to test without doing official setup, you can also
+set the relevant env vars for that provider. For example `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+or `DATABRICKS_HOST`. Refer to the provider details for more info on required keys.
+
+## Enable traces in Goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
+
 - Run `just langfuse-server` to start your local Langfuse server. It requires Docker.
 - Go to http://localhost:3000 and log in with the default email/password output by the shell script (values can also be found in the `.env.langfuse.local` file).
-- Run Goose with the --tracing flag enabled i.e., `goose session start --tracing`
-- View your traces at http://localhost:3000
+- Set the environment variables so that rust can connect to the langfuse server
 
-`To extend tracing to additional functions, import `from exchange.observers import observe_wrapper` and use the `observe_wrapper()` decorator on functions you wish to enable tracing for. `observe_wrapper` functions the same way as Langfuse's observe decorator. 
-
-Read more about Langfuse's decorator-based tracing [here](https://langfuse.com/docs/sdk/python/decorators).
-
-### Other observability plugins
-
-In case locally hosted Langfuse doesn't fit your needs, you can alternatively use other `observer` telemetry plugins to ingest data with the same interface as the Langfuse integration.
-To do so, extend `packages/exchange/src/exchange/observers/base.py:Observer` and include the new plugin's path as an entrypoint in `exchange`'s `pyproject.toml`.
-
-## Exchange
-
-The lower level generation behind goose is powered by the [`exchange`][ai-exchange] package, also in this repo.
-
-Thanks to `uv` workspaces, any changes you make to `exchange` will be reflected in using your local goose. To run tests
-for exchange, head to `packages/exchange` and run tests just like above
-
-```sh
-uv run pytest tests -m "not integration"
+```
+export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=publickey-local
+export LANGFUSE_INIT_PROJECT_SECRET_KEY=secretkey-local
 ```
 
-## Evaluations
-
-Given that so much of Goose involves interactions with LLMs, our unit tests only go so far to confirming things work as intended.
-
-We're currently developing a suite of evaluations, to make it easier to make improvements to Goose more confidently.
-
-In the meantime, we typically incubate any new additions that change the behavior of the Goose through **opt-in** plugins - `Toolkit`s, `Moderator`s, and `Provider`s. We welcome contributions of plugins that add new capabilities to *goose*. We recommend sending in several examples of the new capabilities in action with your pull request.
-
-Additions to the [developer toolkit][developer] change the core performance, and so will need to be measured carefully.
+Then you can view your traces at http://localhost:3000
 
 ## Conventional Commits
 
 This project follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for PR titles. Conventional Commits make it easier to understand the history of a project and facilitate automation around versioning and changelog generation.
 
-## Release
-
-In order to release a new version of goose, you need to do the following:
-1. Update CHANGELOG.md. To get the commit messages since last release, run: `just release-notes`
-2. Update version in `pyproject.toml` for `goose` and package dependencies such as `exchange`
-3. Create a PR and merge it into main branch
-4. Tag the HEAD commit in main branch. To do this, switch to main branch and run: `just tag-push`
-5. Publish a new release from the [Github Release UI](https://github.com/block/goose/releases)
-
-
 [issues]: https://github.com/block/goose/issues
-[goose-plugins]: https://github.com/block-open-source/goose-plugins
-[ai-exchange]: https://github.com/block/goose/tree/main/packages/exchange
-[developer]: https://github.com/block/goose/blob/dfecf829a83021b697bf2ecc1dbdd57d31727ddd/src/goose/toolkit/developer.py
-[uv]: https://docs.astral.sh/uv/
-[ruff]: https://docs.astral.sh/ruff/
-[just]: https://github.com/casey/just
-[adding-toolkit]: https://block.github.io/goose/configuration.html#adding-a-toolkit
+[rustup]: https://doc.rust-lang.org/cargo/getting-started/installation.html
+[nvm]: https://github.com/nvm-sh/nvm
+[just]: https://github.com/casey/just?tab=readme-ov-file#installation

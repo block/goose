@@ -1,0 +1,42 @@
+[package]
+name = "goose-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[dependencies]
+mcp-core = { path = "../mcp-core" }
+mcp-server = { path = "../mcp-server" }
+anyhow = "1.0.94"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+url = "2.5"
+urlencoding = "2.1.3"
+base64 = "0.21"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+lazy_static = "1.5"
+kill_tree = "0.2.4"
+shellexpand = "3.1.0"
+indoc = "2.0.5"
+xcap = "0.0.14"
+reqwest = { version = "0.11", features = ["json"] }
+async-trait = "0.1"
+chrono = { version = "0.4.38", features = ["serde"] }
+dirs = "5.0.1"
+tempfile = "3.8"
+include_dir = "0.7.4"
+google-drive3 = "6.0.0"
+webbrowser = "0.8"
+http-body-util = "0.1.2"
+regex = "1.11.1"
+
+[dev-dependencies]
+serial_test = "3.0.0"
+sysinfo = "0.32.1"

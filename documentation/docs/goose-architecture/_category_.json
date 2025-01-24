@@ -1,0 +1,8 @@
+{
+    "label": "Architecture Overview",
+    "position": 5,
+    "link": {
+      "type": "generated-index",
+      "description": "Extend Goose functionalities with extensions and custom configurations"
+    }
+  }

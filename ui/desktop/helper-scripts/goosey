@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Get the absolute path of the current directory
+current_dir="$(pwd)"
+
+# If an argument is provided, use it as the directory
+if [ $# -gt 0 ]; then
+    # Handle tilde expansion and relative paths
+    if [[ "$1" == "~"* ]]; then
+        # Replace ~ with $HOME
+        dir="${1/#\~/$HOME}"
+    elif [[ "$1" == "." ]]; then
+        # Use absolute path as is
+        dir="$current_dir"
+    elif [[ "$1" == "."* ]]; then
+        # Convert relative path to absolute
+        dir="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+    else
+        # Convert relative path to absolute
+        dir="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+    fi
+else
+    # Use current directory if no argument provided
+    dir="$current_dir"
+fi
+
+echo $dir
+
+# On macOS, use the .app bundle
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Assuming Goose.app is installed in /Applications
+    if [ -d "/Applications/Goose.app" ]; then
+        /Applications/Goose.app/Contents/MacOS/Goose --args --dir "$dir"
+    else
+        echo "Error: Goose.app not found in /Applications"
+        exit 1
+    fi
+else
+    # For Linux, assuming the binary is installed in the PATH
+    goose-app --dir "$dir"
+fi

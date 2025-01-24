@@ -1,0 +1,198 @@
+# This is a **reuseable** workflow that bundles the Desktop App for macOS.
+# It doesn't get triggered on its own. It gets used in multiple workflows:
+#  - release.yml
+#  - canary.yml
+#  - pr-comment-bundle-desktop.yml
+on:
+  workflow_call:
+    inputs:
+      signing:
+        description: 'Whether to perform signing and notarization'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      CERTIFICATE_OSX_APPLICATION:
+        description: 'Certificate for macOS application signing'
+        required: false
+      CERTIFICATE_PASSWORD:
+        description: 'Password for the macOS certificate'
+        required: false
+      APPLE_ID:
+        description: 'Apple ID for notarization'
+        required: false
+      APPLE_ID_PASSWORD:
+        description: 'Password for the Apple ID'
+        required: false
+      APPLE_TEAM_ID:
+        description: 'Apple Team ID'
+        required: false
+
+name: Reusable workflow to bundle desktop app
+
+jobs:
+  bundle-desktop:
+    runs-on: macos-latest
+    name: Bundle Desktop App on macOS
+    steps:
+      # Validate Signing Secrets if signing is enabled
+      - name: Validate Signing Secrets
+        if: ${{ inputs.signing }}
+        run: |
+          if [[ -z "${{ secrets.CERTIFICATE_OSX_APPLICATION }}" ]]; then
+            echo "Error: CERTIFICATE_OSX_APPLICATION secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.CERTIFICATE_PASSWORD }}" ]]; then
+            echo "Error: CERTIFICATE_PASSWORD secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_ID }}" ]]; then
+            echo "Error: APPLE_ID secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_ID_PASSWORD }}" ]]; then
+            echo "Error: APPLE_ID_PASSWORD secret is required for signing."
+            exit 1
+          fi
+          if [[ -z "${{ secrets.APPLE_TEAM_ID }}" ]]; then
+            echo "Error: APPLE_TEAM_ID secret is required for signing."
+            exit 1
+          fi
+          echo "All required signing secrets are present."
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/index
+          key: ${{ runner.os }}-cargo-index
+          restore-keys: |
+            ${{ runner.os }}-cargo-index
+
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Build goosed
+        run: cargo build --release -p goose-server
+
+      - name: Copy binary into Electron folder
+        run: cp target/release/goosed ui/desktop/src/bin/goosed
+
+      # Conditional Signing Step - we skip this for faster builds
+      - name: Add MacOS certs for signing and notarization
+        if: ${{ inputs.signing }}
+        run: ./add-macos-cert.sh
+        working-directory: ui/desktop
+        env:
+          CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 'lts/*'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ui/desktop
+
+      - name: Make Unsigned App
+        if: ${{ !inputs.signing }}
+        run: |
+          attempt=0
+          max_attempts=2
+          until [ $attempt -ge $max_attempts ]; do
+            npm run bundle:default && break
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt failed. Retrying..."
+            sleep 5
+          done
+          if [ $attempt -ge $max_attempts ]; then
+            echo "Action failed after $max_attempts attempts."
+            exit 1
+          fi
+        working-directory: ui/desktop
+
+      - name: Make Signed App
+        if: ${{ inputs.signing }}
+        run: |
+          attempt=0
+          max_attempts=2
+          until [ $attempt -ge $max_attempts ]; do
+            npm run bundle:default && break
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt failed. Retrying..."
+            sleep 5
+          done
+          if [ $attempt -ge $max_attempts ]; then
+            echo "Action failed after $max_attempts attempts."
+            exit 1
+          fi
+        working-directory: ui/desktop
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload Desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Goose-darwin-arm64
+          path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
+
+      - name: Quick launch test (macOS)
+        run: |
+          # Ensure no quarantine attributes (if needed)
+          xattr -cr "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+          echo "Opening Goose.app..."
+          open -g "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+
+          # Give the app a few seconds to start and write logs
+          sleep 5
+
+          # Check if it's running
+          if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
+            echo "App appears to be running."
+          else
+            echo "App did not stay open. Possible crash or startup error."
+            exit 1
+          fi
+          LOGFILE="$HOME/Library/Application Support/Goose/logs/main.log"
+          # Print the log and verify "ChatWindow loaded" is in the logs
+          if [ -f "$LOGFILE" ]; then
+            echo "===== Log file contents ====="
+            cat "$LOGFILE"
+            echo "============================="
+            if grep -F "ChatWindow loaded" "$LOGFILE"; then
+              echo "Confirmed: 'ChatWindow loaded' found in logs!"
+            else
+              echo "Did not find 'ChatWindow loaded' in logs. Failing..."
+              exit 1
+            fi
+          else
+            echo "No log file found at $LOGFILE. Exiting with failure."
+            exit 1
+          fi
+          # Kill the app to clean up
+          pkill -f "Goose.app/Contents/MacOS/Goose"

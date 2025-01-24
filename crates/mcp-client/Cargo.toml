@@ -1,0 +1,24 @@
+[package]
+name = "mcp-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mcp-core = { path = "../mcp-core" }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", default-features = false, features = ["json", "stream", "rustls-tls"] }
+eventsource-client = "0.12.0"
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1.83"
+url = "2.5.4"
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tower = { version = "0.4", features = ["timeout", "util"] }
+tower-service = "0.3"
+rand = "0.8"
+
+[dev-dependencies]

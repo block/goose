@@ -26,7 +26,7 @@ set -e
 SCRIPT_DIR=$(realpath "$(dirname "${BASH_SOURCE[0]}")")
 LANGFUSE_DOCKER_COMPOSE_URL="https://raw.githubusercontent.com/langfuse/langfuse/main/docker-compose.yml"
 LANGFUSE_DOCKER_COMPOSE_FILE="langfuse-docker-compose.yaml"
-LANGFUSE_ENV_FILE="$SCRIPT_DIR/../packages/exchange/.env.langfuse.local"
+LANGFUSE_ENV_FILE="$SCRIPT_DIR/.env.langfuse.local"
 
 check_dependencies() {
     local dependencies=("curl" "docker")
@@ -80,6 +80,21 @@ launch_browser() {
     fi
 }
 
+get_project_keys() {
+    local public_key
+    local secret_key
+    
+    if [ -f "$LANGFUSE_ENV_FILE" ]; then
+        # Try to get keys from env file
+        public_key=$(grep -E "^LANGFUSE_INIT_PROJECT_PUBLIC_KEY=" "$LANGFUSE_ENV_FILE" | cut -d'=' -f2)
+        secret_key=$(grep -E "^LANGFUSE_INIT_PROJECT_SECRET_KEY=" "$LANGFUSE_ENV_FILE" | cut -d'=' -f2)
+    fi
+    
+    # Use environment variables if set, otherwise use defaults
+    echo "export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=${public_key:-$DEFAULT_PUBLIC_KEY}"
+    echo "export LANGFUSE_INIT_PROJECT_SECRET_KEY=${secret_key:-$DEFAULT_SECRET_KEY}"
+}
+
 print_login_variables() {
     if [ -f "$LANGFUSE_ENV_FILE" ]; then
         echo "If not already logged in use the following credentials to log in:"
@@ -87,6 +102,10 @@ print_login_variables() {
     else
         echo "Langfuse environment file with local credentials not found."
     fi
+    echo
+    echo "Project keys (add these to your environment):"
+    get_project_keys
+    echo
 }
 
 check_dependencies

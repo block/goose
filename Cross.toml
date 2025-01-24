@@ -1,0 +1,29 @@
+# Configuration for cross-compiling using cross
+[target.aarch64-unknown-linux-gnu]
+xargo = false
+pre-build = [
+    # Add the ARM64 architecture and install necessary dependencies
+    "dpkg --add-architecture arm64",
+    """\
+    apt-get update --fix-missing && apt-get install -y \
+     pkg-config \
+     libssl-dev:arm64 \
+     libdbus-1-dev:arm64 \
+     libxcb1-dev:arm64
+    """
+]
+env = { PKG_CONFIG_PATH = "/usr/lib/aarch64-linux-gnu/pkgconfig" }
+
+[target.x86_64-unknown-linux-gnu]
+xargo = false
+pre-build = [
+    # Install necessary dependencies for x86_64
+    # We don't need architecture-specific flags because x86_64 dependencies are installable on Ubuntu system
+    """\
+    apt-get update && apt-get install -y \
+     pkg-config \
+     libssl-dev \
+     libdbus-1-dev \
+     libxcb1-dev \
+    """
+]

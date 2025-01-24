@@ -1,0 +1,107 @@
+on:
+  push:
+    paths-ignore:
+      - 'docs/**'
+    branches:
+      - main
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+name: CI
+
+jobs:
+  rust-format:
+    name: Check Rust Code Format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Run cargo fmt
+        run: cargo fmt --check
+
+  rust-build-and-test:
+    name: Build and Test Rust Project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo Registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Cargo Index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/index
+          key: ${{ runner.os }}-cargo-index
+          restore-keys: |
+            ${{ runner.os }}-cargo-index
+
+      - name: Cache Cargo Build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+
+      - name: Build and Test
+        run: |
+          gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
+          cargo test
+        working-directory: crates
+
+      - name: Lint
+        run: cargo clippy -- -D warnings
+
+  desktop-lint:
+    name: Lint Electron Desktop App
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 'lts/*'
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: ui/desktop
+
+      - name: Run Lint
+        run: npm run lint:check
+        working-directory: ui/desktop
+
+  # Faster Desktop App build for PRs only
+  bundle-desktop-unsigned:
+    uses: ./.github/workflows/bundle-desktop.yml
+    if: github.event_name == 'pull_request'
+    with:
+      signing: false

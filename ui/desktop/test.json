@@ -1,0 +1,13 @@
+{
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Hello! ping www.apple.com 10 times."
+          }
+        ]
+      }
+    ]
+  }

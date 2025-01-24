@@ -1,0 +1,69 @@
+# This is a **reuseable** workflow that bundles the Desktop App for macOS.
+# It doesn't get triggered on its own. It gets used in multiple workflows:
+#  - release.yml
+#  - canary.yml
+on:
+  workflow_call:
+    inputs:
+      # Let's allow overriding the OSes and architectures in JSON array form:
+      # e.g. '["ubuntu-latest","macos-latest"]'
+      # If no input is provided, these defaults apply.
+      operating-systems:
+        type: string
+        required: false
+        default: '["ubuntu-latest","macos-latest"]'
+      architectures:
+        type: string
+        required: false
+        default: '["x86_64","aarch64"]'
+
+name: "Reusable workflow to build CLI"
+
+jobs:
+  build-cli:
+    name: Build CLI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.operating-systems) }}
+        architecture: ${{ fromJson(inputs.architectures) }}
+        include:
+          - os: ubuntu-latest
+            target-suffix: unknown-linux-gnu
+          - os: macos-latest
+            target-suffix: apple-darwin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust 
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build CLI
+        env:
+          CROSS_NO_WARNINGS: 0
+        run: |
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          rustup target add "${TARGET}"
+
+          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
+          cross build --release --target ${TARGET} -p goose-cli
+
+          # tar the goose binary as goose-<TARGET>.tar.bz2
+          cd target/${TARGET}/release
+          tar -cjf goose-${TARGET}.tar.bz2 goose
+          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
+          path: ${{ env.ARTIFACT }}

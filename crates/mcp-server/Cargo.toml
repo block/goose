@@ -1,0 +1,22 @@
+[package]
+name = "mcp-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.94"
+thiserror = "1.0"
+mcp-core = { path = "../mcp-core" }
+mcp-macros = { path = "../mcp-macros" }
+serde = { version = "1.0.216", features = ["derive"] }
+serde_json = "1.0.133"
+schemars = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.4", features = ["timeout"] }
+tower-service = "0.3"
+futures = "0.3"
+pin-project = "1.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+async-trait = "0.1"

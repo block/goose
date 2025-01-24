@@ -1,0 +1,54 @@
+ebony:
+  name: Ebony Louis
+  title: Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/55366651?v=4
+  page: true
+  socials:
+    x: ebonylouis
+    github: ebonylouis
+
+rizel:
+  name: Rizel Scarlett
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/22990146?v=4
+  page: true
+  socials:
+    x: blackgirlbytes
+    github: blackgirlbytes
+
+adewale:
+  name: Adewale Abati
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/4003538?v=4
+  url: https://adewaleabati.com
+  page: true
+  socials:
+    x: ace_kyd
+    github: acekyd
+
+dalton:
+  name: Dalton Turner
+  title: Software Engineer
+  image_url: https://avatars.githubusercontent.com/u/78099245?v=4
+  page: true
+  socials:
+    github: dalton-turner
+
+tania:
+  name: Tania Chakraborty
+  title: Senior Technical Community Manager
+  image_url: https://avatars.githubusercontent.com/u/126204004?v=4
+  page: true
+  socials:
+    x: taniashiba
+    github: taniashiba
+
+angie:
+  name: Angie Jones
+  title: Head of Developer Relations
+  image_url: https://avatars.githubusercontent.com/u/15972783?v=4
+  url: https://angiejones.tech
+  page: true
+  socials:
+    x: techgirl1908
+    github: techgirl1908

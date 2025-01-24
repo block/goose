@@ -1,7 +1,0 @@
-{
-  "recommendations": [
-    "ms-python.debugpy",
-    "ms-python.python",
-    "charliermarsh.ruff"
-  ]
-}

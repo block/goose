@@ -1,12 +1,12 @@
 # Architecture
 
-## The System
+## The Extension System
 
 Goose extends the capabilities of high-performing LLMs through a small collection of tools.
 This lets you instruct goose, currently via a CLI interface, to automatically solve problems
 on your behalf. It attempts to not just tell you how you can do something, but to actually do it for you.
 
-The primary mode of goose (the "developer" toolkit) has access to tools to 
+The primary mode of goose (the "developer" extension) has access to tools to 
 
 - maintain a plan
 - run shell commands
@@ -40,7 +40,7 @@ that you should be able to observe by using it.
 ## Implementation
 
 The core execution logic for generation and tool calling is handled by [exchange][exchange].
-It hooks python functions into the model tool use loop, while defining very careful error handling
+It hooks rust functions into the model tool use loop, while defining very careful error handling
 so any failures in tools are surfaced to the model.
 
 Once we've created an *exchange* object, running the process is effectively just calling 
@@ -50,7 +50,7 @@ Once we've created an *exchange* object, running the process is effectively just
 
 Goose builds that exchange:
 - allows users to configure a profile to customize capabilities
-- provides a pluggable system for adding tools and prompts
+- provides a pluggable extension system for adding tools and prompts
 - sets up the tools to interact with state
 
 We expect that goose will have multiple UXs over time, and be run in different
@@ -60,28 +60,29 @@ notifications on stdout).
 
 Goose then constructs the exchange for the UX, the UX only interacts with that exchange. 
 
-```
-def build_exchange(profile: Profile, notifier: Notifier) -> Exchange:
+```rust
+fn build_exchange(profile: Profile, notifier: Notifier) -> Exchange {
     ...
+}
 ```
 
-But to setup a configurable system, Goose uses `Toolkit`s:
+But to setup a configurable system, Goose uses `Extensions`:
 
 ```
-(Profile, Notifier) -> [Toolkits] -> Exchange 
+(Profile, Notifier) -> [Extensions] -> Exchange 
 ```
 
 ## Profile
 
 A profile specifies some basic configuration in Goose, such as which models it should use, as well
-as which toolkits it should include. 
+as which extensions it should include. 
 
 ```yaml
-processor: openai:gpt-4o
-accelerator: openai:gpt-4o-mini
+processor: openai:gpt-4
+accelerator: openai:gpt-4-turbo
 moderator: passive
-toolkits:
-  - assistant
+extensions:
+  - developer
   - calendar
   - contacts
   - name: scheduling
@@ -93,16 +94,14 @@ toolkits:
 
 ## Notifier
 
-The notifier is a concrete implementation of the Notifier base class provided by each UX. It
-needs to support two methods
+The notifier is a concrete implementation of the Notifier trait provided by each UX. It
+needs to support two methods:
 
-```python
-class Notifier:
-    def log(self, RichRenderable):
-        ...
-
-    def status(self, str):
-        ...
+```rust
+trait Notifier {
+    fn log(&self, content: RichRenderable);
+    fn status(&self, message: String);
+}
 ```
 
 Log is meant to record something concrete that happened, such as a tool being called, and status is intended
@@ -110,57 +109,69 @@ for transient displays of the current status. For example, while a shell command
 `.log` to record the command that started, and then update the status to `"shell command running"`. Log is durable
 while Status is ephemeral.
 
-## Toolkits
+## Extensions
 
-Toolkits are a collection of tools, along with the state and prompting they require. 
-Toolkits are what gives Goose its capabilities. 
+Extensions are a collection of tools, along with the state and prompting they require. 
+Extensions are what gives Goose its capabilities. 
 
 Tools need a way to report what's happening back to the user, which we treat similarly
-to logging. To make that possible, toolkits get a reference to the interface described above.
+to logging. To make that possible, extensions get a reference to the interface described above.
 
-```python
-class ScheduleToolkit(Toolkit):
-    def __init__(self, notifier: Notifier, requires: Requirements, **kwargs):
-        super().__init__(notifier, requires, **kwargs) # handles the interface, exchangeview
-        
-        # for a class that has requirements, you can get them like this
-        self.calendar = requires.get("calendar")
-        self.assistant = requires.get("assistant")
-        self.contacts = requires.get("contacts")
-        
-        self.appointments_state = []
+```rust
+struct ScheduleExtension {
+    notifier: Box<dyn Notifier>,
+    calendar: Box<dyn Calendar>,
+    assistant: Box<dyn Assistant>,
+    contacts: Box<dyn Contacts>,
+    appointments_state: Vec<Appointment>,
+}
 
-    def prompt(self) -> str:
-        return "Try out the example tool."
+impl Extension for ScheduleExtension {
+    fn new(notifier: Box<dyn Notifier>, requires: Requirements) -> Self {
+        Self {
+            notifier,
+            calendar: requires.get("calendar"),
+            assistant: requires.get("assistant"),
+            contacts: requires.get("contacts"),
+            appointments_state: vec![],
+        }
+    }
 
-    @tool
-    def example(self):
-        self.interface.log(f"An example tool was called, current state is {self.state}")
+    fn prompt(&self) -> String {
+        "Try out the example tool.".to_string()
+    }
+
+    #[tool]
+    fn example(&self) {
+        self.notifier.log(format!("An example tool was called, current state is {:?}", self.appointments_state));
+    }
+}
 ```
 
 ### Advanced
 
-**Dependencies**: Toolkits can depend on each other, to make it easier to get plugins to extend
-or modify existing capabilities. In the config above, you can see this used for the scheduling toolkit.
+**Dependencies**: Extensions can depend on each other, to make it easier to get plugins to extend
+or modify existing capabilities. In the config above, you can see this used for the scheduling extension.
 You can refer to those requirements in code through:
 
-```python
-@tool
-def example_dependency(self):
-    appointments = self.dependencies["calendar"].appointments
-    ...
+```rust
+#[tool]
+fn example_dependency(&self) {
+    let appointments = self.calendar.appointments();
+    // ...
+}
 ```
 
-
 **ExchangeView**: It can also be useful for tools to have a read-only copy of the history
-of the loop so far. So for advanced use cases, toolkits also have access to an 
+of the loop so far. So for advanced use cases, extensions also have access to an 
 `ExchangeView` object.
 
-```python
-@tool
-def example_history(self):
-    last_message = self.exchange_view.processor.messages[-1]
-    ...
+```rust
+#[tool]
+fn example_history(&self) {
+    let last_message = self.exchange_view.processor.messages.last();
+    // ...
+}
 ```
 
 [exchange]: https://github.com/block/goose/tree/main/packages/exchange
