@@ -143,23 +143,23 @@ impl Capabilities {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
+        let sanitized_name = sanitize(config.name().to_string());
+
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
             self.instructions
-                .insert(config.name().to_string(), instructions);
+                .insert(sanitized_name.clone(), instructions);
         }
 
         // if the server is capable if resources we track it
         if init_result.capabilities.resources.is_some() {
             self.resource_capable_extensions
-                .insert(sanitize(config.name().to_string()));
+                .insert(sanitized_name.clone());
         }
 
         // Store the client using the provided name
-        self.clients.insert(
-            sanitize(config.name().to_string()),
-            Arc::new(Mutex::new(client)),
-        );
+        self.clients
+            .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
 
         Ok(())
     }
@@ -177,9 +177,11 @@ impl Capabilities {
 
     /// Get aggregated usage statistics
     pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
-        self.clients.remove(name);
-        self.instructions.remove(name);
-        self.resource_capable_extensions.remove(name);
+        let sanitized_name = sanitize(name.to_string());
+
+        self.clients.remove(&sanitized_name);
+        self.instructions.remove(&sanitized_name);
+        self.resource_capable_extensions.remove(&sanitized_name);
         Ok(())
     }
 
