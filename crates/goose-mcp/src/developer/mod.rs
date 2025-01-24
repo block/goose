@@ -741,9 +741,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_size_limits() {
-        let router = get_router().await;
+        // Create temp directory first so it stays in scope for the whole test
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
+        
+        // Get router after setting current directory
+        let router = get_router().await;
 
         // Test file size limit
         {
@@ -795,7 +798,7 @@ mod tests {
             assert!(err.to_string().contains("too many characters"));
         }
 
-        temp_dir.close().unwrap();
+        // Let temp_dir drop naturally at end of scope
     }
 
     #[tokio::test]
