@@ -92,7 +92,7 @@ impl ExtensionManager {
     pub fn get_all() -> Result<Vec<ExtensionEntry>> {
         let config = Config::global();
         let extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or(HashMap::new());
+            config.get("extensions").unwrap_or_default();
         Ok(Vec::from_iter(extensions.values().cloned()))
     }
 
