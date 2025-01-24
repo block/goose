@@ -21,6 +21,7 @@ enum ExtensionConfigRequest {
         /// The URI endpoint for the SSE extension.
         uri: String,
         /// List of environment variable keys. The server will fetch their values from the keyring.
+        #[serde(default)]
         env_keys: Vec<String>,
     },
     /// Standard I/O (stdio) extension.
@@ -31,8 +32,10 @@ enum ExtensionConfigRequest {
         /// The command to execute.
         cmd: String,
         /// Arguments for the command.
+        #[serde(default)]
         args: Vec<String>,
         /// List of environment variable keys. The server will fetch their values from the keyring.
+        #[serde(default)]
         env_keys: Vec<String>,
     },
     /// Built-in extension that is part of the goose binary.

@@ -290,7 +290,7 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     args,
     description,
     enabled: true,
-    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : undefined,
+    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : [],
   };
 
   // Store the extension config regardless of env vars status
