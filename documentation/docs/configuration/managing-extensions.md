@@ -12,13 +12,6 @@ Extensions are based on the [Model Context Protocol (MCP)](https://github.com/mo
 Goose to a wide ecosystem of capabilities.
 
 
-TODO: Add a section on how to add extensions from the MCP directory.
-TODO: Updating extensions
-TODO: Removing extensions
-TODO: Finding extensions
-TODO: Configuring extensions
-
-
 ## Adding Extensions
 
 You can add extensions to Goose through the CLI or the UI.
