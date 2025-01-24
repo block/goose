@@ -31,7 +31,7 @@ Goose is a developer AI agent that supercharges your software development by aut
   </TabItem>
   <TabItem value="ui" label="Goose UI">
     #### Installing the Goose Desktop Application
-    To install Goose, click the button below:
+    To install Goose, click the **button** below:
       <Button 
         label=":arrow_down: Download Goose Desktop" 
         link="https://github.com/block/goose/releases/download/stable/Goose.zip" 
