@@ -24,6 +24,9 @@ jobs:
   trigger-on-command:
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
+    outputs:
+      continue: ${{ steps.command.outputs.continue }}
+      comment_id: ${{ steps.command.outputs.comment_id }}
     steps:
       - uses: github/command@v1.3.0
         id: command
@@ -34,7 +37,8 @@ jobs:
 
   bundle-desktop:
     # Only run this if ".bundle" command is detected.
-    if: ${{ steps.command.outputs.continue == 'true' }}
+    needs: [trigger-on-command]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     with:
       signing: true
@@ -61,7 +65,7 @@ jobs:
       - name: Comment on PR with download link
         uses: peter-evans/create-or-update-comment@v3
         with:
-          comment-id: ${{ steps.command.outputs.comment_id }}
+          comment-id: ${{ needs.trigger-on-command.outputs.comment_id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ### Desktop App for this PR
