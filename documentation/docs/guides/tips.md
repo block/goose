@@ -44,4 +44,7 @@ You can tell Goose to run things for you continuously and it will iterate, try, 
 It doesn't have to be in a repo. Just ask Goose!
 
 ### Keep Goose updated
-Regularly update Goose to benefit from our latest features, bug fixes, and performance improvements.
+Regularly update Goose to benefit from the latest features, bug fixes, and performance improvements. For the CLI, the best way to keep it updated is by re-running the [Goose installation script][installation]. For Goose UI, check the [GitHub Releases page][ui-release] regularly for updates.
+
+[installation]: https://block.github.io/goose/v1/docs/quickstart/#installation
+[ui-release]: https://github.com/block/goose/releases/stable

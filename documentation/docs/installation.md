@@ -20,10 +20,14 @@ Goose currently works only on **OSX** and **Linux** systems, and supports both *
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
     ```
     This script will fetch the latest version of Goose and set it up on your system.
+    
+    :::tip Best Practice
+    It’s best to keep Goose updated. You can update it by re-running the installation script.
+    :::
   </TabItem>
   <TabItem value="ui" label="Goose UI">
     #### Installing the Goose Desktop Application
-    To install Goose, click the button below:
+    To install Goose, click the **button** below:
       <Button 
         label=":arrow_down: Download Goose Desktop" 
         link="https://github.com/block/goose/releases/download/stable/Goose.zip" 
@@ -34,7 +38,10 @@ Goose currently works only on **OSX** and **Linux** systems, and supports both *
     <div style={{ marginTop: '1rem' }}>  
       1. Unzip the downloaded `Goose.zip` file.
       2. Run the executable file to launch the Goose desktop application.
-    </div>
+      :::tip Best Practice
+      It’s best to keep Goose updated. You can do this by checking the [Goose GitHub Release page](https://github.com/block/goose/releases/stable) and downloading updates when available.
+      :::
+    </div>  
   </TabItem>
 </Tabs>
 
