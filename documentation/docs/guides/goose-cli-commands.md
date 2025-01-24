@@ -45,23 +45,39 @@ goose mcp <name>
 
 ### session [options]
 
-Start or resume sessions.
+Start or resume sessions with the following options.
 
 **Options:**
-- **`-n, --name <NAME>`** : Name for the chat session (e.g., `'project-x'`)
+- **`-n, --name <NAME>`**
 
-- **`-p, --provider <PROVIDER>`**: Provider to use (e.g., `'openai'`, `'anthropic'`)
+Name for the new chat session (e.g. `'project-x'`)
 
-- **`-m, --model <MODEL>`**:Model to use (e.g., `'gpt-4'`, `'claude-3'`)
-
-- **`-a, --agent <AGENT>`**: Agent version to use (e.g., `'default'`, `'v1'`), defaults to `'default'`
-
-- **`-r, --resume`**: Resume a previous session (last used or specified by `--session`)
-
-
-**Usage:**
 ```bash
-goose session --resume
+goose session --name <name>
+```
+
+- **`-r, --resume`** 
+
+Resume a previous session (last used or specified by `--name`)
+
+```bash
+goose session --name <name> --resume
+```
+
+- **`--with-extension <COMMAND>`** 
+
+Starts the session with the specified extension. Can also include environment variables (e.g., `'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github'`).
+
+```bash
+goose session --name <name> --with-extension <command>
+```
+
+- **`--with-builtin <NAME>`** 
+
+Starts the session with the specified [built-in extension](../configuration/managing-extensions.md#built-in-extensions) enabled. (e.g. 'developer')
+
+```bash
+goose session --with-builtin <name>
 ```
 
 ### run [options]
@@ -70,10 +86,7 @@ Execute commands from an instruction file or stdin
 
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands  
 - **`-t, --text <TEXT>`**: Input text to provide to Goose directly  
-- **`-p, --provider <PROVIDER>`**: Provider to use (e.g., 'openai', 'anthropic')  
-- **`-m, --model <MODEL>`**: Model to use (e.g., 'gpt-4', 'claude-3')  
 - **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')  
-- **`-a, --agent <AGENT>`**: Agent version to use (e.g., 'default', 'v1')  
 - **`-r, --resume`**: Resume from a previous run  
 
 **Usage:**
@@ -83,20 +96,11 @@ goose run --instructions plan.md
 
 ### configure [options]
 
-Configure Goose to set providers, models, etc. 
+Configure Goose settings - providers, extensions, etc.
 
-- **`-p, --provider <PROVIDER>`**: AI Provider to use (e.g., 'openai', 'databricks', 'ollama')
-- **`-m, --model <MODEL>`**: Model to use (e.g., 'gpt-4', 'llama2')
 
 
 **Usage:**
 ```bash
-goose configure --provider 'openai' --model 'gpt-4'
-```
-
-This command can also be run without any arguments, in which case you'll be prompted to make selections.
-
-**Usage:**
-```bash
-goose configure
+goose configure'
 ```
