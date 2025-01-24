@@ -162,9 +162,9 @@ const config: Config = {
     },
     inkeepConfig: {
       baseSettings: {
-          apiKey: "inkeepApiKey",
-          integrationId: "inkeepIntegrationId",
-          organizationId: "inkeepOrgId",
+          apiKey: inkeepApiKey,
+          integrationId: inkeepIntegrationId,
+          organizationId: inkeepOrgId,
           primaryBrandColor: "#1E1E1E"
       },
       aiChatSettings: {
