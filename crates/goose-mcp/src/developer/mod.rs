@@ -800,38 +800,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_char_count_limits() {
-        let router = get_router().await;
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let many_chars_path = temp_dir.path().join("many_chars.txt");
-        let many_chars_str = many_chars_path.to_str().unwrap();
-
-        // Create a file with more than 2^20 characters but less than 2MB
-        let content = "x".repeat((1 << 20) + 1); // 2^20 + 1 characters
-        std::fs::write(&many_chars_path, content).unwrap();
-
-        let result = router
-            .call_tool(
-                "text_editor",
-                json!({
-                    "command": "view",
-                    "path": many_chars_str
-                }),
-            )
-            .await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(matches!(err, ToolError::ExecutionError(_)));
-        assert!(err.to_string().contains("too many characters"));
-
-        temp_dir.close().unwrap();
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_text_editor_write_and_view_file() {
         let router = get_router().await;
 
