@@ -744,7 +744,7 @@ mod tests {
         // Create temp directory first so it stays in scope for the whole test
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
-        
+
         // Get router after setting current directory
         let router = get_router().await;
 
