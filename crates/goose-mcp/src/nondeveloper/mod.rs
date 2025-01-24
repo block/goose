@@ -86,15 +86,76 @@ impl NonDeveloperRouter {
             }),
         );
 
+        let computer_control_tool = Tool::new(
+            "computer_control",
+            indoc! {r#"
+                Control the computer using AppleScript (macOS only).
+                Allows automation of applications and system features through AppleScript.
+                
+                Common uses:
+                - Control applications (Mail, Safari, iTunes, etc.)
+                - System settings and notifications
+                - UI automation
+                - File and folder operations
+                - Calendar and reminders
+                - Media management
+                - Combining with the screenshot tool to help user achieve tasks.
+
+                It allows users to control applications and system features programmatically. 
+                Here's an overview of what AppleScript can automate:
+                    Application Control
+                        Launch, quit, or manage applications.
+                        Interact with app-specific features (e.g., sending an email in Mail, creating a document in Pages, or editing photos in Preview).
+                        Perform tasks in third-party apps that support AppleScript, such as Adobe Photoshop, Microsoft Office, or Safari.
+                    User Interface Automation
+                        Simulate user interactions like clicking buttons, selecting menu items, or typing text.
+                        Fill out forms or automate repetitive tasks in apps.
+                    System Settings and Utilities
+                        Change system preferences (e.g., volume, screen brightness, Wi-Fi settings).
+                        Automate tasks like shutting down, restarting, or putting the system to sleep.
+                        Monitor system events or logs.
+                    Web Automation
+                        Open specific URLs in AppleScript-enabled browsers.
+                        Automate web interactions (e.g., filling forms, navigating pages).
+                        Scrape information from websites.
+                    Email and Messaging
+                        Automate sending and organizing emails in the Mail app.
+                        Extract email contents or attachments.
+                        Send messages via Messages, Slack etc
+                    Media Management
+                        Organize and edit iTunes/Music libraries (e.g., create playlists, change metadata).
+                        Manage photos in Photos (e.g., creating albums, importing/exporting images).
+                        Automate tasks in video or music production tools like Final Cut Pro or GarageBand.
+                    Data Processing
+                        Interact with spreadsheets (e.g., Numbers or Excel).
+
+                "#},
+            json!({
+                "type": "object",
+                "required": ["script"],
+                "properties": {
+                    "script": {
+                        "type": "string",
+                        "description": "The AppleScript content to execute"
+                    },
+                    "save_output": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to save the script output to a file"
+                    }
+                }
+            }),
+        );
+
         let quick_script_tool = Tool::new(
-            "quick_script",
+            "automation_script",
             indoc! {r#"
                 Create and run small scripts for automation tasks.
-                Supports Shell, AppleScript, and Ruby (on macOS).
+                Supports Shell and Ruby (on macOS).
                 
                 The script is saved to a temporary file and executed.
                 Consider using shell script (bash) for most simple tasks first.
-                Applescript for more complex automations (and controlling applications which may not have an api, but do be careful to ensure not too much data is returned at once), and Ruby for text processing or when you need more sophisticated scripting capabilities.
+                Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
                 Some examples of shell:
                     - create a sorted list of unique lines: sort file.txt | uniq
                     - extract 2nd column in csv: awk -F "," '{ print $2}'
@@ -106,7 +167,7 @@ impl NonDeveloperRouter {
                 "properties": {
                     "language": {
                         "type": "string",
-                        "enum": ["shell", "applescript", "ruby"],
+                        "enum": ["shell", "ruby"],
                         "description": "The scripting language to use"
                     },
                     "script": {
@@ -164,61 +225,44 @@ impl NonDeveloperRouter {
             You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
             The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
             The NonDeveloperExtension helps you with common tasks like web scraping,
-            data processing, and automation without requiring programming expertise,
+            data processing, and automation and computer control without requiring programming expertise,
             supplementing the Developer Extension.
+            
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
             
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
             Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
             You can also guide them steps if they can help out as you go along.
+
+            There is already a screenshot tool available you can use if needed to see what is on screen.
+
             Here are some extra tools:
-            web_scrape
-              - Fetch content from websites and APIs
-              - Save as text, JSON, or binary files
-              - Content is cached locally for later use
-              - if website doesn't support it find an alternative way.
-            quick_script
+            automation_script
               - Create and run simple automation scripts
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
               - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it: 
-                    AppleScript is a powerful scripting language designed for automating tasks on macOS. It allows users to control applications and system features programmatically. Here's an overview of what AppleScript can automate:
-                    Application Control
-                        Launch, quit, or manage applications.
-                        Interact with app-specific features (e.g., sending an email in Mail, creating a document in Pages, or editing photos in Preview).
-                        Perform tasks in third-party apps that support AppleScript, such as Adobe Photoshop, Microsoft Office, or Safari.
-                    User Interface Automation
-                        Simulate user interactions like clicking buttons, selecting menu items, or typing text.
-                        Fill out forms or automate repetitive tasks in apps.
-                    System Settings and Utilities
-                        Change system preferences (e.g., volume, screen brightness, Wi-Fi settings).
-                        Automate tasks like shutting down, restarting, or putting the system to sleep.
-                        Monitor system events or logs.
-                    Web Automation
-                        Open specific URLs in Safari or other AppleScript-enabled browsers.
-                        Automate web interactions (e.g., filling forms, navigating pages).
-                        Scrape information from websites.
-                    Email and Messaging
-                        Automate sending and organizing emails in the Mail app.
-                        Extract email contents or attachments.
-                        Send messages via Messages.
-                    Media Management
-                        Organize and edit iTunes/Music libraries (e.g., create playlists, change metadata).
-                        Manage photos in Photos (e.g., creating albums, importing/exporting images).
-                        Automate tasks in video or music production tools like Final Cut Pro or GarageBand.
-                    Data Processing
-                        Process text files or other types of documents.
-                        Extract or format data from files or apps.
-                        Interact with spreadsheets (e.g., Numbers or Excel).
-                    Integration with Other Scripts
-                        Execute shell scripts, Ruby scripts, or other automation scripts.
-                        Combine workflows across scripting languages.
+                    AppleScript is a powerful scripting language designed for automating tasks on macOS such as: Integration with Other Scripts
+                            Execute shell scripts, Ruby scripts, or other automation scripts.
+                            Combine workflows across scripting languages.
                     Complex Workflows
                         Automate multi-step tasks involving multiple apps or system features.
-                        Create scheduled tasks using Calendar or other scheduling apps.
+                        Create scheduled tasks using Calendar or other scheduling apps.                
+
+              - use the screenshot tool if needed to help with tasks
+
+            computer_control
+              - Control the computer using AppleScript (macOS only)
+              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+
             web_search
               - Search the web using DuckDuckGo's API for general topics or keywords
+            web_scrape
+              - Fetch content from html websites and APIs
+              - Save as text, JSON, or binary files
+              - Content is cached locally for later use
+              - This is not optimised for complex websites, so don't use this as the first tool.
             cache
               - Manage your cached files
               - List, view, delete files
@@ -235,6 +279,7 @@ impl NonDeveloperRouter {
                 web_search_tool,
                 web_scrape_tool,
                 quick_script_tool,
+                computer_control_tool,
                 cache_tool,
             ],
             cache_dir,
@@ -433,20 +478,6 @@ impl NonDeveloperRouter {
 
                 script_path.display().to_string()
             }
-            "applescript" => {
-                if std::env::consts::OS != "macos" {
-                    return Err(ToolError::ExecutionError(
-                        "AppleScript is only supported on macOS".into(),
-                    ));
-                }
-
-                let script_path = script_dir.path().join("script.scpt");
-                fs::write(&script_path, script).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to write script: {}", e))
-                })?;
-
-                format!("osascript {}", script_path.display())
-            }
             "ruby" => {
                 let script_path = script_dir.path().join("script.rb");
                 fs::write(&script_path, script).map_err(|e| {
@@ -482,6 +513,72 @@ impl NonDeveloperRouter {
         if save_output && !output_str.is_empty() {
             let cache_path = self
                 .save_to_cache(output_str.as_bytes(), "script_output", "txt")
+                .await?;
+            result.push_str(&format!("\n\nOutput saved to: {}", cache_path.display()));
+
+            // Register as a resource
+            self.register_as_resource(&cache_path, "text")?;
+        }
+
+        Ok(vec![Content::text(result)])
+    }
+
+    // Implement computer control (AppleScript) functionality
+    async fn computer_control(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        if std::env::consts::OS != "macos" {
+            return Err(ToolError::ExecutionError(
+                "Computer control (AppleScript) is only supported on macOS".into(),
+            ));
+        }
+
+        let script = params
+            .get("script")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'script' parameter".into()))?;
+
+        let save_output = params
+            .get("save_output")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // Create a temporary directory for the script
+        let script_dir = tempfile::tempdir().map_err(|e| {
+            ToolError::ExecutionError(format!("Failed to create temporary directory: {}", e))
+        })?;
+
+        let script_path = script_dir.path().join("script.scpt");
+        fs::write(&script_path, script)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to write script: {}", e)))?;
+
+        let command = format!("osascript {}", script_path.display());
+
+        // Run the script
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(&command)
+            .output()
+            .await
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to run AppleScript: {}", e)))?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
+        let error_str = String::from_utf8_lossy(&output.stderr).into_owned();
+
+        let mut result = if output.status.success() {
+            format!(
+                "AppleScript completed successfully.\n\nOutput:\n{}",
+                output_str
+            )
+        } else {
+            format!(
+                "AppleScript failed with error code {}.\n\nError:\n{}\nOutput:\n{}",
+                output.status, error_str, output_str
+            )
+        };
+
+        // Save output if requested
+        if save_output && !output_str.is_empty() {
+            let cache_path = self
+                .save_to_cache(output_str.as_bytes(), "applescript_output", "txt")
                 .await?;
             result.push_str(&format!("\n\nOutput saved to: {}", cache_path.display()));
 
@@ -598,7 +695,8 @@ impl Router for NonDeveloperRouter {
             match tool_name.as_str() {
                 "web_search" => this.web_search(arguments).await,
                 "web_scrape" => this.web_scrape(arguments).await,
-                "quick_script" => this.quick_script(arguments).await,
+                "automation_script" => this.quick_script(arguments).await,
+                "computer_control" => this.computer_control(arguments).await,
                 "cache" => this.cache(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
