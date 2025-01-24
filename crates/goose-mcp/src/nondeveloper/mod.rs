@@ -89,46 +89,21 @@ impl NonDeveloperRouter {
         let computer_control_tool = Tool::new(
             "computer_control",
             indoc! {r#"
-                Control the computer using AppleScript (macOS only).
-                Allows automation of applications and system features through AppleScript.
+                Control the computer using AppleScript (macOS only). Automate applications and system features.
 
-                Common uses:
-                - Control applications (Mail, Safari, iTunes, etc.)
-                - System settings and notifications
-                - UI automation
-                - File and folder operations
-                - Calendar and reminders
-                - Media management
-                - Combining with the screenshot tool to help user achieve tasks.
+                Key capabilities:
+                - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
+                    - Interact with app-specific feature: (e.g, edit documents, process photos)
+                    - Perform tasks in third-party apps that support AppleScript
+                - UI Automation: Simulate user interactions like, clicking buttons, select menus, type text, filling out forms
+                - System Control: Manage settings (volume, brightness, wifi), shutdown/restart, monitor events
+                - Web & Email: Open URLs, web automation, send/organize emails, handle attachments
+                - Media: Manage music libraries, photo collections, playlists
+                - File Operations: Organize files/folders
+                - Integration: Calendar, reminders, messages
+                - Data: Interact with spreadsheets and documents
 
-                It allows users to control applications and system features programmatically.
-                Here's an overview of what AppleScript can automate:
-                    Application Control
-                        Launch, quit, or manage applications.
-                        Interact with app-specific features (e.g., sending an email in Mail, creating a document in Pages, or editing photos in Preview).
-                        Perform tasks in third-party apps that support AppleScript, such as Adobe Photoshop, Microsoft Office, or Safari.
-                    User Interface Automation
-                        Simulate user interactions like clicking buttons, selecting menu items, or typing text.
-                        Fill out forms or automate repetitive tasks in apps.
-                    System Settings and Utilities
-                        Change system preferences (e.g., volume, screen brightness, Wi-Fi settings).
-                        Automate tasks like shutting down, restarting, or putting the system to sleep.
-                        Monitor system events or logs.
-                    Web Automation
-                        Open specific URLs in AppleScript-enabled browsers.
-                        Automate web interactions (e.g., filling forms, navigating pages).
-                        Scrape information from websites.
-                    Email and Messaging
-                        Automate sending and organizing emails in the Mail app.
-                        Extract email contents or attachments.
-                        Send messages via Messages, Slack etc
-                    Media Management
-                        Organize and edit iTunes/Music libraries (e.g., create playlists, change metadata).
-                        Manage photos in Photos (e.g., creating albums, importing/exporting images).
-                        Automate tasks in video or music production tools like Final Cut Pro or GarageBand.
-                    Data Processing
-                        Interact with spreadsheets (e.g., Numbers or Excel).
-
+                Can be combined with screenshot tool for visual task assistance.
                 "#},
             json!({
                 "type": "object",
