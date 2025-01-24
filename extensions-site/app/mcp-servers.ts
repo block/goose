@@ -3,8 +3,8 @@ import type { MCPServer } from '../types/server';
 export async function fetchMCPServers(): Promise<MCPServer[]> {
   try {
     // Use absolute path from root
-    const url = '/servers.json';
-    const response = await fetch(url);
+    const serverUrl = "https://block.github.io/goose/v1/extensions/servers.json";
+    const response = await fetch(serverUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch servers: ${response.status} ${response.statusText}`);
     }    
