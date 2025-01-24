@@ -67,7 +67,7 @@ impl ResourceItem {
 
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
-fn sanitize(input: String) -> String {
+fn sanitize_and_lowercase(input: String) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
         result.push(match c {
@@ -76,7 +76,7 @@ fn sanitize(input: String) -> String {
             _ => '_',                           // Replace any other non-ASCII character with '_'
         });
     }
-    result
+    result.to_lowercase()
 }
 
 impl Capabilities {
@@ -143,7 +143,7 @@ impl Capabilities {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
-        let sanitized_name = sanitize(config.name().to_string());
+        let sanitized_name = sanitize_and_lowercase(config.name().to_string());
 
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
@@ -177,9 +177,11 @@ impl Capabilities {
 
     /// Get aggregated usage statistics
     pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
-        let sanitized_name = sanitize(name.to_string());
+        let sanitized_name = sanitize_and_lowercase(name.to_string());
 
+        tracing::error!(name = sanitized_name, clients= ?self.clients.keys(), "removing extension");
         self.clients.remove(&sanitized_name);
+        tracing::error!(name = sanitized_name, clients= ?self.clients.keys(), "removed extension");
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
         Ok(())
@@ -602,22 +604,22 @@ mod tests {
 
         // Add some mock clients
         capabilities.clients.insert(
-            sanitize("test_client".to_string()),
+            sanitize_and_lowercase("test_client".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
         capabilities.clients.insert(
-            sanitize("__client".to_string()),
+            sanitize_and_lowercase("__client".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
         capabilities.clients.insert(
-            sanitize("__cli__ent__".to_string()),
+            sanitize_and_lowercase("__cli__ent__".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
         capabilities.clients.insert(
-            sanitize("client 🚀".to_string()),
+            sanitize_and_lowercase("client 🚀".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
@@ -651,17 +653,17 @@ mod tests {
 
         // Add some mock clients
         capabilities.clients.insert(
-            sanitize("test_client".to_string()),
+            sanitize_and_lowercase("test_client".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
         capabilities.clients.insert(
-            sanitize("__cli__ent__".to_string()),
+            sanitize_and_lowercase("__cli__ent__".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
         capabilities.clients.insert(
-            sanitize("client 🚀".to_string()),
+            sanitize_and_lowercase("client 🚀".to_string()),
             Arc::new(Mutex::new(Box::new(MockClient {}))),
         );
 
