@@ -265,7 +265,17 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     throw new Error("Missing required 'cmd' parameter in the URL");
   }
 
+  // Validate that the command is one of the allowed commands
+  const allowedCommands = ['npx', 'uvx', 'goosed'];
+  if (!allowedCommands.includes(cmd)) {
+    throw new Error(`Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`);
+  }
+
+  // Check for security risk with npx -c command
   const args = parsedUrl.searchParams.getAll('arg');
+  if (cmd === 'npx' && args.includes('-c')) {
+    throw new Error('Error: npx with -c argument can lead to code injection');
+  }
   const envList = parsedUrl.searchParams.getAll('env');
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
