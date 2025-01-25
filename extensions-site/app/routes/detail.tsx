@@ -11,45 +11,13 @@ import { Badge } from "../components/ui/badge";
 import { Card, CardContent, CardHeader } from "../components/ui/card";
 import { useEffect, useState } from "react";
 import { fetchMCPServers } from "../mcp-servers";
+import { getGooseInstallLink } from "../utils/install-links";
+import type { MCPServer } from "../types/server";
 
-interface Server {
-  id: string;
-  name: string;
-  description: string;
-  command: string;
-  link: string;
-  installation_notes: string;
-  is_builtin: boolean;
-  endorsed: boolean;
-  githubStars: number;
-  environmentVariables: {
-    name: string;
-    description: string;
-    required: boolean;
-  }[];
-}
-
-function getGooseInstallLink(server: Server): string {
-  const parts = server.command.split(" ");
-  const baseCmd = parts[0];
-  const args = parts.slice(1);
-  const queryParams = [
-    `cmd=${encodeURIComponent(baseCmd)}`,
-    ...args.map((arg) => `arg=${encodeURIComponent(arg)}`),
-    `description=${encodeURIComponent(server.description)}`,
-    ...server.environmentVariables
-      .filter((env) => env.required)
-      .map(
-        (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
-      ),
-  ].join("&");
-
-  return `goose://extension?${queryParams}`;
-}
 
 export default function DetailPage() {
   const { id } = useParams();
-  const [server, setServer] = useState<Server | null>(null);
+  const [server, setServer] = useState<MCPServer | null>(null);
   const [isCommandVisible, setIsCommandVisible] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -213,25 +181,25 @@ export default function DetailPage() {
                 <span>{server.githubStars} on Github</span>
               </div>
 
-              <a
-                href={getGooseInstallLink(server)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="no-underline"
-              >
-                {server.is_builtin ? (
-                  <div
-                    className="inline-block"
-                    title="This extension is built into goose and can be enabled in the settings page"
+              {server.is_builtin ? (
+                <div
+                  className="inline-block"
+                  title="This extension is built into goose and can be enabled in the settings page"
+                >
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 text-xs cursor-help"
                   >
-                    <Badge
-                      variant="secondary"
-                      className="ml-2 text-xs cursor-help"
-                    >
-                      Built-in
-                    </Badge>
-                  </div>
-                ) : (
+                    Built-in
+                  </Badge>
+                </div>
+              ) : (
+                <a
+                  href={getGooseInstallLink(server)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="no-underline"
+                >
                   <Button
                     size="icon"
                     variant="link"
@@ -241,8 +209,8 @@ export default function DetailPage() {
                     <span>Install</span>
                     <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
                   </Button>
-                )}
-              </a>
+                </a>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -5,7 +5,7 @@
     "description": "Built-in developer tools for file editing and shell command execution",
     "command": "",
     "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with goose by default. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "githubStars": 356,
@@ -13,43 +13,15 @@
   },
   {
     "id": "nondeveloper",
-    "name": "Non-developer",
-    "description": "Built-in tools for non-developer tasks and system interactions",
+    "name": "Computer Controller",
+    "description": "Built-in computer controlls for webscraping, file caching, and automations",
     "command": "",
     "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/nondeveloper",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
     "is_builtin": true,
     "endorsed": true,
     "githubStars": 356,
     "environmentVariables": []
-  },
-  {
-    "id": "google_drive",
-    "name": "Google Drive",
-    "description": "Built-in Google Drive integration for file management and access",
-    "command": "",
-    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/google_drive",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. Can be accessed via goose://extension?cmd=goosed&arg=mcp&arg=google_drive&description=google_drive deeplink.",
-    "is_builtin": true,
-    "endorsed": true,
-    "githubStars": 356,
-    "environmentVariables": [
-      {
-        "name": "GOOGLE_DRIVE_OAUTH_PATH",
-        "description": "Path to the OAuth config file (required)",
-        "required": true
-      },
-      {
-        "name": "GOOGLE_DRIVE_CREDENTIALS_PATH",
-        "description": "Path to store OAuth credentials (required)",
-        "required": true
-      },
-      {
-        "name": "GOOGLE_DRIVE_OAUTH_CONFIG",
-        "description": "OAuth config JSON string (optional, if not provided expects valid config file at GOOGLE_DRIVE_OAUTH_PATH)",
-        "required": false
-      }
-    ]
   },
   {
     "id": "memory",
@@ -57,7 +29,7 @@
     "description": "Built-in memory system for persistent context and information storage",
     "command": "",
     "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. No installation required.",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
     "is_builtin": true,
     "endorsed": true,
     "githubStars": 356,
@@ -69,7 +41,7 @@
     "description": "Built-in JetBrains IDE integration for development workflows",
     "command": "",
     "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/jetbrains",
-    "installation_notes": "This is a built-in extension that comes with Goose by default. Can be accessed via goose://extension?cmd=goosed&arg=mcp&arg=jetbrains deeplink.",
+    "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
     "is_builtin": true,
     "endorsed": true,
     "githubStars": 356,
@@ -103,7 +75,7 @@
     "id": "git",
     "name": "Git",
     "description": "Git version control system integration",
-    "command": "npx -y @modelcontextprotocol/server-git",
+    "command": "uvx mcp-server-git",
     "link": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
     "installation_notes": "Install using npx package manager. Note: Does not support git push, merge or rebase operations.",
     "is_builtin": false,

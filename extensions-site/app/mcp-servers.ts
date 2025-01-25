@@ -1,4 +1,4 @@
-import type { MCPServer } from '../types/server';
+import type { MCPServer } from '../app/types/server';
 
 export async function fetchMCPServers(): Promise<MCPServer[]> {
   try {
