@@ -74,7 +74,7 @@ export const BUILT_IN_EXTENSIONS = [
     type: 'builtin',
     env_keys: [],
   },
-  {
+  /* TODO re-enable when we have a smoother auth flow {
     id: 'google_drive',
     name: 'Google Drive',
     description: 'Built-in Google Drive integration for file management and access',
@@ -85,7 +85,7 @@ export const BUILT_IN_EXTENSIONS = [
       'GOOGLE_DRIVE_CREDENTIALS_PATH',
       'GOOGLE_DRIVE_OAUTH_CONFIG',
     ],
-  },
+  },*/
 ];
 
 function sanitizeName(name: string) {
@@ -265,7 +265,17 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     throw new Error("Missing required 'cmd' parameter in the URL");
   }
 
+  // Validate that the command is one of the allowed commands
+  const allowedCommands = ['npx', 'uvx', 'goosed'];
+  if (!allowedCommands.includes(cmd)) {
+    throw new Error(`Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`);
+  }
+
+  // Check for security risk with npx -c command
   const args = parsedUrl.searchParams.getAll('arg');
+  if (cmd === 'npx' && args.includes('-c')) {
+    throw new Error('Error: npx with -c argument can lead to code injection');
+  }
   const envList = parsedUrl.searchParams.getAll('env');
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
@@ -290,7 +300,7 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     args,
     description,
     enabled: true,
-    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : undefined,
+    env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : [],
   };
 
   // Store the extension config regardless of env vars status

@@ -1,4 +1,4 @@
-import { Star, Download, Terminal, ChevronRight } from "lucide-react";
+import { Star, Download, Terminal, ChevronRight, Info } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader } from "./ui/card";
@@ -6,26 +6,8 @@ import type { MCPServer } from "../types/server";
 import { Link, NavLink } from "react-router";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { getGooseInstallLink } from "../utils/install-links";
 
-function getGooseInstallLink(server: MCPServer): string {
-  const parts = server.command.split(" ");
-  const baseCmd = parts[0]; // npx or uvx
-  const args = parts.slice(1); // remaining arguments
-  const queryParams = [
-    `cmd=${encodeURIComponent(baseCmd)}`,
-    ...args.map((arg) => `arg=${encodeURIComponent(arg)}`),
-    `id=${encodeURIComponent(server.id)}`,
-    `name=${encodeURIComponent(server.name)}`,
-    `description=${encodeURIComponent(server.description)}`,
-    ...server.environmentVariables
-      .filter((env) => env.required)
-      .map(
-        (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
-      ),
-  ].join("&");
-
-  return `goose://extension?${queryParams}`;
-}
 
 export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
@@ -74,35 +56,47 @@ export function ServerCard({ server }: { server: MCPServer }) {
             </div>
 
             <div className="py-4">
-              <button
-                onClick={() => setIsCommandVisible(!isCommandVisible)}
-                className="flex items-center gap-2 w-full hover:text-accent dark:text-gray-300 
-                dark:hover:text-accent/90 transition-colors"
-              >
-                <Terminal className="h-4 w-4" />
-                <h4 className="font-medium">Command</h4>
-                <ChevronRight
-                  className={`h-4 w-4 ml-auto transition-transform ${
-                    isCommandVisible ? "rotate-90" : ""
-                  }`}
-                />
-              </button>
-              <AnimatePresence>
-                {isCommandVisible && (
-                  <motion.code
-                    className="block bg-gray-100 dark:bg-gray-900 p-2 mt-2 rounded text-sm dark:text-gray-300 z-[-1]"
-                    initial={{ opacity: 0, translateY: -20 }}
-                    animate={{ opacity: 1, translateY: 0 }}
-                    exit={{
-                      opacity: 0,
-                      translateY: -20,
-                      transition: { duration: 0.1 },
-                    }}
+            {server.is_builtin ? (
+                <div className="flex items-center gap-2 text-sm dark:text-gray-300">
+                  {/* <Terminal className="h-4 w-4" /> */}
+                  <Info className="h-4 w-4" />
+                  Can be enabled in the goose settings page
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setIsCommandVisible(!isCommandVisible)}
+                    className="flex items-center gap-2 w-full hover:text-accent dark:text-gray-300
+                    dark:hover:text-accent/90 transition-colors"
                   >
-                    goose session --with-extension "{server.command}"
-                  </motion.code>
-                )}
-              </AnimatePresence>
+                    <Terminal className="h-4 w-4" />
+                    <h4 className="font-medium">Command</h4>
+                    <ChevronRight
+                      className={`h-4 w-4 ml-auto transition-transform ${
+                        isCommandVisible ? "rotate-90" : ""
+                      }`}
+                    />
+                  </button>
+                  <AnimatePresence>
+                    {isCommandVisible && (
+                      <motion.div
+                        className="block bg-gray-100 dark:bg-gray-900 p-2 mt-2 rounded text-sm dark:text-gray-300 z-[-1]"
+                        initial={{ opacity: 0, translateY: -20 }}
+                        animate={{ opacity: 1, translateY: 0 }}
+                        exit={{
+                          opacity: 0,
+                          translateY: -20,
+                          transition: { duration: 0.1 },
+                        }}
+                      >
+                        <code>
+                          {`goose session --with-extension "${server.command}"`}
+                        </code>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              )}
             </div>
           </div>
 
@@ -111,22 +105,36 @@ export function ServerCard({ server }: { server: MCPServer }) {
               <Star className="h-4 w-4" />
               <span className="ml-1">{server.githubStars} on Github</span>
             </div>
-            <a
-              href={getGooseInstallLink(server)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="no-underline"
-            >
-              <Button
-                size="icon"
-                variant="link"
-                className="group/download flex items-center justify-center text-xs leading-[14px] text-textSubtle px-0 transition-all"
-                title="Install with Goose"
+            {server.is_builtin ? (
+              <div
+                className="inline-block"
+                title="This extension is built into goose and can be enabled in the settings page"
               >
-                <span>Install</span>
-                <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
-              </Button>
-            </a>
+                <Badge
+                  variant="secondary"
+                  className="ml-2 text-xs cursor-help"
+                >
+                  Built-in
+                </Badge>
+              </div>
+            ) : (
+              <a
+                href={getGooseInstallLink(server)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="no-underline"
+              >
+                <Button
+                  size="icon"
+                  variant="link"
+                  className="group/download flex items-center justify-center text-xs leading-[14px] text-textSubtle px-0 transition-all"
+                  title="Install with Goose"
+                >
+                  <span>Install</span>
+                  <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
+                </Button>
+              </a>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -4,10 +4,16 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
+require('dotenv').config();
+
+const inkeepApiKey = process.env.INKEEP_API_KEY;
+const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
+const inkeepOrgId = process.env.INKEEP_ORG_ID;
+
 const config: Config = {
   title: "codename goose",
   tagline:
-    "goose is your on-machine developer agent, automating engineering tasks seamlessly within your IDE or terminal",
+    "goose is your on-machine AI agent, automating engineering tasks seamlessly within your IDE or terminal",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -57,6 +63,7 @@ const config: Config = {
     ],
   ],
 
+  themes: ["@inkeep/docusaurus/chatButton", "@inkeep/docusaurus/searchBar"],
   themeConfig: {
     // Replace with your project's social card
     image: "img/home-banner.png",
@@ -74,8 +81,7 @@ const config: Config = {
           position: "left",
         },
         {
-          type: "docSidebar",
-          sidebarId: "tutorialSidebar",
+          to: "/docs/category/getting-started",
           position: "left",
           label: "Docs",
         },
@@ -88,23 +94,27 @@ const config: Config = {
         {
           href: "https://discord.gg/block-opensource",
           label: "Discord",
-          position: "right",
+          position: "left",
         },
         {
           href: "https://github.com/block/goose",
           label: "GitHub",
-          position: "right",
+          position: "left",
         },
       ],
     },
     footer: {
       links: [
         {
-          title: "Docs",
+          title: "Quick Links",
           items: [
             {
-              label: "Install goose",
-              to: "/docs/installation",
+              label: "Install Goose",
+              to: "docs/getting-started/installation",
+            },
+            {
+              label: "Extensions",
+              to: "https://block.github.io/goose/v1/extensions/",
             },
           ],
         },
@@ -153,7 +163,33 @@ const config: Config = {
       theme: prismThemes.github,
       darkTheme: prismThemes.nightOwl,
     },
+    inkeepConfig: {
+      baseSettings: {
+          apiKey: inkeepApiKey,
+          integrationId: inkeepIntegrationId,
+          organizationId: inkeepOrgId,
+          primaryBrandColor: "#1E1E1E"
+      },
+      aiChatSettings: {
+          chatSubjectName: "goose",
+          botAvatarSrcUrl: "https://storage.googleapis.com/organization-image-assets/block-botAvatarSrcUrl-1737745528096.png",
+          botAvatarDarkSrcUrl: "https://storage.googleapis.com/organization-image-assets/block-botAvatarDarkSrcUrl-1737745527450.png",
+          getHelpCallToActions: [
+              {
+                  name: "GitHub",
+                  url: "https://github.com/block/goose",
+                  icon: {
+                      builtIn: "FaGithub"
+                  }
+              }
+          ],
+          quickQuestions: [
+              "What is Goose?"
+          ]
+      }
+  },
   } satisfies Preset.ThemeConfig,
+  
 };
 
 export default config;

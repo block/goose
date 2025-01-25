@@ -3,11 +3,14 @@ sidebar_position: 1
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import Link from "@docusaurus/Link";
+import { IconDownload } from "@site/src/components/icons/download";
 
-# Installation
+
+# Install Goose
 
 :::info Supported Environments
-Goose currently works only on **OSX** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+Goose currently works on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
 :::
 
 
@@ -25,16 +28,18 @@ Goose currently works only on **OSX** and **Linux** systems, and supports both *
     It’s best to keep Goose updated. You can update it by re-running the installation script.
     :::
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Desktop">
     #### Installing the Goose Desktop Application
     To install Goose, click the **button** below:
-      <Button 
-        label=":arrow_down: Download Goose Desktop" 
-        link="https://github.com/block/goose/releases/download/stable/Goose.zip" 
-        variant="secondary" 
-        size="lg" 
-        outline 
-      />
+    <div className="pill-button">
+      <Link
+        className="button button--primary button--lg"
+        to="https://github.com/block/goose/releases/download/stable/Goose.zip"
+      >
+        <IconDownload />
+        download goose desktop
+      </Link>
+    </div>
     <div style={{ marginTop: '1rem' }}>  
       1. Unzip the downloaded `Goose.zip` file.
       2. Run the executable file to launch the Goose desktop application.
@@ -52,10 +57,10 @@ The process will look similar to the example below:
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    ![Set Up a Provider](./assets/guides/set-up-provider.png)
+    ![Set Up a Provider](../assets/guides/set-up-provider.png)
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
-    ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
+  <TabItem value="ui" label="Goose Desktop">
+    ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
 
@@ -90,7 +95,7 @@ The process will look similar to the example below:
     >  sk-1234abcd5678efgh
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Desktop">
   **To update your LLM provider and API key:** 
 
     1. Click on the three dots in the top-right corner.
@@ -114,12 +119,12 @@ You will need to have credits in your LLM Provider account (when necessary) to b
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
-        Starting a session in the Goose UI is straightforward. After choosing your provider, you’ll see the session interface ready for use.
+    <TabItem value="ui" label="Goose Desktop">
+        Starting a session in the Goose Desktop is straightforward. After choosing your provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately. 
 
-        ![Install Extension](./assets/guides/ui-session-interface.png)
+        ![Install Extension](../assets/guides/ui-session-interface.png)
     </TabItem>
 </Tabs>
 
@@ -127,7 +132,7 @@ You will need to have credits in your LLM Provider account (when necessary) to b
 
 You can also configure Extensions to extend Goose's functionality, including adding new ones or toggling them on and off. For detailed instructions, visit the [Using Extensions Guide][using-extensions].
 
-[using-extensions]: /docs/configuration/managing-extensions
-[providers]: /docs/configuration/providers
+[using-extensions]: /docs/getting-started/using-extensions
+[providers]: /docs/getting-started/providers
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [mcp]: https://www.anthropic.com/news/model-context-protocol

@@ -74,7 +74,7 @@ goose session --name <name> --with-extension <command>
 
 - **`--with-builtin <NAME>`** 
 
-Starts the session with the specified [built-in extension](../configuration/managing-extensions.md#built-in-extensions) enabled. (e.g. 'developer')
+Starts the session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled. (e.g. 'developer')
 
 ```bash
 goose session --with-builtin <name>

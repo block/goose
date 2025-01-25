@@ -12,7 +12,7 @@ on:
 permissions:
   pull-requests: write
   checks: read
-  # issues: write
+  issues: write
 
 name: Workflow to Bundle Desktop App
 
@@ -24,6 +24,8 @@ jobs:
   trigger-on-command:
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
+    outputs:
+      continue: ${{ steps.command.outputs.continue }}
     steps:
       - uses: github/command@v1.3.0
         id: command
@@ -31,10 +33,15 @@ jobs:
           command: ".bundle"
           reaction: "eyes"
           allowed_contexts: pull_request
+      - name: Echo outputs
+        run: |
+          echo "Pull Request number is: '${{ steps.command.outputs.issue_number }}'
+          echo "Comment ID is: '${{ steps.command.outputs.comment_id }}'
 
   bundle-desktop:
     # Only run this if ".bundle" command is detected.
-    if: ${{ steps.command.outputs.continue == 'true' }}
+    needs: [trigger-on-command]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     with:
       signing: true
@@ -58,10 +65,13 @@ jobs:
         with:
           merge-multiple: true
 
+      - name: Debug pull_request number
+        run: |
+          echo "Pull Request number is: '${{ github.event.pull_request.number }}'"
+
       - name: Comment on PR with download link
-        uses: peter-evans/create-or-update-comment@v3
+        uses: peter-evans/create-or-update-comment@v4
         with:
-          comment-id: ${{ steps.command.outputs.comment_id }}
           issue-number: ${{ github.event.pull_request.number }}
           body: |
             ### Desktop App for this PR

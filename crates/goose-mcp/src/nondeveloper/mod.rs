@@ -64,7 +64,7 @@ impl NonDeveloperRouter {
                 - text (for HTML pages)
                 - json (for API responses)
                 - binary (for images and other files)
-                
+
                 The content is cached locally and can be accessed later using the cache_path
                 returned in the response.
             "#},
@@ -89,46 +89,21 @@ impl NonDeveloperRouter {
         let computer_control_tool = Tool::new(
             "computer_control",
             indoc! {r#"
-                Control the computer using AppleScript (macOS only).
-                Allows automation of applications and system features through AppleScript.
-                
-                Common uses:
-                - Control applications (Mail, Safari, iTunes, etc.)
-                - System settings and notifications
-                - UI automation
-                - File and folder operations
-                - Calendar and reminders
-                - Media management
-                - Combining with the screenshot tool to help user achieve tasks.
+                Control the computer using AppleScript (macOS only). Automate applications and system features.
 
-                It allows users to control applications and system features programmatically. 
-                Here's an overview of what AppleScript can automate:
-                    Application Control
-                        Launch, quit, or manage applications.
-                        Interact with app-specific features (e.g., sending an email in Mail, creating a document in Pages, or editing photos in Preview).
-                        Perform tasks in third-party apps that support AppleScript, such as Adobe Photoshop, Microsoft Office, or Safari.
-                    User Interface Automation
-                        Simulate user interactions like clicking buttons, selecting menu items, or typing text.
-                        Fill out forms or automate repetitive tasks in apps.
-                    System Settings and Utilities
-                        Change system preferences (e.g., volume, screen brightness, Wi-Fi settings).
-                        Automate tasks like shutting down, restarting, or putting the system to sleep.
-                        Monitor system events or logs.
-                    Web Automation
-                        Open specific URLs in AppleScript-enabled browsers.
-                        Automate web interactions (e.g., filling forms, navigating pages).
-                        Scrape information from websites.
-                    Email and Messaging
-                        Automate sending and organizing emails in the Mail app.
-                        Extract email contents or attachments.
-                        Send messages via Messages, Slack etc
-                    Media Management
-                        Organize and edit iTunes/Music libraries (e.g., create playlists, change metadata).
-                        Manage photos in Photos (e.g., creating albums, importing/exporting images).
-                        Automate tasks in video or music production tools like Final Cut Pro or GarageBand.
-                    Data Processing
-                        Interact with spreadsheets (e.g., Numbers or Excel).
+                Key capabilities:
+                - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
+                    - Interact with app-specific feature: (e.g, edit documents, process photos)
+                    - Perform tasks in third-party apps that support AppleScript
+                - UI Automation: Simulate user interactions like, clicking buttons, select menus, type text, filling out forms
+                - System Control: Manage settings (volume, brightness, wifi), shutdown/restart, monitor events
+                - Web & Email: Open URLs, web automation, send/organize emails, handle attachments
+                - Media: Manage music libraries, photo collections, playlists
+                - File Operations: Organize files/folders
+                - Integration: Calendar, reminders, messages
+                - Data: Interact with spreadsheets and documents
 
+                Can be combined with screenshot tool for visual task assistance.
                 "#},
             json!({
                 "type": "object",
@@ -152,7 +127,7 @@ impl NonDeveloperRouter {
             indoc! {r#"
                 Create and run small scripts for automation tasks.
                 Supports Shell and Ruby (on macOS).
-                
+
                 The script is saved to a temporary file and executed.
                 Consider using shell script (bash) for most simple tasks first.
                 Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
@@ -227,12 +202,12 @@ impl NonDeveloperRouter {
             The NonDeveloperExtension helps you with common tasks like web scraping,
             data processing, and automation and computer control without requiring programming expertise,
             supplementing the Developer Extension.
-            
+
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
-            
+
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
-            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can. 
+            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can.
             You can also guide them steps if they can help out as you go along.
 
             There is already a screenshot tool available you can use if needed to see what is on screen.
@@ -242,13 +217,13 @@ impl NonDeveloperRouter {
               - Create and run simple automation scripts
               - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
               - Scripts can save their output to files
-              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it: 
+              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it:
                     AppleScript is a powerful scripting language designed for automating tasks on macOS such as: Integration with Other Scripts
                             Execute shell scripts, Ruby scripts, or other automation scripts.
                             Combine workflows across scripting languages.
                     Complex Workflows
                         Automate multi-step tasks involving multiple apps or system features.
-                        Create scheduled tasks using Calendar or other scheduling apps.                
+                        Create scheduled tasks using Calendar or other scheduling apps.
 
               - use the screenshot tool if needed to help with tasks
 

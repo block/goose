@@ -1,5 +1,6 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
+title: Configure LLM Provider
 ---
 
 import Tabs from '@theme/Tabs';
@@ -7,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 # Supported LLM Providers
 
-You can use Goose with your preferred LLM. Goose supports a variety of LLM providers. To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Provider Settings` page in the Goose UI.
+You can use Goose with your preferred LLM. Goose supports a variety of LLM providers. To configure your chosen provider or see available options, run `goose configure` in the CLI or visit the `Provider Settings` page in the Goose Desktop.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -20,7 +21,7 @@ You can use Goose with your preferred LLM. Goose supports a variety of LLM provi
     ![Provider Config](../assets/guides/goose-providers-cli.png)
     
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Desktop">
   **To update your LLM provider and API key:** 
 
     1. Click on the three dots in the top-right corner.
