@@ -52,6 +52,8 @@
   /* arcade colors */
   --constant-white: #ffffff;
   --constant-black: #000000;
+  --green-for-lightbg: #0f6636; /* accessible on white bg */
+  --green-for-darkbg: #25c2a0;; /* accessible on black bg */
   --grey-10: #101010;
   --grey-20: #1e1e1e;
   --grey-50: #666666;
@@ -110,6 +112,8 @@
   --ifm-color-primary: var(--constant-black);
   --ifm-footer-link-color: var(--text-standard);
   --ifm-navbar-link-hover-color: var(--text-subtle);
+  --ifm-link-decoration: underline;
+  --ifm-link-color: var(--green-for-lightbg); 
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -149,6 +153,7 @@
   --text-inverse: var(--constant-black);
 
   --button-primary-background: var(--constant-white);
+  --ifm-link-color: var(--green-for-darkbg); 
 }
 
 /* overrides */
@@ -213,13 +218,3 @@ html {
   width: 100px;
 }
 
-/* Ensure links inside :::note sections are styled green */
-.theme-admonition a {
-  color: #2e8555; /* Replace with the specific green color from your theme */
-  text-decoration: underline; /* Match underline style */
-}
-
-.theme-admonition a:hover {
-  color: #29784c; /* Slightly darker green for hover effect */
-  text-decoration: underline;
-}
