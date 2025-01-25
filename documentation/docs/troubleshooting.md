@@ -76,7 +76,7 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 
 
 
-[handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
-[installation]: docs/getting-started/installation
+[handling-rate-limits]: guides/handling-llm-rate-limits-with-goose
+[installation]: getting-started/installation
 [discord]: https://discord.gg/block-opensource
-[goosehints]: /docs/guides/using-goosehints
+[goosehints]: guides/using-goosehints
