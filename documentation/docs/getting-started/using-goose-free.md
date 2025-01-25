@@ -34,7 +34,7 @@ To set up Google Gemini with Goose, follow these steps:
     ![Gemini Config](../assets/guides/gemini-config-cli.png)
     
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Dekstop">
   **To update your LLM provider and API key:** 
 
     1. Click on the three dots in the top-right corner.
@@ -54,4 +54,4 @@ These free options are a great way to get started with Goose and explore its cap
 If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/block-opensource) or on the [Goose repo](https://github.com/block/goose).
 
 
-[providers]: /docs/configuration/providers
+[providers]: /docs/getting-started/providers

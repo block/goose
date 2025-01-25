@@ -223,3 +223,12 @@ html {
   color: #29784c; /* Slightly darker green for hover effect */
   text-decoration: underline;
 }
+
+.pill-button {
+  display: flex;
+  align-items: center;
+}
+
+.pill-button p {
+  margin: 0;
+}

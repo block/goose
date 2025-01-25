@@ -13,7 +13,7 @@ const inkeepOrgId = process.env.INKEEP_ORG_ID;
 const config: Config = {
   title: "codename goose",
   tagline:
-    "goose is your on-machine developer agent, automating engineering tasks seamlessly within your IDE or terminal",
+    "goose is your on-machine AI agent, automating engineering tasks seamlessly within your IDE or terminal",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -81,8 +81,7 @@ const config: Config = {
           position: "left",
         },
         {
-          type: "docSidebar",
-          sidebarId: "tutorialSidebar",
+          to: "/docs/category/getting-started",
           position: "left",
           label: "Docs",
         },
@@ -95,23 +94,27 @@ const config: Config = {
         {
           href: "https://discord.gg/block-opensource",
           label: "Discord",
-          position: "right",
+          position: "left",
         },
         {
           href: "https://github.com/block/goose",
           label: "GitHub",
-          position: "right",
+          position: "left",
         },
       ],
     },
     footer: {
       links: [
         {
-          title: "Docs",
+          title: "Quick Links",
           items: [
             {
-              label: "Install goose",
-              to: "/docs/installation",
+              label: "Install Goose",
+              to: "docs/getting-started/installation",
+            },
+            {
+              label: "Extensions",
+              to: "https://block.github.io/goose/v1/extensions/",
             },
           ],
         },

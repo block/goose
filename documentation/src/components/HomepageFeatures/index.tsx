@@ -15,8 +15,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/lock-unlocked-fill.svg").default,
     description: (
       <>
-        Docusaurus was designed from the ground up to be easily installed and
-        used to get your website up and running quickly.
+        Built with transparency and collaboration in mind, Goose empowers developers to contribute, customize, and innovate freely.
       </>
     ),
   },
@@ -25,8 +24,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/category-moving.svg").default,
     description: (
       <>
-        Docusaurus lets you focus on your docs, and we&apos;ll do the chores. Go
-        ahead and move your docs into the <code>docs</code> directory.
+        Goose runs locally to execute tasks efficiently, keeping control in your hands.
       </>
     ),
   },
@@ -35,8 +33,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/category-ETF.svg").default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Customize Goose with your preferred LLM and enhance its capabilities by connecting it to any external MCP server or API.
       </>
     ),
   },
@@ -45,8 +42,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/pay-in-four.svg").default,
     description: (
       <>
-        Extend or customize your website layout by reusing React. Docusaurus can
-        be extended while reusing the same header and footer.
+        Goose independently handles complex tasks, from debugging to deployment, freeing you to focus on what matters most.
       </>
     ),
   },

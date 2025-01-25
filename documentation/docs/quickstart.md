@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 # Goose in 5 minutes
 
 :::info Supported Environments
-Goose currently works only on **OSX** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+Goose currently works only on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
 :::
 
 ## Quickstart
@@ -29,7 +29,7 @@ Goose is a developer AI agent that supercharges your software development by aut
     ```
     This script will fetch the latest version of Goose and set it up on your system.
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Dekstop">
     #### Installing the Goose Desktop Application
     To install Goose, click the **button** below:
       <Button 
@@ -57,7 +57,7 @@ The process will look similar to the example below:
   <TabItem value="cli" label="Goose CLI" default>
     ![Set Up a Provider](./assets/guides/set-up-provider.png)
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Dekstop">
     ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
@@ -74,7 +74,7 @@ The process will look similar to the example below:
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
+    <TabItem value="ui" label="Goose Dekstop">
         After choosing an LLM provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
@@ -150,10 +150,10 @@ You can provide Goose with a set of hints that it will automatically use in ever
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [openai-key]: https://platform.openai.com/api-keys
 [getting-started]: /docs/category/getting-started
-[providers]: /docs/configuration/providers
+[providers]: /docs/getting-started/providers
 [managing-sessions]: /docs/guides/managing-goose-sessions
 [contributing]: https://github.com/block/goose/blob/main/CONTRIBUTING.md
 [quick-tips]: /docs/guides/tips
-[extensions-guide]: /docs/configuration/managing-extensions
+[extensions-guide]: /docs/getting-started/using-extensions
 [cli]: /docs/guides/goose-cli-commands
 [MCP]: https://www.anthropic.com/news/model-context-protocol

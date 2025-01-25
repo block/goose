@@ -25,10 +25,10 @@ function HomepageHeader() {
         <div className={styles.buttons}>
           <Link
             className="button button--primary button--lg"
-            to="/docs/installation"
+            to="docs/getting-started/installation"
           >
             <IconDownload />
-            Download goose desktop
+            install goose desktop
           </Link>
         </div>
       </div>
