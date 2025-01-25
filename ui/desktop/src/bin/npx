@@ -28,6 +28,7 @@ mkdir -p ~/.config/goose/mcp-hermit/bin
 log "Changing to directory ~/.config/goose/mcp-hermit."
 cd ~/.config/goose/mcp-hermit
 
+
 # Check if hermit binary exists and download if not
 if [ ! -f ~/.config/goose/mcp-hermit/bin/hermit ]; then
     log "Hermit binary not found. Downloading hermit binary."
@@ -37,6 +38,12 @@ if [ ! -f ~/.config/goose/mcp-hermit/bin/hermit ]; then
 else
     log "Hermit binary already exists. Skipping download."
 fi
+
+
+log "setting hermit cache to be local for MCP servers"
+mkdir -p ~/.config/goose/mcp-hermit/cache
+export HERMIT_STATE_DIR=~/.config/goose/mcp-hermit/cache
+
 
 # Update PATH
 export PATH=~/.config/goose/mcp-hermit/bin:$PATH
