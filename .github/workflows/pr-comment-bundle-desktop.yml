@@ -12,7 +12,7 @@ on:
 permissions:
   pull-requests: write
   checks: read
-  # issues: write
+  issues: write
 
 name: Workflow to Bundle Desktop App
 
@@ -33,6 +33,10 @@ jobs:
           command: ".bundle"
           reaction: "eyes"
           allowed_contexts: pull_request
+      - name: Echo outputs
+        run: |
+          echo "Pull Request number is: '${{ steps.command.outputs.issue_number }}'
+          echo "Comment ID is: '${{ steps.command.outputs.comment_id }}'
 
   bundle-desktop:
     # Only run this if ".bundle" command is detected.
@@ -60,6 +64,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+
+      - name: Debug pull_request number
+        run: |
+          echo "Pull Request number is: '${{ github.event.pull_request.number }}'"
 
       - name: Comment on PR with download link
         uses: peter-evans/create-or-update-comment@v4
