@@ -16,7 +16,7 @@ If Goose is heading in the wrong direction or gets stuck, you can interrupt it b
 ---
 
 ### Stuck in a Loop or Unresponsive
-In rare cases, Goose may enter a "death loop" or become unresponsive during a long session. This is often resolved by ending the current session, and starting a new session.
+In rare cases, Goose may enter a "doom spiral" or become unresponsive during a long session. This is often resolved by ending the current session, and starting a new session.
 
 1. Hold down `Ctrl + C` to cancel
 2. Start a new session:
@@ -36,6 +36,18 @@ This error occurs when the input provided to Goose exceeds the maximum token lim
 
 ### Handling Rate Limit Errors
 Goose may encounter a `429 error` (rate limit exceeded) when interacting with LLM providers. The recommended solution is to use OpenRouter. See [Handling LLM Rate Limits][handling-rate-limits] for more info.
+
+---
+
+### Hermit Errors
+
+If you see an issue installing an extension in the app that says "hermit:fatal", you may need to reset your hermit cache. We use
+a copy of hermit to ensure npx and uvx are consistently available. If you have already used an older version of hermit, you may
+need to cleanup the cache - on Mac this cache is at
+
+```
+sudo rm -rf ~/Library/Caches/hermit
+```
 
 ---
 
