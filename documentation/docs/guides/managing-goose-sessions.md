@@ -19,7 +19,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
+    <TabItem value="ui" label="Goose Desktop">
         After choosing an LLM provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
@@ -43,8 +43,8 @@ A session is a single, continuous interaction between you and Goose, providing a
         logging to ~/.config/goose/sessions/react-migration.json1
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Dekstop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+    <TabItem value="ui" label="Goose Desktop">
+        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
     </TabItem>
 </Tabs>
 :::info
@@ -59,7 +59,7 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         Your session will be stored locally in `~/.config/goose/sessions`.
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
+    <TabItem value="ui" label="Goose Desktop">
     To exit a session, simply close the application.
     </TabItem>    
 
@@ -96,7 +96,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         goose session -r -n react-migration
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Dekstop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+    <TabItem value="ui" label="Goose Desktop">
+        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
     </TabItem>
 </Tabs>

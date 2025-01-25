@@ -28,7 +28,7 @@ Goose currently works on **macOS** and **Linux** systems, and supports both **AR
     It’s best to keep Goose updated. You can update it by re-running the installation script.
     :::
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
     #### Installing the Goose Desktop Application
     To install Goose, click the **button** below:
     <div className="pill-button">
@@ -59,7 +59,7 @@ The process will look similar to the example below:
   <TabItem value="cli" label="Goose CLI" default>
     ![Set Up a Provider](../assets/guides/set-up-provider.png)
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
     ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
@@ -95,7 +95,7 @@ The process will look similar to the example below:
     >  sk-1234abcd5678efgh
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
   **To update your LLM provider and API key:** 
 
     1. Click on the three dots in the top-right corner.
@@ -119,8 +119,8 @@ You will need to have credits in your LLM Provider account (when necessary) to b
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
-        Starting a session in the Goose Dekstop is straightforward. After choosing your provider, you’ll see the session interface ready for use.
+    <TabItem value="ui" label="Goose Desktop">
+        Starting a session in the Goose Desktop is straightforward. After choosing your provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately. 
 

@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 # Using Goose for Free
 
 :::info Supported Environments
-Goose currently works only on **OSX** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+Goose currently works only on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
 :::
 
 Goose is a free and open source developer AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 
@@ -34,7 +34,7 @@ To set up Google Gemini with Goose, follow these steps:
     ![Gemini Config](../assets/guides/gemini-config-cli.png)
     
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
   **To update your LLM provider and API key:** 
 
     1. Click on the three dots in the top-right corner.

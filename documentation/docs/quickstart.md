@@ -29,7 +29,7 @@ Goose is a developer AI agent that supercharges your software development by aut
     ```
     This script will fetch the latest version of Goose and set it up on your system.
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
     #### Installing the Goose Desktop Application
     To install Goose, click the **button** below:
       <Button 
@@ -57,7 +57,7 @@ The process will look similar to the example below:
   <TabItem value="cli" label="Goose CLI" default>
     ![Set Up a Provider](./assets/guides/set-up-provider.png)
   </TabItem>
-  <TabItem value="ui" label="Goose Dekstop">
+  <TabItem value="ui" label="Goose Desktop">
     ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
@@ -74,7 +74,7 @@ The process will look similar to the example below:
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Dekstop">
+    <TabItem value="ui" label="Goose Desktop">
         After choosing an LLM provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
