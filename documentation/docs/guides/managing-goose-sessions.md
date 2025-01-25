@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, save, and resume. 
 
 
-## Starting a Session 
+## Start Session 
 
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
@@ -19,7 +19,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         goose session 
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
+    <TabItem value="ui" label="Goose Desktop">
         After choosing an LLM provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
@@ -27,7 +27,7 @@ A session is a single, continuous interaction between you and Goose, providing a
     </TabItem>
 </Tabs>
 
-## Naming a Session 
+## Name Session
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
         By default, Goose will provide a random string as the name of your session. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
@@ -43,15 +43,15 @@ A session is a single, continuous interaction between you and Goose, providing a
         logging to ~/.config/goose/sessions/react-migration.json1
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose UI. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+    <TabItem value="ui" label="Goose Desktop">
+        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
     </TabItem>
 </Tabs>
 :::info
-    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/installation#set-up-a-provider). Here is the list of [supported LLMs](/docs/configuration/providers).
+    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](docs/getting-started/installation#set-up-a-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
 :::
 
-## Exiting a Session
+## Exit Session
 
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
@@ -59,12 +59,14 @@ A session is a single, continuous interaction between you and Goose, providing a
 
         Your session will be stored locally in `~/.config/goose/sessions`.
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
+    <TabItem value="ui" label="Goose Desktop">
     To exit a session, simply close the application.
     </TabItem>    
 
 </Tabs>
-## Resuming a Session
+
+## Resume Session
+
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
         To resume your latest session, you can run the following command:
@@ -94,7 +96,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         goose session -r -n react-migration
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose UI">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose UI. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue) to let us know.
+    <TabItem value="ui" label="Goose Desktop">
+        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
     </TabItem>
 </Tabs>

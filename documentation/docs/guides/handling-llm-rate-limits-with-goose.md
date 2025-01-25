@@ -31,7 +31,7 @@ OpenRouter provides a unified interface for LLMs that allows you to select and s
     2. Select `Configure Providers` from the menu.
     3. Follow the prompts to choose OpenRouter as your provider and enter your OpenRouter API key when prompted.
   </TabItem>
-  <TabItem value="ui" label="Goose UI">
+  <TabItem value="ui" label="Goose Desktop">
 
     1. Click on the three dots in the top-right corner.
     2. Select `Settings` from the menu.

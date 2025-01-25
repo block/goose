@@ -8,13 +8,13 @@ sidebar_position: 3
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
 
 :::info Developer extension required
-To make use of the hints file, you need to have the `developer` extension [enabled](../configuration/managing-extensions).
+To make use of the hints file, you need to have the `developer` extension [enabled](../configuration/using-extensions).
 
 :::
 
 This guide will walk you through creating and using your `.goosehints` file to streamline your workflow with custom instructions and context.
 
-## Creating your `.goosehints` file
+## Creating your hints file
 
 Create a file named `.goosehints` and save the file in `~/.config/goose/.goosehints`. If saved here, Goose will use this file for every session with you.
 

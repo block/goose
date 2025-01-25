@@ -218,3 +218,11 @@ html {
   width: 100px;
 }
 
+.pill-button {
+  display: flex;
+  align-items: center;
+}
+
+.pill-button p {
+  margin: 0;
+}
