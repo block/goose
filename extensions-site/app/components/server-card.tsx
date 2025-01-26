@@ -8,7 +8,6 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { getGooseInstallLink } from "../utils/install-links";
 
-
 export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
 
@@ -20,7 +19,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
           <div className="flex items-center gap-2">
             <NavLink
               to={`/detail/${server.id}`}
-              className="hover:text-accent dark:hover:text-accent/90 flex items-center gap-2"
+              className="text-textStandard hover:text-textProminent flex items-center gap-2"
               viewTransition
             >
               <svg
@@ -56,7 +55,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
             </div>
 
             <div className="py-4">
-            {server.is_builtin ? (
+              {server.is_builtin ? (
                 <div className="flex items-center gap-2 text-sm dark:text-gray-300">
                   {/* <Terminal className="h-4 w-4" /> */}
                   <Info className="h-4 w-4" />
@@ -110,10 +109,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                 className="inline-block"
                 title="This extension is built into goose and can be enabled in the settings page"
               >
-                <Badge
-                  variant="secondary"
-                  className="ml-2 text-xs cursor-help"
-                >
+                <Badge variant="secondary" className="ml-2 text-xs cursor-help">
                   Built-in
                 </Badge>
               </div>
