@@ -11,27 +11,26 @@ import { IconDownload } from "@site/src/components/icons/download";
 # Goose in 5 minutes
 
 :::info Supported Environments
-Goose currently works only on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
+Goose currently works on **macOS** and **Linux** systems and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
 :::
 
-Goose is a developer AI agent that supercharges your software development by automating coding tasks. This Quickstart will guide you through getting started with Goose and covers using both the CLI and Desktop UI.
+Goose is an open source AI agent that supercharges your software development by automating coding tasks. This quick tutorial will guide you through getting started with Goose!
 
 
 ## Install Goose
 
+You can use Goose via CLI or Desktop application.
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    #### Installing the Goose CLI
-    To install Goose, run the following script on macOS or Linux. 
+    Run the following command to install the latest version of Goose: 
 
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
     ```
-    This script will fetch the latest version of Goose and set it up on your system.
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-    #### Installing the Goose Desktop Application
-    To install Goose, click the **button** below:
+    To install the latest version of Goose, click the **button** below:
     <div className="pill-button">
       <Link
         className="button button--primary button--lg"
@@ -50,13 +49,31 @@ Goose is a developer AI agent that supercharges your software development by aut
 
 ## Configure Provider
 
-Goose works with [supported LLM providers][providers]. When you first run Goose, you'll be prompted to supply an API key from your preferred LLM provider.
-
-The process will look similar to the example below:
+Goose works with [supported LLM providers][providers]. When you install Goose, you'll be prompted to choose your preferred LLM and supply an API key.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    ![Set Up a Provider](./assets/guides/set-up-provider.png)
+    Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice.
+
+    ```
+    ┌   goose-configure
+    │
+    ◇ What would you like to configure?
+    │ Configure Providers
+    │
+    ◇ Which model provider should we use?
+    │ Google Gemini
+    │
+    ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
+    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    │    
+    ◇ Enter a model from that provider:
+    │ gemini-2.0-flash-exp
+    │
+    ◇ Hello! You're all set and ready to go, feel free to ask me anything!
+    │
+    └ Configuration saved successfully
+  ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
     ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
@@ -64,13 +81,18 @@ The process will look similar to the example below:
 </Tabs>
 
 :::info Billing
- You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests. Some providers also have rate limits on API usage, which can affect your experience. Check out our [Handling Rate Limits][handling-rate-limits] guide to learn how to efficiently manage these limits while using Goose.
+ [Google Gemini](https://aistudio.google.com/app/apikey) offers a free tier you can get started with. Otherwise, you'll need to ensure that you have credits available in your LLM Provider account to successfully make requests. 
+ 
+ Some providers also have rate limits on API usage, which can affect your experience. Check out our [Handling Rate Limits][handling-rate-limits] guide to learn how to efficiently manage these limits while using Goose.
 :::
 
 ## Start Session
+Sessions are single, continuous conversations between you and Goose. Let's start one.
+
 <Tabs groupId="interface">
     <TabItem value="cli" label="Goose CLI" default>
-        From your terminal, navigate to the directory from which you'd like to start, and run:
+        1. Make an empty directory (e.g. `goose-demo`) and navigate to that directory from the terminal.
+        2. To start a new session, run:
         ```sh
         goose session 
         ```
@@ -86,23 +108,74 @@ The process will look similar to the example below:
 
 ## Write Prompt
 
-You will see the Goose prompt `( O)>`. From here, you can interact with Goose in conversational sessions. Think of it as you're giving directions to a junior developer. 
+From the prompt, you can interact with Goose by typing your instructions exactly as you would speak to a developer.
+
+Let's ask Goose to make a tic-tac-toe game!
 
 ```
-( O)> type your instructions here exactly as you would speak to a developer.
+create an interactive browser-based tic-tac-toe game in javascript where a player competes against a bot
 ```
 
-Here's an example:
+Goose will create a plan and then get right to work on implementing it. Once done, your directory should contain a JavaScript file as well as an HTML page for playing.
 
+
+## Install an Extension
+
+While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the `Computer Controller` extension.
+
+<Tabs groupId="interface">
+    <TabItem value="cli" label="Goose CLI" default>
+        1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
+        2. Run the configuration command
+        ```sh
+        goose configure
+        ```
+        3. Choose `Add extension` > `Built-in Extension` > `Computer Controller`. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        ```
+        ┌   goose-configure 
+        │
+        ◇  What would you like to configure?
+        │  Add Extension 
+        │
+        ◇  What type of extension would you like to add?
+        │  Built-in Extension 
+        │
+        ◆  Which built-in extension would you like to enable?
+        │  ○ Developer Tools 
+        │  ● Computer Controller (controls for webscraping, file caching, and automations)
+        │  ○ Google Drive 
+        │  ○ Memory 
+        │  ○ JetBrains 
+        └  
+        ```
+        4. Now that Goose has browser capabilities, let's resume your last session:
+        ```sh
+         goose session -r
+        ```
+        5. Ask Goose to launch your game in a browser:
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+        1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
+        2. Select `Settings` from the menu.
+        3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        4. Click `<- Back` in the upper left corner to return to your session.
+        5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
+    </TabItem>
+</Tabs>
+        
 ```
-Create a JavaScript project that fetches and displays weather for a user-specified city using a public API
+open index.html in a browser
 ```
 
-You can interrupt Goose with `CTRL+C` while it is running to help redirect its efforts.
+Go ahead and play your game, I know you want to 😂 ... good luck!
+
 
 ## Next Steps
+Congrats, you've successfully used Goose to develop a web app! 🎉
 
-* Install [Extensions][extensions-guide] to enhance Goose's functionality.
+Here are some ideas for next steps:
+* Continue your session with Goose and it improve your game (styling, functionality, etc).
+* Browse other available [extensions][extensions-guide] and install more to enhance Goose's functionality even further.
 * Provide Goose with a [set of hints](/docs/guides/using-goosehints) to use within your sessions.
 
 

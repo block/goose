@@ -225,3 +225,10 @@ html {
 .pill-button p {
   margin: 0;
 }
+
+/* Enable word-wrap for code blocks */
+.theme-code-block pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}

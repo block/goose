@@ -10,14 +10,13 @@ import { IconDownload } from "@site/src/components/icons/download";
 # Install Goose
 
 :::info Supported Environments
-Goose currently works on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
+Goose currently works on **macOS** and **Linux** systems and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
 :::
 
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    #### Installing the Goose CLI
-    To install Goose, run the following script on macOS or Linux. 
+    Run the following command to install the latest version of Goose: 
 
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
@@ -29,7 +28,6 @@ Goose currently works on **macOS** and **Linux** systems, and supports both **AR
     :::
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-    #### Installing the Goose Desktop Application
     To install Goose, click the **button** below:
     <div className="pill-button">
       <Link
@@ -50,17 +48,39 @@ Goose currently works on **macOS** and **Linux** systems, and supports both **AR
   </TabItem>
 </Tabs>
 
-### Set Up a Provider
+### Set LLM Provider
 Goose works with a set of [supported LLM providers][providers], and you’ll need an API key to get started. When you use Goose for the first time, you’ll be prompted to select a provider and enter your API key.
-
-The process will look similar to the example below:
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    ![Set Up a Provider](../assets/guides/set-up-provider.png)
+    Upon installing, Goose will automatically enter its configuration screen. Here is where you can set up your LLM provider.
+
+    ```
+    ┌   goose-configure
+    │
+    ◇ What would you like to configure?
+    │ Configure Providers
+    │
+    ◇ Which model provider should we use?
+    │ OpenAI
+    │
+    ◇ Provider openai requires OPENAI_API_KEY, please enter a value
+    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    │    
+    ◇ Enter a model from that provider:
+    │ gpt-4o
+    │
+    ◇  Welcome aboard! You're all set to start using this agent—let's achieve great things together!
+    │
+    └  Configuration saved successfully
+  ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
+    Upon installing, the Provider screen will appear. Here is where you can choose your LLM Provider.
+
     ![Set Up a Provider UI](../assets/guides/set-up-provider-ui.png)
+
+    Once selecting your provider, you'll be prompted to enter an API key if applicable. Do so, and click `Submit`.
   </TabItem>
 </Tabs>
 
@@ -77,22 +97,26 @@ The process will look similar to the example below:
 
     **Example:**
 
-    To select an option during configuration, hover over it and press Enter.
+    To select an option during configuration, use the up and down arrows to highlight your choice then press Enter.
 
-    ```sh
-    What would you like to configure?
-    > Configure Providers
-      Toggle Extensions
-      Add Extension
-
-    Which Model provider should we use?
-    > OpenAI
-      Databricks
-      Ollama
-    .....
-
-    Enter Api Key:
-    >  sk-1234abcd5678efgh
+    ```
+    ┌   goose-configure
+    │
+    ◇ What would you like to configure?
+    │ Configure Providers
+    │
+    ◇ Which model provider should we use?
+    │ Google Gemini
+    │
+    ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
+    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    │    
+    ◇ Enter a model from that provider:
+    │ gemini-2.0-flash-exp
+    │
+    ◇  Hello there! You're all set to use me, so please ask away!
+    │
+    └  Configuration saved successfully
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
