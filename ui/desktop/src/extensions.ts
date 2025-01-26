@@ -248,35 +248,54 @@ function envVarsRequired(config: ExtensionConfig) {
   return config.env_keys?.length > 0;
 }
 
+function handleError(message: string, shouldThrow = false): void {
+  toast.error(message);
+  console.error(message);
+  if (shouldThrow) {
+    throw new Error(message);
+  }
+}
+
 export async function addExtensionFromDeepLink(url: string, navigate: NavigateFunction) {
   if (!url.startsWith('goose://extension')) {
-    console.log('Invalid URL: URL must use the goose://extension scheme');
+    handleError(
+      'Failed to install extension: Invalid URL: URL must use the goose://extension scheme'
+    );
     return;
   }
 
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
-    throw new Error('Invalid protocol: URL must use the goose:// scheme');
+    handleError(
+      'Failed to install extension: Invalid protocol: URL must use the goose:// scheme',
+      true
+    );
   }
 
   const cmd = parsedUrl.searchParams.get('cmd');
-
   if (!cmd) {
-    throw new Error("Missing required 'cmd' parameter in the URL");
+    handleError("Failed to install extension: Missing required 'cmd' parameter in the URL", true);
   }
 
   // Validate that the command is one of the allowed commands
   const allowedCommands = ['npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
-    throw new Error(`Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`);
+    handleError(
+      `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
+      true
+    );
   }
 
   // Check for security risk with npx -c command
   const args = parsedUrl.searchParams.getAll('arg');
   if (cmd === 'npx' && args.includes('-c')) {
-    throw new Error('Error: npx with -c argument can lead to code injection');
+    handleError(
+      'Failed to install extension: npx with -c argument can lead to code injection',
+      true
+    );
   }
+
   const envList = parsedUrl.searchParams.getAll('env');
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
