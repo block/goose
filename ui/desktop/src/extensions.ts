@@ -1,7 +1,6 @@
 import { getApiUrl, getSecretKey } from './config';
 import { NavigateFunction } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getStoredProvider } from './utils/providerUtils';
 
 // ExtensionConfig type matching the Rust version
 export type ExtensionConfig =
@@ -128,7 +127,7 @@ export async function addExtension(
 
     if (!data.error) {
       if (!silent) {
-        toast.success(`Successfully added extension`);
+        toast.success(`Successfully enabled ${extension.name} extension`);
       }
       return response;
     }
@@ -145,7 +144,7 @@ export async function addExtension(
   }
 }
 
-export async function removeExtension(name: string): Promise<Response> {
+export async function removeExtension(name: string, silent: boolean = false): Promise<Response> {
   try {
     const response = await fetch(getApiUrl('/extensions/remove'), {
       method: 'POST',
@@ -159,7 +158,9 @@ export async function removeExtension(name: string): Promise<Response> {
     const data = await response.json();
 
     if (!data.error) {
-      toast.success(`Successfully removed ${name} extension`);
+      if (!silent) {
+        toast.success(`Successfully disabled ${name} extension`);
+      }
       return response;
     }
 

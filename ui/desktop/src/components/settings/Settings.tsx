@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { toast } from 'react-toastify';
 import { Settings as SettingsType } from './types';
 import {
   FullExtensionConfig,
@@ -132,9 +132,11 @@ export default function Settings() {
   const handleExtensionRemove = async () => {
     if (!extensionBeingConfigured) return;
 
-    const response = await removeExtension(extensionBeingConfigured.name);
+    const response = await removeExtension(extensionBeingConfigured.name, true);
 
     if (response.ok) {
+      toast.success(`Successfully removed ${extensionBeingConfigured.name} extension`);
+
       // Remove from localstorage
       setSettings((prev) => ({
         ...prev,
