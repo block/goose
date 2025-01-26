@@ -52,7 +52,7 @@ export const BUILT_IN_EXTENSIONS = [
     id: 'computercontroller',
     name: 'Computer Controller',
     description:
-      "General computer control tools that doesn't require you to be a developer or engineer.",
+      "General computer control tools that don't require you to be a developer or engineer.",
     enabled: false,
     type: 'builtin',
     env_keys: [],

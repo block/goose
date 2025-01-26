@@ -11,6 +11,7 @@ import {
 } from '../../extensions';
 import { ConfigureExtensionModal } from './extensions/ConfigureExtensionModal';
 import { ManualExtensionModal } from './extensions/ManualExtensionModal';
+import { ConfigureBuiltInExtensionModal } from './extensions/ConfigureBuiltInExtensionModal';
 import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
@@ -167,6 +168,10 @@ export default function Settings() {
     navigate('/settings', { replace: true });
   };
 
+  const isBuiltIn = (extensionId: string) => {
+    return BUILT_IN_EXTENSIONS.some((builtIn) => builtIn.id === extensionId);
+  };
+
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -232,6 +237,7 @@ export default function Settings() {
                       <ExtensionItem
                         key={ext.id}
                         {...ext}
+                        canConfigure={true} // Ensure gear icon always appears
                         onToggle={handleExtensionToggle}
                         onConfigure={(extension) => setExtensionBeingConfigured(extension)}
                       />
@@ -244,17 +250,29 @@ export default function Settings() {
         </div>
       </ScrollArea>
 
-      <ConfigureExtensionModal
-        isOpen={!!extensionBeingConfigured}
-        onClose={() => {
-          setExtensionBeingConfigured(null);
-          // Clear URL parameters when closing manually
-          navigate('/settings', { replace: true });
-        }}
-        extension={extensionBeingConfigured}
-        onSubmit={handleExtensionConfigSubmit}
-        onRemove={handleExtensionRemove}
-      />
+      {extensionBeingConfigured && isBuiltIn(extensionBeingConfigured.id) ? (
+        <ConfigureBuiltInExtensionModal
+          isOpen={!!extensionBeingConfigured && isBuiltIn(extensionBeingConfigured.id)}
+          onClose={() => {
+            setExtensionBeingConfigured(null);
+            navigate('/settings', { replace: true });
+          }}
+          extension={extensionBeingConfigured}
+          onSubmit={handleExtensionConfigSubmit}
+        />
+      ) : (
+        <ConfigureExtensionModal
+          isOpen={!!extensionBeingConfigured}
+          onClose={() => {
+            setExtensionBeingConfigured(null);
+            // Clear URL parameters when closing manually
+            navigate('/settings', { replace: true });
+          }}
+          extension={extensionBeingConfigured}
+          onSubmit={handleExtensionConfigSubmit}
+          onRemove={handleExtensionRemove}
+        />
+      )}
 
       <ManualExtensionModal
         isOpen={isManualModalOpen}
