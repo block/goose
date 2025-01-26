@@ -33,7 +33,10 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
           <div className="flex items-baseline">
             <span className="text-textStandard mr-2">{key}:</span>
             <div className="flex-1">
-              <button onClick={() => toggleKey(key)} className="hover:opacity-75">
+              <button
+                onClick={() => toggleKey(key)}
+                className="hover:opacity-75 text-gray-600 dark:text-white"
+              >
                 {isExpanded ? '▼ ' : '▶ '}
               </button>
               {!isExpanded && <span className="ml-2 text-gray-600">{value.slice(0, 60)}...</span>}
@@ -41,7 +44,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
           </div>
           {isExpanded && (
             <div className="mt-2 ml-4">
-              <ReactMarkdown className="whitespace-pre-wrap break-words prose-pre:whitespace-pre-wrap prose-pre:break-words">
+              <ReactMarkdown className="whitespace-pre-wrap break-words prose-pre:whitespace-pre-wrap prose-pre:break-words text-gray-600 dark:text-white">
                 {value}
               </ReactMarkdown>
             </div>
