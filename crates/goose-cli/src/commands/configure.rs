@@ -195,8 +195,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     }
 
     // Select model, defaulting to the provider's recommended model UNLESS there is an env override
-    let default_model = std::env::var("GOOSE_MODEL")
-        .unwrap_or(provider_meta.default_model.clone());
+    let default_model = std::env::var("GOOSE_MODEL").unwrap_or(provider_meta.default_model.clone());
     let model: String = cliclack::input("Enter a model from that provider:")
         .default_input(&default_model)
         .interact()?;
