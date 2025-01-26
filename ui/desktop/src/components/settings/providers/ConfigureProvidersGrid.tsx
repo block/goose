@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
-import { BaseProviderGrid } from './BaseProviderGrid';
+import { BaseProviderGrid, getProviderDescription } from './BaseProviderGrid';
 import { supported_providers, provider_aliases, required_keys } from '../models/hardcoded_stuff';
-import { getProviderDescription } from './Provider';
 import { ProviderSetupModal } from '../ProviderSetupModal';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toast } from 'react-toastify';

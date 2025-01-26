@@ -1,11 +1,13 @@
 import React from 'react';
-import { ProviderGrid } from '../settings/providers/ProviderGrid';
+import { ProviderGrid } from './ProviderGrid';
 import { ScrollArea } from '../ui/scroll-area';
+import GooseSplashLogo from '../GooseSplashLogoGradient';
+import { Button } from '../ui/button';
 
 // Extending React CSSProperties to include custom webkit property
 declare module 'react' {
   interface CSSProperties {
-    WebkitAppRegion?: string; // Now TypeScript knows about WebkitAppRegion
+    WebkitAppRegion?: string;
   }
 }
 
@@ -15,25 +17,58 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
   return (
-    <div className="h-screen w-full select-none">
+    <div className="h-screen w-full select-none bg-white dark:bg-black">
       {/* Draggable title bar region */}
       <div className="h-[36px] w-full bg-transparent" style={{ WebkitAppRegion: 'drag' }} />
 
       {/* Content area - explicitly set as non-draggable */}
       <div
-        className="h-[calc(100vh-36px)] w-full bg-white dark:bg-gray-800 overflow-hidden p-2 pt-0"
+        className="h-[calc(100vh-36px)] w-full overflow-hidden"
         style={{ WebkitAppRegion: 'no-drag' }}
       >
         <ScrollArea className="h-full w-full">
-          <div className="flex min-h-full">
-            {/* Content Area */}
-            <div className="flex-1 px-16 py-8 pt-[20px]">
-              <div className="max-w-3xl space-y-12">
-                <div className="flex items-center gap-4 mb-8">
-                  <h1 className="text-2xl font-semibold tracking-tight">Choose a Provider</h1>
-                </div>
-                <ProviderGrid onSubmit={onSubmit} />
-              </div>
+          <div className="flex min-h-full flex-col justify-center px-4 py-8 md:px-16 max-w-4xl mx-auto">
+            {/* Header Section */}
+            <div className="mb-12 space-y-4">
+              <GooseSplashLogo className="h-24 w-24 md:h-32 md:w-32" />
+              <h1 className="text-4xl font-bold text-textStandard tracking-tight md:text-5xl">
+                Welcome to goose
+              </h1>
+              <p className="text-lg text-textSubtle max-w-2xl">
+                Your intelligent AI assistant for seamless productivity and creativity.
+              </p>
+            </div>
+
+            {/* ProviderGrid */}
+            <div className="w-full">
+              <h2 className="text-3xl font-bold text-textStandard tracking-tight mb-2">
+                Choose a Provider
+              </h2>
+              <p className="text-xl text-textStandard mb-4">
+                Select an AI model provider to get started with goose.
+              </p>
+              <p className="text-sm text-textSubtle mb-8">
+                Click on a provider to configure its API keys and start using goose. Your keys are
+                stored securely and encrypted locally. You can change your provider and select
+                specific models in the settings.
+              </p>
+              <ProviderGrid onSubmit={onSubmit} />
+            </div>
+
+            {/* Get started (now less prominent) */}
+            <div className="mt-12">
+              <p className="text-sm text-textSubtle">
+                Not sure where to start?{' '}
+                <Button
+                  variant="link"
+                  className="text-indigo-500 hover:text-indigo-600 p-0 h-auto"
+                  onClick={() =>
+                    window.open('https://block.github.io/goose/v1/docs/quickstart', '_blank')
+                  }
+                >
+                  Quick Start Guide
+                </Button>
+              </p>
             </div>
           </div>
         </ScrollArea>

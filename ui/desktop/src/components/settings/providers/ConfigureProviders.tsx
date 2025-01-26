@@ -1,5 +1,4 @@
 import React from 'react';
-import { Providers } from './Provider';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import { ConfigureProvidersGrid } from './ConfigureProvidersGrid';
