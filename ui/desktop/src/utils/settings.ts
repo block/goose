@@ -5,7 +5,7 @@ import path from 'path';
 // Types
 export interface EnvToggles {
   GOOSE_SERVER__MEMORY: boolean;
-  GOOSE_SERVER__NON_DEVELOPER: boolean;
+  GOOSE_SERVER__COMPUTER_CONTROLLER: boolean;
 }
 
 export interface Settings {
@@ -18,7 +18,7 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 const defaultSettings: Settings = {
   envToggles: {
     GOOSE_SERVER__MEMORY: false,
-    GOOSE_SERVER__NON_DEVELOPER: false,
+    GOOSE_SERVER__COMPUTER_CONTROLLER: false,
   },
 };
 
@@ -51,10 +51,10 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
     delete process.env.GOOSE_SERVER__MEMORY;
   }
 
-  if (envToggles.GOOSE_SERVER__NON_DEVELOPER) {
-    process.env.GOOSE_SERVER__NON_DEVELOPER = 'true';
+  if (envToggles.GOOSE_SERVER__COMPUTER_CONTROLLER) {
+    process.env.GOOSE_SERVER__COMPUTER_CONTROLLER = 'true';
   } else {
-    delete process.env.GOOSE_SERVER__NON_DEVELOPER;
+    delete process.env.GOOSE_SERVER__COMPUTER_CONTROLLER;
   }
 }
 
@@ -77,13 +77,13 @@ export function createEnvironmentMenu(
       },
     },
     {
-      label: 'Enable Non-Developer Mode',
+      label: 'Enable Computer Controller Mode',
       type: 'checkbox',
-      checked: envToggles.GOOSE_SERVER__NON_DEVELOPER,
+      checked: envToggles.GOOSE_SERVER__COMPUTER_CONTROLLER,
       click: (menuItem: { checked: boolean }) => {
         const newToggles = {
           ...envToggles,
-          GOOSE_SERVER__NON_DEVELOPER: menuItem.checked,
+          GOOSE_SERVER__COMPUTER_CONTROLLER: menuItem.checked,
         };
         onToggle(newToggles);
       },

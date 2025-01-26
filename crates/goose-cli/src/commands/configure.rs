@@ -324,9 +324,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Code editing and shell access",
                 )
                 .item(
-                    "nondeveloper",
-                    "Non Developer",
-                    "AI driven scripting for non developers",
+                    "computercontroller",
+                    "Computer Controller",
+                    "controls for webscraping, file caching, and automations",
                 )
                 .item(
                     "google_drive",

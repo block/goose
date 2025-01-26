@@ -21,7 +21,7 @@ use mcp_server::Router;
 /// An extension designed for non-developers to help them with common tasks like
 /// web scraping, data processing, and automation.
 #[derive(Clone)]
-pub struct NonDeveloperRouter {
+pub struct ComputerControllerRouter {
     tools: Vec<Tool>,
     cache_dir: PathBuf,
     active_resources: Arc<Mutex<HashMap<String, Resource>>>,
@@ -29,13 +29,13 @@ pub struct NonDeveloperRouter {
     instructions: String,
 }
 
-impl Default for NonDeveloperRouter {
+impl Default for ComputerControllerRouter {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl NonDeveloperRouter {
+impl ComputerControllerRouter {
     pub fn new() -> Self {
         // Create tools for the system
         let web_search_tool = Tool::new(
@@ -188,7 +188,7 @@ impl NonDeveloperRouter {
         let cache_dir = dirs::cache_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
             .join("goose")
-            .join("non_developer");
+            .join("computer_controller");
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
                 "Warning: Failed to create cache directory at {:?}",
@@ -199,7 +199,7 @@ impl NonDeveloperRouter {
         let instructions = formatdoc! {r#"
             You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
             The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
-            The NonDeveloperExtension helps you with common tasks like web scraping,
+            The ComputerControllerExtension helps you with common tasks like web scraping,
             data processing, and automation and computer control without requiring programming expertise,
             supplementing the Developer Extension.
 
@@ -639,9 +639,9 @@ impl NonDeveloperRouter {
     }
 }
 
-impl Router for NonDeveloperRouter {
+impl Router for ComputerControllerRouter {
     fn name(&self) -> String {
-        "NonDeveloperExtension".to_string()
+        "ComputerControllerExtension".to_string()
     }
 
     fn instructions(&self) -> String {

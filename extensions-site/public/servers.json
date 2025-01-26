@@ -12,11 +12,11 @@
     "environmentVariables": []
   },
   {
-    "id": "nondeveloper",
+    "id": "computercontroller",
     "name": "Computer Controller",
-    "description": "Built-in computer controlls for webscraping, file caching, and automations",
+    "description": "Built-in computer controls for webscraping, file caching, and automations",
     "command": "",
-    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/nondeveloper",
+    "link": "https://github.com/block/goose/tree/v1.0/crates/goose-mcp/src/computercontroller",
     "installation_notes": "This is a built-in extension that comes with goose and can be enabled in the Settings page under 'Extensions'.",
     "is_builtin": true,
     "endorsed": true,
