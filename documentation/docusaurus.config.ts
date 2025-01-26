@@ -4,7 +4,7 @@ import type * as Preset from "@docusaurus/preset-classic";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
-require('dotenv').config();
+require("dotenv").config();
 
 const inkeepApiKey = process.env.INKEEP_API_KEY;
 const inkeepIntegrationId = process.env.INKEEP_INTEGRATION_ID;
@@ -13,7 +13,7 @@ const inkeepOrgId = process.env.INKEEP_ORG_ID;
 const config: Config = {
   title: "codename goose",
   tagline:
-    "goose is your on-machine AI agent, automating engineering tasks seamlessly within your IDE or terminal",
+    "Your on-machine AI agent, automating engineering tasks seamlessly.",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
@@ -165,31 +165,30 @@ const config: Config = {
     },
     inkeepConfig: {
       baseSettings: {
-          apiKey: inkeepApiKey,
-          integrationId: inkeepIntegrationId,
-          organizationId: inkeepOrgId,
-          primaryBrandColor: "#1E1E1E"
+        apiKey: inkeepApiKey,
+        integrationId: inkeepIntegrationId,
+        organizationId: inkeepOrgId,
+        primaryBrandColor: "#1E1E1E",
       },
       aiChatSettings: {
-          chatSubjectName: "goose",
-          botAvatarSrcUrl: "https://storage.googleapis.com/organization-image-assets/block-botAvatarSrcUrl-1737745528096.png",
-          botAvatarDarkSrcUrl: "https://storage.googleapis.com/organization-image-assets/block-botAvatarDarkSrcUrl-1737745527450.png",
-          getHelpCallToActions: [
-              {
-                  name: "GitHub",
-                  url: "https://github.com/block/goose",
-                  icon: {
-                      builtIn: "FaGithub"
-                  }
-              }
-          ],
-          quickQuestions: [
-              "What is Goose?"
-          ]
-      }
-  },
+        chatSubjectName: "goose",
+        botAvatarSrcUrl:
+          "https://storage.googleapis.com/organization-image-assets/block-botAvatarSrcUrl-1737745528096.png",
+        botAvatarDarkSrcUrl:
+          "https://storage.googleapis.com/organization-image-assets/block-botAvatarDarkSrcUrl-1737745527450.png",
+        getHelpCallToActions: [
+          {
+            name: "GitHub",
+            url: "https://github.com/block/goose",
+            icon: {
+              builtIn: "FaGithub",
+            },
+          },
+        ],
+        quickQuestions: ["What is Goose?"],
+      },
+    },
   } satisfies Preset.ThemeConfig,
-  
 };
 
 export default config;

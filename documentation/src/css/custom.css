@@ -53,7 +53,7 @@
   --constant-white: #ffffff;
   --constant-black: #000000;
   --green-for-lightbg: #0f6636; /* accessible on white bg */
-  --green-for-darkbg: #25c2a0;; /* accessible on black bg */
+  --green-for-darkbg: #25c2a0; /* accessible on black bg */
   --grey-10: #101010;
   --grey-20: #1e1e1e;
   --grey-50: #666666;
@@ -152,7 +152,7 @@
   --text-inverse: var(--constant-black);
 
   --button-primary-background: var(--constant-white);
-  --ifm-link-color: var(--green-for-darkbg); 
+  --ifm-link-color: var(--green-for-darkbg);
 }
 
 /* overrides */
@@ -203,18 +203,20 @@ html {
 .hero__subtitle {
   max-width: 600px;
   margin-bottom: 32px;
+  font-size: 28px;
+  line-height: 36px;
 }
 
-.footer .container {
-  border-top: 2px solid var(--border-prominent);
+.footer {
+  border-top: 2px solid var(--border-subtle);
   padding-top: 24px;
 }
 
 /* net new */
 
 .hero--logo svg {
-  height: 100px;
-  width: 100px;
+  height: 220px;
+  width: 220px;
 }
 
 .pill-button {
@@ -231,4 +233,12 @@ html {
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+html[data-theme="dark"] .hide-in-dark {
+  opacity: 0;
+}
+
+html[data-theme="light"] .hide-in-light {
+  opacity: 0;
 }

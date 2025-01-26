@@ -14,3 +14,23 @@
   height: 32px;
   width: 32px;
 }
+
+.videoContainer {
+  width: 100%;
+  overflow: hidden;
+  margin-bottom: 100px;
+  position: relative;
+}
+
+.video {
+  width: 100%;
+  height: auto;
+  display: block;
+  outline: none;
+}
+
+.video + .video {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
