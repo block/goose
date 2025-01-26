@@ -33,6 +33,7 @@ jobs:
         id: command
         with:
           command: ".bundle"
+          skip_reviews: true
           reaction: "eyes"
           allowed_contexts: pull_request
 
