@@ -83,6 +83,26 @@ For detailed steps on updating your LLM provider, refer to the [Installation][in
 
 ---
 
+### Remove Cached Data
+
+Goose stores data in a few places. Secrets, such as API keys, are stored exclusively in the system keychain.
+Logs and configuration data are stored in `~/.config/goose`. And the app stores a small amount of data in
+`~/Library/Application Support/Goose`.
+
+You can remove all of this data by following these steps.
+
+* stop any copies of goose running (CLI or GUI)
+  * consider confirming you've stopped them all via the activity monitor
+* open the keychain and delete the credential called "goose", which contains all secrets stored by goose
+* `rm -rf ~/.config/goose`
+* For the App on macos, `rm -rf ~/Library/Application Support/Goose`
+* Delete the "Goose" app from your Applications folder
+
+After this cleanup, if you are looking to try out a fresh install of Goose, you can now start from the usual
+install instructions.
+
+---
+
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
