@@ -78,6 +78,22 @@ export default function Settings() {
     localStorage.setItem('user_settings', JSON.stringify(settings));
   }, [settings]);
 
+  // Listen for settings updates from extension storage
+  useEffect(() => {
+    const handleSettingsUpdate = (_: any) => {
+      const saved = localStorage.getItem('user_settings');
+      if (saved) {
+        let currentSettings = JSON.parse(saved);
+        setSettings(currentSettings);
+      }
+    };
+
+    window.electron.on('settings-updated', handleSettingsUpdate);
+    return () => {
+      window.electron.off('settings-updated', handleSettingsUpdate);
+    };
+  }, []);
+
   // Handle URL parameters for auto-opening extension configuration
   useEffect(() => {
     const params = new URLSearchParams(location.search);

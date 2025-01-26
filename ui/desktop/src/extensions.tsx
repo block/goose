@@ -193,6 +193,8 @@ function storeExtensionConfig(config: FullExtensionConfig) {
       userSettings.extensions.push(config);
       localStorage.setItem('user_settings', JSON.stringify(userSettings));
       console.log('Extension config stored successfully in user_settings');
+      // Notify settings update through electron IPC
+      window.electron.send('settings-updated');
     } else {
       console.log('Extension config already exists in user_settings');
     }
