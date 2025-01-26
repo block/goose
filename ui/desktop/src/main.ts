@@ -426,96 +426,91 @@ app.whenReady().then(async () => {
       })
     );
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Install MCP Extension',
-        accelerator: 'Shift+Command+Y',
-        click() {
-          const defaultUrl =
-            'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
+    // Register global shortcut for Install MCP Extension
+    globalShortcut.register('Shift+Command+Y', () => {
+      const defaultUrl =
+        'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
 
-          const result = dialog.showMessageBoxSync({
-            type: 'question',
-            buttons: ['Install', 'Edit URL', 'Cancel'],
-            defaultId: 0,
-            cancelId: 2,
-            title: 'Install MCP Extension',
-            message: 'Install MCP Extension',
-            detail: `Current extension URL:\n\n${defaultUrl}`,
-          });
+      const result = dialog.showMessageBoxSync({
+        type: 'question',
+        buttons: ['Install', 'Edit URL', 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        title: 'Install MCP Extension',
+        message: 'Install MCP Extension',
+        detail: `Current extension URL:\n\n${defaultUrl}`,
+      });
 
-          if (result === 0) {
-            // User clicked Install
-            const mockEvent = {
-              preventDefault: () => {
-                console.log('Default handling prevented.');
-              },
-            };
-            app.emit('open-url', mockEvent, defaultUrl);
-          } else if (result === 1) {
-            // User clicked Edit URL
-            // Create a simple input dialog
-            const win = new BrowserWindow({
-              width: 800,
-              height: 120,
-              frame: false,
-              transparent: false,
-              resizable: false,
-              minimizable: false,
-              maximizable: false,
-              parent: BrowserWindow.getFocusedWindow(),
-              modal: true,
-              show: false,
-              webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
-              },
-            });
+      if (result === 0) {
+        // User clicked Install
+        const mockEvent = {
+          preventDefault: () => {
+            console.log('Default handling prevented.');
+          },
+        };
+        app.emit('open-url', mockEvent, defaultUrl);
+      } else if (result === 1) {
+        // User clicked Edit URL
+        // Create a simple input dialog
+        const win = new BrowserWindow({
+          width: 800,
+          height: 120,
+          frame: false,
+          transparent: false,
+          resizable: false,
+          minimizable: false,
+          maximizable: false,
+          parent: BrowserWindow.getFocusedWindow(),
+          modal: true,
+          show: false,
+          webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+          },
+        });
 
-            win.loadURL(`data:text/html,
-            <html>
-              <body style="margin: 20px; font-family: system-ui;">
-                <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
-                <div style="text-align: right;">
-                  <button onclick="window.close()" style="margin-right: 10px;">Cancel</button>
-                  <button onclick="submit()" style="min-width: 80px;">Install</button>
-                </div>
-                <script>
-                  function submit() {
-                    require('electron').ipcRenderer.send('install-extension-url', document.getElementById('url').value);
-                  }
-                  // Handle Enter key
-                  document.getElementById('url').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') submit();
-                  });
-                  // Focus the input
-                  document.getElementById('url').focus();
-                  document.getElementById('url').select();
-                </script>
-              </body>
-            </html>
-          `);
-
-            win.once('ready-to-show', () => {
-              win.show();
-            });
-
-            // Handle the URL submission
-            ipcMain.once('install-extension-url', (event, url) => {
-              win.close();
-              const mockEvent = {
-                preventDefault: () => {
-                  console.log('Default handling prevented.');
-                },
-              };
-              if (url && url.trim()) {
-                app.emit('open-url', mockEvent, url);
+        win.loadURL(`data:text/html,
+        <html>
+          <body style="margin: 20px; font-family: system-ui;">
+            <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+            <div style="text-align: right;">
+              <button onclick="window.close()" style="margin-right: 10px;">Cancel</button>
+              <button onclick="submit()" style="min-width: 80px;">Install</button>
+            </div>
+            <script>
+              function submit() {
+                require('electron').ipcRenderer.send('install-extension-url', document.getElementById('url').value);
               }
-            });
+              // Handle Enter key
+              document.getElementById('url').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') submit();
+              });
+              // Focus the input
+              document.getElementById('url').focus();
+              document.getElementById('url').select();
+            </script>
+          </body>
+        </html>
+      `);
+
+        win.once('ready-to-show', () => {
+          win.show();
+        });
+
+        // Handle the URL submission
+        ipcMain.once('install-extension-url', (event, url) => {
+          win.close();
+          const mockEvent = {
+            preventDefault: () => {
+              console.log('Default handling prevented.');
+            },
+          };
+          if (url && url.trim()) {
+            app.emit('open-url', mockEvent, url);
           }
-        },
-      })
-    );
+        });
+      }
+    });
   }
 
   Menu.setApplicationMenu(menu);
