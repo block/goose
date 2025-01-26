@@ -31,7 +31,25 @@ To set up Google Gemini with Goose, follow these steps:
     2. Select `Configure Providers` from the menu.
     3. Follow the prompts to choose `Google Gemini` as the provider and enter your API key. 
 
-    ![Gemini Config](../assets/guides/gemini-config-cli.png)
+    ```
+    ┌   goose-configure
+    │
+    ◇ What would you like to configure?
+    │ Configure Providers
+    │
+    ◇ Which model provider should we use?
+    │ Google Gemini
+    │
+    ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
+    │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    │    
+    ◇ Enter a model from that provider:
+    │ gemini-2.0-flash-exp
+    │
+    ◇ Hello! You're all set and ready to go, feel free to ask me anything!
+    │
+    └ Configuration saved successfully
+    ```
     
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">

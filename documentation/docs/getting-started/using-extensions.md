@@ -17,7 +17,7 @@ Out of the box, Goose is installed with a few extensions but with only the `Deve
 Here are the built-in extensions:
 
 1. **Developer**: provides a set of general development tools that are useful for software development.
-2. **Non-Developer**: provides general computer control tools that doesn't require you to be a developer or engineer.
+2. **Computer Controller**: provides general computer control tools for webscraping, file caching, and automations.
 3. **Memory**: teaches goose to remember your preferences as you use it
 4. **JetBrains**: provides an integration for working with JetBrains IDEs.
 5. **Google Drive**: provides an integration for working with Google Drive for file management and access.
@@ -52,26 +52,26 @@ Here are the built-in extensions:
 
     To select an option during configuration, hover over it and press Enter.
 
-    ```sh 
-    What would you like to configure?
-      Configure Providers
-      Toggle Extensions
-    > Add Extension
-
-
-    What type of extension would you like to add?
-    > Built-in Extension
-      Command-line Extension
-      Remote Extension
-
-    Which Built-in extension would you like to enable?
-      Developer Tools
-      Non Developer
-    > Jetbrains
+    ```
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Built-in Extension 
+    │
+    ◆  Which built-in extension would you like to enable?
+    │  ○ Developer Tools 
+    │  ○ Computer Controller (controls for webscraping, file caching, and automations)
+    │  ○ Google Drive 
+    │  ○ Memory 
+    │  ● JetBrains 
+    └  
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Locate the menu (...) in the top right corner of the Goose Desktop.
+  1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Settings` from the menu.
   3. Under `Extensions`, you can toggle the built-in extensions on or off.
   </TabItem>
@@ -110,11 +110,34 @@ For advanced users, you can also edit the `~/.config/goose/config.yaml` file dir
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
   4. Follow the prompts based on the type of extension you selected.
+
+  Example of adding Command-Line Extension:
+
+  ```
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Command-line Extension 
+  │
+  ◇  What would you like to call this extension?
+  │  fetch
+  │
+  ◇  What command should be run?
+  │  uvx mcp-server-fetch
+  │
+  ◇  Would you like to add environment variables?
+  │  No 
+  │
+  └  Added fetch extension
+  ```
+
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  
  
-  1. Locate the menu (...) in the top right corner of the Goose Desktop.
+  1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Settings` from the menu.
   3. Under `Extensions`, you can toggle the built-in extensions on or off.
 
@@ -178,20 +201,20 @@ You can enable or disable installed extensions based on your workflow needs.
     ```
     2. Select `Toggle Extensions` from the menu.
     3. A list of already installed extensions will populate.
-    4. Press the `space bar` to toggle the extension `enabled` or `disabled`. 
+    4. Press the `space bar` to toggle the extension. Solid means enabled. 
 
     **Example:**
 
-    To select an option during configuration, hover over it and press Enter.
-    ```sh
-    What would you like to configure?
-      Configure Providers
-    > Toggle Extensions
-      Add Extension
-
-    Enable systems: (use "space" to toggle and "enter" to submit)
-    [ ] Developer Tools 
-    [X] JetBrains
+    ```
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Toggle Extensions 
+    │
+    ◆  enable extensions: (use "space" to toggle and "enter" to submit)
+    │  ◼ developer 
+    │  ◻ fetch 
+    └   
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
