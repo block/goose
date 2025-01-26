@@ -273,6 +273,19 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     );
   }
 
+  // Check that all required fields are present and not empty
+  const requiredFields = ['name', 'description'];
+
+  for (const field of requiredFields) {
+    const value = parsedUrl.searchParams.get(field);
+    if (!value || value.trim() === '') {
+      handleError(
+        `Failed to install extension: The link is missing required field '${field}'`,
+        true
+      );
+    }
+  }
+
   const cmd = parsedUrl.searchParams.get('cmd');
   if (!cmd) {
     handleError("Failed to install extension: Missing required 'cmd' parameter in the URL", true);
