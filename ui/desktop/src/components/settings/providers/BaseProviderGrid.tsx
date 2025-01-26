@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Plus, Settings, X } from 'lucide-react';
+import { Check, Plus, Settings, X, Rocket } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/Tooltip';
 import { Portal } from '@radix-ui/react-portal';
@@ -26,6 +26,7 @@ interface BaseProviderCardProps {
   onDelete?: () => void;
   showDelete?: boolean;
   hasRequiredKeys?: boolean;
+  onTakeoff?: () => void;
 }
 
 function getArticle(word: string): string {
@@ -58,6 +59,7 @@ function BaseProviderCard({
   onDelete,
   showDelete = false,
   hasRequiredKeys = false,
+  onTakeoff,
 }: BaseProviderCardProps) {
   const numRequiredKeys = required_keys[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
@@ -110,8 +112,82 @@ function BaseProviderCard({
           </p>
         </div>
 
-        <div className="space-x-2 text-center">
-          {!isConfigured && onAddKeys && hasRequiredKeys && (
+        <div className="space-x-2 text-center flex items-center justify-between">
+          <div className="space-x-2">
+            {!isConfigured && onAddKeys && hasRequiredKeys && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddKeys();
+                      }}
+                      className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                    >
+                      <Plus className="!size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <Portal>
+                    <TooltipContent side="top" align="center" className="z-[9999]">
+                      <p>{tooltipText}</p>
+                    </TooltipContent>
+                  </Portal>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {isConfigured && showSettings && hasRequiredKeys && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConfigure?.();
+                      }}
+                    >
+                      <Settings className="!size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <Portal>
+                    <TooltipContent side="top" align="center" className="z-[9999]">
+                      <p>Configure {name} settings</p>
+                    </TooltipContent>
+                  </Portal>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {showDelete && hasRequiredKeys && isConfigured && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete?.();
+                      }}
+                    >
+                      <X className="!size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <Portal>
+                    <TooltipContent side="top" align="center" className="z-[9999]">
+                      <p>Remove {name} API Key</p>
+                    </TooltipContent>
+                  </Portal>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+          {isConfigured && onTakeoff && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -120,64 +196,16 @@ function BaseProviderCard({
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAddKeys();
+                      onTakeoff();
                     }}
                     className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
                   >
-                    <Plus className="!size-4" />
+                    <Rocket className="!size-4" />
                   </Button>
                 </TooltipTrigger>
                 <Portal>
                   <TooltipContent side="top" align="center" className="z-[9999]">
-                    <p>{tooltipText}</p>
-                  </TooltipContent>
-                </Portal>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {isConfigured && showSettings && hasRequiredKeys && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onConfigure?.();
-                    }}
-                  >
-                    <Settings className="!size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <Portal>
-                  <TooltipContent side="top" align="center" className="z-[9999]">
-                    <p>Configure {name} settings</p>
-                  </TooltipContent>
-                </Portal>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {showDelete && hasRequiredKeys && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete?.();
-                    }}
-                  >
-                    <X className="!size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <Portal>
-                  <TooltipContent side="top" align="center" className="z-[9999]">
-                    <p>Remove {name} API Key</p>
+                    <p>Launch goose with {name}</p>
                   </TooltipContent>
                 </Portal>
               </Tooltip>
@@ -199,6 +227,7 @@ interface BaseProviderGridProps {
   onAddKeys?: (provider: Provider) => void;
   onConfigure?: (provider: Provider) => void;
   onDelete?: (provider: Provider) => void;
+  onTakeoff?: (provider: Provider) => void;
 }
 
 export function BaseProviderGrid({
@@ -211,6 +240,7 @@ export function BaseProviderGrid({
   onAddKeys,
   onConfigure,
   onDelete,
+  onTakeoff,
 }: BaseProviderGridProps) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 auto-rows-fr max-w-full [&_*]:z-20">
@@ -228,6 +258,7 @@ export function BaseProviderGrid({
             onAddKeys={() => onAddKeys?.(provider)}
             onConfigure={() => onConfigure?.(provider)}
             onDelete={() => onDelete?.(provider)}
+            onTakeoff={() => onTakeoff?.(provider)}
             showSettings={showSettings}
             showDelete={showDelete}
             hasRequiredKeys={hasRequiredKeys}

@@ -156,32 +156,15 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
 
   return (
     <div className="space-y-4 max-w-[1400px] mx-auto">
-      <div className="h-[52px]">
-        {selectedId && (
-          <div className="flex justify-end">
-            <Button
-              variant="default"
-              size="default"
-              onClick={() => {
-                const provider = providers.find((p) => p.id === selectedId);
-                if (provider) handleConfigure(provider);
-              }}
-              className={
-                'bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:!text-black border-borderStandard hover:bg-slate text-sm whitespace-nowrap shrink-0 bg-bgSubtle text-textStandard rounded-full shadow-none border px-4 py-2'
-              }
-            >
-              Let's takeoff
-            </Button>
-          </div>
-        )}
-      </div>
-
       <BaseProviderGrid
         providers={providers}
         isSelectable={true}
         selectedId={selectedId}
         onSelect={handleSelect}
         onAddKeys={handleAddKeys}
+        onTakeoff={(provider) => {
+          handleConfigure(provider);
+        }}
       />
 
       {showSetupModal && selectedId && (
