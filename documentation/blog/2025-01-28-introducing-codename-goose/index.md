@@ -33,7 +33,7 @@ Goose operates as an intelligent, autonomous agent capable of handling complex t
 
 Goose is able to handle a wide range of tasks, from simple to complex, across various engineering domains. Here are some examples of tasks that Goose has helped people with:
 
-- Conduct code migrations like: Ember to React, Ruby to Kotlin, Prefect-1 to Prefect-2 etc. 
+- Conduct code migrations such as Ember to React, Ruby to Kotlin, Prefect-1 to Prefect-2 etc. 
 - Dive into a new project in an unfamiliar coding language
 - Transition a code-base from field-based injection to constructor-based injection in a dependency injection framework.
 - Conduct performance benchmarks for a build command using a build automation tool
