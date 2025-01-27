@@ -31,31 +31,20 @@ const { exec } = require('child_process');
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
-// Track the last focused window
-let lastFocusedWindow: BrowserWindow | null = null;
-
-// Update last focused window when any window gains focus
-app.on('browser-window-focus', (_, window) => {
-  lastFocusedWindow = window;
-});
-
 // Triggered when the user opens "goose://..." links
 app.on('open-url', async (event, url) => {
   event.preventDefault();
   console.log('open-url:', url);
 
-  // Get the last focused window, or the first window if none was focused
-  const targetWindow = lastFocusedWindow || BrowserWindow.getAllWindows()[0];
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  if (targetWindow) {
-    // Ensure window is visible
-    if (!targetWindow.isFocused()) {
-      targetWindow.show();
-      targetWindow.focus();
-    }
-    console.log('sending add-extension to frontend:', url);
-    targetWindow.webContents.send('add-extension', url);
-  }
+  // Create the new Chat window
+  const newWindow = await createChat(app, undefined, openDir);
+
+  newWindow.webContents.once('did-finish-load', () => {
+    newWindow.webContents.send('add-extension', url);
+  });
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -220,7 +209,6 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   // Register shortcut when window is focused
   mainWindow.on('focus', () => {
     registerDevToolsShortcut(mainWindow);
-    lastFocusedWindow = mainWindow;
   });
 
   // Unregister shortcut when window loses focus
@@ -231,12 +219,10 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   windowMap.set(windowId, mainWindow);
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    if (lastFocusedWindow === mainWindow) {
-      lastFocusedWindow = null;
-    }
     unregisterDevToolsShortcut();
     goosedProcess.kill();
   });
+  return mainWindow;
 };
 
 const createTray = () => {
