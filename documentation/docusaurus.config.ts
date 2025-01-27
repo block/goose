@@ -127,7 +127,7 @@ const config: Config = {
             },
             {
               label: "YouTube",
-              href: "https://www.youtube.com/@goose.videos",
+              href: "https://www.youtube.com/@blockopensource",
             },
             {
               label: "LinkedIn",
