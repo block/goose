@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      quick_test:
+        description: 'Whether to perform the quick launch test'
+        required: false
+        default: true
+        type: boolean
     secrets:
       CERTIFICATE_OSX_APPLICATION:
         description: 'Certificate for macOS application signing'
@@ -162,6 +167,7 @@ jobs:
           path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
 
       - name: Quick launch test (macOS)
+        if: ${{ inputs.quick_test }}
         run: |
           # Ensure no quarantine attributes (if needed)
           xattr -cr "ui/desktop/out/Goose-darwin-arm64/Goose.app"
