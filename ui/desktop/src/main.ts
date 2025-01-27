@@ -26,6 +26,7 @@ import {
   saveSettings,
   updateEnvironmentVariables,
 } from './utils/settings';
+const { exec } = require('child_process');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
@@ -345,6 +346,37 @@ ipcMain.handle('select-file-or-directory', async () => {
     return result.filePaths[0];
   }
   return null;
+});
+
+ipcMain.handle('check-ollama', async () => {
+  try {
+    return new Promise((resolve, reject) => {
+      // Run `ps` and filter for "ollama"
+      exec('ps aux | grep -iw "[o]llama"', (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error executing ps command:', error);
+          return resolve(false); // Process is not running
+        }
+
+        if (stderr) {
+          console.error('Standard error output from ps command:', stderr);
+          return resolve(false); // Process is not running
+        }
+
+        console.log('Raw stdout from ps command:', stdout);
+
+        // Trim and check if output contains a match
+        const trimmedOutput = stdout.trim();
+        console.log('Trimmed stdout:', trimmedOutput);
+
+        const isRunning = trimmedOutput.length > 0; // True if there's any output
+        resolve(isRunning); // Resolve true if running, false otherwise
+      });
+    });
+  } catch (err) {
+    console.error('Error checking for Ollama:', err);
+    return false; // Return false on error
+  }
 });
 
 app.whenReady().then(async () => {

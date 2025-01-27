@@ -205,6 +205,7 @@ export function ConfigureProvidersGrid() {
         onAddKeys={handleAddKeys}
         onConfigure={handleConfigure}
         onDelete={handleDelete}
+        showTakeoff={false}
       />
 
       {showSetupModal && selectedForSetup && (

@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
   openInChrome: (url) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
+  checkForOllama: () => ipcRenderer.invoke('check-ollama'),
   selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),

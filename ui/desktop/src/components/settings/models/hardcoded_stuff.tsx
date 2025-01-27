@@ -109,15 +109,3 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
 ];
-
-export const recent_models = [
-  { name: 'gpt-4o', provider: 'OpenAI', lastUsed: '2 hours ago' },
-  { name: 'claude-3-5-sonnet-latest', provider: 'Anthropic', lastUsed: 'Yesterday' },
-  { name: 'o1-mini', provider: 'OpenAI', lastUsed: '3 days ago' },
-];
-
-export const model_env_vars = {
-  OpenAI: 'OPENAI_MODEL',
-  Anthropic: 'ANTHROPIC_MODEL',
-  Databricks: 'DATABRICKS_MODEL',
-};

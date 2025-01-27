@@ -1,9 +1,12 @@
-import React from 'react';
-import { Check, Plus, Settings, X, Rocket } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Check, Plus, Settings, X, Rocket, RefreshCw, AlertCircle } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/Tooltip';
 import { Portal } from '@radix-ui/react-portal';
 import { required_keys } from '../models/hardcoded_stuff';
+import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
+import { useActiveKeys } from '../api_keys/ActiveKeysContext';
+import { getActiveProviders } from '../api_keys/utils';
 
 // Common interfaces and helper functions
 interface Provider {
@@ -27,6 +30,7 @@ interface BaseProviderCardProps {
   showDelete?: boolean;
   hasRequiredKeys?: boolean;
   onTakeoff?: () => void;
+  showTakeoff?: boolean;
 }
 
 function getArticle(word: string): string {
@@ -60,9 +64,11 @@ function BaseProviderCard({
   showDelete = false,
   hasRequiredKeys = false,
   onTakeoff,
+  showTakeoff,
 }: BaseProviderCardProps) {
   const numRequiredKeys = required_keys[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
+  const { activeKeys, setActiveKeys } = useActiveKeys();
 
   return (
     <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
@@ -85,6 +91,7 @@ function BaseProviderCard({
           <div className="flex items-center">
             <h3 className="text-base font-medium text-textStandard truncate mr-2">{name}</h3>
 
+            {/* Configured state: Green check */}
             {isConfigured && (
               <TooltipProvider>
                 <Tooltip>
@@ -98,7 +105,36 @@ function BaseProviderCard({
                       <p>
                         {hasRequiredKeys
                           ? `You have ${getArticle(name)} ${name} API Key set in your environment`
-                          : `${name} has no required API keys`}
+                          : `${name} is installed and running on your machine`}
+                      </p>
+                    </TooltipContent>
+                  </Portal>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Not Configured state: Red exclamation mark for Ollama */}
+            {!isConfigured && name === 'Ollama' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors">
+                      !
+                    </div>
+                  </TooltipTrigger>
+                  <Portal>
+                    <TooltipContent side="top" align="center" className="z-[9999]">
+                      <p>
+                        To use, the{' '}
+                        <a
+                          href="https://ollama.com/download"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline hover:text-blue-800"
+                        >
+                          Ollama app
+                        </a>{' '}
+                        must be installed on your machine and open.
                       </p>
                     </TooltipContent>
                   </Portal>
@@ -106,7 +142,6 @@ function BaseProviderCard({
               </TooltipProvider>
             )}
           </div>
-
           <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px] ">
             {description}
           </p>
@@ -114,6 +149,42 @@ function BaseProviderCard({
 
         <div className="space-x-2 text-center flex items-center justify-between">
           <div className="space-x-2">
+            {!isConfigured && name === 'Ollama' && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Trigger a refresh of active keys
+                        const refreshActiveKeys = async () => {
+                          try {
+                            const providers = await getActiveProviders(); // Re-fetch active providers
+                            setActiveKeys(providers); // Update the context state
+                          } catch (error) {
+                            console.error('Error refreshing active providers:', error);
+                          }
+                        };
+
+                        refreshActiveKeys(); // Call the refresh function
+                      }}
+                      className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                    >
+                      <RefreshCw className="!size-4" /> {/* Refresh icon */}
+                    </Button>
+                  </TooltipTrigger>
+                  <Portal>
+                    <TooltipContent side="top" align="center" className="z-[9999]">
+                      <p>Re-check for active Ollama app running in the background.</p>
+                    </TooltipContent>
+                  </Portal>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+
+            {/* Default "Add Keys" Button for other providers */}
             {!isConfigured && onAddKeys && hasRequiredKeys && (
               <TooltipProvider>
                 <Tooltip>
@@ -187,7 +258,7 @@ function BaseProviderCard({
               </TooltipProvider>
             )}
           </div>
-          {isConfigured && onTakeoff && (
+          {isConfigured && onTakeoff && showTakeoff !== false && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -228,6 +299,7 @@ interface BaseProviderGridProps {
   onConfigure?: (provider: Provider) => void;
   onDelete?: (provider: Provider) => void;
   onTakeoff?: (provider: Provider) => void;
+  showTakeoff?: boolean;
 }
 
 export function BaseProviderGrid({
@@ -240,6 +312,7 @@ export function BaseProviderGrid({
   onAddKeys,
   onConfigure,
   onDelete,
+  showTakeoff,
   onTakeoff,
 }: BaseProviderGridProps) {
   return (
@@ -262,6 +335,7 @@ export function BaseProviderGrid({
             showSettings={showSettings}
             showDelete={showDelete}
             hasRequiredKeys={hasRequiredKeys}
+            showTakeoff={showTakeoff}
           />
         );
       })}
