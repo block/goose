@@ -24,7 +24,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
-        ### Start a New Session
+        ### Start New Session
 
         To start a new session in the Goose desktop application, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
@@ -100,7 +100,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         goose session -r -n react-migration
         ```
         :::tip
-        While you can resume sessions using the commands above, we recommend creating new sessions for different use cases.
+        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
         :::
 
     </TabItem>
