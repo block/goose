@@ -41,6 +41,7 @@ Goose is able to handle a wide range of tasks, from simple to complex, across va
 - Scaffolding an API for data retention
 - Creating Datadog monitors
 - Removing or adding feature flags etc.
+- Generating unit tests for a feature
 
 ## Getting Started
 
