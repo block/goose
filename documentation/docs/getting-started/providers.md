@@ -95,8 +95,8 @@ To configure your chosen provider or see available options, run `goose configure
 
 Ollama provides local LLMs, which requires a bit more set up before you can use it with Goose.
 
-:::warning Extensions Not Supported with DeepSeek
-DeepSeek models do not support tool calling. So if using one of these models, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
+:::warning Custom DeekSeek Model
+The native `DeepSeek-r1` model does not support tool calling. If using this model, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/using-goose-free#deepseek-r1) we've made specifically for Goose.
 :::
 
 1. [Download Ollama](https://ollama.com/download). 
