@@ -15,13 +15,14 @@ Goose is compatible with a wide range of LLM providers, allowing you to choose a
 
 | Provider                                      | Description                                         | Parameters                            |
 |-----------------------------------------------|---------------------------------------------------|---------------------------------------|
-| [OpenAI](https://platform.openai.com/api-keys) | Provides GPT-4, GPT-3.5-turbo, and other advanced language models. | `OPENAI_API_KEY`                      |
-| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
-| [Ollama](https://ollama.com/)                 | Local model runner supporting DeepSeek, Llama, Mistral, and other open-source models. | N/A         |
 | [Anthropic](https://www.anthropic.com/)       | Offers Claude, an advanced AI model for natural language tasks. | `ANTHROPIC_API_KEY`                   |
+| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images). | `GOOGLE_API_KEY`                      |
 | [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs. | `GROQ_API_KEY`                        |
-| [OpenRouter](https://openrouter.ai/) | API gateway for unified access to various models with features like rate-limiting management | `OPENROUTER_API_KEY`        |
+| [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | N/A                                   |
+| [OpenAI](https://platform.openai.com/api-keys) | Provides GPT-4, GPT-3.5-turbo, and other advanced language models. | `OPENAI_API_KEY`                      |
+| [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management. | `OPENROUTER_API_KEY`                  |
+
    
 ## Configure Provider
 
@@ -89,3 +90,76 @@ To configure your chosen provider or see available options, run `goose configure
 
   </TabItem>
 </Tabs>
+
+## Local LLMs (Ollama)
+
+Ollama provides local LLMs, which requires a bit more set up before you can use it with Goose.
+
+:::warning Extensions Not Supported with DeepSeek
+DeepSeek models do not support tool calling. So if using one of these models, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions).
+:::
+
+1. [Download Ollama](https://ollama.com/download). 
+2. Run the [model of your choice](https://ollama.com/search):
+
+Example:
+
+```sh
+ollama run qwen2.5
+```
+
+3. In a separate terminal window, configure with Goose:
+
+```sh
+goose configure
+```
+
+4. Choose to `Configure Providers`
+
+```
+┌   goose-configure 
+│
+◆  What would you like to configure?
+│  ● Configure Providers (Change provider or update credentials)
+│  ○ Toggle Extensions 
+│  ○ Add Extension 
+└  
+```
+
+5. Choose `Ollama` as the model provider
+
+```
+┌   goose-configure 
+│
+◇  What would you like to configure?
+│  Configure Providers 
+│
+◆  Which model provider should we use?
+│  ○ Anthropic 
+│  ○ Databricks 
+│  ○ Google Gemini 
+│  ○ Groq 
+│  ● Ollama (Local open source models)
+│  ○ OpenAI 
+│  ○ OpenRouter 
+└  
+```
+
+6. Enter the model you have running
+
+```
+┌   goose-configure 
+│
+◇  What would you like to configure?
+│  Configure Providers 
+│
+◇  Which model provider should we use?
+│  Ollama 
+│
+◇  Enter a model from that provider:
+│  qwen2.5
+│
+◇  Welcome! You're all set to explore and utilize my capabilities. Let's get started on solving your problems together!
+│
+└  Configuration saved successfully
+```
