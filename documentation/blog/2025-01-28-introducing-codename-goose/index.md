@@ -16,7 +16,7 @@ Powered by your choice of [large language models (LLMs)](/docs/getting-started/p
 
 You can think of Goose as an assistant that is ready to take your instructions, and do the work for you.
 
-While Goose's first use cases are engineering focused, the open source community have been exploring other non-engineering use cases for Goose as well. And it goes without saying, Goose is [Open Source](https://github.com/block/goose) 🎉.
+While Goose's first use cases are engineering focused, the community has been exploring other non-engineering use cases for Goose as well. And it goes without saying, Goose is [open source](https://github.com/block/goose) 🎉.
 
 
 ## How Goose Works
