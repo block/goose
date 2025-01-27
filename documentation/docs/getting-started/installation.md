@@ -145,8 +145,6 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
         Starting a session in the Goose Desktop is straightforward. After choosing your provider, you’ll see the session interface ready for use.
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will get to work immediately. 
-
-        ![Install Extension](../assets/guides/ui-session-interface.png)
     </TabItem>
 </Tabs>
 
