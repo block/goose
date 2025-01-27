@@ -29,21 +29,32 @@ Goose operates as an intelligent, autonomous agent capable of handling complex t
 
 - **CLI and Desktop Support**: You can have Goose running as both a desktop app or a command-line interface - whatever your preference is - using the same configuration across board.
 
+## Goose in Action
+
+Goose is able to handle a wide range of tasks, from simple to complex, across various engineering domains. Here are some examples of tasks that Goose has helped people with:
+
+- Conduct code migrations like: Ember to React, Ruby to Kotlin, Prefect-1 to Prefect-2 etc. 
+- Dive into a new project in an unfamiliar coding language
+- Transition a code-base from field-based injection to constructor-based injection in a dependency injection framework.
+- Conduct performance benchmarks for a build command using a build automation tool
+- Increasing code coverage above a specific threshold
+- Scaffolding an API for data retention
+- Creating Datadog monitors
+- Removing or adding feature flags etc.
 
 ## Getting Started
 
 Getting up and running with Goose is easy:
 
-1. **Installation**: Quickly install Goose using the setup guide in the [documentation](/docs/getting-started/installation.md).
+1. **Installation**: Quickly install Goose using the setup guide in the [documentation](/docs/getting-started/installation).
 
-2. **Configure Your Environment**: Choose your desired LLM provider and link necessary APIs or credentials directly via the Goose setup interface.
+2. **Configure Your Environment**: Choose your desired LLM provider.
 
-3. **Explore Extensions**: Browse and toggle between various built-in extensions to customize Goose to your workflow needs, or explore the [central directory of extensions](https://block.github.io/goose/v1/extensions) for additional options.
+3. **Explore Extensions**: Browse and toggle between various built-in extensions to customize Goose to your  needs, or explore the [central directory of extensions](/extensions) for additional options.
 
-4. **Launch & Innovate**: Initiate a session and begin leveraging Goose's capabilities to tackle your tasks more efficiently than ever before.
+4. **Build**: Start a Goose session and start building. 🚀
 
-## Conclusion
 
-Goose is designed to be the bridge to a more intuitive, automated, and integrated workflow. Whether you’re battling demanding development tasks or managing multiplatform projects, Goose is your versatile, reliable assistant.
+## Join the Goose Community
 
-We invite you to experience Goose today and take the first step toward unlocking unparalleled productivity and creativity. Explore the possibilities with Goose and reshape the way you work!
+Excited for upcoming feature updates and improvements? Check out the [Goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
