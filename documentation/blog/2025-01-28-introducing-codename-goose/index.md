@@ -1,6 +1,6 @@
 ---
 title: Introducing codename goose
-description: codename goose is your on-machine AI agent, automating engineering tasks seamlessly. Your go-to solution for improved productivity.
+description: codename goose is your open source AI agent, automating engineering tasks and improving productivity.
 authors: 
     - adewale
 ---
