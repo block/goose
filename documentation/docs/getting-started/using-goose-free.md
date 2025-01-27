@@ -8,17 +8,13 @@ import TabItem from '@theme/TabItem';
 
 # Using Goose for Free
 
-:::info Supported Environments
-Goose currently works only on **macOS** and **Linux** systems, and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
-:::
-
 Goose is a free and open source developer AI agent that you can start using right away, but not all supported [LLM Providers][providers] provide a free tier. 
 
 Below, we outline a couple of free options and how to get started with them.
 
 
 ## Google Gemini
-Google Gemini provides free access to its AI capabilities with some limitations. To start using the Gemini API with Goose, you need an API Key from [Google AI studio](https://aistudio.google.com/app/apikey).
+Google Gemini provides a free tier. To start using the Gemini API with Goose, you need an API Key from [Google AI studio](https://aistudio.google.com/app/apikey).
 
 To set up Google Gemini with Goose, follow these steps:
 
@@ -29,7 +25,9 @@ To set up Google Gemini with Goose, follow these steps:
     goose configure
     ```
     2. Select `Configure Providers` from the menu.
-    3. Follow the prompts to choose `Google Gemini` as the provider and enter your API key. 
+    3. Follow the prompts to choose `Google Gemini` as the provider.
+    4. Enter your API key when prompted.
+    5. Enter the Gemini model of your choice.
 
     ```
     ┌   goose-configure
@@ -65,14 +63,18 @@ To set up Google Gemini with Goose, follow these steps:
 
 ## DeepSeek-R1
 
-DeepSeek-r1 provides an open source LLM that you can install through [Ollama](ollama.com). However DeepSeek-r1 models don't currently support tool calling which is essential for goose. To set this up with Goose, there's a custom tuned DeepSeek-r1 model that you can install - [michaelneal/deepseek-r1-goose](https://ollama.com/michaelneale/deepseek-r1-goose). Here's how:
-
 :::warning
-You need a relatively powerful device to smoothly run local LLM models depending on the model's size.
+Depending on the model's size, you'll need a relatively powerful device to smoothly run local LLMs.
 :::
 
+Ollama provides open source LLMs, such as `DeepSeek-r1`, that you can install and run locally.
+Note that the native `DeepSeek-r1` model doesn't support tool calling, however, we have a [custom model](https://ollama.com/michaelneale/deepseek-r1-goose) you can use with Goose. 
+
+
+
 1. Download and install Ollama from [ollama.com](https://ollama.com/download).
-2. Run the following command to install `michaelneale/deepseek-r1-goose` model:
+2. In a terminal window, run the following command to install the custom DeepSeek-r1 model:
+
 ```sh
 ollama run michaelneale/deepseek-r1-goose
 ```
@@ -136,10 +138,9 @@ ollama run michaelneale/deepseek-r1-goose
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-    3. Open Goose Desktop.
-    4. Navigate to Settings -> Browse Models -> and select Ollama from the list.
+    3. Click `...` in the top-right corner.
+    4. Navigate to `Settings` -> `Browse Models` -> and select `Ollama` from the list.
     5. Enter `michaelneale/deepseek-r1-goose` for the model name.
-    6. Start using Goose!
   </TabItem>
 </Tabs>
 
