@@ -5,13 +5,13 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
+import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
+import RateLimits from '@site/src/components/RateLimits';
 
 
 # Install Goose
 
-:::info Supported Environments
-Goose currently works on **macOS** and **Linux** systems and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
-:::
+<SupportedEnvironments />
 
 
 <Tabs groupId="interface">
@@ -130,9 +130,7 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
   </TabItem>
 </Tabs>
 
-:::info Billing
-You will need to have credits in your LLM Provider account (when necessary) to be able to successfully make requests. Some providers also have rate limits on API usage, which can affect your experience. Check out the [Handling Rate Limits][handling-rate-limits] guide to learn how to efficiently manage these limits while using Goose.
-:::
+<RateLimits />
 
 ## Running Goose
 

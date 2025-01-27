@@ -6,13 +6,13 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
-
+import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
+import RateLimits from '@site/src/components/RateLimits';
 
 # Goose in 5 minutes
 
-:::info Supported Environments
-Goose currently works on **macOS** and **Linux** systems and supports both **ARM** and **x86** architectures. If you'd like to request support for additional operating systems, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
-:::
+<SupportedEnvironments />
+
 
 Goose is an open source AI agent that supercharges your software development by automating coding tasks. This quick tutorial will guide you through getting started with Goose!
 
@@ -80,11 +80,7 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
   </TabItem>
 </Tabs>
 
-:::info Billing
- [Google Gemini](https://aistudio.google.com/app/apikey) offers a free tier you can get started with. Otherwise, you'll need to ensure that you have credits available in your LLM Provider account to successfully make requests. 
- 
- Some providers also have rate limits on API usage, which can affect your experience. Check out our [Handling Rate Limits][handling-rate-limits] guide to learn how to efficiently manage these limits while using Goose.
-:::
+<RateLimits />
 
 ## Start Session
 Sessions are single, continuous conversations between you and Goose. Let's start one.
