@@ -15,13 +15,14 @@ Goose is compatible with a wide range of LLM providers, allowing you to choose a
 
 | Provider                                      | Description                                         | Parameters                            |
 |-----------------------------------------------|---------------------------------------------------|---------------------------------------|
-| [OpenAI](https://platform.openai.com/api-keys) | Provides GPT-4, GPT-3.5-turbo, and other advanced language models. | `OPENAI_API_KEY`                      |
-| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
-| [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this LLM runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | N/A         |
 | [Anthropic](https://www.anthropic.com/)       | Offers Claude, an advanced AI model for natural language tasks. | `ANTHROPIC_API_KEY`                   |
+| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images). | `GOOGLE_API_KEY`                      |
 | [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs. | `GROQ_API_KEY`                        |
-| [OpenRouter](https://openrouter.ai/) | API gateway for unified access to various models with features like rate-limiting management | `OPENROUTER_API_KEY`        |
+| [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this LLM runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | N/A                                   |
+| [OpenAI](https://platform.openai.com/api-keys) | Provides GPT-4, GPT-3.5-turbo, and other advanced language models. | `OPENAI_API_KEY`                      |
+| [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management. | `OPENROUTER_API_KEY`                  |
+
    
 ## Configure Provider
 
