@@ -13,16 +13,19 @@ Goose is compatible with a wide range of LLM providers, allowing you to choose a
 
 ## Available Providers
 
-| Provider                                      | Description                                         | Parameters                            |
-|-----------------------------------------------|---------------------------------------------------|---------------------------------------|
-| [Anthropic](https://www.anthropic.com/)       | Offers Claude, an advanced AI model for natural language tasks. | `ANTHROPIC_API_KEY`                   |
-| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
-| [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images). | `GOOGLE_API_KEY`                      |
-| [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs. | `GROQ_API_KEY`                        |
+| Provider                                      | Description                                                                                                                                                                                                              | Parameters                            |
+|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| [Anthropic](https://www.anthropic.com/)       | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                          | `ANTHROPIC_API_KEY`                   |
+| [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
+| [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                     | `GOOGLE_API_KEY`                      |
+| [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs.                                                                                                                                                                  | `GROQ_API_KEY`                        |
 | [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | N/A                                   |
-| [OpenAI](https://platform.openai.com/api-keys) | Provides GPT-4, GPT-3.5-turbo, and other advanced language models. | `OPENAI_API_KEY`                      |
-| [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management. | `OPENROUTER_API_KEY`                  |
+| [OpenAI](https://platform.openai.com/api-keys) | Provides gpt-4o, o1, and other advanced language models.                                                                                                                                                                 | `OPENAI_API_KEY`                      |
+| [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                            | `OPENROUTER_API_KEY`                  |
 
+:::tip Model Recommendation
+Goose currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's o1 model. 
+:::
    
 ## Configure Provider
 
@@ -95,12 +98,12 @@ To configure your chosen provider or see available options, run `goose configure
 
 Ollama provides local LLMs, which requires a bit more set up before you can use it with Goose.
 
-:::warning Custom DeekSeek Model
-The native `DeepSeek-r1` model does not support tool calling. If using this model, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/using-goose-free#deepseek-r1) we've made specifically for Goose.
-:::
-
 1. [Download Ollama](https://ollama.com/download). 
-2. Run the [model of your choice](https://ollama.com/search):
+2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
+
+:::warning Limited Support for models without tool calling
+Goose extensively uses tool calling, so models without it can only do chat completion (eg. DeepSeek)
+:::
 
 Example:
 
