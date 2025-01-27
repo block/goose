@@ -27,7 +27,7 @@ Goose operates as an intelligent, autonomous agent capable of handling complex t
 
 - **LLM Providers**: Goose is compatible with a wide range of [LLM providers](/docs/getting-started/providers), allowing you to choose and integrate your preferred model. 
 
-- **CLI and Desktop Support**: You can have Goose running as both a desktop app or a command-line interface - whatever your preference is - using the same configuration across board.
+- **CLI and Desktop Support**: You can run Goose as a desktop app or through the command-line interface (CLI) using the same configurations across both.
 
 ## Goose in Action
 
