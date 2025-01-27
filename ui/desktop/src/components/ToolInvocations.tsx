@@ -53,7 +53,7 @@ function ToolCall({ call }: ToolCallProps) {
 
       {call.args && <ToolCallArguments args={call.args} />}
 
-      <div className="self-stretch h-px my-[10px] -mx-4 bg-borderSubtle" />
+      <div className="self-stretch h-px my-[10px] -mx-4 bg-borderSubtle dark:bg-gray-700" />
     </div>
   );
 }

@@ -34,7 +34,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         )}
 
         {message.toolInvocations && (
-          <div className="goose-message-tool bg-bgApp border border-borderSubtle rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+          <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
             <ToolInvocations toolInvocations={message.toolInvocations} />
           </div>
         )}
