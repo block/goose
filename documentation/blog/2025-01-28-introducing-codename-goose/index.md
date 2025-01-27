@@ -7,7 +7,7 @@ authors:
 
 ![Introducing codename goose](introducing-codename-goose.png)
 
-We are thrilled to announce **codename goose**, your on-machine developer agent built to automate your tasks. 
+We are thrilled to announce **codename goose**, your on-machine, open source AI agent built to automate your tasks. 
 
 Powered by your choice of [large language models (LLMs)](/docs/getting-started/providers), a user-friendly interface & command-line, and [extensions](/docs/getting-started/using-extensions) that integrate with your existing tools and applications, Goose is designed to enhance your productivity and workflow.
 
