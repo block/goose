@@ -17,6 +17,7 @@ set -euo pipefail
 #   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)
 #   GOOSE_PROVIDER - Optional: provider for goose
 #   GOOSE_MODEL    - Optional: model for goose
+#   CANARY         - Optional: if set to "true", downloads from canary release instead of stable
 #   ** other provider specific environment variables (eg. DATABRICKS_HOST)
 ##############################################################################
 
@@ -30,6 +31,8 @@ fi
 REPO="block/goose"
 OUT_FILE="goose"
 GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
+RELEASE="${CANARY:-false}"
+RELEASE_TAG="$([[ "$RELEASE" == "true" ]] && echo "canary" || echo "stable")"
 
 # --- 3) Detect OS/Architecture ---
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -64,10 +67,10 @@ else
   FILE="goose-$ARCH-unknown-linux-gnu.tar.bz2"
 fi
 
-DOWNLOAD_URL="https://github.com/$REPO/releases/download/stable/$FILE"
+DOWNLOAD_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$FILE"
 
 # --- 4) Download & extract 'goose' binary ---
-echo "Downloading stable release: $FILE..."
+echo "Downloading $RELEASE_TAG release: $FILE..."
 if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
   echo "Error: Failed to download $DOWNLOAD_URL"
   exit 1
