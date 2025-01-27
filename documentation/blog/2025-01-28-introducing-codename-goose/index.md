@@ -47,14 +47,6 @@ Goose is able to handle a wide range of tasks, from simple to complex, across va
 
 You can get started using Goose right away! Check out our [Quickstart](/docs/quickstart).
 
-1. **Installation**: Quickly install Goose using the setup guide in the [documentation](/docs/getting-started/installation).
-
-2. **Configure Your Environment**: Choose your desired LLM provider.
-
-3. **Explore Extensions**: Browse and toggle between various built-in extensions to customize Goose to your  needs, or explore the [central directory of extensions](/extensions) for additional options.
-
-4. **Build**: Start a Goose session and start building. 🚀
-
 
 ## Join the Goose Community
 
