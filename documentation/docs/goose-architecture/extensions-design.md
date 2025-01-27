@@ -1,6 +1,7 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 ---
+
 # Extensions Design
 
 This document describes the design and implementation of the [Extensions framework](/docs/getting-started/using-extensions) in Goose, which enables AI agents to interact with different extensions through a unified tool-based interface.
