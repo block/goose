@@ -45,7 +45,7 @@ Goose is able to handle a wide range of tasks, from simple to complex, across va
 
 ## Getting Started
 
-Getting up and running with Goose is easy:
+You can get started using Goose right away! Check out our [Quickstart](/docs/quickstart).
 
 1. **Installation**: Quickly install Goose using the setup guide in the [documentation](/docs/getting-started/installation).
 
