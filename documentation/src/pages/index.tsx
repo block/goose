@@ -23,9 +23,8 @@ function HomepageHeader() {
           <Link
             className="button button--primary button--lg"
             to="docs/getting-started/installation"
-          >
-            <IconDownload />
-            install goose desktop
+          >            
+            install goose
           </Link>
         </div>
       </div>
