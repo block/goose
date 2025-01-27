@@ -58,4 +58,11 @@ You can get started using Goose right away! Check out our [Quickstart](/docs/qui
 
 ## Join the Goose Community
 
-Excited for upcoming feature updates and improvements? Check out the [Goose repo](https://github.com/block/goose) and join our [Discord community](https://discord.gg/block-opensource).
+Excited for upcoming features and events? Be sure to connect with us!
+
+- [GitHub](https://github.com/block/goose)
+- [Discord](https://discord.gg/block-opensource)
+- [YouTube](https://www.youtube.com/@blockopensource)
+- [LinkedIn](https://www.linkedin.com/company/block-opensource)
+- [X](https://x.com/blockopensource)
+- [BlueSky](https://bsky.app/profile/block-opensource.bsky.social)
