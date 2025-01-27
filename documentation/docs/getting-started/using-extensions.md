@@ -159,7 +159,19 @@ You can install [any MCP server](https://github.com/modelcontextprotocol/servers
     2. Choose `Add Extension`
     3. Choose `Command-line Extension`
 
-    You'll then be prompted to enter a command and any environment variables needed. For example, to connect to the [Fetch Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch), enter `uvx mcp-server-fetch` as the command.
+    You'll then be prompted to enter a command and any environment variables needed. 
+
+  </TabItem>
+  <TabItem value="ui" label="Goose Desktop">
+
+  1. Click `...` in the top right corner of the Goose Desktop.
+  2. Select `Settings` from the menu.
+  3. Under `Extensions`, you can add a MCP server as an extension manually by clicking on the (+) button to the right.
+  4. In the dialog that appears, enter the details of the MCP server including any environment variables needed.
+  </TabItem>
+</Tabs>
+
+For example, to connect to the [Fetch Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch), enter `uvx mcp-server-fetch` as the command.
 
     :::tip
     You can also directly edit the resulting config entry (`~/.config/goose/config.yaml`), which would look like this:
@@ -175,18 +187,6 @@ You can install [any MCP server](https://github.com/modelcontextprotocol/servers
         type: stdio
     ```
     :::
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Settings` from the menu.
-  3. Under `Extensions`, you can add a MCP server as an extension manually by clicking on the (+) button to the right.
-  4. In the dialog that appears, enter the details of the MCP server including any environment variables needed.
-  </TabItem>
-</Tabs>
-
-
-
 
 
 ## Enabling/Disabling Extensions
