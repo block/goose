@@ -15,12 +15,18 @@ copy-binary:
         echo "Release binary not found."; \
         exit 1; \
     fi
+
 # Run UI with latest
 run-ui:
     @just release
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
-    
+
+# Run Docusaurus server for documentation
+run-docs:
+    @echo "Running docs server..."
+    cd documentation && yarn && yarn start
+
 # Run server
 run-server:
     @echo "Running server..."
