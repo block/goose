@@ -23,7 +23,7 @@ While Goose's first use cases are engineering focused, the community has been ex
 
 Goose operates as an intelligent, autonomous agent capable of handling complex tasks through a well-orchestrated coordination of its core features:
   
-- **Using Extensions**: [Extensions](/docs/getting-started/using-extensions) are key to Goose’s adaptability, providing you the ability to connect with applications and tools that you already use. Whether it’s connecting to GitHub, accessing Google Drive or integrating with JetBrains IDEs, the possibilities are extensive. Some of these extensions have been curated in the [extensions](/extensions) directory. Goose extensions are built on the [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) - enabling you to build or bring your own custom integrations to Goose. 
+- **Using Extensions**: [Extensions](/docs/getting-started/using-extensions) are key to Goose’s adaptability, providing you the ability to connect with applications and tools that you already use. Whether it’s connecting to GitHub, accessing Google Drive or integrating with JetBrains IDEs, the possibilities are extensive. Some of these extensions have been curated in the [extensions][extensions-directory] directory. Goose extensions are built on the [Model Context Protocol (MCP)](https://www.anthropic.com/news/model-context-protocol) - enabling you to build or bring your own custom integrations to Goose. 
 
 - **LLM Providers**: Goose is compatible with a wide range of [LLM providers](/docs/getting-started/providers), allowing you to choose and integrate your preferred model. 
 
@@ -58,3 +58,6 @@ Excited for upcoming features and events? Be sure to connect with us!
 - [LinkedIn](https://www.linkedin.com/company/block-opensource)
 - [X](https://x.com/blockopensource)
 - [BlueSky](https://bsky.app/profile/block-opensource.bsky.social)
+
+
+[extensions-directory]: https://block.github.io/goose/v1/extensions

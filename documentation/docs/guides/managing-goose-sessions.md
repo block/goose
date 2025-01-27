@@ -48,7 +48,7 @@ A session is a single, continuous interaction between you and Goose, providing a
     </TabItem>
 </Tabs>
 :::info
-    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/getting-started/installation#set-up-a-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
+    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/getting-started/installation#set-llm-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
 :::
 
 ## Exit Session
