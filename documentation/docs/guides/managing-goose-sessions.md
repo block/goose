@@ -24,6 +24,10 @@ A session is a single, continuous interaction between you and Goose, providing a
         
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
+        ### Start New Session
+
+        To start a new session in the Goose desktop application, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
+
     </TabItem>
 </Tabs>
 
@@ -95,6 +99,10 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
         goose session -r -n react-migration
         ```
+        :::tip
+        While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
+        :::
+
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
         Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
