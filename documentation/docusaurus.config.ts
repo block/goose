@@ -20,7 +20,7 @@ const config: Config = {
   url: "https://block.github.io/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/goose/",
+  baseUrl: "/goose/v1/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -87,7 +87,7 @@ const config: Config = {
         },
         { to: "/blog", label: "Blog", position: "left" },
         {
-          to: "https://block.github.io/goose/extensions/",
+          to: "https://block.github.io/goose/v1/extensions/",
           label: "Extensions",
           position: "left",
         },
@@ -114,7 +114,7 @@ const config: Config = {
             },
             {
               label: "Extensions",
-              to: "https://block.github.io/goose/extensions/",
+              to: "https://block.github.io/goose/v1/extensions/",
             },
           ],
         },
