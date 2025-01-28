@@ -102,7 +102,7 @@ Ollama provides local LLMs, which requires a bit more set up before you can use 
 2. Run any [model supporting tool-calling](https://ollama.com/search?c=tools):
 
 :::warning Limited Support for models without tool calling
-Goose extensively uses tool calling, so models without it can only do chat completion (eg. DeepSeek)
+Goose extensively uses tool calling, so models without it (e.g. `DeepSeek-r1`) can only do chat completion. If using models without tool calling, all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions). As an alternative, you can use a [custom DeepSeek-r1 model](/docs/getting-started/using-goose-free#deepseek-r1) we've made specifically for Goose.
 :::
 
 Example:
