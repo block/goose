@@ -76,7 +76,7 @@ const config: Config = {
             from: '/v1/docs/getting-started/installation',
           },
           {
-            to: '/docs/getting-started/quickstart',
+            to: '/docs/quickstart',
             from: '/v1/docs/quickstart',
           },
           {
