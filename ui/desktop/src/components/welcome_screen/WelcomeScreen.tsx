@@ -38,7 +38,7 @@ export function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
                   <WelcomeGooseLogo className="h-16 w-16 md:h-20 md:w-20 text-black dark:text-white" />
                 </div>
                 <div>
-                  <h1 className="text-4xl font-bold text-textStandard tracking-tight md:text-5xl">
+                  <h1 className="text-4xl font-medium text-textStandard tracking-tight md:text-5xl">
                     Welcome to goose
                   </h1>
                   <p className="text-lg text-textSubtle max-w-2xl">
@@ -50,7 +50,7 @@ export function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
 
             {/* ProviderGrid */}
             <div className="w-full">
-              <h2 className="text-3xl font-bold text-textStandard tracking-tight mb-2">
+              <h2 className="text-3xl font-medium text-textStandard tracking-tight mb-2">
                 Choose a Provider
               </h2>
               <p className="text-xl text-textStandard mb-4">
@@ -70,7 +70,7 @@ export function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
                 Not sure where to start?{' '}
                 <Button
                   variant="link"
-                  className="text-indigo-500 hover:text-indigo-600 p-0 h-auto"
+                  className="text-blue-500 hover:text-blue-600 p-0 h-auto"
                   onClick={() =>
                     window.open('https://block.github.io/goose/v1/docs/quickstart', '_blank')
                   }

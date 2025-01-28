@@ -1,5 +1,3 @@
-import { transform } from 'framer-motion';
-
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ['class'],
@@ -7,6 +5,9 @@ export default {
   plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Cash Sans'],
+      },
       keyframes: {
         shimmer: {
           '0%': { backgroundPosition: '200% 0' },

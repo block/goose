@@ -4,34 +4,6 @@
 
 /* Cash Sans */
 
-/* @font-face {
-  font-family: 'CashSans';
-  src: url('./fonts/CashSans-Regular.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'CashSans';
-  src: url('./fonts/CashSans-Bold.woff2') format('woff2');
-  font-weight: bold;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'CashSans';
-  src: url('./fonts/CashSansMono-Light.woff2') format('woff2');
-  font-weight: lighter;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'CashSans';
-  src: url('./fonts/CashSansMono-Regular.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-} */
-
 @font-face {
   font-family: Cash Sans;
   src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)

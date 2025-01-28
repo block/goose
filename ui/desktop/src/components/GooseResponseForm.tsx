@@ -197,7 +197,7 @@ export default function GooseResponseForm({
           onSubmit={handleFormSubmit}
           className="space-y-4 p-4 rounded-lg bg-tool-card dark:bg-tool-card-dark border dark:border-dark-border"
         >
-          <h2 className="text-xl font-bold mb-2 dark:text-gray-100">{dynamicForm.title}</h2>
+          <h2 className="text-xl font-medium mb-2 dark:text-gray-100">{dynamicForm.title}</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">{dynamicForm.description}</p>
 
           {dynamicForm.fields.map((field) => (
