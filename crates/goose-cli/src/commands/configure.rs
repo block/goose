@@ -24,28 +24,40 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
         );
         println!();
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
-        if configure_provider_dialog().await? {
-            println!(
-                "\n  {}: Run '{}' again to adjust your config or add extensions",
-                style("Tip").green().italic(),
-                style("goose configure").cyan()
-            );
-            // Since we are setting up for the first time, we'll also enable the developer system
-            ExtensionManager::set(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Builtin {
-                    name: "developer".to_string(),
-                },
-            })?;
-        } else {
-            let _ = config.clear();
-            println!(
-                "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                style("Warning").yellow().italic(),
-                style("goose configure").cyan()
-            );
+        match configure_provider_dialog().await {
+            Ok(true) => {
+                println!(
+                    "\n  {}: Run '{}' again to adjust your config or add extensions",
+                    style("Tip").green().italic(),
+                    style("goose configure").cyan()
+                );
+                // Since we are setting up for the first time, we'll also enable the developer system
+                // This operation is best-effort and errors are ignored
+                ExtensionManager::set(ExtensionEntry {
+                    enabled: true,
+                    config: ExtensionConfig::Builtin {
+                        name: "developer".to_string(),
+                    },
+                })?;
+            }
+            Ok(false) => {
+                let _ = config.clear();
+                println!(
+                    "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                    style("Warning").yellow().italic(),
+                    style("goose configure").cyan()
+                );
+            }
+            Err(e) => {
+                let _ = config.clear();
+                println!(
+                    "\n  {} {} \n: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                    style("Error").red().italic(),
+                    e,
+                    style("goose configure").cyan()
+                );
+            }
         }
-
         Ok(())
     } else {
         println!();
