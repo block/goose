@@ -43,7 +43,7 @@ jobs:
           mkdir -p combined-build/v1/extensions
           cp -r extensions-site/build/client/* combined-build/v1/extensions/
 
-      - name: Deploy to /goose
+      - name: Deploy to /gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

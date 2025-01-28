@@ -193,9 +193,7 @@ const config: Config = {
       aiChatSettings: {
         chatSubjectName: "goose",
         botAvatarSrcUrl:
-          "https://storage.googleapis.com/organization-image-assets/block-botAvatarSrcUrl-1737745528096.png",
-        botAvatarDarkSrcUrl:
-          "https://storage.googleapis.com/organization-image-assets/block-botAvatarDarkSrcUrl-1737745527450.png",
+          "",
         getHelpCallToActions: [
           {
             name: "GitHub",
