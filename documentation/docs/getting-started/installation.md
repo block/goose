@@ -19,7 +19,7 @@ import RateLimits from '@site/src/components/RateLimits';
     Run the following command to install the latest version of Goose: 
 
     ```sh
-    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
+    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
     ```
     This script will fetch the latest version of Goose and set it up on your system.
     
