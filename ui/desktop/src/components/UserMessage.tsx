@@ -13,7 +13,9 @@ export default function UserMessage({ message }) {
         <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
           <MarkdownContent content={message.content} className="text-white" />
         </div>
-        {urls.length > 0 && (
+
+        {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+        {false && urls.length > 0 && (
           <div className="flex flex-wrap mt-2">
             {urls.map((url, index) => (
               <LinkPreview key={index} url={url} />

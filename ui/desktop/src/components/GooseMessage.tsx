@@ -40,7 +40,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         )}
       </div>
 
-      {urls.length > 0 && (
+      {/* TODO(alexhancock): Re-enable link previews once styled well again */}
+      {false && urls.length > 0 && (
         <div className="flex flex-wrap mt-[16px]">
           {urls.map((url, index) => (
             <LinkPreview key={index} url={url} />
