@@ -61,3 +61,17 @@ Excited for upcoming features and events? Be sure to connect with us!
 
 
 [extensions-directory]: https://block.github.io/goose/v1/extensions
+
+
+<head>
+  <meta property="og:title" content="Introducing codename goose" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/11/resolving-ci-issues-with-goose-a-practical-walkthrough" />
+  <meta property="og:description" content="codename goose is your open source AI agent, automating engineering tasks and improving productivity." />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/introducing-codename-goose-89cac25816e0ea215dd47d4b9768c8ab.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta name="twitter:title" content="Introducing codename goose" />
+  <meta name="twitter:description" content="codename goose is your open source AI agent, automating engineering tasks and improving productivity." />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/introducing-codename-goose-89cac25816e0ea215dd47d4b9768c8ab.png" />
+</head>

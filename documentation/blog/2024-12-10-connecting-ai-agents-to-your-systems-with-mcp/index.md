@@ -6,7 +6,7 @@ authors:
   - angie
 ---
 
-![calendar](goose-mcp.png)
+![mcp](goose-mcp.png)
 
 Open standards are a critical ingredient for interoperable systems. They have enabled most of the technologies that we all rely on. The ability to connect to the internet no matter where we are relies on open standards such as Wi-Fi, TCP/IP and DNS. When you receive an email in your Gmail account from an Outlook sender, it's the use of open standards like SMTP, IMAP, and POP3 that makes this seamless. One of the most transformative technologies of our lifetime - the internet - enables anyone to have their web page accessible to the entire world thanks to the HTTP and HTML standards.
 
@@ -50,18 +50,18 @@ As MCP adoption expands, so does Goose’s potential to deliver even more powerf
   <meta name="description" content="Learn how MCP standardizes integrations and fosters an ecosystem for the future of AI-enabled tools." />
 
   <!-- Facebook Meta Tags -->
-  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/10/goose-mcp.html" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/10/connecting-ai-agents-to-your-systems-with-mcp" />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Connecting AI Agents to Your Systems with MCP" />
   <meta property="og:description" content="Learn how MCP standardizes integrations and fosters an ecosystem for the future of AI-enabled tools." />
-  <meta property="og:image" content="https://block.github.io/goose/blog/images/goose-mcp.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-mcp-34a5252d18d18dff26157d673f7af779.png" />
 
   <!-- Twitter Meta Tags -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io" />
-  <meta property="twitter:url" content="https://block.github.io/goose/blog/2024/12/10/goose-mcp.html" />
+  <meta property="twitter:url" content="https://block.github.io/goose/blog/2024/12/10/connecting-ai-agents-to-your-systems-with-mcp" />
   <meta name="twitter:title" content="Connecting AI Agents to Your Systems with MCP" />
   <meta name="twitter:description" content="Learn how MCP standardizes integrations and fosters an ecosystem for the future of AI-enabled tools." />
-  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/goose-mcp.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-mcp-34a5252d18d18dff26157d673f7af779.png" />
 </head>
 
