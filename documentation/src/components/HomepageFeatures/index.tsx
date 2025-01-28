@@ -192,20 +192,6 @@ export default function HomepageFeatures(): ReactNode {
             <Feature key={idx} {...props} />
           ))}
 
-          /*
-          <div
-            style={{
-              margin: "80px 0",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              width: "100%",
-            }}
-          >
-            <img src={require("@site/static/img/placeholder.png").default} />
-          </div>
-          */
-
           {/* inline styles in the interest of time */}
           <div
             style={{
