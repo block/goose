@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
+import MarkdownContent from './MarkdownContent';
 import { Button } from './ui/button';
 import { cn } from '../utils';
 import { Send } from './icons';
@@ -177,7 +177,7 @@ export default function GooseResponseForm({
             >
               <h3 className="font-semibold text-lg mb-2 dark:text-gray-100">{opt.optionTitle}</h3>
               <div className="prose prose-xs max-w-none dark:text-gray-100">
-                <ReactMarkdown>{opt.optionDescription}</ReactMarkdown>
+                <MarkdownContent content={opt.optionDescription} />
               </div>
             </div>
           ))}
