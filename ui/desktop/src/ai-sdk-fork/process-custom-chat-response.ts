@@ -89,8 +89,18 @@ export async function processCustomChatResponse({
     onTextPart(value) {
       // If the last event wasn't text, or we don't have a current message, create a new one
       if (lastEventType !== 'text' || currentMessage == null) {
-        archiveCurrentMessage();
-        currentMessage = createNewMessage();
+        // Only archive if there are no tool invocations in 'call' state
+        const hasPendingToolCalls =
+          currentMessage?.toolInvocations?.some((invocation) => invocation.state === 'call') ??
+          false;
+
+        if (!hasPendingToolCalls) {
+          archiveCurrentMessage();
+        }
+
+        if (!currentMessage) {
+          currentMessage = createNewMessage();
+        }
         currentMessage.content = value;
       } else {
         // Concatenate with the existing message
