@@ -158,12 +158,12 @@ Try it out, and let Goose handle the heavy lifting of CI debugging for you!
 <head>
   <meta property="og:title" content="Resolving CI Issues with Goose: A Practical Walkthrough" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/10/resolving-ci-issues.html" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/11/resolving-ci-issues-with-goose-a-practical-walkthrough" />
   <meta property="og:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
-  <meta property="og:image" content="https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-github-ci-30930008ab57b0aebae15a03c73a12b5.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Resolving CI Issues with Goose: A Practical Walkthrough" />
   <meta name="twitter:description" content="Leverage Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly." />
-  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/resolving-ci-issues/goose-github-ci.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-github-ci-30930008ab57b0aebae15a03c73a12b5.png" />
 </head>

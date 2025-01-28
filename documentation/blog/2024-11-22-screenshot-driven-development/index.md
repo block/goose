@@ -282,12 +282,12 @@ If you're interested in learning more, check out the [Goose repo](https://github
 <head>
     <meta property="og:title" content="Screenshot-Driven Development" />
     <meta property="og:type" content="article" />
-    <meta property="og:url" content="https://block.github.io/goose/blog/2024/11/22/screenshot-driven-development.html" />
+    <meta property="og:url" content="https://block.github.io/goose/blog/2024/11/22/screenshot-driven-development" />
     <meta property="og:description" content="AI Agent uses screenshots to assist in styling." />
-    <meta property="og:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
+    <meta property="og:image" content="https://block.github.io/goose/assets/images/screenshot-driven-development-4ed1beaa10c6062c0bf87e2d27590ad6.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta property="twitter:domain" content="block.github.io" />
+    <meta property="twitter:domain" content="block.github.io/goose" />
     <meta name="twitter:title" content="Screenshot-Driven Development" />
     <meta name="twitter:description" content="AI Agent uses screenshots to assist in styling." />
-    <meta name="twitter:image" content="https://block.github.io/goose/blog/images/screenshot-driven-development-blog/screenshot-driven-development.png" />
+    <meta name="twitter:image" content="https://block.github.io/goose/assets/images/screenshot-driven-development-4ed1beaa10c6062c0bf87e2d27590ad6.png" />
 </head>
