@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies and build docs
         working-directory: ./documentation
         env:
-          INKEEP_API_KEY: ${{ secrets.INKEEP_API_KEY }}
+          INKEEP_API_KEY: ${{ secrets.INKEEP_API_KEY }} // Keys for Inkeep search and chatbot.
           INKEEP_INTEGRATION_ID: ${{ secrets.INKEEP_INTEGRATION_ID }}
           INKEEP_ORG_ID: ${{ secrets.INKEEP_ORG_ID }}
         run: |
@@ -40,12 +40,13 @@ jobs:
         run: |
           mkdir combined-build
           cp -r documentation/build/* combined-build/
-          mkdir -p combined-build/extensions
-          cp -r extensions-site/build/client/* combined-build/extensions/
+          mkdir -p combined-build/v1/extensions
+          cp -r extensions-site/build/client/* combined-build/v1/extensions/
 
-      - name: Deploy to gh-pages
+      - name: Deploy to /gh-pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: combined-build
-          destination_dir: v1 # Deploy the site to the 'v1' subfolder
+          destination_dir: . # Deploy the site to the root /goose directory
+      

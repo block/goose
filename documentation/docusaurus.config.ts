@@ -20,7 +20,7 @@ const config: Config = {
   url: "https://block.github.io/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/goose/v1/",
+  baseUrl: "/goose/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -62,7 +62,31 @@ const config: Config = {
       } satisfies Preset.Options,
     ],
   ],
-
+  plugins: [
+    [
+      "@docusaurus/plugin-client-redirects",
+      {
+        redirects: [
+          {
+            to: '/docs/getting-started/providers',
+            from: '/v1/docs/getting-started/providers',
+          },
+          {
+            to: '/docs/getting-started/installation',
+            from: '/v1/docs/getting-started/installation',
+          },
+          {
+            to: '/docs/getting-started/quickstart',
+            from: '/v1/docs/getting-started/quickstart',
+          },
+          {
+            to: '/',
+            from: '/v1/',
+          }
+        ],
+      },
+    ],
+  ],
   themes: ["@inkeep/docusaurus/chatButton", "@inkeep/docusaurus/searchBar"],
   themeConfig: {
     // Replace with your project's social card
@@ -173,9 +197,7 @@ const config: Config = {
       aiChatSettings: {
         chatSubjectName: "goose",
         botAvatarSrcUrl:
-          "https://storage.googleapis.com/organization-image-assets/block-botAvatarSrcUrl-1737745528096.png",
-        botAvatarDarkSrcUrl:
-          "https://storage.googleapis.com/organization-image-assets/block-botAvatarDarkSrcUrl-1737745527450.png",
+          "",
         getHelpCallToActions: [
           {
             name: "GitHub",
