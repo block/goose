@@ -1,4 +1,4 @@
-name: Deploy v1 Docs & Extensions # (/documentation and /extensions-site)
+name: Deploy Docs & Extensions # (/documentation and /extensions-site)
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies and build extensions-site
         working-directory: ./extensions-site
         env:
-          VITE_BASENAME: "/goose/v1/extensions/" # Set the base URL here for the extensions site
+          VITE_BASENAME: "/goose/extensions/" # Set the base URL here for the extensions site
         run: |
           npm install
           npm run build
@@ -48,4 +48,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: combined-build
-          destination_dir: v1 # Deploy the site to the 'v1' subfolder

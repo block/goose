@@ -1,5 +1,5 @@
 <h1 align="center">
-<code>codename goose</code>
+codename goose
 </h1>
 
 <p align="center">
@@ -18,4 +18,5 @@
   </a>
 </p>
 
-Stay tuned for the upcoming 1.0 release by the end of January 2025. You can find the v0.X documentation on our [github pages](https://block.github.io/goose/).
+Check out our [documentation](https://block.github.io/goose/), or to try it out head to the [installation](https://block.github.io/goose/docs/getting-started/installation) instructions!
+

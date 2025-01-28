@@ -1,6 +1,6 @@
-# This workflow is for canary releases, automatically triggered by push to v1.0 branch.
+# This workflow is for canary releases, automatically triggered by push to main
 # This workflow is identical to "release.yml" with these exceptions:
-#  - Triggered by push to v1.0 branch
+#  - Triggered by push to main
 #  - Github Release tagged as "canary"
 on:
   push:
