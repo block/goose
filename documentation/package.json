@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@docusaurus/core": "3.7.0",
+    "@docusaurus/plugin-client-redirects": "^3.7.0",
     "@docusaurus/preset-classic": "3.7.0",
     "@inkeep/docusaurus": "^2.0.16",
     "@mdx-js/react": "^3.0.0",
