@@ -50,7 +50,7 @@ import RateLimits from '@site/src/components/RateLimits';
 
 #### Installing on Windows via WSL
 
-While Goose Desktop and CLI doesn't work on Windows directly atm, It is possible to run Goose CLI on Windows using the Windows Subsystem for Linux (WSL).
+There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
 
 <details>
 
