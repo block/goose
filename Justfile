@@ -20,12 +20,15 @@ release-windows:
             sh -c "rustup target add x86_64-pc-windows-gnu && \
                 apt-get update && \
                 apt-get install -y mingw-w64 && \
-                cargo build --release --target x86_64-pc-windows-gnu"
+                cargo build --release --target x86_64-pc-windows-gnu && \
+                cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+                cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
+                cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
     else
         echo "Building Windows executable natively..."
-        powershell.exe -Command "docker run --rm -v ${PWD}:/usr/src/myapp -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu'"
+        powershell.exe -Command "docker run --rm -v ${PWD}:/usr/src/myapp -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/'"
     fi
-    @echo "Windows executable created at ./target/x86_64-pc-windows-gnu/release/goosed.exe"
+    @echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
 # Copy binary command
 copy-binary:
@@ -37,11 +40,29 @@ copy-binary:
         exit 1; \
     fi
 
+# Copy Windows binary command
+copy-binary-windows:
+    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goosed.exe) { \
+        Write-Host 'Copying Windows binary and DLLs to ui/desktop/src/bin...'; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goosed.exe' -Destination './ui/desktop/src/bin/' -Force; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/*.dll' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows binary not found.' -ForegroundColor Red; \
+        exit 1; \
+    }"
+
 # Run UI with latest
 run-ui:
     @just release-binary
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
+
+# Run UI with latest (Windows version)
+run-ui-windows:
+    @just release-windows
+    @powershell.exe -Command "Write-Host 'Copying Windows binary...'"
+    @just copy-binary-windows
+    @powershell.exe -Command "Write-Host 'Running UI...'; Set-Location ui/desktop; npm install; npm run start-gui"
 
 # Run Docusaurus server for documentation
 run-docs:
@@ -61,13 +82,14 @@ make-ui:
 # make GUI with latest Windows binary
 make-ui-windows:
     @just release-windows
-    @if [ -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ]; then \
-        echo "Copying Windows binary to ui/desktop/src/bin..."; \
-        cp -p ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/; \
-    else \
-        echo "Windows binary not found."; \
+    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goosed.exe) { \
+        Write-Host 'Copying Windows binary and DLLs to ui/desktop/src/bin...'; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goosed.exe' -Destination './ui/desktop/src/bin/' -Force; \
+        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/*.dll' -Destination './ui/desktop/src/bin/' -Force; \
+    } else { \
+        Write-Host 'Windows binary not found.' -ForegroundColor Red; \
         exit 1; \
-    fi
+    }"
     cd ui/desktop && npm run bundle:windows
 
 # Setup langfuse server
