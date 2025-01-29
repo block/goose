@@ -3,8 +3,7 @@ use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf,
-    pin::Pin, sync::Arc, sync::Mutex,
+    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
 use tokio::process::Command;
 
@@ -18,6 +17,9 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+mod platform;
+use platform::{create_system_automation, SystemAutomation};
+
 /// An extension designed for non-developers to help them with common tasks like
 /// web scraping, data processing, and automation.
 #[derive(Clone)]
@@ -27,6 +29,7 @@ pub struct ComputerControllerRouter {
     active_resources: Arc<Mutex<HashMap<String, Resource>>>,
     http_client: Client,
     instructions: String,
+    system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>>,
 }
 
 impl Default for ComputerControllerRouter {
@@ -89,29 +92,29 @@ impl ComputerControllerRouter {
         let computer_control_tool = Tool::new(
             "computer_control",
             indoc! {r#"
-                Control the computer using AppleScript (macOS only). Automate applications and system features.
+                Control the computer using system automation. Features available:
 
-                Key capabilities:
-                - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
-                    - Interact with app-specific feature: (e.g, edit documents, process photos)
-                    - Perform tasks in third-party apps that support AppleScript
-                - UI Automation: Simulate user interactions like, clicking buttons, select menus, type text, filling out forms
-                - System Control: Manage settings (volume, brightness, wifi), shutdown/restart, monitor events
-                - Web & Email: Open URLs, web automation, send/organize emails, handle attachments
-                - Media: Manage music libraries, photo collections, playlists
-                - File Operations: Organize files/folders
-                - Integration: Calendar, reminders, messages
-                - Data: Interact with spreadsheets and documents
+                On Windows:
+                - PowerShell automation for system control
+                - UI automation through PowerShell
+                - File and system management
+                - Windows-specific features and settings
+
+                On macOS:
+                - AppleScript for system control
+                - UI automation through AppleScript
+                - Integration with macOS apps and services
+                - macOS-specific features and settings
 
                 Can be combined with screenshot tool for visual task assistance.
-                "#},
+            "#},
             json!({
                 "type": "object",
                 "required": ["script"],
                 "properties": {
                     "script": {
                         "type": "string",
-                        "description": "The AppleScript content to execute"
+                        "description": "The automation script content (PowerShell for Windows, AppleScript for macOS)"
                     },
                     "save_output": {
                         "type": "boolean",
@@ -126,23 +129,34 @@ impl ComputerControllerRouter {
             "automation_script",
             indoc! {r#"
                 Create and run small scripts for automation tasks.
-                Supports Shell and Ruby (on macOS).
+
+                On Windows:
+                - Supports PowerShell and Batch scripts
+                - PowerShell is recommended for most tasks
+
+                On macOS:
+                - Supports Shell and Ruby scripts
+                - Shell (bash) is recommended for most tasks
 
                 The script is saved to a temporary file and executed.
-                Consider using shell script (bash) for most simple tasks first.
-                Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
-                Some examples of shell:
-                    - create a sorted list of unique lines: sort file.txt | uniq
-                    - extract 2nd column in csv: awk -F "," '{ print $2}'
-                    - pattern matching: grep pattern file.txt
-                "#},
+                Some examples:
+                    Windows (PowerShell):
+                    - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
+                    - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
+                    - Find text: Select-String -Pattern "pattern" -Path file.txt
+
+                    macOS (Shell):
+                    - Sort unique lines: sort file.txt | uniq
+                    - Extract CSV column: awk -F "," '{ print $2}' file.csv
+                    - Find text: grep pattern file.txt
+            "#},
             json!({
                 "type": "object",
                 "required": ["language", "script"],
                 "properties": {
                     "language": {
                         "type": "string",
-                        "enum": ["shell", "ruby"],
+                        "enum": ["shell", "ruby", "powershell", "batch"],
                         "description": "The scripting language to use"
                     },
                     "script": {
@@ -186,15 +200,19 @@ impl ComputerControllerRouter {
 
         // Create cache directory in user's home directory
         let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .unwrap_or_else(|| create_system_automation().get_temp_path())
             .join("goose")
             .join("computer_controller");
+
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
                 "Warning: Failed to create cache directory at {:?}",
                 cache_dir
             )
         });
+
+        let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
+            Arc::new(create_system_automation());
 
         let macos_browser_instructions = if std::env::consts::OS == "macos" {
             indoc! {r#"
@@ -211,19 +229,18 @@ impl ComputerControllerRouter {
         };
 
         let instructions = formatdoc! {r#"
-            You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
+            You are a helpful assistant to a power user who is not a professional developer, but you may use development tools to help assist them.
             The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
             The ComputerControllerExtension helps you with common tasks like web scraping,
-            data processing, and automation and computer control without requiring programming expertise,
-            supplementing the Developer Extension.
+            data processing, and automation without requiring programming expertise.
 
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
 
             {macos_instructions}
 
-            Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
-            Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can.
+            Accessing web sites, even apis, may be common (you can use scripting to do this) without troubling them too much (they won't know what limits are).
+            Try to do your best to find ways to complete a task without too many questions or offering options unless it is really unclear, find a way if you can.
             You can also guide them steps if they can help out as you go along.
 
             There is already a screenshot tool available you can use if needed to see what is on screen.
@@ -231,20 +248,20 @@ impl ComputerControllerRouter {
             Here are some extra tools:
             automation_script
               - Create and run simple automation scripts
-              - Supports Shell (such as bash), AppleScript (on macos), Ruby (on macos)
+              - Supports PowerShell and Batch (on Windows), Shell and Ruby (on macOS)
               - Scripts can save their output to files
-              - on macos, can use applescript to interact with the desktop, eg calendars, notes and more, anything apple script can do for apps that support it:
-                    AppleScript is a powerful scripting language designed for automating tasks on macOS such as: Integration with Other Scripts
-                            Execute shell scripts, Ruby scripts, or other automation scripts.
-                            Combine workflows across scripting languages.
-                    Complex Workflows
-                        Automate multi-step tasks involving multiple apps or system features.
-                        Create scheduled tasks using Calendar or other scheduling apps.
-
+              - Platform specific features:
+                Windows:
+                  - PowerShell for system automation and UI control
+                  - Windows Management Instrumentation (WMI)
+                  - Registry access and system settings
+                macOS:
+                  - AppleScript for system and UI control
+                  - Integration with macOS apps and services
               - use the screenshot tool if needed to help with tasks
 
             computer_control
-              - Control the computer using AppleScript (macOS only)
+              - System automation using PowerShell (Windows) or AppleScript (macOS)
               - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
 
             web_search
@@ -278,6 +295,7 @@ impl ComputerControllerRouter {
             active_resources: Arc::new(Mutex::new(HashMap::new())),
             http_client: Client::builder().user_agent("Goose/1.0").build().unwrap(),
             instructions: instructions.clone(),
+            system_automation,
         }
     }
 
@@ -318,7 +336,7 @@ impl ComputerControllerRouter {
         Ok(())
     }
 
-    // Implement web_scrape tool functionality
+    // Implement web_search tool functionality
     async fn web_search(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let query = params
             .get("query")
@@ -452,31 +470,17 @@ impl ComputerControllerRouter {
             ToolError::ExecutionError(format!("Failed to create temporary directory: {}", e))
         })?;
 
+        let (shell, shell_arg) = self.system_automation.get_shell_command();
+
         let command = match language {
-            "shell" => {
-                let script_path = script_dir.path().join("script.sh");
+            "shell" | "batch" => {
+                let script_path = script_dir.path().join(format!(
+                    "script.{}",
+                    if cfg!(windows) { "bat" } else { "sh" }
+                ));
                 fs::write(&script_path, script).map_err(|e| {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
-
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).map_err(
-                        |e| {
-                            ToolError::ExecutionError(format!(
-                                "Failed to set script permissions: {}",
-                                e
-                            ))
-                        },
-                    )?;
-                }
-
-                #[cfg(not(unix))]
-                {
-                    // On non-Unix systems, we don't need to set execute permissions
-                    // The script will be executed through the shell
-                }
 
                 script_path.display().to_string()
             }
@@ -488,12 +492,23 @@ impl ComputerControllerRouter {
 
                 format!("ruby {}", script_path.display())
             }
+            "powershell" => {
+                let script_path = script_dir.path().join("script.ps1");
+                fs::write(&script_path, script).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to write script: {}", e))
+                })?;
+
+                format!(
+                    "powershell -NoProfile -NonInteractive -File {}",
+                    script_path.display()
+                )
+            }
             _ => unreachable!(), // Prevented by enum in tool definition
         };
 
         // Run the script
-        let output = Command::new("bash")
-            .arg("-c")
+        let output = Command::new(shell)
+            .arg(shell_arg)
             .arg(&command)
             .output()
             .await
@@ -525,14 +540,8 @@ impl ComputerControllerRouter {
         Ok(vec![Content::text(result)])
     }
 
-    // Implement computer control (AppleScript) functionality
+    // Implement computer control functionality
     async fn computer_control(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        if std::env::consts::OS != "macos" {
-            return Err(ToolError::ExecutionError(
-                "Computer control (AppleScript) is only supported on macOS".into(),
-            ));
-        }
-
         let script = params
             .get("script")
             .and_then(|v| v.as_str())
@@ -543,44 +552,18 @@ impl ComputerControllerRouter {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        // Create a temporary directory for the script
-        let script_dir = tempfile::tempdir().map_err(|e| {
-            ToolError::ExecutionError(format!("Failed to create temporary directory: {}", e))
-        })?;
+        // Use platform-specific automation
+        let output = self
+            .system_automation
+            .execute_system_script(script)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to execute script: {}", e)))?;
 
-        let script_path = script_dir.path().join("script.scpt");
-        fs::write(&script_path, script)
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to write script: {}", e)))?;
-
-        let command = format!("osascript {}", script_path.display());
-
-        // Run the script
-        let output = Command::new("bash")
-            .arg("-c")
-            .arg(&command)
-            .output()
-            .await
-            .map_err(|e| ToolError::ExecutionError(format!("Failed to run AppleScript: {}", e)))?;
-
-        let output_str = String::from_utf8_lossy(&output.stdout).into_owned();
-        let error_str = String::from_utf8_lossy(&output.stderr).into_owned();
-
-        let mut result = if output.status.success() {
-            format!(
-                "AppleScript completed successfully.\n\nOutput:\n{}",
-                output_str
-            )
-        } else {
-            format!(
-                "AppleScript failed with error code {}.\n\nError:\n{}\nOutput:\n{}",
-                output.status, error_str, output_str
-            )
-        };
+        let mut result = format!("Script completed successfully.\n\nOutput:\n{}", output);
 
         // Save output if requested
-        if save_output && !output_str.is_empty() {
+        if save_output && !output.is_empty() {
             let cache_path = self
-                .save_to_cache(output_str.as_bytes(), "applescript_output", "txt")
+                .save_to_cache(output.as_bytes(), "automation_output", "txt")
                 .await?;
             result.push_str(&format!("\n\nOutput saved to: {}", cache_path.display()));
 
