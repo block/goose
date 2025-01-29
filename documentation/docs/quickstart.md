@@ -23,11 +23,14 @@ You can use Goose via CLI or Desktop application.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    Run the following command to install the latest version of Goose: 
+    Run the following command to install the latest version of Goose:
 
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
     ```
+    :::tip Automation
+    You can disable automatic interactive configuration by adding `| CONFIGURE=false bash` to the script above.
+    :::
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
     To install the latest version of Goose, click the **button** below:
@@ -40,10 +43,10 @@ You can use Goose via CLI or Desktop application.
         download goose desktop
       </Link>
     </div>
-    <div style={{ marginTop: '1rem' }}>  
+    <div style={{ marginTop: '1rem' }}>
       1. Unzip the downloaded `Goose.zip` file.
       2. Run the executable file to launch the Goose desktop application.
-    </div>  
+    </div>
   </TabItem>
 </Tabs>
 
@@ -66,7 +69,7 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
     │
     ◇ Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
     │▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-    │    
+    │
     ◇ Enter a model from that provider:
     │ gemini-2.0-flash-exp
     │
@@ -90,13 +93,13 @@ Sessions are single, continuous conversations between you and Goose. Let's start
         1. Make an empty directory (e.g. `goose-demo`) and navigate to that directory from the terminal.
         2. To start a new session, run:
         ```sh
-        goose session 
+        goose session
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
         After choosing an LLM provider, you’ll see the session interface ready for use.
-        
-        Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
+
+        Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
 
         ![Install Extension](./assets/guides/ui-session-interface.png)
     </TabItem>
@@ -128,21 +131,21 @@ While you're able to manually navigate to your working directory and open the HT
         ```
         3. Choose `Add extension` > `Built-in Extension` > `Computer Controller`. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
         ```
-        ┌   goose-configure 
+        ┌   goose-configure
         │
         ◇  What would you like to configure?
-        │  Add Extension 
+        │  Add Extension
         │
         ◇  What type of extension would you like to add?
-        │  Built-in Extension 
+        │  Built-in Extension
         │
         ◆  Which built-in extension would you like to enable?
-        │  ○ Developer Tools 
+        │  ○ Developer Tools
         │  ● Computer Controller (controls for webscraping, file caching, and automations)
-        │  ○ Google Drive 
-        │  ○ Memory 
-        │  ○ JetBrains 
-        └  
+        │  ○ Google Drive
+        │  ○ Memory
+        │  ○ JetBrains
+        └
         ```
         4. Now that Goose has browser capabilities, let's resume your last session:
         ```sh
@@ -158,7 +161,7 @@ While you're able to manually navigate to your working directory and open the HT
         5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
 </Tabs>
-        
+
 ```
 open index.html in a browser
 ```
