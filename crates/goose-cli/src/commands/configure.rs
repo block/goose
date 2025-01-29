@@ -1,7 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::{Config, ExtensionEntry, ExtensionManager};
+use goose::config::{Config, ConfigError, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use serde_json::Value;
@@ -24,28 +24,86 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
         );
         println!();
         cliclack::intro(style(" goose-configure ").on_cyan().black())?;
-        if configure_provider_dialog().await? {
-            println!(
-                "\n  {}: Run '{}' again to adjust your config or add extensions",
-                style("Tip").green().italic(),
-                style("goose configure").cyan()
-            );
-            // Since we are setting up for the first time, we'll also enable the developer system
-            ExtensionManager::set(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Builtin {
-                    name: "developer".to_string(),
-                },
-            })?;
-        } else {
-            let _ = config.clear();
-            println!(
-                "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                style("Warning").yellow().italic(),
-                style("goose configure").cyan()
-            );
-        }
+        match configure_provider_dialog().await {
+            Ok(true) => {
+                println!(
+                    "\n  {}: Run '{}' again to adjust your config or add extensions",
+                    style("Tip").green().italic(),
+                    style("goose configure").cyan()
+                );
+                // Since we are setting up for the first time, we'll also enable the developer system
+                // This operation is best-effort and errors are ignored
+                ExtensionManager::set(ExtensionEntry {
+                    enabled: true,
+                    config: ExtensionConfig::Builtin {
+                        name: "developer".to_string(),
+                    },
+                })?;
+            }
+            Ok(false) => {
+                let _ = config.clear();
+                println!(
+                    "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                    style("Warning").yellow().italic(),
+                    style("goose configure").cyan()
+                );
+            }
+            Err(e) => {
+                let _ = config.clear();
 
+                match e.downcast_ref::<ConfigError>() {
+                    Some(ConfigError::NotFound(key)) => {
+                        println!(
+                            "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
+                            style("Error").red().italic(),
+                            key,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::KeyringError(msg)) => {
+                        println!(
+                            "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::DeserializeError(msg)) => {
+                        println!(
+                            "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::FileError(e)) => {
+                        println!(
+                            "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                            style("Error").red().italic(),
+                            e,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::DirectoryError(msg)) => {
+                        println!(
+                            "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    // handle all other nonspecific errors
+                    _ => {
+                        println!(
+                            "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                            style("Error").red().italic(),
+                            e,
+                            style("goose configure").cyan()
+                        );
+                    }
+                }
+            }
+        }
         Ok(())
     } else {
         println!();
@@ -127,7 +185,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
             Some(env_value) => {
                 let _ =
                     cliclack::log::info(format!("{} is set via environment variable", key.name));
-                if cliclack::confirm("Would you like to save this value to your config file?")
+                if cliclack::confirm("Would you like to save this value to your keyring?")
                     .initial_value(true)
                     .interact()?
                 {
