@@ -65,7 +65,7 @@ There isn't native installation support for Windows, however you can run Goose u
 
   Restart your computer if prompted.
 
-  #### Update and install required packages
+  #### Update and Install Required Packages
   Open the Ubuntu app from the start menu, complete the initial setup and update 
 
   ```bash
