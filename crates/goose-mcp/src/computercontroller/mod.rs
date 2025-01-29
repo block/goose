@@ -3,7 +3,7 @@ use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap, fs, future::Future, os::unix::fs::PermissionsExt, path::PathBuf,
+    collections::HashMap, fs, future::Future, path::PathBuf,
     pin::Pin, sync::Arc, sync::Mutex,
 };
 use tokio::process::Command;
@@ -459,14 +459,24 @@ impl ComputerControllerRouter {
                     ToolError::ExecutionError(format!("Failed to write script: {}", e))
                 })?;
 
-                fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).map_err(
-                    |e| {
-                        ToolError::ExecutionError(format!(
-                            "Failed to set script permissions: {}",
-                            e
-                        ))
-                    },
-                )?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755)).map_err(
+                        |e| {
+                            ToolError::ExecutionError(format!(
+                                "Failed to set script permissions: {}",
+                                e
+                            ))
+                        },
+                    )?;
+                }
+
+                #[cfg(not(unix))]
+                {
+                    // On non-Unix systems, we don't need to set execute permissions
+                    // The script will be executed through the shell
+                }
 
                 script_path.display().to_string()
             }

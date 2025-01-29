@@ -10,6 +10,17 @@ release-binary:
     cargo build --release
     @just copy-binary
 
+# Build Windows executable
+release-windows:
+    @echo "Building Windows executable..."
+    docker run --rm -v "$(pwd)":/usr/src/myapp -w /usr/src/myapp \
+        rust:latest \
+        sh -c "rustup target add x86_64-pc-windows-gnu && \
+               apt-get update && \
+               apt-get install -y mingw-w64 && \
+               cargo build --release --target x86_64-pc-windows-gnu"
+    @echo "Windows executable created at ./target/x86_64-pc-windows-gnu/release/goosed.exe"
+
 # Copy binary command
 copy-binary:
     @if [ -f ./target/release/goosed ]; then \
