@@ -13,6 +13,7 @@ import RateLimits from '@site/src/components/RateLimits';
 
 <SupportedEnvironments />
 
+## macOS | Linux
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -48,7 +49,7 @@ import RateLimits from '@site/src/components/RateLimits';
   </TabItem>
 </Tabs>
 
-#### Installing on Windows via WSL
+## Windows via WSL
 
 There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
 
@@ -130,7 +131,7 @@ There isn't native installation support for Windows, however you can run Goose u
 </details>
 
 
-### Set LLM Provider
+## Set LLM Provider
 Goose works with a set of [supported LLM providers][providers], and you’ll need an API key to get started. When you use Goose for the first time, you’ll be prompted to select a provider and enter your API key.
 
 <Tabs groupId="interface">
@@ -166,7 +167,7 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
   </TabItem>
 </Tabs>
 
-### Update a Provider
+## Update a Provider
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
     **To update your LLM provider and API key:** 
