@@ -120,27 +120,14 @@ install instructions.
 
 Goose tries to use the system keyring to store secrets. In environments where there is no keyring support, you may
 see an error like:
+
 ```bash
-$ goose configure
-
-Welcome to goose! Let's get you set up with a provider.
-  you can rerun this command later to update your configuration
-
-┌   goose-configure
-│
-◇  Which model provider should we use?
-│  Google Gemini
-│
-◇  Provider Google Gemini requires GOOGLE_API_KEY, please enter a value
-│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-│
-
-  Error Failed to access secure storage (keyring): Platform secure storage failure: DBus error: The name org.freedesktop.secrets was not provided by any .service files
-  Please check your system keychain and run 'goose configure' again.
-  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.
+Error Failed to access secure storage (keyring): Platform secure storage failure: DBus error: The name org.freedesktop.secrets was not provided by any .service files
+Please check your system keychain and run 'goose configure' again.
+If your system is unable to use the keyring, please try setting secret key(s) via environment variables.
 ```
 
-In this case you will need to set your provider specific environment variable(s), which can be found at [Supported LLM Providers][configure-llm-provider].
+In this case, you will need to set your provider specific environment variable(s), which can be found at [Supported LLM Providers][configure-llm-provider].
 
 You can set them either by doing:
 * `export GOOGLE_API_KEY=$YOUR_KEY_HERE` - for the duration of your session
