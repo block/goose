@@ -271,9 +271,8 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(10));
     let provider = create(provider_name, model_config)?;
 
-    let messages = vec![
-            Message::user().with_text("What is the weather like in San Francisco today?"),
-        ];
+    let messages =
+        vec![Message::user().with_text("What is the weather like in San Francisco today?")];
     let sample_tool = Tool::new(
         "get_weather".to_string(),
         "Get current temperature for a given location.".to_string(),
