@@ -75,7 +75,7 @@ impl TruncateAgent {
         let context_limit = remaining_tokens;
 
         // Calculate current token count of each message, use count_chat_tokens to ensure we
-        // capture the full content of the message
+        // capture the full content of the message, include ToolRequests and ToolResponses
         let mut token_counts: Vec<usize> = messages
             .iter()
             .map(|msg| {
