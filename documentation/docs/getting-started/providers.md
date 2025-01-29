@@ -159,6 +159,9 @@ goose configure
 ◇  Which model provider should we use?
 │  Ollama 
 │
+◇  Provider Ollama requires OLLAMA_HOST, please enter a value
+│  http://localhost:11434
+│
 ◇  Enter a model from that provider:
 │  qwen2.5
 │

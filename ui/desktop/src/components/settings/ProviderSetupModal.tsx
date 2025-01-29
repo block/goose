@@ -58,7 +58,7 @@ export function ProviderSetupModal({
                 />
                 <div className="flex mt-4 text-gray-600 dark:text-gray-300">
                   <Lock className="w-6 h-6" />
-                  <span className="text-sm font-light ml-4 mt-[2px]">{`Your API key will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
+                  <span className="text-sm font-light ml-4 mt-[2px]">{`Your API key or host will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
                 </div>
               </div>
             </div>
