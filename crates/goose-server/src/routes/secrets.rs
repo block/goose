@@ -13,10 +13,10 @@ struct SecretResponse {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SecretRequest {
     key: String,
     value: String,
-    #[serde(rename = "isSecret")]
     is_secret: bool,
 }
 
