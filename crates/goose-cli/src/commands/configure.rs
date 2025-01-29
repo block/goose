@@ -185,7 +185,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
             Some(env_value) => {
                 let _ =
                     cliclack::log::info(format!("{} is set via environment variable", key.name));
-                if cliclack::confirm("Would you like to save this value to your config file?")
+                if cliclack::confirm("Would you like to save this value to your keyring?")
                     .initial_value(true)
                     .interact()?
                 {
