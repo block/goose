@@ -48,6 +48,88 @@ import RateLimits from '@site/src/components/RateLimits';
   </TabItem>
 </Tabs>
 
+#### Installing on Windows via WSL
+
+While Goose Desktop and CLI doesn't work on Windows directly atm, It may be possible to run Goose CLI on Windows using the Windows Subsystem for Linux (WSL).
+
+<details>
+
+  <summary>Installing Goose on WSL</summary>
+
+  #### Install WSL
+  Open PowerShell as Administrator and install WSL and the default Ubuntu distribution:
+
+  ```bash
+  wsl --install
+  ```
+
+  Restart your computer if prompted.
+
+  #### Update and install required packages
+  Open the Ubuntu app from the start menu, complete the initial setup and update 
+
+  ```bash
+  sudo apt update && sudo apt upgrade -y
+  ```
+
+  #### Install Goose CLI
+  Run the Goose installation script:
+  ```bash
+  curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+  ```
+  :::tip
+    If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file. 
+
+    ```bash
+    sudo apt update && sudo apt install bzip2 -y
+    ```
+  :::
+
+  On initial run, you might encounter errors about keyrings when setting your API Keys. Set the needed environment variables manually, e.g:
+
+  ```bash
+  export GOOGLE_API_KEY=your_google_api_key
+  ```
+
+  To make the changes persist in WSL across sessions, add the goose path and export commands to your `.bashrc` or `.bash_profile` file so you can load it later.
+
+  ```bash
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+  echo 'export GOOGLE_API_KEY=your_google_api_key' >> ~/.bashrc
+  source ~/.bashrc
+
+  ```
+
+  #### Configure Goose
+  Run `goose configure` to set up your LLM provider and model from the set environment variables. Choose to not store to keyring when prompted.
+
+
+  ```bash
+    ┌   goose-configure
+    │
+    ◇  Which model provider should we use?
+    │  Google Gemini
+    │
+    ●  GOOGLE_API_KEY is set via environment variable
+    │
+    ◇  Would you like to save this value to your keyring?
+    │  No
+    │
+    ◇  Enter a model from that provider:
+    │  gemini-2.0-flash-exp
+    │
+    ◇  Hello! You're all set and ready to go with this agent, so please don't hesitate to ask me anything.
+
+    │
+    └  Configuration saved successfully
+
+      Tip: Run 'goose configure' again to adjust your config or add extensions.
+  ```
+
+  Run `goose session` to start a session.
+</details>
+
+
 ### Set LLM Provider
 Goose works with a set of [supported LLM providers][providers], and you’ll need an API key to get started. When you use Goose for the first time, you’ll be prompted to select a provider and enter your API key.
 
