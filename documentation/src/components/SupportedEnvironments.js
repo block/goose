@@ -6,11 +6,11 @@ const SupportedEnvironments = () => {
     <Admonition type="info" title="Supported Environments">
       Goose currently works on <strong>macOS</strong> and <strong>Linux</strong> systems and supports both <strong>ARM</strong> and <strong>x86</strong> architectures. If you'd like to request support for additional operating systems, please{" "}
       <a
-        href="https://github.com/block/goose/issues/new?template=Blank+issue"
+        href="https://github.com/block/goose/discussions/867"
         target="_blank"
         rel="noopener noreferrer"
       >
-        open an issue on GitHub
+        vote on GitHub
       </a>.
     </Admonition>
   );
