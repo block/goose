@@ -57,7 +57,7 @@ There isn't native installation support for Windows, however you can run Goose u
   <summary>Installing Goose on WSL</summary>
 
   #### Install WSL
-  Open PowerShell as Administrator and install WSL and the default Ubuntu distribution:
+  Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
 
   ```bash
   wsl --install
