@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import MarkdownContent from './MarkdownContent';
 
 interface ToolCallArgumentsProps {
   args: Record<string, any>;
@@ -44,9 +44,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
           </div>
           {isExpanded && (
             <div className="mt-2 ml-4">
-              <ReactMarkdown className="whitespace-pre-wrap break-words prose-pre:whitespace-pre-wrap prose-pre:break-words text-gray-600 dark:text-white">
-                {value}
-              </ReactMarkdown>
+              <MarkdownContent content={value} />
             </div>
           )}
         </div>
