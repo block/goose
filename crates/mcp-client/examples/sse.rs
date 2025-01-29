@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     println!("Connected to server: {server_info:?}\n");
 
     // Sleep for 100ms to allow the server to start - surprisingly this is required!
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // List tools
     let tools = client.list_tools(None).await?;

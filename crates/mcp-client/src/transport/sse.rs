@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tokio::time::{timeout, Duration};
 use tracing::warn;
+use url::Url;
 
 use super::{send_message, Transport, TransportHandle};
 
@@ -90,12 +91,13 @@ impl SseActor {
             match event {
                 SSE::Event(e) if e.event_type == "endpoint" => {
                     // SSE server uses the "endpoint" event to tell us the POST URL
-                    let base_url = sse_url.trim_end_matches('/').trim_end_matches("sse");
-                    let endpoint_path = e.data.trim_start_matches('/');
-                    let post_url = format!("{}{}", base_url, endpoint_path);
+                    let base_url = Url::parse(&sse_url).expect("Invalid base URL");
+                    let post_url = base_url
+                        .join(&e.data)
+                        .expect("Failed to resolve endpoint URL");
 
-                    println!("Discovered SSE POST endpoint: {post_url}");
-                    *post_endpoint.write().await = Some(post_url);
+                    println!("Discovered SSE POST endpoint: {}", post_url);
+                    *post_endpoint.write().await = Some(post_url.to_string());
                     break;
                 }
                 _ => continue,
