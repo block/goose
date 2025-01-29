@@ -385,7 +385,7 @@ export default function ChatWindow() {
   }, []);
 
   const storeSecret = async (key: string, value: string) => {
-    const response = await fetch(getApiUrl('/secrets/store'), {
+    const response = await fetch(getApiUrl('/configs/store'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

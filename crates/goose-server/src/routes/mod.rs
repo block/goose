@@ -1,9 +1,9 @@
 // Export route modules
 pub mod agent;
+pub mod configs;
 pub mod extension;
 pub mod health;
 pub mod reply;
-pub mod secrets;
 
 use axum::Router;
 
@@ -14,5 +14,5 @@ pub fn configure(state: crate::state::AppState) -> Router {
         .merge(reply::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(extension::routes(state.clone()))
-        .merge(secrets::routes(state))
+        .merge(configs::routes(state))
 }

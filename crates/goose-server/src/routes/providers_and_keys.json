@@ -33,7 +33,7 @@
         "name": "Ollama",
         "description": "Lorem ipsum",
         "models": ["qwen2.5"],
-        "required_keys": []
+        "required_keys": ["OLLAMA_HOST"]
     },
     "openrouter": {
         "name": "OpenRouter",
