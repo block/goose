@@ -4,7 +4,7 @@ import Admonition from "@theme/Admonition";
 const SupportedEnvironments = () => {
   return (
     <Admonition type="info" title="Supported Environments">
-      Goose currently works on <strong>macOS</strong> and <strong>Linux</strong> systems and supports both <strong>ARM</strong> and <strong>x86</strong> architectures. If you'd like to request support for additional operating systems, please{" "}
+      Goose currently works on <strong>macOS</strong> and <strong>Linux</strong> systems using <strong>ARM</strong> architecture. If you'd like to request support for additional operating systems, please{" "}
       <a
         href="https://github.com/block/goose/discussions/867"
         target="_blank"
