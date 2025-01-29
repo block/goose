@@ -118,7 +118,7 @@ install instructions.
 
 ### Keychain/Keyring Errors
 
-Goose tries to use the system keyring to store secrets, in environments where there is no keyring support you may
+Goose tries to use the system keyring to store secrets. In environments where there is no keyring support, you may
 see an error like:
 ```bash
 $ goose configure
