@@ -1,7 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::{Config, ExtensionEntry, ExtensionManager};
+use goose::config::{Config, ConfigError, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use serde_json::Value;
@@ -50,12 +50,58 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             }
             Err(e) => {
                 let _ = config.clear();
-                println!(
-                    "\n  {} {} \n: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                    style("Error").red().italic(),
-                    e,
-                    style("goose configure").cyan()
-                );
+
+                match e.downcast_ref::<ConfigError>() {
+                    Some(ConfigError::NotFound(key)) => {
+                        println!(
+                            "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
+                            style("Error").red().italic(),
+                            key,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::KeyringError(msg)) => {
+                        println!(
+                            "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::DeserializeError(msg)) => {
+                        println!(
+                            "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::FileError(e)) => {
+                        println!(
+                            "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                            style("Error").red().italic(),
+                            e,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    Some(ConfigError::DirectoryError(msg)) => {
+                        println!(
+                            "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+                    }
+                    // handle all other nonspecific errors
+                    _ => {
+                        println!(
+                            "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                            style("Error").red().italic(),
+                            e,
+                            style("goose configure").cyan()
+                        );
+                    }
+                }
             }
         }
         Ok(())
