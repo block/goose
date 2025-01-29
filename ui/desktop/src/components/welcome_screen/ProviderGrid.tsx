@@ -14,7 +14,7 @@ import { getDefaultModel } from '../settings/models/hardcoded_stuff';
 import { initializeSystem } from '../../utils/providerUtils';
 import { getApiUrl, getSecretKey } from '../../config';
 import { toast } from 'react-toastify';
-import { getActiveProviders } from '../settings/api_keys/utils';
+import { getActiveProviders, isSecretKey } from '../settings/api_keys/utils';
 import { useNavigate } from 'react-router-dom';
 import { BaseProviderGrid, getProviderDescription } from '../settings/providers/BaseProviderGrid';
 
@@ -108,6 +108,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         body: JSON.stringify({
           key: keyName,
           value: apiKey.trim(),
+          isSecret: isSecretKey(keyName),
         }),
       });
 

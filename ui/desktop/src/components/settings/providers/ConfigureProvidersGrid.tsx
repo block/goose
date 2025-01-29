@@ -5,7 +5,7 @@ import { supported_providers, provider_aliases, required_keys } from '../models/
 import { ProviderSetupModal } from '../ProviderSetupModal';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toast } from 'react-toastify';
-import { getActiveProviders } from '../api_keys/utils';
+import { getActiveProviders, isSecretKey } from '../api_keys/utils';
 import { useModel } from '../models/ModelContext';
 import { Button } from '../../ui/button';
 
@@ -116,6 +116,7 @@ export function ConfigureProvidersGrid() {
         body: JSON.stringify({
           key: keyName,
           value: apiKey.trim(),
+          isSecret: isSecretKey(keyName),
         }),
       });
 
