@@ -52,6 +52,19 @@ make-ui:
     @just release-binary
     cd ui/desktop && npm run bundle:default
 
+# make GUI with latest Windows binary
+make-ui-windows:
+    @just release-windows
+    @if [ -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ]; then \
+        echo "Copying Windows binary to ui/desktop/src/bin..."; \
+        cp -p ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/; \
+    else \
+        echo "Windows binary not found."; \
+        exit 1; \
+    fi
+    export MONO_GAC_PREFIX="/opt/homebrew"; \
+    cd ui/desktop && npm run bundle:windows
+
 # Setup langfuse server
 langfuse-server:
     #!/usr/bin/env bash
