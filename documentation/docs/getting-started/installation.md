@@ -53,82 +53,46 @@ import RateLimits from '@site/src/components/RateLimits';
 
 There isn't native installation support for Windows, however you can run Goose using WSL (Windows Subsystem for Linux).
 
-<details>
+#### Install WSL
+Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
 
-  <summary>Installing Goose on WSL</summary>
+```bash
+wsl --install
+```
 
-  #### Install WSL
-  Open [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) as Administrator and install WSL and the default Ubuntu distribution:
+Restart your computer if prompted.
 
-  ```bash
-  wsl --install
-  ```
-
-  Restart your computer if prompted.
-
-  #### Update and Install Required Packages
-  Open the Ubuntu app from the start menu, complete the initial setup and update 
-
-  ```bash
-  sudo apt update && sudo apt upgrade -y
-  ```
-
-  #### Install Goose CLI
-  Run the Goose installation script:
-  ```bash
-  curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
-  ```
-  :::tip
-    If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file. 
-
-    ```bash
-    sudo apt update && sudo apt install bzip2 -y
-    ```
-  :::
-
-  On initial run, you might encounter errors about keyrings when setting your API Keys. Set the needed environment variables manually, e.g:
+#### Install Goose CLI on WSL
+Run the Goose installation script:
+```bash
+curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+```
+:::tip
+  If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file. 
 
   ```bash
-  export GOOGLE_API_KEY=your_google_api_key
+  sudo apt update && sudo apt install bzip2 -y
   ```
+:::
 
-  To make the changes persist in WSL across sessions, add the goose path and export commands to your `.bashrc` or `.bash_profile` file so you can load it later.
+On initial run, you might encounter errors about keyrings when setting your API Keys. Set the needed environment variables manually, e.g:
 
-  ```bash
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-  echo 'export GOOGLE_API_KEY=your_google_api_key' >> ~/.bashrc
-  source ~/.bashrc
+```bash
+export GOOGLE_API_KEY=your_google_api_key
+```
 
-  ```
+To make the changes persist in WSL across sessions, add the goose path and export commands to your `.bashrc` or `.bash_profile` file so you can load it later.
 
-  #### Configure Goose
-  Run `goose configure` to set up your LLM provider and model from the set environment variables. Choose to not store to keyring when prompted.
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+echo 'export GOOGLE_API_KEY=your_google_api_key' >> ~/.bashrc
+source ~/.bashrc
 
+```
 
-  ```bash
-    ┌   goose-configure
-    │
-    ◇  Which model provider should we use?
-    │  Google Gemini
-    │
-    ●  GOOGLE_API_KEY is set via environment variable
-    │
-    ◇  Would you like to save this value to your keyring?
-    │  No
-    │
-    ◇  Enter a model from that provider:
-    │  gemini-2.0-flash-exp
-    │
-    ◇  Hello! You're all set and ready to go with this agent, so please don't hesitate to ask me anything.
-
-    │
-    └  Configuration saved successfully
-
-      Tip: Run 'goose configure' again to adjust your config or add extensions.
-  ```
-
-  Run `goose session` to start a session.
-</details>
+:::tip Configuring Goose on WSL
+  Choose to not store to keyring when prompted.
+:::
 
 
 ## Set LLM Provider
