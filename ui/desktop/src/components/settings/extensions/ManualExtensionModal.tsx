@@ -68,7 +68,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
           body: JSON.stringify({
             key: envVar.key,
             value: envVar.value.trim(),
-            is_secret: true,
+            isSecret: true,
           }),
         });
 
