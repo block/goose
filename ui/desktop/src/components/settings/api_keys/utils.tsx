@@ -2,6 +2,11 @@ import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { special_provider_cases } from '../providers/utils';
 
+export function isSecretKey(keyName: string): boolean {
+  // Ollama and Databricks use host name right now and it should not be stored as secret.
+  return keyName != 'DATABRICKS_HOST' && keyName != 'OLLAMA_HOST';
+}
+
 export async function getActiveProviders(): Promise<string[]> {
   try {
     // Fetch the secrets settings

@@ -5,7 +5,7 @@ import { supported_providers, provider_aliases, required_keys } from '../models/
 import { ProviderSetupModal } from '../ProviderSetupModal';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toast } from 'react-toastify';
-import { getActiveProviders } from '../api_keys/utils';
+import { getActiveProviders, isSecretKey } from '../api_keys/utils';
 import { useModel } from '../models/ModelContext';
 import { Button } from '../../ui/button';
 
@@ -107,6 +107,7 @@ export function ConfigureProvidersGrid() {
       }
 
       // Store new key
+      const isSecret = isSecretKey(keyName);
       const storeResponse = await fetch(getApiUrl('/secrets/store'), {
         method: 'POST',
         headers: {
@@ -116,6 +117,7 @@ export function ConfigureProvidersGrid() {
         body: JSON.stringify({
           key: keyName,
           value: apiKey.trim(),
+          isSecret,
         }),
       });
 
@@ -125,10 +127,11 @@ export function ConfigureProvidersGrid() {
         throw new Error('Failed to store new key');
       }
 
+      const toastInfo = isSecret ? 'API key' : 'host';
       toast.success(
         isUpdate
-          ? `Successfully updated API key for ${provider}`
-          : `Successfully added API key for ${provider}`
+          ? `Successfully updated ${toastInfo} for ${provider}`
+          : `Successfully added ${toastInfo} for ${provider}`
       );
 
       const updatedKeys = await getActiveProviders();

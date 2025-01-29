@@ -13,9 +13,11 @@ struct SecretResponse {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SecretRequest {
     key: String,
     value: String,
+    is_secret: bool,
 }
 
 async fn store_secret(
@@ -33,7 +35,13 @@ async fn store_secret(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    match Config::global().set_secret(&request.key, Value::String(request.value)) {
+    let config = Config::global();
+    let result = if request.is_secret {
+        config.set_secret(&request.key, Value::String(request.value))
+    } else {
+        config.set(&request.key, Value::String(request.value))
+    };
+    match result {
         Ok(_) => Ok(Json(SecretResponse { error: false })),
         Err(_) => Ok(Json(SecretResponse { error: true })),
     }

@@ -71,7 +71,7 @@ impl Provider for OllamaProvider {
             OLLAMA_DOC_URL,
             vec![ConfigKey::new(
                 "OLLAMA_HOST",
-                false,
+                true,
                 false,
                 Some(OLLAMA_HOST),
             )],
