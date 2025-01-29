@@ -36,12 +36,11 @@ async fn store_secret(
     }
 
     let config = Config::global();
-    let result;
-    if request.is_secret {
-        result = config.set_secret(&request.key, Value::String(request.value));
+    let result = if request.is_secret {
+        config.set_secret(&request.key, Value::String(request.value))
     } else {
-        result = config.set(&request.key, Value::String(request.value));
-    }
+        config.set(&request.key, Value::String(request.value))
+    };
     match result {
         Ok(_) => Ok(Json(SecretResponse { error: false })),
         Err(_) => Ok(Json(SecretResponse { error: true })),
