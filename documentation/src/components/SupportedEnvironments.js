@@ -4,7 +4,7 @@ import Admonition from "@theme/Admonition";
 const SupportedEnvironments = () => {
   return (
     <Admonition type="info" title="Supported Environments">
-      The Goose CLI currently works on <strong>macOS</strong> and <strong>Linux</strong> systems and supports both <strong>ARM</strong> and <strong>x86</strong> architectures. However, the macOS desktop app is not currently supported for x86. If you'd like to request support for additional operating systems, please{" "}
+      The Goose CLI currently works on <strong>macOS</strong> and <strong>Linux</strong> systems and supports both <strong>ARM</strong> and <strong>x86</strong> architectures. However, the macOS desktop app is not currently supported for x86. 
 
       On <strong>Windows</strong>, Goose CLI can run via WSL. If you'd like to request support for additional operating systems, please{" "}
       <a
