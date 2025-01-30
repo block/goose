@@ -4,6 +4,7 @@ import { Lock } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { required_keys } from './models/hardcoded_stuff';
+import { isSecretKey } from './api_keys/utils';
 // import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {
@@ -30,6 +31,7 @@ export function ProviderSetupModal({
     e.preventDefault();
     onSubmit(apiKey);
   };
+  const inputType = isSecretKey(keyName) ? 'password' : 'text';
 
   return (
     <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards]">
@@ -49,7 +51,7 @@ export function ProviderSetupModal({
             <div className="mt-[24px]">
               <div>
                 <Input
-                  type="password"
+                  type={inputType}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={keyName}
@@ -58,7 +60,7 @@ export function ProviderSetupModal({
                 />
                 <div className="flex mt-4 text-gray-600 dark:text-gray-300">
                   <Lock className="w-6 h-6" />
-                  <span className="text-sm font-light ml-4 mt-[2px]">{`Your API key will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
+                  <span className="text-sm font-light ml-4 mt-[2px]">{`Your API key or host will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
                 </div>
               </div>
             </div>

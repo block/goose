@@ -20,13 +20,9 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        After choosing an LLM provider, you’ll see the session interface ready for use.
-        
-        Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
+        After choosing an LLM provider, you’ll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
-        ### Start New Session
-
-        To start a new session in the Goose desktop application, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
+        To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
     </TabItem>
 </Tabs>
@@ -79,26 +75,6 @@ A session is a single, continuous interaction between you and Goose, providing a
          goose session -r
         ```
 
-        To resume a specific session, you can first check the sessions you currently have by running: 
-
-        ```
-        goose session --list 
-        ```
-
-        This command will display a list of all saved sessions, showing a name, date, and time for each session. The output should look similar to the following: 
-
-        ```
-        2024-11-12  14:12:28  managing-goose
-        2024-11-12. 13:48:11  blog
-        2024-11-12  13:27:21  react-migration
-        2024-11-04  16:14:29  e6d7
-        ```
-
-        To resume a specific session, run the following command: 
-
-        ```
-        goose session -r -n react-migration
-        ```
         :::tip
         While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
         :::

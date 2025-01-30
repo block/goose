@@ -14,7 +14,7 @@ import { getDefaultModel } from '../settings/models/hardcoded_stuff';
 import { initializeSystem } from '../../utils/providerUtils';
 import { getApiUrl, getSecretKey } from '../../config';
 import { toast } from 'react-toastify';
-import { getActiveProviders } from '../settings/api_keys/utils';
+import { getActiveProviders, isSecretKey } from '../settings/api_keys/utils';
 import { useNavigate } from 'react-router-dom';
 import { BaseProviderGrid, getProviderDescription } from '../settings/providers/BaseProviderGrid';
 
@@ -99,6 +99,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         }
       }
 
+      const isSecret = isSecretKey(keyName);
       const storeResponse = await fetch(getApiUrl('/secrets/store'), {
         method: 'POST',
         headers: {
@@ -108,6 +109,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         body: JSON.stringify({
           key: keyName,
           value: apiKey.trim(),
+          isSecret,
         }),
       });
 
@@ -118,10 +120,11 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       }
 
       const isUpdate = selectedId && providers.find((p) => p.id === selectedId)?.isConfigured;
+      const toastInfo = isSecret ? 'API key' : 'host';
       toast.success(
         isUpdate
-          ? `Successfully updated API key for ${provider}`
-          : `Successfully added API key for ${provider}`
+          ? `Successfully updated ${toastInfo} for ${provider}`
+          : `Successfully added ${toastInfo} for ${provider}`
       );
 
       const updatedKeys = await getActiveProviders();

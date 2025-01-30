@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::oauth;
@@ -177,10 +177,15 @@ impl DatabricksProvider {
                     return Err(ProviderError::ContextLengthExceeded(payload_str));
                 }
 
+                let mut error_msg = "Unknown error".to_string();
+                if let Some(payload) = &payload {
+                    error_msg = payload.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                }
+
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -243,7 +248,14 @@ impl Provider for DatabricksProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = get_usage(&response)?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::warn!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
         let model = get_model(&response);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
 

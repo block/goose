@@ -72,7 +72,7 @@ export const required_keys = {
   Anthropic: ['ANTHROPIC_API_KEY'],
   Databricks: ['DATABRICKS_HOST'],
   Groq: ['GROQ_API_KEY'],
-  Ollama: [],
+  Ollama: ['OLLAMA_HOST'],
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
 };

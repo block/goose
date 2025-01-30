@@ -4,7 +4,7 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat};
 use crate::message::Message;
@@ -203,7 +203,14 @@ impl Provider for OpenRouterProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = get_usage(&response)?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::warn!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
         let model = get_model(&response);
         emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

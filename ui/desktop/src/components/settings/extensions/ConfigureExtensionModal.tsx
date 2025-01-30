@@ -54,6 +54,7 @@ export function ConfigureExtensionModal({
             body: JSON.stringify({
               key: envKey,
               value: value.trim(),
+              isSecret: true,
             }),
           });
 

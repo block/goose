@@ -1,6 +1,7 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
+use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
 use mcp_core::content::Content;
 use mcp_core::role::Role;
@@ -201,6 +202,10 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
+        tracing::warn!(
+            "Failed to get usage data: {}",
+            ProviderError::UsageError("No usage data found in response".to_string())
+        );
         // If no usage data, return None for all values
         Ok(Usage::new(None, None, None))
     }

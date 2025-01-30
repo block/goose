@@ -11,7 +11,7 @@ set -eu
 # Supported Architectures: x86_64, arm64
 #
 # Usage:
-#   curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | sh
+#   curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
 #
 # Environment variables:
 #   GOOSE_BIN_DIR  - Directory to which Goose will be installed (default: $HOME/.local/bin)

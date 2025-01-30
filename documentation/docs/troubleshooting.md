@@ -116,6 +116,47 @@ install instructions.
 
 ---
 
+### Keychain/Keyring Errors
+
+Goose tries to use the system keyring to store secrets. In environments where there is no keyring support, you may
+see an error like:
+
+```bash
+Error Failed to access secure storage (keyring): Platform secure storage failure: DBus error: The name org.freedesktop.secrets was not provided by any .service files
+Please check your system keychain and run 'goose configure' again.
+If your system is unable to use the keyring, please try setting secret key(s) via environment variables.
+```
+
+In this case, you will need to set your provider specific environment variable(s), which can be found at [Supported LLM Providers][configure-llm-provider].
+
+You can set them either by doing:
+* `export GOOGLE_API_KEY=$YOUR_KEY_HERE` - for the duration of your session
+* in your `~/.bashrc` or `~/.zshrc` - (or equivalents) so it persists on new shell each new session
+
+Then select the `No` option when prompted to save the value to your keyring.
+
+```bash
+$ goose configure
+
+Welcome to goose! Let's get you set up with a provider.
+  you can rerun this command later to update your configuration
+
+┌   goose-configure
+│
+◇  Which model provider should we use?
+│  Google Gemini
+│
+◇  GOOGLE_API_KEY is set via environment variable
+│
+◇  Would you like to save this value to your keyring?
+│  No
+│
+◇  Enter a model from that provider:
+│  gemini-2.0-flash-exp
+```
+
+---
+
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
@@ -125,3 +166,4 @@ If you have questions, run into issues, or just need to brainstorm ideas join th
 [installation]: /docs/getting-started/installation
 [discord]: https://discord.gg/block-opensource
 [goosehints]: /docs/guides/using-goosehints
+[configure-llm-provider]: /docs/getting-started/providers
