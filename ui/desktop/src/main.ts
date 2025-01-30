@@ -98,7 +98,7 @@ const createLauncher = () => {
   const launcherWindow = new BrowserWindow({
     width: 600,
     height: 60,
-    frame: false,
+    frame: process.platform === 'darwin' ? false : true,
     transparent: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.ts'),
@@ -149,10 +149,10 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   const [port, working_dir, goosedProcess] = await startGoosed(app, dir);
 
   const mainWindow = new BrowserWindow({
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 16, y: 10 },
-    vibrancy: 'window',
-    frame: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+    frame: process.platform === 'darwin' ? false : true,
     width: 750,
     height: 800,
     minWidth: 650,
