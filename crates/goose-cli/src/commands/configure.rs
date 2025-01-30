@@ -4,7 +4,8 @@ use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::{Config, ConfigError, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
-use serde_json::Value;
+use mcp_core::Tool;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -270,37 +271,36 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(10));
     let provider = create(provider_name, model_config)?;
 
-    let message = Message::user().with_text(
-        "Please give a nice welcome message (one sentence) and let them know they are all set to use this agent"
+    let messages =
+        vec![Message::user().with_text("What is the weather like in San Francisco today?")];
+    let sample_tool = Tool::new(
+        "get_weather".to_string(),
+        "Get current temperature for a given location.".to_string(),
+        json!({
+            "type": "object",
+            "required": ["location"],
+            "properties": {
+                "location": {"type": "string"}
+            }
+        }),
     );
 
     let result = provider
         .complete(
             "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
-            &[message],
-            &[]
+            &messages,
+            &[sample_tool]
         )
         .await;
 
     match result {
-        Ok((message, _usage)) => {
-            if let Some(content) = message.content.first() {
-                if let Some(text) = content.as_text() {
-                    spin.stop(text);
-                } else {
-                    spin.stop("No response text available");
-                }
-            } else {
-                spin.stop("No response content available");
-            }
-
+        Ok((_message, _usage)) => {
             cliclack::outro("Configuration saved successfully")?;
             Ok(true)
         }
         Err(e) => {
-            println!("{:?}", e);
-            spin.stop("We could not connect!");
-            let _ = cliclack::outro("The provider configuration was invalid");
+            spin.stop(style(e.to_string()).red());
+            cliclack::outro(style("Failed to configure provider: init chat completion request with tool did not succeed.").on_red().white())?;
             Ok(false)
         }
     }

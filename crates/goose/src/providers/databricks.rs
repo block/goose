@@ -177,10 +177,15 @@ impl DatabricksProvider {
                     return Err(ProviderError::ContextLengthExceeded(payload_str));
                 }
 
+                let mut error_msg = "Unknown error".to_string();
+                if let Some(payload) = &payload {
+                    error_msg = payload.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                }
+
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
