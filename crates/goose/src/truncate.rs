@@ -63,7 +63,6 @@ impl TruncationStrategy for OldestFirstTruncation {
             for (message_idx, tool_id) in &tool_ids_to_remove {
                 if message_idx != &i && message_tool_ids.contains(tool_id.as_str()) {
                     indices_to_remove.insert(i);
-                    total_tokens -= token_counts[i];
                     // No need to check other tool_ids for this message since it's already marked
                     break;
                 }
@@ -86,7 +85,7 @@ pub fn truncate_messages(
     token_counts: &mut Vec<usize>,
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
-) -> Result<()> {
+) -> Result<(), anyhow::Error> {
     if messages.len() != token_counts.len() {
         return Err(anyhow!(
             "The vector for messages and token_counts must have same length"
