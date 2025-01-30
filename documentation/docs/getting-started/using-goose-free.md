@@ -64,7 +64,10 @@ To set up Google Gemini with Goose, follow these steps:
 ## DeepSeek-R1
 
 :::warning
-Depending on the model's size, you'll need a relatively powerful device to smoothly run local LLMs.
+In our testing, we have found the Google Gemini performs better that DeepSeek models, likely
+because Goose relies heavily on tool calling and DeepSeek does not support it natively yet.
+When using DeepSeek, we currently recommend the 70B model size, which requires
+a powerful device to run smoothly.
 :::
 
 Ollama provides open source LLMs, such as `DeepSeek-r1`, that you can install and run locally.
