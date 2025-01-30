@@ -81,15 +81,19 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       return;
     }
 
+    const isSecret = isSecretKey(keyName);
     try {
       if (selectedId && providers.find((p) => p.id === selectedId)?.isConfigured) {
-        const deleteResponse = await fetch(getApiUrl('/secrets/delete'), {
+        const deleteResponse = await fetch(getApiUrl('/configs/delete'), {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
             'X-Secret-Key': getSecretKey(),
           },
-          body: JSON.stringify({ key: keyName }),
+          body: JSON.stringify({ 
+            key: keyName, 
+            isSecret,
+          }),
         });
 
         if (!deleteResponse.ok) {
@@ -99,8 +103,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         }
       }
 
-      const isSecret = isSecretKey(keyName);
-      const storeResponse = await fetch(getApiUrl('/secrets/store'), {
+      const storeResponse = await fetch(getApiUrl('/configs/store'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

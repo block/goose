@@ -19,7 +19,6 @@ pub const OPEN_AI_KNOWN_MODELS: &[&str] = &[
     "gpt-4-turbo",
     "gpt-3.5-turbo",
     "o1",
-    "o1-mini",
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";

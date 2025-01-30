@@ -59,7 +59,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
     try {
       // Store environment variables as secrets
       for (const envVar of envVars) {
-        const storeResponse = await fetch(getApiUrl('/secrets/store'), {
+        const storeResponse = await fetch(getApiUrl('/configs/store'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

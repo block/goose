@@ -18,6 +18,7 @@ set -eu
 #   GOOSE_PROVIDER - Optional: provider for goose
 #   GOOSE_MODEL    - Optional: model for goose
 #   CANARY         - Optional: if set to "true", downloads from canary release instead of stable
+#   CONFIGURE      - Optional: if set to "false", disables running goose configure interactively
 #   ** other provider specific environment variables (eg. DATABRICKS_HOST)
 ##############################################################################
 
@@ -33,6 +34,7 @@ OUT_FILE="goose"
 GOOSE_BIN_DIR="${GOOSE_BIN_DIR:-"$HOME/.local/bin"}"
 RELEASE="${CANARY:-false}"
 RELEASE_TAG="$([[ "$RELEASE" == "true" ]] && echo "canary" || echo "stable")"
+CONFIGURE="${CONFIGURE:-true}"
 
 # --- 3) Detect OS/Architecture ---
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -40,7 +42,7 @@ ARCH=$(uname -m)
 
 case "$OS" in
   linux|darwin) ;;
-  *) 
+  *)
     echo "Error: Unsupported OS '$OS'. Goose currently only supports Linux and macOS."
     exit 1
     ;;
@@ -92,11 +94,16 @@ fi
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
 mv goose "$GOOSE_BIN_DIR/$OUT_FILE"
 
-# --- 6) Configure Goose (Optional) ---
-echo ""
-echo "Configuring Goose"
-echo ""
-"$GOOSE_BIN_DIR/$OUT_FILE" configure
+# skip configuration for non-interactive installs e.g. automation, docker
+if [ "$CONFIGURE" = true ]; then
+  # --- 6) Configure Goose (Optional) ---
+  echo ""
+  echo "Configuring Goose"
+  echo ""
+  "$GOOSE_BIN_DIR/$OUT_FILE" configure
+else
+  echo "Skipping 'goose configure', you may need to run this manually later"
+fi
 
 # --- 7) Check PATH and give instructions if needed ---
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
