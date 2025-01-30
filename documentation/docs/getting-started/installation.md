@@ -141,14 +141,14 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
   On initial run, you may encounter errors about keyrings when setting your API Keys. Set the needed environment variables manually, e.g.:
 
   ```bash
-  export OPENAI_API_KEY={your_google_api_key}
+  export OPENAI_API_KEY={your_api_key}
   ```
 
   To make the changes persist in WSL across sessions, add the goose path and export commands to your `.bashrc` or `.bash_profile` file so you can load it later.
 
   ```bash
   echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-  echo 'export OPENAI_API_KEY=your_google_api_key' >> ~/.bashrc
+  echo 'export OPENAI_API_KEY=your_api_key' >> ~/.bashrc
   source ~/.bashrc
   ```
   :::
