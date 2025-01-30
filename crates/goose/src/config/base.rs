@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "windows"))]
 use keyring::Entry;
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
@@ -6,9 +7,6 @@ use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-
-#[cfg(target_os = "windows")]
-use winapi::um::wincred;
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
@@ -52,10 +50,9 @@ impl From<keyring::Error> for ConfigError {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::*;
-    use std::ffi::CString;
     use std::ptr;
-    use winapi::shared::minwindef::DWORD;
-    use winapi::um::wincred::{CredDeleteW, CredReadW, CredWriteW, CREDENTIALW, CRED_TYPE_GENERIC};
+    use winapi::shared::minwindef::{DWORD};
+    use winapi::um::wincred::{CredReadW, CredWriteW, CREDENTIALW, CRED_TYPE_GENERIC};
 
     pub struct WindowsCredential {
         target_name: String,
@@ -101,7 +98,10 @@ mod platform {
                     Type: CRED_TYPE_GENERIC,
                     TargetName: target.as_ptr() as *mut _,
                     Comment: ptr::null_mut(),
-                    LastWritten: Default::default(),
+                    LastWritten: winapi::shared::minwindef::FILETIME {
+                        dwLowDateTime: 0,
+                        dwHighDateTime: 0,
+                    },
                     CredentialBlobSize: blob.len() as DWORD,
                     CredentialBlob: blob.as_ptr() as *mut _,
                     Persist: 2, // CRED_PERSIST_LOCAL_MACHINE
@@ -116,21 +116,6 @@ mod platform {
                 if result == 0 {
                     return Err(ConfigError::KeyringError(
                         "Failed to write credential".into(),
-                    ));
-                }
-
-                Ok(())
-            }
-        }
-
-        pub fn delete_credential(&self) -> Result<(), ConfigError> {
-            unsafe {
-                let target = to_wide_chars(&self.target_name);
-                let result = CredDeleteW(target.as_ptr(), CRED_TYPE_GENERIC, 0);
-
-                if result == 0 {
-                    return Err(ConfigError::KeyringError(
-                        "Failed to delete credential".into(),
                     ));
                 }
 

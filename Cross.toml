@@ -29,3 +29,6 @@ pre-build = [
 
 [target.x86_64-pc-windows-gnu]
 image = "dockcross/windows-static-x64:latest"
+# Enable verbose output for Windows builds
+build-std = true
+env = { "RUST_LOG" = "debug", "RUST_BACKTRACE" = "1", "CROSS_VERBOSE" = "1" }

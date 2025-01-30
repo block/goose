@@ -9,9 +9,6 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
-#[cfg(target_os = "windows")]
-use winapi::um::wincred;
-
 pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
