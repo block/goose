@@ -68,6 +68,10 @@ const config: Config = {
       {
         redirects: [
           {
+            to: '/docs/getting-started/providers#using-goose-for-free',
+            from: '/docs/getting-started/using-goose-free',
+          },
+          {
             to: '/docs/getting-started/providers',
             from: '/v1/docs/getting-started/providers',
           },
@@ -82,7 +86,7 @@ const config: Config = {
           {
             to: '/',
             from: '/v1/',
-          }
+          },         
         ],
       },
     ],

@@ -82,6 +82,10 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
 
 <RateLimits />
 
+:::tip Model Selection
+Goose relies heavily on tool calling capabilities and currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) model.
+:::
+
 ## Start Session
 Sessions are single, continuous conversations between you and Goose. Let's start one.
 
