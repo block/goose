@@ -66,6 +66,10 @@ impl ModelConfig {
             // Meta Llama models, https://github.com/meta-llama/llama-models/tree/main?tab=readme-ov-file#llama-models-1
             name if name.contains("llama3.2") => Some(128_000),
             name if name.contains("llama3.3") => Some(128_000),
+
+            // Deepseek models, https://api-docs.deepseek.com/quick_start/pricing
+            name if name.contains("deepseek-chat") => Some(64_000),
+            name if name.contains("deepseek-reasoner") => Some(64_000),
             _ => None,
         }
     }

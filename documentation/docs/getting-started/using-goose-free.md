@@ -118,6 +118,7 @@ ollama run michaelneale/deepseek-r1-goose
     │  ● Ollama (Local open source models)
     │  ○ OpenAI 
     │  ○ OpenRouter 
+    │  ○ Deepseek 
     └  
     ```
 

@@ -414,6 +414,17 @@ async fn test_openrouter_provider() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_deepseek_provider() -> Result<()> {
+    test_provider(
+        "Deepseek",
+        &["DEEPSEEK_API_KEY"],
+        None,
+        deepseek::DeepseekProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
 async fn test_google_provider() -> Result<()> {
     test_provider(
         "Google",
