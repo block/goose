@@ -51,7 +51,7 @@ impl From<keyring::Error> for ConfigError {
 mod platform {
     use super::*;
     use std::ptr;
-    use winapi::shared::minwindef::{DWORD};
+    use winapi::shared::minwindef::DWORD;
     use winapi::um::wincred::{CredReadW, CredWriteW, CREDENTIALW, CRED_TYPE_GENERIC};
 
     pub struct WindowsCredential {
