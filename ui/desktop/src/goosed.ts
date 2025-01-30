@@ -87,12 +87,22 @@ export const startGoosed = async (
   // Merge parent environment with additional environment variables
   const processEnv = { ...process.env, ...additionalEnv };
 
-  // Spawn the goosed process with the user's home directory as cwd
-  const goosedProcess = spawn(goosedPath, ['agent'], {
+  // Configure spawn options with Windows-specific settings
+  const isWindows = process.platform === 'win32';
+  const spawnOptions = {
     cwd: dir,
     env: processEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
-  });
+    // On Windows, prevent command prompt window from showing
+    windowsHide: true,
+    // Detached on Windows allows the process to run independently
+    detached: isWindows,
+    // On Windows, we need this to properly spawn .exe files
+    shell: isWindows,
+  };
+
+  // Spawn the goosed process
+  const goosedProcess = spawn(goosedPath, ['agent'], spawnOptions);
 
   goosedProcess.stdout.on('data', (data) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
@@ -116,7 +126,12 @@ export const startGoosed = async (
   log.info(`Goosed isReady ${isReady}`);
   if (!isReady) {
     log.error(`Goosed server failed to start on port ${port}`);
-    goosedProcess.kill();
+    if (isWindows) {
+      // On Windows, we need to kill the entire process group
+      process.kill(-goosedProcess.pid);
+    } else {
+      goosedProcess.kill();
+    }
     throw new Error(`Goosed server failed to start on port ${port}`);
   }
 
@@ -124,7 +139,12 @@ export const startGoosed = async (
   // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
-    goosedProcess.kill();
+    if (isWindows) {
+      // On Windows, we need to kill the entire process group
+      process.kill(-goosedProcess.pid);
+    } else {
+      goosedProcess.kill();
+    }
   });
 
   log.info(`Goosed server successfully started on port ${port}`);
