@@ -46,6 +46,7 @@ export function getProviderDescription(provider) {
     Databricks: 'Access models hosted on your Databricks instance',
     OpenRouter: 'Access a variety of AI models through OpenRouter',
     Ollama: 'Run and use open-source models locally',
+    Deepseek: 'Access Deepseek models',
   };
   return descriptions[provider] || `Access ${provider} models`;
 }

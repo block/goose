@@ -21,6 +21,7 @@ enum ProviderType {
     Groq,
     Ollama,
     OpenRouter,
+    Deepseek,
 }
 
 impl ProviderType {
@@ -33,6 +34,7 @@ impl ProviderType {
             ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
+            ProviderType::Deepseek => &["DEEPSEEK_API_KEY"],
         }
     }
 
@@ -63,6 +65,7 @@ impl ProviderType {
             ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
             ProviderType::Ollama => Box::new(OllamaProvider::from_env(model_config)?),
             ProviderType::OpenRouter => Box::new(OpenRouterProvider::from_env(model_config)?),
+            ProviderType::Deepseek => Box::new(DeepseekProvider::from_env(model_config)?),
         })
     }
 }

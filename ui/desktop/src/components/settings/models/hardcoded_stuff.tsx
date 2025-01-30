@@ -19,6 +19,8 @@ export const goose_models: Model[] = [
   { id: 15, name: 'llama-3.3-70b-versatile', provider: 'Groq' },
   { id: 16, name: 'qwen2.5', provider: 'Ollama' },
   { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
+  { id: 18, name: 'deepseek-chat', provider: 'Deepseek' },
+  { id: 19, name: 'deepseek-reasoner', provider: 'Deepseek' },
 ];
 
 export const openai_models = [
@@ -51,6 +53,8 @@ export const ollama_mdoels = ['qwen2.5'];
 
 export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
+export const deepseek_models = ['deepseek-chat', 'deepseek-reasoner'];
+
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -59,6 +63,7 @@ export const default_models = {
   groq: 'llama-3.3-70b-versatile',
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
+  deepseek: 'deepseek-chat',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -75,6 +80,7 @@ export const required_keys = {
   Ollama: ['OLLAMA_HOST'],
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
+  Deepseek: ['DEEPSEEK_API_KEY'],
 };
 
 export const supported_providers = [
@@ -85,6 +91,7 @@ export const supported_providers = [
   'Google',
   'Ollama',
   'OpenRouter',
+  'Deepseek',
 ];
 
 export const model_docs_link = [
@@ -98,6 +105,7 @@ export const model_docs_link = [
   },
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
+  { name: 'Deepseek', href: 'https://api-docs.deepseek.com/' },
 ];
 
 export const provider_aliases = [
@@ -108,4 +116,5 @@ export const provider_aliases = [
   { provider: 'Databricks', alias: 'databricks' },
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
+  { provider: 'Deepseek', alias: 'deepseek' },
 ];

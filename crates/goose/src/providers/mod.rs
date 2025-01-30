@@ -11,5 +11,6 @@ pub mod ollama;
 pub mod openai;
 pub mod openrouter;
 pub mod utils;
+pub mod deepseek;
 
 pub use factory::{create, providers};

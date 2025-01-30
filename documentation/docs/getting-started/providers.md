@@ -22,6 +22,7 @@ Goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | N/A                                   |
 | [OpenAI](https://platform.openai.com/api-keys) | Provides gpt-4o, o1, and other advanced language models.                                                                                                                                                                 | `OPENAI_API_KEY`                      |
 | [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                            | `OPENROUTER_API_KEY`                  |
+| [Deepseek](https://deepseek.com/)          | Offers Deepseek-chat and Deepseek-reasoner models.                                                                                                                            | `DEEPSEEK_API_KEY`                  |
 
 :::tip Model Recommendation
 Goose currently works best with Anthropic's Claude 3.5 Sonnet and OpenAI's o1 model. 
@@ -66,6 +67,7 @@ To configure your chosen provider or see available options, run `goose configure
    │  ○ Ollama 
    │  ○ OpenAI 
    │  ○ OpenRouter 
+   │  ○ Deepseek 
    └  
    ```
    4. Enter you API key (and any other configuration details) when prompted
@@ -145,6 +147,7 @@ goose configure
 │  ● Ollama (Local open source models)
 │  ○ OpenAI 
 │  ○ OpenRouter 
+│  ○ Deepseek 
 └  
 ```
 

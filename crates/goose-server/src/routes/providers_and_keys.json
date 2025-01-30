@@ -40,5 +40,11 @@
         "description": "Lorem ipsum",
         "models": [],
         "required_keys": ["OPENROUTER_API_KEY"]
+    },
+    "deepseek": {
+        "name": "Deepseek",
+        "description": "Lorem ipsum",
+        "models": ["deepseek-chat", "deepseek-reasoner"],
+        "required_keys": ["DEEPSEEK_API_KEY"]
     }
 }
