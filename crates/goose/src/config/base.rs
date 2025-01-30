@@ -7,6 +7,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+#[cfg(target_os = "windows")]
+use winapi::um::wincred;
+
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
 
@@ -39,11 +42,110 @@ impl From<serde_yaml::Error> for ConfigError {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 impl From<keyring::Error> for ConfigError {
     fn from(err: keyring::Error) -> Self {
         ConfigError::KeyringError(err.to_string())
     }
 }
+
+#[cfg(target_os = "windows")]
+mod platform {
+    use super::*;
+    use std::ffi::CString;
+    use std::ptr;
+    use winapi::shared::minwindef::DWORD;
+    use winapi::um::wincred::{CredDeleteW, CredReadW, CredWriteW, CREDENTIALW, CRED_TYPE_GENERIC};
+
+    pub struct WindowsCredential {
+        target_name: String,
+    }
+
+    impl WindowsCredential {
+        pub fn new(service: &str, username: &str) -> Self {
+            let target_name = format!("{}:{}", service, username);
+            WindowsCredential { target_name }
+        }
+
+        pub fn get_password(&self) -> Result<String, ConfigError> {
+            unsafe {
+                let mut pcred: *mut CREDENTIALW = ptr::null_mut();
+                let target = to_wide_chars(&self.target_name);
+
+                let result = CredReadW(target.as_ptr(), CRED_TYPE_GENERIC, 0, &mut pcred);
+
+                if result == 0 {
+                    return Err(ConfigError::KeyringError(
+                        "Failed to read credential".into(),
+                    ));
+                }
+
+                let credential = &*pcred;
+                let blob = std::slice::from_raw_parts(
+                    credential.CredentialBlob as *const u8,
+                    credential.CredentialBlobSize as usize,
+                );
+
+                String::from_utf8(blob.to_vec())
+                    .map_err(|e| ConfigError::KeyringError(e.to_string()))
+            }
+        }
+
+        pub fn set_password(&self, password: &str) -> Result<(), ConfigError> {
+            unsafe {
+                let target = to_wide_chars(&self.target_name);
+                let blob = password.as_bytes();
+
+                let mut credential = CREDENTIALW {
+                    Flags: 0,
+                    Type: CRED_TYPE_GENERIC,
+                    TargetName: target.as_ptr() as *mut _,
+                    Comment: ptr::null_mut(),
+                    LastWritten: Default::default(),
+                    CredentialBlobSize: blob.len() as DWORD,
+                    CredentialBlob: blob.as_ptr() as *mut _,
+                    Persist: 2, // CRED_PERSIST_LOCAL_MACHINE
+                    AttributeCount: 0,
+                    Attributes: ptr::null_mut(),
+                    TargetAlias: ptr::null_mut(),
+                    UserName: ptr::null_mut(),
+                };
+
+                let result = CredWriteW(&mut credential, 0);
+
+                if result == 0 {
+                    return Err(ConfigError::KeyringError(
+                        "Failed to write credential".into(),
+                    ));
+                }
+
+                Ok(())
+            }
+        }
+
+        pub fn delete_credential(&self) -> Result<(), ConfigError> {
+            unsafe {
+                let target = to_wide_chars(&self.target_name);
+                let result = CredDeleteW(target.as_ptr(), CRED_TYPE_GENERIC, 0);
+
+                if result == 0 {
+                    return Err(ConfigError::KeyringError(
+                        "Failed to delete credential".into(),
+                    ));
+                }
+
+                Ok(())
+            }
+        }
+    }
+
+    fn to_wide_chars(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+}
+
+#[cfg(target_os = "windows")]
+use platform::WindowsCredential;
 
 /// Configuration management for Goose.
 ///
@@ -182,15 +284,30 @@ impl Config {
 
     // Load current secrets from the keyring
     fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-
-        match entry.get_password() {
-            Ok(content) => {
-                let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                Ok(values)
+        #[cfg(target_os = "windows")]
+        {
+            let credential = WindowsCredential::new(&self.keyring_service, KEYRING_USERNAME);
+            match credential.get_password() {
+                Ok(content) => {
+                    let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                    Ok(values)
+                }
+                Err(ConfigError::KeyringError(_)) => Ok(HashMap::new()),
+                Err(e) => Err(e),
             }
-            Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
+            match entry.get_password() {
+                Ok(content) => {
+                    let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                    Ok(values)
+                }
+                Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
+                Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+            }
         }
     }
 
@@ -320,8 +437,19 @@ impl Config {
         values.insert(key.to_string(), value);
 
         let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+
+        #[cfg(target_os = "windows")]
+        {
+            let credential = WindowsCredential::new(&self.keyring_service, KEYRING_USERNAME);
+            credential.set_password(&json_value)?;
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
+            entry.set_password(&json_value)?;
+        }
+
         Ok(())
     }
 
@@ -340,8 +468,19 @@ impl Config {
         values.remove(key);
 
         let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+
+        #[cfg(target_os = "windows")]
+        {
+            let credential = WindowsCredential::new(&self.keyring_service, KEYRING_USERNAME);
+            credential.set_password(&json_value)?;
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
+            entry.set_password(&json_value)?;
+        }
+
         Ok(())
     }
 }
@@ -352,12 +491,23 @@ mod tests {
     use serial_test::serial;
     use tempfile::NamedTempFile;
 
+    #[cfg(not(target_os = "windows"))]
     fn cleanup_keyring() -> Result<(), ConfigError> {
         let entry = Entry::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME)?;
         match entry.delete_credential() {
             Ok(_) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn cleanup_keyring() -> Result<(), ConfigError> {
+        let credential = WindowsCredential::new(TEST_KEYRING_SERVICE, KEYRING_USERNAME);
+        match credential.delete_credential() {
+            Ok(_) => Ok(()),
+            Err(ConfigError::KeyringError(_)) => Ok(()),
+            Err(e) => Err(e),
         }
     }
 
@@ -377,6 +527,7 @@ mod tests {
         std::env::set_var("TEST_KEY", "env_value");
         let value: String = config.get("test_key")?;
         assert_eq!(value, "env_value");
+        std::env::remove_var("TEST_KEY");
 
         Ok(())
     }
