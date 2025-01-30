@@ -5,6 +5,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Check, Copy } from './icons';
 import { visit } from 'unist-util-visit';
+import { shell } from 'electron';
 
 function rehypeinlineCodeProperty() {
   return function (tree) {
@@ -56,6 +57,8 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
             margin: 0,
             width: '100%',
             maxWidth: '100%',
+            minHeight: '3rem',
+            padding: '1rem 0.75rem',
           }}
           codeTagProps={{
             style: {
@@ -72,6 +75,53 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
   );
 };
 
+interface CustomLinkProps {
+  href: string;
+  children: React.ReactNode;
+  title?: string;
+  className?: string;
+}
+
+const CustomLink: React.FC<CustomLinkProps> = ({ href, children, title, className = '' }) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    if (!href) {
+      setError('Invalid link');
+      return;
+    }
+
+    try {
+      await shell.openExternal(href);
+      setError(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Failed to open link:', errorMessage);
+      setError(`Failed to open link: ${errorMessage}`);
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  return (
+    <span className="relative group">
+      <a
+        href={href}
+        onClick={handleClick}
+        title={title}
+        className={`text-blue-500 hover:underline ${error ? 'cursor-not-allowed text-red-500' : ''}`}
+      >
+        {children}
+      </a>
+      {error && (
+        <span className="absolute -bottom-6 left-0 text-xs text-red-500 bg-red-100 dark:bg-red-900/50 px-2 py-1 rounded">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+};
+
 export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
   // Determine whether dark mode is enabled
   const isDarkMode = document.documentElement.classList.contains('dark');
@@ -80,7 +130,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
       <ReactMarkdown
         rehypePlugins={[rehypeinlineCodeProperty]}
         className={`prose prose-xs dark:prose-invert w-full max-w-full break-words
-          prose-pre:p-0 prose-pre:m-0
+          prose-pre:p-0 prose-pre:m-0 prose-pre:min-h-[3rem]
           prose-code:break-all prose-code:whitespace-pre-wrap
           ${className}`}
         components={{
@@ -97,6 +147,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
               </code>
             );
           },
+          a: CustomLink,
         }}
       >
         {content}
