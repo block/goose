@@ -61,7 +61,7 @@ const FeatureList: FeatureItem[] = [
 
 const FeatureQuotes: FeatureQuote[] = [
   {
-    name: "Prem Prem Pillai",
+    name: "Prem Pillai",
     github: "https://github.com/cloud-on-prem",
     role: "Software Engineer",
     testimonial:
