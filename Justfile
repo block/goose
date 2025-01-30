@@ -28,7 +28,7 @@ release-windows:
         echo "Building Windows executable natively..."
         powershell.exe -Command "docker run --rm -v ${PWD}:/usr/src/myapp -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/'"
     fi
-    @echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
+    echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
 # Copy binary command
 copy-binary:
