@@ -68,7 +68,7 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}, message: {}", status, message)))
+            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, message)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))

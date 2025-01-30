@@ -92,7 +92,7 @@ impl AnthropicProvider {
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}, message: {}", status, error_msg)))
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
