@@ -263,7 +263,7 @@ impl Agent for TruncateAgent {
                         drop(capabilities);
 
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
-                            yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}", err));
+                            yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\n Please start a new session with fresh context and try again.", err));
                             break;
                         }
 
