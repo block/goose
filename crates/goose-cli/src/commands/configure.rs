@@ -215,8 +215,12 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                                     .mask('▪')
                                     .interact()?
                             } else {
-                                cliclack::input(format!("Enter new value for {}", key.name))
-                                    .interact()?
+                                let mut input =
+                                    cliclack::input(format!("Enter new value for {}", key.name));
+                                if key.default.is_some() {
+                                    input = input.default_input(&key.default.clone().unwrap());
+                                }
+                                input.interact()?
                             };
 
                             if key.secret {

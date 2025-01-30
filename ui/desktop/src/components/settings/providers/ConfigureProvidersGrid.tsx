@@ -86,6 +86,8 @@ export function ConfigureProvidersGrid() {
       return;
     }
 
+    const isSecret = isSecretKey(keyName);
+
     try {
       // Delete existing key if provider is already configured
       const isUpdate = providers.find((p) => p.id === selectedForSetup)?.isConfigured;
@@ -96,7 +98,10 @@ export function ConfigureProvidersGrid() {
             'Content-Type': 'application/json',
             'X-Secret-Key': getSecretKey(),
           },
-          body: JSON.stringify({ key: keyName }),
+          body: JSON.stringify({ 
+            key: keyName, 
+            isSecret,
+          }),
         });
 
         if (!deleteResponse.ok) {
@@ -107,7 +112,6 @@ export function ConfigureProvidersGrid() {
       }
 
       // Store new key
-      const isSecret = isSecretKey(keyName);
       const storeResponse = await fetch(getApiUrl('/configs/store'), {
         method: 'POST',
         headers: {
