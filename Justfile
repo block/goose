@@ -6,13 +6,12 @@ release:
     cargo build --release
     @just copy-binary
 
-# Copy binary command
-copy-binary:
-    @if [ -f ./target/release/goosed ]; then \
-        echo "Copying goosed binary to ui/desktop/src/bin with permissions preserved..."; \
-        cp -p ./target/release/goosed ./ui/desktop/src/bin/; \
+copy-binary BUILD_MODE="release":
+    @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
+        echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
+        cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
     else \
-        echo "Release binary not found."; \
+        echo "Binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
 
@@ -41,3 +40,16 @@ make-ui:
 langfuse-server:
     #!/usr/bin/env bash
     ./scripts/setup_langfuse.sh
+
+# Development build and run
+run-dev:
+    @echo "Building development version..."
+    cargo build
+    @just copy-binary debug
+    @echo "Running UI..."
+    cd ui/desktop && npm run start-gui
+
+# Install all dependencies (run once after fresh clone)
+install-deps:
+    cd ui/desktop && npm install
+    cd documentation && yarn
