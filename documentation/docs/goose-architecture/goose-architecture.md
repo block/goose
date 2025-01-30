@@ -20,7 +20,7 @@ In a typical session, the interface spins up an instance of the agent, which the
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard that allows for interoperability between data sources and AI agents. Goose utilizes MCP to connect to [MCP systems/servers](https://github.com/modelcontextprotocol/servers?tab=readme-ov-file#model-context-protocol-servers). In Goose, these systems/servers are referred to as extensions.
 
 
-Extensions expose their funtionality to Goose through tools. Tools are the functions that allow extensions to perfrom specific actions, such as running commands, or performing file operations. For example, the Google Drive extension includes a tool for searching documents. That tool is what gives Goose the ability to perform that action.
+Extensions expose their functionality to Goose through tools. Tools are the functions that allow extensions to perfrom specific actions, such as running commands, or performing file operations. For example, the Google Drive extension includes a tool for searching documents. That tool is what gives Goose the ability to perform that action.
 
 
 Goose comes with a set of [built-in extensions](/docs/getting-started/using-extensions#built-in-extensions), each designed to enhance your interaction. These include tools for development, web scraping, automation, memory, and integrations with JetBrains and Google Drive. Goose also supports [connecting to external extensions](/docs/getting-started/using-extensions#adding-extensions) or [creating custom extensions](/docs/guides/custom-extensions) as MCP servers. 
