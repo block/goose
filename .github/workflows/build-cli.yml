@@ -5,6 +5,9 @@
 on:
   workflow_call:
     inputs:
+      version:
+        required: true
+        type: string
       # Let's allow overriding the OSes and architectures in JSON array form:
       # e.g. '["ubuntu-latest","macos-latest"]'
       # If no input is provided, these defaults apply.
@@ -38,7 +41,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust 
+      - name: Update version in Cargo.toml
+        run: |
+          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          rm -f Cargo.toml.bak
+
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable

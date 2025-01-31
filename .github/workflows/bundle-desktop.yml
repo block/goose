@@ -6,6 +6,10 @@
 on:
   workflow_call:
     inputs:
+      version:
+        description: 'Version to set for the build'
+        required: true
+        type: string
       signing:
         description: 'Whether to perform signing and notarization'
         required: false
@@ -69,6 +73,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Update versions before build
+      - name: Update versions
+        run: |
+          # Update version in Cargo.toml
+          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          rm -f Cargo.toml.bak
+          
+          # Update version in package.json 
+          cd ui/desktop
+          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -98,13 +113,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      # Rest of the workflow remains the same...
       - name: Build goosed
         run: cargo build --release -p goose-server
 
       - name: Copy binary into Electron folder
         run: cp target/release/goosed ui/desktop/src/bin/goosed
 
-      # Conditional Signing Step - we skip this for faster builds
       - name: Add MacOS certs for signing and notarization
         if: ${{ inputs.signing }}
         run: ./add-macos-cert.sh
