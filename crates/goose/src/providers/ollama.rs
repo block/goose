@@ -53,6 +53,7 @@ impl OllamaProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        // TODO: remove this later when the UI handles provider config refresh
         // OLLAMA_HOST is sometimes just the 'host' or 'host:port' without a scheme
         let base = if self.host.starts_with("http://") || self.host.starts_with("https://") {
             self.host.clone()
