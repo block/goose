@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
