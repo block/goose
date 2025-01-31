@@ -25,6 +25,8 @@ jobs:
     outputs:
       version: ${{ steps.set-version.outputs.version }}
     steps:
+      # checkout code so we can read the Cargo.toml
+      - uses: actions/checkout@v4
       - name: Generate a canary version
         id: set-version
         run: |
