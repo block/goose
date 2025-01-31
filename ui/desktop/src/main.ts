@@ -171,6 +171,16 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     },
   });
 
+  // Handle new window creation for links
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Open all links in external browser
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      require('electron').shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
+
   // Load the index.html of the app.
   const queryParam = query ? `?initialQuery=${encodeURIComponent(query)}` : '';
   const { screen } = require('electron');
