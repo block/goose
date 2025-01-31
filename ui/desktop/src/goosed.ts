@@ -8,7 +8,7 @@ import { Readable } from 'node:stream';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     const server = createServer();
 
     server.listen(0, '127.0.0.1', () => {
@@ -61,7 +61,7 @@ export const startGoosed = async (
   }
 
   // Get the goosed binary path using the shared utility
-  const goosedPath = getBinaryPath(app, 'goosed');
+  let goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
 
   // in case we want it
@@ -89,6 +89,19 @@ export const startGoosed = async (
 
   // Configure spawn options with Windows-specific settings
   const isWindows = process.platform === 'win32';
+
+  // Add detailed logging for troubleshooting
+  log.info(`Process platform: ${process.platform}`);
+  log.info(`Process cwd: ${process.cwd()}`);
+  log.info(`Environment HOME: ${processEnv.HOME}`);
+  log.info(`Environment USERPROFILE: ${processEnv.USERPROFILE}`);
+
+  // Ensure proper executable path on Windows
+  if (isWindows && !goosedPath.toLowerCase().endsWith('.exe')) {
+    goosedPath += '.exe';
+  }
+  log.info(`Binary path resolved to: ${goosedPath}`);
+
   const spawnOptions = {
     cwd: dir,
     env: processEnv,
@@ -97,8 +110,8 @@ export const startGoosed = async (
     windowsHide: true,
     // Detached on Windows allows the process to run independently
     detached: isWindows,
-    // On Windows, we need this to properly spawn .exe files
-    shell: isWindows,
+    // On Windows, we don't use shell to avoid path issues
+    shell: false,
   };
 
   // Spawn the goosed process

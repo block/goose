@@ -21,12 +21,12 @@ release-windows:
                 apt-get update && \
                 apt-get install -y mingw-w64 && \
                 cargo build --release --target x86_64-pc-windows-gnu && \
-                cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && \
-                cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
+                find /usr/lib/gcc/x86_64-w64-mingw32 -name libstdc++-6.dll -exec cp -f {} /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ \; && \
+                find /usr/lib/gcc/x86_64-w64-mingw32 -name libgcc_s_seh-1.dll -exec cp -f {} /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ \; && \
+                cp -f /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/"
     else
         echo "Building Windows executable natively..."
-        powershell.exe -Command "docker run --rm -v ${PWD}:/usr/src/myapp -w /usr/src/myapp rust:latest sh -c 'rustup target add x86_64-pc-windows-gnu && apt-get update && apt-get install -y mingw-w64 && cargo build --release --target x86_64-pc-windows-gnu && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libstdc++-6.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/lib/gcc/x86_64-w64-mingw32/*/libgcc_s_seh-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/ && cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll /usr/src/myapp/target/x86_64-pc-windows-gnu/release/'"
+        cargo build --release --target x86_64-pc-windows-gnu
     fi
     echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
@@ -82,15 +82,22 @@ make-ui:
 # make GUI with latest Windows binary
 make-ui-windows:
     @just release-windows
-    @powershell.exe -Command "if (Test-Path ./target/x86_64-pc-windows-gnu/release/goosed.exe) { \
-        Write-Host 'Copying Windows binary and DLLs to ui/desktop/src/bin...'; \
-        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/goosed.exe' -Destination './ui/desktop/src/bin/' -Force; \
-        Copy-Item -Path './target/x86_64-pc-windows-gnu/release/*.dll' -Destination './ui/desktop/src/bin/' -Force; \
-    } else { \
-        Write-Host 'Windows binary not found.' -ForegroundColor Red; \
+    #!/usr/bin/env sh
+    if [ -f "./target/x86_64-pc-windows-gnu/release/goosed.exe" ]; then \
+        echo "Copying Windows binary and DLLs to ui/desktop/src/bin..."; \
+        mkdir -p ./ui/desktop/src/bin; \
+        cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/; \
+        cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/; \
+        echo "Building Windows package..."; \
+        cd ui/desktop && \
+        npm run bundle:windows && \
+        mkdir -p out/Goose-win32-x64/resources/bin && \
+        cp -f src/bin/goosed.exe out/Goose-win32-x64/resources/bin/ && \
+        cp -f src/bin/*.dll out/Goose-win32-x64/resources/bin/; \
+    else \
+        echo "Windows binary not found."; \
         exit 1; \
-    }"
-    cd ui/desktop && npm run bundle:windows
+    fi
 
 # Setup langfuse server
 langfuse-server:

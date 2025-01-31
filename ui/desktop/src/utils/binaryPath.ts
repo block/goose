@@ -11,12 +11,7 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
     // In development, use the absolute path from the project root
     return path.join(process.cwd(), 'src', 'bin', executableName);
   } else {
-    if (isWindows) {
-      // On Windows in production, the exe should be in the same directory as the app
-      return path.join(path.dirname(app.getPath('exe')), executableName);
-    } else {
-      // On other platforms in production, use the path relative to app resources
-      return path.join(process.resourcesPath, 'bin', executableName);
-    }
+    // In production, always use resources/bin path for consistency
+    return path.join(process.resourcesPath, 'bin', executableName);
   }
 };
