@@ -6,7 +6,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Cash Sans'],
+        sans: ['Cash Sans', 'sans-serif'],
       },
       keyframes: {
         shimmer: {
