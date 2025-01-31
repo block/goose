@@ -40,30 +40,17 @@ interface OllamaConfigDetails {
 export async function checkOllama(): Promise<OllamaConfigDetails> {
   const setByApp = await checkForOllamaApp();
   const setByHost = await checkOllamaHostIsSet();
+  const is_set = setByApp || setByHost;
+  let location = null;
 
-  if (setByApp && setByHost) {
-    // Priority is given to 'Host' if both are set
-    return {
-      is_set: true,
-      location: 'host',
-    };
+  if (setByHost) {
+    location = 'host';
   } else if (setByApp) {
-    // Set by the app only
-    return {
-      is_set: true,
-      location: 'app',
-    };
-  } else if (setByHost) {
-    // Set by the host only
-    return {
-      is_set: true,
-      location: 'host',
-    };
-  } else {
-    // Not set by either
-    return {
-      is_set: false,
-      location: null,
-    };
+    location = 'app';
   }
+
+  return {
+    is_set,
+    location,
+  };
 }
