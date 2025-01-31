@@ -96,19 +96,27 @@ const FeatureQuotes: FeatureQuote[] = [
       "Hi team, thank you for much for making Goose, it's so amazing. Our team is working on migrating Dashboard components to React components. I am working with Goose to help the migration.",
   },
   {
-    name: "Jarrod Sibbison",
-    github: "https://github.com/jsibbison-square",
-    role: "Software Engineer",
-    testimonial:
-      "Got Goose to update a dependency, run tests, make a branch and a commit... it was 🤌. Not that complicated but I was impressed it figured out how to run tests from the README.",
-  },
-  {
     name: "Lily Delalande",
     github: "https://github.com/lily-de",
     role: "Software Engineer",
     testimonial:
       "Wanted to document what I had Goose do -- took about 30 minutes end to end! I created a custom CLI command in the gh CLI library to download in-line comments on PRs about code changes (currently they aren't directly viewable). I don't know Go that well and I definitely didn't know where to start looking in the code base or how to even test the new command was working and Goose did it all for me 😁",
   },
+  {
+    name: "Rizel Scarlett",
+    github: "blackgirlbytes",
+    role: "Developer Advocate",
+    testimonial:
+      "My sister had been asking me for months to help her build a Google Docs extension but I kept putting it off. Today, we hopped on FaceTime and built one in just 30 minutes with Goose!",
+  }
+  //Cant find Kristens github
+  // {
+  //   name: "Kristen Anderson",
+  //   github: "https://github.com/",
+  //   role: "Product Lead",
+  //   testimonial:
+  //     "I know Goose is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Goose, I drafted a product requirements document for a small change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
+  // },
 ];
 
 function Feature({ title, Svg, description }: FeatureItem) {
