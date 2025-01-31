@@ -7,13 +7,15 @@ use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
-use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 use goose::providers::{
-    ollama::OllamaProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
+    azure::AzureProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    openrouter::OpenRouterProvider,
 };
+use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 
 #[derive(Debug)]
 enum ProviderType {
+    Azure,
     OpenAi,
     Anthropic,
     Databricks,
@@ -26,6 +28,11 @@ enum ProviderType {
 impl ProviderType {
     fn required_env(&self) -> &'static [&'static str] {
         match self {
+            ProviderType::Azure => &[
+                "AZURE_OPENAI_API_KEY",
+                "AZURE_OPENAI_ENDPOINT",
+                "AZURE_OPENAI_DEPLOYMENT_NAME",
+            ],
             ProviderType::OpenAi => &["OPENAI_API_KEY"],
             ProviderType::Anthropic => &["ANTHROPIC_API_KEY"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
@@ -56,6 +63,7 @@ impl ProviderType {
 
     fn create_provider(&self, model_config: ModelConfig) -> Result<Box<dyn Provider>> {
         Ok(match self {
+            ProviderType::Azure => Box::new(AzureProvider::from_env(model_config)?),
             ProviderType::OpenAi => Box::new(OpenAiProvider::from_env(model_config)?),
             ProviderType::Anthropic => Box::new(AnthropicProvider::from_env(model_config)?),
             ProviderType::Databricks => Box::new(DatabricksProvider::from_env(model_config)?),
@@ -166,6 +174,16 @@ mod tests {
     async fn test_truncate_agent_with_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenAi,
+            model: "gpt-4o-mini",
+            context_window: 128_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_truncate_agent_with_azure() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Azure,
             model: "gpt-4o-mini",
             context_window: 128_000,
         })

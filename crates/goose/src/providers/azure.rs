@@ -16,14 +16,7 @@ pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
     "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models";
 pub const AZURE_API_VERSION: &str = "2024-10-21";
-pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &[
-    "gpt-4o",
-    "gpt-4o-mini",
-    "o1",
-    "o1-mini",
-    "o1-preview",
-    "gpt-4",
-];
+pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4o-mini", "gpt-4"];
 
 #[derive(Debug, serde::Serialize)]
 pub struct AzureProvider {
@@ -63,16 +56,18 @@ impl AzureProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!(
-            "{}/openai/deployments/{}/chat/completions?api-version={}",
-            self.endpoint.trim_end_matches('/'),
-            self.deployment_name,
-            AZURE_API_VERSION
-        );
+        let mut base_url = url::Url::parse(&self.endpoint)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        base_url.set_path(&format!(
+            "openai/deployments/{}/chat/completions",
+            self.deployment_name
+        ));
+        base_url.set_query(Some(&format!("api-version={}", AZURE_API_VERSION)));
 
         let response: reqwest::Response = self
             .client
-            .post(&url)
+            .post(base_url)
             .header("api-key", &self.api_key)
             .json(&payload)
             .send()
