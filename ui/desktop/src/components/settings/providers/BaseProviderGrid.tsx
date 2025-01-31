@@ -8,6 +8,8 @@ import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
 import { getActiveProviders } from '../api_keys/utils';
 
+import { checkOllama, checkOllamaHostIsSet } from './utils';
+
 // Common interfaces and helper functions
 interface Provider {
   id: string;
@@ -50,6 +52,22 @@ export function getProviderDescription(provider) {
   return descriptions[provider] || `Access ${provider} models`;
 }
 
+async function getGreenCheckTooltipMessage(name: string) {
+  if (name == 'Ollama') {
+    // ollama
+    // check if Ollama is running or there's a host in the 'secrets' config
+    const ollamaConfig = await checkOllama();
+    const ollamaLocation = ollamaConfig.location;
+    if (ollamaLocation == 'app') {
+      return `Ollama is running locally`;
+    } else {
+      return `Ollama is configured via OLLAMA_HOST`;
+    }
+  }
+
+  return `You have ${getArticle(name)} ${name} API Key set in your environment`;
+}
+
 function BaseProviderCard({
   name,
   description,
@@ -69,6 +87,16 @@ function BaseProviderCard({
   const numRequiredKeys = required_keys[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
   const { activeKeys, setActiveKeys } = useActiveKeys();
+  const [configuredTooltipMessage, setConfiguredTooltipMessage] = useState('');
+
+  useEffect(() => {
+    const fetchConfiguredProviderTooltipMessage = async () => {
+      const message = await getGreenCheckTooltipMessage(name);
+      setConfiguredTooltipMessage(message);
+    };
+
+    fetchConfiguredProviderTooltipMessage();
+  }, [name]);
 
   return (
     <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
@@ -102,11 +130,7 @@ function BaseProviderCard({
                   </TooltipTrigger>
                   <Portal>
                     <TooltipContent side="top" align="center" className="z-[9999]">
-                      <p>
-                        {hasRequiredKeys
-                          ? `You have ${getArticle(name)} ${name} API Key set in your environment`
-                          : `${name} is installed and running on your machine`}
-                      </p>
+                      <p>{configuredTooltipMessage}</p>
                     </TooltipContent>
                   </Portal>
                 </Tooltip>
@@ -125,7 +149,7 @@ function BaseProviderCard({
                   <Portal>
                     <TooltipContent side="top" align="center" className="z-[9999]">
                       <p>
-                        To use, the{' '}
+                        To use, either the{' '}
                         <a
                           href="https://ollama.com/download"
                           target="_blank"
@@ -134,7 +158,8 @@ function BaseProviderCard({
                         >
                           Ollama app
                         </a>{' '}
-                        must be installed on your machine and open.
+                        must be installed on your machine and open, or you must enter a value for
+                        OLLAMA_HOST.
                       </p>
                     </TooltipContent>
                   </Portal>
@@ -177,7 +202,7 @@ function BaseProviderCard({
                   </TooltipTrigger>
                   <Portal>
                     <TooltipContent side="top" align="center" className="z-[9999]">
-                      <p>Re-check for active Ollama app running in the background.</p>
+                      <p>Click to re-check for active Ollama app running in the background.</p>
                     </TooltipContent>
                   </Portal>
                 </Tooltip>
@@ -209,6 +234,8 @@ function BaseProviderCard({
                 </Tooltip>
               </TooltipProvider>
             )}
+
+            {/* Gear icon for configured providers */}
             {isConfigured && showSettings && hasRequiredKeys && (
               <TooltipProvider>
                 <Tooltip>
@@ -233,6 +260,8 @@ function BaseProviderCard({
                 </Tooltip>
               </TooltipProvider>
             )}
+
+            {/* Delete button */}
             {showDelete && hasRequiredKeys && isConfigured && (
               <TooltipProvider>
                 <Tooltip>
@@ -258,6 +287,8 @@ function BaseProviderCard({
               </TooltipProvider>
             )}
           </div>
+
+          {/*Rocket ship for the welcome page*/}
           {isConfigured && onTakeoff && showTakeoff !== false && (
             <TooltipProvider>
               <Tooltip>

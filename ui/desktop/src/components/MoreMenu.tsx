@@ -6,6 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { More } from './icons';
 import { Settings, Grid, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
+import { DeleteProviderKeysFromKeychain } from '../utils/deleteAllKeys';
+import { toast } from 'react-toastify';
+import { useActiveKeys } from '../components/settings/api_keys/ActiveKeysContext';
+import { getActiveProviders } from '../components/settings/api_keys/utils';
 
 interface VersionInfo {
   current_version: string;
@@ -113,6 +117,14 @@ export default function MoreMenu() {
     setShowVersions(false);
     // Create a new chat window with the selected version
     window.electron.createChatWindow(undefined, undefined, version);
+  };
+
+  const { activeKeys, setActiveKeys } = useActiveKeys();
+  const handleDeleteKeychainKeys = async () => {
+    // Mark this function as async
+    await DeleteProviderKeysFromKeychain(); // Assume this is an async function and await it
+    const updatedKeys = await getActiveProviders();
+    setActiveKeys(updatedKeys);
   };
 
   return (
@@ -263,6 +275,24 @@ export default function MoreMenu() {
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors text-red-400"
             >
               Reset Provider
+            </button>
+            <button
+              onClick={() => {
+                handleDeleteKeychainKeys()
+                  .then(() => {
+                    console.log('All keys processed.');
+                    toast.success('Deleted provider keys');
+                    setOpen(false);
+                  })
+                  .catch((error) => {
+                    console.error('An error occurred:', error);
+                    toast.error(`An error occurred deleting provider keys ${error}`);
+                    setOpen(false);
+                  });
+              }}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors text-red-400"
+            >
+              Delete Provider Keys from Keychain
             </button>
             {/* Provider keys settings */}
             {process.env.NODE_ENV === 'development' && (

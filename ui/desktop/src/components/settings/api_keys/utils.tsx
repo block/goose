@@ -17,8 +17,9 @@ export async function getActiveProviders(): Promise<string[]> {
   try {
     // Fetch the secrets settings
     const configSettings = await getConfigSettings();
+    console.log('[getActiveProviders]:', configSettings);
 
-    // Check for special provider cases (e.g. ollama needs to be installed in Applications folder)
+    // Check for special provider cases (e.g. ollama running locally)
     const specialCasesResults = await Promise.all(
       Object.entries(special_provider_cases).map(async ([providerName, checkFunction]) => {
         const isActive = await checkFunction(); // Dynamically re-check status
@@ -26,7 +27,6 @@ export async function getActiveProviders(): Promise<string[]> {
         return isActive ? providerName : null;
       })
     );
-
     // Extract active providers based on `is_set` in `secret_status` or providers with no keys
     const activeProviders = Object.values(configSettings) // Convert object to array
       .filter((provider) => {
@@ -37,11 +37,13 @@ export async function getActiveProviders(): Promise<string[]> {
       })
       .map((provider) => provider.name || 'Unknown Provider'); // Extract provider name
 
-    // Combine active providers from secrets settings and special cases
-    const allActiveProviders = [
-      ...activeProviders,
-      ...specialCasesResults.filter((provider) => provider !== null), // Filter out null results
-    ];
+    // Combine active providers from secrets settings and special cases (avoiding repeats)
+    const allActiveProviders = activeProviders.concat(
+      specialCasesResults.filter(
+        (provider) => provider !== null && !activeProviders.includes(provider)
+      )
+    );
+
     return allActiveProviders;
   } catch (error) {
     console.error('Failed to get active providers:', error);
