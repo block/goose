@@ -100,6 +100,13 @@ impl MemoryRouter {
              2. Search memories by content or specific tags to find relevant information.
              3. List all available memory categories for easy navigation.
              4. Remove entire categories of memories when they are no longer needed.
+             When to call memory tools:
+             - These are examples where the assistant should proactively call the memory tool because the user is providing recurring preferences, project details, or workflow habits that they may expect to be remembered.
+             - Preferred Development Tools & Conventions
+             - User-specific data (e.g., name, preferences)
+             - Project-related configurations
+             - Workflow descriptions
+             - Other critical settings
              Interaction Protocol:
              When important information is identified, such as:
              - User-specific data (e.g., name, preferences)
@@ -115,6 +122,8 @@ impl MemoryRouter {
                 - Confirm the desired storage location:
                   - Local storage (.goose/memory) for project-specific details.
                   - Global storage (~/.config/goose/memory) for user-wide data.
+                - Use the remember_memory tool to store the information.
+                  - `remember_memory(category, data, tags, is_global)`
              Example Interaction for Storing Information:
              User: "For this project, we use black for code formatting"
              Assistant: "You've mentioned a development preference. Would you like to remember this for future conversations?

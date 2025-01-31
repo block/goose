@@ -23,6 +23,8 @@ pub trait TruncationStrategy {
 
 /// Strategy to truncate messages by removing the oldest first
 pub struct OldestFirstTruncation;
+/// Strategy to truncate messages explicitly
+pub struct ExplicitTruncation;
 
 impl TruncationStrategy for OldestFirstTruncation {
     fn determine_indices_to_remove(
