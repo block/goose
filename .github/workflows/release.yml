@@ -2,7 +2,7 @@
 on:
   push:
     paths-ignore:
-      - 'documentation/**'
+      - "documentation/**"
     tags:
       - "v1.*"
 
@@ -13,31 +13,13 @@ concurrency:
 
 jobs:
   # ------------------------------------
-  # 1) Set version variables first
-  # ------------------------------------
-  prepare-version:
-    name: Prepare Version
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.set-version.outputs.version }}
-    steps:
-      - name: Extract version
-        id: set-version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-  # ------------------------------------
-  # 3) Build CLI for multiple OS/Arch
+  # 1) Build CLI for multiple OS/Arch
   # ------------------------------------
   build-cli:
-    needs: [prepare-version]
     uses: ./.github/workflows/build-cli.yml
-    with:
-      version: ${{ needs.prepare-version.outputs.version }}
 
   # ------------------------------------
-  # 4) Upload Install CLI Script
+  # 2) Upload Install CLI Script
   # ------------------------------------
   install-script:
     name: Upload Install Script
@@ -51,13 +33,11 @@ jobs:
           path: download_cli.sh
 
   # ------------------------------------------------------------
-  # 5) Bundle Desktop App (macOS only)
+  # 3) Bundle Desktop App (macOS only)
   # ------------------------------------------------------------
   bundle-desktop:
-    needs: [prepare-version]
     uses: ./.github/workflows/bundle-desktop.yml
     with:
-      version: ${{ needs.prepare-version.outputs.version }}
       signing: true
     secrets:
       CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
@@ -67,7 +47,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   # ------------------------------------
-  # 6) Create/Update GitHub Release
+  # 4) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
@@ -80,7 +60,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           merge-multiple: true
-          
+
       # Create/update the versioned release
       - name: Release versioned
         uses: ncipollo/release-action@v1
@@ -108,4 +88,3 @@ jobs:
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
-      

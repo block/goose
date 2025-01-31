@@ -8,7 +8,8 @@ on:
     inputs:
       version:
         description: 'Version to set for the build'
-        required: true
+        required: false
+        default: ""
         type: string
       signing:
         description: 'Whether to perform signing and notarization'
@@ -75,6 +76,7 @@ jobs:
 
       # Update versions before build
       - name: Update versions
+        if: ${{ inputs.version != '' }}
         run: |
           # Update version in Cargo.toml
           sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml

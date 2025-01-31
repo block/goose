@@ -6,7 +6,8 @@ on:
   workflow_call:
     inputs:
       version:
-        required: true
+        required: false
+        default: ""
         type: string
       # Let's allow overriding the OSes and architectures in JSON array form:
       # e.g. '["ubuntu-latest","macos-latest"]'
@@ -42,6 +43,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Update version in Cargo.toml
+        if: ${{ inputs.version != '' }}
         run: |
           sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
           rm -f Cargo.toml.bak

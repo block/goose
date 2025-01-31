@@ -43,7 +43,6 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     with:
-      version: 1.0.3 # TODO: fix this to be dynamic
       signing: true
     secrets:
       CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
@@ -71,11 +70,11 @@ jobs:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
             ### Desktop App for this PR
-            
+
             The following build is available for testing:
-            
+
             - [📱 macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
-            
+
             This link is provided by nightly.link and will work even if you're not logged into GitHub.

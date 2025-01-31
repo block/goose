@@ -5,7 +5,7 @@
 on:
   push:
     paths-ignore:
-      - 'documentation/**'
+      - "documentation/**"
     branches:
       - main
 
@@ -28,9 +28,10 @@ jobs:
       - name: Generate a canary version
         id: set-version
         run: |
-          # TODO: fix this to be dynamic - extract version from repo
+          # Extract the version from Cargo.toml
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          VERSION="1.0.3-canary+${SHORT_SHA}"
+          VERSION=$(grep '^version\s*=' Cargo.toml | head -n 1 | cut -d\" -f2)
+          VERSION="${VERSION}-canary+${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   # ------------------------------------
@@ -48,7 +49,7 @@ jobs:
   install-script:
     name: Upload Install Script
     runs-on: ubuntu-latest
-    needs: [ build-cli ]
+    needs: [build-cli]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/upload-artifact@v4
@@ -71,14 +72,14 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-  
+
   # ------------------------------------
   # 5) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [ build-cli, install-script, bundle-desktop ]
+    needs: [build-cli, install-script, bundle-desktop]
     permissions:
       contents: write
 
