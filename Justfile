@@ -127,6 +127,11 @@ make-ui-windows:
         exit 1; \
     fi
 
+# make GUI with latest binary
+make-ui-intel:
+    @just release-intel
+    cd ui/desktop && npm run bundle:intel
+
 # Setup langfuse server
 langfuse-server:
     #!/usr/bin/env bash
