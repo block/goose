@@ -1,6 +1,7 @@
 ---
 title: Building Custom Extensions
-sidebar_position: 6
+sidebar_position: 1
+description: Create your own custom MCP Server to use as a Goose extension
 ---
 
 # Building Custom Extensions with Goose

@@ -86,7 +86,11 @@ const config: Config = {
           {
             to: '/',
             from: '/v1/',
-          },         
+          },
+          {
+            to: '/docs/tutorials/custom-extensions',
+            from: '/docs/guides/custom-extensions'
+          }         
         ],
       },
     ],
