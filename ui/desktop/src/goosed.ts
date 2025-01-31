@@ -139,11 +139,15 @@ export const startGoosed = async (
   log.info(`Goosed isReady ${isReady}`);
   if (!isReady) {
     log.error(`Goosed server failed to start on port ${port}`);
-    if (isWindows) {
-      // On Windows, we need to kill the entire process group
-      process.kill(-goosedProcess.pid);
-    } else {
-      goosedProcess.kill();
+    try {
+      if (isWindows) {
+        // On Windows, use taskkill to forcefully terminate the process tree
+        spawn('taskkill', ['/pid', goosedProcess.pid.toString(), '/T', '/F']);
+      } else {
+        goosedProcess.kill();
+      }
+    } catch (error) {
+      log.error('Error while terminating goosed process:', error);
     }
     throw new Error(`Goosed server failed to start on port ${port}`);
   }
@@ -152,11 +156,15 @@ export const startGoosed = async (
   // TODO will need to do it at tab level next
   app.on('will-quit', () => {
     log.info('App quitting, terminating goosed server');
-    if (isWindows) {
-      // On Windows, we need to kill the entire process group
-      process.kill(-goosedProcess.pid);
-    } else {
-      goosedProcess.kill();
+    try {
+      if (isWindows) {
+        // On Windows, use taskkill to forcefully terminate the process tree
+        spawn('taskkill', ['/pid', goosedProcess.pid.toString(), '/T', '/F']);
+      } else {
+        goosedProcess.kill();
+      }
+    } catch (error) {
+      log.error('Error while terminating goosed process:', error);
     }
   });
 
