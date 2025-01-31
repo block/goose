@@ -1,4 +1,5 @@
 pub mod anthropic;
+pub mod azure;
 pub mod base;
 pub mod databricks;
 pub mod errors;

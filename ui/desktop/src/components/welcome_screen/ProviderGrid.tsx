@@ -59,7 +59,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     localStorage.setItem('GOOSE_PROVIDER', providerId);
 
     toast.success(
-      `Selected ${provider.name} provider. Starting Goose with default model: ${getDefaultModel(provider.name.toLowerCase())}.`
+      `Selected ${provider.name} provider. Starting Goose with default model: ${getDefaultModel(provider.name.toLowerCase().replace(/ /g, '_'))}.`
     );
 
     onSubmit?.();

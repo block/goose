@@ -2,8 +2,14 @@ import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
 
 export function isSecretKey(keyName: string): boolean {
-  // Ollama and Databricks use host name right now and it should not be stored as secret.
-  return keyName != 'DATABRICKS_HOST' && keyName != 'OLLAMA_HOST';
+  // Endpoints and hosts should not be stored as secrets
+  const nonSecretKeys = [
+    'DATABRICKS_HOST',
+    'OLLAMA_HOST',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_DEPLOYMENT_NAME',
+  ];
+  return !nonSecretKeys.includes(keyName);
 }
 
 export async function getActiveProviders(): Promise<string[]> {
@@ -16,9 +22,8 @@ export async function getActiveProviders(): Promise<string[]> {
       .filter((provider) => {
         const apiKeyStatus = Object.values(provider.config_status || {}); // Get all key statuses
 
-        // Include providers if:
-        // - They have at least one key set (`is_set: true`)
-        return apiKeyStatus.some((key) => key.is_set);
+        // Include providers if all required keys are set
+        return apiKeyStatus.length > 0 && apiKeyStatus.every((key) => key.is_set);
       })
       .map((provider) => provider.name || 'Unknown Provider'); // Extract provider name
 

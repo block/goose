@@ -74,68 +74,77 @@ export function ConfigureProvidersGrid() {
     setShowSetupModal(true);
   };
 
-  const handleModalSubmit = async (apiKey: string) => {
+  const handleModalSubmit = async (configValues: { [key: string]: string }) => {
     if (!selectedForSetup) return;
 
     const provider = providers.find((p) => p.id === selectedForSetup)?.name;
     if (!provider) return;
 
-    const keyName = required_keys[provider]?.[0];
-    if (!keyName) {
-      console.error(`No key found for provider ${provider}`);
+    const requiredKeys = required_keys[provider];
+    if (!requiredKeys || requiredKeys.length === 0) {
+      console.error(`No keys found for provider ${provider}`);
       return;
     }
 
-    const isSecret = isSecretKey(keyName);
-
     try {
-      // Delete existing key if provider is already configured
+      // Delete existing keys if provider is already configured
       const isUpdate = providers.find((p) => p.id === selectedForSetup)?.isConfigured;
       if (isUpdate) {
-        const deleteResponse = await fetch(getApiUrl('/configs/delete'), {
-          method: 'DELETE',
+        for (const keyName of requiredKeys) {
+          const isSecret = isSecretKey(keyName);
+          const deleteResponse = await fetch(getApiUrl('/configs/delete'), {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': getSecretKey(),
+            },
+            body: JSON.stringify({
+              key: keyName,
+              isSecret,
+            }),
+          });
+
+          if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text();
+            console.error('Delete response error:', errorText);
+            throw new Error(`Failed to delete old key: ${keyName}`);
+          }
+        }
+      }
+
+      // Store new keys
+      for (const keyName of requiredKeys) {
+        const value = configValues[keyName];
+        if (!value) {
+          console.error(`Missing value for required key: ${keyName}`);
+          continue;
+        }
+
+        const isSecret = isSecretKey(keyName);
+        const storeResponse = await fetch(getApiUrl('/configs/store'), {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Secret-Key': getSecretKey(),
           },
-          body: JSON.stringify({ 
-            key: keyName, 
+          body: JSON.stringify({
+            key: keyName,
+            value: value,
             isSecret,
           }),
         });
 
-        if (!deleteResponse.ok) {
-          const errorText = await deleteResponse.text();
-          console.error('Delete response error:', errorText);
-          throw new Error('Failed to delete old key');
+        if (!storeResponse.ok) {
+          const errorText = await storeResponse.text();
+          console.error('Store response error:', errorText);
+          throw new Error(`Failed to store new key: ${keyName}`);
         }
       }
 
-      // Store new key
-      const storeResponse = await fetch(getApiUrl('/configs/store'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
-        },
-        body: JSON.stringify({
-          key: keyName,
-          value: apiKey.trim(),
-          isSecret,
-        }),
-      });
-
-      if (!storeResponse.ok) {
-        const errorText = await storeResponse.text();
-        console.error('Store response error:', errorText);
-        throw new Error('Failed to store new key');
-      }
-
-      const toastInfo = isSecret ? 'API key' : 'host';
       toast.success(
         isUpdate
-          ? `Successfully updated ${toastInfo} for ${provider}`
-          : `Successfully added ${toastInfo} for ${provider}`
+          ? `Successfully updated configuration for ${provider}`
+          : `Successfully added configuration for ${provider}`
       );
 
       const updatedKeys = await getActiveProviders();
@@ -147,7 +156,7 @@ export function ConfigureProvidersGrid() {
     } catch (error) {
       console.error('Error handling modal submit:', error);
       toast.error(
-        `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} API key for ${provider}`
+        `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration for ${provider}`
       );
     }
   };
@@ -160,50 +169,52 @@ export function ConfigureProvidersGrid() {
   const confirmDelete = async () => {
     if (!providerToDelete) return;
 
-    const keyName = required_keys[providerToDelete.name]?.[0];
-    if (!keyName) {
-      console.error(`No key found for provider ${providerToDelete.name}`);
+    const requiredKeys = required_keys[providerToDelete.name];
+    if (!requiredKeys || requiredKeys.length === 0) {
+      console.error(`No keys found for provider ${providerToDelete.name}`);
       return;
     }
 
-    const isSecret = isSecretKey(keyName);
-    const toastInfo = isSecret ? 'API key' : 'host';
     try {
       // Check if the selected provider is currently active
       if (currentModel?.provider === providerToDelete.name) {
         toast.error(
-          `Cannot delete the ${toastInfo} for ${providerToDelete.name} because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`
+          `Cannot delete the configuration for ${providerToDelete.name} because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`
         );
         setIsConfirmationOpen(false);
         return;
       }
 
-      const deleteResponse = await fetch(getApiUrl('/configs/delete'), {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
-        },
-        body: JSON.stringify({
-          key: keyName,
-          isSecret,
-        }),
-      });
+      // Delete all keys for the provider
+      for (const keyName of requiredKeys) {
+        const isSecret = isSecretKey(keyName);
+        const deleteResponse = await fetch(getApiUrl('/configs/delete'), {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify({
+            key: keyName,
+            isSecret,
+          }),
+        });
 
-      if (!deleteResponse.ok) {
-        const errorText = await deleteResponse.text();
-        console.error('Delete response error:', errorText);
-        throw new Error('Failed to delete key');
+        if (!deleteResponse.ok) {
+          const errorText = await deleteResponse.text();
+          console.error('Delete response error:', errorText);
+          throw new Error(`Failed to delete key: ${keyName}`);
+        }
       }
 
-      console.log('Key deleted successfully.');
-      toast.success(`Successfully deleted ${toastInfo} for ${providerToDelete.name}`);
+      console.log('Configuration deleted successfully.');
+      toast.success(`Successfully deleted configuration for ${providerToDelete.name}`);
 
       const updatedKeys = await getActiveProviders();
       setActiveKeys(updatedKeys);
     } catch (error) {
-      console.error('Error deleting key:', error);
-      toast.error(`Unable to delete ${toastInfo} for ${providerToDelete.name}`);
+      console.error('Error deleting configuration:', error);
+      toast.error(`Unable to delete configuration for ${providerToDelete.name}`);
     }
     setIsConfirmationOpen(false);
   };
@@ -228,7 +239,7 @@ export function ConfigureProvidersGrid() {
             endpoint="Example Endpoint"
             title={
               modalMode === 'edit'
-                ? `Edit ${providers.find((p) => p.id === selectedForSetup)?.name} API Key`
+                ? `Edit ${providers.find((p) => p.id === selectedForSetup)?.name} Configuration`
                 : undefined
             }
             onSubmit={handleModalSubmit}
@@ -242,7 +253,7 @@ export function ConfigureProvidersGrid() {
 
       {isConfirmationOpen && providerToDelete && (
         <ConfirmationModal
-          message={`Are you sure you want to delete the API key or host for ${providerToDelete.name}? This action cannot be undone.`}
+          message={`Are you sure you want to delete the configuration for ${providerToDelete.name}? This action cannot be undone.`}
           onConfirm={confirmDelete}
           onCancel={() => setIsConfirmationOpen(false)}
         />

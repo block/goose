@@ -40,5 +40,11 @@
         "description": "Lorem ipsum",
         "models": [],
         "required_keys": ["OPENROUTER_API_KEY"]
+    },
+    "azure_openai": {
+        "name": "Azure OpenAI",
+        "description": "Connect to Azure OpenAI Service",
+        "models": ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini"],
+        "required_keys": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]
     }
 }
