@@ -171,7 +171,7 @@ You can install [any MCP server](https://github.com/modelcontextprotocol/servers
   </TabItem>
 </Tabs>
 
-For example, to connect to the [Fetch Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch), enter `uvx mcp-server-fetch` as the command.
+For example, to connect to the [GitHub Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github#npx), enter `npx -y @modelcontextprotocol/server-github` as the full command.
 
     :::tip
     You can also directly edit the resulting config entry (`~/.config/goose/config.yaml`), which would look like this:
@@ -179,11 +179,11 @@ For example, to connect to the [Fetch Server](https://github.com/modelcontextpro
     ```yaml
     extensions:
       fetch:
-        name: fetch
-        cmd: uvx
-        args: [mcp-server-fetch]
+        name: GitHub
+        cmd: npx
+        args: [-y @modelcontextprotocol/server-github]
         enabled: true
-        envs: {}
+        envs: { "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>" }
         type: stdio
     ```
     :::
