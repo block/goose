@@ -43,6 +43,7 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop.yml
     with:
+      version: 1.0.3 # TODO: fix this to be dynamic
       signing: true
     secrets:
       CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}

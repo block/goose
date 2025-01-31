@@ -28,9 +28,9 @@ jobs:
       - name: Generate a canary version
         id: set-version
         run: |
-          # Something like "1.0.0-canary.<short sha>"
+          # TODO: fix this to be dynamic - extract version from repo
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
-          VERSION="1.0.0-canary.${SHORT_SHA}"
+          VERSION="1.0.3-canary.${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
   # ------------------------------------

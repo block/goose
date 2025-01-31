@@ -104,4 +104,5 @@ jobs:
     uses: ./.github/workflows/bundle-desktop.yml
     if: github.event_name == 'pull_request'
     with:
+      version: 1.0.3 # TODO: fix this to be dynamic
       signing: false
