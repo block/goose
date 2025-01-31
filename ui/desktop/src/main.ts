@@ -16,7 +16,7 @@ import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
-import { loadZshEnv } from './utils/loadEnv';
+import { loadShellEnv } from './utils/loadEnv';
 import log from './utils/logger';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import {
@@ -69,7 +69,7 @@ const parseArgs = () => {
 };
 
 const getGooseProvider = () => {
-  loadZshEnv(app.isPackaged);
+  loadShellEnv(app.isPackaged);
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
