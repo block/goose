@@ -14,6 +14,7 @@ use crate::config::ConfigError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
+use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
@@ -137,16 +138,17 @@ impl DatabricksProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!(
-            "{}/serving-endpoints/{}/invocations",
-            self.host.trim_end_matches('/'),
-            self.model.model_name
-        );
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let path = format!("serving-endpoints/{}/invocations", self.model.model_name);
+        let url = base_url.join(&path).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let auth_header = self.ensure_auth_header().await?;
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("Authorization", auth_header)
             .json(&payload)
             .send()

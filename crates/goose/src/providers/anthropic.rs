@@ -58,11 +58,15 @@ impl AnthropicProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!("{}/v1/messages", self.host.trim_end_matches('/'));
+        let base_url = url::Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("v1/messages").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .json(&payload)

@@ -230,6 +230,15 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
+        // Ollama and OpenRouter truncate by default even when the context window is exceeded
+        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+            assert!(
+                result.is_ok(),
+                "Expected to succeed because of default truncation"
+            );
+            return Ok(());
+        }
+
         assert!(
             result.is_err(),
             "Expected error when context window is exceeded"

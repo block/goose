@@ -10,8 +10,10 @@ use mcp_core::tool::Tool;
 use reqwest::Client;
 use serde_json::Value;
 use std::time::Duration;
+use url::Url;
 
-pub const OLLAMA_HOST: &str = "http://localhost:11434";
+pub const OLLAMA_HOST: &str = "localhost";
+pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen2.5";
 // Ollama can run many models, we only provide the default
 pub const OLLAMA_KNOWN_MODELS: &[&str] = &[OLLAMA_DEFAULT_MODEL];
@@ -51,9 +53,28 @@ impl OllamaProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!("{}/v1/chat/completions", self.host.trim_end_matches('/'));
+        // OLLAMA_HOST is sometimes just the 'host' or 'host:port' without a scheme
+        let base = if self.host.starts_with("http://") || self.host.starts_with("https://") {
+            self.host.clone()
+        } else {
+            format!("http://{}", self.host)
+        };
 
-        let response = self.client.post(&url).json(&payload).send().await?;
+        let mut base_url = Url::parse(&base)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        // Set the default port if missing
+        if base_url.port().is_none() {
+            base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
+                ProviderError::RequestFailed("Failed to set default port".to_string())
+            })?;
+        }
+
+        let url = base_url.join("v1/chat/completions").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
+
+        let response = self.client.post(url).json(&payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -99,7 +120,6 @@ impl Provider for OllamaProvider {
             tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
-
         let response = self.post(payload.clone()).await?;
 
         // Parse response
