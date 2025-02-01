@@ -64,8 +64,6 @@ export const startGoosed = async (
   let goosedPath = getBinaryPath(app, 'goosed');
   const port = await findAvailablePort();
 
-  // in case we want it
-  //const isPackaged = app.isPackaged;
   log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}`);
 
   // Define additional environment variables
@@ -106,16 +104,21 @@ export const startGoosed = async (
     cwd: dir,
     env: processEnv,
     stdio: ['ignore', 'pipe', 'pipe'],
-    // On Windows, prevent command prompt window from showing
+    // Hide terminal window on Windows
     windowsHide: true,
-    // Detached on Windows allows the process to run independently
+    // Run detached on Windows only to avoid terminal windows
     detached: isWindows,
-    // On Windows, we don't use shell to avoid path issues
+    // Never use shell to avoid terminal windows
     shell: false,
   };
 
   // Spawn the goosed process
   const goosedProcess = spawn(goosedPath, ['agent'], spawnOptions);
+
+  // Only unref on Windows to allow it to run independently of the parent
+  if (isWindows) {
+    goosedProcess.unref();
+  }
 
   goosedProcess.stdout.on('data', (data) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
