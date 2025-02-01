@@ -31,9 +31,7 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let sdk_config = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(aws_config::from_env().load())
-        });
+        let sdk_config = futures::executor::block_on(aws_config::load_from_env());
         let client = Client::new(&sdk_config);
 
         Ok(Self { client, model })
