@@ -8,9 +8,8 @@ use chrono::Utc;
 use mcp_core::{Content, Role, Tool, ToolCall, ToolError, ToolResult};
 use serde_json::Value;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use crate::config::Config;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 
@@ -32,15 +31,8 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
         let sdk_config = tokio::task::block_in_place(|| {
-            let mut aws_config = aws_config::from_env();
-
-            if let Ok(region) = config.get::<String>("AWS_REGION") {
-                aws_config = aws_config.region(aws_config::Region::new(region));
-            }
-
-            tokio::runtime::Handle::current().block_on(aws_config.load())
+            tokio::runtime::Handle::current().block_on(aws_config::from_env().load())
         });
         let client = Client::new(&sdk_config);
 
@@ -58,7 +50,7 @@ impl Provider for BedrockProvider {
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
             BEDROCK_DOC_LINK,
-            vec![ConfigKey::new("AWS_REGION", false, false, None)],
+            vec![],
         )
     }
 
