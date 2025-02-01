@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
+use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use aws_smithy_types::{Document, Number};
 use chrono::Utc;
@@ -75,21 +76,52 @@ impl Provider for BedrockProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let response = self
+        let mut request = self
             .client
             .converse()
-            .tool_config(to_bedrock_tool_config(tools)?)
-            .model_id(model_name.to_string())
             .system(bedrock::SystemContentBlock::Text(system.to_string()))
+            .model_id(model_name.to_string())
             .set_messages(Some(
                 messages
                     .iter()
                     .map(to_bedrock_message)
                     .collect::<Result<_>>()?,
-            ))
-            .send()
-            .await
-            .map_err(|err| anyhow!("Failed to call Bedrock: {}", err))?;
+            ));
+
+        if !tools.is_empty() {
+            request = request.tool_config(to_bedrock_tool_config(tools)?);
+        }
+
+        let response = request.send().await;
+
+        let response = match response {
+            Ok(response) => response,
+            Err(err) => {
+                return Err(match err.into_service_error() {
+                    ConverseError::AccessDeniedException(err) => {
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {}", err))
+                    }
+                    ConverseError::ThrottlingException(err) => {
+                        ProviderError::RateLimitExceeded(format!("Failed to call Bedrock: {}", err))
+                    }
+                    ConverseError::ValidationException(err)
+                        if err
+                            .message()
+                            .unwrap_or_default()
+                            .contains("Input is too long for requested model.") =>
+                    {
+                        ProviderError::ContextLengthExceeded(format!(
+                            "Failed to call Bedrock: {}",
+                            err
+                        ))
+                    }
+                    ConverseError::ModelErrorException(err) => {
+                        ProviderError::ExecutionError(format!("Failed to call Bedrock: {}", err))
+                    }
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {}", err,)),
+                });
+            }
+        };
 
         let message = match response.output {
             Some(bedrock::ConverseOutput::Message(message)) => message,
