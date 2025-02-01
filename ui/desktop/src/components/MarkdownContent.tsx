@@ -6,6 +6,10 @@ import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Check, Copy } from './icons';
 import { visit } from 'unist-util-visit';
 
+const UrlTransform = {
+  a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+};
+
 function rehypeinlineCodeProperty() {
   return function (tree) {
     if (!tree) return;
@@ -84,6 +88,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
           prose-code:break-all prose-code:whitespace-pre-wrap
           ${className}`}
         components={{
+          ...UrlTransform,
           code({ node, className, children, inlinecode, ...props }) {
             const match = /language-(\w+)/.exec(className || 'language-text');
             return inlinecode == 'false' && match ? (
