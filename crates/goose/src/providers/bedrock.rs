@@ -40,6 +40,13 @@ impl BedrockProvider {
     }
 }
 
+impl Default for BedrockProvider {
+    fn default() -> Self {
+        let model = ModelConfig::new(BedrockProvider::metadata().default_model);
+        BedrockProvider::from_env(model).expect("Failed to initialize Bedrock provider")
+    }
+}
+
 #[async_trait]
 impl Provider for BedrockProvider {
     fn metadata() -> ProviderMetadata {
