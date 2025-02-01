@@ -36,7 +36,7 @@ impl BedrockProvider {
         let sdk_config = tokio::task::block_in_place(|| {
             let mut aws_config = aws_config::from_env();
 
-            if let Some(region) = config.get::<String>("AWS_REGION").ok() {
+            if let Ok(region) = config.get::<String>("AWS_REGION") {
                 aws_config = aws_config.region(aws_config::Region::new(region));
             }
 
@@ -92,7 +92,7 @@ impl Provider for BedrockProvider {
             ))
             .send()
             .await
-            .or_else(|err| Err(anyhow!("Failed to call Bedrock: {}", err)))?;
+            .map_err(|err| anyhow!("Failed to call Bedrock: {}", err))?;
 
         let message = match response.output {
             Some(bedrock::ConverseOutput::Message(message)) => message,
@@ -138,7 +138,7 @@ fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::Conte
         }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
-            let tool_use = if let Some(call) = tool_req.tool_call.as_ref().ok() {
+            let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
                     .name(call.name.to_string())
@@ -229,7 +229,7 @@ fn to_bedrock_json(value: &Value) -> Document {
             }
         }
         Value::String(str) => Document::String(str.to_string()),
-        Value::Array(arr) => Document::Array(arr.into_iter().map(to_bedrock_json).collect()),
+        Value::Array(arr) => Document::Array(arr.iter().map(to_bedrock_json).collect()),
         Value::Object(obj) => Document::Object(HashMap::from_iter(
             obj.into_iter()
                 .map(|(key, val)| (key.to_string(), to_bedrock_json(val))),
