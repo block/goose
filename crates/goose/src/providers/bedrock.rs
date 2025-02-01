@@ -260,7 +260,7 @@ fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<MessageCo
             tool_use.tool_use_id.to_string(),
             Ok(ToolCall::new(
                 tool_use.name.to_string(),
-                from_bedrock_json(&tool_use.input),
+                from_bedrock_json(&tool_use.input)?,
             )),
         ),
         bedrock::ContentBlock::ToolResult(tool_res) => MessageContent::tool_response(
@@ -310,23 +310,25 @@ fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
     }
 }
 
-fn from_bedrock_json(document: &Document) -> Value {
-    match document {
+fn from_bedrock_json(document: &Document) -> Result<Value> {
+    Ok(match document {
         Document::Null => Value::Null,
         Document::Bool(bool) => Value::Bool(*bool),
         Document::Number(num) => match num {
             Number::PosInt(i) => Value::Number((*i).into()),
             Number::NegInt(i) => Value::Number((*i).into()),
-            Number::Float(f) => {
-                Value::Number(serde_json::Number::from_f64(*f).expect("Expected a valid f64"))
-            }
+            Number::Float(f) => Value::Number(
+                serde_json::Number::from_f64(*f).ok_or(anyhow!("Expected a valid float"))?,
+            ),
         },
         Document::String(str) => Value::String(str.clone()),
-        Document::Array(arr) => Value::Array(arr.iter().map(from_bedrock_json).collect()),
+        Document::Array(arr) => {
+            Value::Array(arr.iter().map(from_bedrock_json).collect::<Result<_>>()?)
+        }
         Document::Object(obj) => Value::Object(
             obj.iter()
-                .map(|(key, val)| (key.clone(), from_bedrock_json(val)))
-                .collect(),
+                .map(|(key, val)| Ok((key.clone(), from_bedrock_json(val)?)))
+                .collect::<Result<_>>()?,
         ),
-    }
+    })
 }
