@@ -19,7 +19,7 @@ npx -y @modelcontextprotocol/server-github
 
 **Environment Variable**
 ```
-"GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
 ```
 :::
 
@@ -149,12 +149,12 @@ When creating my [GitHub Personal Access Token](https://github.com/settings/pers
 * Read access to metadata
 * Read and Write access to code, commit status, issues, and pull requests
 
-**Goose Prompt**
+### Goose Prompt
 ```
 create a new branch called hello-world in my angiejones/goose-demo repository. Update the README.md file to say "this was written by goose" and commit it. Open a pull request with your changes.
 ```
 
-**Output**
+### Goose Output
 
 ```
 I'll help you create a new branch, update the README, and open a pull request. Let me break this down into steps:
