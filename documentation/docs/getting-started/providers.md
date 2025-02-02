@@ -70,7 +70,7 @@ To configure your chosen provider or see available options, run `goose configure
    │  ○ OpenRouter 
    └  
    ```
-   4. Enter you API key (and any other configuration details) when prompted
+   4. Enter your API key (and any other configuration details) when prompted
 
    ```
    ┌   goose-configure 

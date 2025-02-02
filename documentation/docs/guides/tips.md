@@ -8,7 +8,7 @@ Here is a collection of tips for working with Goose:
 Use a git strategy to avoid losing anything - such as staging your personal edits and leaving Goose edits unstaged until reviewed. Consider using individual commits which can be reverted. See more on [File Management](/docs/guides/file-management).
 
 ### Goose can and will run commands
-Goose will check commands for satefy, however, you can also ask Goose to check with you before running commands if you are concerned.
+Goose will check commands for safety, however, you can also ask Goose to check with you before running commands if you are concerned.
 
 ### You can interrupt Goose with `CTRL+C`
 Use this command to stop Goose in the event that you need to correct it or give it more info.

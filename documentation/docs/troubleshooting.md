@@ -32,13 +32,13 @@ For particularly large or complex tasks, consider breaking them into smaller ses
 
 ### Context Length Exceeded Error
 
-This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
+This error occurs when the input provided to Goose exceeds the maximum token limit of the LLM being used. To resolve this, try breaking down your input into smaller parts. You can also use `.goosehints` as a way to provide goose with detailed context. Refer to the [Using Goosehints Guide][goosehints] for more information.
 
 ---
 
 ### Using Ollama Provider
 
-Ollama provides local LLMs, which means you must first [download Ollama and run a model](/docs/getting-started/providers#local-llms-ollama) before attempting to use this provider with Goose. If you do not have the model downloaded, you'll run into the follow error:
+Ollama provides local LLMs, which means you must first [download Ollama and run a model](/docs/getting-started/providers#local-llms-ollama) before attempting to use this provider with Goose. If you do not have the model downloaded, you'll run into the following error:
 
 > ExecutionError("error sending request for url (http://localhost:11434/v1/chat/completions)")
 
@@ -108,7 +108,7 @@ You can remove all of this data by following these steps.
   * consider confirming you've stopped them all via the activity monitor
 * open the keychain and delete the credential called "goose", which contains all secrets stored by goose
 * `rm -rf ~/.config/goose`
-* For the App on macos, `rm -rf ~/Library/Application Support/Goose`
+* For the App on macOS, `rm -rf ~/Library/Application Support/Goose`
 * Delete the "Goose" app from your Applications folder
 
 After this cleanup, if you are looking to try out a fresh install of Goose, you can now start from the usual
