@@ -10,9 +10,11 @@ Goose, an open source AI Agent, builds upon the basic interaction framework of L
 ## Goose Components
 Goose operates using three main components, the **interface**, the **agent**, and the **connected [extensions](/docs/getting-started/using-extensions)**.
 
-1. **Interface**: This is the desktop application or CLI that the user is using to run Goose. It collects input from the user and displays outputs to the user
-2. **Agent**: The agent runs Goose's core logic, managing the interactive loop. 
-3. **Extensions**: Extensions are components that provide specific tools and capabilities for the agent to use. These tools enable Goose to perform actions such as running commands and managing files.
+* **Interface**: This is the desktop application or CLI that the user is using to run Goose. It collects input from the user and displays outputs to the user
+
+* **Agent**: The agent runs Goose's core logic, managing the interactive loop. 
+
+* **Extensions**: Extensions are components that provide specific tools and capabilities for the agent to use. These tools enable Goose to perform actions such as running commands and managing files.
 
 In a typical session, the interface spins up an instance of the agent, which then connects to one or more extensions simultaneously. The interface can also create multiple agents to handle different tasks concurrently. Extensions and the interactive loop are important parts of Goose's functionality. The next sections will explain how Goose connects to extensions and processes user requests.
 
@@ -32,23 +34,17 @@ To learn more about the design and implementation of extensions and tools, refer
 
 Let's take a closer look at the interactive loop shown above.  
 
-1. **Human Request** 
-The process begins and ends with you. Once you give Goose a request, question, command, or problem to solve, the flow begins.
+1. **Human Request**: The process begins and ends with you. Once you give Goose a request, question, command, or problem to solve, the flow begins.
 
-2. **Provider Chat** 
-Goose sends your request along with a list of available tools to the [LLM provider](/docs/getting-started/providers) you've connected. The provider processes it, and if necessary, creates a tool call as part of its response.  
+2. **Provider Chat**: Goose sends your request along with a list of available tools to the [LLM provider](/docs/getting-started/providers) you've connected. The provider processes it, and if necessary, creates a tool call as part of its response.  
 
-3. **Model Extension Call** 
-The LLM is capable of creating a tool call request but not able to execute it, that's when Goose steps in. Goose takes the tool call which is formatted in JSON, runs it, and gathers the results.
+3. **Model Extension Call**: The LLM is capable of creating a tool call request but not able to execute it, that's when Goose steps in. Goose takes the tool call which is formatted in JSON, runs it, and gathers the results.
 
-4. **Response to Model**
-After executing the tool call, Goose sends the results back to the model. If more extensions are needed, those steps will repeat.
+4. **Response to Model**: After executing the tool call, Goose sends the results back to the model. If more extensions are needed, those steps will repeat.
 
-5. **Context Revision** 
-Goose will remove any old or irrelevant information, ensuring the LLM focuses solely on the information that matters the most. This helps with token management.  
+5. **Context Revision**: Goose will remove any old or irrelevant information, ensuring the LLM focuses solely on the information that matters the most. This helps with token management.  
 
-6. **Model Response** 
-Once all the tool calls are done, the LLM sends a final response back to you and restarts the loop once you respond.
+6. **Model Response**: Once all the tool calls are done, the LLM sends a final response back to you and restarts the loop once you respond.
 
 ## Error Handling in Goose
 

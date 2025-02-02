@@ -86,7 +86,10 @@ to use the MCP servers included with Goose with any other agent, you are free to
 
 ## Discovering Extensions
 
-Goose provides a [central directory][extensions-directory] of extensions that you can install and use. The page will give you a test command to try out extensions before installing them. 
+Goose provides a [central directory][extensions-directory] of extensions that you can install and use. 
+
+You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even if it's not listed in our directory.
+
 
 ## Adding Extensions
 
@@ -96,22 +99,33 @@ Extensions can be installed directly via the [extensions directory][extensions-d
 For advanced users, you can also edit the `~/.config/goose/config.yaml` file directly to add an extension. 
 :::
 
+### MCP Servers
+
+You can install any MCP server as a Goose extension. 
+
+:::tip MCP Server Directory
+See available servers in the **[MCP Server Directory](https://github.com/modelcontextprotocol/servers?tab=readme-ov-file#model-context-protocol-servers)**.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
   
   1. Run the following command: 
 
-    ```
+    ```sh
     goose configure
     ```
+
   2. Select `Add Extension` from the menu.
+
   3. Choose the type of extension you’d like to add:
       - `Built-In Extension`: Use an extension that comes pre-installed with Goose.
       - `Command-Line Extension`: Add a local command or script to run as an extension.
       - `Remote Extension`: Connect to a remote system via SSE (Server-Sent Events).
+
   4. Follow the prompts based on the type of extension you selected.
 
-  Example of adding Command-Line Extension:
+  #### Example of adding the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch):
 
   ```
   ┌   goose-configure 
@@ -139,55 +153,37 @@ For advanced users, you can also edit the `~/.config/goose/config.yaml` file dir
  
   1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Settings` from the menu.
-  3. Under `Extensions`, you can toggle the built-in extensions on or off.
-
-  ![Install Extension](../assets/guides/install-extension-ui.png)
+  3. Under `Extensions`, click `Add` link.
+  4. On the `Add Extension Manually` modal, enter the necessary details and click `Add` button
+  5. Click `Add Extension` button
+  
+  #### Example of adding the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch):
+    * **Type**: `Standard IO`
+    * **ID**: `fetch` (_set this to whatever you want_)
+    * **Name**: `fetch` (_set this to whatever you want_)
+    * **Description**: `Fetch MCP Server` (_set this to whatever you want_)
+    * **Command**: `uvx mcp-server-fetch`
   </TabItem>
 </Tabs>
 
-### MCP Servers
+  :::tip Tutorials
+  Check out our [tutorials](/docs/category/tutorials) with step-by-step instructions on adding MCP Servers.
+  :::
 
-You can install [any MCP server](https://github.com/modelcontextprotocol/servers?tab=readme-ov-file#model-context-protocol-servers) as a Goose extension. 
+### Config Entry
+For advanced users, you can also directly edit the config file (`~/.config/goose/config.yaml`) to add, remove, or update an extension:
 
-<Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
-
-    1. Run 
-    ```sh
-    goose configure
-    ```
-    2. Choose `Add Extension`
-    3. Choose `Command-line Extension`
-
-    You'll then be prompted to enter a command and any environment variables needed. 
-
-  </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
-
-  1. Click `...` in the top right corner of the Goose Desktop.
-  2. Select `Settings` from the menu.
-  3. Under `Extensions`, you can add a MCP server as an extension manually by clicking on the (+) button to the right.
-  4. In the dialog that appears, enter the details of the MCP server including any environment variables needed.
-  </TabItem>
-</Tabs>
-
-For example, to connect to the [GitHub Server](https://github.com/modelcontextprotocol/servers/tree/main/src/github#npx), enter `npx -y @modelcontextprotocol/server-github` as the full command.
-
-    :::tip
-    You can also directly edit the resulting config entry (`~/.config/goose/config.yaml`), which would look like this:
-
-    ```yaml
-    extensions:
-      fetch:
-        name: GitHub
-        cmd: npx
-        args: [-y @modelcontextprotocol/server-github]
-        enabled: true
-        envs: { "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>" }
-        type: stdio
-    ```
-    :::
-
+```yaml
+extensions:
+  fetch:
+    name: GitHub
+    cmd: npx
+    args: [-y @modelcontextprotocol/server-github]
+    enabled: true
+    envs: { "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>" }
+    type: stdio
+```
+    
 
 ## Enabling/Disabling Extensions
 
@@ -258,7 +254,7 @@ You can start a tailored goose session with specific extensions directly from th
 goose session --with-extension "{extension command}"
 ```
 
-:::note
+:::info
 You may need to set necessary environment variables for the extension to work correctly.
 ```bash
 goose session --with-extension "VAR=value command arg1 arg2"

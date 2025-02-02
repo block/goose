@@ -7,7 +7,7 @@ import TabItem from '@theme/TabItem';
 
 # Managing Goose Sessions
 
-A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, save, and resume. 
+A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
 
 
 ## Start Session 
@@ -26,6 +26,10 @@ A session is a single, continuous interaction between you and Goose, providing a
 
     </TabItem>
 </Tabs>
+
+:::info
+If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/getting-started/installation#set-llm-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
+:::
 
 ## Name Session
 <Tabs>
@@ -47,9 +51,6 @@ A session is a single, continuous interaction between you and Goose, providing a
         Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
     </TabItem>
 </Tabs>
-:::info
-    If this is your first session, Goose will prompt you for an API key to access an LLM (Large Language Model) of your choice. For more information on setting up your API key, see the [Installation Guide](/docs/getting-started/installation#set-llm-provider). Here is the list of [supported LLMs](/docs/getting-started/providers).
-:::
 
 ## Exit Session
 
