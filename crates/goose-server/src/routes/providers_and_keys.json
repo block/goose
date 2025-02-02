@@ -46,5 +46,11 @@
         "description": "Connect to Azure OpenAI Service",
         "models": ["gpt-4o", "gpt-4o-mini"],
         "required_keys": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]
+    },
+    "kluster": {
+        "name": "Kluster",
+        "description": "Connect to Kluster",
+        "models": ["deepseek-ai/DeepSeek-R1", "klusterai/Meta-Llama-3.1-405B-Instruct-Turbo"],
+        "required_keys": ["KLUSTER_API_KEY"]
     }
 }

@@ -51,6 +51,11 @@ export GOOSE_PROVIDER__HOST=https://openrouter.ai
 export GOOSE_PROVIDER__MODEL=anthropic/claude-3.5-sonnet
 export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
 
+const KLUSTER_CONFIG = `export GOOSE_PROVIDER__TYPE=kluster
+export GOOSE_PROVIDER__HOST=https://api.kluster.ai
+export GOOSE_PROVIDER__MODEL=klusterai/Meta-Llama-3.1-405B-Instruct-Turbo
+export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
+
 export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
   return (
     <Card
@@ -80,6 +85,10 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
 
           <Collapsible title="OpenRouter Configuration">
             <pre className="bg-gray-50 p-4 rounded-md text-sm">{OPENROUTER_CONFIG}</pre>
+          </Collapsible>
+
+          <Collapsible title="Kluster Configuration">
+            <pre className="bg-gray-50 p-4 rounded-md text-sm">{KLUSTER_CONFIG}</pre>
           </Collapsible>
         </div>
         <p className="text-gray-600 mt-4">

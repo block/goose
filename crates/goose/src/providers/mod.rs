@@ -10,6 +10,7 @@ pub mod groq;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
+pub mod kluster;
 pub mod openrouter;
 pub mod utils;
 

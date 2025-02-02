@@ -18,6 +18,7 @@ export const goose_models: Model[] = [
   { id: 16, name: 'qwen2.5', provider: 'Ollama' },
   { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 18, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 19, name: 'klusterai/Meta-Llama-3.1-405B-Instruct-Turbo', provider: 'Kluster' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -45,6 +46,11 @@ export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
 export const azure_openai_models = ['gpt-4o'];
 
+export const kluster_models = [
+  'deepseek-ai/DeepSeek-R1',
+  'klusterai/Meta-Llama-3.1-405B-Instruct-Turbo',
+];
+
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -54,6 +60,7 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
+  kluster: 'deepseek-ai/DeepSeek-R1',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -71,6 +78,7 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
+  Kluster: ['KLUSTER_API_KEY'],
 };
 
 export const supported_providers = [
@@ -82,6 +90,7 @@ export const supported_providers = [
   'Ollama',
   'OpenRouter',
   'Azure OpenAI',
+  'Kluster',
 ];
 
 export const model_docs_link = [
@@ -95,6 +104,7 @@ export const model_docs_link = [
   },
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
+  { name: 'Kluster', href: 'https://docs.kluster.ai' },
 ];
 
 export const provider_aliases = [
@@ -106,4 +116,5 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
+  { provider: 'Kluster', alias: 'kluster' },
 ];
