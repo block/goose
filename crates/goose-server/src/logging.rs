@@ -12,7 +12,12 @@ use goose::tracing::langfuse_layer;
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE").context("USERPROFILE environment variable not set")?
+    } else {
+        std::env::var("HOME").context("HOME environment variable not set")?
+    };
+
     let base_log_dir = PathBuf::from(home)
         .join(".config")
         .join("goose")
