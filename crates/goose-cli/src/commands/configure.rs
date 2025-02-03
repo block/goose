@@ -132,7 +132,11 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Enable or disable connected extensions",
             )
             .item("add", "Add Extension", "Connect to a new extension")
-            .item("tool_output", "Adjust Tool Output", "Show more or less tool output")
+            .item(
+                "tool_output",
+                "Adjust Tool Output",
+                "Show more or less tool output",
+            )
             .interact()?;
 
         match action {
@@ -551,21 +555,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
     let tool_log_level = cliclack::select("Which tool output would you like to show?")
-        .item(
-            "high",
-            "High Importance",
-            "",
-        )
-        .item(
-            "medium",
-            "Medium Importance",
-            "Ex. results of file-writes",
-        )
-        .item(
-            "all",
-            "All",
-            "Ex. shell command output",
-        )
+        .item("high", "High Importance", "")
+        .item("medium", "Medium Importance", "Ex. results of file-writes")
+        .item("all", "All", "Ex. shell command output")
         .interact()?;
 
     match tool_log_level {

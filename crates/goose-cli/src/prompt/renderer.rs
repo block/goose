@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
+use super::Theme;
 use bat::WrappingMode;
 use console::style;
+use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use mcp_core::role::Role;
 use mcp_core::{content::Content, tool::ToolCall};
 use serde_json::Value;
-use goose::config::Config;
-use super::Theme;
 
 const MAX_STRING_LENGTH: usize = 40;
 const MAX_PATH_LENGTH: usize = 60;
@@ -278,7 +278,8 @@ pub fn default_response_renderer(tool_response: &ToolResponse, theme: &str) {
                     continue;
                 }
 
-                let min_priority = config.get::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                let min_priority = config
+                    .get::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
                     .unwrap_or(0.0);
 
