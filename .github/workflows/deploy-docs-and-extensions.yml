@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  
+  pull_request:
+    paths:
+      - 'documentation/**'
+      - 'extensions-site/**'
 
 jobs:
   deploy:
@@ -18,6 +23,14 @@ jobs:
         with:
           node-version: 20 
 
+      - name: Cache Node.js modules (documentation)
+        uses: actions/cache@v3
+        with:
+          path: ./documentation/node_modules
+          key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-documentation-
+
       - name: Install dependencies and build docs
         working-directory: ./documentation
         env:
@@ -27,6 +40,14 @@ jobs:
         run: |
           npm install
           npm run build
+
+      - name: Cache Node.js modules (extensions-site)
+        uses: actions/cache@v3
+        with:
+          path: ./extensions-site/node_modules
+          key: ${{ runner.os }}-extensions-${{ hashFiles('./extensions-site/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-extensions-
 
       - name: Install dependencies and build extensions-site
         working-directory: ./extensions-site
@@ -44,9 +65,8 @@ jobs:
           cp -r extensions-site/build/client/* combined-build/v1/extensions/
 
       - name: Deploy to /gh-pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: combined-build
-          destination_dir: . # Deploy the site to the root /goose directory
-      
