@@ -38,7 +38,7 @@
     "lmstudio": {
       "name": "LM Studio",
       "description": "Lorem ipsum",
-      "models": ["qwen2.5"],
+      "models": ["llama-3.2-3b-instruct"],
       "required_keys": ["LMSTUDIO_HOST"]
     },
     "openrouter": {
