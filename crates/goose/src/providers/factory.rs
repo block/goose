@@ -35,7 +35,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send 
         "databricks" => Ok(Box::new(DatabricksProvider::from_env(model)?)),
         "groq" => Ok(Box::new(GroqProvider::from_env(model)?)),
         "ollama" => Ok(Box::new(OllamaProvider::from_env(model)?)),
-        "llm_studio" => Ok(Box::new(LmStudioProvider::from_env(model)?)),
+        "lmstudio" => Ok(Box::new(LmStudioProvider::from_env(model)?)),
         "openrouter" => Ok(Box::new(OpenRouterProvider::from_env(model)?)),
         "google" => Ok(Box::new(GoogleProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
