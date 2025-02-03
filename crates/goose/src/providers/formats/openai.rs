@@ -266,7 +266,10 @@ pub fn create_request(
     let is_o3 = model_config.model_name.starts_with("o3");
 
     let system_message = json!({
-        "role": if is_o1 { "developer" } else { "system" },
+        // NOTE: per OPENAI docs , With O1 and newer models, `developer`
+        // should replace `system` role .
+        // https://platform.openai.com/docs/api-reference/chat/create
+        "role": if is_o1 || is_o3{ "developer" } else { "system" },
         "content": system
     });
 
@@ -312,6 +315,26 @@ pub fn create_request(
             .as_object_mut()
             .unwrap()
             .insert(key.to_string(), json!(tokens));
+    }
+    // NOTE: add resoning effort if present
+    // e.g if the user chooses `o3-mini-high` as their model name
+    // then it will set `reasoning_effort` to `high`.
+    // Defaults to medium per openai docs
+    // https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort
+    if is_o1 || is_o3 {
+        let mut reasoning_effort = "medium";
+        // Extract the last part of model name using '-' as delimiter
+        if let Some(last_part) = model_config.model_name.split('-').last() {
+            // Check if it's a valid reasoning effort value
+            match last_part {
+                "low" | "medium" | "high" => reasoning_effort = last_part,
+                _ => {} // Keep default "medium" if not a valid value
+            }
+        }
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("reasoning_effort".to_string(), json!(reasoning_effort));
     }
     Ok(payload)
 }
@@ -578,6 +601,121 @@ mod tests {
         } else {
             panic!("Expected ToolRequest content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_o3_reasoning_effort() -> anyhow::Result<()> {
+        // Test default medium reasoning effort for O3 model
+        let model_config = ModelConfig {
+            model_name: "o3-mini".to_string(),
+            tokenizer_name: "o3-mini".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
+        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
+        assert!(obj.get("max_tokens").is_none());
+
+        // Test custom reasoning effort for O3 model with valid suffix
+        let model_config = ModelConfig {
+            model_name: "o3-mini-high".to_string(),
+            tokenizer_name: "o3-mini".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert_eq!(obj.get("reasoning_effort").unwrap(), "high");
+        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
+        assert!(obj.get("max_tokens").is_none());
+
+        // Test invalid reasoning effort defaults to medium
+        let model_config = ModelConfig {
+            model_name: "o3-mini-invalid".to_string(),
+            tokenizer_name: "o3-mini".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
+        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
+        assert!(obj.get("max_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_o1_reasoning_effort() -> anyhow::Result<()> {
+        // Test default medium reasoning effort for O1 model
+        let model_config = ModelConfig {
+            model_name: "o1".to_string(),
+            tokenizer_name: "o1".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
+        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
+        assert!(obj.get("max_tokens").is_none());
+
+        // Test custom reasoning effort for O1 model with valid suffix
+        let model_config = ModelConfig {
+            model_name: "o1-low".to_string(),
+            tokenizer_name: "o1".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert_eq!(obj.get("reasoning_effort").unwrap(), "low");
+        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
+        assert!(obj.get("max_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_o1_mini_not_supported() -> anyhow::Result<()> {
+        // Test o1-mini is not supported
+        let model_config = ModelConfig {
+            model_name: "o1-mini".to_string(),
+            tokenizer_name: "o1-mini".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+        };
+        let result = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("o1-mini model is not currently supported"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_non_o_family() -> anyhow::Result<()> {
+        // Test non-O1/O3 model has no reasoning effort and uses max_tokens
+        let model_config = ModelConfig {
+            model_name: "gpt-4".to_string(),
+            tokenizer_name: "gpt-4".to_string(),
+            context_limit: Some(4096),
+            temperature: Some(0.7),
+            max_tokens: Some(1024),
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        assert!(obj.get("reasoning_effort").is_none());
+        assert!(obj.get("max_completion_tokens").is_none());
+        assert_eq!(obj.get("max_tokens").unwrap(), 1024);
 
         Ok(())
     }
