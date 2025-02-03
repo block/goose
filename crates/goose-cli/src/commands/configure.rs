@@ -242,7 +242,6 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             let mut input = cliclack::input(format!(
                                 "Provider {} requires {}, please enter a value",
                                 provider_meta.display_name, key.name
-
                             ));
                             if key.default.is_some() {
                                 input = input.default_input(&key.default.clone().unwrap());
