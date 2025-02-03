@@ -93,7 +93,7 @@ To configure your chosen provider or see available options, run `goose configure
   3. Next to `Models`, click the `browse` link
   4. Click the `configure` link in the upper right corner
   4. Press the `+` button next to the provider of your choice
-  5. Add your API key then press `submit`
+  5. Add additional configurations (API key, host, etc) then press `submit`
 
   **To add/change provider model**
   1. Click `...` in the upper right corner
@@ -103,7 +103,7 @@ To configure your chosen provider or see available options, run `goose configure
   5. Select a Provider from drop down menu
   6. Enter Model name and press `+ Add Model`
 
-  You can also browse more models by selecting the Model name under `Browse by Provider`
+  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider’s website. Once you've found the model you want, return to step 6 and paste the model name.
   </TabItem>
 
 </Tabs>
