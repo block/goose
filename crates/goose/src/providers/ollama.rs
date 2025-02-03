@@ -65,7 +65,8 @@ impl OllamaProvider {
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
         // Set the default port if missing
-        if base_url.port().is_none() {
+        let explicit_default_port = self.host.ends_with(":80") || self.host.ends_with(":443");
+        if base_url.port().is_none() && !explicit_default_port {
             base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
                 ProviderError::RequestFailed("Failed to set default port".to_string())
             })?;
