@@ -55,6 +55,15 @@ ensure-main:
         exit 1; \
     fi
 
+    # check that main is up to date with upstream main
+    git fetch
+    # @{u} refers to upstream branch of current branch
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse @{u})" ]; then \
+        echo "Error: Your branch is not up to date with the upstream main branch"; \
+        echo "  ensure your branch is up to date (git pull)"; \
+        exit 1; \
+    fi
+
 # validate the version is semver, and not the current version
 validate version:
     #!/usr/bin/env bash
@@ -89,12 +98,12 @@ get-tag-version:
 
 # create the git tag from Cargo.toml, must be on main
 tag: ensure-main
-    echo git tag v$(just get-tag-version)
+    git tag v$(just get-tag-version)
 
 # create tag and push to origin (use this when release branch is merged to main)
 tag-push: tag
     # this will kick of ci for release
-    echo git push origin tag v$(just get-tag-version)
+    git push origin tag v$(just get-tag-version)
 
 # generate release notes from git commits
 release-notes:
