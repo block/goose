@@ -7,10 +7,10 @@ mod factory;
 pub mod formats;
 pub mod google;
 pub mod groq;
+pub mod kluster;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
-pub mod kluster;
 pub mod openrouter;
 pub mod utils;
 

@@ -5,10 +5,10 @@ use super::{
     databricks::DatabricksProvider,
     google::GoogleProvider,
     groq::GroqProvider,
+    kluster::KlusterProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
-    kluster::KlusterProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
