@@ -132,11 +132,15 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Enable or disable connected extensions",
             )
             .item("add", "Add Extension", "Connect to a new extension")
+            .item("remove", "Remove Extension", "Remove existing extensions from the configuration")
+            .item("list_configured_extensions", "List Configured Extensions", "List all configured extensions")
             .interact()?;
 
         match action {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
+            "remove" => remove_extensions_dialog(),
+            "list_configured_extensions" => list_configured_extensions(),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -543,5 +547,75 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         _ => unreachable!(),
     };
 
+    Ok(())
+}
+
+pub fn list_configured_extensions() -> Result<(), Box<dyn Error>> {
+    let extensions = ExtensionManager::get_all()?;
+
+    if extensions.is_empty() {
+        cliclack::outro(
+            "No extensions configured yet. Run configure and add some extensions first.",
+        )?;
+        return Ok(());
+    }
+
+    // Create a list of configured extension names and their statuses
+    let configured_extensions: Vec<(String, bool)> = extensions
+        .iter()
+        .map(|entry| {
+            let name = entry.config.name().to_string();
+            let is_enabled = entry.enabled; // Assuming there's a method to check if the extension is enabled
+            (name, is_enabled)
+        })
+        .collect();
+
+    // Display the list of currently configured extensions
+    cliclack::outro("Currently configured extensions:")?;
+    for (name, is_enabled) in &configured_extensions {
+        let status = if *is_enabled { "[Enabled]" } else { "[Disabled]" };
+        cliclack::outro(format!("{} - {}", status, name))?;
+    }
+    cliclack::outro("")?;
+
+    Ok(())
+}
+
+pub fn remove_extensions_dialog() -> Result<(), Box<dyn Error>> {
+    list_configured_extensions()?;
+
+    // Retrieve the extensions again to get their current status
+    let extensions = ExtensionManager::get_all()?;
+
+    // Create a list of configured extension names
+    let configured_extensions: Vec<String> = extensions
+        .iter()
+        .map(|entry| entry.config.name().to_string())
+        .collect();
+
+    if configured_extensions.is_empty() {
+        cliclack::outro("No extensions are currently configured.")?;
+        return Ok(());
+    }
+
+    // Let the user select extensions to remove
+    let selected_to_remove = cliclack::multiselect(
+        "Select extensions to remove (use \"space\" to select and \"enter\" to submit):",
+    )
+        .required(false)
+        .items(
+            &configured_extensions
+                .iter()
+                .map(|name| (name, name.as_str(), ""))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    // Remove extension from configuration
+    for name in selected_to_remove {
+        ExtensionManager::remove(name)?;
+    }
+
+    cliclack::outro("Selected extensions have been removed successfully.")?;
     Ok(())
 }
