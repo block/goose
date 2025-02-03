@@ -277,8 +277,8 @@ mod tests {
     async fn test_truncate_agent_with_lm_studio() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::LmStudio,
-            model: "llama3.2",
-            context_window: 128_000,
+            model: "llama-3.2-3b-instruct",
+            context_window: 9_000,
         })
         .await
     }
