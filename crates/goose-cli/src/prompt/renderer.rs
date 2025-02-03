@@ -8,7 +8,7 @@ use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use mcp_core::role::Role;
 use mcp_core::{content::Content, tool::ToolCall};
 use serde_json::Value;
-
+use goose::config::Config;
 use super::Theme;
 
 const MAX_STRING_LENGTH: usize = 40;
@@ -267,6 +267,7 @@ pub fn render(message: &Message, theme: &Theme, renderers: HashMap<String, Box<d
 }
 
 pub fn default_response_renderer(tool_response: &ToolResponse, theme: &str) {
+    let config = Config::global();
     match &tool_response.tool_result {
         Ok(contents) => {
             for content in contents {
@@ -277,15 +278,14 @@ pub fn default_response_renderer(tool_response: &ToolResponse, theme: &str) {
                     continue;
                 }
 
-                let min_priority = std::env::var("GOOSE_CLI_MIN_PRIORITY")
+                let min_priority = config.get::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
-                    .and_then(|val| val.parse::<f32>().ok())
                     .unwrap_or(0.0);
 
                 // if priority is not set OR less than or equal to min_priority, do not render
                 if content
                     .priority()
-                    .is_some_and(|priority| priority <= min_priority)
+                    .is_some_and(|priority| priority < min_priority)
                     || content.priority().is_none()
                 {
                     continue;
