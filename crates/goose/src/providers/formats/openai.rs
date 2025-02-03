@@ -1,20 +1,271 @@
-use crate::message::{Message, MessageContent};
+//! OpenAI API format handling module
+//! 
+//! This module provides functionality to format messages and requests according to the OpenAI API specifications.
+//! It handles various types of content including text, images, tool requests, and tool responses, ensuring they
+//! are properly formatted for the OpenAI API endpoints.
+//!
+//! Key features:
+//! - Message formatting for OpenAI's chat completion API
+//! - Support for O1/O3 model families with reasoning effort handling
+//! - Tool request and response formatting
+//! - Image content handling with format conversion
+//! - Error handling for tool calls and responses
+
+use crate::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::{
-    convert_image, is_valid_function_name, sanitize_function_name, ImageFormat,
-};
+use crate::providers::utils::{convert_image, is_valid_function_name, sanitize_function_name, ImageFormat};
 use anyhow::{anyhow, Error};
 use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
+use mcp_core::content::TextContent;
 use serde_json::{json, Value};
 
-/// Convert internal Message format to OpenAI's API message specification
-///   some openai compatible endpoints use the anthropic image spec at the content level
-///   even though the message structure is otherwise following openai, the enum switches this
+/// Formats text content into an OpenAI API compatible message.
+///
+/// This function processes text content and converts it into a format suitable for the OpenAI API.
+/// Empty text content is handled by returning None, which allows the caller to skip adding empty
+/// messages to the final payload.
+///
+/// # Arguments
+/// * `text` - The text content to format
+///
+/// # Returns
+/// * `Option<Value>` - The formatted text as a JSON value, or None if the text is empty
+///
+/// # Example
+/// ```
+/// let text = TextContent { text: "Hello".to_string() };
+/// let formatted = format_text_content(&text);
+/// assert_eq!(formatted, Some(json!("Hello")));
+/// ```
+fn format_text_content(text: &TextContent) -> Option<Value> {
+    if !text.text.is_empty() {
+        Some(json!(text.text))
+    } else {
+        None
+    }
+}
+
+/// Formats a tool request into OpenAI's function call format.
+///
+/// This function handles both successful tool calls and errors, producing appropriate
+/// JSON structures for the OpenAI API. For successful calls, it creates a function
+/// call object. For errors, it creates an error message in the tool response format.
+///
+/// # Arguments
+/// * `request` - The tool request to format, containing either a successful tool call or an error
+///
+/// # Returns
+/// * `(Option<Value>, Vec<Value>)` - A tuple containing:
+///   - The formatted tool call as a JSON value (if successful)
+///   - A vector of any error messages as JSON values
+///
+/// # Example
+/// ```
+/// let request = ToolRequest {
+///     id: "123".to_string(),
+///     tool_call: Ok(ToolCall {
+///         name: "search".to_string(),
+///         arguments: json!({"query": "test"})
+///     })
+/// };
+/// let (tool_call, errors) = format_tool_request(&request);
+/// assert!(tool_call.is_some());
+/// assert!(errors.is_empty());
+/// ```
+fn format_tool_request(request: &ToolRequest) -> (Option<Value>, Vec<Value>) {
+    let mut output = Vec::new();
+    let mut tool_calls = None;
+
+    match &request.tool_call {
+        Ok(tool_call) => {
+            let sanitized_name = sanitize_function_name(&tool_call.name);
+            let tool_call = json!({
+                "id": request.id,
+                "type": "function",
+                "function": {
+                    "name": sanitized_name,
+                    "arguments": tool_call.arguments.to_string(),
+                }
+            });
+            tool_calls = Some(tool_call);
+        }
+        Err(e) => {
+            output.push(json!({
+                "role": "tool",
+                "content": format!("Error: {}", e),
+                "tool_call_id": request.id
+            }));
+        }
+    }
+
+    (tool_calls, output)
+}
+
+/// Processes individual tool content items, with special handling for images and resources.
+///
+/// This function handles different types of content that can appear in tool responses,
+/// with particular focus on:
+/// - Converting images into the appropriate format with placeholder text
+/// - Converting resources into text
+/// - Preserving other content types as-is
+///
+/// # Arguments
+/// * `content` - The content item to process
+/// * `image_format` - The desired format for image content
+///
+/// # Returns
+/// * `(Vec<Content>, Vec<Value>)` - A tuple containing:
+///   - Processed content items
+///   - Any separate image messages that need to be sent
+///
+/// # Example
+/// ```
+/// let content = Content::Text(TextContent { text: "test".to_string() });
+/// let (processed, images) = process_tool_content(&content, &ImageFormat::OpenAi);
+/// assert_eq!(processed.len(), 1);
+/// assert!(images.is_empty());
+/// ```
+fn process_tool_content(content: &Content, image_format: &ImageFormat) -> (Vec<Content>, Vec<Value>) {
+    let mut tool_content = Vec::new();
+    let mut image_messages = Vec::new();
+
+    match content {
+        Content::Image(image) => {
+            // Add placeholder text in the tool response
+            tool_content.push(Content::text(
+                "This tool result included an image that is uploaded in the next message.",
+            ));
+
+            // Create a separate image message
+            image_messages.push(json!({
+                "role": "user",
+                "content": [convert_image(image, image_format)]
+            }));
+        }
+        Content::Resource(resource) => {
+            tool_content.push(Content::text(resource.get_text()));
+        }
+        _ => {
+            tool_content.push(content.clone());
+        }
+    }
+
+    (tool_content, image_messages)
+}
+
+/// Formats a tool response into OpenAI API compatible messages.
+///
+/// This function handles the complete processing of tool responses, including:
+/// - Filtering content based on audience
+/// - Processing images and other content types
+/// - Handling success and error cases
+/// - Creating properly structured response messages
+///
+/// # Arguments
+/// * `response` - The tool response to format
+/// * `image_format` - The desired format for any images in the response
+///
+/// # Returns
+/// * `Vec<Value>` - A vector of formatted messages ready for the OpenAI API
+///
+/// # Example
+/// ```
+/// let response = ToolResponse {
+///     id: "123".to_string(),
+///     tool_result: Ok(vec![Content::text("test")])
+/// };
+/// let messages = format_tool_response(&response, &ImageFormat::OpenAi);
+/// assert_eq!(messages.len(), 1);
+/// ```
+fn format_tool_response(response: &ToolResponse, image_format: &ImageFormat) -> Vec<Value> {
+    let mut output = Vec::new();
+
+    match &response.tool_result {
+        Ok(contents) => {
+            // Send only contents with no audience or with Assistant in the audience
+            let abridged: Vec<_> = contents
+                .iter()
+                .filter(|content| {
+                    content
+                        .audience()
+                        .is_none_or(|audience| audience.contains(&Role::Assistant))
+                })
+                .map(|content| content.unannotated())
+                .collect();
+
+            let mut all_tool_content = Vec::new();
+            let mut all_image_messages = Vec::new();
+
+            // Process all content, replacing images with placeholder text
+            for content in abridged {
+                let (tool_content, image_messages) = process_tool_content(&content, image_format);
+                all_tool_content.extend(tool_content);
+                all_image_messages.extend(image_messages);
+            }
+
+            let tool_response_content: Value = json!(all_tool_content
+                .iter()
+                .map(|content| match content {
+                    Content::Text(text) => text.text.clone(),
+                    _ => String::new(),
+                })
+                .collect::<Vec<String>>()
+                .join(" "));
+
+            // First add the tool response with all content
+            output.push(json!({
+                "role": "tool",
+                "content": tool_response_content,
+                "tool_call_id": response.id
+            }));
+
+            // Then add any image messages
+            output.extend(all_image_messages);
+        }
+        Err(e) => {
+            output.push(json!({
+                "role": "tool",
+                "content": format!("Error: {}", e),
+                "tool_call_id": response.id
+            }));
+        }
+    }
+
+    output
+}
+
+/// Convert internal Message format to OpenAI's API message specification.
+///
+/// This function serves as the main entry point for converting internal message formats
+/// to OpenAI's API format. It handles various types of content and ensures proper
+/// formatting for all OpenAI API requirements.
+///
+/// Some OpenAI-compatible endpoints use the Anthropic image spec at the content level
+/// even though the message structure otherwise follows OpenAI conventions. The image_format
+/// parameter controls this behavior.
+///
+/// # Arguments
+/// * `messages` - The messages to format
+/// * `image_format` - The desired format for image content
+///
+/// # Returns
+/// * `Vec<Value>` - A vector of formatted messages ready for the OpenAI API
+///
+/// # Example
+/// ```
+/// let message = Message {
+///     role: Role::User,
+///     content: vec![MessageContent::Text(TextContent { text: "Hello".to_string() })]
+/// };
+/// let formatted = format_messages(&[message], &ImageFormat::OpenAi);
+/// assert_eq!(formatted.len(), 1);
+/// ```
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
+
     for message in messages {
         let mut converted = json!({
             "role": message.role
@@ -25,101 +276,24 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
-                    if !text.text.is_empty() {
-                        converted["content"] = json!(text.text);
+                    if let Some(content) = format_text_content(text) {
+                        converted["content"] = content;
                     }
                 }
-                MessageContent::ToolRequest(request) => match &request.tool_call {
-                    Ok(tool_call) => {
-                        let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let tool_calls = converted
+                MessageContent::ToolRequest(request) => {
+                    let (tool_calls, mut request_output) = format_tool_request(request);
+                    if let Some(tool_call) = tool_calls {
+                        let tool_calls_array = converted
                             .as_object_mut()
                             .unwrap()
                             .entry("tool_calls")
                             .or_insert(json!([]));
-
-                        tool_calls.as_array_mut().unwrap().push(json!({
-                            "id": request.id,
-                            "type": "function",
-                            "function": {
-                                "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
-                            }
-                        }));
+                        tool_calls_array.as_array_mut().unwrap().push(tool_call);
                     }
-                    Err(e) => {
-                        output.push(json!({
-                            "role": "tool",
-                            "content": format!("Error: {}", e),
-                            "tool_call_id": request.id
-                        }));
-                    }
-                },
+                    output.append(&mut request_output);
+                }
                 MessageContent::ToolResponse(response) => {
-                    match &response.tool_result {
-                        Ok(contents) => {
-                            // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = contents
-                                .iter()
-                                .filter(|content| {
-                                    content
-                                        .audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
-                                .map(|content| content.unannotated())
-                                .collect();
-
-                            // Process all content, replacing images with placeholder text
-                            let mut tool_content = Vec::new();
-                            let mut image_messages = Vec::new();
-
-                            for content in abridged {
-                                match content {
-                                    Content::Image(image) => {
-                                        // Add placeholder text in the tool response
-                                        tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
-
-                                        // Create a separate image message
-                                        image_messages.push(json!({
-                                            "role": "user",
-                                            "content": [convert_image(&image, image_format)]
-                                        }));
-                                    }
-                                    Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
-                                    }
-                                    _ => {
-                                        tool_content.push(content);
-                                    }
-                                }
-                            }
-                            let tool_response_content: Value = json!(tool_content
-                                .iter()
-                                .map(|content| match content {
-                                    Content::Text(text) => text.text.clone(),
-                                    _ => String::new(),
-                                })
-                                .collect::<Vec<String>>()
-                                .join(" "));
-
-                            // First add the tool response with all content
-                            output.push(json!({
-                                "role": "tool",
-                                "content": tool_response_content,
-                                "tool_call_id": response.id
-                            }));
-                            // Then add any image messages that need to follow
-                            output.extend(image_messages);
-                        }
-                        Err(e) => {
-                            // A tool result error is shown as output so the model can interpret the error message
-                            output.push(json!({
-                                "role": "tool",
-                                "content": format!("The tool call returned the following error:\n{}", e),
-                                "tool_call_id": response.id
-                            }));
-                        }
-                    }
+                    output.extend(format_tool_response(response, image_format));
                 }
                 MessageContent::Image(image) => {
                     // Handle direct image content
@@ -128,8 +302,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             }
         }
 
-        if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
-            output.insert(0, converted);
+        if !converted["content"].is_null() || converted.get("tool_calls").is_some() {
+            messages_spec.push(converted);
         }
         messages_spec.extend(output);
     }
@@ -137,8 +311,39 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     messages_spec
 }
 
-/// Convert internal Tool format to OpenAI's API tool specification
-pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
+/// Convert internal Tool format to OpenAI's API tool specification.
+///
+/// This function formats tools according to the OpenAI API tool specification.
+/// It handles tool names, descriptions, and parameters, ensuring they are properly
+/// formatted for the OpenAI API.
+///
+/// # Arguments
+/// * `tools` - The tools to format
+///
+/// # Returns
+/// * `anyhow::Result<Vec<Value>, Error>` - A vector of formatted tools ready for the OpenAI API,
+/// or an error if there are duplicate tool names
+///
+/// # Example
+/// ```
+/// let tool = Tool::new(
+///     "test_tool",
+///     "Test tool",
+///     json!({
+///         "type": "object",
+///         "properties": {
+///             "input": {
+///                 "type": "string",
+///                 "description": "Test parameter"
+///             }
+///         },
+///         "required": ["input"]
+///     }),
+/// );
+/// let formatted = format_tools(&[tool])?;
+/// assert_eq!(formatted.len(), 1);
+/// ```
+pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>, Error> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
 
@@ -164,8 +369,37 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     Ok(result)
 }
 
-/// Convert OpenAI's API response to internal Message format
-pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
+/// Convert OpenAI's API response to internal Message format.
+///
+/// This function processes OpenAI's API response and converts it into the internal
+/// Message format. It handles text content, tool calls, and errors, ensuring they are
+/// properly formatted for internal use.
+///
+/// # Arguments
+/// * `response` - The OpenAI API response to convert
+///
+/// # Returns
+/// * `anyhow::Result<Message, Error>` - The converted message, or an error if the response is invalid
+///
+/// # Example
+/// ```
+/// let response = json!({
+///     "choices": [{
+///         "role": "assistant",
+///         "message": {
+///             "content": "Hello from John Cena!"
+///         }
+///     }],
+///     "usage": {
+///         "input_tokens": 10,
+///         "output_tokens": 25,
+///         "total_tokens": 35
+///     }
+/// });
+/// let message = response_to_message(response)?;
+/// assert_eq!(message.content.len(), 1);
+/// ```
+pub fn response_to_message(response: Value) -> anyhow::Result<Message, Error> {
     let original = response["choices"][0]["message"].clone();
     let mut content = Vec::new();
 
@@ -222,6 +456,29 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     })
 }
 
+/// Extract usage data from OpenAI's API response.
+///
+/// This function processes OpenAI's API response and extracts usage data, including
+/// input tokens, output tokens, and total tokens.
+///
+/// # Arguments
+/// * `data` - The OpenAI API response to extract usage data from
+///
+/// # Returns
+/// * `Result<Usage, ProviderError>` - The extracted usage data, or an error if the response is invalid
+///
+/// # Example
+/// ```
+/// let data = json!({
+///     "usage": {
+///         "prompt_tokens": 10,
+///         "completion_tokens": 25,
+///         "total_tokens": 35
+///     }
+/// });
+/// let usage = get_usage(&data)?;
+/// assert_eq!(usage.input_tokens, Some(10));
+/// ```
 pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
     let usage = data
         .get("usage")
@@ -249,6 +506,37 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
     Ok(Usage::new(input_tokens, output_tokens, total_tokens))
 }
 
+/// Create a request for OpenAI's API.
+///
+/// This function creates a request for OpenAI's API, handling various parameters such as
+/// model name, system message, messages, tools, and image format.
+///
+/// # Arguments
+/// * `model_config` - The model configuration to use
+/// * `system` - The system message to include in the request
+/// * `messages` - The messages to include in the request
+/// * `tools` - The tools to include in the request
+/// * `image_format` - The desired format for image content
+///
+/// # Returns
+/// * `anyhow::Result<Value, Error>` - The created request, or an error if the request is invalid
+///
+/// # Example
+/// ```
+/// let model_config = ModelConfig {
+///     model_name: "gpt-4".to_string(),
+///     tokenizer_name: "gpt-4".to_string(),
+///     context_limit: Some(4096),
+///     temperature: Some(0.7),
+///     max_tokens: Some(1024),
+/// };
+/// let system = "system";
+/// let messages = vec![];
+/// let tools = vec![];
+/// let image_format = ImageFormat::OpenAi;
+/// let request = create_request(&model_config, system, &messages, &tools, &image_format)?;
+/// assert_eq!(request["model"], "gpt-4");
+/// ```
 pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
@@ -703,7 +991,13 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -718,7 +1012,13 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "high");
@@ -733,7 +1033,13 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini-invalid");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -753,7 +1059,13 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o1");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -768,7 +1080,13 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+        )?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o1");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "low");
