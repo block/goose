@@ -88,11 +88,22 @@ To configure your chosen provider or see available options, run `goose configure
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   **To update your LLM provider and API key:** 
+  1. Click `...` in the upper right corner
+  2. Click `Settings`
+  3. Next to `Models`, click the `browse` link
+  4. Click the `configure` link in the upper right corner
+  4. Press the `+` button next to the provider of your choice
+  5. Add additional configurations (API key, host, etc) then press `submit`
 
-    1. Click the three dots (`...`) in the top-right corner.
-    2. Select `Provider Settings` from the menu.
-    3. Click Edit, enter your API key, and click `Set as Active`.
+  **To add/change provider model**
+  1. Click `...` in the upper right corner
+  2. Click `Settings`
+  3. Next to `Models`, click the `browse` link
+  4. Scroll down to `Add Model` 
+  5. Select a Provider from drop down menu
+  6. Enter Model name and press `+ Add Model`
 
+  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider’s website. Once you've found the model you want, return to step 6 and paste the model name.
   </TabItem>
 
 </Tabs>
