@@ -9,10 +9,9 @@ use goose::providers::base::Provider;
 use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
 use goose::providers::{
     azure::AzureProvider, ollama::OllamaProvider, openai::OpenAiProvider,
-    openrouter::OpenRouterProvider,
+    openrouter::OpenRouterProvider, lm_studio::LmStudioProvider,
+    google::GoogleProvider, groq::GroqProvider
 };
-use goose::providers::{google::GoogleProvider, groq::GroqProvider};
-use goose::providers::lm_studio::LmStudioProvider;
 
 #[derive(Debug)]
 enum ProviderType {
