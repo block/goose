@@ -196,6 +196,20 @@ impl ComputerControllerRouter {
             )
         });
 
+        let macos_browser_instructions = if std::env::consts::OS == "macos" {
+            indoc! {r#"
+            When you need to interact with websites or web applications, consider using the computer_control tool with AppleScript, which can automate Safari or other browsers to:
+              - Open specific URLs
+              - Fill in forms
+              - Click buttons
+              - Extract content
+              - Handle web-based workflows
+            This is often more reliable than web scraping for modern web applications.
+            "#}
+        } else {
+            ""
+        };
+
         let instructions = formatdoc! {r#"
             You are a helpful assistant to a power user who is not a professional developer, but you may use devleopment tools to help assist them.
             The user may not know how to break down tasks, so you will need to ensure that you do, and run things in batches as needed.
@@ -205,6 +219,8 @@ impl ComputerControllerRouter {
 
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
+
+            {macos_instructions}
 
             Accessing web sites, even apis, may be common (you can use bash scripting to do this) without troubling them too much (they won't know what limits are).
             Try to do your best to find ways to complete a task without too many quesitons or offering options unless it is really unclear, find a way if you can.
@@ -246,6 +262,7 @@ impl ComputerControllerRouter {
             - Cache directory: {cache_dir}
             - File organization and cleanup
             "#,
+            macos_instructions = macos_browser_instructions,
             cache_dir = cache_dir.display()
         };
 
