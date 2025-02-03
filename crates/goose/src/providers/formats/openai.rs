@@ -258,11 +258,12 @@ pub fn create_request(
 ) -> anyhow::Result<Value, Error> {
     if model_config.model_name.starts_with("o1-mini") {
         return Err(anyhow!(
-            "o1-mini model is not currently supported since Goose uses tool calling."
+            "o1-mini model is not currently supported since Goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
         ));
     }
 
     let is_o1 = model_config.model_name.starts_with("o1");
+    let is_o3 = model_config.model_name.starts_with("o3");
 
     let system_message = json!({
         "role": if is_o1 { "developer" } else { "system" },
@@ -290,8 +291,8 @@ pub fn create_request(
             .unwrap()
             .insert("tools".to_string(), json!(tools_spec));
     }
-    // o1 models currently don't support temperature
-    if !is_o1 {
+    // o1, o3 models currently don't support temperature
+    if !is_o1 && !is_o3 {
         if let Some(temp) = model_config.temperature {
             payload
                 .as_object_mut()
@@ -302,7 +303,7 @@ pub fn create_request(
 
     // o1 models use max_completion_tokens instead of max_tokens
     if let Some(tokens) = model_config.max_tokens {
-        let key = if is_o1 {
+        let key = if is_o1 || is_o3 {
             "max_completion_tokens"
         } else {
             "max_tokens"
