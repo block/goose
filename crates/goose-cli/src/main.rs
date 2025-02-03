@@ -153,6 +153,7 @@ enum CliProviderVariant {
     OpenAi,
     Databricks,
     Ollama,
+    LmStudio
 }
 
 #[tokio::main]

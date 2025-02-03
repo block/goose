@@ -42,6 +42,12 @@ Ollama provides local LLMs, which means you must first [download Ollama and run 
 
 > ExecutionError("error sending request for url (http://localhost:11434/v1/chat/completions)")
 
+### Using LM Studio Provider
+
+LM Studio provides local LLMs, which means you must first download LM Studio and run a model before attempting to use this provider with Goose. If you do not have the model downloaded and server running, you'll run into the following error:
+
+> ExecutionError("error sending request for url (http://localhost:1234/v1/chat/completions)")
+
 
 Another thing to note is that the DeepSeek models do not support tool calling, so all Goose [extensions must be disabled](/docs/getting-started/using-extensions#enablingdisabling-extensions) to use one of these models. Unfortunately, without the use of tools, there is not much Goose will be able to do autonomously if using DeepSeek. However, Ollama's other models such as `qwen2.5` do support tool calling and can be used with Goose extensions.
 

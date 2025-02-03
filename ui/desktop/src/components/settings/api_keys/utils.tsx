@@ -6,6 +6,7 @@ export function isSecretKey(keyName: string): boolean {
   const nonSecretKeys = [
     'DATABRICKS_HOST',
     'OLLAMA_HOST',
+    'LMSTUDIO_HOST',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
   ];

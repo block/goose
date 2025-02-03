@@ -3,7 +3,7 @@ use dotenv::dotenv;
 use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
-use goose::providers::{anthropic, azure, databricks, google, groq, ollama, openai, openrouter};
+use goose::providers::{anthropic, azure, databricks, google, groq, ollama, lm_studio, openai, openrouter};
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
 use std::collections::HashMap;
@@ -406,6 +406,17 @@ async fn test_ollama_provider() -> Result<()> {
         &["OLLAMA_HOST"],
         None,
         ollama::OllamaProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_lm_studio_provider() -> Result<()> {
+    test_provider(
+        "LMStudio",
+        &["LMSTUDIO_HOST"],
+        None,
+        lm_studio::LmStudioProvider::default,
     )
     .await
 }

@@ -375,6 +375,32 @@ ipcMain.handle('check-ollama', async () => {
   }
 });
 
+ipcMain.handle('check-lm-studio', async () => {
+  try {
+    return new Promise((resolve, reject) => {
+      // Run `ps` and filter for "lm-studio" or "LM Studio" (case insensitive)
+      exec('ps aux | grep -iw "[l]m-studio\\|[L]M Studio"', (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error executing ps command:', error);
+          return resolve(false); // Process is not running
+        }
+        if (stderr) {
+          console.error('Standard error output from ps command:', stderr);
+          return resolve(false); // Process is not running
+        }
+        console.log('Raw stdout from ps command:', stdout);
+        const trimmedOutput = stdout.trim();
+        console.log('Trimmed stdout:', trimmedOutput);
+        const isRunning = trimmedOutput.length > 0;
+        resolve(isRunning);
+      });
+    });
+  } catch (err) {
+    console.error('Error checking for LM Studio:', err);
+    return false;
+  }
+});
+
 app.whenReady().then(async () => {
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {

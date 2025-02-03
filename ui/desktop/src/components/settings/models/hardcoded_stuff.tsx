@@ -16,6 +16,7 @@ export const goose_models: Model[] = [
   { id: 14, name: 'gemma-2-2b-it', provider: 'Google' },
   { id: 15, name: 'llama-3.3-70b-versatile', provider: 'Groq' },
   { id: 16, name: 'qwen2.5', provider: 'Ollama' },
+  { id: 16, name: 'qwen2.5', provider: 'LMStudio' },
   { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 18, name: 'gpt-4o', provider: 'Azure OpenAI' },
 ];
@@ -39,7 +40,8 @@ export const google_models = [
 
 export const groq_models = ['llama-3.3-70b-versatile'];
 
-export const ollama_mdoels = ['qwen2.5'];
+export const ollama_models = ['qwen2.5'];
+export const lm_studio_models = ['qwen2.5'];
 
 export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 

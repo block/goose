@@ -35,6 +35,12 @@
         "models": ["qwen2.5"],
         "required_keys": ["OLLAMA_HOST"]
     },
+    "lmstudio": {
+      "name": "LM Studio",
+      "description": "Lorem ipsum",
+      "models": ["qwen2.5"],
+      "required_keys": ["LMSTUDIO_HOST"]
+    },
     "openrouter": {
         "name": "OpenRouter",
         "description": "Lorem ipsum",

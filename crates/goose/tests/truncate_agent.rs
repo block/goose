@@ -12,6 +12,7 @@ use goose::providers::{
     openrouter::OpenRouterProvider,
 };
 use goose::providers::{google::GoogleProvider, groq::GroqProvider};
+use goose::providers::lm_studio::LmStudioProvider;
 
 #[derive(Debug)]
 enum ProviderType {
@@ -22,6 +23,7 @@ enum ProviderType {
     Google,
     Groq,
     Ollama,
+    LmStudio,
     OpenRouter,
 }
 
@@ -39,6 +41,7 @@ impl ProviderType {
             ProviderType::Google => &["GOOGLE_API_KEY"],
             ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
+            ProviderType::LmStudio => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
         }
     }
@@ -70,6 +73,7 @@ impl ProviderType {
             ProviderType::Google => Box::new(GoogleProvider::from_env(model_config)?),
             ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
             ProviderType::Ollama => Box::new(OllamaProvider::from_env(model_config)?),
+            ProviderType::LmStudio => Box::new(LmStudioProvider::from_env(model_config)?),
             ProviderType::OpenRouter => Box::new(OpenRouterProvider::from_env(model_config)?),
         })
     }
@@ -264,6 +268,16 @@ mod tests {
     async fn test_truncate_agent_with_ollama() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Ollama,
+            model: "llama3.2",
+            context_window: 128_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_truncate_agent_with_lm_studio() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::LmStudio,
             model: "llama3.2",
             context_window: 128_000,
         })
