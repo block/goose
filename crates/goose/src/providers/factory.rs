@@ -22,6 +22,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
+        EternalAiProvider::metadata(),
         OpenRouterProvider::metadata(),
     ]
 }
