@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
+import path from 'node:path';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
 import { ChildProcessByStdio } from 'node:child_process';
@@ -56,9 +57,13 @@ export const startGoosed = async (
 ): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
+  const isWindows = process.platform === 'win32';
+
+  // Ensure dir is properly normalized for the platform
   if (!dir) {
     dir = homeDir;
   }
+  dir = path.normalize(dir);
 
   // Get the goosed binary path using the shared utility
   let goosedPath = getBinaryPath(app, 'goosed');
@@ -72,12 +77,15 @@ export const startGoosed = async (
     HOME: homeDir,
     // Set USERPROFILE for Windows
     USERPROFILE: homeDir,
-
+    // Set APPDATA for Windows
+    APPDATA: process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'),
+    // Set LOCAL_APPDATA for Windows
+    LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
+    // Set PATH to include the binary directory
+    PATH: `${path.dirname(goosedPath)}${path.delimiter}${process.env.PATH}`,
     // start with the port specified
     GOOSE_PORT: String(port),
-
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
-
     // Add any additional environment variables passed in
     ...env,
   };
@@ -85,20 +93,31 @@ export const startGoosed = async (
   // Merge parent environment with additional environment variables
   const processEnv = { ...process.env, ...additionalEnv };
 
-  // Configure spawn options with Windows-specific settings
-  const isWindows = process.platform === 'win32';
-
   // Add detailed logging for troubleshooting
   log.info(`Process platform: ${process.platform}`);
   log.info(`Process cwd: ${process.cwd()}`);
+  log.info(`Target working directory: ${dir}`);
   log.info(`Environment HOME: ${processEnv.HOME}`);
   log.info(`Environment USERPROFILE: ${processEnv.USERPROFILE}`);
+  log.info(`Environment APPDATA: ${processEnv.APPDATA}`);
+  log.info(`Environment LOCALAPPDATA: ${processEnv.LOCALAPPDATA}`);
+  log.info(`Environment PATH: ${processEnv.PATH}`);
 
   // Ensure proper executable path on Windows
   if (isWindows && !goosedPath.toLowerCase().endsWith('.exe')) {
     goosedPath += '.exe';
   }
   log.info(`Binary path resolved to: ${goosedPath}`);
+
+  // Verify binary exists
+  try {
+    const fs = require('fs');
+    const stats = fs.statSync(goosedPath);
+    log.info(`Binary exists: ${stats.isFile()}`);
+  } catch (error) {
+    log.error(`Binary not found at ${goosedPath}:`, error);
+    throw new Error(`Binary not found at ${goosedPath}`);
+  }
 
   const spawnOptions = {
     cwd: dir,
@@ -111,6 +130,9 @@ export const startGoosed = async (
     // Never use shell to avoid terminal windows
     shell: false,
   };
+
+  // Log spawn options for debugging
+  log.info('Spawn options:', JSON.stringify(spawnOptions, null, 2));
 
   // Spawn the goosed process
   const goosedProcess = spawn(goosedPath, ['agent'], spawnOptions);
