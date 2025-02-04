@@ -13,6 +13,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::utils::emit_debug_trace;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
@@ -146,8 +147,16 @@ impl Provider for BedrockProvider {
             .unwrap_or_default();
 
         let message = from_bedrock_message(&message)?;
-        let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
+        
+        // Add debug trace with input context
+        let debug_payload = serde_json::json!({
+            "system": system,
+            "messages": messages,
+            "tools": tools
+        });
+        emit_debug_trace(&self.model, &debug_payload, &serde_json::to_value(&message).unwrap_or_default(), &usage);
 
+        let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
     }
 }
