@@ -62,14 +62,15 @@ enum Command {
         )]
         resume: bool,
 
-        /// Add a stdio extension with environment variables and command
+        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
-            help = "Add a stdio extension (e.g., 'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github')",
-            long_help = "Add a stdio extension from a full command with environment variables. Format: 'ENV1=val1 ENV2=val2 command args...'"
+            help = "Add stdio extensions (can be specified multiple times)",
+            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+            action = clap::ArgAction::Append
         )]
-        extension: Option<String>,
+        extension: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
@@ -126,14 +127,15 @@ enum Command {
         )]
         resume: bool,
 
-        /// Add a stdio extension with environment variables and command
+        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
-            help = "Add a stdio extension with environment variables and command (e.g., 'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github')",
-            long_help = "Add a stdio extension with environment variables and command. Format: 'ENV1=val1 ENV2=val2 command args...'"
+            help = "Add stdio extensions (can be specified multiple times)",
+            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+            action = clap::ArgAction::Append
         )]
-        extension: Option<String>,
+        extension: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
