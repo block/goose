@@ -10,14 +10,6 @@ interface InputProps {
   onStop?: () => void;
 }
 
-declare global {
-  interface Window {
-    electron: {
-      selectFileOrDirectory: () => Promise<string | null>;
-    };
-  }
-}
-
 export default function Input({
   handleSubmit,
   disabled = false,

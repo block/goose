@@ -23,25 +23,6 @@ import { createSelectedModel } from './components/settings/models/utils';
 import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import Splash from './components/Splash';
 
-declare global {
-  interface Window {
-    electron: {
-      stopPowerSaveBlocker: () => void;
-      startPowerSaveBlocker: () => void;
-      hideWindow: () => void;
-      createChatWindow: () => void;
-      getConfig: () => { GOOSE_PROVIDER: string };
-      logInfo: (message: string) => void;
-      showNotification: (opts: { title: string; body: string }) => void;
-      getBinaryPath: (binary: string) => Promise<string>;
-      app: any;
-    };
-    appConfig: {
-      get: (key: string) => any;
-    };
-  }
-}
-
 export interface Chat {
   id: number;
   title: string;
