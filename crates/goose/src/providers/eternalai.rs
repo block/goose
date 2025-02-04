@@ -141,6 +141,7 @@ pub async fn create_eternalai_request(
                 tracing::info!("on-chain sytem prompt is none")
             }
             Some(value) => {
+                tracing::info!("on-chain system prompt: {}", value);
                 system_message = json!({
                     "role": "system" ,
                     "content": value,
