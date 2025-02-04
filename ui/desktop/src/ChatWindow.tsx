@@ -363,6 +363,14 @@ export default function ChatWindow() {
   useEffect(() => {
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
+
+      if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
+        window.electron.logInfo(
+          'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
+        );
+        await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+        return;
+      }
       const storedProvider = getStoredProvider(config);
       const storedModel = getStoredModel();
       if (storedProvider) {

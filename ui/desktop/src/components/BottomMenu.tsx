@@ -47,6 +47,11 @@ export default function BottomMenu({ hasMessages }) {
     };
   }, [isModelMenuOpen]);
 
+  let envModelProvider = null;
+  if (window.electron.getConfig().GOOSE_MODEL && window.electron.getConfig().GOOSE_PROVIDER) {
+    envModelProvider = `${window.electron.getConfig().GOOSE_MODEL}  - ${window.electron.getConfig().GOOSE_PROVIDER}`;
+  }
+
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
       {/* Directory Chooser - Always visible */}
@@ -72,7 +77,7 @@ export default function BottomMenu({ hasMessages }) {
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>{currentModel?.name || 'Select Model'}</span>
+          <span>{envModelProvider || currentModel?.name || 'Select Model'}</span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (

@@ -48,7 +48,7 @@ export const azure_openai_models = ['gpt-4o'];
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
-  databricks: 'claude-3-5-sonnet-2',
+  databricks: 'goose',
   google: 'gemini-2.0-flash-exp',
   groq: 'llama-3.3-70b-versatile',
   openrouter: 'anthropic/claude-3.5-sonnet',
