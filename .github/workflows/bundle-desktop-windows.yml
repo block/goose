@@ -1,0 +1,157 @@
+name: "Bundle Desktop (Windows)"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_call:
+    inputs:
+      signing:
+        description: 'Whether to sign the Windows executable'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      WINDOWS_CERTIFICATE:
+        required: false
+      WINDOWS_CERTIFICATE_PASSWORD:
+        required: false
+
+jobs:
+  build-desktop-windows:
+    name: Build Desktop (Windows)
+    runs-on: windows-latest
+
+    steps:
+      # 1) Check out source
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2) Set up Rust
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        # If you need a specific version, you could do:
+        # or uses: actions/setup-rust@v1
+        # with:
+        #   rust-version: 1.73.0
+
+      # 3) Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      # 4) Cache dependencies (optional, can add more paths if needed)
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            node_modules
+            ui/desktop/node_modules
+          key: ${{ runner.os }}-build-desktop-windows-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-desktop-windows-
+
+      # 5) Install top-level dependencies if a package.json is in root
+      - name: Install top-level deps
+        run: |
+          if (Test-Path package.json) {
+            npm install
+          }
+
+      # 6) Build rust for x86_64-pc-windows-gnu
+      - name: Install MinGW dependencies
+        run: |
+          choco install mingw --version=8.1.0
+          # Debug - check installation paths
+          Write-Host "Checking MinGW installation..."
+          Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\mingw" -Recurse -Filter "*.dll" | ForEach-Object {
+            Write-Host $_.FullName
+          }
+          Get-ChildItem -Path "C:\tools" -Recurse -Filter "*.dll" | ForEach-Object {
+            Write-Host $_.FullName
+          }
+
+      - name: Cargo build for Windows
+        run: |
+          cargo build --release --target x86_64-pc-windows-gnu
+
+      # 7) Check that the compiled goosed.exe exists and copy exe/dll to ui/desktop/src/bin
+      - name: Prepare Windows binary and DLLs
+        run: |
+          if (!(Test-Path .\target\x86_64-pc-windows-gnu\release\goosed.exe)) {
+            Write-Error "Windows binary not found."; exit 1;
+          }
+          Write-Host "Copying Windows binary and DLLs to ui/desktop/src/bin..."
+          if (!(Test-Path ui\desktop\src\bin)) {
+            New-Item -ItemType Directory -Path ui\desktop\src\bin | Out-Null
+          }
+          Copy-Item .\target\x86_64-pc-windows-gnu\release\goosed.exe ui\desktop\src\bin\
+          
+          # Copy MinGW DLLs - try both possible locations
+          $mingwPaths = @(
+            "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin",
+            "C:\tools\mingw64\bin"
+          )
+          
+          foreach ($path in $mingwPaths) {
+            if (Test-Path "$path\libstdc++-6.dll") {
+              Write-Host "Found MinGW DLLs in $path"
+              Copy-Item "$path\libstdc++-6.dll" ui\desktop\src\bin\
+              Copy-Item "$path\libgcc_s_seh-1.dll" ui\desktop\src\bin\
+              Copy-Item "$path\libwinpthread-1.dll" ui\desktop\src\bin\
+              break
+            }
+          }
+          
+          # Copy any other DLLs from the release directory
+          ls .\target\x86_64-pc-windows-gnu\release\*.dll | ForEach-Object {
+            Copy-Item $_ ui\desktop\src\bin\
+          }
+
+      # 8) Install & build UI desktop
+      - name: Build desktop UI with npm
+        run: |
+          cd ui\desktop
+          npm install
+          npm run bundle:windows
+
+      # 9) Copy exe/dll to final out/Goose-win32-x64/resources/bin
+      - name: Copy exe/dll to out folder
+        run: |
+          cd ui\desktop
+          if (!(Test-Path .\out\Goose-win32-x64\resources\bin)) {
+            New-Item -ItemType Directory -Path .\out\Goose-win32-x64\resources\bin | Out-Null
+          }
+          Copy-Item .\src\bin\goosed.exe .\out\Goose-win32-x64\resources\bin\
+          ls .\src\bin\*.dll | ForEach-Object {
+            Copy-Item $_ .\out\Goose-win32-x64\resources\bin\
+          }
+
+      # 10) Code signing (if enabled)
+      - name: Sign Windows executable
+        # Skip this step by default - enable when we have a certificate
+        if: inputs.signing && inputs.signing == true
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary certificate file
+          $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          $certPath = Join-Path -Path $env:RUNNER_TEMP -ChildPath "certificate.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+          
+          # Sign the main executable
+          $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64\signtool.exe"
+          & $signtool sign /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "ui\desktop\out\Goose-win32-x64\Goose.exe"
+          
+          # Clean up the certificate
+          Remove-Item -Path $certPath
+
+      # 11) Upload the final Windows build
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-dist
+          path: ui/desktop/out/Goose-win32-x64/
