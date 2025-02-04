@@ -2,18 +2,20 @@ import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-u
 import React, { useEffect, useState } from 'react';
 import { FaMoon, FaSun } from 'react-icons/fa';
 import VertDots from './ui/VertDots';
-import { useNavigate } from 'react-router-dom';
+// Removed react-router-dom import
+// import { useNavigate } from 'react-router-dom';
 import { More } from './icons';
 import { Settings, Grid, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
+import type { View } from '../../ChatWindow';
 
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
 }
 
-export default function MoreMenu() {
-  const navigate = useNavigate();
+// Accept setView as a prop from the parent (e.g. ChatContent)
+export default function MoreMenu({ setView }: { setView?: (view: View) => void }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
@@ -105,7 +107,6 @@ export default function MoreMenu() {
       setDarkMode(systemPrefersDark);
       localStorage.removeItem('theme'); // Remove manual theme setting
     }
-    // If disabling system theme, keep current theme state but don't update localStorage yet
   };
 
   const handleVersionSelect = (version: string) => {
@@ -129,11 +130,6 @@ export default function MoreMenu() {
           sideOffset={5}
         >
           <div className="flex flex-col rounded-md">
-            {/* <div className="flex items-center justify-between p-2">
-              <span className="text-sm">Use System Theme</span>
-              <input type="checkbox" checked={useSystemTheme} onChange={toggleUseSystemTheme} />
-            </div> */}
-            {/* {!useSystemTheme && ( */}
             <button
               className="flex items-center justify-between p-2 hover:bg-bgSubtle transition-colors"
               onClick={() => toggleTheme()}
@@ -170,66 +166,14 @@ export default function MoreMenu() {
                   </svg>
                 </div>
               </div>
-
-              {/* {isDarkMode ? (
-                <FaMoon className="text-gray-200" />
-              ) : (
-                <FaSun className="text-yellow-500" />
-              )} */}
-              {/* <div
-                className={`relative inline-flex items-center h-6 rounded-full w-11 focus:outline-none border-2 ${
-                  isDarkMode ? 'bg-gray-600 border-gray-600' : 'bg-yellow-300 border-yellow-300'
-                }`}
-              >
-                <span
-                  className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
-                    isDarkMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                >
-                  {isDarkMode ? (
-                    <FaMoon className="text-gray-200" />
-                  ) : (
-                    <FaSun className="text-yellow-500" />
-                  )}
-                </span>
-              </div> */}
             </button>
-            {/* )} */}
-
-            {/* Versions Menu */}
-            {/* NOTE from alexhancock on 1/14/2025 - disabling temporarily until we figure out where this will go in settings */}
-            {false && versions && versions.available_versions.length > 0 && (
-              <>
-                <button
-                  onClick={() => setShowVersions(!showVersions)}
-                  className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 flex justify-between items-center"
-                >
-                  <span>Versions</span>
-                  <span className="text-xs">{showVersions ? '▼' : '▶'}</span>
-                </button>
-                {showVersions && (
-                  <div className="pl-2 bg-gray-900">
-                    {versions.available_versions.map((version) => (
-                      <button
-                        key={version}
-                        onClick={() => handleVersionSelect(version)}
-                        className={`w-full text-left px-2 py-1.5 text-sm hover:bg-gray-700 ${
-                          version === versions.current_version ? 'text-green-400' : ''
-                        }`}
-                      >
-                        {version} {version === versions.current_version && '(current)'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
 
             {/* Settings Menu */}
             <button
               onClick={() => {
                 setOpen(false);
-                navigate('/settings');
+                // Instead of navigate('/settings'), call setView to switch.
+                setView?.('settings');
               }}
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
             >
@@ -264,12 +208,16 @@ export default function MoreMenu() {
             >
               Reset Provider
             </button>
+
             {/* Provider keys settings */}
             {process.env.NODE_ENV === 'development' && (
               <button
                 onClick={() => {
                   setOpen(false);
-                  navigate('/keys');
+                  // Instead of navigate('/keys'), we might do setView('someKeysView') or open new window.
+                  // For now, just do nothing or set to some placeholder.
+                  // setView?.('keys');
+                  window.electron.createChatWindow();
                 }}
                 className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
               >
