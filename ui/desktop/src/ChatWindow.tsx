@@ -369,6 +369,7 @@ export default function ChatWindow() {
           'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
         );
         await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+        return;
       }
       const storedProvider = getStoredProvider(config);
       const storedModel = getStoredModel();
