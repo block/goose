@@ -131,6 +131,23 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
             }
         }
     }
+
+    if let Some(tools_spec) = payload
+        .as_object_mut()
+        .and_then(|obj| obj.get_mut("tools"))
+        .and_then(|tools| tools.as_array_mut())
+    {
+        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
+        // will be cached as a single prefix.
+        if let Some(last_tool) = tools_spec.last_mut() {
+            if let Some(function) = last_tool.get_mut("function") {
+                function
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
+            }
+        }
+    }
     payload
 }
 
