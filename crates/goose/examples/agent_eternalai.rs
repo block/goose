@@ -22,7 +22,7 @@ async fn main() {
     }
 
     let messages = vec![Message::user()
-        .with_text("can you summarize the readme.md in this dir using just a haiku?")];
+        .with_text("Three people stand in a line. Each has a hat that is either red or blue, but they don’t know their own hat color. The first person says, “I don’t know my hat color.” The second person says, “I don’t know my hat color.” The third person immediately says, “I know my hat color.” What is the color of the third person’s hat? Why?")];
 
     let mut stream = agent.reply(&messages).await.unwrap();
     while let Some(message) = stream.next().await {
