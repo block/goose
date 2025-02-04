@@ -1,60 +1,47 @@
-name: Deploy Docs & Extensions # (/documentation and /extensions-site)
+name: Documentation Site Preview
 
 on:
-  push:
-    branches:
-      - main
-  
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - closed
     paths:
       - 'documentation/**'
       - 'extensions-site/**'
 
+concurrency: preview-${{ github.ref }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
       - name: Checkout the branch
         uses: actions/checkout@v3
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
+        if: github.event.action != 'closed'
         with:
           node-version: 20 
 
-      - name: Cache Node.js modules (documentation)
-        uses: actions/cache@v3
-        with:
-          path: ./documentation/node_modules
-          key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-documentation-
-
       - name: Install dependencies and build docs
         working-directory: ./documentation
+        if: github.event.action != 'closed'
         env:
           INKEEP_API_KEY: ${{ secrets.INKEEP_API_KEY }}
           INKEEP_INTEGRATION_ID: ${{ secrets.INKEEP_INTEGRATION_ID }}
           INKEEP_ORG_ID: ${{ secrets.INKEEP_ORG_ID }}
+          TARGET_PATH: "/goose/pr-preview/pr-${{ github.event.number }}/"
         run: |
           npm install
           npm run build
 
-      - name: Cache Node.js modules (extensions-site)
-        uses: actions/cache@v3
-        with:
-          path: ./extensions-site/node_modules
-          key: ${{ runner.os }}-extensions-${{ hashFiles('./extensions-site/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-extensions-
-
       - name: Install dependencies and build extensions-site
         working-directory: ./extensions-site
         env:
-          VITE_BASENAME: "/goose/v1/extensions/" # Set the base URL here for the extensions site
+          VITE_BASENAME: "/goose/pr-preview/pr-${{ github.event.number }}/v1/extensions/" # Set the base URL here for the extensions site
         run: |
           npm install
           npm run build
@@ -66,9 +53,8 @@ jobs:
           mkdir -p combined-build/v1/extensions
           cp -r extensions-site/build/client/* combined-build/v1/extensions/
 
-      - name: Deploy to /gh-pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Deploy preview
+        uses: rossjrw/pr-preview-action@v1
+        if: ${{ github.event.pull_request.head.repo.full_name == 'block/goose' }}
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: combined-build
+          source-dir: combined-build
