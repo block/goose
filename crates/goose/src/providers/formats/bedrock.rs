@@ -1,10 +1,11 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use anyhow::{anyhow, bail, Result};
 use aws_sdk_bedrockruntime::types as bedrock;
 use aws_smithy_types::{Document, Number};
 use chrono::Utc;
-use mcp_core::{Content, Role, Tool, ToolCall, ToolError, ToolResult};
+use mcp_core::{Content, ResourceContents, Role, Tool, ToolCall, ToolError, ToolResult};
 use serde_json::Value;
 
 use super::super::base::Usage;
@@ -50,7 +51,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                 Ok(content) => Some(
                     content
                         .iter()
-                        .map(to_bedrock_tool_result_content_block)
+                        .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c))
                         .collect::<Result<_>>()?,
                 ),
                 Err(_) => None,
@@ -71,12 +72,15 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
 }
 
 pub fn to_bedrock_tool_result_content_block(
+    tool_use_id: &str,
     content: &Content,
 ) -> Result<bedrock::ToolResultContentBlock> {
     Ok(match content {
         Content::Text(text) => bedrock::ToolResultContentBlock::Text(text.text.to_string()),
         Content::Image(_) => bail!("Image content is not supported by Bedrock provider yet"),
-        Content::Resource(_) => bail!("Resource content is not supported by Bedrock provider yet"),
+        Content::Resource(resource) => bedrock::ToolResultContentBlock::Document(
+            to_bedrock_document(tool_use_id, &resource.resource)?,
+        ),
     })
 }
 
@@ -129,6 +133,44 @@ pub fn to_bedrock_json(value: &Value) -> Document {
                 .map(|(key, val)| (key.to_string(), to_bedrock_json(val))),
         )),
     }
+}
+
+fn to_bedrock_document(
+    tool_use_id: &str,
+    content: &ResourceContents,
+) -> Result<bedrock::DocumentBlock> {
+    let (uri, text) = match content {
+        ResourceContents::TextResourceContents { uri, text, .. } => (uri, text),
+        ResourceContents::BlobResourceContents { .. } => {
+            bail!("Blob resource content is not supported by Bedrock provider yet")
+        }
+    };
+
+    let filename = Path::new(uri)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(uri);
+
+    let (name, format) = match filename.split_once('.') {
+        Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
+        Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
+        Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
+        Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
+        Some((name, _)) => (name, bedrock::DocumentFormat::Txt),
+        _ => (filename, bedrock::DocumentFormat::Txt),
+    };
+
+    // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
+    // and Bedrock wants document names to be unique, we're adding `tool_use_id` as a prefix to make
+    // document names unique.
+    let name = format!("{tool_use_id}-{name}");
+
+    bedrock::DocumentBlock::builder()
+        .format(format)
+        .name(name)
+        .source(bedrock::DocumentSource::Bytes(text.as_bytes().into()))
+        .build()
+        .map_err(|err| anyhow!("Failed to construct Bedrock document: {}", err))
 }
 
 pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
