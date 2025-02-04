@@ -21,8 +21,17 @@ pub const ETERNAL_AI_KNOWN_MODELS: &[&str] = &[
     "DeepSeek-R1-Distill-Llama-70B",
     "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16",
 ];
-
 pub const ETERNAL_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
+pub const MAPPING_CHAINID: [(&str, &str); 2] = [
+    ("DeepSeek-R1-Distill-Llama-70B", "8453"),
+    (
+        "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16",
+        "45762",
+    ),
+];
+const IPFS: &str = "ipfs://";
+const LIGHTHOUSE_IPFS: &str = "https://gateway.lighthouse.storage/ipfs/";
+const GCS_ETERNAL_AI_BASE_URL: &str = "https://cdn.eternalai.org/upload/";
 
 #[derive(Debug, serde::Serialize)]
 pub struct EternalAiProvider {
@@ -31,7 +40,7 @@ pub struct EternalAiProvider {
     host: String,
     api_key: String,
     model: ModelConfig,
-    chain_id: Option<String>
+    chain_id: Option<String>,
 }
 
 impl Default for EternalAiProvider {
@@ -84,8 +93,6 @@ impl EternalAiProvider {
         handle_response_eternalai_compat(response).await
     }
 }
-
-pub const MAPPING_CHAINID: [(&str, &str); 1] = [("DeepSeek-R1-Distill-Llama-70B", "8453")];
 
 pub fn get_chain_id(key: String) -> Option<String> {
     for &(k, v) in &MAPPING_CHAINID {
@@ -222,10 +229,6 @@ pub async fn handle_response_eternalai_compat(response: Response) -> Result<Valu
         }
     }
 }
-
-const IPFS: &str = "ipfs://";
-const LIGHTHOUSE_IPFS: &str = "https://gateway.lighthouse.storage/ipfs/";
-const GCS_ETERNAL_AI_BASE_URL: &str = "https://cdn.eternalai.org/upload/";
 
 pub async fn fetch_system_prompt_raw_or_ipfs(content: &str) -> Option<String> {
     if content.contains(IPFS) {
