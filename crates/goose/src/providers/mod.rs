@@ -3,6 +3,7 @@ pub mod azure;
 pub mod base;
 pub mod databricks;
 pub mod errors;
+pub mod eternalai;
 mod factory;
 pub mod formats;
 pub mod google;
