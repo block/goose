@@ -77,7 +77,7 @@ export default function BottomMenu({ hasMessages }) {
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>{currentModel?.name || envModelProvider || 'Select Model'}</span>
+          <span>{envModelProvider || currentModel?.name || 'Select Model'}</span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (
