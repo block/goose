@@ -1,5 +1,5 @@
 //! OpenAI API format handling module
-//! 
+//!
 //! This module provides functionality to format messages and requests according to the OpenAI API specifications.
 //! It handles various types of content including text, images, tool requests, and tool responses, ensuring they
 //! are properly formatted for the OpenAI API endpoints.
@@ -15,11 +15,13 @@ use crate::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::{convert_image, is_valid_function_name, sanitize_function_name, ImageFormat};
+use crate::providers::utils::{
+    convert_image, is_valid_function_name, sanitize_function_name, ImageFormat,
+};
 use anyhow::{anyhow, Error};
+use mcp_core::content::TextContent;
 use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
-use mcp_core::content::TextContent;
 use serde_json::{json, Value};
 
 /// Formats text content into an OpenAI API compatible message.
@@ -36,11 +38,14 @@ use serde_json::{json, Value};
 ///
 /// # Example
 /// ```
-/// let text = TextContent { text: "Hello".to_string() };
+/// use mcp_core::TextContent;
+/// use serde_json::json;
+/// use goose::providers::formats::openai::format_text_content;
+/// let text = TextContent { text: "Hello".to_string(), annotations: None };
 /// let formatted = format_text_content(&text);
 /// assert_eq!(formatted, Some(json!("Hello")));
 /// ```
-fn format_text_content(text: &TextContent) -> Option<Value> {
+pub fn format_text_content(text: &TextContent) -> Option<Value> {
     if !text.text.is_empty() {
         Some(json!(text.text))
     } else {
@@ -64,7 +69,11 @@ fn format_text_content(text: &TextContent) -> Option<Value> {
 ///
 /// # Example
 /// ```
-/// let request = ToolRequest {
+/// use serde_json::json;
+/// use mcp_core::ToolCall;
+/// use goose::message::ToolRequest;
+/// use goose::providers::formats::openai::format_tool_request;
+/// let request = goose::message::ToolRequest {
 ///     id: "123".to_string(),
 ///     tool_call: Ok(ToolCall {
 ///         name: "search".to_string(),
@@ -75,7 +84,7 @@ fn format_text_content(text: &TextContent) -> Option<Value> {
 /// assert!(tool_call.is_some());
 /// assert!(errors.is_empty());
 /// ```
-fn format_tool_request(request: &ToolRequest) -> (Option<Value>, Vec<Value>) {
+pub fn format_tool_request(request: &ToolRequest) -> (Option<Value>, Vec<Value>) {
     let mut output = Vec::new();
     let mut tool_calls = None;
 
@@ -123,12 +132,18 @@ fn format_tool_request(request: &ToolRequest) -> (Option<Value>, Vec<Value>) {
 ///
 /// # Example
 /// ```
-/// let content = Content::Text(TextContent { text: "test".to_string() });
+/// use mcp_core::{Content, TextContent};
+/// use goose::providers::utils::ImageFormat;
+/// use goose::providers::formats::openai::process_tool_content;
+/// let content = Content::Text(TextContent { text: "test".to_string(), annotations: None });
 /// let (processed, images) = process_tool_content(&content, &ImageFormat::OpenAi);
 /// assert_eq!(processed.len(), 1);
 /// assert!(images.is_empty());
 /// ```
-fn process_tool_content(content: &Content, image_format: &ImageFormat) -> (Vec<Content>, Vec<Value>) {
+pub fn process_tool_content(
+    content: &Content,
+    image_format: &ImageFormat,
+) -> (Vec<Content>, Vec<Value>) {
     let mut tool_content = Vec::new();
     let mut image_messages = Vec::new();
 
@@ -173,14 +188,18 @@ fn process_tool_content(content: &Content, image_format: &ImageFormat) -> (Vec<C
 ///
 /// # Example
 /// ```
-/// let response = ToolResponse {
+/// use mcp_core::{Content, TextContent};
+/// use goose::message::ToolResponse;
+/// use goose::providers::utils::ImageFormat;
+/// use goose::providers::formats::openai::format_tool_response;
+/// let response = goose::message::ToolResponse {
 ///     id: "123".to_string(),
-///     tool_result: Ok(vec![Content::text("test")])
+///     tool_result: Ok(vec![Content::Text(TextContent { text: "test".to_string(), annotations: None })])
 /// };
 /// let messages = format_tool_response(&response, &ImageFormat::OpenAi);
 /// assert_eq!(messages.len(), 1);
 /// ```
-fn format_tool_response(response: &ToolResponse, image_format: &ImageFormat) -> Vec<Value> {
+pub fn format_tool_response(response: &ToolResponse, image_format: &ImageFormat) -> Vec<Value> {
     let mut output = Vec::new();
 
     match &response.tool_result {
@@ -256,9 +275,14 @@ fn format_tool_response(response: &ToolResponse, image_format: &ImageFormat) -> 
 ///
 /// # Example
 /// ```
-/// let message = Message {
+/// use mcp_core::{Role, TextContent};
+/// use goose::message::{Message, MessageContent};
+/// use goose::providers::utils::ImageFormat;
+/// use goose::providers::formats::openai::format_messages;
+/// let message = goose::message::Message {
 ///     role: Role::User,
-///     content: vec![MessageContent::Text(TextContent { text: "Hello".to_string() })]
+///     content: vec![MessageContent::Text(TextContent { text: "Hello".to_string(), annotations: None })],
+///     created: 0
 /// };
 /// let formatted = format_messages(&[message], &ImageFormat::OpenAi);
 /// assert_eq!(formatted.len(), 1);
@@ -326,6 +350,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 ///
 /// # Example
 /// ```
+/// use serde_json::json;
+/// use mcp_core::Tool;
+/// use goose::providers::formats::openai::format_tools;
 /// let tool = Tool::new(
 ///     "test_tool",
 ///     "Test tool",
@@ -342,9 +369,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 /// );
 /// let formatted = format_tools(&[tool])?;
 /// assert_eq!(formatted.len(), 1);
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>, Error> {
-    let mut tool_names = std::collections::HashSet::new();
+    let mut tool_names = std::collections::BTreeSet::new();
     let mut result = Vec::new();
 
     for tool in tools {
@@ -383,6 +411,9 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>, Error> {
 ///
 /// # Example
 /// ```
+/// use serde_json::json;
+/// use goose::message::Message;
+/// use goose::providers::formats::openai::response_to_message;
 /// let response = json!({
 ///     "choices": [{
 ///         "role": "assistant",
@@ -398,6 +429,7 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>, Error> {
 /// });
 /// let message = response_to_message(response)?;
 /// assert_eq!(message.content.len(), 1);
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn response_to_message(response: Value) -> anyhow::Result<Message, Error> {
     let original = response["choices"][0]["message"].clone();
@@ -469,6 +501,9 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message, Error> {
 ///
 /// # Example
 /// ```
+/// use serde_json::json;
+/// use goose::providers::base::Usage;
+/// use goose::providers::formats::openai::get_usage;
 /// let data = json!({
 ///     "usage": {
 ///         "prompt_tokens": 10,
@@ -478,6 +513,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message, Error> {
 /// });
 /// let usage = get_usage(&data)?;
 /// assert_eq!(usage.input_tokens, Some(10));
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
     let usage = data
@@ -523,6 +559,9 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
 ///
 /// # Example
 /// ```
+/// use goose::model::ModelConfig;
+/// use goose::providers::utils::ImageFormat;
+/// use goose::providers::formats::openai::create_request;
 /// let model_config = ModelConfig {
 ///     model_name: "gpt-4".to_string(),
 ///     tokenizer_name: "gpt-4".to_string(),
@@ -536,6 +575,7 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
 /// let image_format = ImageFormat::OpenAi;
 /// let request = create_request(&model_config, system, &messages, &tools, &image_format)?;
 /// assert_eq!(request["model"], "gpt-4");
+/// # Ok::<(), anyhow::Error>(())
 /// ```
 pub fn create_request(
     model_config: &ModelConfig,
@@ -551,13 +591,16 @@ pub fn create_request(
     let (model_name, reasoning_effort) = if is_o1 || is_o3 {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
-        
+
         match *last_part {
             "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len()-1].join("-");
+                let base_name = parts[..parts.len() - 1].join("-");
                 (base_name, Some(last_part.to_string()))
-            },
-            _ => (model_config.model_name.to_string(), Some("medium".to_string()))
+            }
+            _ => (
+                model_config.model_name.to_string(),
+                Some("medium".to_string()),
+            ),
         }
     } else {
         // For non-O family models, use the model name as is and no reasoning effort
@@ -599,13 +642,17 @@ pub fn create_request(
     // Defaults to medium per openai docs
     // https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort
     if let Some(effort) = reasoning_effort {
-        payload.as_object_mut().unwrap()
+        payload
+            .as_object_mut()
+            .unwrap()
             .insert("reasoning_effort".to_string(), json!(effort));
     }
 
     // Add tools if present
     if !tools_spec.is_empty() {
-        payload.as_object_mut().unwrap()
+        payload
+            .as_object_mut()
+            .unwrap()
             .insert("tools".to_string(), json!(tools_spec));
     }
 
@@ -638,7 +685,6 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::Content;
     use serde_json::json;
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
@@ -661,7 +707,7 @@ mod tests {
         }
     }"#;
 
-    const EPSILON: f64 = 1e-6;  // More lenient epsilon for float comparison
+    const EPSILON: f64 = 1e-6; // More lenient epsilon for float comparison
 
     // Test utilities
     struct TestModelConfig {
@@ -743,6 +789,7 @@ mod tests {
 
     #[test]
     fn test_format_messages() -> anyhow::Result<()> {
+        use crate::providers::formats::openai::format_messages;
         let message = Message::user().with_text("Hello");
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
 
@@ -754,6 +801,9 @@ mod tests {
 
     #[test]
     fn test_format_tools() -> anyhow::Result<()> {
+        use crate::providers::formats::openai::format_tools;
+        use mcp_core::Tool;
+        use serde_json::json;
         let tool = Tool::new(
             "test_tool",
             "A test tool",
@@ -779,6 +829,10 @@ mod tests {
 
     #[test]
     fn test_format_messages_complex() -> anyhow::Result<()> {
+        use crate::message::{Message, MessageContent};
+        use crate::providers::formats::openai::format_messages;
+        use crate::providers::utils::ImageFormat;
+        use mcp_core::Content;
         let mut messages = vec![
             Message::assistant().with_text("Hello!"),
             Message::user().with_text("How are you?"),
@@ -816,6 +870,10 @@ mod tests {
 
     #[test]
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
+        use crate::message::{Message, MessageContent};
+        use crate::providers::formats::openai::format_messages;
+        use crate::providers::utils::ImageFormat;
+        use mcp_core::Content;
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(ToolCall::new("example", json!({"param1": "value1"}))),
@@ -845,6 +903,9 @@ mod tests {
 
     #[test]
     fn test_format_tools_duplicate() -> anyhow::Result<()> {
+        use crate::providers::formats::openai::format_tools;
+        use mcp_core::Tool;
+        use serde_json::json;
         let tool1 = Tool::new(
             "test_tool",
             "Test tool",
@@ -887,6 +948,7 @@ mod tests {
 
     #[test]
     fn test_format_tools_empty() -> anyhow::Result<()> {
+        use crate::providers::formats::openai::format_tools;
         let spec = format_tools(&[])?;
         assert!(spec.is_empty());
         Ok(())
@@ -894,6 +956,8 @@ mod tests {
 
     #[test]
     fn test_response_to_message_text() -> anyhow::Result<()> {
+        use crate::providers::formats::openai::response_to_message;
+        use serde_json::json;
         let response = json!({
             "choices": [{
                 "role": "assistant",
@@ -991,13 +1055,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-        )?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -1012,13 +1070,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-        )?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "high");
@@ -1033,13 +1085,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-        )?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o3-mini-invalid");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -1059,13 +1105,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-        )?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o1");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
@@ -1080,13 +1120,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
         };
-        let request = create_request(
-            &model_config,
-            "system",
-            &[],
-            &[],
-            &ImageFormat::OpenAi,
-        )?;
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
         assert_eq!(obj.get("model").unwrap(), "o1");
         assert_eq!(obj.get("reasoning_effort").unwrap(), "low");
@@ -1157,7 +1191,10 @@ mod tests {
             &ImageFormat::OpenAi,
         );
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("o1-mini model is not currently supported"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("o1-mini model is not currently supported"));
         Ok(())
     }
 
