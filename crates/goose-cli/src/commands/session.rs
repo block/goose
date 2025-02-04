@@ -16,7 +16,7 @@ pub async fn build_session(
     name: Option<String>,
     resume: bool,
     extension: Option<String>,
-    builtin: Option<String>,
+    builtin: Vec<String>,
 ) -> Session<'static> {
     // Load config and get provider/model
     let config = Config::global();
@@ -104,8 +104,8 @@ pub async fn build_session(
         });
     }
 
-    // Add builtin extension if provided
-    if let Some(name) = builtin {
+    // Add builtin extensions
+    for name in builtin {
         let config = ExtensionConfig::Builtin { name };
         agent.add_extension(config).await.unwrap_or_else(|e| {
             eprintln!("Failed to start builtin extension: {}", e);

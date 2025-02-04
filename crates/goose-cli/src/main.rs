@@ -71,14 +71,15 @@ enum Command {
         )]
         extension: Option<String>,
 
-        /// Add a builtin extension by name
+        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
-            help = "Add a builtin extension by name (e.g., 'developer')",
-            long_help = "Add a builtin extension that is bundled with goose by specifying its name"
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
         )]
-        builtin: Option<String>,
+        builtin: Vec<String>,
     },
 
     /// Execute commands from an instruction file
@@ -134,14 +135,15 @@ enum Command {
         )]
         extension: Option<String>,
 
-        /// Add a builtin extension by name
+        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
-            help = "Add a builtin extension by name (e.g., 'developer')",
-            long_help = "Add a builtin extension that is compiled into goose by specifying its name"
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
         )]
-        builtin: Option<String>,
+        builtin: Vec<String>,
     },
 
     /// List available agent versions
