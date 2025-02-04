@@ -1,15 +1,10 @@
-use std::collections::HashMap;
-
-use anyhow::{anyhow, bail, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
-use aws_smithy_types::{Document, Number};
-use chrono::Utc;
-use mcp_core::{Role, Tool};
-use serde_json::Value;
+use mcp_core:: Tool;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
