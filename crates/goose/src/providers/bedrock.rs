@@ -147,14 +147,19 @@ impl Provider for BedrockProvider {
             .unwrap_or_default();
 
         let message = from_bedrock_message(&message)?;
-        
+
         // Add debug trace with input context
         let debug_payload = serde_json::json!({
             "system": system,
             "messages": messages,
             "tools": tools
         });
-        emit_debug_trace(&self.model, &debug_payload, &serde_json::to_value(&message).unwrap_or_default(), &usage);
+        emit_debug_trace(
+            &self.model,
+            &debug_payload,
+            &serde_json::to_value(&message).unwrap_or_default(),
+            &usage,
+        );
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
