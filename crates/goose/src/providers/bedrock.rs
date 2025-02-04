@@ -52,7 +52,7 @@ impl Provider for BedrockProvider {
         ProviderMetadata::new(
             "bedrock",
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock",
+            "Run models through Amazon Bedrock. You may have to set AWS_ACCESS_KEY_ID, AWS_ACCESS_KEY, and AWS_REGION as env vars before configuring.",
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
             BEDROCK_DOC_LINK,
@@ -99,10 +99,10 @@ impl Provider for BedrockProvider {
             Err(err) => {
                 return Err(match err.into_service_error() {
                     ConverseError::AccessDeniedException(err) => {
-                        ProviderError::Authentication(format!("Failed to call Bedrock: {}", err))
+                        ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
                     }
                     ConverseError::ThrottlingException(err) => {
-                        ProviderError::RateLimitExceeded(format!("Failed to call Bedrock: {}", err))
+                        ProviderError::RateLimitExceeded(format!("Failed to call Bedrock: {:?}", err))
                     }
                     ConverseError::ValidationException(err)
                         if err
@@ -111,14 +111,14 @@ impl Provider for BedrockProvider {
                             .contains("Input is too long for requested model.") =>
                     {
                         ProviderError::ContextLengthExceeded(format!(
-                            "Failed to call Bedrock: {}",
+                            "Failed to call Bedrock: {:?}",
                             err
                         ))
                     }
                     ConverseError::ModelErrorException(err) => {
-                        ProviderError::ExecutionError(format!("Failed to call Bedrock: {}", err))
+                        ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                     }
-                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {}", err,)),
+                    err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err,)),
                 });
             }
         };
