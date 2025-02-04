@@ -8,7 +8,7 @@ use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
 use goose::providers::{
-    azure::AzureProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    azure::AzureProvider, ollama::OllamaProvider, openai::OpenAiProvider, eternalai::EternalAiProvider,
     openrouter::OpenRouterProvider,
 };
 use goose::providers::{google::GoogleProvider, groq::GroqProvider};
@@ -17,6 +17,7 @@ use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 enum ProviderType {
     Azure,
     OpenAi,
+    EternalAi,
     Anthropic,
     Databricks,
     Google,
@@ -34,6 +35,7 @@ impl ProviderType {
                 "AZURE_OPENAI_DEPLOYMENT_NAME",
             ],
             ProviderType::OpenAi => &["OPENAI_API_KEY"],
+            ProviderType::EternalAi => &["ETERMALAI_API_KEY"],
             ProviderType::Anthropic => &["ANTHROPIC_API_KEY"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
@@ -65,6 +67,7 @@ impl ProviderType {
         Ok(match self {
             ProviderType::Azure => Box::new(AzureProvider::from_env(model_config)?),
             ProviderType::OpenAi => Box::new(OpenAiProvider::from_env(model_config)?),
+            ProviderType::EternalAi => Box::new(EternalAiProvider::from_env(model_config, None)?),
             ProviderType::Anthropic => Box::new(AnthropicProvider::from_env(model_config)?),
             ProviderType::Databricks => Box::new(DatabricksProvider::from_env(model_config)?),
             ProviderType::Google => Box::new(GoogleProvider::from_env(model_config)?),
