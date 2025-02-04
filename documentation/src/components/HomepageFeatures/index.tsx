@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import Heading from "@theme/Heading";
 import styles from "./styles.module.css";
@@ -165,32 +164,6 @@ function Quote({ name, github, role, testimonial }: FeatureQuote) {
 }
 
 export default function HomepageFeatures(): ReactNode {
-  const videoRef = useRef<HTMLIFrameElement>(null);
-  const [videoLoaded, setVideoLoaded] = useState(false);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !videoLoaded) {
-            setVideoLoaded(true); // Load video only when it first appears
-          }
-        });
-      },
-      { threshold: 0.5 }
-    );
-
-    if (videoRef.current) {
-      observer.observe(videoRef.current);
-    }
-
-    return () => {
-      if (videoRef.current) {
-        observer.unobserve(videoRef.current);
-      }
-    };
-  }, [videoLoaded]);
-
   return (
     <section className={styles.features}>
       <div className="container">
@@ -217,29 +190,24 @@ export default function HomepageFeatures(): ReactNode {
               <div
                 style={{
                   position: "relative",
-                  width: "66vw",
+                  width: "66vw", 
                   height: "37.125vw",
                   maxWidth: "1100px",
-                  borderRadius: "12px",
-                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
+                  borderRadius: "12px", 
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)", 
                   overflow: "hidden",
                 }}
               >
                 <iframe
-                  ref={videoRef}
                   style={{
                     position: "absolute",
                     top: 0,
                     left: 0,
                     width: "100%",
                     height: "100%",
-                    borderRadius: "12px",
+                    borderRadius: "12px", 
                   }}
-                  src={
-                    videoLoaded
-                      ? "https://www.youtube.com/embed/tZCNOe4TTkM?autoplay=1"
-                      : ""
-                  }
+                  src="https://www.youtube.com/embed/tZCNOe4TTkM"
                   title="Goose Introduction"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -248,7 +216,6 @@ export default function HomepageFeatures(): ReactNode {
               </div>
             </div>
           </div>
-
           {/* Testimonials Section */}
           <div style={{ display: "flex", flexDirection: "column", marginTop: "60px" }}>
             <h3 style={{ textAlign: "center", marginBottom: "40px" }}>Loved by engineers</h3>
