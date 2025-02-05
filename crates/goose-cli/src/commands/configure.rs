@@ -239,11 +239,14 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             .mask('▪')
                             .interact()?
                         } else {
-                            cliclack::input(format!(
+                            let mut input = cliclack::input(format!(
                                 "Provider {} requires {}, please enter a value",
                                 provider_meta.display_name, key.name
-                            ))
-                            .interact()?
+                            ));
+                            if key.default.is_some() {
+                                input = input.default_input(&key.default.clone().unwrap());
+                            }
+                            input.interact()?
                         };
 
                         if key.secret {
