@@ -39,7 +39,7 @@ export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
 
 const ETERNALAI_CONFIG = `export GOOSE_PROVIDER__TYPE=eternalai
 export GOOSE_PROVIDER__HOST=https://api.eternalai.org
-export GOOSE_PROVIDER__MODEL=DeepSeek-R1-Distill-Llama-70B
+export GOOSE_PROVIDER__MODEL=SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B
 export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
 
 const ANTHROPIC_CONFIG = `export GOOSE_PROVIDER__TYPE=anthropic

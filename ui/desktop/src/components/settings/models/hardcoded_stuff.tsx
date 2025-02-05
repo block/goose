@@ -18,7 +18,7 @@ export const goose_models: Model[] = [
   { id: 16, name: 'qwen2.5', provider: 'Ollama' },
   { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 18, name: 'gpt-4o', provider: 'Azure OpenAI' },
-  { id: 19, name: 'DeepSeek-R1-Distill-Llama-70B', provider: 'EternalAI' },
+  { id: 19, name: 'SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B', provider: 'EternalAI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -48,7 +48,7 @@ export const azure_openai_models = ['gpt-4o'];
 
 export const default_models = {
   openai: 'gpt-4o',
-  eternalai: 'DeepSeek-R1-Distill-Llama-70B',
+  eternalai: 'SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B',
   anthropic: 'claude-3-5-sonnet-latest',
   databricks: 'claude-3-5-sonnet-2',
   google: 'gemini-2.0-flash-exp',
