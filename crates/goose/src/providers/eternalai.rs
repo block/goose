@@ -16,7 +16,7 @@ use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 use reqwest::{Client, Response, StatusCode};
 
-pub const ETERNAL_AI_DEFAULT_MODEL: &str = "DeepSeek-R1-Distill-Llama-70B";
+pub const ETERNAL_AI_DEFAULT_MODEL: &str = "SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B";
 pub const ETERNAL_AI_KNOWN_MODELS: &[&str] = &[
     "DeepSeek-R1-Distill-Llama-70B",
     "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16",
@@ -117,12 +117,12 @@ pub async fn create_eternalai_request(
         "role": "system" ,
         "content": system
     });
-
-    let eternal_ai_rpc = std::env::var("ETERNALAI_RPC_URL").unwrap_or_else(|_| "".to_string());
+    let config = crate::config::Config::global();
+    let eternal_ai_rpc = config.get("ETERNALAI_RPC_URL").unwrap_or_else(|_| "".to_string());
     let eternal_ai_contract =
-        std::env::var("ETERNALAI_AGENT_CONTRACT_ADDRESS").unwrap_or_else(|_| "".to_string());
+        config.get("ETERNALAI_AGENT_CONTRACT_ADDRESS").unwrap_or_else(|_| "".to_string());
     let eternal_ai_agent_id =
-        std::env::var("ETERNALAI_AGENT_ID").unwrap_or_else(|_| "".to_string());
+        config.get("ETERNALAI_AGENT_ID").unwrap_or_else(|_| "".to_string());
     if !eternal_ai_rpc.is_empty()
         && !eternal_ai_contract.is_empty()
         && !eternal_ai_agent_id.is_empty()
