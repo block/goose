@@ -180,7 +180,6 @@ async fn main() -> Result<()> {
         }) => {
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-
             let _ = session.start().await;
             return Ok(());
         }
@@ -211,6 +210,7 @@ async fn main() -> Result<()> {
                 stdin
             };
             let mut session = build_session(name, resume, extension, builtin).await;
+            setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.headless_start(contents.clone()).await;
             return Ok(());
         }
