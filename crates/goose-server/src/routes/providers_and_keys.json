@@ -5,6 +5,12 @@
         "models": ["gpt-4o", "gpt-4-turbo","o1"],
         "required_keys": ["OPENAI_API_KEY"]
     },
+    "eternalai": {
+        "name": "EternalAI",
+        "description": "Censorship-resistant, permissionless, and trustless Decentralized Inference serving state-of-the-art AI models such as DeepSeek, Llama, and FLUX.",
+        "models": ["DeepSeek-R1-Distill-Llama-70B", "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16"],
+        "required_keys": ["ETERNALAI_API_KEY"]
+    },
     "anthropic": {
         "name": "Anthropic",
         "description": "Use Claude and other Anthropic models",
