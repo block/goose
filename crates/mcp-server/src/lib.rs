@@ -22,6 +22,7 @@ pub struct ByteTransport<R, W> {
     reader: BufReader<R>,
     #[pin]
     writer: W,
+    buf: Vec<u8>,
 }
 
 impl<R, W> ByteTransport<R, W>
@@ -35,6 +36,7 @@ where
             // allows the buffer to have the capacity to read very large calls
             reader: BufReader::with_capacity(2 * 1024 * 1024, reader),
             writer,
+            buf: Vec::new(),
         }
     }
 }
@@ -48,15 +50,15 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
-        let mut buf = Vec::new();
 
-        let mut binding = this.reader.as_mut();
-        let mut read_future = Box::pin(binding.read_until(b'\n', &mut buf));
+        let mut reader = this.reader.as_mut();
+        let mut read_future = Box::pin(reader.read_until(b'\n', this.buf));
         match read_future.as_mut().poll(cx) {
             Poll::Ready(Ok(0)) => Poll::Ready(None), // EOF
             Poll::Ready(Ok(_)) => {
                 // Convert to UTF-8 string
-                let line = match String::from_utf8(buf) {
+                // std::mem::take will clear the buf with its default value (Vec::empty)
+                let line = match String::from_utf8(std::mem::take(this.buf)) {
                     Ok(s) => s,
                     Err(e) => return Poll::Ready(Some(Err(TransportError::Utf8(e)))),
                 };
