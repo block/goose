@@ -67,10 +67,21 @@ impl DeveloperRouter {
                 If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
                 this tool does not run indefinitely.
 
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
+                **Important**: For searching files and code:
+                
+                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
                   - To locate a file by name: `rg --files | rg example.py`
-                  - To locate consent inside files: `rg 'class Example'`
+                  - To locate content inside files: `rg 'class Example'`
+                
+                Windows alternatives (if ripgrep is not installed):
+                  - To locate a file by name: `dir /s /b example.py` 
+                  - To locate content inside files: `findstr /s /i "class Example" *.py`
+                
+                Unix alternatives (if ripgrep is not installed):
+                  - To locate a file by name: `find . -name example.py`
+                  - To locate content inside files: `grep -r "class Example" .`
+
+                Note: The alternative commands may show ignored/hidden files that should be excluded.
             "#}.to_string(),
             json!({
                 "type": "object",
