@@ -35,4 +35,5 @@ pub enum InputType {
 pub enum Theme {
     Light,
     Dark,
+    Ansi, // Use terminal's ANSI/base16 colors directly.
 }
