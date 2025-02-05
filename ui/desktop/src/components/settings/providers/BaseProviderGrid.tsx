@@ -46,6 +46,8 @@ export function getProviderDescription(provider) {
     Databricks: 'Access models hosted on your Databricks instance',
     OpenRouter: 'Access a variety of AI models through OpenRouter',
     Ollama: 'Run and use open-source models locally',
+    EternalAI:
+      'Censorship-resistant, permissionless, and trustless Decentralized Inference serving state-of-the-art AI models such as DeepSeek, Llama, and FLUX.',
   };
   return descriptions[provider] || `Access ${provider} models`;
 }

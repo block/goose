@@ -37,6 +37,11 @@ export GOOSE_PROVIDER__HOST=https://api.openai.com
 export GOOSE_PROVIDER__MODEL=gpt-4o
 export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
 
+const ETERNALAI_CONFIG = `export GOOSE_PROVIDER__TYPE=eternalai
+export GOOSE_PROVIDER__HOST=https://api.eternalai.org
+export GOOSE_PROVIDER__MODEL=DeepSeek-R1-Distill-Llama-70B
+export GOOSE_PROVIDER__API_KEY=your_api_key_here`;
+
 const ANTHROPIC_CONFIG = `export GOOSE_PROVIDER__TYPE=anthropic
 export GOOSE_PROVIDER__HOST=https://api.anthropic.com
 export GOOSE_PROVIDER__MODEL=claude-3-5-sonnet-latest
@@ -68,6 +73,10 @@ export function ApiKeyWarning({ className }: ApiKeyWarningProps) {
         <div className="text-left">
           <Collapsible title="OpenAI Configuration" defaultOpen={true}>
             <pre className="bg-gray-50 p-4 rounded-md text-sm">{OPENAI_CONFIG}</pre>
+          </Collapsible>
+
+          <Collapsible title="EternalAI Configuration" defaultOpen={true}>
+            <pre className="bg-gray-50 p-4 rounded-md text-sm">{ETERNALAI_CONFIG}</pre>
           </Collapsible>
 
           <Collapsible title="Anthropic (Claude) Configuration">

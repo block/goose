@@ -18,6 +18,7 @@ export const goose_models: Model[] = [
   { id: 16, name: 'qwen2.5', provider: 'Ollama' },
   { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 18, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 19, name: 'DeepSeek-R1-Distill-Llama-70B', provider: 'EternalAI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -47,6 +48,7 @@ export const azure_openai_models = ['gpt-4o'];
 
 export const default_models = {
   openai: 'gpt-4o',
+  eternalai: 'DeepSeek-R1-Distill-Llama-70B',
   anthropic: 'claude-3-5-sonnet-latest',
   databricks: 'claude-3-5-sonnet-2',
   google: 'gemini-2.0-flash-exp',
@@ -64,6 +66,7 @@ export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];
 
 export const required_keys = {
   OpenAI: ['OPENAI_API_KEY'],
+  EternalAI: ['ETERNALAI_API_KEY'],
   Anthropic: ['ANTHROPIC_API_KEY'],
   Databricks: ['DATABRICKS_HOST'],
   Groq: ['GROQ_API_KEY'],
@@ -75,6 +78,7 @@ export const required_keys = {
 
 export const supported_providers = [
   'OpenAI',
+  'EternalAI',
   'Anthropic',
   'Databricks',
   'Groq',
@@ -99,6 +103,7 @@ export const model_docs_link = [
 
 export const provider_aliases = [
   { provider: 'OpenAI', alias: 'openai' },
+  { provider: 'EternalAI', alias: 'eternalai' },
   { provider: 'Anthropic', alias: 'anthropic' },
   { provider: 'Ollama', alias: 'ollama' },
   { provider: 'Groq', alias: 'groq' },
