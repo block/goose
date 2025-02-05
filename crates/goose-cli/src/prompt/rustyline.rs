@@ -57,6 +57,8 @@ impl RustylinePrompt {
                 .map(|val| {
                     if val.eq_ignore_ascii_case("light") {
                         Theme::Light
+                    } else if val.eq_ignore_ascii_case("ansi") {
+                        Theme::Ansi
                     } else {
                         Theme::Dark
                     }
@@ -122,6 +124,10 @@ impl Prompt for RustylinePrompt {
                     Theme::Dark
                 }
                 Theme::Dark => {
+                    println!("Switching to Ansi theme");
+                    Theme::Ansi
+                }
+                Theme::Ansi => {
                     println!("Switching to Light theme");
                     Theme::Light
                 }
@@ -135,7 +141,7 @@ impl Prompt for RustylinePrompt {
         {
             println!("Commands:");
             println!("/exit - Exit the session");
-            println!("/t - Toggle Light/Dark theme");
+            println!("/t - Toggle Light/Dark/Ansi theme");
             println!("/? | /help - Display this help message");
             println!("Ctrl+C - Interrupt goose (resets the interaction to before the interrupted user request)");
             println!("Ctrl+j - Adds a newline");
