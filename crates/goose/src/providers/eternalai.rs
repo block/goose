@@ -20,14 +20,16 @@ pub const ETERNAL_AI_DEFAULT_MODEL: &str = "DeepSeek-R1-Distill-Llama-70B";
 pub const ETERNAL_AI_KNOWN_MODELS: &[&str] = &[
     "DeepSeek-R1-Distill-Llama-70B",
     "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16",
+    "SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B"
 ];
 pub const ETERNAL_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
-pub const MAPPING_CHAINID: [(&str, &str); 2] = [
+pub const MAPPING_CHAINID: [(&str, &str); 3] = [
     ("DeepSeek-R1-Distill-Llama-70B", "8453"),
     (
         "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16",
         "45762",
     ),
+    ("SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B", "137"),
 ];
 const IPFS: &str = "ipfs://";
 const LIGHTHOUSE_IPFS: &str = "https://gateway.lighthouse.storage/ipfs/";
