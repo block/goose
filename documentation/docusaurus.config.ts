@@ -171,7 +171,7 @@ const config: Config = {
             },
             {
               label: "BlueSky",
-              href: "https://bsky.app/profile/block-opensource.bsky.social",
+              href: "https://bsky.app/profile/opensource.block.xyz",
             },
           ],
         },
