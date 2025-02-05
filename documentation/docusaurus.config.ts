@@ -68,28 +68,32 @@ const config: Config = {
       {
         redirects: [
           {
-            to: '/docs/getting-started/providers#using-goose-for-free',
             from: '/docs/getting-started/using-goose-free',
+            to: '/docs/getting-started/providers#using-goose-for-free'
           },
           {
-            to: '/docs/getting-started/providers',
             from: '/v1/docs/getting-started/providers',
+            to: '/docs/getting-started/providers'
           },
           {
-            to: '/docs/getting-started/installation',
             from: '/v1/docs/getting-started/installation',
+            to: '/docs/getting-started/installation'
           },
           {
-            to: '/docs/quickstart',
             from: '/v1/docs/quickstart',
+            to: '/docs/quickstart'
           },
           {
-            to: '/',
             from: '/v1/',
+            to: '/'
           },
           {
-            to: '/docs/tutorials/custom-extensions',
-            from: '/docs/guides/custom-extensions'
+            from: '/docs/guides/custom-extensions',
+            to: '/docs/tutorials/custom-extensions'
+          },
+          {
+            from: '/docs',
+            to: '/docs/category/getting-started'
           }         
         ],
       },
