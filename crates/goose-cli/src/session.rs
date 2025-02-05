@@ -309,6 +309,9 @@ We've removed the conversation up to the most recent user message
     }
 
     async fn close_session(&mut self) {
+        let usage = self.agent.usage().await;
+        log_usage(self.session_file.to_string_lossy().to_string(), usage);
+
         self.prompt.render(raw_message(
             format!(
                 "Closing session. Recorded to {}\n",
@@ -317,8 +320,6 @@ We've removed the conversation up to the most recent user message
             .as_str(),
         ));
         self.prompt.close();
-        let usage = self.agent.usage().await;
-        log_usage(self.session_file.to_string_lossy().to_string(), usage);
     }
 
     pub fn session_file(&self) -> PathBuf {
