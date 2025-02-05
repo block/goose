@@ -8,7 +8,7 @@
     "eternalai": {
         "name": "EternalAI",
         "description": "Censorship-resistant, permissionless, and trustless Decentralized Inference serving state-of-the-art AI models such as DeepSeek, Llama, and FLUX.",
-        "models": ["DeepSeek-R1-Distill-Llama-70B", "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16"],
+        "models": ["DeepSeek-R1-Distill-Llama-70B", "neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16", "SentientAGI/Dobby-Mini-Unhinged-Llama-3.1-8B"],
         "required_keys": ["ETERNALAI_API_KEY"]
     },
     "anthropic": {
