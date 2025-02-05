@@ -56,30 +56,26 @@ where
         match read_future.as_mut().poll(cx) {
             Poll::Ready(Ok(0)) => Poll::Ready(None), // EOF
             Poll::Ready(Ok(_)) => {
-                // Convert to UTF-8 string
-                // std::mem::take will clear the buf with its default value (Vec::empty)
-                let line = match String::from_utf8(std::mem::take(this.buf)) {
-                    Ok(s) => s,
-                    Err(e) => return Poll::Ready(Some(Err(TransportError::Utf8(e)))),
-                };
-                // Log incoming message here before serde conversion to
-                // track incomplete chunks which are not valid JSON
-                tracing::info!(json = %line, "incoming message");
+                // Convert the buffer content as a UTF-8 string (lossy)
+                let line_str = String::from_utf8_lossy(this.buf);
+                tracing::info!(json = %line_str, "incoming message");
 
-                // Parse JSON and validate message format
-                match serde_json::from_str::<serde_json::Value>(&line) {
+                // Now parse JSON directly from the same buffer
+                match serde_json::from_slice::<serde_json::Value>(this.buf) {
                     Ok(value) => {
                         // Validate basic JSON-RPC structure
                         if !value.is_object() {
+                            // Clear the buffer and return error
+                            this.buf.clear();
                             return Poll::Ready(Some(Err(TransportError::InvalidMessage(
                                 "Message must be a JSON object".into(),
                             ))));
                         }
-
                         let obj = value.as_object().unwrap(); // Safe due to check above
 
                         // Check jsonrpc version field
                         if !obj.contains_key("jsonrpc") || obj["jsonrpc"] != "2.0" {
+                            this.buf.clear();
                             return Poll::Ready(Some(Err(TransportError::InvalidMessage(
                                 "Missing or invalid jsonrpc version".into(),
                             ))));
@@ -87,11 +83,20 @@ where
 
                         // Now try to parse as proper message
                         match serde_json::from_value::<JsonRpcMessage>(value) {
-                            Ok(msg) => Poll::Ready(Some(Ok(msg))),
-                            Err(e) => Poll::Ready(Some(Err(TransportError::Json(e)))),
+                            Ok(msg) => {
+                                this.buf.clear();
+                                Poll::Ready(Some(Ok(msg)))
+                            }
+                            Err(e) => {
+                                this.buf.clear();
+                                Poll::Ready(Some(Err(TransportError::Json(e))))
+                            }
                         }
                     }
-                    Err(e) => Poll::Ready(Some(Err(TransportError::Json(e)))),
+                    Err(e) => {
+                        this.buf.clear();
+                        Poll::Ready(Some(Err(TransportError::Json(e))))
+                    }
                 }
             }
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(TransportError::Io(e)))),
