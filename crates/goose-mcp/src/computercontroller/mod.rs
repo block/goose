@@ -89,25 +89,40 @@ impl ComputerControllerRouter {
             }),
         );
 
-        let computer_control_tool = Tool::new(
-            "computer_control",
-            indoc! {r#"
-                Control the computer using system automation. Features available:
+        let computer_control_desc = match std::env::consts::OS {
+            "windows" => indoc! {r#"
+                Control the computer using Windows system automation.
 
-                On Windows:
+                Features available:
                 - PowerShell automation for system control
                 - UI automation through PowerShell
                 - File and system management
                 - Windows-specific features and settings
 
-                On macOS:
-                - AppleScript for system control
-                - UI automation through AppleScript
-                - Integration with macOS apps and services
-                - macOS-specific features and settings
+                Can be combined with screenshot tool for visual task assistance.
+            "#},
+            _ => indoc! {r#"
+                Control the computer using AppleScript (macOS only). Automate applications and system features.
+
+                Key capabilities:
+                - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
+                    - Interact with app-specific feature: (e.g, edit documents, process photos)
+                    - Perform tasks in third-party apps that support AppleScript
+                - UI Automation: Simulate user interactions like, clicking buttons, select menus, type text, filling out forms
+                - System Control: Manage settings (volume, brightness, wifi), shutdown/restart, monitor events
+                - Web & Email: Open URLs, web automation, send/organize emails, handle attachments
+                - Media: Manage music libraries, photo collections, playlists
+                - File Operations: Organize files/folders
+                - Integration: Calendar, reminders, messages
+                - Data: Interact with spreadsheets and documents
 
                 Can be combined with screenshot tool for visual task assistance.
             "#},
+        };
+
+        let computer_control_tool = Tool::new(
+            "computer_control",
+            computer_control_desc.to_string(),
             json!({
                 "type": "object",
                 "required": ["script"],
@@ -125,31 +140,34 @@ impl ComputerControllerRouter {
             }),
         );
 
-        let quick_script_tool = Tool::new(
-            "automation_script",
-            indoc! {r#"
-                Create and run small scripts for automation tasks.
-
-                On Windows:
-                - Supports PowerShell and Batch scripts
-                - PowerShell is recommended for most tasks
-
-                On macOS:
-                - Supports Shell and Ruby scripts
-                - Shell (bash) is recommended for most tasks
+        let quick_script_desc = match std::env::consts::OS {
+            "windows" => indoc! {r#"
+                Create and run small PowerShell or Batch scripts for automation tasks.
+                PowerShell is recommended for most tasks.
 
                 The script is saved to a temporary file and executed.
                 Some examples:
-                    Windows (PowerShell):
-                    - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
-                    - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
-                    - Find text: Select-String -Pattern "pattern" -Path file.txt
-
-                    macOS (Shell):
-                    - Sort unique lines: sort file.txt | uniq
-                    - Extract CSV column: awk -F "," '{ print $2}' file.csv
-                    - Find text: grep pattern file.txt
+                - Sort unique lines: Get-Content file.txt | Sort-Object -Unique
+                - Extract CSV column: Import-Csv file.csv | Select-Object -ExpandProperty Column2
+                - Find text: Select-String -Pattern "pattern" -Path file.txt
             "#},
+            _ => indoc! {r#"
+                Create and run small scripts for automation tasks.
+                Supports Shell and Ruby (on macOS).
+
+                The script is saved to a temporary file and executed.
+                Consider using shell script (bash) for most simple tasks first.
+                Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
+                Some examples of shell:
+                    - create a sorted list of unique lines: sort file.txt | uniq
+                    - extract 2nd column in csv: awk -F "," '{ print $2}'
+                    - pattern matching: grep pattern file.txt
+            "#},
+        };
+
+        let quick_script_tool = Tool::new(
+            "automation_script",
+            quick_script_desc.to_string(),
             json!({
                 "type": "object",
                 "required": ["language", "script"],
@@ -214,8 +232,38 @@ impl ComputerControllerRouter {
         let system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>> =
             Arc::new(create_system_automation());
 
-        let macos_browser_instructions = if std::env::consts::OS == "macos" {
-            indoc! {r#"
+        let os_specific_instructions = match std::env::consts::OS {
+            "windows" => indoc! {r#"
+            Here are some extra tools:
+            automation_script
+              - Create and run PowerShell or Batch scripts
+              - PowerShell is recommended for most tasks
+              - Scripts can save their output to files
+              - Windows-specific features:
+                - PowerShell for system automation and UI control
+                - Windows Management Instrumentation (WMI)
+                - Registry access and system settings
+              - Use the screenshot tool if needed to help with tasks
+
+            computer_control
+              - System automation using PowerShell
+              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+            "#},
+            _ => indoc! {r#"
+            Here are some extra tools:
+            automation_script
+              - Create and run Shell and Ruby scripts
+              - Shell (bash) is recommended for most tasks
+              - Scripts can save their output to files
+              - macOS-specific features:
+                - AppleScript for system and UI control
+                - Integration with macOS apps and services
+              - Use the screenshot tool if needed to help with tasks
+
+            computer_control
+              - System automation using AppleScript
+              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+
             When you need to interact with websites or web applications, consider using the computer_control tool with AppleScript, which can automate Safari or other browsers to:
               - Open specific URLs
               - Fill in forms
@@ -223,9 +271,7 @@ impl ComputerControllerRouter {
               - Extract content
               - Handle web-based workflows
             This is often more reliable than web scraping for modern web applications.
-            "#}
-        } else {
-            ""
+            "#},
         };
 
         let instructions = formatdoc! {r#"
@@ -237,32 +283,13 @@ impl ComputerControllerRouter {
             You can use scripting as needed to work with text files of data, such as csvs, json, or text files etc.
             Using the developer extension is allowed for more sophisticated tasks or instructed to (js or py can be helpful for more complex tasks if tools are available).
 
-            {macos_instructions}
-
             Accessing web sites, even apis, may be common (you can use scripting to do this) without troubling them too much (they won't know what limits are).
             Try to do your best to find ways to complete a task without too many questions or offering options unless it is really unclear, find a way if you can.
             You can also guide them steps if they can help out as you go along.
 
             There is already a screenshot tool available you can use if needed to see what is on screen.
 
-            Here are some extra tools:
-            automation_script
-              - Create and run simple automation scripts
-              - Supports PowerShell and Batch (on Windows), Shell and Ruby (on macOS)
-              - Scripts can save their output to files
-              - Platform specific features:
-                Windows:
-                  - PowerShell for system automation and UI control
-                  - Windows Management Instrumentation (WMI)
-                  - Registry access and system settings
-                macOS:
-                  - AppleScript for system and UI control
-                  - Integration with macOS apps and services
-              - use the screenshot tool if needed to help with tasks
-
-            computer_control
-              - System automation using PowerShell (Windows) or AppleScript (macOS)
-              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+            {os_instructions}
 
             web_search
               - Search the web using DuckDuckGo's API for general topics or keywords
@@ -279,7 +306,7 @@ impl ComputerControllerRouter {
             - Cache directory: {cache_dir}
             - File organization and cleanup
             "#,
-            macos_instructions = macos_browser_instructions,
+            os_instructions = os_specific_instructions,
             cache_dir = cache_dir.display()
         };
 

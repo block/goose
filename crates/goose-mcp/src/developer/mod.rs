@@ -54,9 +54,30 @@ impl DeveloperRouter {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        let bash_tool = Tool::new(
-            "shell".to_string(),
-            indoc! {r#"
+        // Get OS-specific shell tool description
+        let shell_tool_desc = match std::env::consts::OS {
+            "windows" => indoc! {r#"
+                Execute a command in the shell.
+
+                This will return the output and error concatenated into a single string, as
+                you would see from running on the command line. There will also be an indication
+                of if the command succeeded or failed.
+
+                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+
+                **Important**: For searching files and code:
+                
+                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+                  - To locate a file by name: `rg --files | rg example.py`
+                  - To locate content inside files: `rg 'class Example'`
+                
+                Alternative Windows commands (if ripgrep is not installed):
+                  - To locate a file by name: `dir /s /b example.py` 
+                  - To locate content inside files: `findstr /s /i "class Example" *.py`
+
+                Note: Alternative commands may show ignored/hidden files that should be excluded.
+            "#},
+            _ => indoc! {r#"
                 Execute a command in the shell.
 
                 This will return the output and error concatenated into a single string, as
@@ -67,22 +88,16 @@ impl DeveloperRouter {
                 If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
                 this tool does not run indefinitely.
 
-                **Important**: For searching files and code:
-                
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
+                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
                   - To locate a file by name: `rg --files | rg example.py`
                   - To locate content inside files: `rg 'class Example'`
-                
-                Windows alternatives (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py` 
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-                
-                Unix alternatives (if ripgrep is not installed):
-                  - To locate a file by name: `find . -name example.py`
-                  - To locate content inside files: `grep -r "class Example" .`
+            "#},
+        };
 
-                Note: The alternative commands may show ignored/hidden files that should be excluded.
-            "#}.to_string(),
+        let bash_tool = Tool::new(
+            "shell".to_string(),
+            shell_tool_desc.to_string(),
             json!({
                 "type": "object",
                 "required": ["command"],
@@ -174,18 +189,33 @@ impl DeveloperRouter {
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
-        let base_instructions = formatdoc! {r#"
-            The developer extension gives you the capabilities to edit code files and run shell commands,
-            and can be used to solve a wide range of problems.
+        let os = std::env::consts::OS;
 
-            You can use the shell tool to run any command that would work on the relevant operating system:
-            - Windows: PowerShell or CMD commands
-            - Unix: Bash commands
+        let base_instructions = match os {
+            "windows" => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
 
-            When using paths, remember:
-            - Windows: Use backslashes or forward slashes (both work)
-            - Unix: Use forward slashes
+                You can use the shell tool to run Windows commands (PowerShell or CMD).
+                When using paths, you can use either backslashes or forward slashes.
 
+                Use the shell tool as needed to locate files or interact with the project.
+
+                Your windows/screen tools can be used for visual debugging. You should not use these tools unless
+                prompted to, but you can mention they are available if they are relevant.
+
+                operating system: {os}
+                current directory: {cwd}
+
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
+            _ => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
+
+            You can use the shell tool to run any command that would work on the relevant operating system.
             Use the shell tool as needed to locate files or interact with the project.
 
             Your windows/screen tools can be used for visual debugging. You should not use these tools unless
@@ -194,9 +224,10 @@ impl DeveloperRouter {
             operating system: {os}
             current directory: {cwd}
 
-            "#,
-            os=std::env::consts::OS,
-            cwd=cwd.to_string_lossy(),
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
         };
 
         // Check for global hints in ~/.config/goose/.goosehints
