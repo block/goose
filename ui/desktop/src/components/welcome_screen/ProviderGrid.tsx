@@ -4,6 +4,7 @@ import {
   supported_providers,
   required_keys,
   provider_aliases,
+  options_keys,
 } from '../settings/models/hardcoded_stuff';
 import { useActiveKeys } from '../settings/api_keys/ActiveKeysContext';
 import { ProviderSetupModal } from '../settings/ProviderSetupModal';
@@ -82,6 +83,8 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       return;
     }
 
+    const optionsKeys = options_keys[provider];
+
     try {
       // Delete existing keys if provider is already configured
       const isUpdate = providers.find((p) => p.id === selectedId)?.isConfigured;
@@ -126,6 +129,34 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
           body: JSON.stringify({
             key: keyName,
             value: value,
+            isSecret,
+          }),
+        });
+
+        if (!storeResponse.ok) {
+          const errorText = await storeResponse.text();
+          console.error('Store response error:', errorText);
+          throw new Error(`Failed to store new key: ${keyName}`);
+        }
+      }
+
+      for (const keyName of optionsKeys) {
+        const option = configValues[keyName];
+        if (!option) {
+          console.error(`Missing value for required key: ${keyName}`);
+          continue;
+        }
+
+        const isSecret = isSecretKey(keyName);
+        const storeResponse = await fetch(getApiUrl('/configs/store'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify({
+            key: keyName,
+            value: option,
             isSecret,
           }),
         });

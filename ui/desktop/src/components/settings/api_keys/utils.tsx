@@ -8,6 +8,9 @@ export function isSecretKey(keyName: string): boolean {
     'OLLAMA_HOST',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
+    'ETERNALAI_AGENT_CONTRACT_ADDRESS',
+    'ETERNALAI_AGENT_ID',
+    'ETERNALAI_RPC_URL',
   ];
   return !nonSecretKeys.includes(keyName);
 }

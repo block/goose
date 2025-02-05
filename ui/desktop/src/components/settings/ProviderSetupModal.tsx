@@ -3,7 +3,7 @@ import { Card } from '../ui/card';
 import { Lock } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { required_keys } from './models/hardcoded_stuff';
+import { options_keys, required_keys } from './models/hardcoded_stuff';
 import { isSecretKey } from './api_keys/utils';
 // import UnionIcon from "../images/Union@2x.svg";
 
@@ -26,11 +26,13 @@ export function ProviderSetupModal({
 }: ProviderSetupModalProps) {
   const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>({});
   const requiredKeys = required_keys[provider] || ['API Key'];
+  const optionsKeys = options_keys[provider] || [];
   const headerText = title || `Setup ${provider}`;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(configValues);
+    // console.log(configValues);
   };
 
   return (
@@ -63,6 +65,22 @@ export function ProviderSetupModal({
                     placeholder={keyName}
                     className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
                     required
+                  />
+                </div>
+              ))}
+              {optionsKeys.map((keyName) => (
+                <div key={keyName}>
+                  <Input
+                    type={isSecretKey(keyName) ? 'password' : 'text'}
+                    value={configValues[keyName] || ''}
+                    onChange={(e) =>
+                      setConfigValues((prev) => ({
+                        ...prev,
+                        [keyName]: e.target.value,
+                      }))
+                    }
+                    placeholder={`${keyName} (Optional)`}
+                    className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
                   />
                 </div>
               ))}

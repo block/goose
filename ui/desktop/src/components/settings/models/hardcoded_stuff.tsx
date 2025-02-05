@@ -76,6 +76,10 @@ export const required_keys = {
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
 };
 
+export const options_keys = {
+  EternalAI: ['ETERNALAI_AGENT_CONTRACT_ADDRESS', 'ETERNALAI_AGENT_ID', 'ETERNALAI_RPC_URL'],
+};
+
 export const supported_providers = [
   'OpenAI',
   'EternalAI',

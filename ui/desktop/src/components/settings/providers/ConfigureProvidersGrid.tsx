@@ -1,7 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
 import { BaseProviderGrid, getProviderDescription } from './BaseProviderGrid';
-import { supported_providers, provider_aliases, required_keys } from '../models/hardcoded_stuff';
+import {
+  supported_providers,
+  provider_aliases,
+  required_keys,
+  options_keys,
+} from '../models/hardcoded_stuff';
 import { ProviderSetupModal } from '../ProviderSetupModal';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toast } from 'react-toastify';
@@ -86,6 +91,8 @@ export function ConfigureProvidersGrid() {
       return;
     }
 
+    const optionsKeys = options_keys[provider];
+
     try {
       // Delete existing keys if provider is already configured
       const isUpdate = providers.find((p) => p.id === selectedForSetup)?.isConfigured;
@@ -130,6 +137,34 @@ export function ConfigureProvidersGrid() {
           body: JSON.stringify({
             key: keyName,
             value: value,
+            isSecret,
+          }),
+        });
+
+        if (!storeResponse.ok) {
+          const errorText = await storeResponse.text();
+          console.error('Store response error:', errorText);
+          throw new Error(`Failed to store new key: ${keyName}`);
+        }
+      }
+
+      for (const keyName of optionsKeys) {
+        const option = configValues[keyName];
+        if (!option) {
+          console.error(`Missing value for required key: ${keyName}`);
+          continue;
+        }
+
+        const isSecret = isSecretKey(keyName);
+        const storeResponse = await fetch(getApiUrl('/configs/store'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify({
+            key: keyName,
+            value: option,
             isSecret,
           }),
         });
