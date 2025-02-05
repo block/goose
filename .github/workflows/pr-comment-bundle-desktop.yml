@@ -51,10 +51,21 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+  bundle-desktop-windows:
+    # Only run this if ".bundle" command is detected.
+    needs: [trigger-on-command]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    with:
+      signing: true
+    secrets:
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
   pr-comment:
     name: PR Comment with Desktop App
     runs-on: ubuntu-latest
-    needs: [trigger-on-command, bundle-desktop]
+    needs: [trigger-on-command, bundle-desktop, bundle-desktop-windows]
     permissions:
       pull-requests: write
 
@@ -71,10 +82,15 @@ jobs:
           body: |
             ### Desktop App for this PR
 
-            The following build is available for testing:
+            The following builds are available for testing:
 
             - [📱 macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
+            - [🪟 Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
 
+            **macOS Instructions:**
             After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
 
-            This link is provided by nightly.link and will work even if you're not logged into GitHub.
+            **Windows Instructions:**
+            After downloading, unzip the file and run Goose.exe. The app is signed for Windows.
+
+            These links are provided by nightly.link and will work even if you're not logged into GitHub.
