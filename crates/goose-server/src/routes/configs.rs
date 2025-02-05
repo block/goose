@@ -73,6 +73,8 @@ struct ProviderConfig {
     description: String,
     models: Vec<String>,
     required_keys: Vec<String>,
+    #[serde(default)]
+    optional_keys: Vec<String>,
 }
 
 static PROVIDER_ENV_REQUIREMENTS: Lazy<HashMap<String, ProviderConfig>> = Lazy::new(|| {
@@ -103,6 +105,17 @@ async fn check_provider_configs(
             let mut config_status = HashMap::new();
 
             for key in &provider_config.required_keys {
+                let (key_set, key_location) = check_key_status(config, key);
+                config_status.insert(
+                    key.to_string(),
+                    ConfigStatus {
+                        is_set: key_set,
+                        location: key_location,
+                    },
+                );
+            }
+
+            for key in &provider_config.optional_keys {
                 let (key_set, key_location) = check_key_status(config, key);
                 config_status.insert(
                     key.to_string(),
