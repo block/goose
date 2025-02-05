@@ -10,11 +10,14 @@ use super::{
 
 use anyhow::Result;
 use cliclack::spinner;
+use console::style;
 use goose::message::Message;
 use mcp_core::Role;
 use rustyline::{DefaultEditor, EventHandler, KeyCode, KeyEvent, Modifiers};
 
-const PROMPT: &str = "\x1b[1m\x1b[38;5;30m( O)> \x1b[0m";
+fn get_prompt() -> String {
+    format!("{} ", style("( O)>").cyan().bold())
+}
 
 pub struct RustylinePrompt {
     spinner: cliclack::ProgressBar,
@@ -81,7 +84,7 @@ impl Prompt for RustylinePrompt {
     }
 
     fn get_input(&mut self) -> Result<Input> {
-        let input = self.editor.readline(PROMPT);
+        let input = self.editor.readline(&get_prompt());
         let mut message_text = match input {
             Ok(text) => {
                 // Add valid input to history
