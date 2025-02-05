@@ -133,7 +133,7 @@ pub async fn create_eternalai_request(
             &eternal_ai_contract,
             c_value,
         )
-        .await
+            .await
         {
             Ok(value) => value,
             Err(e) => return Err(Error::from(ProviderError::ExecutionError(e))),
@@ -153,11 +153,11 @@ pub async fn create_eternalai_request(
     }
 
     let messages_spec = format_messages(messages, image_format);
-    let tools_spec = if !tools.is_empty() {
+    /*let tools_spec = if !tools.is_empty() {
         format_tools(tools)?
     } else {
         vec![]
-    };
+    };*/
 
     let mut messages_array = vec![system_message];
     messages_array.extend(messages_spec);
@@ -168,12 +168,12 @@ pub async fn create_eternalai_request(
         "chain_id": chain_id,
     });
 
-    if !tools_spec.is_empty() {
+    /*if !tools_spec.is_empty() {
         payload
             .as_object_mut()
             .unwrap()
             .insert("tools".to_string(), json!(tools_spec));
-    }
+    }*/
 
     if let Some(tokens) = model_config.max_tokens {
         let key = "max_completion_tokens";
@@ -191,7 +191,7 @@ pub async fn handle_response_eternalai_compat(response: Response) -> Result<Valu
     let payload: Option<Value> = response.json().await.ok();
 
     match status {
-        StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+        StatusCode::OK => payload.ok_or_else(|| ProviderError::RequestFailed("Response body is not valid JSON".to_string())),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", status, payload)))
@@ -212,7 +212,8 @@ pub async fn handle_response_eternalai_compat(response: Response) -> Result<Valu
                             return Err(ProviderError::ContextLengthExceeded(message));
                         }
                     }
-                }}
+                }
+            }
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
@@ -359,7 +360,7 @@ impl Provider for EternalAiProvider {
             &ImageFormat::OpenAi,
             chain_id.unwrap().to_string(),
         )
-        .await?;
+            .await?;
 
         // Make request
         let response = self.post(payload.clone()).await?;
