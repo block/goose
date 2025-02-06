@@ -141,7 +141,7 @@ FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
 
 ## Example Usage
 
-The Figma MCP server allows you to interact with your Figma files and designs programmatically. When creating your access token, make sure you give it the right scopes including:
+The Figma MCP server allows you to interact with your Figma files and designs programmatically. When creating your access token, make sure you give it the appropriate access and scope:
 
 1. Read access for files
 2. Write access for Comments
