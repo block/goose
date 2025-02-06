@@ -57,7 +57,7 @@ impl DeveloperRouter {
                 you would see from running on the command line. There will also be an indication
                 of if the command succeeded or failed.
 
-                Avoid commands that produce a large amount of ouput, and consider piping those outputs to files.
+                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
                 If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that
                 this tool does not run indefinitely.
 
