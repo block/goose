@@ -1,6 +1,6 @@
 ---
 title: Developer Extension
-description: Add Developer MCP Server as a Goose Extension
+description: Use Developer MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -22,41 +22,18 @@ This tutorial will cover enabling and using the Developer MCP Server, which is a
   goose configure
   ```
 
-  2. Choose to add a `Built-in Extension`
+  2. Choose to `Toggle Extensions`
   ```sh
   ┌   goose-configure 
   │
   ◇  What would you like to configure?
-  │  Add Extension 
+  │  Toggle Extensions 
   │
-  ◆  What type of extension would you like to add?
+  ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
   // highlight-start    
-  │  ● Built-in Extension (Use an extension that comes with Goose)
+  │  ● developer
   // highlight-end  
-  │  ○ Command-line Extension 
-  │  ○ Remote Extension 
-  └  
-  ```
-
-  3. Arrow down to the `Developer` extension and press Enter
-  ```sh
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension 
-  │
-  ◇  What type of extension would you like to add?
-  │  Built-in Extension 
-  │
-  ◆  Which built-in extension would you like to enable?
-    // highlight-start
-  │  ● Developer Tools 
-   // highlight-end
-  │  ○ Computer Controller 
-  │  ○ Google Drive 
-  │  ○ Memory 
-  │  ○ JetBrains 
-  └  Enabled Developer extension
+  └  Extension settings updated successfully
   ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
@@ -68,7 +45,7 @@ This tutorial will cover enabling and using the Developer MCP Server, which is a
 
 ## Example Usage
 
-In this example, I'm going to have goose automate setting up my JavaScript developer environment with Express, Mongoose, Nodemon, Dotenv and initialize Git.
+In this example, I'm going to have Goose automate setting up my JavaScript developer environment with Express, Mongoose, Nodemon, Dotenv and initialize Git.
 
 :::info LLM
 Anthropic's Claude 3.5 Sonnet was used for this task.
@@ -92,10 +69,10 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 
 ### Goose Prompt
 ```
-Hey goose can you set up a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv? Fetch the latest package versions, generate a README with those versions, and initialize Git
+set up a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv? Fetch the latest package versions, generate a README with those versions, and initialize Git
 ```
 
-After 1 minute, Goose was done seting up my entire dev environment! 🎉
+After 1 minute, Goose was done setting up my entire dev environment! 🎉
 
 ### Goose Output
 
