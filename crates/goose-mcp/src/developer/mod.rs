@@ -733,9 +733,15 @@ mod tests {
         // copy the existing global hints file to a .bak file
         let global_hints_path =
             PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let global_hints_bak_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
-        fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
+        let globalhints_existed = false;
+
+        if global_hints_path.is_file() {
+            globalhints_existed = true;
+            let global_hints_bak_path =
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
+            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
+        }
+
         fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
 
         let dir = TempDir::new().unwrap();
@@ -747,9 +753,11 @@ mod tests {
         assert!(instructions.contains("### Global Hints"));
         assert!(instructions.contains("my global goose hints."));
 
-        // restore backup
-        fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-        fs::remove_file(&global_hints_bak_path).unwrap();
+        // restore backup if globalhints previously existed
+        if globalhints_existed {
+            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
+            fs::remove_file(&global_hints_bak_path).unwrap();
+        }
     }
 
     #[test]
