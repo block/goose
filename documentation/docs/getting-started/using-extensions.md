@@ -251,13 +251,21 @@ You can remove installed extensions.
 You can start a tailored goose session with specific extensions directly from the CLI. To do this, run the following command:
 
 ```bash
-goose session --with-extension "{extension command}"
+goose session --with-extension "{extension command}" --with-extension "{antoher extension command}"
 ```
 
 :::info
 You may need to set necessary environment variables for the extension to work correctly.
 ```bash
 goose session --with-extension "VAR=value command arg1 arg2"
+```
+:::
+
+:::tip
+You can also start a session with built-in extensions by using the `--with-builtin` flag.
+```bash
+goose session --with-builtin "developer,memory"
+goose session --with-builtin developer --with-builtin memory
 ```
 :::
 
