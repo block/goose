@@ -13,7 +13,7 @@ use goose::providers::{
 };
 use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum ProviderType {
     Azure,
     OpenAi,
@@ -136,6 +136,14 @@ async fn run_truncate_test(
 
     println!("Responses: {responses:?}\n");
     assert_eq!(responses.len(), 1);
+
+    // Ollama and OpenRouter truncate by default even when the context window is exceeded
+    // We don't have control over the truncation behavior in these providers
+    if provider_type == ProviderType::Ollama || provider_type == ProviderType::OpenRouter {
+        println!("WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded", provider_type);
+        return Ok(());
+    }
+
     assert_eq!(responses[0].content.len(), 1);
 
     let response_text = responses[0].content[0].as_text().unwrap();
