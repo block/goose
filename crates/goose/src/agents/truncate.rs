@@ -132,7 +132,7 @@ impl Agent for TruncateAgent {
         let mut tools = capabilities.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
 
-        // we add in the read_resource tool by default
+        // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
         let read_resource_tool = Tool::new(
             "platform__read_resource".to_string(),
