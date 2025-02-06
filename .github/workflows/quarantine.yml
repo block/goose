@@ -1,0 +1,38 @@
+name: Quarantine check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-quarantined:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Check PR Author
+        run: |
+          # Get PR author
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          
+          # Convert comma-separated list to array
+          IFS=',' read -ra QUARANTINE_LIST <<< "${{ vars.QUARANTINED_USERS }}"
+          
+          # Check if PR author is in the quarantine list
+          for user in "${QUARANTINE_LIST[@]}"; do
+            if [ "$user" = "$PR_AUTHOR" ]; then
+              echo "PR author is in the quarantine list - closing PR"
+              # Close PR using GitHub CLI
+              gh pr close ${{ github.event.pull_request.number }} -c "Thanks for this, please contact the project on discord before opening PRs"
+              exit 0
+            fi
+          done
+          
+          echo "continuing..."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
