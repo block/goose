@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 
 The Developer extension allows Goose to automate developer-centric tasks such as file editing, shell command execution, and project setup.
 
-This tutorial will cover enabling and using the Developer MCP Server, which is a built-in Goose extension. In most cases, this extension is **already enabled by default when goose is installed**.
+This tutorial will cover enabling and using the Developer MCP Server, which is a built-in Goose extension. In most cases, this extension is **already enabled by default when Goose is installed**.
 
 ## Configuration
 
