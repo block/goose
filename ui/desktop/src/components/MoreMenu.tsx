@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { More } from './icons';
 import { Settings, Grid, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
-import { DeleteProviderKeysFromKeychain } from '../utils/deleteAllKeys';
+import { deleteSecretConfigs } from '../utils/deleteAllKeys';
 import { toast } from 'react-toastify';
 import { useActiveKeys } from '../components/settings/api_keys/ActiveKeysContext';
 import { getActiveProviders } from '../components/settings/api_keys/utils';
@@ -122,7 +122,7 @@ export default function MoreMenu() {
   const { activeKeys, setActiveKeys } = useActiveKeys();
   const handleDeleteKeychainKeys = async () => {
     // Mark this function as async
-    await DeleteProviderKeysFromKeychain(); // Assume this is an async function and await it
+    await deleteSecretConfigs(); // Assume this is an async function and await it
     const updatedKeys = await getActiveProviders();
     setActiveKeys(updatedKeys);
   };
