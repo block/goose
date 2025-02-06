@@ -41,7 +41,10 @@ enum Command {
     Mcp { name: String },
 
     /// Start or resume interactive chat sessions
-    #[command(about = "Start or resume interactive chat sessions", alias = "s")]
+    #[command(
+        about = "Start or resume interactive chat sessions",
+        visible_alias = "s"
+    )]
     Session {
         /// Name for the chat session
         #[arg(
