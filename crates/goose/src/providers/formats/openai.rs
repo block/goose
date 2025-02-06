@@ -183,11 +183,15 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let arguments = tool_call["function"]["arguments"]
+                let mut arguments = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-
+                // If arguments is empty, we will have invalid json parsing error later.
+                if arguments.is_empty() {
+                    arguments = "{}".to_string();
+                }
+                
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
