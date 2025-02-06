@@ -12,7 +12,7 @@ This tutorial will cover enabling and using the Developer MCP Server, which is a
 
 ## Configuration
 
-1. Enable built-in Goose extension:
+1. Ensure extension is enabled:
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
