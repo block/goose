@@ -73,7 +73,7 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return process.env.GOOSE_PROVIDER;
+  return [process.env.GOOSE_PROVIDER, process.env.GOOSE_MODEL];
 };
 
 const generateSecretKey = () => {
@@ -83,8 +83,11 @@ const generateSecretKey = () => {
   return key;
 };
 
+let [provider, model] = getGooseProvider();
+
 let appConfig = {
-  GOOSE_PROVIDER: getGooseProvider(),
+  GOOSE_PROVIDER: provider,
+  GOOSE_MODEL: model,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
@@ -98,7 +101,7 @@ const createLauncher = () => {
     frame: false,
     transparent: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.ts'),
       additionalArguments: [JSON.stringify(appConfig)],
       partition: 'persist:goose',
     },
@@ -153,7 +156,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     width: 750,
     height: 800,
     minWidth: 650,
-    minHeight: 800,
+    resizable: true,
     transparent: false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),

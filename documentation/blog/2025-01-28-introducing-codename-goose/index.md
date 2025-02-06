@@ -57,7 +57,7 @@ Excited for upcoming features and events? Be sure to connect with us!
 - [YouTube](https://www.youtube.com/@blockopensource)
 - [LinkedIn](https://www.linkedin.com/company/block-opensource)
 - [X](https://x.com/blockopensource)
-- [BlueSky](https://bsky.app/profile/block-opensource.bsky.social)
+- [BlueSky](https://bsky.app/profile/opensource.block.xyz)
 
 
 [extensions-directory]: https://block.github.io/goose/v1/extensions

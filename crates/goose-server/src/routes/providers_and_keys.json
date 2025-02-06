@@ -14,7 +14,7 @@
     "databricks": {
         "name": "Databricks",
         "description": "Connect to LLMs via Databricks",
-        "models": ["claude-3-5-sonnet-2"],
+        "models": ["goose"],
         "required_keys": ["DATABRICKS_HOST"]
     },
     "google": {
