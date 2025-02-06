@@ -205,7 +205,7 @@ impl DeveloperRouter {
             }
         }
 
-        // Return base instructions directly if no hints, otherwise combine with hints
+        // Return base instructions directly when no hints are found
         let instructions = if hints.is_empty() {
             base_instructions
         } else {
