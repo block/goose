@@ -175,16 +175,40 @@ impl DeveloperRouter {
             cwd=cwd.to_string_lossy(),
         };
 
-        // Check for and read .goosehints file if it exists
-        let hints_path = cwd.join(".goosehints");
-        let instructions = if hints_path.is_file() {
-            if let Ok(hints) = std::fs::read_to_string(&hints_path) {
-                format!("{base_instructions}\n### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n{hints}")
-            } else {
-                base_instructions
+        // Check for global hints in ~/.config/goose/.goosehints
+        let global_hints_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
+        // Create the directory if it doesn't exist
+        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+
+        // Check for local hints in current directory
+        let local_hints_path = cwd.join(".goosehints");
+
+        // Read global hints if they exist
+        let mut hints = String::new();
+        if global_hints_path.is_file() {
+            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
+                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+                hints.push_str(&global_hints);
             }
-        } else {
+        }
+
+        // Read local hints if they exist
+        if local_hints_path.is_file() {
+            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
+                if !hints.is_empty() {
+                    hints.push_str("\n\n");
+                }
+                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+                hints.push_str(&local_hints);
+            }
+        }
+
+        // Return base instructions directly when no hints are found
+        let instructions = if hints.is_empty() {
             base_instructions
+        } else {
+            format!("{base_instructions}\n{hints}")
         };
 
         Self {
@@ -701,6 +725,40 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
+
+    #[test]
+    #[serial]
+    fn test_global_goosehints() {
+        // if ~/.config/goose/.goosehints exists, it should be included in the instructions
+        // copy the existing global hints file to a .bak file
+        let global_hints_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
+        let global_hints_bak_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
+        let mut globalhints_existed = false;
+
+        if global_hints_path.is_file() {
+            globalhints_existed = true;
+            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
+        }
+
+        fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
+
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("### Global Hints"));
+        assert!(instructions.contains("my global goose hints."));
+
+        // restore backup if globalhints previously existed
+        if globalhints_existed {
+            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
+            fs::remove_file(&global_hints_bak_path).unwrap();
+        }
+    }
 
     #[test]
     #[serial]
