@@ -3,7 +3,7 @@ name: Mic Branch PR Check
 on:
   pull_request:
     branches:
-      - mic
+      - main
 
 jobs:
   check-quarantined:
