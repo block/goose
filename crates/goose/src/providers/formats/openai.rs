@@ -191,7 +191,7 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                 if arguments.is_empty() {
                     arguments = "{}".to_string();
                 }
-                
+
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
                         "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
