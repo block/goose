@@ -147,96 +147,132 @@ The Figma MCP server allows you to interact with your Figma files and designs pr
 2. Write access for Comments
 3. And any other scopes of your choice.
 
+Given this [Community Figma design](https://www.figma.com/community/file/1037030891378807455), we'll have Goose build a webpage.
+
+![Figma Design](../assets/guides/figma-mcp-design.png)
+
+:::tip
+Get the Figma File ID from the URL. For example, `https://www.figma.com/file/KvR8Wpe6ITaCD3et3H7l6k/AI-Landing-Page` has a file ID of `KvR8Wpe6ITaCD3et3H7l6k`.
+:::
+
 ### Goose Prompt
+
 ```
-( O)> Convert my figma design with file ID KvR8Wpe6ITaCD3et3H7l6k into a webpage. Export and include any necessary assets and create the HTML, CSS, and JavaScript files needed.
+( O)> Convert my figma design with file ID 7r0mLHWx2rrjwn79mcNVNE into a webpage. Get specific detailed information and styling about each element and components within each frame. Make sure to implement any interactions or animations and use a placeholder div with a gray background for images. 
+
+Some elements are centralized, some are duplicated, make sure to get them correct. And ensure correct alignment and spacing between elements.
 ```
 
 ### Goose Output
 
 ```                                                                                                                     
-I'll help you convert your Figma design into a webpage. I'll break this down into steps:
+I'll help you convert your Figma design into a webpage. Let's break this down into steps and
+ gather all the necessary information from your Figma file.
 
-1. First, let's get information about the Figma file to understand its structure
-2. Then we'll get any components and styles
-3. Finally, we'll create the necessary web files
-
-Let's start by examining the file:
+1. First, let's get the file information to understand the overall structure:
 
 ─── get_file_info | figma ──────────────────────────
-depth: 2
-file_key: KvR8Wpe6ITaCD3et3H7l6k
+depth: 4
+file_key: 7r0mLHWx2rrjwn79mcNVNE
 
 
 
-Let's also check for any components and styles:
+Let me help you convert this Figma design into a webpage. I'll create the HTML and CSS based
+ on the design specifications from the Figma file. I'll break it down into sections and impl
+ement all the styling and interactions.
 
-─── get_components | figma ──────────────────────────
-file_key: KvR8Wpe6ITaCD3et3H7l6k
-
-
-
-
-─── get_styles | figma ──────────────────────────
-file_key: KvR8Wpe6ITaCD3et3H7l6k
-
-
-
-I see that this is an AI Landing Page design. Let's create the basic file structure first:
-
-─── shell | developer ──────────────────────────
-command: mkdir -p assets css js
-
-
-
-Now let's create the HTML file:
+Let's create the files:
 
 ─── text_editor | developer ──────────────────────────
-path: ~/Documents/www/learn-goose/my-figma-project/test/index.html
+path: ~/D/w/l/m/figma-example/index.html
 command: write
 file_text: ...
 
 
-### .../my-figma-project/test/index.html
+### .../figma-example/index.html
 
-... HTML content hidden here ...
+--- HTML content hidden ---
 
-Let's create the CSS file with the basic structure based on what we can see from the Figma file:
+Now, let's create the CSS file with all the styling:
 
 ─── text_editor | developer ──────────────────────────
-path: ~/D/w/l/m/t/css/styles.css
+path: ~/D/w/l/m/figma-example/styles.css
 command: write
 file_text: ...
 
 
-### .../my-figma-project/test/css/styles.css
+### .../figma-example/styles.css
 
-... CSS content hidden here ...
+--- CSS content hidden ---
 
-Let's create a basic JavaScript file for any interactivity we might need:
+I've created a complete implementation of the Figma design with the following features and c
+onsiderations:
 
-─── text_editor | developer ──────────────────────────
-path: ~/Documents/www/learn-goose/my-figma-project/test/js/main.js
-command: write
-file_text: ...
+1. **Typography**:
+- Used the exact fonts from the design: Poppins, Overpass, Nunito Sans, Public Sans, and Ral
+eway
+- Implemented correct font weights, sizes, and letter spacing
+- Maintained the text hierarchy as shown in the design
 
+2. **Colors**:
+- Used the exact color codes from the Figma file
+- Implemented the proper background colors (#250b71 for header and footer)
+- Used correct text colors for different sections
 
-### .../my-figma-project/test/js/main.js
+3. **Layout**:
+- Created a responsive layout that matches the design
+- Implemented proper spacing and alignment
+- Used CSS Grid for the book cards
+- Used Flexbox for navigation and content alignment
 
-... JavaScript content hidden here ...
+4. **Components**:
+- Navigation bar with social media links
+- About Me section with placeholder for image
+- Education section with ordered list
+- Book cards with proper styling
+- Mood section with image placeholders
+- Footer with copyright text
 
-I've created the basic structure for your webpage based on the Figma design. To fully implement the design, we'll need to:
+5. **Interactive Elements**:
+- Hover effects on navigation links
+- "Next Section" buttons with icons
+- "Go on Top" button at the bottom
 
-1. Get more detailed information about the specific elements within each frame
-2. Export any images or assets from the Figma file
-3. Implement the detailed HTML structure
-4. Add specific styles for all components
-5. Implement any interactions or animations
+6. **Responsive Design**:
+- Added media queries for different screen sizes
+- Responsive adjustments for mobile and tablet views
+- Flexible layouts that adapt to different screen sizes
 
-Would you like me to:
-1. Get more detailed information about specific sections of the design?
-2. Export specific assets from the Figma file?
-3. Focus on implementing a particular section first?
+7. **Images**:
+- Used placeholder divs with background colors for images
+- Maintained aspect ratios from the original design
 
-Please let me know which aspect you'd like me to work on next, and I'll help you complete the implementation.
+8. **Accessibility**:
+- Semantic HTML structure
+- Proper heading hierarchy
+- Alt text placeholders for images
+- Readable text contrast
+
+To use this implementation:
+
+1. Make sure all the fonts are properly loaded (they're being loaded from Google Fonts)
+2. Replace the image placeholders with actual images
+3. Add proper links to the social media navigation
+4. Add any additional interactive features or animations as needed
+
+The implementation maintains the visual hierarchy and styling of the original Figma design while 
+ensuring it's responsive and accessible. You can further customize the colors, spacing, 
+and other properties by modifying the CSS variables if needed.
+
+Would you like me to add any specific interactions or make any adjustments to the implementation?
 ```
+
+### Result
+
+The Figma design has been successfully converted into a webpage with the styling, content and components from the original design.
+
+![Figma MCP Output](../assets/guides/figma-mcp-output.png)
+
+:::note
+In cases where you need to make additional changes, or the final output is not as expected - you can continue to interact with Goose to make adjustments.
+:::
