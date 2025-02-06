@@ -575,7 +575,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions): (use \"space\" to toggle and \"enter\" to submit)")
+    let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions - use \"space\" to toggle and \"enter\" to submit)")
         .required(false)
         .items(
             &extension_status
