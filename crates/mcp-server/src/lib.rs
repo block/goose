@@ -18,11 +18,13 @@ pub use router::Router;
 /// A transport layer that handles JSON-RPC messages over byte
 #[pin_project]
 pub struct ByteTransport<R, W> {
+    // Reader is a BufReader on the underlying stream (stdin or similar) buffering
+    // the underlying data across poll calls, we clear one line (\n) during each
+    // iteration of poll_next from this buffer
     #[pin]
     reader: BufReader<R>,
     #[pin]
     writer: W,
-    buf: Vec<u8>,
 }
 
 impl<R, W> ByteTransport<R, W>
@@ -36,7 +38,6 @@ where
             // allows the buffer to have the capacity to read very large calls
             reader: BufReader::with_capacity(2 * 1024 * 1024, reader),
             writer,
-            buf: Vec::new(),
         }
     }
 }
@@ -50,23 +51,27 @@ where
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
+        let mut buf = Vec::new();
 
         let mut reader = this.reader.as_mut();
-        let mut read_future = Box::pin(reader.read_until(b'\n', this.buf));
+        let mut read_future = Box::pin(reader.read_until(b'\n', &mut buf));
         match read_future.as_mut().poll(cx) {
             Poll::Ready(Ok(0)) => Poll::Ready(None), // EOF
             Poll::Ready(Ok(_)) => {
-                // Convert the buffer content as a UTF-8 string (lossy)
-                let line_str = String::from_utf8_lossy(this.buf);
-                tracing::info!(json = %line_str, "incoming message");
+                // Convert to UTF-8 string
+                let line = match String::from_utf8(buf) {
+                    Ok(s) => s,
+                    Err(e) => return Poll::Ready(Some(Err(TransportError::Utf8(e)))),
+                };
+                // Log incoming message here before serde conversion to
+                // track incomplete chunks which are not valid JSON
+                tracing::info!(json = %line, "incoming message");
 
-                // Now parse JSON directly from the same buffer
-                match serde_json::from_slice::<serde_json::Value>(this.buf) {
+                // Parse JSON and validate message format
+                match serde_json::from_str::<serde_json::Value>(&line) {
                     Ok(value) => {
                         // Validate basic JSON-RPC structure
                         if !value.is_object() {
-                            // Clear the buffer and return error
-                            this.buf.clear();
                             return Poll::Ready(Some(Err(TransportError::InvalidMessage(
                                 "Message must be a JSON object".into(),
                             ))));
@@ -75,7 +80,6 @@ where
 
                         // Check jsonrpc version field
                         if !obj.contains_key("jsonrpc") || obj["jsonrpc"] != "2.0" {
-                            this.buf.clear();
                             return Poll::Ready(Some(Err(TransportError::InvalidMessage(
                                 "Missing or invalid jsonrpc version".into(),
                             ))));
@@ -83,20 +87,11 @@ where
 
                         // Now try to parse as proper message
                         match serde_json::from_value::<JsonRpcMessage>(value) {
-                            Ok(msg) => {
-                                this.buf.clear();
-                                Poll::Ready(Some(Ok(msg)))
-                            }
-                            Err(e) => {
-                                this.buf.clear();
-                                Poll::Ready(Some(Err(TransportError::Json(e))))
-                            }
+                            Ok(msg) => Poll::Ready(Some(Ok(msg))),
+                            Err(e) => Poll::Ready(Some(Err(TransportError::Json(e)))),
                         }
                     }
-                    Err(e) => {
-                        this.buf.clear();
-                        Poll::Ready(Some(Err(TransportError::Json(e))))
-                    }
+                    Err(e) => Poll::Ready(Some(Err(TransportError::Json(e)))),
                 }
             }
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(TransportError::Io(e)))),
