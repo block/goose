@@ -134,6 +134,7 @@ impl Agent for TruncateAgent {
 
         // we add in the read_resource tool by default
         // TODO: make sure there is no collision with another extension's tool name
+        // noop
         let read_resource_tool = Tool::new(
             "platform__read_resource".to_string(),
             indoc! {r#"
