@@ -13,3 +13,6 @@
 > Block recognizes the important contributions our open source community makes. Part of keeping Block and its customers safe is by making sure that we find and fix any security issues found in our open source projects. If you find a security vulnerability, we encourage you to privately report it in the repository’s Security tab -> Report a vulnerability.
 >
 > Please see [privately reporting a security vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability#privately-reporting-a-security-vulnerability) for more information. For assistance or escalation, please contact the [Block Open Source Governance Committee](mailto:open-source-governance@block.xyz)
+
+
+gfdsgdfs
