@@ -273,6 +273,6 @@ The Figma design has been successfully converted into a webpage with the styling
 
 ![Figma MCP Output](../assets/guides/figma-mcp-output.png)
 
-:::note
+:::tip
 In cases where you need to make additional changes, or the final output is not as expected - you can continue to interact with Goose to make adjustments.
 :::
