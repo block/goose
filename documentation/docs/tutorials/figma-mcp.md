@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 
-This tutorial covers how to add the [Figma MCP Server](https://github.com/hapins/figma-mcp) as a Goose extension to enable interaction with Figma files, designs, and components through the Figma API.
+This tutorial covers how to add the [Figma MCP Server](https://github.com/hapins/figma-mcp) as a Goose extension to enable interaction with Figma files, designs, and components.
 
 
 :::tip TLDR
