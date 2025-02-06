@@ -183,10 +183,14 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let arguments = tool_call["function"]["arguments"]
+                let mut arguments = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
+                // If arguments is empty, we will have invalid json parsing error later.
+                if arguments.is_empty() {
+                    arguments = "{}".to_string();
+                }
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -575,6 +579,25 @@ mod tests {
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_empty_argument() -> anyhow::Result<()> {
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            serde_json::Value::String("".to_string());
+
+        let message = response_to_message(response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().unwrap();
+            assert_eq!(tool_call.name, "example_fn");
+            assert_eq!(tool_call.arguments, json!({}));
         } else {
             panic!("Expected ToolRequest content");
         }
