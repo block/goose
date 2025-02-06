@@ -1,4 +1,4 @@
-name: Mic Branch PR Check
+name: Quarantine check
 
 on:
   pull_request:
