@@ -179,7 +179,7 @@ impl DeveloperRouter {
         let global_hints_path =
             PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
         // Create the directory if it doesn't exist
-        std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
 
         // Check for local hints in current directory
         let local_hints_path = cwd.join(".goosehints");
@@ -733,12 +733,12 @@ mod tests {
         // copy the existing global hints file to a .bak file
         let global_hints_path =
             PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let globalhints_existed = false;
+        let global_hints_bak_path =
+            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
+        let mut globalhints_existed = false;
 
         if global_hints_path.is_file() {
             globalhints_existed = true;
-            let global_hints_bak_path =
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
             fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
         }
 
