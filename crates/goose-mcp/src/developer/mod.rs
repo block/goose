@@ -175,16 +175,38 @@ impl DeveloperRouter {
             cwd=cwd.to_string_lossy(),
         };
 
-        // Check for and read .goosehints file if it exists
-        let hints_path = cwd.join(".goosehints");
-        let instructions = if hints_path.is_file() {
-            if let Ok(hints) = std::fs::read_to_string(&hints_path) {
-                format!("{base_instructions}\n### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n{hints}")
-            } else {
-                base_instructions
+        // Check for global hints in ~/.config/goose/.goosehints
+        let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+        let global_hints_path = PathBuf::from(home).join(".config").join("goose").join(".goosehints");
+        
+        // Check for local hints in current directory
+        let local_hints_path = cwd.join(".goosehints");
+        
+        // Read global hints if they exist
+        let mut hints = String::new();
+        if global_hints_path.is_file() {
+            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
+                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all directories.\n");
+                hints.push_str(&global_hints);
             }
-        } else {
+        }
+        
+        // Read local hints if they exist
+        if local_hints_path.is_file() {
+            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
+                if !hints.is_empty() {
+                    hints.push_str("\n\n");
+                }
+                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+                hints.push_str(&local_hints);
+            }
+        }
+        
+        // Combine base instructions with any hints found
+        let instructions = if hints.is_empty() {
             base_instructions
+        } else {
+            format!("{base_instructions}\n{hints}")
         };
 
         Self {
