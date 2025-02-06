@@ -178,6 +178,8 @@ impl DeveloperRouter {
         // Check for global hints in ~/.config/goose/.goosehints
         let global_hints_path =
             PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
+        // Create the directory if it doesn't exist
+        std::fs::create_dir_all(global_hints_path.parent().unwrap());
 
         // Check for local hints in current directory
         let local_hints_path = cwd.join(".goosehints");
