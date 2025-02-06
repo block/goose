@@ -209,6 +209,10 @@ impl StdioTransport {
         #[cfg(unix)]
         command.process_group(0); // don't inherit signal handling from parent process
 
+        // Hide console window on Windows
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW flag
+
         let mut process = command
             .spawn()
             .map_err(|e| Error::StdioProcessError(e.to_string()))?;
