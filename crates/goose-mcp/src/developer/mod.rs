@@ -177,11 +177,14 @@ impl DeveloperRouter {
 
         // Check for global hints in ~/.config/goose/.goosehints
         let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
-        let global_hints_path = PathBuf::from(home).join(".config").join("goose").join(".goosehints");
-        
+        let global_hints_path = PathBuf::from(home)
+            .join(".config")
+            .join("goose")
+            .join(".goosehints");
+
         // Check for local hints in current directory
         let local_hints_path = cwd.join(".goosehints");
-        
+
         // Read global hints if they exist
         let mut hints = String::new();
         if global_hints_path.is_file() {
@@ -190,7 +193,7 @@ impl DeveloperRouter {
                 hints.push_str(&global_hints);
             }
         }
-        
+
         // Read local hints if they exist
         if local_hints_path.is_file() {
             if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
@@ -201,7 +204,7 @@ impl DeveloperRouter {
                 hints.push_str(&local_hints);
             }
         }
-        
+
         // Combine base instructions with any hints found
         let instructions = if hints.is_empty() {
             base_instructions
