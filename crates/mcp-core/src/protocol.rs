@@ -96,7 +96,7 @@ impl TryFrom<JsonRpcRaw> for JsonRpcMessage {
 
         // If we have a method, it's either a notification or request
         if let Some(method) = raw.method {
-            if method.starts_with("notifications/") {
+            if raw.id.is_none() {
                 return Ok(JsonRpcMessage::Notification(JsonRpcNotification {
                     jsonrpc: raw.jsonrpc,
                     method,
@@ -236,3 +236,54 @@ pub struct GetPromptResult {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EmptyResult {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_notification_conversion() {
+        let raw = JsonRpcRaw {
+            jsonrpc: "2.0".to_string(),
+            id: None,
+            method: Some("notify".to_string()),
+            params: Some(json!({"key": "value"})),
+            result: None,
+            error: None,
+        };
+
+        let message = JsonRpcMessage::try_from(raw).unwrap();
+        match message {
+            JsonRpcMessage::Notification(n) => {
+                assert_eq!(n.jsonrpc, "2.0");
+                assert_eq!(n.method, "notify");
+                assert_eq!(n.params.unwrap(), json!({"key": "value"}));
+            }
+            _ => panic!("Expected Notification"),
+        }
+    }
+
+    #[test]
+    fn test_request_conversion() {
+        let raw = JsonRpcRaw {
+            jsonrpc: "2.0".to_string(),
+            id: Some(1),
+            method: Some("request".to_string()),
+            params: Some(json!({"key": "value"})),
+            result: None,
+            error: None,
+        };
+
+        let message = JsonRpcMessage::try_from(raw).unwrap();
+        match message {
+            JsonRpcMessage::Request(r) => {
+                assert_eq!(r.jsonrpc, "2.0");
+                assert_eq!(r.id, Some(1));
+                assert_eq!(r.method, "request");
+                assert_eq!(r.params.unwrap(), json!({"key": "value"}));
+            }
+            _ => panic!("Expected Request"),
+        }
+    }
+}
