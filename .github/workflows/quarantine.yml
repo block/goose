@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  pull-requests: write
+  issues: write
+
 jobs:
   check-quarantined:
     runs-on: ubuntu-latest
