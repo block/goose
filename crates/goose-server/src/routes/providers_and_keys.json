@@ -49,7 +49,7 @@
     },
     "vertexai": {
         "name": "Vertex AI",
-        "description": "Access Vertex AI models",
+        "description": "Access variety of AI models through Vertex AI",
         "models": ["claude-3-5-sonnet-v2@20241022", "claude-3-5-sonnet@20240620"],
         "required_keys": ["VERTEXAI_PROJECT_ID", "VERTEXAI_REGION"]
     }

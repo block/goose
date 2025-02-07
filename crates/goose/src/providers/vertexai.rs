@@ -115,7 +115,7 @@ impl Provider for VertexAIProvider {
         ProviderMetadata::new(
             "vertexai",
             "Vertex AI",
-            "Access Vertex AI models",
+            "Access variety of AI models such as Claude through Vertex AI",
             VERTEXAI_DEFAULT_MODEL,
             VERTEXAI_KNOWN_MODELS
                 .iter()
