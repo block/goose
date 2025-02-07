@@ -119,6 +119,10 @@ uvx mcp-server-fetch
 
 Let's use the Fetch extension to get random programming jokes from the [Official Joke API](https://official-joke-api.appspot.com/random_joke).
 
+:::info
+While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell Goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. My key is stored in WEATHER_API_KEY"_
+:::
+
 ### Goose Prompt
 ```
 make a web page that tells jokes for programmers. The page should ask the user the setup of the joke, allow them to guess the punchline and then tell them if they are right or wrong. Include a button that allows them to request another joke. you can fetch the jokes from the official joke api
