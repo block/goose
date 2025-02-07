@@ -1,5 +1,5 @@
 use base64::Engine;
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
@@ -185,17 +185,12 @@ impl ComputerControllerRouter {
             }),
         );
 
-        let strategy_args = AppStrategyArgs {
-            top_level_domain: "Block".to_string(),
-            author: "Block".to_string(),
-            app_name: "goose".to_string(),
-        };
-
-        // choose app strategy_args will use ~/.cache/{app_name} on macos/linux
-        // and  ~\AppData\Local\Block\goose\ on windows
-        let cache_dir = choose_app_strategy(strategy_args)
-            .unwrap() // TODO: unwrap_or_else? failover strategy that supports multiple os's
-            .in_cache_dir("computer_controller");
+        // choose app strategy_args will use ~/.cache/goose/computer_controller on macos/linux
+        // and  ~\AppData\Local\Block\goose\computer_controller\ on windows
+        // if we fail, default to `/tmp/goose/computer_controller/`
+        let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_cache_dir("computer_controller"))
+            .unwrap_or_else(|_| PathBuf::from("/tmp/goose/computer_controller"));
 
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(

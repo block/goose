@@ -1,12 +1,18 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use keyring::Entry;
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
+    top_level_domain: "Block".to_string(),
+    author: "Block <ai-oss-tools@block.xyz>".to_string(),
+    app_name: "goose".to_string(),
+});
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
@@ -100,15 +106,9 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
-        let strategy_args = AppStrategyArgs {
-            top_level_domain: "Block".to_string(),
-            author: "Block".to_string(),
-            app_name: "goose".to_string(),
-        };
-
-        // choose app strategy_args will use ~/.config/{app_name} on macos/linux
+        // choose app strategy_args will use ~/.config/goose on macos/linux
         // and  ~\AppData\Roaming\Block\goose\ on windows
-        let config_dir = choose_app_strategy(strategy_args)
+        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
             .expect("goose requires a home dir")
             .config_dir();
 

@@ -2,7 +2,7 @@ use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,15 +32,9 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    let strategy_args = AppStrategyArgs {
-        top_level_domain: "Block".to_string(),
-        author: "Block".to_string(),
-        app_name: "goose".to_string(),
-    };
-
-    // choose app strategy_args will use ~/.config/{app_name} on macos/linux
-    // and  ~\AppData\Roaming\Block\goose\ on windows
-    choose_app_strategy(strategy_args)
+    // choose app strategy_args will use ~/.config/goose/databricks/oauth on macos/linux
+    // and  ~\AppData\Roaming\Block\goose\databricks\oauth\ on windows
+    choose_app_strategy(crate::config::APP_STRATEGY.clone())
         .expect("goose requires a home dir")
         .in_config_dir("databricks/oauth")
 }

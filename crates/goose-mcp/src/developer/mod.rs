@@ -2,7 +2,7 @@ mod lang;
 
 use anyhow::Result;
 use base64::Engine;
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{
@@ -176,17 +176,14 @@ impl DeveloperRouter {
             cwd=cwd.to_string_lossy(),
         };
 
-        let strategy_args = AppStrategyArgs {
-            top_level_domain: "Block".to_string(),
-            author: "Block".to_string(),
-            app_name: "goose".to_string(),
-        };
-
-        // choose app strategy_args will use ~/.config/{app_name} on macos/linux
+        // choose app strategy_args will use ~/.config/goose/ on macos/linux
         // and  ~\AppData\Roaming\Block\goose\ on windows
-        let global_hints_path = choose_app_strategy(strategy_args)
-            .expect("goose requires a home dir")
-            .in_config_dir(".goosehints");
+        // keep previous behavior of expanding ~/.config in case this fails
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
+            });
 
         // Create the directory if it doesn't exist
         let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());

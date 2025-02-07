@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
 use tracing_appender::rolling::Rotation;
@@ -13,16 +13,12 @@ use goose::tracing::langfuse_layer;
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    let strategy_args = AppStrategyArgs {
-        top_level_domain: "Block".to_string(),
-        author: "Block".to_string(),
-        app_name: "goose".to_string(),
-    };
-
-    // choose app strategy_args will use ~/.local/state/{app_name} on macos/linux
+    // choose app strategy_args will use ~/.local/state/goose/logs/cli on macos/linux
     // Windows has no convention for state_dir, use data_dir instead
-    // and  ~\AppData\Roaming\Block\goose\ on windows
-    let home_dir = choose_app_strategy(strategy_args).expect("HOME environment variable not set");
+    // and  ~\AppData\Roaming\Block\goose\logs\cli on windows
+    let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+        .context("HOME environment variable not set")?;
+
     let base_log_dir = home_dir
         .in_state_dir("logs/cli")
         .unwrap_or_else(|| home_dir.in_data_dir("logs/cli"));
