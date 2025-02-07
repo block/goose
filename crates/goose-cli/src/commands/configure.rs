@@ -587,7 +587,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(&name)?;
+        ExtensionManager::remove(name)?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
