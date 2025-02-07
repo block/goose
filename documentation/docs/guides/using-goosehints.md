@@ -44,7 +44,7 @@ Run unit tests before committing any changes.
 Prefer functional programming patterns where applicable.
 ```
 
-### Example local hints `.goosehints` file
+### Example local `.goosehints` file
 
 ```
 This is a simple example JavaScript web application that uses the Express.js framework. View [Express documentation](https://expressjs.com/) for extended guidance.
