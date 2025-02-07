@@ -132,8 +132,16 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Enable or disable connected extensions",
             )
             .item("add", "Add Extension", "Connect to a new extension")
-            .item("remove", "Remove Extension", "Remove existing extensions from the configuration")
-            .item("list_configured_extensions", "List Configured Extensions", "List all configured extensions")
+            .item(
+                "remove",
+                "Remove Extension",
+                "Remove existing extensions from the configuration",
+            )
+            .item(
+                "list_configured_extensions",
+                "List Configured Extensions",
+                "List all configured extensions",
+            )
             .interact()?;
 
         match action {
@@ -573,7 +581,11 @@ pub fn list_configured_extensions() -> Result<(), Box<dyn Error>> {
     // Display the list of currently configured extensions
     cliclack::outro("Currently configured extensions:")?;
     for (name, is_enabled) in &configured_extensions {
-        let status = if *is_enabled { "[Enabled]" } else { "[Disabled]" };
+        let status = if *is_enabled {
+            "[Enabled]"
+        } else {
+            "[Disabled]"
+        };
         cliclack::outro(format!("{} - {}", status, name))?;
     }
     cliclack::outro("")?;
@@ -602,14 +614,14 @@ pub fn remove_extensions_dialog() -> Result<(), Box<dyn Error>> {
     let selected_to_remove = cliclack::multiselect(
         "Select extensions to remove (use \"space\" to select and \"enter\" to submit):",
     )
-        .required(false)
-        .items(
-            &configured_extensions
-                .iter()
-                .map(|name| (name, name.as_str(), ""))
-                .collect::<Vec<_>>(),
-        )
-        .interact()?;
+    .required(false)
+    .items(
+        &configured_extensions
+            .iter()
+            .map(|name| (name, name.as_str(), ""))
+            .collect::<Vec<_>>(),
+    )
+    .interact()?;
 
     // Remove extension from configuration
     for name in selected_to_remove {
