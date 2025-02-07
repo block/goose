@@ -132,6 +132,7 @@ I'll help you create a web page that uses the Official Joke API to display progr
 First, let's verify the API endpoint and see what kind of data we get
 Then create an HTML file with the necessary structure
 Add JavaScript to handle the interactions
+
 Let me check the API first:
 
 
