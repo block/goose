@@ -231,6 +231,7 @@ pub fn render(message: &Message, theme: &Theme, renderers: HashMap<String, Box<d
     let theme = match theme {
         Theme::Light => "GitHub",
         Theme::Dark => "zenburn",
+        Theme::Ansi => "base16",
     };
 
     let mut last_tool_name: &str = "default";

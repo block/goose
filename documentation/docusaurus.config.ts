@@ -20,7 +20,7 @@ const config: Config = {
   url: "https://block.github.io/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/goose/",
+  baseUrl: process.env.TARGET_PATH || "/goose/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
@@ -68,21 +68,33 @@ const config: Config = {
       {
         redirects: [
           {
-            to: '/docs/getting-started/providers',
+            from: '/docs/getting-started/using-goose-free',
+            to: '/docs/getting-started/providers#using-goose-for-free'
+          },
+          {
             from: '/v1/docs/getting-started/providers',
+            to: '/docs/getting-started/providers'
           },
           {
-            to: '/docs/getting-started/installation',
             from: '/v1/docs/getting-started/installation',
+            to: '/docs/getting-started/installation'
           },
           {
-            to: '/docs/quickstart',
             from: '/v1/docs/quickstart',
+            to: '/docs/quickstart'
           },
           {
-            to: '/',
             from: '/v1/',
-          }
+            to: '/'
+          },
+          {
+            from: '/docs/guides/custom-extensions',
+            to: '/docs/tutorials/custom-extensions'
+          },
+          {
+            from: '/docs',
+            to: '/docs/category/getting-started'
+          }         
         ],
       },
     ],
@@ -163,7 +175,7 @@ const config: Config = {
             },
             {
               label: "BlueSky",
-              href: "https://bsky.app/profile/block-opensource.bsky.social",
+              href: "https://bsky.app/profile/opensource.block.xyz",
             },
           ],
         },

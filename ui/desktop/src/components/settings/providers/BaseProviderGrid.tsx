@@ -112,35 +112,6 @@ function BaseProviderCard({
                 </Tooltip>
               </TooltipProvider>
             )}
-
-            {/* Not Configured state: Red exclamation mark for Ollama */}
-            {!isConfigured && name === 'Ollama' && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center justify-center w-5 h-5 rounded-full bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors">
-                      !
-                    </div>
-                  </TooltipTrigger>
-                  <Portal>
-                    <TooltipContent side="top" align="center" className="z-[9999]">
-                      <p>
-                        To use, the{' '}
-                        <a
-                          href="https://ollama.com/download"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 underline hover:text-blue-800"
-                        >
-                          Ollama app
-                        </a>{' '}
-                        must be installed on your machine and open.
-                      </p>
-                    </TooltipContent>
-                  </Portal>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
           <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px] ">
             {description}
@@ -149,41 +120,6 @@ function BaseProviderCard({
 
         <div className="space-x-2 text-center flex items-center justify-between">
           <div className="space-x-2">
-            {!isConfigured && name === 'Ollama' && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Trigger a refresh of active keys
-                        const refreshActiveKeys = async () => {
-                          try {
-                            const providers = await getActiveProviders(); // Re-fetch active providers
-                            setActiveKeys(providers); // Update the context state
-                          } catch (error) {
-                            console.error('Error refreshing active providers:', error);
-                          }
-                        };
-
-                        refreshActiveKeys(); // Call the refresh function
-                      }}
-                      className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
-                    >
-                      <RefreshCw className="!size-4" /> {/* Refresh icon */}
-                    </Button>
-                  </TooltipTrigger>
-                  <Portal>
-                    <TooltipContent side="top" align="center" className="z-[9999]">
-                      <p>Re-check for active Ollama app running in the background.</p>
-                    </TooltipContent>
-                  </Portal>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
             {/* Default "Add Keys" Button for other providers */}
             {!isConfigured && onAddKeys && hasRequiredKeys && (
               <TooltipProvider>
@@ -251,7 +187,7 @@ function BaseProviderCard({
                   </TooltipTrigger>
                   <Portal>
                     <TooltipContent side="top" align="center" className="z-[9999]">
-                      <p>Remove {name} API Key</p>
+                      <p>Remove {name} API Key or Host</p>
                     </TooltipContent>
                   </Portal>
                 </Tooltip>

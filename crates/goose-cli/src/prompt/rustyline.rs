@@ -10,11 +10,14 @@ use super::{
 
 use anyhow::Result;
 use cliclack::spinner;
+use console::style;
 use goose::message::Message;
 use mcp_core::Role;
 use rustyline::{DefaultEditor, EventHandler, KeyCode, KeyEvent, Modifiers};
 
-const PROMPT: &str = "\x1b[1m\x1b[38;5;30m( O)> \x1b[0m";
+fn get_prompt() -> String {
+    format!("{} ", style("( O)>").cyan().bold())
+}
 
 pub struct RustylinePrompt {
     spinner: cliclack::ProgressBar,
@@ -54,6 +57,8 @@ impl RustylinePrompt {
                 .map(|val| {
                     if val.eq_ignore_ascii_case("light") {
                         Theme::Light
+                    } else if val.eq_ignore_ascii_case("ansi") {
+                        Theme::Ansi
                     } else {
                         Theme::Dark
                     }
@@ -81,7 +86,7 @@ impl Prompt for RustylinePrompt {
     }
 
     fn get_input(&mut self) -> Result<Input> {
-        let input = self.editor.readline(PROMPT);
+        let input = self.editor.readline(&get_prompt());
         let mut message_text = match input {
             Ok(text) => {
                 // Add valid input to history
@@ -119,6 +124,10 @@ impl Prompt for RustylinePrompt {
                     Theme::Dark
                 }
                 Theme::Dark => {
+                    println!("Switching to Ansi theme");
+                    Theme::Ansi
+                }
+                Theme::Ansi => {
                     println!("Switching to Light theme");
                     Theme::Light
                 }
@@ -132,7 +141,7 @@ impl Prompt for RustylinePrompt {
         {
             println!("Commands:");
             println!("/exit - Exit the session");
-            println!("/t - Toggle Light/Dark theme");
+            println!("/t - Toggle Light/Dark/Ansi theme");
             println!("/? | /help - Display this help message");
             println!("Ctrl+C - Interrupt goose (resets the interaction to before the interrupted user request)");
             println!("Ctrl+j - Adds a newline");

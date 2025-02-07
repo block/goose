@@ -8,11 +8,11 @@ use serde_json::Value;
 use sha2::Digest;
 use std::{collections::HashMap, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::{oneshot, Mutex as TokioMutex};
+use url::Url;
 
 lazy_static! {
     static ref OAUTH_MUTEX: TokioMutex<()> = TokioMutex::new(());
 }
-use url::Url;
 
 #[derive(Debug, Clone)]
 struct OidcEndpoints {
@@ -76,16 +76,18 @@ impl TokenCache {
 }
 
 async fn get_workspace_endpoints(host: &str) -> Result<OidcEndpoints> {
-    let host = host.trim_end_matches('/');
-    let oidc_url = format!("{}/oidc/.well-known/oauth-authorization-server", host);
+    let base_url = Url::parse(host).expect("Invalid host URL");
+    let oidc_url = base_url
+        .join("oidc/.well-known/oauth-authorization-server")
+        .expect("Invalid OIDC URL");
 
     let client = reqwest::Client::new();
-    let resp = client.get(&oidc_url).send().await?;
+    let resp = client.get(oidc_url.clone()).send().await?;
 
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
             "Failed to get OIDC configuration from {}",
-            oidc_url
+            oidc_url.to_string()
         ));
     }
 

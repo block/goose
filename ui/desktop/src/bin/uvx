@@ -79,9 +79,9 @@ if [ -n "${GOOSE_UV_REGISTRY:-}" ] && curl -s --head --fail "$GOOSE_UV_REGISTRY"
         curl -sSL -o ~/.config/goose/mcp-hermit/cert.pem "$GOOSE_UV_CERT"
         if [ $? -eq 0 ]; then
             log "Certificate downloaded successfully."
-            export SSL_CLIENT_CERT=~/.config/goose/mcp-hermit/cert.pem
+            export SSL_CERT_FILE=~/.config/goose/mcp-hermit/cert.pem
         else
-            log "Unable to download the certificate. Skipping certificate setup."        
+            log "Unable to download the certificate. Skipping certificate setup."
         fi
     else
         log "GOOSE_UV_CERT is either not set or not accessible. Skipping certificate setup."

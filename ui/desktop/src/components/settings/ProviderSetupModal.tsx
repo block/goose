@@ -12,7 +12,7 @@ interface ProviderSetupModalProps {
   model: string;
   endpoint: string;
   title?: string;
-  onSubmit: (apiKey: string) => void;
+  onSubmit: (configValues: { [key: string]: string }) => void;
   onCancel: () => void;
 }
 
@@ -24,14 +24,14 @@ export function ProviderSetupModal({
   onSubmit,
   onCancel,
 }: ProviderSetupModalProps) {
-  const [apiKey, setApiKey] = React.useState('');
-  const keyName = required_keys[provider]?.[0] || 'API Key';
-  const headerText = `Setup ${provider}`;
+  const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>({});
+  const requiredKeys = required_keys[provider] || ['API Key'];
+  const headerText = title || `Setup ${provider}`;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(apiKey);
+    onSubmit(configValues);
   };
-  const inputType = isSecretKey(keyName) ? 'password' : 'text';
 
   return (
     <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards]">
@@ -48,20 +48,27 @@ export function ProviderSetupModal({
 
           {/* Form */}
           <form onSubmit={handleSubmit}>
-            <div className="mt-[24px]">
-              <div>
-                <Input
-                  type={inputType}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={keyName}
-                  className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
-                  required
-                />
-                <div className="flex mt-4 text-gray-600 dark:text-gray-300">
-                  <Lock className="w-6 h-6" />
-                  <span className="text-sm font-light ml-4 mt-[2px]">{`Your API key or host will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
+            <div className="mt-[24px] space-y-4">
+              {requiredKeys.map((keyName) => (
+                <div key={keyName}>
+                  <Input
+                    type={isSecretKey(keyName) ? 'password' : 'text'}
+                    value={configValues[keyName] || ''}
+                    onChange={(e) =>
+                      setConfigValues((prev) => ({
+                        ...prev,
+                        [keyName]: e.target.value,
+                      }))
+                    }
+                    placeholder={keyName}
+                    className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
+                    required
+                  />
                 </div>
+              ))}
+              <div className="flex text-gray-600 dark:text-gray-300">
+                <Lock className="w-6 h-6" />
+                <span className="text-sm font-light ml-4 mt-[2px]">{`Your configuration values will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
               </div>
             </div>
 

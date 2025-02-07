@@ -15,8 +15,8 @@ use mcp_client::transport::Error as McpClientError;
 pub async fn build_session(
     name: Option<String>,
     resume: bool,
-    extension: Option<String>,
-    builtin: Option<String>,
+    extensions: Vec<String>,
+    builtins: Vec<String>,
 ) -> Session<'static> {
     // Load config and get provider/model
     let config = Config::global();
@@ -64,8 +64,8 @@ pub async fn build_session(
         }
     }
 
-    // Add extension if provided
-    if let Some(extension_str) = extension {
+    // Add extensions if provided
+    for extension_str in extensions {
         let mut parts: Vec<&str> = extension_str.split_whitespace().collect();
         let mut envs = std::collections::HashMap::new();
 
@@ -104,8 +104,8 @@ pub async fn build_session(
         });
     }
 
-    // Add builtin extension if provided
-    if let Some(name) = builtin {
+    // Add builtin extensions
+    for name in builtins {
         let config = ExtensionConfig::Builtin { name };
         agent.add_extension(config).await.unwrap_or_else(|e| {
             eprintln!("Failed to start builtin extension: {}", e);

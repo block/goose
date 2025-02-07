@@ -1,12 +1,12 @@
 on:
   push:
     paths-ignore:
-      - 'documentation/**'
+      - "documentation/**"
     branches:
       - main
   pull_request:
     paths-ignore:
-      - 'documentation/**'
+      - "documentation/**"
     branches:
       - main
   workflow_dispatch:
@@ -89,7 +89,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: 'lts/*'
+          node-version: "lts/*"
 
       - name: Install Dependencies
         run: npm ci

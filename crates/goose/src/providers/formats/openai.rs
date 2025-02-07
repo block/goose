@@ -1,6 +1,7 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
     convert_image, is_valid_function_name, sanitize_function_name, ImageFormat,
 };
@@ -182,10 +183,14 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
-                let arguments = tool_call["function"]["arguments"]
+                let mut arguments = tool_call["function"]["arguments"]
                     .as_str()
                     .unwrap_or_default()
                     .to_string();
+                // If arguments is empty, we will have invalid json parsing error later.
+                if arguments.is_empty() {
+                    arguments = "{}".to_string();
+                }
 
                 if !is_valid_function_name(&function_name) {
                     let error = ToolError::NotFound(format!(
@@ -221,10 +226,10 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
     })
 }
 
-pub fn get_usage(data: &Value) -> anyhow::Result<Usage> {
+pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
     let usage = data
         .get("usage")
-        .ok_or_else(|| anyhow!("No usage data in response"))?;
+        .ok_or_else(|| ProviderError::UsageError("No usage data in response".to_string()))?;
 
     let input_tokens = usage
         .get("prompt_tokens")
@@ -255,8 +260,17 @@ pub fn create_request(
     tools: &[Tool],
     image_format: &ImageFormat,
 ) -> anyhow::Result<Value, Error> {
+    if model_config.model_name.starts_with("o1-mini") {
+        return Err(anyhow!(
+            "o1-mini model is not currently supported since Goose uses tool calling and o1-mini does not support it. Please use o1 or o3 models instead."
+        ));
+    }
+
+    let is_o1 = model_config.model_name.starts_with("o1");
+    let is_o3 = model_config.model_name.starts_with("o3");
+
     let system_message = json!({
-        "role": "system",
+        "role": if is_o1 { "developer" } else { "system" },
         "content": system
     });
 
@@ -281,17 +295,27 @@ pub fn create_request(
             .unwrap()
             .insert("tools".to_string(), json!(tools_spec));
     }
-    if let Some(temp) = model_config.temperature {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+    // o1, o3 models currently don't support temperature
+    if !is_o1 && !is_o3 {
+        if let Some(temp) = model_config.temperature {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temp));
+        }
     }
+
+    // o1 models use max_completion_tokens instead of max_tokens
     if let Some(tokens) = model_config.max_tokens {
+        let key = if is_o1 || is_o3 {
+            "max_completion_tokens"
+        } else {
+            "max_tokens"
+        };
         payload
             .as_object_mut()
             .unwrap()
-            .insert("max_tokens".to_string(), json!(tokens));
+            .insert(key.to_string(), json!(tokens));
     }
     Ok(payload)
 }
@@ -555,6 +579,25 @@ mod tests {
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_empty_argument() -> anyhow::Result<()> {
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            serde_json::Value::String("".to_string());
+
+        let message = response_to_message(response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().unwrap();
+            assert_eq!(tool_call.name, "example_fn");
+            assert_eq!(tool_call.arguments, json!({}));
         } else {
             panic!("Expected ToolRequest content");
         }

@@ -1,56 +1,46 @@
 import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { special_provider_cases } from '../providers/utils';
 
 export function isSecretKey(keyName: string): boolean {
-  // Ollama and Databricks use host name right now and it should not be stored as secret.
-  return keyName != 'DATABRICKS_HOST' && keyName != 'OLLAMA_HOST';
+  // Endpoints and hosts should not be stored as secrets
+  const nonSecretKeys = [
+    'DATABRICKS_HOST',
+    'OLLAMA_HOST',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_DEPLOYMENT_NAME',
+  ];
+  return !nonSecretKeys.includes(keyName);
 }
 
 export async function getActiveProviders(): Promise<string[]> {
   try {
     // Fetch the secrets settings
-    const secretsSettings = await getSecretsSettings();
-
-    // Check for special provider cases (e.g. ollama needs to be installed in Applications folder)
-    const specialCasesResults = await Promise.all(
-      Object.entries(special_provider_cases).map(async ([providerName, checkFunction]) => {
-        const isActive = await checkFunction(); // Dynamically re-check status
-        console.log(`Special case result for ${providerName}:`, isActive);
-        return isActive ? providerName : null;
-      })
-    );
+    const configSettings = await getConfigSettings();
 
     // Extract active providers based on `is_set` in `secret_status` or providers with no keys
-    const activeProviders = Object.values(secretsSettings) // Convert object to array
+    const activeProviders = Object.values(configSettings) // Convert object to array
       .filter((provider) => {
-        const apiKeyStatus = Object.values(provider.secret_status || {}); // Get all key statuses
+        const apiKeyStatus = Object.values(provider.config_status || {}); // Get all key statuses
 
-        // Include providers if:
-        // - They have at least one key set (`is_set: true`)
-        return apiKeyStatus.some((key) => key.is_set);
+        // Include providers if all required keys are set
+        return apiKeyStatus.length > 0 && apiKeyStatus.every((key) => key.is_set);
       })
       .map((provider) => provider.name || 'Unknown Provider'); // Extract provider name
 
-    // Combine active providers from secrets settings and special cases
-    const allActiveProviders = [
-      ...activeProviders,
-      ...specialCasesResults.filter((provider) => provider !== null), // Filter out null results
-    ];
-    return allActiveProviders;
+    return activeProviders;
   } catch (error) {
     console.error('Failed to get active providers:', error);
     return [];
   }
 }
 
-export async function getSecretsSettings(): Promise<Record<string, ProviderResponse>> {
+export async function getConfigSettings(): Promise<Record<string, ProviderResponse>> {
   const providerList = await getProvidersList();
   // Extract the list of IDs
   const providerIds = providerList.map((provider) => provider.id);
 
-  // Fetch secrets state (set/unset) using the provider IDs
-  const response = await fetch(getApiUrl('/secrets/providers'), {
+  // Fetch configs state (set/unset) using the provider IDs
+  const response = await fetch(getApiUrl('/configs/providers'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

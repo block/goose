@@ -1,7 +1,7 @@
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use crate::providers::utils::get_model;
 use anyhow::Result;
@@ -10,6 +10,7 @@ use mcp_core::Tool;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
+use url::Url;
 
 pub const GROQ_API_HOST: &str = "https://api.groq.com";
 pub const GROQ_DEFAULT_MODEL: &str = "llama-3.3-70b-versatile";
@@ -54,14 +55,15 @@ impl GroqProvider {
     }
 
     async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
-        let url = format!(
-            "{}/openai/v1/chat/completions",
-            self.host.trim_end_matches('/')
-        );
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("openai/v1/chat/completions").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&payload)
             .send()
@@ -137,7 +139,14 @@ impl Provider for GroqProvider {
         let response = self.post(payload.clone()).await?;
 
         let message = response_to_message(response.clone())?;
-        let usage = get_usage(&response)?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::warn!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
         let model = get_model(&response);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

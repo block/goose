@@ -116,38 +116,35 @@ export default function LinkPreview({ url }: LinkPreviewProps) {
   }
 
   return (
-    <Card
-      className="max-w-[300px] truncate flex items-center bg-link-preview dark:bg-link-preview-dark p-3 transition-colors cursor-pointer"
-      onClick={() => {
-        window.electron.openInChrome(url);
-      }}
-    >
-      {metadata.favicon && (
-        <img
-          src={metadata.favicon}
-          alt="Site favicon"
-          className="w-4 h-4 mr-2"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
-      )}
-      <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-medium truncate">{metadata.title || url}</h4>
-        {metadata.description && (
-          <p className="text-xs text-gray-500 truncate">{metadata.description}</p>
+    <a href={url} target="_blank" rel="noreferrer">
+      <Card className="max-w-[300px] truncate flex items-center bg-link-preview dark:bg-link-preview-dark p-3 transition-colors cursor-pointer">
+        {metadata.favicon && (
+          <img
+            src={metadata.favicon}
+            alt="Site favicon"
+            className="w-4 h-4 mr-2"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
         )}
-      </div>
-      {metadata.image && (
-        <img
-          src={metadata.image}
-          alt="Preview"
-          className="w-16 h-16 object-cover rounded ml-3"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
-      )}
-    </Card>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium truncate">{metadata.title || url}</h4>
+          {metadata.description && (
+            <p className="text-xs text-gray-500 truncate">{metadata.description}</p>
+          )}
+        </div>
+        {metadata.image && (
+          <img
+            src={metadata.image}
+            alt="Preview"
+            className="w-16 h-16 object-cover rounded ml-3"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
+      </Card>
+    </a>
   );
 }

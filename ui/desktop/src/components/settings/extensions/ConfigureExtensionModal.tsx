@@ -45,7 +45,7 @@ export function ConfigureExtensionModal({
           const value = envValues[envKey];
           if (!value) continue;
 
-          const storeResponse = await fetch(getApiUrl('/secrets/store'), {
+          const storeResponse = await fetch(getApiUrl('/configs/store'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

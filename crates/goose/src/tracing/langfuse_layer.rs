@@ -7,6 +7,7 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use url::Url;
 use uuid::Uuid;
 
 const DEFAULT_LANGFUSE_URL: &str = "http://localhost:3000";
@@ -77,11 +78,14 @@ impl LangfuseBatchManager {
         }
 
         let payload = json!({ "batch": self.batch });
-        let url = format!("{}/api/public/ingestion", self.base_url);
+        let base_url = Url::parse(&self.base_url).map_err(|e| format!("Invalid base URL: {e}"))?;
+        let url = base_url
+            .join("api/public/ingestion")
+            .map_err(|e| format!("Failed to construct endpoint URL: {e}"))?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .basic_auth(&self.public_key, Some(&self.secret_key))
             .json(&payload)
             .send()

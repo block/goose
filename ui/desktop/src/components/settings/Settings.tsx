@@ -234,12 +234,14 @@ export default function Settings() {
                       Add
                     </button>
 
-                    <button
-                      onClick={() => window.electron.openInChrome(EXTENSIONS_SITE_LINK)}
+                    <a
+                      href={EXTENSIONS_SITE_LINK}
+                      target="_blank"
                       className="text-indigo-500 hover:text-indigo-600 text-sm"
+                      rel="noreferrer"
                     >
                       Browse
-                    </button>
+                    </a>
                   </div>
                 </div>
 

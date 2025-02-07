@@ -8,7 +8,7 @@ import Input from './components/Input';
 import LoadingGoose from './components/LoadingGoose';
 import MoreMenu from './components/MoreMenu';
 import { Card } from './components/ui/card';
-import { ScrollArea } from './components/ui/scroll-area';
+import { ScrollArea, ScrollAreaHandle } from './components/ui/scroll-area';
 import UserMessage from './components/UserMessage';
 import WingToWing, { Working } from './components/WingToWing';
 import { askAi } from './utils/askAI';
@@ -22,26 +22,6 @@ import { useRecentModels } from './components/settings/models/RecentModels';
 import { createSelectedModel } from './components/settings/models/utils';
 import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import Splash from './components/Splash';
-import { loadAndAddStoredExtensions } from './extensions';
-
-declare global {
-  interface Window {
-    electron: {
-      stopPowerSaveBlocker: () => void;
-      startPowerSaveBlocker: () => void;
-      hideWindow: () => void;
-      createChatWindow: () => void;
-      getConfig: () => { GOOSE_PROVIDER: string };
-      logInfo: (message: string) => void;
-      showNotification: (opts: { title: string; body: string }) => void;
-      getBinaryPath: (binary: string) => Promise<string>;
-      app: any;
-    };
-    appConfig: {
-      get: (key: string) => any;
-    };
-  }
-}
 
 export interface Chat {
   id: number;
@@ -53,13 +33,10 @@ export interface Chat {
   }>;
 }
 
-type ScrollBehavior = 'auto' | 'smooth' | 'instant';
-
 export function ChatContent({
   chats,
   setChats,
   selectedChatId,
-  setSelectedChatId,
   initialQuery,
   setProgressMessage,
   setWorking,
@@ -77,8 +54,8 @@ export function ChatContent({
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [working, setWorkingLocal] = useState<Working>(Working.Idle);
+  const scrollRef = useRef<ScrollAreaHandle>(null);
 
   useEffect(() => {
     setWorking(working);
@@ -94,7 +71,6 @@ export function ChatContent({
     onToolCall: ({ toolCall }) => {
       updateWorking(Working.Working);
       setProgressMessage(`Executing tool: ${toolCall.toolName}`);
-      requestAnimationFrame(() => scrollToBottom('instant'));
     },
     onResponse: (response) => {
       if (!response.ok) {
@@ -114,8 +90,6 @@ export function ChatContent({
 
       const fetchResponses = await askAi(message.content);
       setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
-
-      requestAnimationFrame(() => scrollToBottom('smooth'));
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
@@ -150,23 +124,6 @@ export function ChatContent({
     }
   }, [messages]);
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({
-        behavior,
-        block: 'end',
-        inline: 'nearest',
-      });
-    }
-  };
-
-  // Single effect to handle all scrolling
-  useEffect(() => {
-    if (isLoading || messages.length > 0 || working === Working.Working) {
-      scrollToBottom(isLoading || working === Working.Working ? 'instant' : 'smooth');
-    }
-  }, [messages, isLoading, working]);
-
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
@@ -178,7 +135,9 @@ export function ChatContent({
         role: 'user',
         content: content,
       });
-      scrollToBottom('instant');
+      if (scrollRef.current?.scrollToBottom) {
+        scrollRef.current.scrollToBottom();
+      }
     }
   };
 
@@ -241,7 +200,7 @@ export function ChatContent({
         {messages.length === 0 ? (
           <Splash append={append} />
         ) : (
-          <ScrollArea className="flex-1 px-4" id="chat-scroll-area">
+          <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
             {messages.map((message) => (
               <div key={message.id} className="mt-[16px]">
                 {message.role === 'user' ? (
@@ -288,7 +247,6 @@ export function ChatContent({
               </div>
             )}
             <div className="block h-16" />
-            <div ref={messagesEndRef} style={{ height: '1px' }} />
           </ScrollArea>
         )}
 
@@ -385,7 +343,7 @@ export default function ChatWindow() {
   }, []);
 
   const storeSecret = async (key: string, value: string) => {
-    const response = await fetch(getApiUrl('/secrets/store'), {
+    const response = await fetch(getApiUrl('/configs/store'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -405,6 +363,14 @@ export default function ChatWindow() {
   useEffect(() => {
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
+
+      if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
+        window.electron.logInfo(
+          'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
+        );
+        await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+        return;
+      }
       const storedProvider = getStoredProvider(config);
       const storedModel = getStoredModel();
       if (storedProvider) {

@@ -100,10 +100,10 @@ export function ServerCard({ server }: { server: MCPServer }) {
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center text-textSubtle text-xs leading-[14px]">
+            <a href={server.link} target="_blank" rel="noopener noreferrer" className="flex items-center text-textSubtle text-xs leading-[14px] hover:text-textProminent transition-colors">
               <Star className="h-4 w-4" />
               <span className="ml-1">{server.githubStars} on Github</span>
-            </div>
+            </a>
             {server.is_builtin ? (
               <div
                 className="inline-block"

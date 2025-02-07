@@ -14,7 +14,7 @@
     "databricks": {
         "name": "Databricks",
         "description": "Connect to LLMs via Databricks",
-        "models": ["claude-3-5-sonnet-2"],
+        "models": ["goose"],
         "required_keys": ["DATABRICKS_HOST"]
     },
     "google": {
@@ -33,12 +33,18 @@
         "name": "Ollama",
         "description": "Lorem ipsum",
         "models": ["qwen2.5"],
-        "required_keys": []
+        "required_keys": ["OLLAMA_HOST"]
     },
     "openrouter": {
         "name": "OpenRouter",
         "description": "Lorem ipsum",
         "models": [],
         "required_keys": ["OPENROUTER_API_KEY"]
+    },
+    "azure_openai": {
+        "name": "Azure OpenAI",
+        "description": "Connect to Azure OpenAI Service",
+        "models": ["gpt-4o", "gpt-4o-mini"],
+        "required_keys": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]
     }
 }
