@@ -176,8 +176,9 @@ impl DeveloperRouter {
             cwd=cwd.to_string_lossy(),
         };
 
-        // choose app strategy_args will use ~/.config/goose/ on macos/linux
-        // and  ~\AppData\Roaming\Block\goose\config\ on windows
+        // choose_app_strategy().config_dir()
+        // - macOS/Linux: ~/.config/goose/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\
         // keep previous behavior of expanding ~/.config in case this fails
         let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_config_dir(".goosehints"))

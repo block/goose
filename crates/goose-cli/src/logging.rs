@@ -13,9 +13,10 @@ use goose::tracing::langfuse_layer;
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    // choose app strategy_args will use ~/.local/state/goose/logs/cli on macos/linux
-    // Windows has no convention for state_dir, use data_dir instead
-    // and  ~\AppData\Roaming\Block\goose\data\logs\cli on windows
+    // choose_app_strategy().state_dir()
+    // - macOS/Linux: ~/.local/state/goose/logs/cli
+    // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\cli
+    // - Windows has no convention for state_dir, use data_dir instead
     let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
         .context("HOME environment variable not set")?;
 

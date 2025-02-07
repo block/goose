@@ -106,8 +106,9 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
-        // choose app strategy_args will use ~/.config/goose on macos/linux
-        // and  ~\AppData\Roaming\Block\goose\config\ on windows
+        // choose_app_strategy().config_dir()
+        // - macOS/Linux: ~/.config/goose/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\
         let config_dir = choose_app_strategy(APP_STRATEGY.clone())
             .expect("goose requires a home dir")
             .config_dir();

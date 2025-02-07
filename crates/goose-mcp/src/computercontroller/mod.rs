@@ -185,9 +185,10 @@ impl ComputerControllerRouter {
             }),
         );
 
-        // choose app strategy_args will use ~/.cache/goose/computer_controller on macos/linux
-        // and  ~\AppData\Local\Block\goose\cache\computer_controller\ on windows
-        // if we fail, default to `/tmp/goose/computer_controller/`
+        // choose_app_strategy().cache_dir()
+        // - macOS/Linux: ~/.cache/goose/computer_controller/
+        // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
+        // keep previous behavior of defaulting to /tmp/
         let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_cache_dir("computer_controller"))
             .unwrap_or_else(|_| PathBuf::from("/tmp/goose/computer_controller"));

@@ -15,9 +15,10 @@ pub fn log_usage(session_file: String, usage: Vec<ProviderUsage>) {
 
     // Ensure log directory exists
     if let Ok(home_dir) = choose_app_strategy(crate::APP_STRATEGY.clone()) {
-        // choose app strategy_args will use ~/.local/state/goose/logs/ on macos/linux
-        // Windows has no convention for state_dir, use data_dir instead
-        // and  ~\AppData\Roaming\Block\goose\data\logs\ on windows
+        // choose_app_strategy().state_dir()
+        // - macOS/Linux: ~/.local/state/goose/logs/
+        // - Windows:     ~\AppData\Roaming\Block\goose\data\logs
+        // - Windows has no convention for state_dir, use data_dir instead
         let log_dir = home_dir
             .in_state_dir("logs")
             .unwrap_or_else(|| home_dir.in_data_dir("logs"));
