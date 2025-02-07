@@ -14,21 +14,15 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/model
 :::tip TLDR
 
 **Command**
-
 ```sh
 npx -y @modelcontextprotocol/server-github
 ```
 
 **Environment Variable**
-
 ```
 GITHUB_PERSONAL_ACCESS_TOKEN: <YOUR_TOKEN>
 ```
 :::
-
-
-
-
 
 ## Configuration
 
