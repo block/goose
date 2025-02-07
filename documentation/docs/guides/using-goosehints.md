@@ -18,7 +18,7 @@ This guide will walk you through creating and using your `.goosehints` file to s
 
 Goose supports two types of hint files:
 - **Global hints file** - Create a `.goosehints` file in `~/.config/goose`. These hints will apply to all your sessions with Goose, regardless of directory.
-- **Local hints file** -  Create a `.goosehints` file in any project directory. These hints will only apply when working in that specific directory.
+- **Local hints file** -  Create a `.goosehints` file at the root of your project directory. These hints will only apply when working in that specific directory.
 
 :::tip
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
