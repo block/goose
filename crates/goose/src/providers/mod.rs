@@ -13,5 +13,6 @@ pub mod ollama;
 pub mod openai;
 pub mod openrouter;
 pub mod utils;
+pub mod vertexai;
 
 pub use factory::{create, providers};

@@ -17,6 +17,7 @@ mcp-core = { path = "../mcp-core" }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"
+gcp-sdk-auth = "0.1.1"
 reqwest = { version = "0.12.9", features = [
         "rustls-tls",
         "json",
