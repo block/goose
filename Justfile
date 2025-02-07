@@ -41,7 +41,7 @@ langfuse-server:
     #!/usr/bin/env bash
     ./scripts/setup_langfuse.sh
 
-# Development build and run
+# Run UI with debug build
 run-dev:
     @echo "Building development version..."
     cargo build
