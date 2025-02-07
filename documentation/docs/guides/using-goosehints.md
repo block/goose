@@ -37,7 +37,7 @@ The `.goosehints` file supports natural language.
 ```
 Always use TypeScript for new Next.js projects.
 
-Follow the Google Style Guide for Python code.
+Follow the [Google Style Guide](https://google.github.io/styleguide/pyguide.html) for Python code.
 
 Run unit tests before committing any changes.
 
