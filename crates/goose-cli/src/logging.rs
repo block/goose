@@ -15,7 +15,7 @@ use goose::tracing::langfuse_layer;
 fn get_log_directory() -> Result<PathBuf> {
     // choose app strategy_args will use ~/.local/state/goose/logs/cli on macos/linux
     // Windows has no convention for state_dir, use data_dir instead
-    // and  ~\AppData\Roaming\Block\goose\logs\cli on windows
+    // and  ~\AppData\Roaming\Block\goose\data\logs\cli on windows
     let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
         .context("HOME environment variable not set")?;
 

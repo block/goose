@@ -10,7 +10,7 @@ use thiserror::Error;
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
-    author: "Block <ai-oss-tools@block.xyz>".to_string(),
+    author: "Block".to_string(),
     app_name: "goose".to_string(),
 });
 
@@ -107,7 +107,7 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 impl Default for Config {
     fn default() -> Self {
         // choose app strategy_args will use ~/.config/goose on macos/linux
-        // and  ~\AppData\Roaming\Block\goose\ on windows
+        // and  ~\AppData\Roaming\Block\goose\config\ on windows
         let config_dir = choose_app_strategy(APP_STRATEGY.clone())
             .expect("goose requires a home dir")
             .config_dir();

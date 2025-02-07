@@ -180,7 +180,7 @@ impl MemoryRouter {
             .join("memory");
 
         // choose app strategy_args will use ~/.config/goose/memory on macos/linux
-        // and  ~\AppData\Roaming\Block\goose\memory on windows
+        // and  ~\AppData\Roaming\Block\goose\config\memory on windows
         // if it fails, fall back to `.config/goose/memory` (relative to the current dir)
         let global_memory_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_config_dir("memory"))
