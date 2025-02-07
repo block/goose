@@ -16,24 +16,20 @@ This tutorial covers how to add the [Google Drive MCP Server](https://github.com
 npx -y @modelcontextprotocol/server-gdrive
 ```
 
-**Environment Variable**
+**Environment Variables**
 ```
 GDRIVE_CREDENTIALS_PATH: /Users/<your-username>/servers/.gdrive-server-credentials.json
+```
+```
 GDRIVE_OAUTH_PATH: /Users/<your-username>/servers/gcp-oauth.keys.json
 ```
 :::
 
 ## Configuration
 
-To abtain your Google Drive authentication and credentials follow the steps below: 
+To obtain your Google Drive server credentials and oauth keys, follow the steps below:
 
-  1. Clone the [Model Context Protocol Server Repo](https://github.com/modelcontextprotocol/servers?tab=readme-ov-file), in your terminal run: 
-
-  ```sh
-  git clone https://github.com/modelcontextprotocol/servers.git
-  ```
-  
-  2. Set up your Google Cloud Credentials, to enable API access:
+  1. Set up your Google Cloud Credentials, to enable API access:
         - Create Google Cloud Project
             - Go to [Google Cloud Console](https://console.cloud.google.com/projectcreate) and create a new project
             - You can leave `location` as `No organization`
@@ -42,7 +38,7 @@ To abtain your Google Drive authentication and credentials follow the steps belo
             - Confirm you're in the right project by checking the top left corner
             - Search `Google Drive API` and enable it
 
-  3. Configure OAuth Consent Screen 
+  2. Configure OAuth Consent Screen 
         -  Go to the [OAuth Consent Screen](https://console.cloud.google.com/auth/overview/create)
         -  Enter required information, `project name` , `user support email` 
         -  Choose `Internal` for `Audience` and press `create`
@@ -50,7 +46,7 @@ To abtain your Google Drive authentication and credentials follow the steps belo
             - Navigate to the [Audience](https://console.cloud.google.com/auth/audience) screen
             - Under `Test users` click `Add Users`
 
- 4. Create OAuth Credential
+ 3. Create OAuth Credential
         -  Go to [OAuth Clients](https://console.cloud.google.com/apis/credentials/oauthclient)
         -  Click `Create Client` 
         -  Choose **Application Type: Desktop App**
@@ -60,31 +56,7 @@ To abtain your Google Drive authentication and credentials follow the steps belo
             ```sh
             mv ~/Downloads/gcp-oauth.keys.json ~/servers/gcp-oauth.keys.json
             ```
- 5. Inside the cloned repo, navigate to the `gdrive` directory:
-    ```sh
-    cd ~/servers/src/gdrive
-    ```
- 6. Install the dependencies in this Directory:
-        ```sh
-        npm install
-        ```
- 7. Build the Google Drive Server:
-        ```sh
-        npm run build
-        ```
- 8. Authenticate Google Drive:
-        -  After the build completes, run:
-        
-            ```sh
-            node ./dist auth
-            ```
-        This will open up a browser where you can log into your google account and authorize access to Google Drive. Once completed, the credentials will be saved in:
-
-        ```sh
-        servers/.gdrive-server-credentials.json
-        ```
-
-
+ 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
   1. Run the `configure` command:
