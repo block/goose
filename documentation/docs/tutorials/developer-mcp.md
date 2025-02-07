@@ -5,12 +5,20 @@ description: Use Developer MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/on_p-LeIrak" />
 
 The Developer extension allows Goose to automate developer-centric tasks such as file editing, shell command execution, and project setup.
 
-This tutorial will cover enabling and using the Developer MCP Server, which is a built-in Goose extension. In most cases, this extension is **already enabled by default when Goose is installed**.
+This tutorial will cover enabling and using the Developer MCP Server, which is a built-in Goose extension. 
+
 
 ## Configuration
+
+:::info
+The Developer extension is already enabled by default when Goose is installed.
+:::
 
 1. Ensure extension is enabled:
 
