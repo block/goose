@@ -2,7 +2,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use std::process;
 
 use crate::prompt::rustyline::RustylinePrompt;
-use crate::session::{ensure_session_dir, get_most_recent_session, Session};
+use crate::session::{ensure_session_dir, get_most_recent_session, legacy_session_dir, Session};
 use console::style;
 use goose::agents::extension::{Envs, ExtensionError};
 use goose::agents::AgentFactory;
@@ -121,9 +121,18 @@ pub async fn build_session(
             if session_file.exists() {
                 let prompt = Box::new(RustylinePrompt::new());
                 return Session::new(agent, prompt, session_file);
-            } else {
-                eprintln!("Session '{}' not found, starting new session", session_name);
             }
+
+            // LEGACY NOTE: remove this once old paths are no longer needed.
+            if let Some(legacy_dir) = legacy_session_dir() {
+                let legacy_file = legacy_dir.join(format!("{}.jsonl", session_name));
+                if legacy_file.exists() {
+                    let prompt = Box::new(RustylinePrompt::new());
+                    return Session::new(agent, prompt, legacy_file);
+                }
+            }
+
+            eprintln!("Session '{}' not found, starting new session", session_name);
         } else {
             // Try to resume most recent session
             if let Ok(session_file) = get_most_recent_session() {
