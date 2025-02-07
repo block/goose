@@ -10,14 +10,15 @@ export const goose_models: Model[] = [
   { id: 8, name: 'claude-3-5-haiku-latest', provider: 'Anthropic' },
   { id: 9, name: 'claude-3-opus-latest', provider: 'Anthropic' },
   { id: 10, name: 'gemini-1.5-pro', provider: 'Google' },
-  { id: 11, name: 'gemini-2.0-flash-exp', provider: 'Google' },
-  { id: 12, name: 'gemini-1.5-flash', provider: 'Google' },
-  { id: 13, name: 'gemini-2.0-flash-thinking-exp-01-21', provider: 'Google' },
-  { id: 14, name: 'gemma-2-2b-it', provider: 'Google' },
-  { id: 15, name: 'llama-3.3-70b-versatile', provider: 'Groq' },
-  { id: 16, name: 'qwen2.5', provider: 'Ollama' },
-  { id: 17, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
-  { id: 18, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 11, name: 'gemini-1.5-flash', provider: 'Google' },
+  { id: 12, name: 'gemini-2.0-flash', provider: 'Google' },
+  { id: 13, name: 'gemini-2.0-flash-lite-preview-02-05', provider: 'Google' },
+  { id: 14, name: 'gemini-2.0-flash-thinking-exp-01-21', provider: 'Google' },
+  { id: 15, name: 'gemini-2.0-pro-exp-02-05', provider: 'Google' },
+  { id: 16, name: 'llama-3.3-70b-versatile', provider: 'Groq' },
+  { id: 17, name: 'qwen2.5', provider: 'Ollama' },
+  { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
+  { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -31,10 +32,11 @@ export const anthropic_models = [
 
 export const google_models = [
   'gemini-1.5-pro',
-  'gemini-2.0-flash-exp',
   'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite-preview-02-05',
   'gemini-2.0-flash-thinking-exp-01-21',
-  'gemma-2-2b-it',
+  'gemini-2.0-pro-exp-02-05',
 ];
 
 export const groq_models = ['llama-3.3-70b-versatile'];
