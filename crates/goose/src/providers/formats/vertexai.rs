@@ -33,3 +33,21 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 pub fn get_usage(data: &Value) -> Result<Usage> {
     anthropic::get_usage(data)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_request() {
+        let model_config = ModelConfig::new("claude-3-5-sonnet-v2@20241022".to_string());
+        let system = "You are a helpful assistant.";
+        let messages = vec![Message::user().with_text("Hello, how are you?")];
+        let tools = vec![];
+
+        let request = create_request(&model_config, &system, &messages, &tools).unwrap();
+
+        assert!(request.get("anthropic_version").is_some());
+        assert!(request.get("model").is_none());
+    }
+}
