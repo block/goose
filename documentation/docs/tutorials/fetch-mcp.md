@@ -120,7 +120,7 @@ uvx mcp-server-fetch
 Let's use the Fetch extension to get random programming jokes from the [Official Joke API](https://official-joke-api.appspot.com/random_joke).
 
 :::info
-While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell Goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. My key is stored in WEATHER_API_KEY"_
+While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell Goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. Don't use the key directly but instead use a script that gets the value from the env var WEATHER_API_KEY"_
 :::
 
 ### Goose Prompt
