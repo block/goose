@@ -1,5 +1,6 @@
 use anyhow::Result;
 use core::panic;
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use futures::StreamExt;
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
@@ -14,8 +15,18 @@ use mcp_core::role::Role;
 
 // File management functions
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or(anyhow::anyhow!("Could not determine home directory"))?;
-    let config_dir = home_dir.join(".config").join("goose").join("sessions");
+    let strategy_args = AppStrategyArgs {
+        top_level_domain: "Block".to_string(),
+        author: "Block".to_string(),
+        app_name: "goose".to_string(),
+    };
+
+    // choose app strategy_args will use ~/.config/{app_name} on macos/linux
+    // and  ~\AppData\Roaming\Block\goose\ on windows
+    let config_dir = choose_app_strategy(strategy_args)
+        .expect("goose requires a home dir")
+        .data_dir()
+        .join("sessions");
 
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir)?;

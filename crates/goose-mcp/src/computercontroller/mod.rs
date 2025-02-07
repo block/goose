@@ -1,4 +1,5 @@
 use base64::Engine;
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
@@ -184,11 +185,18 @@ impl ComputerControllerRouter {
             }),
         );
 
-        // Create cache directory in user's home directory
-        let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join("goose")
-            .join("computer_controller");
+        let strategy_args = AppStrategyArgs {
+            top_level_domain: "Block".to_string(),
+            author: "Block".to_string(),
+            app_name: "goose".to_string(),
+        };
+
+        // choose app strategy_args will use ~/.cache/{app_name} on macos/linux
+        // and  ~\AppData\Local\Block\goose\ on windows
+        let cache_dir = choose_app_strategy(strategy_args)
+            .unwrap() // TODO: unwrap_or_else? failover strategy that supports multiple os's
+            .in_cache_dir("computer_controller");
+
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
                 "Warning: Failed to create cache directory at {:?}",

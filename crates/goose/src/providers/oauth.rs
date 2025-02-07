@@ -2,6 +2,7 @@ use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,9 +32,17 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    const BASE_PATH: &str = ".config/goose/databricks/oauth";
-    let home_dir = std::env::var("HOME").expect("HOME environment variable not set");
-    PathBuf::from(home_dir).join(BASE_PATH)
+    let strategy_args = AppStrategyArgs {
+        top_level_domain: "Block".to_string(),
+        author: "Block".to_string(),
+        app_name: "goose".to_string(),
+    };
+
+    // choose app strategy_args will use ~/.config/{app_name} on macos/linux
+    // and  ~\AppData\Roaming\Block\goose\ on windows
+    choose_app_strategy(strategy_args)
+        .expect("goose requires a home dir")
+        .in_config_dir("databricks/oauth")
 }
 
 impl TokenCache {

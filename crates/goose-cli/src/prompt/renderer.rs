@@ -30,8 +30,8 @@ fn shorten_path(path: &str) -> String {
     let path = PathBuf::from(path);
 
     // First try to convert to ~ if it's in home directory
-    let home = dirs::home_dir();
-    let path_str = if let Some(home) = home {
+    let home = etcetera::home_dir();
+    let path_str = if let Ok(home) = home {
         if let Ok(stripped) = path.strip_prefix(home) {
             format!("~/{}", stripped.display())
         } else {

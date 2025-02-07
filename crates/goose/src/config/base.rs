@@ -1,3 +1,4 @@
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use keyring::Entry;
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
@@ -99,10 +100,18 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
-        let config_dir = dirs::home_dir()
+        let strategy_args = AppStrategyArgs {
+            top_level_domain: "Block".to_string(),
+            author: "Block".to_string(),
+            app_name: "goose".to_string(),
+        };
+
+        // choose app strategy_args will use ~/.config/{app_name} on macos/linux
+        // and  ~\AppData\Roaming\Block\goose\ on windows
+        let config_dir = choose_app_strategy(strategy_args)
             .expect("goose requires a home dir")
-            .join(".config")
-            .join("goose");
+            .config_dir();
+
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
         let config_path = config_dir.join("config.yaml");
