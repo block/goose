@@ -19,6 +19,8 @@ export const goose_models: Model[] = [
   { id: 17, name: 'qwen2.5', provider: 'Ollama' },
   { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 20, name: 'claude-3-5-sonnet-v2@20241022', provider: 'Vertex AI' },
+  { id: 21, name: 'claude-3-5-sonnet@20240620', provider: 'Vertex AI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
