@@ -617,7 +617,7 @@ pub fn create_request(
         // NOTE: per OPENAI docs , With O1 and newer models, `developer`
         // should replace `system` role .
         // https://platform.openai.com/docs/api-reference/chat/create
-        "role": if is_o1 || is_o3{ "developer" } else { "system" },
+        "role": if is_o1 || is_o3 { "developer" } else { "system" },
         "content": system
     });
 
