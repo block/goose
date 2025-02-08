@@ -127,7 +127,7 @@ impl Provider for VertexAIProvider {
         Self: Sized,
     {
         ProviderMetadata::new(
-            "vertexai",
+            "vertex_ai",
             "Vertex AI",
             "Access variety of AI models such as Claude through Vertex AI",
             VERTEXAI_DEFAULT_MODEL,

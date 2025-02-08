@@ -60,7 +60,7 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
-  vertexai: 'claude-3-5-sonnet-v2@20241022',
+  vertex_ai: 'claude-3-5-sonnet-v2@20241022',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -116,5 +116,5 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
-  { provider: 'Vertex AI', alias: 'vertexai' },
+  { provider: 'Vertex AI', alias: 'vertex_ai' },
 ];
