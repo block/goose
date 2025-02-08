@@ -20,7 +20,7 @@ use std::io::{self, Read};
 mod test_helpers;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
