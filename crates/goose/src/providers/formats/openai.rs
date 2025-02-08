@@ -346,7 +346,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 ///
 /// # Returns
 /// * `anyhow::Result<Vec<Value>, Error>` - A vector of formatted tools ready for the OpenAI API,
-/// or an error if there are duplicate tool names
+///   or an error if there are duplicate tool names
 ///
 /// # Example
 /// ```
