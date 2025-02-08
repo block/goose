@@ -2,43 +2,20 @@ import path from 'node:path';
 import fs from 'node:fs';
 import Electron from 'electron';
 import log from './logger';
-import { execSync } from 'child_process';
-
-const checkWindowsDependency = (dependency: string): boolean => {
-  try {
-    execSync(`where ${dependency}`, { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
   const isDev = process.env.NODE_ENV === 'development';
   const isPackaged = app.isPackaged;
   const isWindows = process.platform === 'win32';
-  const executableName = isWindows ? `${binaryName}.exe` : binaryName;
 
-  // Windows-specific handling
-  if (isWindows) {
-    const requiredDeps = ['npx', 'uvx'];
-    const missingDeps = requiredDeps.filter((dep) => !checkWindowsDependency(dep));
+  // On Windows, use .cmd for npx and .exe for uvx
+  const executableName = isWindows
+    ? binaryName === 'npx'
+      ? 'npx.cmd'
+      : `${binaryName}.exe`
+    : binaryName;
 
-    if (missingDeps.length > 0) {
-      const error = `Required dependencies not found on Windows: ${missingDeps.join(', ')}. Please install them manually.`;
-      log.error(error);
-      throw new Error(error);
-    }
-
-    // On Windows, if dependencies are installed, return the command name directly
-    // These will be resolved through PATH
-    if (binaryName === 'npx' || binaryName === 'uvx') {
-      log.info(`Using system-installed ${binaryName} on Windows`);
-      return binaryName;
-    }
-  }
-
-  // For non-Windows systems or other binaries, use the regular path resolution
+  // List of possible paths to check
   const possiblePaths = [];
 
   if (isDev && !isPackaged) {
