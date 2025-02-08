@@ -20,6 +20,7 @@ pub const VERTEXAI_KNOWN_MODELS: &[&str] = &[
     "claude-3-5-sonnet@20240620",
 ];
 pub const VERTEXAI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
+pub const VERTEXAI_DEFAULT_REGION: &str = "us-east5";
 
 #[derive(Debug, serde::Serialize)]
 pub struct VertexAIProvider {
@@ -38,7 +39,7 @@ impl VertexAIProvider {
         let project_id = config.get("VERTEXAI_PROJECT_ID")?;
         let region = config
             .get("VERTEXAI_REGION")
-            .unwrap_or_else(|_| "us-east5".to_string());
+            .unwrap_or_else(|_| VERTEXAI_DEFAULT_REGION.to_string());
         let host = config
             .get("VERTEXAI_API_HOST")
             .unwrap_or_else(|_| format!("{}-aiplatform.googleapis.com", region));
@@ -124,7 +125,12 @@ impl Provider for VertexAIProvider {
             VERTEXAI_DOC_URL,
             vec![
                 ConfigKey::new("VERTEXAI_PROJECT_ID", true, false, None),
-                ConfigKey::new("VERTEXAI_REGION", true, false, Some("us-east5")),
+                ConfigKey::new(
+                    "VERTEXAI_REGION",
+                    true,
+                    false,
+                    Some(VERTEXAI_DEFAULT_REGION),
+                ),
             ],
         )
     }
