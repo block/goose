@@ -275,7 +275,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     spin.start("Checking your configuration...");
 
     // Use max tokens to speed up the provider test.
-    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(10));
+    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(50));
     let provider = create(provider_name, model_config)?;
 
     let messages =
