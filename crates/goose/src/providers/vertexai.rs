@@ -42,7 +42,7 @@ impl VertexAIProvider {
             .unwrap_or_else(|_| VERTEXAI_DEFAULT_REGION.to_string());
         let host = config
             .get("VERTEXAI_API_HOST")
-            .unwrap_or_else(|_| format!("{}-aiplatform.googleapis.com", region));
+            .unwrap_or_else(|_| format!("https://{}-aiplatform.googleapis.com", region));
 
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
@@ -58,10 +58,18 @@ impl VertexAIProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!(
-            "https://{}/v1/projects/{}/locations/{}/publishers/anthropic/models/{}:streamRawPredict",
-            self.host, self.project_id, self.region, self.model.model_name
+        let base_url = url::Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let path = format!(
+            "v1/projects/{}/locations/{}/publishers/{}/models/{}:streamRawPredict",
+            self.project_id,
+            self.region,
+            self.get_model_provider(),
+            self.model.model_name
         );
+        let url = base_url.join(&path).map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let creds = create_access_token_credential().await.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to create access token credential: {}", e))
@@ -72,7 +80,7 @@ impl VertexAIProvider {
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .json(&payload)
             .header("Authorization", format!("Bearer {}", token.token))
             .send()
@@ -97,6 +105,11 @@ impl VertexAIProvider {
                 status, response_json
             ))),
         }
+    }
+
+    fn get_model_provider(&self) -> String {
+        // TODO: switch this by model_name
+        "anthropic".to_string()
     }
 }
 
