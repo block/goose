@@ -311,12 +311,12 @@ impl Capabilities {
         context.insert("current_date_time", Value::String(current_date_time));
 
         let base_prompt = load_prompt_file("system.md", &context).expect("Prompt should render");
-        
+
         if self.system_prompt_extensions.is_empty() {
             base_prompt
         } else {
             format!(
-                "{}\n\n# Additional Instructions:\n\n{}", 
+                "{}\n\n# Additional Instructions:\n\n{}",
                 base_prompt,
                 self.system_prompt_extensions.join("\n\n")
             )
