@@ -18,6 +18,16 @@ struct VersionsResponse {
 }
 
 #[derive(Deserialize)]
+struct ExtendPromptRequest {
+    extension: String,
+}
+
+#[derive(Serialize)]
+struct ExtendPromptResponse {
+    success: bool,
+}
+
+#[derive(Deserialize)]
 struct CreateAgentRequest {
     version: Option<String>,
     provider: String,
@@ -59,6 +69,30 @@ async fn get_versions() -> Json<VersionsResponse> {
         available_versions: versions.iter().map(|v| v.to_string()).collect(),
         default_version,
     })
+}
+
+async fn extend_prompt(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ExtendPromptRequest>,
+) -> Result<Json<ExtendPromptResponse>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let mut agent = state.agent.lock().await;
+    if let Some(ref mut agent) = *agent {
+        agent.extend_system_prompt(payload.extension).await;
+        Ok(Json(ExtendPromptResponse { success: true }))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }
 
 async fn create_agent(
@@ -132,6 +166,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
+        .route("/agent/prompt", post(extend_prompt))
         .route("/agent", post(create_agent))
         .with_state(state)
 }

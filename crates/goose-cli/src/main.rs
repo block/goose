@@ -9,6 +9,7 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     app_name: "goose".to_string(),
 });
 
+mod cli_prompt;
 mod commands;
 mod log_usage;
 mod logging;

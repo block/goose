@@ -184,6 +184,11 @@ impl Agent for ReferenceAgent {
         let capabilities = self.capabilities.lock().await;
         capabilities.get_usage().await
     }
+
+    async fn extend_system_prompt(&mut self, extension: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.add_system_prompt_extension(extension);
+    }
 }
 
 register_agent!("reference", ReferenceAgent);
