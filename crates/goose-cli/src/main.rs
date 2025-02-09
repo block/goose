@@ -1,32 +1,14 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use etcetera::AppStrategyArgs;
-use once_cell::sync::Lazy;
 
-pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
-    top_level_domain: "Block".to_string(),
-    author: "Block".to_string(),
-    app_name: "goose".to_string(),
-});
-
-mod cli_prompt;
-mod commands;
-mod log_usage;
-mod logging;
-mod prompt;
-mod session;
-
-use commands::agent_version::AgentCommand;
-use commands::configure::handle_configure;
-use commands::mcp::run_server;
-use commands::session::build_session;
 use console::style;
 use goose::config::Config;
-use logging::setup_logging;
+use goose_cli::commands::agent_version::AgentCommand;
+use goose_cli::commands::configure::handle_configure;
+use goose_cli::commands::mcp::run_server;
+use goose_cli::logging::setup_logging;
+use goose_cli::session::build_session;
 use std::io::{self, Read};
-
-#[cfg(test)]
-mod test_helpers;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
