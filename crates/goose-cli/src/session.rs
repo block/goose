@@ -138,6 +138,9 @@ impl<'a> Session<'a> {
             match input.input_type {
                 InputType::Message => {
                     if let Some(content) = &input.content {
+                        if content.is_empty() {
+                            continue;
+                        }
                         self.messages.push(Message::user().with_text(content));
                         persist_messages(&self.session_file, &self.messages)?;
                     }
