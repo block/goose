@@ -47,7 +47,7 @@ import RateLimits from '@site/src/components/RateLimits';
           1. Unzip the downloaded `Goose.zip` file.
           2. Run the executable file to launch the Goose desktop application.
 
-          :::note Permissions Note for Mac M3
+          :::note Permissions
             If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
 
             Ensure the `~/.config` directory has read and write access.
