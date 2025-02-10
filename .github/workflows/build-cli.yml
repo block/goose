@@ -15,7 +15,7 @@ on:
       operating-systems:
         type: string
         required: false
-        default: '["ubuntu-latest","macos-latest","windows-latest"]'
+        default: '["ubuntu-latest","macos-latest"]'
       architectures:
         type: string
         required: false
@@ -37,8 +37,6 @@ jobs:
             target-suffix: unknown-linux-gnu
           - os: macos-latest
             target-suffix: apple-darwin
-          - os: windows-latest
-            target-suffix: pc-windows-gnu
 
     steps:
       - name: Checkout code
