@@ -13,15 +13,15 @@ This tutorial covers how to add the [Google Drive MCP Server](https://github.com
 
 **Command**
 ```sh
-npx -y @modelcontextprotocol/server-gdrive
+npx -y @modelcontextprotocol/server-gdrive auth
 ```
 
 **Environment Variables**
 ```
-GDRIVE_CREDENTIALS_PATH: /Users/<your-username>/servers/.gdrive-server-credentials.json
+GDRIVE_CREDENTIALS_PATH: location-where-you-want-the-file-saved/.gdrive-server-credentials.json
 ```
 ```
-GDRIVE_OAUTH_PATH: /Users/<your-username>/servers/gcp-oauth.keys.json
+GDRIVE_OAUTH_PATH: location-where-you-saved-file/gcp-oauth.keys.json
 ```
 :::
 
@@ -52,11 +52,13 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
         -  Choose **Application Type: Desktop App**
         -  Download the JSON key file
         -  Rename it to `gcp-oauth.keys.json`
-        -  Move it to the root of your cloned MCP repository:
+        -  Move it to a secure location where the extension can access it, such as:
             ```sh
-            mv ~/Downloads/gcp-oauth.keys.json ~/servers/gcp-oauth.keys.json
+            mv ~/Downloads/gcp-oauth.keys.json ~/.config/gcp-oauth.keys.json
             ```
- 
+
+When you start your next Goose session and use the Google Drive extension, a browser window will open for authentication. Follow the prompts to connect your Google account and complete the OAuth process. At this stage, your environment variable `GDRIVE_CREDENTIALS_PATH` will be set with the saved credentials.
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
   1. Run the `configure` command:
@@ -112,7 +114,7 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-gdrive
+    │  npx -y @modelcontextprotocol/server-gdrive auth
     // highlight-end
     └ 
   ```  
@@ -132,7 +134,7 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
     │  google drive
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-gdrive
+    │  npx -y @modelcontextprotocol/server-gdrive auth
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
@@ -141,7 +143,7 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
     │  GDRIVE_CREDENTIALS_PATH
     │
     ◇  Environment variable value:
-    │  /Users/<your-username>/servers/.gdrive-server-credentials.json
+    │  location-where-you-want-the-file-saved/.gdrive-server-credentials.json
     │
     ◇  Add another environment variable?
     │  yes 
@@ -150,7 +152,7 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
     │  GDRIVE_OAUTH_PATH
     │
     ◇  Environment variable value:
-    │  /Users/<your-username>/servers/gcp-oauth.keys.json
+    │  location-where-you-saved-file/gcp-oauth.keys.json
     │
     // highlight-end
     └  Added google drive extension
@@ -166,14 +168,14 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
         * **ID**: `g-drive-mcp` (_set this to whatever you want_)
         * **Name**: `google drive` (_set this to whatever you want_)
         * **Description**: `Google Drive MCP Server` (_set this to whatever you want_)
-        * **Command**: `npx -y @modelcontextprotocol/server-gdrive`
+        * **Command**: `npx -y @modelcontextprotocol/server-gdrive auth`
         * **Environment Variables**
             * **Name**: `GDRIVE_CREDENTIALS_PATH`
-            * **Value**: `/Users/<your-username>/servers/.gdrive-server-credentials.json`
+            * **Value**: `location-where-you-want-the-file-saved/.gdrive-server-credentials.json`
             * Click `Add` button
         * **Environment Variables**
             * **Name**: `GDRIVE_OAUTH_PATH`
-            * **Value**: `/Users/<your-username>/servers/gcp-oauth.keys.json`
+            * **Value**: `location-where-you-saved-file/gcp-oauth.keys.json`
             * Click `Add` button
         
   5. Click `Add Extension` button
