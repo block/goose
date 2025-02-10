@@ -172,6 +172,40 @@ An example is the GitHub extension whose command is `npx -y @modelcontextprotoco
 
 ---
 
+### macOS Permission Issues (M3 Macs)
+
+If you encounter an issue where the Goose desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file.
+
+#### How to Check and Fix Permissions:
+
+1. Open Terminal.
+2. Run the following command to check the current permissions for ~/.config:
+  ```sh
+  ls -ld ~/.config
+  ```
+**Example output:**
+  ```sh
+  drwx------  7 yourusername  staff  224 Jan 15 12:00 /Users/yourusername/.config
+  ```
+`rwx` indicates you have read (r), write (w), and execute (x) permissions for your user. If you do not see `rwx` for your user, follow the steps below.
+
+#### How to Grant Read and Write Permissions:
+
+1. To add the correct permissions, run the following commands:
+    ```sh
+    chmod u+rw ~/.config
+    ```
+    If the ~/.config directory does not exist, create it and then assign permissions:
+      ```sh
+      mkdir -p ~/.config
+      chmod u+rw ~/.config
+      ```
+2. Verify the change:
+    ```sh
+    ls -ld ~/.config
+    ```
+---
+
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
