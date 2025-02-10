@@ -3,22 +3,86 @@ import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 
 import { cn } from '../../utils';
 
-const ScrollArea = React.forwardRef<
-  React.ElementRef<typeof ScrollAreaPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root>
->(({ className, children, ...props }, ref) => (
-  <ScrollAreaPrimitive.Root
-    ref={ref}
-    className={cn('relative overflow-hidden', className)}
-    {...props}
-  >
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
-      {children}
-    </ScrollAreaPrimitive.Viewport>
-    <ScrollBar />
-    <ScrollAreaPrimitive.Corner />
-  </ScrollAreaPrimitive.Root>
-));
+export interface ScrollAreaHandle {
+  scrollToBottom: () => void;
+}
+
+interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
+  autoScroll?: boolean;
+}
+
+const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
+  ({ className, children, autoScroll = false, ...props }, ref) => {
+    const rootRef = React.useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
+    const viewportRef = React.useRef<HTMLDivElement>(null);
+    const viewportEndRef = React.useRef<HTMLDivElement>(null);
+    const [isFollowing, setIsFollowing] = React.useState(true);
+
+    const scrollToBottom = React.useCallback(() => {
+      if (viewportEndRef.current) {
+        viewportEndRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'end',
+          inline: 'nearest',
+        });
+        setIsFollowing(true);
+      }
+    }, []);
+
+    // Expose the scrollToBottom method to parent components
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        scrollToBottom,
+      }),
+      [scrollToBottom]
+    );
+
+    // Handle scroll events to update isFollowing state
+    const handleScroll = React.useCallback(() => {
+      if (!viewportRef.current) return;
+
+      const viewport = viewportRef.current;
+      const { scrollHeight, scrollTop, clientHeight } = viewport;
+
+      const scrollBottom = scrollTop + clientHeight;
+      const newIsFollowing = scrollHeight === scrollBottom;
+
+      // react will internally optimize this to not re-store the same values
+      setIsFollowing(newIsFollowing);
+    }, []);
+
+    React.useEffect(() => {
+      if (!autoScroll || !isFollowing) return;
+
+      scrollToBottom();
+    }, [children, autoScroll, isFollowing, scrollToBottom]);
+
+    // Add scroll event listener
+    React.useEffect(() => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+
+      viewport.addEventListener('scroll', handleScroll);
+      return () => viewport.removeEventListener('scroll', handleScroll);
+    }, [handleScroll]);
+
+    return (
+      <ScrollAreaPrimitive.Root
+        ref={rootRef}
+        className={cn('relative overflow-hidden', className)}
+        {...props}
+      >
+        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]">
+          {children}
+          {autoScroll && <div ref={viewportEndRef} style={{ height: '1px' }} />}
+        </ScrollAreaPrimitive.Viewport>
+        <ScrollBar />
+        <ScrollAreaPrimitive.Corner />
+      </ScrollAreaPrimitive.Root>
+    );
+  }
+);
 ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName;
 
 const ScrollBar = React.forwardRef<

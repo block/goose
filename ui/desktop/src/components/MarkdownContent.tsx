@@ -84,7 +84,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
       <ReactMarkdown
         rehypePlugins={[rehypeinlineCodeProperty]}
         className={`prose prose-xs dark:prose-invert w-full max-w-full break-words
-          prose-pre:p-0 prose-pre:m-0
+          prose-pre:p-0 prose-pre:m-0 !p-0
           prose-code:break-all prose-code:whitespace-pre-wrap
           ${className}`}
         components={{
@@ -101,6 +101,11 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
                 {children}
               </code>
             );
+          },
+          // h3: 'div',
+          h3(props) {
+            const { node, ...rest } = props;
+            return <div className="text-textStandard text-sm" {...rest} />;
           },
         }}
       >

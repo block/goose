@@ -8,16 +8,17 @@ use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
 use goose::providers::{
-    azure::AzureProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    azure::AzureProvider, bedrock::BedrockProvider, ollama::OllamaProvider, openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
 };
 use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum ProviderType {
     Azure,
     OpenAi,
     Anthropic,
+    Bedrock,
     Databricks,
     Google,
     Groq,
@@ -35,6 +36,7 @@ impl ProviderType {
             ],
             ProviderType::OpenAi => &["OPENAI_API_KEY"],
             ProviderType::Anthropic => &["ANTHROPIC_API_KEY"],
+            ProviderType::Bedrock => &["AWS_PROFILE", "AWS_REGION"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
             ProviderType::Groq => &["GROQ_API_KEY"],
@@ -66,6 +68,7 @@ impl ProviderType {
             ProviderType::Azure => Box::new(AzureProvider::from_env(model_config)?),
             ProviderType::OpenAi => Box::new(OpenAiProvider::from_env(model_config)?),
             ProviderType::Anthropic => Box::new(AnthropicProvider::from_env(model_config)?),
+            ProviderType::Bedrock => Box::new(BedrockProvider::from_env(model_config)?),
             ProviderType::Databricks => Box::new(DatabricksProvider::from_env(model_config)?),
             ProviderType::Google => Box::new(GoogleProvider::from_env(model_config)?),
             ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
@@ -133,6 +136,14 @@ async fn run_truncate_test(
 
     println!("Responses: {responses:?}\n");
     assert_eq!(responses.len(), 1);
+
+    // Ollama and OpenRouter truncate by default even when the context window is exceeded
+    // We don't have control over the truncation behavior in these providers
+    if provider_type == ProviderType::Ollama || provider_type == ProviderType::OpenRouter {
+        println!("WARNING: Skipping test for {:?} because it truncates by default when the context window is exceeded", provider_type);
+        return Ok(());
+    }
+
     assert_eq!(responses[0].content.len(), 1);
 
     let response_text = responses[0].content[0].as_text().unwrap();
@@ -195,6 +206,16 @@ mod tests {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Anthropic,
             model: "claude-3-5-haiku-latest",
+            context_window: 200_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_truncate_agent_with_bedrock() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::Bedrock,
+            model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
             context_window: 200_000,
         })
         .await

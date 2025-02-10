@@ -239,11 +239,14 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             .mask('▪')
                             .interact()?
                         } else {
-                            cliclack::input(format!(
+                            let mut input = cliclack::input(format!(
                                 "Provider {} requires {}, please enter a value",
                                 provider_meta.display_name, key.name
-                            ))
-                            .interact()?
+                            ));
+                            if key.default.is_some() {
+                                input = input.default_input(&key.default.clone().unwrap());
+                            }
+                            input.interact()?
                         };
 
                         if key.secret {
@@ -272,7 +275,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     spin.start("Checking your configuration...");
 
     // Use max tokens to speed up the provider test.
-    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(10));
+    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(50));
     let provider = create(provider_name, model_config)?;
 
     let messages =

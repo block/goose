@@ -5,6 +5,9 @@ description: Add {name} MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
 
 
 This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension to enable file operations, repository management, search functionality, and more.
@@ -124,7 +127,7 @@ This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension 
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
   2. Click `Settings`
-  3. On `Extensions` section, click the `Add` link
+  3. Under `Extensions`, click the `Add` link
   4. On the `Add Extension Manually` modal, enter the following:
         * **Type**: `Standard IO`
         * **ID**: `{name}-mcp` (_set this to whatever you want_)

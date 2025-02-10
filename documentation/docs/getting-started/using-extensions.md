@@ -246,20 +246,64 @@ You can remove installed extensions.
 
 
 
-## Starting a Session with Extensions
+## Starting Session with Extensions
 
-You can start a tailored goose session with specific extensions directly from the CLI. To do this, run the following command:
+You can start a tailored Goose session with specific extensions directly from the CLI. This will add and enable the extensions, so there's no need to do this if you already have the extensions enabled.
+
+### Built-in Extensions
+
+To enable a built-in extension while starting a session, run the following command:
 
 ```bash
-goose session --with-extension "{extension command}"
+goose session --with-builtin "{extension_id}"
 ```
 
-:::info
-You may need to set necessary environment variables for the extension to work correctly.
+For example, to enable the Developer and Computer Controller extensions and start a session, you'd run:
+
+```bash
+goose session --with-builtin "developer,computercontroller"
+```
+
+Or alternatively:
+
+```bash
+goose session --with-builtin developer --with-builtin computercontroller
+```
+
+
+### External Extensions
+
+To enable an extension while starting a session, run the following command:
+
+```bash
+goose session --with-extension "{extension command}" --with-extension "{antoher extension command}"
+```
+
+For example, to start a session with the [Fetch extension](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch), you'd run:
+
+```bash
+goose session --with-extension "uvx mcp-server-fetch"
+```
+
+
+#### Environment Variables
+
+Some extensions require environment variables. You can include these in your command:
+
 ```bash
 goose session --with-extension "VAR=value command arg1 arg2"
 ```
+
+For example, to start a session with the [GitHub extension](https://github.com/modelcontextprotocol/servers/tree/main/src/github), you'd run:
+
+```bash
+goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
+```
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
 :::
+
 
 ## Developing Extensions
 Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).

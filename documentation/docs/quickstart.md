@@ -101,8 +101,6 @@ Sessions are single, continuous conversations between you and Goose. Let's start
         After choosing an LLM provider, you’ll see the session interface ready for use.
 
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
-
-        ![Install Extension](./assets/guides/ui-session-interface.png)
     </TabItem>
 </Tabs>
 

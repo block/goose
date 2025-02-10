@@ -11,7 +11,6 @@ use commands::agent_version::AgentCommand;
 use commands::configure::handle_configure;
 use commands::mcp::run_server;
 use commands::session::build_session;
-use commands::version::print_version;
 use console::style;
 use goose::config::Config;
 use logging::setup_logging;
@@ -21,11 +20,8 @@ use std::io::{self, Read};
 mod test_helpers;
 
 #[derive(Parser)]
-#[command(author, about, long_about = None)]
+#[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
-    #[arg(short = 'v', long = "version")]
-    version: bool,
-
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -41,7 +37,10 @@ enum Command {
     Mcp { name: String },
 
     /// Start or resume interactive chat sessions
-    #[command(about = "Start or resume interactive chat sessions", alias = "s")]
+    #[command(
+        about = "Start or resume interactive chat sessions",
+        visible_alias = "s"
+    )]
     Session {
         /// Name for the chat session
         #[arg(
@@ -62,23 +61,25 @@ enum Command {
         )]
         resume: bool,
 
-        /// Add a stdio extension with environment variables and command
+        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
-            help = "Add a stdio extension (e.g., 'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github')",
-            long_help = "Add a stdio extension from a full command with environment variables. Format: 'ENV1=val1 ENV2=val2 command args...'"
+            help = "Add stdio extensions (can be specified multiple times)",
+            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+            action = clap::ArgAction::Append
         )]
-        extension: Option<String>,
+        extension: Vec<String>,
 
-        /// Add a builtin extension by name
+        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
-            help = "Add a builtin extension by name (e.g., 'developer')",
-            long_help = "Add a builtin extension that is bundled with goose by specifying its name"
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
         )]
-        builtin: Option<String>,
+        builtin: Vec<String>,
     },
 
     /// Execute commands from an instruction file
@@ -125,23 +126,25 @@ enum Command {
         )]
         resume: bool,
 
-        /// Add a stdio extension with environment variables and command
+        /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
             value_name = "COMMAND",
-            help = "Add a stdio extension with environment variables and command (e.g., 'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github')",
-            long_help = "Add a stdio extension with environment variables and command. Format: 'ENV1=val1 ENV2=val2 command args...'"
+            help = "Add stdio extensions (can be specified multiple times)",
+            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+            action = clap::ArgAction::Append
         )]
-        extension: Option<String>,
+        extension: Vec<String>,
 
-        /// Add a builtin extension by name
+        /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
-            help = "Add a builtin extension by name (e.g., 'developer')",
-            long_help = "Add a builtin extension that is compiled into goose by specifying its name"
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
         )]
-        builtin: Option<String>,
+        builtin: Vec<String>,
     },
 
     /// List available agent versions
@@ -159,11 +162,6 @@ enum CliProviderVariant {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if cli.version {
-        print_version();
-        return Ok(());
-    }
-
     match cli.command {
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
@@ -180,7 +178,6 @@ async fn main() -> Result<()> {
         }) => {
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-
             let _ = session.start().await;
             return Ok(());
         }
@@ -211,6 +208,7 @@ async fn main() -> Result<()> {
                 stdin
             };
             let mut session = build_session(name, resume, extension, builtin).await;
+            setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.headless_start(contents.clone()).await;
             return Ok(());
         }

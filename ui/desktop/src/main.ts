@@ -73,7 +73,7 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return process.env.GOOSE_PROVIDER;
+  return [process.env.GOOSE_PROVIDER, process.env.GOOSE_MODEL];
 };
 
 const generateSecretKey = () => {
@@ -83,8 +83,11 @@ const generateSecretKey = () => {
   return key;
 };
 
+let [provider, model] = getGooseProvider();
+
 let appConfig = {
-  GOOSE_PROVIDER: getGooseProvider(),
+  GOOSE_PROVIDER: provider,
+  GOOSE_MODEL: model,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
@@ -98,7 +101,7 @@ const createLauncher = () => {
     frame: false,
     transparent: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.ts'),
       additionalArguments: [JSON.stringify(appConfig)],
       partition: 'persist:goose',
     },
@@ -153,7 +156,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     width: 750,
     height: 800,
     minWidth: 650,
-    minHeight: 800,
+    resizable: true,
     transparent: false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
@@ -200,8 +203,11 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParam}`);
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`), {
-      search: queryParam.slice(1),
+    // In production, we need to use a proper file protocol URL with correct base path
+    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+    console.log('Loading production path:', indexPath);
+    mainWindow.loadFile(indexPath, {
+      search: queryParam ? queryParam.slice(1) : undefined,
     });
   }
 
@@ -216,14 +222,19 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     globalShortcut.unregister('Alt+Command+I');
   };
 
-  // Register shortcut when window is focused
+  // Register shortcuts when window is focused
   mainWindow.on('focus', () => {
     registerDevToolsShortcut(mainWindow);
+    // Register reload shortcut
+    globalShortcut.register('CommandOrControl+R', () => {
+      mainWindow.reload();
+    });
   });
 
-  // Unregister shortcut when window loses focus
+  // Unregister shortcuts when window loses focus
   mainWindow.on('blur', () => {
     unregisterDevToolsShortcut();
+    globalShortcut.unregister('CommandOrControl+R');
   });
 
   windowMap.set(windowId, mainWindow);

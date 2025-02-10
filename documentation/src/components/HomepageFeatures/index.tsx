@@ -169,30 +169,11 @@ export default function HomepageFeatures(): ReactNode {
       <div className="container">
         <div className="row">
           <div className={styles.videoContainer}>
-            <video
-              className={`${styles.video} hide-in-dark`}
-              autoPlay
-              loop
-              muted
-              playsInline
-            >
-              <source
-                src={require("@site/static/videos/hero_light.mp4").default}
-                type="video/mp4"
-              />
+            <video className={`${styles.video} hide-in-dark`} autoPlay loop muted playsInline>
+              <source src={require("@site/static/videos/hero_light.mp4").default} type="video/mp4" />
             </video>
-
-            <video
-              className={`${styles.video} hide-in-light`}
-              autoPlay
-              loop
-              muted
-              playsInline
-            >
-              <source
-                src={require("@site/static/videos/hero_dark.mp4").default}
-                type="video/mp4"
-              />
+            <video className={`${styles.video} hide-in-light`} autoPlay loop muted playsInline>
+              <source src={require("@site/static/videos/hero_dark.mp4").default} type="video/mp4" />
             </video>
           </div>
 
@@ -200,28 +181,45 @@ export default function HomepageFeatures(): ReactNode {
             <Feature key={idx} {...props} />
           ))}
 
-          {/* inline styles in the interest of time */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              marginTop: "60px",
-            }}
-          >
-            <h3
-              style={{
-                textAlign: "center",
-                marginBottom: "40px",
-              }}
-            >
-              Loved by engineers
-            </h3>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-              }}
-            >
+          {/* YouTube Video Section */}
+          <div style={{ width: "100%", textAlign: "center", padding: "2rem 0" }}>
+            <h2 style={{ fontSize: "3rem", marginBottom: "1rem", fontWeight: "bold" }}>
+              Meet Codename Goose
+            </h2>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <div
+                style={{
+                  position: "relative",
+                  width: "66vw", 
+                  height: "37.125vw",
+                  maxWidth: "1100px",
+                  borderRadius: "12px", 
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)", 
+                  overflow: "hidden",
+                }}
+              >
+                <iframe
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: "12px", 
+                  }}
+                  src="https://www.youtube.com/embed/tZCNOe4TTkM"
+                  title="Goose Introduction"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          </div>
+          {/* Testimonials Section */}
+          <div style={{ display: "flex", flexDirection: "column", marginTop: "60px" }}>
+            <h3 style={{ textAlign: "center", marginBottom: "40px" }}>Loved by engineers</h3>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>
               {FeatureQuotes.map((props, idx) => (
                 <Quote key={idx} {...props} />
               ))}

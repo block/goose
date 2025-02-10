@@ -16,10 +16,12 @@ This guide will walk you through creating and using your `.goosehints` file to s
 
 ## Creating your hints file
 
-Create a file named `.goosehints` and save the file in `~/.config/goose/.goosehints`. If saved here, Goose will use this file for every session with you.
+Goose supports two types of hint files:
+- **Global hints file** - Create a `.goosehints` file in `~/.config/goose`. These hints will apply to all your sessions with Goose, regardless of directory.
+- **Local hints file** -  Create a `.goosehints` file at the root of your project directory. These hints will only apply when working in that specific directory.
 
 :::tip
-You can also save `.goosehints` local to any directory. In this case, Goose will utilize the hints when working in that directory.
+You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 :::
 
 The `.goosehints` file can include any instructions or contextual details relevant to your projects.
@@ -28,8 +30,33 @@ A good time to consider adding a `.goosehints` file is when you find yourself re
 
 ## Setting up hints
 
-The `.goosehints` file supports natural language and also follows [jinja templating rules][jinja-guide], so you can leverage templating to insert file contents or variables.
+The `.goosehints` file supports natural language.
 
+### Example global `.goosehints` file
+
+```
+Always use TypeScript for new Next.js projects.
+
+Follow the [Google Style Guide](https://google.github.io/styleguide/pyguide.html) for Python code.
+
+Run unit tests before committing any changes.
+
+Prefer functional programming patterns where applicable.
+```
+
+### Example local `.goosehints` file
+
+```
+This is a simple example JavaScript web application that uses the Express.js framework. View [Express documentation](https://expressjs.com/) for extended guidance.
+
+Go through the README.md for information on how to build and test it as needed.
+
+Make sure to confirm all changes with me before applying.
+
+Run tests with `npm run test` ideally after each change.
+```
+
+## Common use cases
 Here are some ways people have used hints to provide additional context to Goose:
 
 - **Decision-Making**: Specify if Goose should autonomously make changes or confirm actions with you first.
@@ -42,25 +69,9 @@ Here are some ways people have used hints to provide additional context to Goose
 
 Like prompts, this is not an extensive list to shape your `.goosehints` file. You can include as much context as you need.
 
-Example `.goosehints` file:
-
-```jinja
-This is a simple example JavaScript web application that uses the Express.js framework. View [Express documentation](https://expressjs.com/) for extended guidance.
-
-Go through the README.md for information on how to build and test it as needed.
-
-Make sure to confirm all changes with me before applying.
-
-Use the following custom values when needed:
-{%include custom-config.js%}
-
-Run tests with `npm run test` ideally after each change.
-```
-
 ## Best practices
 
 - **Keep file updated**: Regularly update the `.goosehints` file to reflect any changes in project protocols or priorities.
 - **Be concise**: Make sure the content is straightforward and to the point, ensuring Goose can quickly parse and act on the information.
+- **Start small**: Create a small set of clear, specific hints and gradually expand them based on your needs. This makes it easier to understand how Goose interprets and applies your instructions.
 
-
-[jinja-guide]: https://jinja.palletsprojects.com/en/stable/
