@@ -271,7 +271,8 @@ pub fn validate_tool_schemas(tools: &mut [Value]) {
 fn ensure_valid_json_schema(schema: &mut Value) {
     if let Some(params_obj) = schema.as_object_mut() {
         // Check if this is meant to be an object type schema
-        let is_object_type = params_obj.get("type")
+        let is_object_type = params_obj
+            .get("type")
             .and_then(|t| t.as_str())
             .map_or(true, |t| t == "object"); // Default to true if no type is specified
 
@@ -296,9 +297,11 @@ fn ensure_valid_json_schema(schema: &mut Value) {
             if let Some(properties) = params_obj.get_mut("properties") {
                 if let Some(properties_obj) = properties.as_object_mut() {
                     for (_key, prop) in properties_obj.iter_mut() {
-                        if prop.is_object() && prop.get("type")
-                            .and_then(|t| t.as_str())
-                            .map_or(false, |t| t == "object")
+                        if prop.is_object()
+                            && prop
+                                .get("type")
+                                .and_then(|t| t.as_str())
+                                .map_or(false, |t| t == "object")
                         {
                             ensure_valid_json_schema(prop);
                         }
