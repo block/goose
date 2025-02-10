@@ -6,6 +6,9 @@ description: Add Fetch MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+:::warning Known Limitation
+The Fetch extension does not work with Google models (e.g. gemini-2.0-flash-exp) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
+:::
 
 This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a Goose extension to retrieve and process content from the web.
 
