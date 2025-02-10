@@ -254,28 +254,54 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
-/// If parameters exists, ensures it has properties and required fields, or removes parameters entirely.
+/// If parameters exist, ensures they have properties and required fields, or removes parameters entirely.
 pub fn validate_tool_schemas(tools: &mut [Value]) {
     for tool in tools.iter_mut() {
         if let Some(function) = tool.get_mut("function") {
             if let Some(parameters) = function.get_mut("parameters") {
-                // If parameters exists but doesn't have properties and required, add them
                 if parameters.is_object() {
-                    let params_obj = parameters.as_object_mut().unwrap();
+                    ensure_valid_json_schema(parameters);
+                }
+            }
+        }
+    }
+}
 
-                    // Ensure type field exists
-                    if !params_obj.contains_key("type") {
-                        params_obj.insert("type".to_string(), json!("object"));
-                    }
+/// Ensures that the given JSON value follows the expected JSON Schema structure.
+fn ensure_valid_json_schema(schema: &mut Value) {
+    if let Some(params_obj) = schema.as_object_mut() {
+        // Check if this is meant to be an object type schema
+        let is_object_type = params_obj.get("type")
+            .and_then(|t| t.as_str())
+            .map_or(true, |t| t == "object"); // Default to true if no type is specified
 
-                    // Ensure properties field exists
-                    if !params_obj.contains_key("properties") {
-                        params_obj.insert("properties".to_string(), json!({}));
-                    }
+        // Only apply full schema validation to object types
+        if is_object_type {
+            // Ensure properties field exists and is an object
+            if !params_obj.contains_key("properties") {
+                params_obj.insert("properties".to_string(), json!({}));
+            }
 
-                    // Ensure required field exists
-                    if !params_obj.contains_key("required") {
-                        params_obj.insert("required".to_string(), json!([]));
+            // Ensure required field exists and is an array
+            if !params_obj.contains_key("required") {
+                params_obj.insert("required".to_string(), json!([]));
+            }
+
+            // Ensure type field exists
+            if !params_obj.contains_key("type") {
+                params_obj.insert("type".to_string(), json!("object"));
+            }
+
+            // Recursively validate properties if it exists
+            if let Some(properties) = params_obj.get_mut("properties") {
+                if let Some(properties_obj) = properties.as_object_mut() {
+                    for (_key, prop) in properties_obj.iter_mut() {
+                        if prop.is_object() && prop.get("type")
+                            .and_then(|t| t.as_str())
+                            .map_or(false, |t| t == "object")
+                        {
+                            ensure_valid_json_schema(prop);
+                        }
                     }
                 }
             }
