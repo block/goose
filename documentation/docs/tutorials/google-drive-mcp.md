@@ -182,79 +182,73 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
 
 ## Example Usage
 
-In this example I'm going to have goose list my most recent google drive files, open my Healthy Recipes file, summarize it and tell me the macros for the first meal.
+In this example, I’ll use Goose to quickly gather and summarize important information for my upcoming marketing budget review meeting in 30 minutes. I’ll ask Goose to find relevant documents from my Google Drive, summarize Q1 performance, highlight critical decisions on marketing automation and video production, and identify any outstanding action items from our last meeting.
 
 ### Goose Prompt
 ```
-list my 3 most recent google drive files
+I have an important marketing budget review meeting in 30 minutes and I need your help getting prepared. I have several documents in my Google Drive from our previous meetings and planning sessions. Could you help me by:
+
+1. Finding all relevant documents about our marketing budget and performance
+2. Giving me a quick summary of our Q1 performance
+3. Highlighting the key decisions we need to make about the marketing automation tool and video production
+4. Identifying any outstanding action items from our last meeting
+
+I need a quick but comprehensive overview so I can walk into this meeting well-prepared.
 ```
 
 ### Goose Output
 
 ```
-Your 3 most recent Google Drive files are:
+I'll help you prepare for your meeting. Let me first list available resources from Google Drive to make sure we access the correct files. 
 
-1. Healthy Recipes
-2. Notarized Letter
-3. Hit List + Networking Example (MAKE A COPY - DO NOT EDIT)
+[... list resources ...]
 
-Would you like me to summarize the "Healthy Recipes" file?
+Great! I can see several relevant documents. Let me access them one by one to gather the information you need. 
 
-```
+[... reads resources ...]
 
-### Goose Prompt
+Based on all these documents, here's your comprehensive overview for the meeting: 
 
-```
-yes please and tell me the macros of the first meal 
-```
-### Goose Output
-```
-The "Healthy Recipes" file contains a recipe for "Sheet-Pan Chicken Fajita Bowls". Here’s a summary:
+Q1 Performance Summary:
 
-Ingredients
+  - Overall 5% under budget ($104,200 spent vs $107,000 budgeted)
+  - Digital Marketing performing well with highest ROI:
+      - Email marketing: 3.2 ROI
+      - Google Ads: 2.4 ROI
+      - Content Marketing: 2.1 ROI
+  - Social media engagement up 23% from previous quarter
+  - Content marketing blog posts generating 2x expected leads
 
-    - Chili powder, ground cumin, salt, garlic powder, smoked paprika, ground pepper
-    - Olive oil
-    - Chicken tenders
-    - Yellow onion, red bell pepper, green bell pepper
-    - Kale
-    - Black beans (no-salt-added)
-    - Low-fat plain Greek yogurt
-    - Lime juice
-    - Water
+Key Decisions Needed:
 
-Directions
+  1. Marketing Automation Tool (License Renewal Due):
+    - Current tool (BasicAutomation Pro): $12,000/year
+    - Options:
+        - GrowthStack ($15,000/year) - recommended option, balanced features/price
+        - MarketingHub Enterprise ($18,000/year) - premium option with AI features
+        - Decision needed on whether to upgrade or maintain current solution
+    - Implementation would take 6 weeks if changing providers
 
-    1. Preheat oven and prepare a spice mixture.
-    2. Toss chicken, onion, and peppers in the spice mixture.
-    3. Roast on a baking sheet.
-    4. Mix kale and black beans with olive oil and salt, add to the sheet, and roast further.
-    5. Prepare a yogurt dressing with the reserved spice mix, lime juice, and water.
-    6. Serve the roasted mixture in bowls topped with the yogurt dressing.
+  2. Video Production Investment:
+    - Three vendor options:
+        - CreativeForce Media ($16,200) - most comprehensive, unlimited revisions
+        - VisualCraft Studios ($14,500) - solid middle option
+        - Digital Narrative Pro ($12,800) - basic package
+    - CreativeForce Media is recommended despite higher cost due to comprehensive deliverables
+    - Timeline ranges from 3-5 weeks depending on vendor choice
 
-To calculate the macro-nutrients (macros) for the "Sheet-Pan Chicken Fajita Bowls," we need to consider the main components:
+Outstanding Action Items from Last Meeting:
 
-Estimated Macros for One Serving (approximate):
+  1. Sarah needs to present ROI analysis for video content investment
+  2. John needs to complete software license review
+  3. Lisa to present new PPC strategy
+  4. Mike has completed the video production agency quotes
 
-Since the recipe is divided into 4 servings, I'll provide the macros per serving based on typical ingredient data. Note these are estimates, and actual values may vary:
+Q2 Planning Considerations:
 
-1. Protein:
+  - Proposed 12% budget increase for Q2 ($120,000 total)
+  - Potential reallocation needed based on new tool and video production decisions
+  - PPC strategy review pending
 
-    - Chicken tenders (~1.25 lbs or 20 oz total) - approx. 120g protein total, so 30g protein per serving.
-
-2. Carbohydrates:
-
-    - Black beans (15 oz can) - approx. 45g carbs total, so about 11g carbs per serving.
-    - Bell peppers and onion add minimal carbs, approximately 5g per serving.
-
-3. Fats:
-
-    - Olive oil (~2 tbsp total) - approx. 28g fat total, so 7g fat per serving.
-
-Total (Per Serving):
-    - Protein: ~30g
-    - Carbohydrates: ~16g
-    - Fats: ~7g
-
-Additionally, the kale and yogurt add dietary fiber and minor macro contributions. If you require precise calculations, using a digital nutrition calculator or app with input from this specific recipe would yield the best results, especially accounting for exact brand and preparation variances.
+Would you like me to focus on any particular aspect of this overview in more detail?
 ```
