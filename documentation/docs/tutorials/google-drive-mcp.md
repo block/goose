@@ -18,10 +18,10 @@ npx -y @modelcontextprotocol/server-gdrive auth
 
 **Environment Variables**
 ```
-GDRIVE_CREDENTIALS_PATH: location-where-you-want-the-file-saved/.gdrive-server-credentials.json
+GDRIVE_CREDENTIALS_PATH: ~/.config/.gdrive-server-credentials.json
 ```
 ```
-GDRIVE_OAUTH_PATH: location-where-you-saved-file/gcp-oauth.keys.json
+GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json
 ```
 :::
 
@@ -52,7 +52,7 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
         -  Choose **Application Type: Desktop App**
         -  Download the JSON key file
         -  Rename it to `gcp-oauth.keys.json`
-        -  Move it to a secure location where the extension can access it, such as:
+        -  Move it to a secure location where the extension can access it:
             ```sh
             mv ~/Downloads/gcp-oauth.keys.json ~/.config/gcp-oauth.keys.json
             ```
@@ -143,7 +143,7 @@ When you start your next Goose session and use the Google Drive extension, a bro
     │  GDRIVE_CREDENTIALS_PATH
     │
     ◇  Environment variable value:
-    │  location-where-you-want-the-file-saved/.gdrive-server-credentials.json
+    │  ~/.config/.gdrive-server-credentials.json
     │
     ◇  Add another environment variable?
     │  yes 
@@ -152,7 +152,7 @@ When you start your next Goose session and use the Google Drive extension, a bro
     │  GDRIVE_OAUTH_PATH
     │
     ◇  Environment variable value:
-    │  location-where-you-saved-file/gcp-oauth.keys.json
+    │  ~/.config/gcp-oauth.keys.json
     │
     // highlight-end
     └  Added google drive extension
@@ -171,11 +171,11 @@ When you start your next Goose session and use the Google Drive extension, a bro
         * **Command**: `npx -y @modelcontextprotocol/server-gdrive auth`
         * **Environment Variables**
             * **Name**: `GDRIVE_CREDENTIALS_PATH`
-            * **Value**: `location-where-you-want-the-file-saved/.gdrive-server-credentials.json`
+            * **Value**: `~/.config/.gdrive-server-credentials.json`
             * Click `Add` button
         * **Environment Variables**
             * **Name**: `GDRIVE_OAUTH_PATH`
-            * **Value**: `location-where-you-saved-file/gcp-oauth.keys.json`
+            * **Value**: `~/.config/gcp-oauth.keys.json`
             * Click `Add` button
         
   5. Click `Add Extension` button
