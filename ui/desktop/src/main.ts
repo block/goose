@@ -203,8 +203,11 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParam}`);
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`), {
-      search: queryParam.slice(1),
+    // In production, we need to use a proper file protocol URL with correct base path
+    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
+    console.log('Loading production path:', indexPath);
+    mainWindow.loadFile(indexPath, {
+      search: queryParam ? queryParam.slice(1) : undefined,
     });
   }
 
@@ -219,14 +222,19 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
     globalShortcut.unregister('Alt+Command+I');
   };
 
-  // Register shortcut when window is focused
+  // Register shortcuts when window is focused
   mainWindow.on('focus', () => {
     registerDevToolsShortcut(mainWindow);
+    // Register reload shortcut
+    globalShortcut.register('CommandOrControl+R', () => {
+      mainWindow.reload();
+    });
   });
 
-  // Unregister shortcut when window loses focus
+  // Unregister shortcuts when window loses focus
   mainWindow.on('blur', () => {
     unregisterDevToolsShortcut();
+    globalShortcut.unregister('CommandOrControl+R');
   });
 
   windowMap.set(windowId, mainWindow);
