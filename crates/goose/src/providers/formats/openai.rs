@@ -1261,7 +1261,7 @@ mod tests {
             false,
         )
     }
-  
+
     #[test]
     fn test_response_to_message_empty_argument() -> anyhow::Result<()> {
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
