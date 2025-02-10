@@ -14,6 +14,7 @@ We're in the early days of a new era in tech, one where companies are innovating
 
 <!-- truncate -->
 
+
 ### The MCP Open Standard
 
 Anthropic is leading the charge with the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), an open standard that enables large language model (LLM) applications to connect with external systems, providing the necessary context for more informed and relevant AI interactions. 

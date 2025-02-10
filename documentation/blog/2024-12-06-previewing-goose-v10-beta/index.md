@@ -27,7 +27,7 @@ Goose will remember previous interactions to better understand ongoing projects.
 
 ### 3. Improved Plugin System
 
-In Goose v1.0, the Goose toolkit system is being replaced with Systems. Systems are modular daemons that Goose can interact with dynamically. As a result, Goose will be able to support more complex plugins and integrations. This will make it easier to extend Goose with new features and functionality.
+In Goose v1.0, the Goose toolkit system is being replaced with Extensions. Extensions are modular daemons that Goose can interact with dynamically. As a result, Goose will be able to support more complex plugins and integrations. This will make it easier to extend Goose with new features and functionality.
 
 ### 4. Headless mode
 

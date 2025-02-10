@@ -15,6 +15,10 @@ However, I didn't want to spend hours implementing the CSS for each design trend
 
 <!-- truncate -->
 
+:::warning Goose Beta Version
+This post was written about a beta version of Goose and the commands and flow may have changed.
+:::
+
 ### My original calendar:
 ![calendar](screenshot-calendar-og.png)
 
