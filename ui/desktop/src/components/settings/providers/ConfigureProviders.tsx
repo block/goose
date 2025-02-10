@@ -2,15 +2,22 @@ import React from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import { ConfigureProvidersGrid } from './ConfigureProvidersGrid';
+import type { View } from '../../../ChatWindow';
 
-export default function ConfigureProviders() {
+export default function ConfigureProviders({
+  onClose,
+  setView,
+}: {
+  onClose: () => void;
+  setView?: (view: View) => void;
+}) {
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
 
       <ScrollArea className="h-full w-full">
         <div className="px-8 pt-6 pb-4">
-          <BackButton />
+          <BackButton onClick={onClose} />
           <h1 className="text-3xl font-medium text-textStandard mt-1">Configure</h1>
         </div>
 

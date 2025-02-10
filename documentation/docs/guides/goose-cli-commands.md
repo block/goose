@@ -58,15 +58,15 @@ goose session --name <name>
 
 - **`-r, --resume`** 
 
-Resume a previous session (last used or specified by `--name`)
+Resume the previous session
 
 ```bash
-goose session --name <name> --resume
+goose session --resume
 ```
 
 - **`--with-extension <COMMAND>`** 
 
-Starts the session with the specified extension. Can also include environment variables (e.g., `'GITHUB_TOKEN=xyz npx -y @modelcontextprotocol/server-github'`).
+Starts the session with the specified extension. Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`).
 
 ```bash
 goose session --name <name> --with-extension <command>
@@ -77,7 +77,7 @@ goose session --name <name> --with-extension <command>
 Starts the session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled. (e.g. 'developer')
 
 ```bash
-goose session --with-builtin <name>
+goose session --with-builtin <id>
 ```
 
 ### run [options]

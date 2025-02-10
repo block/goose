@@ -119,7 +119,11 @@ mod tests {
 
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
-        env::set_var("HOME", temp_dir.path());
+        if cfg!(windows) {
+            env::set_var("USERPROFILE", temp_dir.path());
+        } else {
+            env::set_var("HOME", temp_dir.path());
+        }
         temp_dir
     }
 

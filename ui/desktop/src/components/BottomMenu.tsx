@@ -3,14 +3,21 @@ import { useModel } from './settings/models/ModelContext';
 import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
-import { useNavigate } from 'react-router-dom';
+// Remove react-router-dom usage
+// import { useNavigate } from 'react-router-dom';
 import { Document, ChevronUp, ChevronDown } from './icons';
+import type { View } from '../ChatWindow';
 
-export default function BottomMenu({ hasMessages }) {
+export default function BottomMenu({
+  hasMessages,
+  setView,
+}: {
+  hasMessages: boolean;
+  setView?: (view: View) => void;
+}) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
-  const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside
@@ -126,7 +133,8 @@ export default function BottomMenu({ hasMessages }) {
                   border-t border-borderSubtle mt-2"
                 onClick={() => {
                   setIsModelMenuOpen(false);
-                  navigate('/settings');
+                  // Instead of navigate('/settings'), call setView('settings').
+                  setView?.('settings');
                 }}
               >
                 <span className="text-sm">Tools and Settings</span>

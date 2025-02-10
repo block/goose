@@ -14,7 +14,6 @@ import WingToWing, { Working } from './components/WingToWing';
 import { askAi } from './utils/askAI';
 import { getStoredModel, Provider } from './utils/providerUtils';
 import { ChatLayout } from './components/chat_window/ChatLayout';
-import { ChatRoutes } from './components/chat_window/ChatRoutes';
 import { WelcomeScreen } from './components/welcome_screen/WelcomeScreen';
 import { getStoredProvider, initializeSystem } from './utils/providerUtils';
 import { useModel } from './components/settings/models/ModelContext';
@@ -22,6 +21,9 @@ import { useRecentModels } from './components/settings/models/RecentModels';
 import { createSelectedModel } from './components/settings/models/utils';
 import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import Splash from './components/Splash';
+import Settings from './components/settings/Settings';
+import MoreModelsSettings from './components/settings/models/MoreModels';
+import ConfigureProviders from './components/settings/providers/ConfigureProviders';
 
 export interface Chat {
   id: number;
@@ -33,13 +35,19 @@ export interface Chat {
   }>;
 }
 
+export type View = 'welcome' | 'chat' | 'settings' | 'moreModels' | 'configureProviders';
+
+// This component is our main chat content.
+// We'll move the majority of chat logic here, minus the 'view' state.
 export function ChatContent({
   chats,
   setChats,
   selectedChatId,
+  setSelectedChatId,
   initialQuery,
   setProgressMessage,
   setWorking,
+  setView,
 }: {
   chats: Chat[];
   setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
@@ -48,6 +56,7 @@ export function ChatContent({
   initialQuery: string | null;
   setProgressMessage: React.Dispatch<React.SetStateAction<string>>;
   setWorking: React.Dispatch<React.SetStateAction<Working>>;
+  setView: (view: View) => void;
 }) {
   const chat = chats.find((c: Chat) => c.id === selectedChatId);
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
@@ -95,7 +104,6 @@ export function ChatContent({
       window.electron.logInfo('last interaction:' + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) {
         // 60000ms = 1 minute
-
         window.electron.showNotification({
           title: 'Goose finished the task.',
           body: 'Click here to expand.',
@@ -133,7 +141,7 @@ export function ChatContent({
       setLastInteractionTime(Date.now());
       append({
         role: 'user',
-        content: content,
+        content,
       });
       if (scrollRef.current?.scrollToBottom) {
         scrollRef.current.scrollToBottom();
@@ -194,7 +202,8 @@ export function ChatContent({
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle border-b border-borderSubtle">
-        <MoreMenu />
+        {/* Pass setView to MoreMenu so it can switch to settings or other views */}
+        <MoreMenu setView={setView} />
       </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
@@ -215,12 +224,6 @@ export function ChatContent({
                 )}
               </div>
             ))}
-            {/* {isLoading && (
-              <div className="flex items-center justify-center p-4">
-                <div onClick={() => setShowGame(true)} style={{ cursor: 'pointer' }}>
-                </div>
-              </div>
-            )} */}
             {error && (
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
@@ -258,7 +261,7 @@ export function ChatContent({
             isLoading={isLoading}
             onStop={onStopGoose}
           />
-          <BottomMenu hasMessages={hasMessages} />
+          <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
       </Card>
 
@@ -268,98 +271,59 @@ export function ChatContent({
 }
 
 export default function ChatWindow() {
+  // We'll add a state controlling which "view" is active.
+  const [view, setView] = useState<View>('welcome');
+
   // Shared function to create a chat window
   const openNewChatWindow = () => {
     window.electron.createChatWindow();
   };
-  const { switchModel, currentModel } = useModel(); // Access switchModel via useModel
-  const { addRecentModel } = useRecentModels(); // Access addRecentModel from useRecentModels
+  const { switchModel } = useModel();
+  const { addRecentModel } = useRecentModels();
 
-  // Add keyboard shortcut handler
+  // This will store chat data for the "chat" view.
+  const [chats, setChats] = useState<Chat[]>(() => [
+    {
+      id: 1,
+      title: 'Chat 1',
+      messages: [],
+    },
+  ]);
+  const [selectedChatId, setSelectedChatId] = useState(1);
+
+  // Additional states
+  const [mode, setMode] = useState<'expanded' | 'compact'>('expanded');
+  const [working, setWorking] = useState<Working>(Working.Idle);
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [initialQuery, setInitialQuery] = useState<string | null>(null);
+
+  // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Check for Command+N (Mac) or Control+N (Windows/Linux)
       if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
-        event.preventDefault(); // Prevent default browser behavior
+        event.preventDefault();
         openNewChatWindow();
       }
     };
 
-    // Add event listener
     window.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
-  // Get initial query and history from URL parameters
-  const searchParams = new URLSearchParams(window.location.search);
-  const initialQuery = searchParams.get('initialQuery');
-  const historyParam = searchParams.get('history');
-  const initialHistory = historyParam ? JSON.parse(decodeURIComponent(historyParam)) : [];
-
-  const [chats, setChats] = useState<Chat[]>(() => {
-    const firstChat = {
-      id: 1,
-      title: initialQuery || 'Chat 1',
-      messages: initialHistory.length > 0 ? initialHistory : [],
-    };
-    return [firstChat];
-  });
-
-  const [selectedChatId, setSelectedChatId] = useState(1);
-  const [mode, setMode] = useState<'expanded' | 'compact'>(initialQuery ? 'compact' : 'expanded');
-  const [working, setWorking] = useState<Working>(Working.Idle);
-  const [progressMessage, setProgressMessage] = useState<string>('');
-  const [selectedProvider, setSelectedProvider] = useState<string | Provider | null>(null);
-  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
-
-  // Add this useEffect to track changes and update welcome state
-  const toggleMode = () => {
-    const newMode = mode === 'expanded' ? 'compact' : 'expanded';
-    console.log(`Toggle to ${newMode}`);
-    setMode(newMode);
-  };
-
-  window.electron.logInfo('ChatWindow loaded');
-
-  // Fix the handleSubmit function syntax
-  const handleSubmit = () => {
-    setShowWelcomeModal(false);
-  };
-
+  // Attempt to detect config for a stored provider
   useEffect(() => {
-    // Check if we already have a provider set
     const config = window.electron.getConfig();
     const storedProvider = getStoredProvider(config);
-
     if (storedProvider) {
-      setShowWelcomeModal(false);
+      setView('chat');
     } else {
-      setShowWelcomeModal(true);
+      setView('welcome');
     }
   }, []);
 
-  const storeSecret = async (key: string, value: string) => {
-    const response = await fetch(getApiUrl('/configs/store'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({ key, value }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to store secret: ${response.statusText}`);
-    }
-
-    return response;
-  };
-
-  // Initialize system on load if we have a stored provider
+  // Initialize system if we have a stored provider
   useEffect(() => {
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
@@ -378,19 +342,10 @@ export default function ChatWindow() {
           await initializeSystem(storedProvider, storedModel);
 
           if (!storedModel) {
-            // get the default model
             const modelName = getDefaultModel(storedProvider.toLowerCase());
-
-            // create model object
             const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
-
-            // Call the context's switchModel to track the set model state in the front end
             switchModel(model);
-
-            // Keep track of the recently used models
             addRecentModel(model);
-
-            console.log('set up provider with default model', storedProvider, modelName);
           }
         } catch (error) {
           console.error('Failed to initialize with stored provider:', error);
@@ -401,24 +356,58 @@ export default function ChatWindow() {
     setupStoredProvider();
   }, []);
 
-  // Render WelcomeScreen at root level if showing
-  if (showWelcomeModal) {
-    return <WelcomeScreen onSubmit={handleSubmit} />;
-  }
+  // Render everything inside ChatLayout now
+  // We'll switch views inside the ChatLayout children.
 
-  // Only render ChatLayout if not showing welcome screen
+  // If we want to skip showing ChatLayout for the welcome screen, we can do so.
+  // But let's do exactly what's requested: put all view options under ChatLayout.
+
   return (
-    <div>
-      <ChatLayout mode={mode}>
-        <ChatRoutes
+    <ChatLayout mode={mode}>
+      {/* Conditionally render based on `view` */}
+      {view === 'welcome' && (
+        <WelcomeScreen
+          onSubmit={() => {
+            setView('chat');
+          }}
+        />
+      )}
+      {view === 'settings' && (
+        <Settings
+          onClose={() => {
+            setView('chat');
+          }}
+          setView={setView}
+        />
+      )}
+      {view === 'moreModels' && (
+        <MoreModelsSettings
+          onClose={() => {
+            setView('settings');
+          }}
+          setView={setView}
+        />
+      )}
+      {view === 'configureProviders' && (
+        <ConfigureProviders
+          onClose={() => {
+            setView('settings');
+          }}
+          setView={setView}
+        />
+      )}
+      {view === 'chat' && (
+        <ChatContent
           chats={chats}
           setChats={setChats}
           selectedChatId={selectedChatId}
           setSelectedChatId={setSelectedChatId}
+          initialQuery={initialQuery}
           setProgressMessage={setProgressMessage}
           setWorking={setWorking}
+          setView={setView}
         />
-      </ChatLayout>
-    </div>
+      )}
+    </ChatLayout>
   );
 }

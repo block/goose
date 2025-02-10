@@ -2,18 +2,20 @@ import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-u
 import React, { useEffect, useState } from 'react';
 import { FaMoon, FaSun } from 'react-icons/fa';
 import VertDots from './ui/VertDots';
-import { useNavigate } from 'react-router-dom';
+// Removed react-router-dom import
+// import { useNavigate } from 'react-router-dom';
 import { More } from './icons';
 import { Settings, Grid, MessageSquare } from 'lucide-react';
 import { Button } from './ui/button';
+import type { View } from '../../ChatWindow';
 
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
 }
 
-export default function MoreMenu() {
-  const navigate = useNavigate();
+// Accept setView as a prop from the parent (e.g. ChatContent)
+export default function MoreMenu({ setView }: { setView?: (view: View) => void }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
@@ -229,7 +231,8 @@ export default function MoreMenu() {
             <button
               onClick={() => {
                 setOpen(false);
-                navigate('/settings');
+                // Instead of navigate('/settings'), call setView to switch.
+                setView?.('settings');
               }}
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
             >
@@ -264,12 +267,16 @@ export default function MoreMenu() {
             >
               Reset Provider
             </button>
+
             {/* Provider keys settings */}
             {process.env.NODE_ENV === 'development' && (
               <button
                 onClick={() => {
                   setOpen(false);
-                  navigate('/keys');
+                  // Instead of navigate('/keys'), we might do setView('someKeysView') or open new window.
+                  // For now, just do nothing or set to some placeholder.
+                  // setView?.('keys');
+                  window.electron.createChatWindow();
                 }}
                 className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
               >

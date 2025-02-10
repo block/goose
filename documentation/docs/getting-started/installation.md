@@ -46,6 +46,14 @@ import RateLimits from '@site/src/components/RateLimits';
         <div style={{ marginTop: '1rem' }}>
           1. Unzip the downloaded `Goose.zip` file.
           2. Run the executable file to launch the Goose desktop application.
+
+          :::note Permissions
+            If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
+
+            Ensure the `~/.config` directory has read and write access.
+
+            Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues-m3-macs)
+          :::
         </div>
 
       </TabItem>

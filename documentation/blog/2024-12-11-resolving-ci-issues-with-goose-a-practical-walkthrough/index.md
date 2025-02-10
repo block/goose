@@ -9,9 +9,13 @@ authors:
 
 ![CI](goose-github-ci.png)
 
-Running into Continuous Integration (CI) failures in pull requests can be quite frustrating but they happen very often. In this post, we leverage the GitHub CLI (`gh`) using Goose to simplify your CI debugging process, fetch detailed information about failed CI runs & annotations directly from GitHub, and even apply fixes directly.
+Running into Continuous Integration (CI) failures in pull requests can be quite frustrating but they happen very often. In this post, we leverage the GitHub CLI (`gh`) using Goose to simplify your CI debugging process, fetch detailed information about failed CI runs and annotations directly from GitHub, and even apply fixes directly.
 
 <!-- truncate -->
+
+:::warning Goose Beta Version
+This post was written about a beta version of Goose and the commands and flow may have changed.
+:::
 
 
 ## Getting Started

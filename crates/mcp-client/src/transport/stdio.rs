@@ -196,15 +196,24 @@ impl StdioTransport {
     }
 
     async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout, ChildStderr), Error> {
-        let mut process = Command::new(&self.command)
+        let mut command = Command::new(&self.command);
+        command
             .envs(&self.env)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .kill_on_drop(true)
-            // 0 sets the process group ID equal to the process ID
-            .process_group(0) // don't inherit signal handling from parent process
+            .kill_on_drop(true);
+
+        // Set process group only on Unix systems
+        #[cfg(unix)]
+        command.process_group(0); // don't inherit signal handling from parent process
+
+        // Hide console window on Windows
+        #[cfg(windows)]
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW flag
+
+        let mut process = command
             .spawn()
             .map_err(|e| Error::StdioProcessError(e.to_string()))?;
 
