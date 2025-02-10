@@ -23,6 +23,10 @@ FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
 ```
 :::
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+:::
+
 ## Configuration
 
 <Tabs groupId="interface">
