@@ -15,7 +15,7 @@ on:
       operating-systems:
         type: string
         required: false
-        default: '["ubuntu-latest","macos-latest"]'
+        default: '["ubuntu-latest","macos-latest","windows-latest"]'
       architectures:
         type: string
         required: false
@@ -37,6 +37,8 @@ jobs:
             target-suffix: unknown-linux-gnu
           - os: macos-latest
             target-suffix: apple-darwin
+          - os: windows-latest
+            target-suffix: pc-windows-gnu
 
     steps:
       - name: Checkout code
@@ -60,12 +62,20 @@ jobs:
       - name: Build CLI
         env:
           CROSS_NO_WARNINGS: 0
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          CROSS_VERBOSE: 1
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           rustup target add "${TARGET}"
+          echo "Building for target: ${TARGET}"
+          echo "Rust toolchain info:"
+          rustup show
+          echo "Cross version:"
+          cross --version
 
           # 'cross' is used to cross-compile for different architectures (see Cross.toml)
-          cross build --release --target ${TARGET} -p goose-cli
+          cross build --release --target ${TARGET} -p goose-cli -vv
 
           # tar the goose binary as goose-<TARGET>.tar.bz2
           cd target/${TARGET}/release

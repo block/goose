@@ -33,7 +33,7 @@ jobs:
           path: download_cli.sh
 
   # ------------------------------------------------------------
-  # 3) Bundle Desktop App (macOS only)
+  # 3) Bundle Desktop App (macOS)
   # ------------------------------------------------------------
   bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
@@ -45,6 +45,19 @@ jobs:
       APPLE_ID: ${{ secrets.APPLE_ID }}
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+#  # ------------------------------------------------------------
+#  # 4) Bundle Desktop App (Windows)
+#  # ------------------------------------------------------------
+#  bundle-desktop-windows:
+#    uses: ./.github/workflows/bundle-desktop-windows.yml
+#    # Signing is disabled by default until we have a certificate
+#    with:
+#      signing: false
+#    # Uncomment and configure these when we have a certificate:
+#    # secrets:
+#    #   WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+#    #   WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
   # ------------------------------------
   # 4) Create/Update GitHub Release

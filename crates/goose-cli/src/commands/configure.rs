@@ -62,8 +62,25 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                         );
                     }
                     Some(ConfigError::KeyringError(msg)) => {
+                        #[cfg(target_os = "macos")]
                         println!(
                             "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+
+                        #[cfg(target_os = "windows")]
+                        println!(
+                            "\n  {} Failed to access Windows Credential Manager: {} \n  Please check Windows Credential Manager and run '{}' again. \n  If your system is unable to use the Credential Manager, please try setting secret key(s) via environment variables.",
+                            style("Error").red().italic(),
+                            msg,
+                            style("goose configure").cyan()
+                        );
+
+                        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+                        println!(
+                            "\n  {} Failed to access secure storage: {} \n  Please check your system's secure storage and run '{}' again. \n  If your system is unable to use secure storage, please try setting secret key(s) via environment variables.",
                             style("Error").red().italic(),
                             msg,
                             style("goose configure").cyan()

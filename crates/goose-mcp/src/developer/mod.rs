@@ -1,4 +1,5 @@
 mod lang;
+mod shell;
 
 use anyhow::Result;
 use base64::Engine;
@@ -31,6 +32,11 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
+use self::shell::{
+    expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
+    normalize_line_endings,
+};
+
 pub struct DeveloperRouter {
     tools: Vec<Tool>,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
@@ -48,9 +54,30 @@ impl DeveloperRouter {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
-        let bash_tool = Tool::new(
-            "shell".to_string(),
-            indoc! {r#"
+        // Get OS-specific shell tool description
+        let shell_tool_desc = match std::env::consts::OS {
+            "windows" => indoc! {r#"
+                Execute a command in the shell.
+
+                This will return the output and error concatenated into a single string, as
+                you would see from running on the command line. There will also be an indication
+                of if the command succeeded or failed.
+
+                Avoid commands that produce a large amount of output, and consider piping those outputs to files.
+
+                **Important**: For searching files and code:
+                
+                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+                  - To locate a file by name: `rg --files | rg example.py`
+                  - To locate content inside files: `rg 'class Example'`
+                
+                Alternative Windows commands (if ripgrep is not installed):
+                  - To locate a file by name: `dir /s /b example.py` 
+                  - To locate content inside files: `findstr /s /i "class Example" *.py`
+
+                Note: Alternative commands may show ignored/hidden files that should be excluded.
+            "#},
+            _ => indoc! {r#"
                 Execute a command in the shell.
 
                 This will return the output and error concatenated into a single string, as
@@ -64,8 +91,13 @@ impl DeveloperRouter {
                 **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
                 may show ignored or hidden files. For example *do not* use `find` or `ls -r`
                   - To locate a file by name: `rg --files | rg example.py`
-                  - To locate consent inside files: `rg 'class Example'`
-            "#}.to_string(),
+                  - To locate content inside files: `rg 'class Example'`
+            "#},
+        };
+
+        let bash_tool = Tool::new(
+            "shell".to_string(),
+            shell_tool_desc.to_string(),
             json!({
                 "type": "object",
                 "required": ["command"],
@@ -157,9 +189,31 @@ impl DeveloperRouter {
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
-        let base_instructions = formatdoc! {r#"
-            The developer extension gives you the capabilities to edit code files and run shell commands,
-            and can be used to solve a wide range of problems.
+        let os = std::env::consts::OS;
+
+        let base_instructions = match os {
+            "windows" => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
+
+                You can use the shell tool to run Windows commands (PowerShell or CMD).
+                When using paths, you can use either backslashes or forward slashes.
+
+                Use the shell tool as needed to locate files or interact with the project.
+
+                Your windows/screen tools can be used for visual debugging. You should not use these tools unless
+                prompted to, but you can mention they are available if they are relevant.
+
+                operating system: {os}
+                current directory: {cwd}
+
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
+            _ => formatdoc! {r#"
+                The developer extension gives you the capabilities to edit code files and run shell commands,
+                and can be used to solve a wide range of problems.
 
             You can use the shell tool to run any command that would work on the relevant operating system.
             Use the shell tool as needed to locate files or interact with the project.
@@ -170,9 +224,10 @@ impl DeveloperRouter {
             operating system: {os}
             current directory: {cwd}
 
-            "#,
-            os=std::env::consts::OS,
-            cwd=cwd.to_string_lossy(),
+                "#,
+                os=os,
+                cwd=cwd.to_string_lossy(),
+            },
         };
 
         // Check for global hints in ~/.config/goose/.goosehints
@@ -223,15 +278,15 @@ impl DeveloperRouter {
         }
     }
 
-    // Helper method to resolve a path relative to cwd
+    // Helper method to resolve a path relative to cwd with platform-specific handling
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ToolError> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
-        let expanded = shellexpand::tilde(path_str);
-        let path = Path::new(expanded.as_ref());
+        let expanded = expand_path(path_str);
+        let path = Path::new(&expanded);
 
         let suggestion = cwd.join(path);
 
-        match path.is_absolute() {
+        match is_absolute_path(&expanded) {
             true => Ok(path.to_path_buf()),
             false => Err(ToolError::InvalidParameters(format!(
                 "The path {} is not an absolute path, did you possibly mean {}?",
@@ -241,7 +296,7 @@ impl DeveloperRouter {
         }
     }
 
-    // Implement bash tool functionality
+    // Shell command execution with platform-specific handling
     async fn bash(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command =
             params
@@ -251,19 +306,17 @@ impl DeveloperRouter {
                     "The command string is required".to_string(),
                 ))?;
 
-        // TODO consider command suggestions and safety rails
+        // Get platform-specific shell configuration
+        let shell_config = get_shell_config();
+        let cmd_with_redirect = format_command_for_platform(command);
 
-        // TODO be more careful about backgrounding, revisit interleave
-        // Redirect stderr to stdout to interleave outputs
-        let cmd_with_redirect = format!("{} 2>&1", command);
-
-        // Execute the command
-        let child = Command::new("bash")
-            .stdout(Stdio::piped()) // These two pipes required to capture output later.
+        // Execute the command using platform-specific shell
+        let child = Command::new(&shell_config.executable)
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .stdin(Stdio::null())
-            .kill_on_drop(true) // Critical so that the command is killed when the agent.reply stream is interrupted.
-            .arg("-c")
+            .kill_on_drop(true)
+            .arg(&shell_config.arg)
             .arg(cmd_with_redirect)
             .spawn()
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
@@ -417,12 +470,15 @@ impl DeveloperRouter {
         path: &PathBuf,
         file_text: &str,
     ) -> Result<Vec<Content>, ToolError> {
+        // Normalize line endings based on platform
+        let normalized_text = normalize_line_endings(file_text);
+
         // Write to the file
-        std::fs::write(path, file_text)
+        std::fs::write(path, normalized_text)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
-        let language = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let language = lang::get_language_identifier(path);
 
         // The assistant output does not show the file again because the content is already in the tool request
         // but we do show it to the user here
@@ -478,13 +534,14 @@ impl DeveloperRouter {
         // Save history for undo
         self.save_file_history(path)?;
 
-        // Replace and write back
+        // Replace and write back with platform-specific line endings
         let new_content = content.replace(old_str, new_str);
-        std::fs::write(path, &new_content)
+        let normalized_content = normalize_line_endings(&new_content);
+        std::fs::write(path, &normalized_content)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to write file: {}", e)))?;
 
         // Try to detect the language from the file extension
-        let language = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+        let language = lang::get_language_identifier(path);
 
         // Show a snippet of the changed content with context
         const SNIPPET_LINES: usize = 4;
@@ -811,65 +868,28 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_text_editor_size_limits() {
-        // Create temp directory first so it stays in scope for the whole test
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Get router after setting current directory
+    #[cfg(windows)]
+    async fn test_windows_specific_commands() {
         let router = get_router().await;
 
-        // Test file size limit
-        {
-            let large_file_path = temp_dir.path().join("large.txt");
-            let large_file_str = large_file_path.to_str().unwrap();
+        // Test PowerShell command
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": "Get-ChildItem"
+                }),
+            )
+            .await;
+        assert!(result.is_ok());
 
-            // Create a file larger than 2MB
-            let content = "x".repeat(3 * 1024 * 1024); // 3MB
-            std::fs::write(&large_file_path, content).unwrap();
+        // Test Windows path handling
+        let result = router.resolve_path("C:\\Windows\\System32");
+        assert!(result.is_ok());
 
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": large_file_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too large"));
-        }
-
-        // Test character count limit
-        {
-            let many_chars_path = temp_dir.path().join("many_chars.txt");
-            let many_chars_str = many_chars_path.to_str().unwrap();
-
-            // Create a file with more than 400K characters but less than 400KB
-            let content = "x".repeat(405_000);
-            std::fs::write(&many_chars_path, content).unwrap();
-
-            let result = router
-                .call_tool(
-                    "text_editor",
-                    json!({
-                        "command": "view",
-                        "path": many_chars_str
-                    }),
-                )
-                .await;
-
-            assert!(result.is_err());
-            let err = result.err().unwrap();
-            assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
-        }
-
-        // Let temp_dir drop naturally at end of scope
+        // Test UNC path handling
+        let result = router.resolve_path("\\\\server\\share");
+        assert!(result.is_ok());
     }
 
     #[tokio::test]

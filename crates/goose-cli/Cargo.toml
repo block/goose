@@ -46,6 +46,10 @@ tracing = "0.1"
 chrono = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
 tracing-appender = "0.2"
+winapi = { version = "0.3", features = ["wincred"], optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
 tempfile = "3"

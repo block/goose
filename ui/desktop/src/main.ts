@@ -14,6 +14,7 @@ import {
 } from 'electron';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import { handleSquirrelEvent } from './setup-events';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -26,25 +27,112 @@ import {
   saveSettings,
   updateEnvironmentVariables,
 } from './utils/settings';
-const { exec } = require('child_process');
+import * as crypto from 'crypto';
+import * as electron from 'electron';
+import { exec as execCallback } from 'child_process';
+import { promisify } from 'util';
+
+const exec = promisify(execCallback);
+
+// Handle Squirrel events for Windows installer
+if (process.platform === 'win32') {
+  console.log('Windows detected, command line args:', process.argv);
+
+  if (handleSquirrelEvent()) {
+    // squirrel event handled and app will exit in 1000ms, so don't do anything else
+    process.exit(0);
+  }
+
+  // Handle the protocol on Windows during first launch
+  if (process.argv.length >= 2) {
+    const url = process.argv[1];
+    console.log('Checking URL from command line:', url);
+    if (url.startsWith('goose://')) {
+      console.log('Found goose:// URL in command line args');
+      app.emit('open-url', { preventDefault: () => {} }, url);
+    }
+  }
+}
+
+// Ensure single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, _workingDirectory) => {
+    // Someone tried to run a second instance
+    console.log('Second instance detected with args:', commandLine);
+
+    // Get existing window or create new one
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      const window = existingWindows[0];
+      if (window.isMinimized()) window.restore();
+      window.focus();
+
+      if (process.platform === 'win32') {
+        // Protocol handling for Windows
+        const url = commandLine[commandLine.length - 1];
+        console.log('Checking last arg for protocol:', url);
+        if (url.startsWith('goose://')) {
+          console.log('Found goose:// URL in second instance');
+          // Send the URL to the window
+          if (!window.webContents.isLoading()) {
+            window.webContents.send('add-extension', url);
+          } else {
+            window.webContents.once('did-finish-load', () => {
+              window.webContents.send('add-extension', url);
+            });
+          }
+        }
+      }
+    }
+  });
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
+
+// Register protocol handler
+if (process.platform === 'win32') {
+  const success = app.setAsDefaultProtocolClient('goose', process.execPath, ['--']);
+  console.log('Registering protocol handler for Windows:', success ? 'success' : 'failed');
+} else {
+  const success = app.setAsDefaultProtocolClient('goose');
+  console.log('Registering protocol handler:', success ? 'success' : 'failed');
+}
+
+// Log if we're the default protocol handler
+console.log('Is default protocol handler:', app.isDefaultProtocolClient('goose'));
 
 // Triggered when the user opens "goose://..." links
 app.on('open-url', async (event, url) => {
   event.preventDefault();
   console.log('open-url:', url);
 
-  const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  // Get existing window or create new one
+  let targetWindow: BrowserWindow;
+  const existingWindows = BrowserWindow.getAllWindows();
 
-  // Create the new Chat window
-  const newWindow = await createChat(app, undefined, openDir);
+  if (existingWindows.length > 0) {
+    targetWindow = existingWindows[0];
+    if (targetWindow.isMinimized()) targetWindow.restore();
+    targetWindow.focus();
+  } else {
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    targetWindow = await createChat(app, undefined, openDir);
+  }
 
-  newWindow.webContents.once('did-finish-load', () => {
-    newWindow.webContents.send('add-extension', url);
-  });
+  // Wait for window to be ready before sending the extension URL
+  if (!targetWindow.webContents.isLoading()) {
+    targetWindow.webContents.send('add-extension', url);
+  } else {
+    targetWindow.webContents.once('did-finish-load', () => {
+      targetWindow.webContents.send('add-extension', url);
+    });
+  }
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -77,8 +165,7 @@ const getGooseProvider = () => {
 };
 
 const generateSecretKey = () => {
-  const crypto = require('crypto');
-  let key = crypto.randomBytes(32).toString('hex');
+  const key = crypto.randomBytes(32).toString('hex');
   process.env.GOOSE_SERVER__SECRET_KEY = key;
   return key;
 };
@@ -98,7 +185,7 @@ const createLauncher = () => {
   const launcherWindow = new BrowserWindow({
     width: 600,
     height: 60,
-    frame: false,
+    frame: process.platform === 'darwin' ? false : true,
     transparent: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.ts'),
@@ -110,8 +197,7 @@ const createLauncher = () => {
   });
 
   // Center on screen
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
+  const primaryDisplay = electron.screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   const windowBounds = launcherWindow.getBounds();
 
@@ -141,18 +227,16 @@ let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
 const createChat = async (app, query?: string, dir?: string, version?: string) => {
-  const env = version ? { GOOSE_AGENT_VERSION: version } : {};
-
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
   const [port, working_dir, goosedProcess] = await startGoosed(app, dir);
 
   const mainWindow = new BrowserWindow({
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: 16, y: 10 },
-    vibrancy: 'window',
-    frame: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    trafficLightPosition: process.platform === 'darwin' ? { x: 16, y: 10 } : undefined,
+    vibrancy: process.platform === 'darwin' ? 'window' : undefined,
+    frame: process.platform === 'darwin' ? false : true,
     width: 750,
     height: 800,
     minWidth: 650,
@@ -186,8 +270,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
 
   // Load the index.html of the app.
   const queryParam = query ? `?initialQuery=${encodeURIComponent(query)}` : '';
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
+  const primaryDisplay = electron.screen.getPrimaryDisplay();
   const { width } = primaryDisplay.workAreaSize;
 
   // Increment window counter to track number of windows
@@ -357,7 +440,7 @@ ipcMain.handle('select-file-or-directory', async () => {
 
 ipcMain.handle('check-ollama', async () => {
   try {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // Run `ps` and filter for "ollama"
       exec('ps aux | grep -iw "[o]llama"', (error, stdout, stderr) => {
         if (error) {

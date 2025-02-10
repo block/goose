@@ -5,6 +5,22 @@ let cfg = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
   icon: 'src/images/icon',
+  // Windows specific configuration
+  win32: {
+    icon: 'src/images/icon.ico',
+    certificateFile: process.env.WINDOWS_CERTIFICATE_FILE,
+    certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
+    rfc3161TimeStampServer: 'http://timestamp.digicert.com',
+    signWithParams: '/fd sha256 /tr http://timestamp.digicert.com /td sha256'
+  },
+  // Protocol registration
+  protocols: [
+    {
+      name: "GooseProtocol",
+      schemes: ["goose"]
+    }
+  ],
+  // macOS specific configuration
   osxSign: {
     entitlements: 'entitlements.plist',
     'entitlements-inherit': 'entitlements.plist',
@@ -35,12 +51,13 @@ module.exports = {
   rebuildConfig: {},
   makers: [
     {
-      name: '@electron-forge/maker-squirrel',
-      config: {},
-    },
-    {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
+      platforms: ['darwin', 'win32'],
+      config: {
+        options: {
+          icon: 'src/images/icon.ico'
+        }
+      }
     },
     {
       name: '@electron-forge/maker-deb',

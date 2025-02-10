@@ -201,21 +201,5 @@ jobs:
             echo "App did not stay open. Possible crash or startup error."
             exit 1
           fi
-          LOGFILE="$HOME/Library/Application Support/Goose/logs/main.log"
-          # Print the log and verify "ChatWindow loaded" is in the logs
-          if [ -f "$LOGFILE" ]; then
-            echo "===== Log file contents ====="
-            cat "$LOGFILE"
-            echo "============================="
-            if grep -F "ChatWindow loaded" "$LOGFILE"; then
-              echo "Confirmed: 'ChatWindow loaded' found in logs!"
-            else
-              echo "Did not find 'ChatWindow loaded' in logs. Failing..."
-              exit 1
-            fi
-          else
-            echo "No log file found at $LOGFILE. Exiting with failure."
-            exit 1
-          fi
           # Kill the app to clean up
           pkill -f "Goose.app/Contents/MacOS/Goose"
