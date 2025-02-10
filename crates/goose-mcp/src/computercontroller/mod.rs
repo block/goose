@@ -223,7 +223,7 @@ impl ComputerControllerRouter {
         // keep previous behavior of defaulting to /tmp/
         let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_cache_dir("computer_controller"))
-            .unwrap_or_else(|_| PathBuf::from("/tmp/goose/computer_controller"));
+            .unwrap_or_else(|_| create_system_automation().get_temp_path());
 
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(
