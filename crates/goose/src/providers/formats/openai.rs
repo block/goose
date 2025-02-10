@@ -298,9 +298,7 @@ fn ensure_valid_json_schema(schema: &mut Value) {
                 if let Some(properties_obj) = properties.as_object_mut() {
                     for (_key, prop) in properties_obj.iter_mut() {
                         if prop.is_object()
-                            && (prop
-                                .get("type")
-                                .and_then(|t| t.as_str()) == Some("object"))
+                            && (prop.get("type").and_then(|t| t.as_str()) == Some("object"))
                         {
                             ensure_valid_json_schema(prop);
                         }
