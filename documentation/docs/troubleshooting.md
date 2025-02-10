@@ -157,6 +157,21 @@ Welcome to goose! Let's get you set up with a provider.
 
 ---
 
+### Package Runners
+
+Many of the external extensions require a package runner. For example, if you run into an error like this one:
+
+```
+Failed to start extension: {extension name}, "No such file or directory (os error 2)"
+Please check extension configuration for {extension name}.
+```
+
+... it signals that the extension may not have been installed and you need the package runner in order to do so.
+
+An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+
+---
+
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 

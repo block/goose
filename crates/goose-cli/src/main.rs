@@ -11,7 +11,6 @@ use commands::agent_version::AgentCommand;
 use commands::configure::handle_configure;
 use commands::mcp::run_server;
 use commands::session::build_session;
-use commands::version::print_version;
 use console::style;
 use goose::config::Config;
 use logging::setup_logging;
@@ -21,11 +20,8 @@ use std::io::{self, Read};
 mod test_helpers;
 
 #[derive(Parser)]
-#[command(author, about, long_about = None)]
+#[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
-    #[arg(short = 'v', long = "version")]
-    version: bool,
-
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -165,11 +161,6 @@ enum CliProviderVariant {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    if cli.version {
-        print_version();
-        return Ok(());
-    }
 
     match cli.command {
         Some(Command::Configure {}) => {

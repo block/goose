@@ -285,6 +285,7 @@ For example, to start a session with the [Fetch extension](https://github.com/mo
 goose session --with-extension "uvx mcp-server-fetch"
 ```
 
+
 #### Environment Variables
 
 Some extensions require environment variables. You can include these in your command:
@@ -298,6 +299,10 @@ For example, to start a session with the [GitHub extension](https://github.com/m
 ```bash
 goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
 ```
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+:::
 
 
 ## Developing Extensions
