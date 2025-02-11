@@ -79,12 +79,12 @@ If this is your first session, Goose will prompt you for an API key to access an
         To resume a specific session, run the following command: 
 
         ```
-        goose session -r <session-name>
+        goose session -r --name <session-name>
         ```
         For example, to resume the session named `react-migration`, you would run:
 
         ```
-        goose session -r react-migration
+        goose session -r --name react-migration
         ```
 
         :::tip
