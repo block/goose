@@ -25,7 +25,7 @@ git clone https://github.com/modelcontextprotocol/[python|typescript|kotlin]-sdk
 ```
 
 Then, as needed, use ripgrep to search within the mcp-reference dir. 
-**Important**: refernce this implementation to make sure you have up to date implementation
+**Important**: reference this implementation to make sure you have up to date implementation
 
 ## Core Implementation Guide
 
