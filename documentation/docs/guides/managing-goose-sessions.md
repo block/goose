@@ -76,6 +76,17 @@ If this is your first session, Goose will prompt you for an API key to access an
          goose session -r
         ```
 
+        To resume a specific session, run the following command: 
+
+        ```
+        goose session -r --name <name>
+        ```
+        For example, to resume the session named `react-migration`, you would run:
+
+        ```
+        goose session -r --name react-migration
+        ```
+
         :::tip
         While you can resume sessions using the commands above, we recommend creating new sessions for new tasks to reduce the chance of [doom spiraling](/docs/troubleshooting#stuck-in-a-loop-or-unresponsive).
         :::
