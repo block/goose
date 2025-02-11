@@ -200,7 +200,7 @@ mod tests {
         let original_vars = [
             ("LANGFUSE_PUBLIC_KEY", env::var("LANGFUSE_PUBLIC_KEY").ok()),
             ("LANGFUSE_SECRET_KEY", env::var("LANGFUSE_SECRET_KEY").ok()),
-            ("LANGFUSE_HOST", env::var("LANGFUSE_HOST").ok()),
+            ("LANGFUSE_URL", env::var("LANGFUSE_URL").ok()),
             (
                 "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
                 env::var("LANGFUSE_INIT_PROJECT_PUBLIC_KEY").ok(),
