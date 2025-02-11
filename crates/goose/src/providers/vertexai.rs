@@ -95,15 +95,28 @@ impl VertexAIProvider {
         match status {
             reqwest::StatusCode::OK => Ok(response_json),
             reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
+                tracing::debug!(
+                    "{}",
+                    format!(
+                        "Provider request failed with status: {}. Payload: {:?}",
+                        status, payload
+                    )
+                );
                 Err(ProviderError::Authentication(format!(
                     "Authentication failed: {:?}",
                     response_json
                 )))
             }
-            _ => Err(ProviderError::RequestFailed(format!(
-                "Request failed with status {}: {:?}",
-                status, response_json
-            ))),
+            _ => {
+                tracing::debug!(
+                    "{}",
+                    format!("Request failed with status {}: {:?}", status, response_json)
+                );
+                Err(ProviderError::RequestFailed(format!(
+                    "Request failed with status {}: {:?}",
+                    status, response_json
+                )))
+            }
         }
     }
 
