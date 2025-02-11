@@ -101,7 +101,7 @@ To ensure a smooth integration of your contributions, it's important that your f
     ```
     
 
-This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when we're ready to merge your contributions.
+This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when it comes time to merge!
 
 ### Before Submitting a Pull Request
 
