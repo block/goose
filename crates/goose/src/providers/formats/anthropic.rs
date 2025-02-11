@@ -215,7 +215,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
-        tracing::warn!(
+        tracing::debug!(
             "Failed to get usage data: {}",
             ProviderError::UsageError("No usage data found in response".to_string())
         );

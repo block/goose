@@ -121,7 +121,7 @@ impl Provider for OpenAiProvider {
         let usage = match get_usage(&response) {
             Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {
-                tracing::warn!("Failed to get usage data: {}", e);
+                tracing::debug!("Failed to get usage data: {}", e);
                 Usage::default()
             }
             Err(e) => return Err(e),
