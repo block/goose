@@ -267,22 +267,6 @@ export default function MoreMenu({ setView }: { setView?: (view: View) => void }
             >
               Reset Provider
             </button>
-
-            {/* Provider keys settings */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  // Instead of navigate('/keys'), we might do setView('someKeysView') or open new window.
-                  // For now, just do nothing or set to some placeholder.
-                  // setView?.('keys');
-                  window.electron.createChatWindow();
-                }}
-                className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
-              >
-                Provider Settings (alpha)
-              </button>
-            )}
           </div>
         </PopoverContent>
       </PopoverPortal>
