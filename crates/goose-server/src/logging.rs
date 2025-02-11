@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
 use tracing_appender::rolling::Rotation;
@@ -12,17 +13,16 @@ use goose::tracing::langfuse_layer;
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
-    let home = if cfg!(windows) {
-        std::env::var("USERPROFILE").context("USERPROFILE environment variable not set")?
-    } else {
-        std::env::var("HOME").context("HOME environment variable not set")?
-    };
+    // choose_app_strategy().state_dir()
+    // - macOS/Linux: ~/.local/state/goose/logs/server
+    // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\server
+    // - Windows has no convention for state_dir, use data_dir instead
+    let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+        .context("HOME environment variable not set")?;
 
-    let base_log_dir = PathBuf::from(home)
-        .join(".config")
-        .join("goose")
-        .join("logs")
-        .join("server"); // Add server-specific subdirectory
+    let base_log_dir = home_dir
+        .in_state_dir("logs/server")
+        .unwrap_or_else(|| home_dir.in_data_dir("logs/server"));
 
     // Create date-based subdirectory
     let now = chrono::Local::now();

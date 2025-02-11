@@ -1,5 +1,6 @@
 use anyhow::Result;
 use core::panic;
+use etcetera::{choose_app_strategy, AppStrategy};
 use futures::StreamExt;
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
@@ -14,8 +15,12 @@ use mcp_core::role::Role;
 
 // File management functions
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or(anyhow::anyhow!("Could not determine home directory"))?;
-    let config_dir = home_dir.join(".config").join("goose").join("sessions");
+    // choose_app_strategy().data_dir()
+    // - macOS/Linux: ~/.local/share/goose/sessions/
+    // - Windows:     ~\AppData\Roaming\Block\goose\data\sessions
+    let config_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .in_data_dir("sessions");
 
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir)?;
@@ -24,12 +29,34 @@ pub fn ensure_session_dir() -> Result<PathBuf> {
     Ok(config_dir)
 }
 
+/// LEGACY NOTE: remove this once old paths are no longer needed.
+pub fn legacy_session_dir() -> Option<PathBuf> {
+    // legacy path was in the config dir ~/.config/goose/sessions/
+    // ignore errors if we can't re-create the legacy session dir
+    choose_app_strategy(crate::APP_STRATEGY.clone())
+        .map(|strategy| strategy.in_config_dir("sessions"))
+        .ok()
+}
+
 pub fn get_most_recent_session() -> Result<PathBuf> {
     let session_dir = ensure_session_dir()?;
     let mut entries = fs::read_dir(&session_dir)?
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
         .collect::<Vec<_>>();
+
+    // LEGACY NOTE: remove this once old paths are no longer needed.
+    if entries.is_empty() {
+        if let Some(old_dir) = legacy_session_dir() {
+            // okay to return the error via ?, since that means we have no sessions in the
+            // new location, and this old location doesn't exist, so a new session will be created
+            let old_entries = fs::read_dir(&old_dir)?
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "jsonl"))
+                .collect::<Vec<_>>();
+            entries.extend(old_entries);
+        }
+    }
 
     if entries.is_empty() {
         return Err(anyhow::anyhow!("No session files found"));

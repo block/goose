@@ -3,6 +3,7 @@ mod shell;
 
 use anyhow::Result;
 use base64::Engine;
+use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{
@@ -278,9 +279,16 @@ impl DeveloperRouter {
             },
         };
 
-        // Check for global hints in ~/.config/goose/.goosehints
-        let global_hints_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
+        // choose_app_strategy().config_dir()
+        // - macOS/Linux: ~/.config/goose/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\
+        // keep previous behavior of expanding ~/.config in case this fails
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
+            });
+
         // Create the directory if it doesn't exist
         let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
 

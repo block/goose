@@ -1,4 +1,5 @@
 use base64::Engine;
+use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
@@ -216,11 +217,13 @@ impl ComputerControllerRouter {
             }),
         );
 
-        // Create cache directory in user's home directory
-        let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| create_system_automation().get_temp_path())
-            .join("goose")
-            .join("computer_controller");
+        // choose_app_strategy().cache_dir()
+        // - macOS/Linux: ~/.cache/goose/computer_controller/
+        // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
+        // keep previous behavior of defaulting to /tmp/
+        let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_cache_dir("computer_controller"))
+            .unwrap_or_else(|_| create_system_automation().get_temp_path());
 
         fs::create_dir_all(&cache_dir).unwrap_or_else(|_| {
             println!(

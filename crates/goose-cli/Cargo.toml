@@ -27,7 +27,7 @@ tokio = { version = "1.0", features = ["full"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"
-dirs = "4.0"
+etcetera = "0.8.0"
 reqwest = { version = "0.12.9", features = [
         "rustls-tls",
         "json",
@@ -46,10 +46,12 @@ tracing = "0.1"
 chrono = "0.4"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
 tracing-appender = "0.2"
+once_cell = "1.20.2"
 winapi = { version = "0.3", features = ["wincred"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
+
 
 [dev-dependencies]
 tempfile = "3"

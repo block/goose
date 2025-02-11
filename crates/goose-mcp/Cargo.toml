@@ -29,13 +29,14 @@ xcap = "0.0.14"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] , default-features = false}
 async-trait = "0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
-dirs = "5.0.1"
+etcetera = "0.8.0"
 tempfile = "3.8"
 include_dir = "0.7.4"
 google-drive3 = "6.0.0"
 webbrowser = "0.8"
 http-body-util = "0.1.2"
 regex = "1.11.1"
+once_cell = "1.20.2"
 
 [dev-dependencies]
 serial_test = "3.0.0"

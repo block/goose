@@ -2,6 +2,7 @@ use anyhow::Result;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use etcetera::{choose_app_strategy, AppStrategy};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,13 +32,12 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    const BASE_PATH: &str = ".config/goose/databricks/oauth";
-    let home_dir = if cfg!(windows) {
-        std::env::var("USERPROFILE").expect("USERPROFILE environment variable not set")
-    } else {
-        std::env::var("HOME").expect("HOME environment variable not set")
-    };
-    PathBuf::from(home_dir).join(BASE_PATH)
+    // choose_app_strategy().config_dir()
+    // - macOS/Linux: ~/.config/goose/databricks/oauth
+    // - Windows:     ~\AppData\Roaming\Block\goose\config\databricks\oauth\
+    choose_app_strategy(crate::config::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .in_config_dir("databricks/oauth")
 }
 
 impl TokenCache {

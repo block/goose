@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
 use std::{
@@ -178,10 +179,13 @@ impl MemoryRouter {
             .join(".goose")
             .join("memory");
 
-        // Check for .config/goose/memory in user's home directory
-        let global_memory_dir = dirs::home_dir()
-            .map(|home| home.join(".config/goose/memory"))
-            .unwrap_or_else(|| PathBuf::from(".config/goose/memory"));
+        // choose_app_strategy().config_dir()
+        // - macOS/Linux: ~/.config/goose/memory/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\memory
+        // if it fails, fall back to `.config/goose/memory` (relative to the current dir)
+        let global_memory_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir("memory"))
+            .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
 
         fs::create_dir_all(&global_memory_dir).unwrap();
         fs::create_dir_all(&local_memory_dir).unwrap();
