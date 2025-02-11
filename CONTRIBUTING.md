@@ -83,10 +83,7 @@ To ensure a smooth integration of your contributions, it's important that your f
 3. **Checkout Your Development Branch**:
     
     ```bash
-    bash
-    CopyEdit
     git checkout your-branch-name
-    
     ```
     
 4. **Merge Changes from the Main Branch into Your Branch**:
