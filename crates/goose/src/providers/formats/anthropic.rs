@@ -187,18 +187,31 @@ pub fn response_to_message(response: Value) -> Result<Message> {
 pub fn get_usage(data: &Value) -> Result<Usage> {
     // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        let input_tokens = usage
+        // Sum up all input token types:
+        // - input_tokens (fresh/uncached)
+        // - cache_creation_input_tokens (being written to cache)
+        // - cache_read_input_tokens (read from cache)
+        let total_input_tokens = usage
             .get("input_tokens")
             .and_then(|v| v.as_u64())
-            .map(|v| v as i32);
+            .unwrap_or(0)
+            + usage
+                .get("cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0)
+            + usage
+                .get("cache_read_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+        let input_tokens = Some(total_input_tokens as i32);
+
         let output_tokens = usage
             .get("output_tokens")
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
-        let total_tokens = match (input_tokens, output_tokens) {
-            (Some(i), Some(o)) => Some(i + o),
-            _ => None,
-        };
+
+        let total_tokens = output_tokens.map(|o| total_input_tokens as i32 + o);
 
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
@@ -295,9 +308,9 @@ mod tests {
             panic!("Expected Text content");
         }
 
-        assert_eq!(usage.input_tokens, Some(12));
+        assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 + 0
         assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(27));
+        assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
 
         Ok(())
     }
@@ -338,9 +351,9 @@ mod tests {
             panic!("Expected ToolRequest content");
         }
 
-        assert_eq!(usage.input_tokens, Some(15));
+        assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 + 0
         assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(35));
+        assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
 
         Ok(())
     }
