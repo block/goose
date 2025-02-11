@@ -6,7 +6,7 @@ const LoadingGoose = () => {
     <div className="w-full pb-[2px]">
       <div className="flex items-center text-xs text-textStandard mb-2 mt-2 pl-4 animate-[appear_250ms_ease-in_forwards]">
         <GooseLogo className="mr-2" size="small" hover={false} />
-        goose is working on it..
+        goose is working on it…
       </div>
     </div>
   );
