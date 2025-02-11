@@ -278,20 +278,10 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 
         // Only apply full schema validation to object types
         if is_object_type {
-            // Ensure properties field exists and is an object
-            if !params_obj.contains_key("properties") {
-                params_obj.insert("properties".to_string(), json!({}));
-            }
-
-            // Ensure required field exists and is an array
-            if !params_obj.contains_key("required") {
-                params_obj.insert("required".to_string(), json!([]));
-            }
-
-            // Ensure type field exists
-            if !params_obj.contains_key("type") {
-                params_obj.insert("type".to_string(), json!("object"));
-            }
+            // Ensure required fields exist with default values
+            params_obj.entry("properties").or_insert_with(|| json!({}));
+            params_obj.entry("required").or_insert_with(|| json!([]));
+            params_obj.entry("type").or_insert_with(|| json!("object"));
 
             // Recursively validate properties if it exists
             if let Some(properties) = params_obj.get_mut("properties") {
