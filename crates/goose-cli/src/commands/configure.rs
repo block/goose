@@ -283,10 +283,6 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .default_input(&default_model)
         .interact()?;
 
-    // Update config with new values
-    config.set("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
-    config.set("GOOSE_MODEL", Value::String(model.clone()))?;
-
     // Test the configuration
     let spin = spinner();
     spin.start("Checking your configuration...");
@@ -319,6 +315,9 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 
     match result {
         Ok((_message, _usage)) => {
+            // Update config with new values only if the test succeeds
+            config.set("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
+            config.set("GOOSE_MODEL", Value::String(model.clone()))?;
             cliclack::outro("Configuration saved successfully")?;
             Ok(true)
         }
