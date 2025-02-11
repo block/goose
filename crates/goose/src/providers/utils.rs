@@ -40,31 +40,33 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
 pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
     let status = response.status();
     // Try to parse the response body as JSON (if applicable)
-    let payload: Option<Value> = response.json().await.ok();
+    let payload = match response.json::<Value>().await {
+        Ok(json) => json,
+        Err(e) => return Err(ProviderError::RequestFailed(e.to_string())),
+    };
 
     match status {
-        StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+        StatusCode::OK => Ok(payload),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", status, payload)))
         }
         StatusCode::BAD_REQUEST => {
             let mut message = "Unknown error".to_string();
-            if let Some(payload) = &payload {
-                if let Some(error) = payload.get("error") {
-                tracing::debug!("Bad Request Error: {error:?}");
-                message = error
-                          .get("message")
-                          .and_then(|m| m.as_str())
-                          .unwrap_or("Unknown error")
-                          .to_string();
+            if let Some(error) = payload.get("error") {
+            tracing::debug!("Bad Request Error: {error:?}");
+            message = error
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown error")
+                        .to_string();
 
-                if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
-                    if code == "context_length_exceeded" || code == "string_above_max_length" {
-                        return Err(ProviderError::ContextLengthExceeded(message));
-                    }
+            if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
+                if code == "context_length_exceeded" || code == "string_above_max_length" {
+                    return Err(ProviderError::ContextLengthExceeded(message));
                 }
-            }}
+            }
+            }
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
