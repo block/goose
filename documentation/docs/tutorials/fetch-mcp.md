@@ -5,6 +5,9 @@ description: Add Fetch MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/_WMm4kDYMog" />
 
 :::warning Known Limitation
 The Fetch extension does not work with Google models (e.g. gemini-2.0-flash-exp) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
