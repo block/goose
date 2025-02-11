@@ -115,13 +115,13 @@ impl DeveloperRouter {
                 Avoid commands that produce a large amount of output, and consider piping those outputs to files.
 
                 **Important**: For searching files and code:
-                
+
                 Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
                   - To locate a file by name: `rg --files | rg example.py`
                   - To locate content inside files: `rg 'class Example'`
-                
+
                 Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py` 
+                  - To locate a file by name: `dir /s /b example.py`
                   - To locate content inside files: `findstr /s /i "class Example" *.py`
 
                 Note: Alternative commands may show ignored/hidden files that should be excluded.
@@ -994,6 +994,69 @@ mod tests {
         // Test UNC path handling
         let result = router.resolve_path("\\\\server\\share");
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_size_limits() {
+        // Create temp directory first so it stays in scope for the whole test
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Get router after setting current directory
+        let router = get_router().await;
+
+        // Test file size limit
+        {
+            let large_file_path = temp_dir.path().join("large.txt");
+            let large_file_str = large_file_path.to_str().unwrap();
+
+            // Create a file larger than 2MB
+            let content = "x".repeat(3 * 1024 * 1024); // 3MB
+            std::fs::write(&large_file_path, content).unwrap();
+
+            let result = router
+                .call_tool(
+                    "text_editor",
+                    json!({
+                        "command": "view",
+                        "path": large_file_str
+                    }),
+                )
+                .await;
+
+            assert!(result.is_err());
+            let err = result.err().unwrap();
+            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert!(err.to_string().contains("too large"));
+        }
+
+        // Test character count limit
+        {
+            let many_chars_path = temp_dir.path().join("many_chars.txt");
+            let many_chars_str = many_chars_path.to_str().unwrap();
+
+            // Create a file with more than 400K characters but less than 400KB
+            let content = "x".repeat(405_000);
+            std::fs::write(&many_chars_path, content).unwrap();
+
+            let result = router
+                .call_tool(
+                    "text_editor",
+                    json!({
+                        "command": "view",
+                        "path": many_chars_str
+                    }),
+                )
+                .await;
+
+            assert!(result.is_err());
+            let err = result.err().unwrap();
+            assert!(matches!(err, ToolError::ExecutionError(_)));
+            assert!(err.to_string().contains("too many characters"));
+        }
+
+        // Let temp_dir drop naturally at end of scope
     }
 
     #[tokio::test]
