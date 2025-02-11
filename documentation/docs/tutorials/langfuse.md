@@ -22,7 +22,7 @@ Set the environment variables so that Goose (written in Rust) can connect to the
 ```bash
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-...
 export LANGFUSE_INIT_PROJECT_SECRET_KEY=sk-lf-...
-export LANGFUSE_HOST=https://cloud.langfuse.com # EU data region 🇪🇺
+export LANGFUSE_URL=https://cloud.langfuse.com # EU data region 🇪🇺
 
 # https://us.cloud.langfuse.com if you're using the US region 🇺🇸
 # https://localhost:3000 if you're self-hosting
