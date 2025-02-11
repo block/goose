@@ -62,6 +62,53 @@ you can talk to goose!
 
 You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
 
+## Keeping Your Fork Up-to-Date
+
+To ensure a smooth integration of your contributions, it's important that your fork is kept up-to-date with the main repository. This helps avoid conflicts and allows us to merge your pull requests more quickly. Here’s how you can sync your fork:
+
+### Syncing Your Fork with the Main Repository
+
+1. **Add the Main Repository as a Remote** (Skip if you have already set this up):
+    
+    ```bash
+    git remote add upstream https://github.com/block/goose.git
+    ```
+    
+2. **Fetch the Latest Changes from the Main Repository**:
+    
+    ```bash
+    git fetch upstream
+    ```
+    
+3. **Checkout Your Development Branch**:
+    
+    ```bash
+    git checkout your-branch-name
+    ```
+    
+4. **Merge Changes from the Main Branch into Your Branch**:
+    
+    ```bash
+    git merge upstream/main
+    ```
+    
+    Resolve any conflicts that arise and commit the changes.
+    
+5. **Push the Merged Changes to Your Fork**:
+    
+    ```bash
+    git push origin your-branch-name
+    ```
+    
+
+This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when it comes time to merge!
+
+### Before Submitting a Pull Request
+
+Before you submit a pull request, please ensure your fork is synchronized as described above. This check ensures your changes are compatible with the latest in the main repository and streamlines the review process.
+
+If you encounter any issues during this process or have any questions, please reach out by opening an issue [here][issues], and we'll be happy to help.
+
 ## Env Vars
 
 You may want to make more frequent changes to your provider setup or similar to test things out
