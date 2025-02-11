@@ -28,7 +28,6 @@ pub const THINKING_MESSAGES: &[&str] = &[
     "Herding bytes",
     "Molting old code",
     "Swimming through streams",
-    "Goose-stepping through logic",
     "Synchronizing flock algorithms",
     "Navigating code marshes",
     "Incubating brilliant ideas",
