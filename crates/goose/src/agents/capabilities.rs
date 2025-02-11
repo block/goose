@@ -286,7 +286,8 @@ impl Capabilities {
 
     /// Get the extension prompt including client instructions
     pub async fn get_system_prompt(&self) -> String {
-        let mut context: HashMap<&str, Vec<ExtensionInfo>> = HashMap::new();
+        let mut context: HashMap<&str, Value> = HashMap::new();
+
         let extensions_info: Vec<ExtensionInfo> = self
             .clients
             .keys()
@@ -297,7 +298,11 @@ impl Capabilities {
             })
             .collect();
 
-        context.insert("extensions", extensions_info);
+        let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+
+        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+        context.insert("current_date_time", Value::String(current_date_time));
+
         load_prompt_file("system.md", &context).expect("Prompt should render")
     }
 
