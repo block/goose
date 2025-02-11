@@ -4,10 +4,6 @@ use std::process::Command;
 
 pub struct WindowsAutomation;
 
-// WindowsAutomation is Send + Sync because it contains no shared state
-unsafe impl Send for WindowsAutomation {}
-unsafe impl Sync for WindowsAutomation {}
-
 impl SystemAutomation for WindowsAutomation {
     fn execute_system_script(&self, script: &str) -> std::io::Result<String> {
         let output = Command::new("powershell")
