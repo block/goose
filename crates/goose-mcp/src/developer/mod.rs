@@ -29,14 +29,14 @@ use mcp_server::Router;
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 
-use indoc::indoc;
-use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use xcap::{Monitor, Window};
 use self::shell::{
     expand_path, format_command_for_platform, get_shell_config, is_absolute_path,
     normalize_line_endings,
 };
+use indoc::indoc;
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
+use xcap::{Monitor, Window};
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
