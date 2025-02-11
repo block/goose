@@ -24,6 +24,7 @@ import Splash from './components/Splash';
 import Settings from './components/settings/Settings';
 import MoreModelsSettings from './components/settings/models/MoreModels';
 import ConfigureProviders from './components/settings/providers/ConfigureProviders';
+import { ConfigPage } from './components/pages/ConfigPage';
 
 export interface Chat {
   id: number;
@@ -35,7 +36,13 @@ export interface Chat {
   }>;
 }
 
-export type View = 'welcome' | 'chat' | 'settings' | 'moreModels' | 'configureProviders';
+export type View =
+  | 'welcome'
+  | 'chat'
+  | 'settings'
+  | 'moreModels'
+  | 'configureProviders'
+  | 'configPage';
 
 // This component is our main chat content.
 // We'll move the majority of chat logic here, minus the 'view' state.
@@ -384,6 +391,14 @@ export default function ChatWindow() {
         <MoreModelsSettings
           onClose={() => {
             setView('settings');
+          }}
+          setView={setView}
+        />
+      )}
+      {view === 'configPage' && (
+        <ConfigPage
+          onClose={() => {
+            setView('chat');
           }}
           setView={setView}
         />
