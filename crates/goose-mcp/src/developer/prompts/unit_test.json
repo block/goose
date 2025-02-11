@@ -1,0 +1,16 @@
+{
+    "id": "unit_test",
+    "template": "Generate or update unit tests for a given source code file.\n\nThe source code file is provided in {source_code}.\nPlease update the existing tests, ensure they are passing, and add any new tests as needed.\n\nThe test suite should:\n- Follow language-specific test naming conventions for {language}\n- Include all necessary imports and annotations\n- Thoroughly test the specified functionality\n- Ensure tests are passing before completion\n- Handle edge cases and error conditions\n- Use clear test names that reflect what is being tested",
+    "arguments": [
+      {
+        "name": "source_code",
+        "description": "The source code file content to be tested",
+        "required": true
+      },
+      {
+        "name": "language",
+        "description": "The programming language of the source code",
+        "required": true
+      }
+    ]
+  }
