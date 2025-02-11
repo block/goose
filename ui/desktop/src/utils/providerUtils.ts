@@ -76,7 +76,7 @@ const addAgent = async (provider: string, model: string) => {
 export const initializeSystem = async (provider: string, model: string) => {
   try {
     console.log('initializing agent with provider', provider, 'model', model);
-    await addAgent(provider.toLowerCase(), model);
+    await addAgent(provider.toLowerCase().replace(/ /g, '_'), model);
 
     loadAndAddStoredExtensions().catch((error) => {
       console.error('Failed to load and add stored extension configs:', error);

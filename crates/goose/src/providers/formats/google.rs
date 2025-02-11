@@ -1,11 +1,13 @@
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
+use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
 use mcp_core::content::Content;
 use mcp_core::role::Role;
 use mcp_core::tool::{Tool, ToolCall};
+use rand::{distributions::Alphanumeric, Rng};
 use serde_json::{json, Map, Value};
 
 /// Convert internal Message format to Google's API message specification
@@ -198,14 +200,16 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         .and_then(|content| content.get("parts"))
         .and_then(|parts| parts.as_array())
         .unwrap_or(&binding);
+
     for part in parts {
         if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
             content.push(MessageContent::text(text.to_string()));
         } else if let Some(function_call) = part.get("functionCall") {
-            let id = function_call["name"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
+            let id: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(8)
+                .map(char::from)
+                .collect();
             let name = function_call["name"]
                 .as_str()
                 .unwrap_or_default()
@@ -251,6 +255,10 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .map(|v| v as i32);
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
+        tracing::warn!(
+            "Failed to get usage data: {}",
+            ProviderError::UsageError("No usage data found in response".to_string())
+        );
         // If no usage data, return None for all values
         Ok(Usage::new(None, None, None))
     }

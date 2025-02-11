@@ -19,6 +19,9 @@ pub enum ProviderError {
 
     #[error("Execution error: {0}")]
     ExecutionError(String),
+
+    #[error("Usage data error: {0}")]
+    UsageError(String),
 }
 
 impl From<anyhow::Error> for ProviderError {

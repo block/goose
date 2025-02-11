@@ -27,7 +27,7 @@ Goose will remember previous interactions to better understand ongoing projects.
 
 ### 3. Improved Plugin System
 
-In Goose v1.0, the Goose toolkit system is being replaced with Systems. Systems are modular daemons that Goose can interact with dynamically. As a result, Goose will be able to support more complex plugins and integrations. This will make it easier to extend Goose with new features and functionality.
+In Goose v1.0, the Goose toolkit system is being replaced with Extensions. Extensions are modular daemons that Goose can interact with dynamically. As a result, Goose will be able to support more complex plugins and integrations. This will make it easier to extend Goose with new features and functionality.
 
 ### 4. Headless mode
 
@@ -53,12 +53,12 @@ Excited for many more feature updates and improvements? Stay tuned for more upda
 <head>
   <meta property="og:title" content="Previewing Goose v1.0 Beta" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/06/previewing-goose-v1.html" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2024/12/06/previewing-goose-v10-beta" />
   <meta property="og:description" content="AI Agent uses screenshots to assist in styling." />
-  <meta property="og:image" content="https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/goose-v1.0-beta-5d469fa73edea37cfccfe8a8ca0b47e2.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Screenshot-Driven Development" />
   <meta name="twitter:description" content="AI Agent uses screenshots to assist in styling." />
-  <meta name="twitter:image" content="https://block.github.io/goose/blog/images/whats-new-in-goose-v1/goose-v1.0-beta.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goose-v1.0-beta-5d469fa73edea37cfccfe8a8ca0b47e2.png" />
 </head>

@@ -24,5 +24,6 @@ contextBridge.exposeInMainWorld('electron', {
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName) => ipcRenderer.invoke('get-binary-path', binaryName),
   on: (channel, callback) => ipcRenderer.on(channel, callback),
-  off: (channel, callback) => ipcRenderer.off(channel, callback)
+  off: (channel, callback) => ipcRenderer.off(channel, callback),
+  send: (key) => ipcRenderer.send(key)
 });

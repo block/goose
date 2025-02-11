@@ -165,6 +165,21 @@ impl Config {
         }
     }
 
+    // Save current values to the config file
+    fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
+        // Convert to YAML for storage
+        let yaml_value = serde_yaml::to_string(&values)?;
+
+        // Ensure the directory exists
+        if let Some(parent) = self.config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+        }
+
+        std::fs::write(&self.config_path, yaml_value)?;
+        Ok(())
+    }
+
     // Load current secrets from the keyring
     fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
@@ -231,17 +246,27 @@ impl Config {
         let mut values = self.load_values()?;
         values.insert(key.to_string(), value);
 
-        // Convert to YAML for storage
-        let yaml_value = serde_yaml::to_string(&values)?;
+        self.save_values(values)
+    }
 
-        // Ensure the directory exists
-        if let Some(parent) = self.config_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
-        }
+    /// Delete a configuration value in the config file.
+    ///
+    /// This will immediately write the value to the config file. The value
+    /// can be any type that can be serialized to JSON/YAML.
+    ///
+    /// Note that this does not affect environment variables - those can only
+    /// be set through the system environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns a ConfigError if:
+    /// - There is an error reading or writing the config file
+    /// - There is an error serializing the value
+    pub fn delete(&self, key: &str) -> Result<(), ConfigError> {
+        let mut values = self.load_values()?;
+        values.remove(key);
 
-        std::fs::write(&self.config_path, yaml_value)?;
-        Ok(())
+        self.save_values(values)
     }
 
     /// Get a secret value.
@@ -404,6 +429,24 @@ mod tests {
         let content = std::fs::read_to_string(temp_file.path())?;
         assert!(content.contains("key1: value1"));
         assert!(content.contains("key2: 42"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_value_management() -> Result<(), ConfigError> {
+        let temp_file = NamedTempFile::new().unwrap();
+        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+
+        config.set("key", Value::String("value".to_string()))?;
+
+        let value: String = config.get("key")?;
+        assert_eq!(value, "value");
+
+        config.delete("key")?;
+
+        let result: Result<String, ConfigError> = config.get("key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
         Ok(())
     }

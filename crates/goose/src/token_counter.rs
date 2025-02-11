@@ -112,7 +112,7 @@ impl TokenCounter {
         encoding.len()
     }
 
-    fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
+    pub fn count_tokens_for_tools(&self, tools: &[Tool]) -> usize {
         // Token counts for different function components
         let func_init = 7; // Tokens for function initialization
         let prop_init = 3; // Tokens for properties initialization

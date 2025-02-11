@@ -60,7 +60,7 @@ fn setup_profile(temp_dir_path: &Path, profile_string: Option<&str>) {
     "profile_items": {
         "default": {
             "provider": "databricks",
-            "model": "claude-3-5-sonnet-2",
+            "model": "goose",
             "additional_extensions": []
         }
     }

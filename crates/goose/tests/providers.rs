@@ -3,7 +3,9 @@ use dotenv::dotenv;
 use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
-use goose::providers::{anthropic, databricks, google, groq, ollama, openai, openrouter};
+use goose::providers::{
+    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter,
+};
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
 use std::collections::HashMap;
@@ -230,6 +232,15 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
+        // Ollama and OpenRouter truncate by default even when the context window is exceeded
+        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+            assert!(
+                result.is_ok(),
+                "Expected to succeed because of default truncation"
+            );
+            return Ok(());
+        }
+
         assert!(
             result.is_err(),
             "Expected error when context window is exceeded"
@@ -346,6 +357,49 @@ async fn test_openai_provider() -> Result<()> {
         &["OPENAI_API_KEY"],
         None,
         openai::OpenAiProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_azure_provider() -> Result<()> {
+    test_provider(
+        "Azure",
+        &[
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_ENDPOINT",
+            "AZURE_OPENAI_DEPLOYMENT_NAME",
+        ],
+        None,
+        azure::AzureProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
+    test_provider(
+        "Bedrock",
+        &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+        None,
+        bedrock::BedrockProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
+    let env_mods = HashMap::from_iter([
+        // Ensure to unset long-term credentials to use AWS Profile provider
+        ("AWS_ACCESS_KEY_ID", None),
+        ("AWS_SECRET_ACCESS_KEY", None),
+    ]);
+
+    test_provider(
+        "Bedrock AWS Profile Credentials",
+        &["AWS_PROFILE"],
+        Some(env_mods),
+        bedrock::BedrockProvider::default,
     )
     .await
 }

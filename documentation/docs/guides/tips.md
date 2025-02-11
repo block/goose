@@ -8,7 +8,7 @@ Here is a collection of tips for working with Goose:
 Use a git strategy to avoid losing anything - such as staging your personal edits and leaving Goose edits unstaged until reviewed. Consider using individual commits which can be reverted. See more on [File Management](/docs/guides/file-management).
 
 ### Goose can and will run commands
-Goose will check commands for satefy, however, you can also ask Goose to check with you before running commands if you are concerned.
+Goose will check commands for safety, however, you can also ask Goose to check with you before running commands if you are concerned.
 
 ### You can interrupt Goose with `CTRL+C`
 Use this command to stop Goose in the event that you need to correct it or give it more info.
@@ -46,5 +46,5 @@ It doesn't have to be in a repo. Just ask Goose!
 ### Keep Goose updated
 Regularly update Goose to benefit from the latest features, bug fixes, and performance improvements. For the CLI, the best way to keep it updated is by re-running the [Goose installation script][installation]. For Goose Desktop, check the [GitHub Releases page][ui-release] regularly for updates.
 
-[installation]: https://block.github.io/goose/v1/docs/quickstart/#installation
+[installation]: https://block.github.io/goose/docs/quickstart/#installation
 [ui-release]: https://github.com/block/goose/releases/stable

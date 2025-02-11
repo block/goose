@@ -4,13 +4,14 @@ use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use mcp_core::tool::Tool;
+use url::Url;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
@@ -56,14 +57,15 @@ impl OpenRouterProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!(
-            "{}/api/v1/chat/completions",
-            self.host.trim_end_matches('/')
-        );
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("api/v1/chat/completions").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", "https://github.com/block/goose")
@@ -126,6 +128,23 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
                         }]
                     });
                 }
+            }
+        }
+    }
+
+    if let Some(tools_spec) = payload
+        .as_object_mut()
+        .and_then(|obj| obj.get_mut("tools"))
+        .and_then(|tools| tools.as_array_mut())
+    {
+        // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
+        // will be cached as a single prefix.
+        if let Some(last_tool) = tools_spec.last_mut() {
+            if let Some(function) = last_tool.get_mut("function") {
+                function
+                    .as_object_mut()
+                    .unwrap()
+                    .insert("cache_control".to_string(), json!({ "type": "ephemeral" }));
             }
         }
     }
@@ -203,7 +222,14 @@ impl Provider for OpenRouterProvider {
 
         // Parse response
         let message = response_to_message(response.clone())?;
-        let usage = get_usage(&response)?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::warn!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
         let model = get_model(&response);
         emit_debug_trace(self, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))

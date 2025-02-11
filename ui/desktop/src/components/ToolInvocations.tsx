@@ -44,10 +44,10 @@ interface ToolCallProps {
 function ToolCall({ call }: ToolCallProps) {
   return (
     <div>
-      <div className="flex items-center">
-        <Box size={15} />
-        <span className="ml-[8px] text-sm text-textStandard font-medium tracking-widest">
-          {call.toolName.substring(call.toolName.lastIndexOf('__') + 2).toUpperCase()}
+      <div className="flex items-center mb-4">
+        <Box size={16} />
+        <span className="ml-[8px] text-textStandard">
+          {snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf('__') + 2))}
         </span>
       </div>
 
@@ -116,7 +116,7 @@ function ToolResult({ result }: ToolResultProps) {
   };
 
   return (
-    <div className="mt-2">
+    <div className="">
       {filteredResults.map((item: ResultItem, index: number) => {
         const isExpanded = shouldShowExpanded(item, index);
         // minimize if priority is not set or < 0.5
@@ -127,9 +127,9 @@ function ToolResult({ result }: ToolResultProps) {
             {shouldMinimize && (
               <button
                 onClick={() => toggleExpand(index)}
-                className="mb-1 p-1 flex items-center text-textStandard"
+                className="mb-1 flex items-center text-textStandard"
               >
-                <span className="mr-2">Output</span>
+                <span className="mr-2 text-sm">Output</span>
                 <ChevronUp
                   className={`h-5 w-5 transition-all origin-center ${!isExpanded ? 'rotate-180' : ''}`}
                 />

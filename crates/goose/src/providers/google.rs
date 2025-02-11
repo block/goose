@@ -10,16 +10,19 @@ use mcp_core::tool::Tool;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
+use url::Url;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
-pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash-exp";
+pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     "models/gemini-1.5-pro-latest",
     "models/gemini-1.5-pro",
     "models/gemini-1.5-flash-latest",
     "models/gemini-1.5-flash",
-    "models/gemini-2.0-flash-exp",
+    "models/gemini-2.0-flash",
+    "models/gemini-2.0-flash-lite-preview-02-05",
     "models/gemini-2.0-flash-thinking-exp-01-21",
+    "models/gemini-2.0-pro-exp-02-05",
 ];
 
 pub const GOOGLE_DOC_URL: &str = "https://ai.google/get-started/our-models/";
@@ -61,16 +64,21 @@ impl GoogleProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!(
-            "{}/v1beta/models/{}:generateContent?key={}",
-            self.host.trim_end_matches('/'),
-            self.model.model_name,
-            self.api_key
-        );
+        let base_url = Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        let url = base_url
+            .join(&format!(
+                "v1beta/models/{}:generateContent?key={}",
+                self.model.model_name, self.api_key
+            ))
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+            })?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("CONTENT_TYPE", "application/json")
             .json(&payload)
             .send()
@@ -86,9 +94,10 @@ impl GoogleProvider {
                     Status: {}. Response: {:?}", status, payload )))
             }
             StatusCode::BAD_REQUEST => {
+                let mut error_msg = "Unknown error".to_string();
                 if let Some(payload) = &payload {
                     if let Some(error) = payload.get("error") {
-                        let error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+                        error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
                         let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
                         if error_status == "INVALID_ARGUMENT" && error_msg.to_lowercase().contains("exceeds") {
                             return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
@@ -98,7 +107,7 @@ impl GoogleProvider {
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))

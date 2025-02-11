@@ -113,6 +113,11 @@
   --ifm-footer-link-color: var(--text-standard);
   --ifm-navbar-link-hover-color: var(--text-subtle);
   --ifm-link-color: var(--green-for-lightbg);
+
+  /* video adnomition */
+  --ifm-color-video-alert-contrast-background: #edfbf8;
+  --ifm-color-video-alert-contrast-foreground: #01523e;
+  --ifm-color-video-alert-border: #25c2a0;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -153,6 +158,12 @@
 
   --button-primary-background: var(--constant-white);
   --ifm-link-color: var(--green-for-darkbg);
+
+  /* video adnomition */
+  --ifm-color-video-alert-contrast-background: #336e62;
+  --ifm-color-video-alert-contrast-foreground: rgb(216 251 216);
+  --ifm-color-video-alert-border: #99d5c5
+  ;
 }
 
 /* overrides */
@@ -241,4 +252,11 @@ html[data-theme="dark"] .hide-in-dark {
 
 html[data-theme="light"] .hide-in-light {
   opacity: 0;
+}
+
+.alert--video {
+  --ifm-alert-background-color: var(--ifm-color-video-alert-contrast-background);
+  --ifm-alert-background-color-highlight: rgba(84, 199, 236, 0.15);
+  --ifm-alert-foreground-color: var(--ifm-color-video-alert-contrast-foreground);
+  --ifm-alert-border-color: var(--ifm-color-video-alert-border);
 }

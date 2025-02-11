@@ -6,25 +6,27 @@ import BackButton from '../../ui/BackButton';
 import { SearchBar } from './Search';
 import { useModel } from './ModelContext';
 import { AddModelInline } from './AddModelInline';
-import { useNavigate } from 'react-router-dom';
+// Removed react-router-dom usage
+// import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/scroll-area';
+import type { View } from '../../../ChatWindow';
 
-export default function MoreModelsPage() {
+export default function MoreModelsPage({
+  onClose,
+  setView,
+}: {
+  onClose: () => void;
+  setView: (view: View) => void;
+}) {
   const { currentModel } = useModel();
-  const navigate = useNavigate();
 
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
 
       <ScrollArea className="h-full w-full">
-        {/*
-            Instead of forcing one row, allow the layout
-            to stack vertically on small screens:
-          */}
-
         <div className="px-8 pt-6 pb-4">
-          <BackButton />
+          <BackButton onClick={onClose} />
           <h1 className="text-3xl font-medium text-textStandard mt-1">Browse models</h1>
         </div>
 
@@ -34,7 +36,7 @@ export default function MoreModelsPage() {
             <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
               <h2 className="text-xl font-medium text-textStandard">Models</h2>
               <button
-                onClick={() => navigate('/settings/configure-providers')}
+                onClick={() => setView('configureProviders')}
                 className="text-indigo-500 hover:text-indigo-600 text-sm"
               >
                 Configure

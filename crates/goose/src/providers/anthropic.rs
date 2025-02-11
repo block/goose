@@ -58,11 +58,15 @@ impl AnthropicProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
-        let url = format!("{}/v1/messages", self.host.trim_end_matches('/'));
+        let base_url = url::Url::parse(&self.host)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        let url = base_url.join("v1/messages").map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
+        })?;
 
         let response = self
             .client
-            .post(&url)
+            .post(url)
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .json(&payload)
@@ -80,10 +84,11 @@ impl AnthropicProvider {
                     Status: {}. Response: {:?}", status, payload)))
             }
             StatusCode::BAD_REQUEST => {
+                let mut error_msg = "Unknown error".to_string();
                 if let Some(payload) = &payload {
                     if let Some(error) = payload.get("error") {
                     tracing::debug!("Bad Request Error: {error:?}");
-                    let error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
                     if error_msg.to_lowercase().contains("too long") || error_msg.to_lowercase().contains("too many") {
                         return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
                     }
@@ -91,7 +96,7 @@ impl AnthropicProvider {
                 tracing::debug!(
                     "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
                 );
-                Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+                Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
             }
             StatusCode::TOO_MANY_REQUESTS => {
                 Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))

@@ -10,14 +10,6 @@ interface InputProps {
   onStop?: () => void;
 }
 
-declare global {
-  interface Window {
-    electron: {
-      selectFileOrDirectory: () => Promise<string | null>;
-    };
-  }
-}
-
 export default function Input({
   handleSubmit,
   disabled = false,
@@ -25,6 +17,8 @@ export default function Input({
   onStop,
 }: InputProps) {
   const [value, setValue] = useState('');
+  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
+  const [isComposing, setIsComposing] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -49,12 +43,22 @@ export default function Input({
   useAutosizeTextArea(textAreaRef.current, value);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = evt.target?.value;
+    const val = evt.target.value;
     setValue(val);
   };
 
+  // Handlers for composition events, which are crucial for proper IME behavior
+  const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+    setIsComposing(false);
+  };
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (evt.key === 'Enter' && !evt.shiftKey) {
+    // Only trigger submit on Enter if not composing (IME input in progress) and shift is not pressed
+    if (evt.key === 'Enter' && !evt.shiftKey && !isComposing) {
       evt.preventDefault();
       if (value.trim()) {
         handleSubmit(new CustomEvent('submit', { detail: { value } }));
@@ -84,18 +88,14 @@ export default function Input({
       onSubmit={onFormSubmit}
       className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle"
     >
-      {/* loading */}
-      {/* {isLoading && (
-        <div className="absolute top-[-2px] left-0 w-full h-[2px]">
-          <div className="absolute w-[300px] h-[2px] bg-gradient-to-r from-blockTeal to-blockOrange animate-gradient-loader"></div>
-        </div>
-      )} */}
       <textarea
         autoFocus
         id="dynamic-textarea"
         placeholder="What can goose help with?"
         value={value}
         onChange={handleChange}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
         onKeyDown={handleKeyDown}
         disabled={disabled}
         ref={textAreaRef}
