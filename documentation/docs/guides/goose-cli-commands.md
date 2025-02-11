@@ -61,7 +61,7 @@ goose session --name <name>
 Resume the previous session
 
 ```bash
-goose session --resume  --name <name>
+goose session --resume --name <name>
 ```
 
 - **`--with-extension <COMMAND>`** 
