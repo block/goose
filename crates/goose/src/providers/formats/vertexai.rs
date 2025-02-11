@@ -13,6 +13,20 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
+    match model_config.model_name.as_str() {
+        "claude-3-5-sonnet-v2@20241022" | "claude-3-5-sonnet@20240620" => {
+            create_anthropic_request(model_config, system, messages, tools)
+        }
+        _ => Err(anyhow::anyhow!("Vertex AI only supports Anthropic models")),
+    }
+}
+
+pub fn create_anthropic_request(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<Value> {
     let mut request = anthropic::create_request(model_config, system, messages, tools)?;
 
     // the Vertex AI for Claude API has small differences from the Anthropic API
