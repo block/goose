@@ -557,6 +557,7 @@ mod tests {
     }
 
     mod integration_tests {
+        use std::collections::HashMap;
         use super::*;
         use axum::{body::Body, http::Request};
         use std::sync::Arc;
@@ -573,6 +574,7 @@ mod tests {
             });
             let agent = AgentFactory::create("reference", mock_provider).unwrap();
             let state = AppState {
+    config: Arc::new(Mutex::new(HashMap::new())), // Add this line
                 agent: Arc::new(Mutex::new(Some(agent))),
                 secret_key: "test-secret".to_string(),
             };
