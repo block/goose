@@ -60,16 +60,21 @@ mod tests {
     use etcetera::{choose_app_strategy, AppStrategy};
     use goose::providers::base::{ProviderUsage, Usage};
 
-    use crate::{
-        log_usage::{log_usage, SessionLog},
-        test_helpers::run_with_tmp_dir,
-    };
+    use crate::log_usage::{log_usage, SessionLog};
+
+    pub fn run_with_tmp_dir<F: FnOnce() -> T, T>(func: F) -> T {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_path = temp_dir.path().to_path_buf();
+
+        temp_env::with_vars([("HOME", Some(temp_dir_path.as_os_str()))], func)
+    }
 
     #[test]
     fn test_session_logging() {
         run_with_tmp_dir(|| {
             let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone()).unwrap();
-
             let log_file = home_dir
                 .in_state_dir("logs")
                 .unwrap_or_else(|| home_dir.in_data_dir("logs"))

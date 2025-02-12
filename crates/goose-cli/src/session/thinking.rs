@@ -1,10 +1,7 @@
 use rand::seq::SliceRandom;
 
 /// Extended list of playful thinking messages including both goose and general AI actions
-pub const THINKING_MESSAGES: &[&str] = &[
-    "Thinking",
-    "Thinking hard",
-    // Include all goose actions
+const THINKING_MESSAGES: &[&str] = &[
     "Spreading wings",
     "Honking thoughtfully",
     "Waddling to conclusions",
@@ -45,7 +42,6 @@ pub const THINKING_MESSAGES: &[&str] = &[
     "Honking success signals",
     "Waddling through workflows",
     "Nesting in neural networks",
-    // AI thinking actions
     "Consulting the digital oracle",
     "Summoning binary spirits",
     "Reticulating splines",
