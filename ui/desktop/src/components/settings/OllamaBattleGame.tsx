@@ -12,6 +12,9 @@ interface BattleState {
   llamaHp: number;
   message: string;
   animation: string | null;
+  lastChoice?: string;
+  showHostInput?: boolean;
+  processingAction?: boolean;
 }
 
 interface OllamaBattleGameProps {
@@ -30,6 +33,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
     llamaHp: 100,
     message: 'A wild Ollama appeared!',
     animation: null,
+    processingAction: false,
   });
 
   const [configValues, setConfigValues] = useState<{ [key: string]: string }>({});
@@ -39,7 +43,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
     if (typeof window !== 'undefined') {
       audioRef.current = new window.Audio(battleMusic);
       audioRef.current.loop = true;
-      audioRef.current.volume = 0.5;
+      audioRef.current.volume = 0.2;
       audioRef.current.play().catch((e) => console.log('Audio autoplay prevented:', e));
     }
 
@@ -54,7 +58,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
   const toggleMute = () => {
     if (audioRef.current) {
       if (isMuted) {
-        audioRef.current.volume = 0.5;
+        audioRef.current.volume = 0.2;
       } else {
         audioRef.current.volume = 0;
       }
@@ -70,28 +74,46 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
     },
     {
       message: 'What will GOOSE do?',
-      action: null,
+      action: 'choice',
+      choices: ['Pacify', 'HONK!'],
+      animation: 'attack',
+      followUpMessages: ["It's not very effective...", 'But OLLAMA is confused!'],
     },
     {
-      message: 'GOOSE used Configure Host!',
-      action: 'host',
+      message: 'OLLAMA used YAML Confusion!',
+      action: null,
+      animation: 'counter',
+      followUpMessages: ['OLLAMA hurt itself in confusion!', 'GOOSE maintained composure!'],
+    },
+    {
+      message: 'What will GOOSE do?',
+      action: 'final_choice',
+      choices: (previousChoice: string) => [
+        previousChoice === 'Pacify' ? 'HONK!' : 'Pacify',
+        'Configure Host',
+      ],
+      animation: 'attack',
+    },
+    {
+      message: 'OLLAMA used Docker Dependency!',
+      action: null,
+      animation: 'counter',
+      followUpMessages: ["It's not very effective...", 'GOOSE knows containerization!'],
+    },
+    {
+      message: 'What will GOOSE do?',
+      action: 'host_choice',
+      choices: ['Configure Host'],
+      animation: 'finish',
+    },
+    {
+      message: '', // Will be set dynamically based on choice
+      action: 'host_input',
       prompt: 'Enter your Ollama host address:',
       configKey: 'OLLAMA_HOST',
-      animation: 'attack',
-      followUpMessages: ["It's super effective!", "OLLAMA's defense dropped sharply!"],
-    },
-    {
-      message: 'OLLAMA is preparing a counter-attack!',
-      action: null,
-    },
-    {
-      message: 'OLLAMA used Model Selection!',
-      action: 'model',
-      prompt: 'Quick! Choose your model to counter:',
-      configKey: 'OLLAMA_MODEL',
       animation: 'finish',
       followUpMessages: [
-        "GOOSE's configuration was successful!",
+        "It's super effective!",
         'OLLAMA has been configured!',
         'OLLAMA joined your team!',
       ],
@@ -134,38 +156,24 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
     const currentStep =
       battleState.currentStep < battleSteps.length ? battleSteps[battleState.currentStep] : null;
 
-    if (currentStep?.configKey && value) {
+    if (!currentStep) return;
+
+    // Handle host input
+    if (currentStep.action === 'host_input' && value) {
       setConfigValues((prev) => ({
         ...prev,
         [currentStep.configKey]: value,
       }));
-      return; // Don't proceed with battle sequence during typing
+      return;
     }
 
-    // Only proceed with battle sequence on submit/continue
-    if (currentStep?.animation === 'attack') {
-      // Host configuration attack sequence
+    // Handle host submit
+    if (currentStep.action === 'host_input' && !value) {
       setBattleState((prev) => ({
         ...prev,
-        message: "It's super effective!",
-        llamaHp: prev.llamaHp * 0.5, // Take away half HP
-      }));
-      animateHit(true);
-
-      // Show follow-up messages with delays
-      if (currentStep.followUpMessages) {
-        for (const msg of currentStep.followUpMessages) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          setBattleState((prev) => ({ ...prev, message: msg }));
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } else if (currentStep?.animation === 'finish') {
-      // Final model selection sequence
-      setBattleState((prev) => ({
-        ...prev,
+        processingAction: true,
         llamaHp: 0,
+        message: "It's super effective!",
       }));
       animateHit(true);
 
@@ -178,19 +186,91 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
       }
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      onComplete(configValues);
+      return;
     }
 
-    // Move to next step
+    // Handle continue button for messages
+    if (!currentStep.action) {
+      setBattleState((prev) => ({
+        ...prev,
+        currentStep: prev.currentStep + 1,
+        message: battleSteps[prev.currentStep + 1]?.message || prev.message,
+        processingAction: false,
+      }));
+      return;
+    }
+
+    // Handle choices (Pacify/HONK/Configure Host)
+    if (
+      (currentStep.action === 'choice' ||
+        currentStep.action === 'final_choice' ||
+        currentStep.action === 'host_choice') &&
+      value
+    ) {
+      // Set processing flag to hide buttons
+      setBattleState((prev) => ({
+        ...prev,
+        processingAction: true,
+      }));
+
+      if (value === 'Configure Host') {
+        setBattleState((prev) => ({
+          ...prev,
+          message: 'GOOSE used Configure Host!',
+          showHostInput: true,
+          currentStep: battleSteps.findIndex((step) => step.action === 'host_input'),
+          processingAction: false,
+        }));
+        return;
+      }
+
+      // Handle Pacify or HONK attacks
+      setBattleState((prev) => ({
+        ...prev,
+        lastChoice: value,
+        llamaHp: Math.max(0, prev.llamaHp - 25),
+        message: `GOOSE used ${value}!`,
+      }));
+      animateHit(true);
+
+      // Show follow-up messages
+      if (currentStep.followUpMessages) {
+        for (const msg of currentStep.followUpMessages) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          setBattleState((prev) => ({ ...prev, message: msg }));
+        }
+      }
+
+      // Proceed to counter-attack
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const isFirstCycle = currentStep.action === 'choice';
+      const nextStep = battleSteps[battleState.currentStep + 1];
+      setBattleState((prev) => ({
+        ...prev,
+        gooseHp: Math.max(0, prev.gooseHp - 25),
+        message: isFirstCycle ? 'OLLAMA used YAML Confusion!' : 'OLLAMA used Docker Dependency!',
+        currentStep: prev.currentStep + 1,
+        processingAction: false,
+      }));
+      animateHit(false);
+
+      // Show counter-attack messages
+      if (nextStep?.followUpMessages) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        for (const msg of nextStep.followUpMessages) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          setBattleState((prev) => ({ ...prev, message: msg }));
+        }
+      }
+
+      return;
+    }
+
+    // Check for battle completion
     if (battleState.currentStep === battleSteps.length - 2) {
-      // Last actionable step - complete configuration
       onComplete(configValues);
     }
-
-    setBattleState((prev) => ({
-      ...prev,
-      currentStep: prev.currentStep + 1,
-      message: battleSteps[prev.currentStep + 1]?.message || prev.message,
-    }));
   };
 
   return (
@@ -298,39 +378,66 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
             {battleState.message}
           </p>
 
-          {battleState.currentStep < battleSteps.length &&
-            battleSteps[battleState.currentStep].action &&
-            battleState.currentStep < battleSteps.length - 1 && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-300 font-pokemon">
-                  {battleSteps[battleState.currentStep].prompt}
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    className="flex-grow px-4 py-2 bg-[#374151] border-2 border-[#4B5563] rounded-lg text-white font-pokemon placeholder-gray-400 focus:outline-none focus:border-[#60A5FA]"
-                    placeholder={battleSteps[battleState.currentStep].prompt}
-                    onChange={(e) => handleAction(e.target.value)}
-                  />
-                  <button
-                    onClick={() => handleAction('')}
-                    className="px-6 py-2 bg-[#2563EB] text-white font-pokemon rounded-lg hover:bg-[#1D4ED8] transition-colors focus:outline-none focus:ring-2 focus:ring-[#60A5FA] focus:ring-opacity-50"
-                  >
-                    Submit
-                  </button>
-                </div>
-              </div>
-            )}
+          {battleState.currentStep < battleSteps.length && (
+            <div className="space-y-4">
+              {/* Show battle choices */}
+              {(battleSteps[battleState.currentStep].action === 'choice' ||
+                battleSteps[battleState.currentStep].action === 'final_choice' ||
+                battleSteps[battleState.currentStep].action === 'host_choice') &&
+                !battleState.showHostInput &&
+                !battleState.processingAction && (
+                  <div className="space-y-2">
+                    {(typeof battleSteps[battleState.currentStep].choices === 'function'
+                      ? battleSteps[battleState.currentStep].choices(battleState.lastChoice || '')
+                      : battleSteps[battleState.currentStep].choices
+                    )?.map((choice: string) => (
+                      <button
+                        key={choice}
+                        onClick={() => handleAction(choice)}
+                        className="w-full text-left px-4 py-2 text-white font-pokemon hover:bg-[#2563EB] transition-colors rounded-lg group flex items-center"
+                      >
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity mr-2">
+                          ▶
+                        </span>
+                        {choice}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-          {(battleState.currentStep >= battleSteps.length ||
-            !battleSteps[battleState.currentStep].action ||
-            battleState.currentStep === battleSteps.length - 1) && (
-            <button
-              onClick={() => handleAction('')}
-              className="mt-2 px-6 py-2 bg-[#2563EB] text-white font-pokemon rounded-lg hover:bg-[#1D4ED8] transition-colors focus:outline-none focus:ring-2 focus:ring-[#60A5FA] focus:ring-opacity-50"
-            >
-              ▶ Continue
-            </button>
+              {/* Show host input when needed */}
+              {battleState.showHostInput && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-300 font-pokemon">
+                    Enter your Ollama host address:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-grow px-4 py-2 bg-[#374151] border-2 border-[#4B5563] rounded-lg text-white font-pokemon placeholder-gray-400 focus:outline-none focus:border-[#60A5FA]"
+                      placeholder="http://localhost:11434"
+                      onChange={(e) => handleAction(e.target.value)}
+                    />
+                    <button
+                      onClick={() => handleAction('')}
+                      className="px-6 py-2 bg-[#2563EB] text-white font-pokemon rounded-lg hover:bg-[#1D4ED8] transition-colors focus:outline-none focus:ring-2 focus:ring-[#60A5FA] focus:ring-opacity-50"
+                    >
+                      Submit
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Continue button for messages */}
+              {!battleSteps[battleState.currentStep].action && !battleState.processingAction && (
+                <button
+                  onClick={() => handleAction('')}
+                  className="mt-2 px-6 py-2 bg-[#2563EB] text-white font-pokemon rounded-lg hover:bg-[#1D4ED8] transition-colors focus:outline-none focus:ring-2 focus:ring-[#60A5FA] focus:ring-opacity-50"
+                >
+                  ▶ Continue
+                </button>
+              )}
+            </div>
           )}
         </div>
 
