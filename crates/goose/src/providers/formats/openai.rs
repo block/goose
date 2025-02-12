@@ -3,8 +3,8 @@ use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, sanitize_function_name,
-    ImageFormat,
+    convert_image, detect_image_path, is_valid_function_name, load_image_file,
+    sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use mcp_core::ToolError;
@@ -514,10 +514,15 @@ mod tests {
 
     #[test]
     fn test_format_messages_with_image_path() -> anyhow::Result<()> {
-        // Create a temporary PNG file
+        // Create a temporary PNG file with valid PNG magic numbers
         let temp_dir = tempfile::tempdir()?;
         let png_path = temp_dir.path().join("test.png");
-        std::fs::write(&png_path, b"fake png data")?;
+        let png_data = [
+            0x89, 0x50, 0x4E, 0x47, // PNG magic number
+            0x0D, 0x0A, 0x1A, 0x0A, // PNG header
+            0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
+        ];
+        std::fs::write(&png_path, &png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
         // Create message with image path
@@ -526,14 +531,17 @@ mod tests {
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
-        
+
         // Content should be an array with text and image
         let content = spec[0]["content"].as_array().unwrap();
         assert_eq!(content.len(), 2);
         assert_eq!(content[0]["type"], "text");
         assert!(content[0]["text"].as_str().unwrap().contains(png_path_str));
         assert_eq!(content[1]["type"], "image_url");
-        assert!(content[1]["image_url"]["url"].as_str().unwrap().starts_with("data:image/png;base64,"));
+        assert!(content[1]["image_url"]["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
 
         Ok(())
     }
