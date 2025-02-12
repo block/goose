@@ -4,6 +4,7 @@ pub mod configs;
 pub mod extension;
 pub mod health;
 pub mod reply;
+pub mod config_management;
 
 use axum::Router;
 
@@ -14,5 +15,6 @@ pub fn configure(state: crate::state::AppState) -> Router {
         .merge(reply::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(extension::routes(state.clone()))
-        .merge(configs::routes(state))
+        .merge(configs::routes(state.clone()))
+        .merge(config_management::routes(state)) // Add this line
 }

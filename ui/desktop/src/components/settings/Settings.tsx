@@ -181,6 +181,8 @@ export default function Settings({
     return BUILT_IN_EXTENSIONS.some((builtIn) => builtIn.id === extensionId);
   };
 
+  function navigate(s: string) {}
+
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -257,6 +259,27 @@ export default function Settings({
                       />
                     ))
                   )}
+                </div>
+              </section>
+
+              <section id="configuration">
+                <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
+                  <h2 className="text-xl font-semibold text-textStandard">Configuration</h2>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => navigate('/settings/config')}
+                      className="text-indigo-500 hover:text-indigo-600 text-sm"
+                    >
+                      Manage
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-8">
+                  <p className="text-sm text-textStandard mb-4">
+                    Manage application configuration and settings. You can view, add, edit, and
+                    remove configuration values.
+                  </p>
                 </div>
               </section>
             </div>

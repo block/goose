@@ -9,6 +9,8 @@ release-binary:
     @echo "Building release version..."
     cargo build --release
     @just copy-binary
+    @echo "Generating OpenAPI schema..."
+    cargo run -p goose-server --bin generate_schema
 
 # Build Windows executable
 release-windows:

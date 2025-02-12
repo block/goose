@@ -61,6 +61,7 @@ async fn get_versions() -> Json<VersionsResponse> {
     })
 }
 
+#[axum::debug_handler]
 async fn create_agent(
     State(state): State<AppState>,
     headers: HeaderMap,
