@@ -13,10 +13,6 @@ The JetBrains extension is designed to work within your IDE. Goose can accomplis
 
 This tutorial covers how to enable and use the JetBrains MCP Server as a built-in Goose extension to integrate with any JetBrains IDE.
 
-:::warning Known Limitation
-The JetBrains extension [does not work](https://github.com/block/goose/issues/933) with OpenAI models (e.g. gpt-4o).
-:::
-
 ## Configuration
 
 1. Add the [MCP Server plugin](https://plugins.jetbrains.com/plugin/26071-mcp-server) to your IDE.

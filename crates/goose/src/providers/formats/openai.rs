@@ -253,6 +253,55 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
     Ok(Usage::new(input_tokens, output_tokens, total_tokens))
 }
 
+/// Validates and fixes tool schemas to ensure they have proper parameter structure.
+/// If parameters exist, ensures they have properties and required fields, or removes parameters entirely.
+pub fn validate_tool_schemas(tools: &mut [Value]) {
+    for tool in tools.iter_mut() {
+        if let Some(function) = tool.get_mut("function") {
+            if let Some(parameters) = function.get_mut("parameters") {
+                if parameters.is_object() {
+                    ensure_valid_json_schema(parameters);
+                }
+            }
+        }
+    }
+}
+
+/// Ensures that the given JSON value follows the expected JSON Schema structure.
+fn ensure_valid_json_schema(schema: &mut Value) {
+    if let Some(params_obj) = schema.as_object_mut() {
+        // Check if this is meant to be an object type schema
+        let is_object_type = params_obj
+            .get("type")
+            .and_then(|t| t.as_str())
+            .map_or(true, |t| t == "object"); // Default to true if no type is specified
+
+        // Only apply full schema validation to object types
+        if is_object_type {
+            // Ensure required fields exist with default values
+            params_obj.entry("properties").or_insert_with(|| json!({}));
+            params_obj.entry("required").or_insert_with(|| json!([]));
+            params_obj.entry("type").or_insert_with(|| json!("object"));
+
+            // Recursively validate properties if it exists
+            if let Some(properties) = params_obj.get_mut("properties") {
+                if let Some(properties_obj) = properties.as_object_mut() {
+                    for (_key, prop) in properties_obj.iter_mut() {
+                        if prop.is_object()
+                            && prop
+                                .get("type")
+                                .and_then(|t| t.as_str())
+                                .map_or(false, |t| t == "object")
+                        {
+                            ensure_valid_json_schema(prop);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn create_request(
     model_config: &ModelConfig,
     system: &str,
@@ -275,11 +324,14 @@ pub fn create_request(
     });
 
     let messages_spec = format_messages(messages, image_format);
-    let tools_spec = if !tools.is_empty() {
+    let mut tools_spec = if !tools.is_empty() {
         format_tools(tools)?
     } else {
         vec![]
     };
+
+    // Validate tool schemas
+    validate_tool_schemas(&mut tools_spec);
 
     let mut messages_array = vec![system_message];
     messages_array.extend(messages_spec);
@@ -325,6 +377,82 @@ mod tests {
     use super::*;
     use mcp_core::content::Content;
     use serde_json::json;
+
+    #[test]
+    fn test_validate_tool_schemas() {
+        // Test case 1: Empty parameters object
+        // Input JSON with an incomplete parameters object
+        let mut actual = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "type": "object"
+                }
+            }
+        })];
+
+        // Run the function to validate and update schemas
+        validate_tool_schemas(&mut actual);
+
+        // Expected JSON after validation
+        let expected = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        })];
+
+        // Compare entire JSON structures instead of individual fields
+        assert_eq!(actual, expected);
+
+        // Test case 2: Missing type field
+        let mut tools = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "properties": {}
+                }
+            }
+        })];
+
+        validate_tool_schemas(&mut tools);
+
+        let params = tools[0]["function"]["parameters"].as_object().unwrap();
+        assert_eq!(params["type"], "object");
+
+        // Test case 3: Complete valid schema should remain unchanged
+        let original_schema = json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "City and country"
+                        }
+                    },
+                    "required": ["location"]
+                }
+            }
+        });
+
+        let mut tools = vec![original_schema.clone()];
+        validate_tool_schemas(&mut tools);
+        assert_eq!(tools[0], original_schema);
+    }
 
     const OPENAI_TOOL_USE_RESPONSE: &str = r#"{
         "choices": [{
