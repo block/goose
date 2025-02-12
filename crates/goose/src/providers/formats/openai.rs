@@ -288,7 +288,10 @@ fn ensure_valid_json_schema(schema: &mut Value) {
                 if let Some(properties_obj) = properties.as_object_mut() {
                     for (_key, prop) in properties_obj.iter_mut() {
                         if prop.is_object()
-                            && (prop.get("type").and_then(|t| t.as_str()) == Some("object"))
+                            && prop
+                                .get("type")
+                                .and_then(|t| t.as_str())
+                                .map_or(false, |t| t == "object")
                         {
                             ensure_valid_json_schema(prop);
                         }
@@ -378,7 +381,8 @@ mod tests {
     #[test]
     fn test_validate_tool_schemas() {
         // Test case 1: Empty parameters object
-        let mut tools = vec![json!({
+        // Input JSON with an incomplete parameters object
+        let mut actual = vec![json!({
             "type": "function",
             "function": {
                 "name": "test_func",
@@ -389,14 +393,25 @@ mod tests {
             }
         })];
 
-        validate_tool_schemas(&mut tools);
+        // Run the function to validate and update schemas
+        validate_tool_schemas(&mut actual);
 
-        let params = tools[0]["function"]["parameters"].as_object().unwrap();
-        assert!(params.contains_key("properties"));
-        assert!(params.contains_key("required"));
-        assert_eq!(params["type"], "object");
-        assert_eq!(params["properties"], json!({}));
-        assert_eq!(params["required"], json!([]));
+        // Expected JSON after validation
+        let expected = vec![json!({
+            "type": "function",
+            "function": {
+                "name": "test_func",
+                "description": "test description",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        })];
+
+        // Compare entire JSON structures instead of individual fields
+        assert_eq!(actual, expected);
 
         // Test case 2: Missing type field
         let mut tools = vec![json!({
