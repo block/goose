@@ -30,6 +30,7 @@ pub struct Capabilities {
     resource_capable_extensions: HashSet<String>,
     provider: Box<dyn Provider>,
     provider_usage: Mutex<Vec<ProviderUsage>>,
+    system_prompt_extensions: Vec<String>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -88,6 +89,7 @@ impl Capabilities {
             resource_capable_extensions: HashSet::new(),
             provider,
             provider_usage: Mutex::new(Vec::new()),
+            system_prompt_extensions: Vec::new(),
         }
     }
 
@@ -162,6 +164,11 @@ impl Capabilities {
             .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
 
         Ok(())
+    }
+
+    /// Add a system prompt extension
+    pub fn add_system_prompt_extension(&mut self, extension: String) {
+        self.system_prompt_extensions.push(extension);
     }
 
     /// Get a reference to the provider
@@ -303,7 +310,17 @@ impl Capabilities {
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
         context.insert("current_date_time", Value::String(current_date_time));
 
-        load_prompt_file("system.md", &context).expect("Prompt should render")
+        let base_prompt = load_prompt_file("system.md", &context).expect("Prompt should render");
+
+        if self.system_prompt_extensions.is_empty() {
+            base_prompt
+        } else {
+            format!(
+                "{}\n\n# Additional Instructions:\n\n{}",
+                base_prompt,
+                self.system_prompt_extensions.join("\n\n")
+            )
+        }
     }
 
     /// Find and return a reference to the appropriate client for a tool call

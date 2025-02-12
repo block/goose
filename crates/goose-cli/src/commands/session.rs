@@ -161,6 +161,11 @@ pub async fn build_session(
 
     let prompt = Box::new(RustylinePrompt::new());
 
+    // Add CLI-specific system prompt extension
+    agent
+        .extend_system_prompt(crate::cli_prompt::get_cli_prompt())
+        .await;
+
     display_session_info(resume, &provider_name, &model, &session_file);
     Session::new(agent, prompt, session_file)
 }

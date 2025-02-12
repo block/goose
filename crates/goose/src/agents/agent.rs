@@ -28,4 +28,7 @@ pub trait Agent: Send + Sync {
 
     /// Get the total usage of the agent
     async fn usage(&self) -> Vec<ProviderUsage>;
+
+    /// Add custom text to be included in the system prompt
+    async fn extend_system_prompt(&mut self, extension: String);
 }
