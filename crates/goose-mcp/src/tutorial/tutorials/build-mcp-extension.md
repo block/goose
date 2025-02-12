@@ -1,11 +1,11 @@
-# Building an Extension with MCP
+# Building an Extension with MCP (Model Context Protocol)
 
 For this tutorial you will guide the user through building an MCP extension.
-This will require you to get familiar with one of the three available SDKs: 
+This will require you to get familiar with one of the three available SDKs:
 Python, TypeScript, or Kotlin.
 
 MCP extensions allow AI agents to use tools, access resources, and other more advanced
-features via a protocol. The extension does not need to include all of these features. 
+features via a protocol. The extension does not need to include all of these features.
 
 ## Your Role
 - You will help users implement MCP extensions using their chosen SDK
@@ -14,17 +14,18 @@ features via a protocol. The extension does not need to include all of these fea
 
 ## Initial Setup
 
-You (the agent) should run the following so that you can get an up to date
+You (the agent) should always run the following so that you can get an up to date
 reference of the SDK to refer to.
 
-Clone the SDK repo into a temp dir:
+Clone the SDK repo into a temp dir, and `cat` the README.md
 
 ```bash
 mkdir -p /tmp/mcp-reference && cd /tmp/mcp-reference
 git clone https://github.com/modelcontextprotocol/[python|typescript|kotlin]-sdk.git
+cat /tmp/mcp-reference/[python|typescript|kotlin]-sdk/README.md
 ```
 
-Then, as needed, use ripgrep to search within the mcp-reference dir. 
+Then, as needed, use ripgrep to search within the mcp-reference dir.
 **Important**: reference this implementation to make sure you have up to date implementation
 
 ## Core Implementation Guide
@@ -34,11 +35,35 @@ Then, as needed, use ripgrep to search within the mcp-reference dir.
 You should help the user scaffold out a project directory if they don't
 already have one. This includes any necessary build tools or dependencies.
 
+**Important**:
+  - Python: Initialize a project using `uv init $PROJECT NAME`
+  - Python: Use `uv add` for all python package management, to keep `pyproject.toml` up to date
+  - Typescript: Initialize a project using `npm init -y`
+  - Kotlin: Use the following `gradle init` command to initialize:
+     ```bash
+       gradle init \
+         --type groovy-application \
+         --dsl kotlin \
+         --test-framework junit-jupiter \
+         --package my.project \
+         --project-name $PROJECT_NAME  \
+         --no-split-project  \
+         --java-version 21
+     ```
+
 Include the relevant SDK package:
 1. `mcp` for python
 2. `"io.modelcontextprotocol:kotlin-sdk:0.3.0"` for kotlin
 3. `@modelcontextprotocol/sdk` for typescript
 
+
+**Important for kotlin development:**
+To get started with a Kotlin MCP server, look at the kotlin-mcp-server example included
+in the Kotlin SDK. After cloning the SDK repository, you can find this sample inside the
+samples/kotlin-mcp-server directory. There, you’ll see how the Gradle build files,
+properties, and settings are configured, as well as the initial set of dependencies. Use
+these existing gradle configurations to get the user started. Be sure to check out the
+Main.kt file for a basic implementation that you can build upon.
 
 ### 1. Basic Server Setup
 Help the user create their initial server file. Here are some patterns to get started with:
@@ -308,24 +333,27 @@ When users encounter issues:
 
 ## Important Guidelines for You (the Agent)
 
-1. Always ask the user which SDK they want to use before providing specific implementation details
+1. Always start by asking the user what they want to build
 
-2. When helping with implementations:
+2. Always ask the user which SDK they want to use before providing specific implementation details
+
+3. Always use the reference implementations:
+   - Always clone the relevant SDK repo before starting with basic steup
+   - After cloning the relevant SDK, find and `cat` the `README.md` for context
+   - Use ripgrep to find specific examples within the reference
+   - Reference real implementations rather than making assumptions
+
+4. When helping with implementations:
    - Start with the basic server setup
    - Add one resource or tool at a time
    - Test each addition before moving on
 
-3. Use the reference implementations:
-   - Clone the relevant SDK repo when needed
-   - Use ripgrep to find specific examples
-   - Reference real implementations rather than making assumptions
-
-4. Common Gotchas to Watch For:
+5. Common Gotchas to Watch For:
    - Python: Ensure decorators are properly imported
    - TypeScript: Remember to import zod for parameter validation
    - Kotlin: Pay attention to proper type declarations
 
-5. When users ask about implementation details:
+6. When users ask about implementation details:
    - First check the reference SDK
    - Use ripgrep to find relevant examples
    - Provide context-specific guidance based on their SDK choice

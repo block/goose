@@ -76,8 +76,14 @@ impl TutorialRouter {
     fn get_available_tutorials() -> String {
         let mut tutorials = String::new();
         for file in TUTORIALS_DIR.files() {
+            // Use first line for additional context
+            let first_line = file
+                .contents_utf8()
+                .and_then(|s| s.lines().next().map(|line| line.to_string()))
+                .unwrap_or_else(String::new);
+
             if let Some(name) = file.path().file_stem() {
-                tutorials.push_str(&format!("- {}\n", name.to_string_lossy()));
+                tutorials.push_str(&format!("- {}: {}\n", name.to_string_lossy(), first_line));
             }
         }
         tutorials
