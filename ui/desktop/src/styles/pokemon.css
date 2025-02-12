@@ -1,0 +1,21 @@
+@font-face {
+  font-family: 'Pokemon';
+  src: url('../assets/fonts/pokemon.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.font-pokemon {
+  font-family:
+    'Pokemon',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
