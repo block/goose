@@ -1,10 +1,10 @@
 // Export route modules
 pub mod agent;
+pub mod config_management;
 pub mod configs;
 pub mod extension;
 pub mod health;
 pub mod reply;
-pub mod config_management;
 
 use axum::Router;
 

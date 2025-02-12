@@ -1,5 +1,5 @@
-pub mod routes;
 pub mod openapi;
+pub mod routes;
 pub mod state;
 
 // Re-export commonly used items

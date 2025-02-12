@@ -15,7 +15,6 @@ mod openapi;
 mod routes;
 mod state;
 
-
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]

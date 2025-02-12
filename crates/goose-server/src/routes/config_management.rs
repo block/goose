@@ -1,10 +1,10 @@
-use http::StatusCode;
 use axum::{
     extract::State,
     routing::{delete, get, post},
     Json, Router,
 };
 use goose::config::Config;
+use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
@@ -124,15 +124,17 @@ pub async fn add_extension(
     let config = Config::global();
 
     // Get current extensions or initialize empty map
-    let mut extensions: HashMap<String, Value> = config
-        .get("extensions")
-        .unwrap_or_else(|_| HashMap::new());
+    let mut extensions: HashMap<String, Value> =
+        config.get("extensions").unwrap_or_else(|_| HashMap::new());
 
     // Add new extension
     extensions.insert(extension.name.clone(), extension.config);
 
     // Save updated extensions
-    match config.set("extensions", Value::Object(extensions.into_iter().collect())) {
+    match config.set(
+        "extensions",
+        Value::Object(extensions.into_iter().collect()),
+    ) {
         Ok(_) => Ok(Json(format!("Added extension {}", extension.name))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
@@ -163,7 +165,10 @@ pub async fn remove_extension(
     // Remove extension if it exists
     if extensions.remove(&query.key).is_some() {
         // Save updated extensions
-        match config.set("extensions", Value::Object(extensions.into_iter().collect())) {
+        match config.set(
+            "extensions",
+            Value::Object(extensions.into_iter().collect()),
+        ) {
             Ok(_) => Ok(Json(format!("Removed extension {}", query.key))),
             Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
         }

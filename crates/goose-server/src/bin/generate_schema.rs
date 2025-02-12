@@ -1,6 +1,6 @@
-use std::fs;
-use std::env;
 use goose_server::openapi;
+use std::env;
+use std::fs;
 
 fn main() {
     let schema = openapi::generate_schema();
@@ -15,5 +15,8 @@ fn main() {
     }
 
     fs::write(&output_path, schema).unwrap();
-    println!("Successfully generated OpenAPI schema at {}", output_path.display());
+    println!(
+        "Successfully generated OpenAPI schema at {}",
+        output_path.display()
+    );
 }
