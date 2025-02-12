@@ -406,7 +406,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
                 )}
 
               {/* Show host input when needed */}
-              {battleState.showHostInput && (
+              {battleState.showHostInput && !battleState.processingAction && (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-300 font-pokemon">
                     Enter your Ollama host address:

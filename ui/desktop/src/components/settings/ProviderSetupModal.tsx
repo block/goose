@@ -6,7 +6,6 @@ import { Button } from '../ui/button';
 import { required_keys } from './models/hardcoded_stuff';
 import { isSecretKey } from './api_keys/utils';
 import { OllamaBattleGame } from './OllamaBattleGame';
-// import UnionIcon from "../images/Union@2x.svg";
 
 interface ProviderSetupModalProps {
   provider: string;
@@ -15,6 +14,7 @@ interface ProviderSetupModalProps {
   title?: string;
   onSubmit: (configValues: { [key: string]: string }) => void;
   onCancel: () => void;
+  forceBattle?: boolean;
 }
 
 export function ProviderSetupModal({
@@ -24,10 +24,19 @@ export function ProviderSetupModal({
   title,
   onSubmit,
   onCancel,
+  forceBattle = false,
 }: ProviderSetupModalProps) {
   const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>({});
   const requiredKeys = required_keys[provider] || ['API Key'];
   const headerText = title || `Setup ${provider}`;
+
+  const shouldShowBattle = React.useMemo(() => {
+    if (forceBattle) return true;
+    if (provider.toLowerCase() !== 'ollama') return false;
+
+    const now = new Date();
+    return now.getMinutes() === 0;
+  }, [provider, forceBattle]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +52,7 @@ export function ProviderSetupModal({
             <h2 className="text-2xl font-regular text-textStandard">{headerText}</h2>
           </div>
 
-          {provider.toLowerCase() === 'ollama' ? (
+          {provider.toLowerCase() === 'ollama' && shouldShowBattle ? (
             <OllamaBattleGame onComplete={onSubmit} requiredKeys={requiredKeys} />
           ) : (
             <form onSubmit={handleSubmit}>
@@ -65,7 +74,15 @@ export function ProviderSetupModal({
                     />
                   </div>
                 ))}
-                <div className="flex text-gray-600 dark:text-gray-300">
+                <div
+                  className="flex text-gray-600 dark:text-gray-300"
+                  onClick={() => {
+                    if (provider.toLowerCase() === 'ollama') {
+                      onCancel();
+                      onSubmit({ forceBattle: 'true' });
+                    }
+                  }}
+                >
                   <Lock className="w-6 h-6" />
                   <span className="text-sm font-light ml-4 mt-[2px]">{`Your configuration values will be stored securely in the keychain and used only for making requests to ${provider}`}</span>
                 </div>
