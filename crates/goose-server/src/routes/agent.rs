@@ -95,6 +95,7 @@ async fn extend_prompt(
     }
 }
 
+#[axum::debug_handler]
 async fn create_agent(
     State(state): State<AppState>,
     headers: HeaderMap,

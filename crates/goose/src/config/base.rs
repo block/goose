@@ -1,6 +1,10 @@
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use keyring::Entry;
 use once_cell::sync::{Lazy, OnceCell};
+use crate::config_manager::ConfigManager;
+use serde::Deserialize;
+use keyring::Entry;
+use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -13,6 +17,36 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     author: "Block".to_string(),
     app_name: "goose".to_string(),
 });
+
+const KEYRING_SERVICE: &str = "goose";
+const KEYRING_USERNAME: &str = "secrets";
+
+#[cfg(test)]
+const TEST_KEYRING_SERVICE: &str = "goose-test";
+
+#[derive(Error, Debug)]
+pub enum ConfigError {
+    #[error("Configuration value not found: {0}")]
+    NotFound(String),
+    #[error("Failed to deserialize value: {0}")]
+    DeserializeError(String),
+    #[error("Failed to read config file: {0}")]
+    FileError(#[from] std::io::Error),
+    #[error("Failed to create config directory: {0}")]
+    DirectoryError(String),
+    #[error("Failed to access keyring: {0}")]
+    KeyringError(String),
+}
+
+impl From<serde_json::Error> for ConfigError {
+    fn from(err: serde_json::Error) -> Self {
+        ConfigError::DeserializeError(err.to_string())
+    }
+}
+use std::path::Path;
+use std::env;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
@@ -114,6 +148,9 @@ impl Default for Config {
             .config_dir();
 
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+            .join(".config")
+            .join("goose");
+        std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
         let config_path = config_dir.join("config.yaml");
         Config {
@@ -159,7 +196,7 @@ impl Config {
     }
 
     // Load current values from the config file
-    fn load_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
+    pub fn load_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
         if self.config_path.exists() {
             let file_content = std::fs::read_to_string(&self.config_path)?;
             // Parse YAML into JSON Value for consistent internal representation

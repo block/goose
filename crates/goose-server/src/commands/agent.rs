@@ -24,7 +24,8 @@ pub async fn run() -> Result<()> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = crate::routes::configure(state).layer(cors);
+    let app = crate::routes::configure(state)
+        .layer(cors);
 
     // Run server
     let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
