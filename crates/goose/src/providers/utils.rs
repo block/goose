@@ -4,6 +4,8 @@ use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use std::path::Path;
+use base64::Engine;
 
 use crate::providers::errors::ProviderError;
 use mcp_core::content::ImageContent;
@@ -110,6 +112,51 @@ pub fn get_model(data: &Value) -> String {
     }
 }
 
+/// Detect if a string contains a path to an image file
+pub fn detect_image_path(text: &str) -> Option<&str> {
+    // Basic image file extension check
+    let extensions = [".png", ".jpg", ".jpeg"];
+    
+    // Find any word that ends with an image extension
+    for word in text.split_whitespace() {
+        if extensions.iter().any(|ext| word.to_lowercase().ends_with(ext)) {
+            // Check if it's a valid path and file exists
+            if Path::new(word).is_file() {
+                return Some(word);
+            }
+        }
+    }
+    None
+}
+
+/// Convert a local image file to base64 encoded ImageContent
+pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
+    let path = Path::new(path);
+    
+    // Read the file
+    let bytes = std::fs::read(path).map_err(|e| 
+        ProviderError::RequestFailed(format!("Failed to read image file: {}", e)))?;
+    
+    // Detect mime type from extension
+    let mime_type = match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) => match ext.to_lowercase().as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            _ => return Err(ProviderError::RequestFailed("Unsupported image format".to_string())),
+        },
+        None => return Err(ProviderError::RequestFailed("Unknown image format".to_string())),
+    };
+
+    // Convert to base64
+    let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
+    
+    Ok(ImageContent {
+        mime_type: mime_type.to_string(),
+        data,
+        annotations: None,
+    })
+}
+
 pub fn unescape_json_values(value: &Value) -> Value {
     match value {
         Value::Object(map) => {
@@ -165,6 +212,48 @@ pub fn emit_debug_trace<T: serde::Serialize>(
 mod tests {
     use super::*;
     use serde_json::json;
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+
+    #[test]
+    fn test_detect_image_path() {
+        // Create a temporary PNG file with .png extension
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_path = temp_dir.path().join("test.png");
+        std::fs::write(&png_path, b"fake png data").unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+
+        // Test with PNG file
+        let text = format!("Here is an image {}", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // Test with non-existent file
+        let text = "Here is a fake.png that doesn't exist";
+        assert_eq!(detect_image_path(text), None);
+
+        // Test with non-image file
+        let text = "Here is a file.txt";
+        assert_eq!(detect_image_path(text), None);
+    }
+
+    #[test]
+    fn test_load_image_file() {
+        // Create a temporary PNG file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_path = temp_dir.path().join("test.png");
+        std::fs::write(&png_path, b"fake png data").unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+
+        // Test loading PNG file
+        let result = load_image_file(png_path_str);
+        assert!(result.is_ok());
+        let image = result.unwrap();
+        assert_eq!(image.mime_type, "image/png");
+        
+        // Test non-existent file
+        let result = load_image_file("nonexistent.png");
+        assert!(result.is_err());
+    }
 
     #[test]
     fn test_sanitize_function_name() {
