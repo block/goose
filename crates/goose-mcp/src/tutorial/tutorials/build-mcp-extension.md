@@ -39,6 +39,7 @@ already have one. This includes any necessary build tools or dependencies.
 
 **Important**:
 
+- Always check the reference SDK for typing and correct usage
 - Python: Initialize a project using `uv init $PROJECT NAME`
 - Python: Use `uv add` for all python package management, to keep `pyproject.toml` up to date
 - Typescript: Initialize a project using `npm init -y`
@@ -174,15 +175,21 @@ Python:
 ```python
 @mcp.tool()
 def example_tool(param: str) -> str:
+    """Example description for tool"""
     return f"Processed {param}"
 ```
 
 TypeScript:
 
 ```typescript
-server.tool("example-tool", { param: z.string() }, async ({ param }) => ({
-  content: [{ type: "text", text: `Processed ${param}` }],
-}));
+server.tool(
+  "example-tool",
+  "example description for tool",
+  { param: z.string() },
+  async ({ param }) => ({
+    content: [{ type: "text", text: `Processed ${param}` }],
+  }),
+);
 ```
 
 Kotlin:
@@ -367,19 +374,21 @@ When users encounter issues:
    - Use ripgrep to find specific examples within the reference
    - Reference real implementations rather than making assumptions
 
-4. When helping with implementations:
+4. When building the project, if any compliation or type issues occur, _always_ check the reference SDK before making a fix.
+
+5. When helping with implementations:
 
    - Start with the basic server setup
    - Add one resource or tool at a time
    - Test each addition before moving on
 
-5. Common Gotchas to Watch For:
+6. Common Gotchas to Watch For:
 
    - Python: Ensure decorators are properly imported
    - TypeScript: Remember to import zod for parameter validation
    - Kotlin: Pay attention to proper type declarations
 
-6. When users ask about implementation details:
+7. When users ask about implementation details:
    - First check the reference SDK
    - Use ripgrep to find relevant examples
    - Provide context-specific guidance based on their SDK choice
