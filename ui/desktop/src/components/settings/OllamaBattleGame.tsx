@@ -135,7 +135,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
   };
 
   useEffect(() => {
-    // Add CSS for the hit animation
+    // Add CSS for the hit animation and defeat animation
     const style = document.createElement('style');
     style.textContent = `
       @keyframes hitFlash {
@@ -144,6 +144,14 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
       }
       .hit-flash {
         animation: hitFlash 0.5s;
+      }
+      @keyframes defeat {
+        0% { transform: translateY(0); opacity: 1; }
+        20% { transform: translateY(-30px); opacity: 1; }
+        100% { transform: translateY(500px); opacity: 0; }
+      }
+      .defeated {
+        animation: defeat 1.3s cubic-bezier(.36,.07,.19,.97) both;
       }
     `;
     document.head.appendChild(style);
@@ -176,6 +184,13 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
         message: "It's super effective!",
       }));
       animateHit(true);
+
+      // Add defeat class to llama sprite and health bar
+      const llamaContainer = document.querySelector('.llama-container');
+      if (llamaContainer) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        llamaContainer.classList.add('defeated');
+      }
 
       // Show victory messages with delays
       if (currentStep.followUpMessages) {
@@ -285,7 +300,7 @@ export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGame
         }}
       >
         {/* Llama sprite */}
-        <div className="absolute right-24 top-8">
+        <div className="absolute right-24 top-8 llama-container">
           <div className="mb-2">
             <div className="bg-[#1F2937] rounded-lg px-3 py-1 text-white font-pokemon mb-1">
               OLLAMA
