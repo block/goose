@@ -143,17 +143,19 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Configure Providers",
                 "Change provider or update credentials",
             )
+            .item("add", "Add Extension", "Connect to a new extension")
             .item(
                 "toggle",
                 "Toggle Extensions",
                 "Enable or disable connected extensions",
             )
-            .item("add", "Add Extension", "Connect to a new extension")
+            .item("remove", "Remove Extension", "Remove an extension")
             .interact()?;
 
         match action {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
+            "remove" => remove_extension_dialog(),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -561,6 +563,49 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         }
         _ => unreachable!(),
     };
+
+    Ok(())
+}
+
+pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
+    let extensions = ExtensionManager::get_all()?;
+
+    // Create a list of extension names and their enabled status
+    let extension_status: Vec<(String, bool)> = extensions
+        .iter()
+        .map(|entry| (entry.config.name().to_string(), entry.enabled))
+        .collect();
+
+    if extensions.is_empty() {
+        cliclack::outro(
+            "No extensions configured yet. Run configure and add some extensions first.",
+        )?;
+        return Ok(());
+    }
+
+    // Check if all extensions are enabled
+    if extension_status.iter().all(|(_, enabled)| *enabled) {
+        cliclack::outro(
+            "All extensions are currently enabled. You must first disable extensions before removing them.",
+        )?;
+        return Ok(());
+    }
+
+    let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions - use \"space\" to toggle and \"enter\" to submit)")
+        .required(false)
+        .items(
+            &extension_status
+                .iter()
+                .filter(|(_, enabled)| !enabled)
+                .map(|(name, _)| (name, name.as_str(), ""))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    for name in selected {
+        ExtensionManager::remove(name)?;
+        cliclack::outro(format!("Removed {} extension", style(name).green()))?;
+    }
 
     Ok(())
 }
