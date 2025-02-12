@@ -139,8 +139,8 @@ impl DeveloperRouter {
 
                 **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
                 may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
+                  - List files by name: `rg --files | rg <filename>`
+                  - List files that contain a regex: `rg '<regex>' -l`
             "#},
         };
 
