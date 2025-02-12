@@ -46,5 +46,11 @@
         "description": "Connect to Azure OpenAI Service",
         "models": ["gpt-4o", "gpt-4o-mini"],
         "required_keys": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]
+    },
+    "vertex_ai": {
+        "name": "Vertex AI",
+        "description": "Access variety of AI models through Vertex AI",
+        "models": ["claude-3-5-sonnet-v2@20241022", "claude-3-5-sonnet@20240620"],
+        "required_keys": ["VERTEXAI_PROJECT_ID", "VERTEXAI_REGION"]
     }
 }

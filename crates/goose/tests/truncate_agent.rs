@@ -6,6 +6,7 @@ use goose::agents::AgentFactory;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
+use goose::providers::vertexai::VertexAIProvider;
 use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
 use goose::providers::{
     azure::AzureProvider, bedrock::BedrockProvider, ollama::OllamaProvider, openai::OpenAiProvider,
@@ -24,6 +25,7 @@ enum ProviderType {
     Groq,
     Ollama,
     OpenRouter,
+    VertexAI,
 }
 
 impl ProviderType {
@@ -42,6 +44,7 @@ impl ProviderType {
             ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
+            ProviderType::VertexAI => &["VERTEXAI_PROJECT_ID", "VERTEXAI_REGION"],
         }
     }
 
@@ -74,6 +77,7 @@ impl ProviderType {
             ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
             ProviderType::Ollama => Box::new(OllamaProvider::from_env(model_config)?),
             ProviderType::OpenRouter => Box::new(OpenRouterProvider::from_env(model_config)?),
+            ProviderType::VertexAI => Box::new(VertexAIProvider::from_env(model_config)?),
         })
     }
 }
@@ -287,6 +291,16 @@ mod tests {
             provider_type: ProviderType::Ollama,
             model: "llama3.2",
             context_window: 128_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_truncate_agent_with_vertexai() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::VertexAI,
+            model: "claude-3-5-sonnet-v2@20241022",
+            context_window: 200_000,
         })
         .await
     }
