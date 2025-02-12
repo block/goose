@@ -47,6 +47,7 @@ jobs:
           npm run build
 
       - name: Combine builds into one directory
+        if: github.event.action != 'closed'
         run: |
           mkdir combined-build
           cp -r documentation/build/* combined-build/
