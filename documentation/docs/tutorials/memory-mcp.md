@@ -12,7 +12,6 @@ The Memory extension allows Goose to store, organize, and retrieve important inf
 
 This tutorial will cover enabling and using the Memory MCP Server, which is a built-in Goose extension. 
 
-
 ## Configuration
 
 1. Ensure extension is enabled:
@@ -70,12 +69,7 @@ This tutorial will cover enabling and using the Memory MCP Server, which is a bu
 
 ## Example Usage
 
-In this example, I'm going to have Goose create a personal knowledge base for me. Instead of trying to remember everything on your own. Goose can store any form of information for you from commands, local or global project knowledge, etc.
-
-:::info LLM
-Anthropic's Claude 3.5 Sonnet was used for this task.
-:::
-
+In this example, I'm going to have Goose create a personal knowledge base for me. Instead of trying to remember everything on your own, Goose can store any form of information for you from commands, local or global project knowledge, preferences, etc.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -94,7 +88,7 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 
 ### Goose Prompt #1
 ```
-Hey Goose, can you store these for me:
+can you store these for me:
 
 1. This Docker debugging command:
     docker logs -f --tail=100 $(docker ps -q --filter name=api)
