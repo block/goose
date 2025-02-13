@@ -19,8 +19,6 @@ export const goose_models: Model[] = [
   { id: 17, name: 'qwen2.5', provider: 'Ollama' },
   { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
-  { id: 20, name: 'claude-3-5-sonnet-v2@20241022', provider: 'Vertex AI' },
-  { id: 21, name: 'claude-3-5-sonnet@20240620', provider: 'Vertex AI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -49,8 +47,6 @@ export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
 export const azure_openai_models = ['gpt-4o'];
 
-export const vertexai_models = ['claude-3-5-sonnet-v2@20241022', 'claude-3-5-sonnet@20240620'];
-
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -60,7 +56,6 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
-  vertex_ai: 'claude-3-5-sonnet-v2@20241022',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -78,7 +73,6 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
-  'Vertex AI': ['VERTEXAI_PROJECT_ID', 'VERTEXAI_REGION'],
 };
 
 export const supported_providers = [
@@ -90,7 +84,6 @@ export const supported_providers = [
   'Ollama',
   'OpenRouter',
   'Azure OpenAI',
-  'Vertex AI',
 ];
 
 export const model_docs_link = [
@@ -104,7 +97,6 @@ export const model_docs_link = [
   },
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
-  { name: 'Vertex AI', href: 'https://cloud.google.com/vertex-ai' },
 ];
 
 export const provider_aliases = [
@@ -116,5 +108,4 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
-  { provider: 'Vertex AI', alias: 'vertex_ai' },
 ];
