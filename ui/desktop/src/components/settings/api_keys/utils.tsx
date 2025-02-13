@@ -8,8 +8,6 @@ export function isSecretKey(keyName: string): boolean {
     'OLLAMA_HOST',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
-    'VERTEXAI_PROJECT_ID',
-    'VERTEXAI_REGION',
   ];
   return !nonSecretKeys.includes(keyName);
 }
