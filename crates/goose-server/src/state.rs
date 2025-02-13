@@ -1,5 +1,7 @@
 use anyhow::Result;
 use goose::agents::Agent;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -9,6 +11,7 @@ use tokio::sync::Mutex;
 pub struct AppState {
     pub agent: Arc<Mutex<Option<Box<dyn Agent>>>>,
     pub secret_key: String,
+    pub config: Arc<Mutex<HashMap<String, Value>>>,
 }
 
 impl AppState {
@@ -16,6 +19,7 @@ impl AppState {
         Ok(Self {
             agent: Arc::new(Mutex::new(None)),
             secret_key,
+            config: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }

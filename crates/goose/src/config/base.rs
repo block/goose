@@ -159,7 +159,7 @@ impl Config {
     }
 
     // Load current values from the config file
-    fn load_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
+    pub fn load_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
         if self.config_path.exists() {
             let file_content = std::fs::read_to_string(&self.config_path)?;
             // Parse YAML into JSON Value for consistent internal representation

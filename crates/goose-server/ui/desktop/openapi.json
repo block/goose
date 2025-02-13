@@ -1,0 +1,279 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "goose-server",
+    "description": "An AI agent",
+    "contact": {
+      "name": "Block",
+      "email": "ai-oss-tools@block.xyz"
+    },
+    "license": {
+      "name": "Apache-2.0"
+    },
+    "version": "1.0.4"
+  },
+  "paths": {
+    "/config": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Read all configuration values",
+        "operationId": "read_all_config",
+        "responses": {
+          "200": {
+            "description": "All configuration values retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/extension": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Add an extension configuration",
+        "operationId": "add_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtensionQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension added successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Remove an extension configuration",
+        "operationId": "remove_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigKeyQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Extension not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/read": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Read a configuration value",
+        "operationId": "read_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigKeyQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration value retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Configuration key not found"
+          }
+        }
+      }
+    },
+    "/config/remove": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Remove a configuration value",
+        "operationId": "remove_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigKeyQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration value removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Configuration key not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/upsert": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "summary": "Upsert a configuration value",
+        "operationId": "upsert_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertConfigQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Configuration value upserted successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConfigKeyQuery": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The configuration key to operate on"
+          }
+        }
+      },
+      "ConfigResponse": {
+        "type": "object",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "type": "object",
+            "description": "The configuration values",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "ExtensionQuery": {
+        "type": "object",
+        "required": [
+          "name",
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "description": "The configuration for the extension"
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the extension"
+          }
+        }
+      },
+      "UpsertConfigQuery": {
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "is_secret": {
+            "type": "boolean",
+            "description": "Whether this configuration value should be treated as a secret",
+            "nullable": true
+          },
+          "key": {
+            "type": "string",
+            "description": "The configuration key to upsert"
+          },
+          "value": {
+            "description": "The value to set for the configuration"
+          }
+        }
+      }
+    }
+  }
+}
