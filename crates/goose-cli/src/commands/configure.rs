@@ -422,6 +422,11 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Memory",
                     "Tools to save and retrieve durable memories",
                 )
+                .item(
+                    "tutorial",
+                    "Tutorial",
+                    "Access interactive tutorials and guides",
+                )
                 .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .interact()?
                 .to_string();
