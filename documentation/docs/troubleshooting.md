@@ -206,6 +206,26 @@ If you encounter an issue where the Goose desktop app shows no window on launch,
     ```
 ---
 
+### Connection Error with Ollama Provider on WSL
+
+If you encounter an error like this when setting up Ollama as the provider in Goose:
+    ```
+    Execution error: error sending request for url (http://localhost:11434/v1/chat/completions)
+    ```
+This likely means that the local host address is not accessible from WSL.
+1. Check if the service is running:
+    ```
+    curl http://localhost:11434/api/tags
+    ```
+    If you receive a `failed to connect` error, it’s possible that WSL is using a different IP for localhost. In that case, run the following command to find the correct IP address for WSL:
+    ```
+    ip route show | grep -i default | awk '{ print $3 }'
+    ```
+2. Once you get the IP address, use it in your Goose configuration instead of localhost. For example:
+    ```
+    http://172.24.80.1:11434
+    ```
+---
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
 
