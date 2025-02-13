@@ -1,41 +1,59 @@
-import { SuperRoutesConfigManagementService } from './generated';
-import { getApiUrl, getSecretKey } from '../config';
+import {
+  readAllConfig,
+  readConfig,
+  removeConfig,
+  upsertConfig,
+  addExtension,
+  removeExtension,
+} from './generated';
+import { client } from './generated/client.gen';
 
-// Initialize OpenAPI configuration
-import { OpenAPI } from './generated/core/OpenAPI';
-OpenAPI.BASE = window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT');
-OpenAPI.HEADERS = {
-  'Content-Type': 'application/json',
-  'X-Secret-Key': window.appConfig.get('secretKey'),
-};
+// Initialize client configuration
+client.setConfig({
+  baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Secret-Key': window.appConfig.get('secretKey'),
+  },
+});
 
 export class Config {
   static async upsert(key: string, value: any, isSecret?: boolean) {
-    return await SuperRoutesConfigManagementService.upsertConfig({
-      key,
-      value,
-      is_secret: isSecret,
+    return await upsertConfig({
+      body: {
+        key,
+        value,
+        is_secret: isSecret,
+      },
     });
   }
 
   static async read(key: string) {
-    return await SuperRoutesConfigManagementService.readConfig({ key });
+    return await readConfig({
+      body: { key },
+    });
   }
 
   static async remove(key: string) {
-    return await SuperRoutesConfigManagementService.removeConfig({ key });
+    return await removeConfig({
+      body: { key },
+    });
   }
 
   static async readAll() {
-    const response = await SuperRoutesConfigManagementService.readAllConfig();
-    return response.config;
+    const response = await readAllConfig();
+    return response.data.config;
   }
 
   static async addExtension(name: string, config: any) {
-    return await SuperRoutesConfigManagementService.addExtension({ name, config });
+    return await addExtension({
+      body: { name, config },
+    });
   }
 
   static async removeExtension(name: string) {
-    return await SuperRoutesConfigManagementService.removeExtension({ key: name });
+    return await removeExtension({
+      body: { key: name },
+    });
   }
 }
