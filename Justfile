@@ -37,13 +37,12 @@ release-windows:
     fi
     echo "Windows executable and required DLLs created at ./target/x86_64-pc-windows-gnu/release/"
 
-# Copy binary command
-copy-binary:
-    @if [ -f ./target/release/goosed ]; then \
-        echo "Copying goosed binary to ui/desktop/src/bin with permissions preserved..."; \
-        cp -p ./target/release/goosed ./ui/desktop/src/bin/; \
+copy-binary BUILD_MODE="release":
+    @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
+        echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
+        cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
     else \
-        echo "Release binary not found."; \
+        echo "Binary not found in target/{{BUILD_MODE}}"; \
         exit 1; \
     fi
 
@@ -110,6 +109,19 @@ make-ui-windows:
 langfuse-server:
     #!/usr/bin/env bash
     ./scripts/setup_langfuse.sh
+
+# Run UI with debug build
+run-dev:
+    @echo "Building development version..."
+    cargo build
+    @just copy-binary debug
+    @echo "Running UI..."
+    cd ui/desktop && npm run start-gui
+
+# Install all dependencies (run once after fresh clone)
+install-deps:
+    cd ui/desktop && npm install
+    cd documentation && yarn
 
 # ensure the current branch is "main" or error
 ensure-main:
