@@ -19,11 +19,15 @@ features via a protocol. The extension does not need to include all of these fea
 You (the agent) should **always** run the following so that you can get an up to date
 reference of the SDK to refer to.
 
-Clone the SDK repo into a temp dir, and `cat` the README.md
+Clone the SDK repo into a temp dir and if it already exists, `cd` into the folder
+and run `git pull`, then and `cat` the README.md
+
+Example:
 
 ```bash
 mkdir -p /tmp/mcp-reference && cd /tmp/mcp-reference
-git clone https://github.com/modelcontextprotocol/[python|typescript|kotlin]-sdk.git
+([ -d [python|typescript|kotlin]-sdk/.git ] && (cd [python|typescript|kotlin]-sdk && git pull) \
+    || git clone https://github.com/modelcontextprotocol/[python|typescript|kotlin]-sdk.git
 cat /tmp/mcp-reference/[python|typescript|kotlin]-sdk/README.md
 ```
 
@@ -46,7 +50,7 @@ already have one. This includes any necessary build tools or dependencies.
 - Kotlin: Use the following `gradle init` command to initialize:
   ```bash
     gradle init \
-      --type groovy-application \
+      --type kotlin-application \
       --dsl kotlin \
       --test-framework junit-jupiter \
       --package my.project \
@@ -233,6 +237,21 @@ goose session --with-extension "java -jar build/libs/extension.jar"
 ```
 
 Tell users to watch for startup errors. If the session fails to start, they should share the error message with you for debugging.
+
+Note:
+You can run a feedback loop using a headless goose session, however if the process hangs you get into a stuck action.
+Ask the user if they want you to do that, and let them know they will manually need to kill any stuck processes.
+
+```bash
+# Python example
+goose run --with-extension "python server.py" --text "EXAMPLE PROMPT HERE"
+
+# TypeScript example
+goose run --with-extension "node server.js" --text "EXAMPLE PROMPT HERE"
+
+# Kotlin example
+goose run --with-extension "java -jar build/libs/extension.jar" --text "EXAMPLE PROMPT HERE"
+```
 
 ### 2. Testing Tools and Resources
 
