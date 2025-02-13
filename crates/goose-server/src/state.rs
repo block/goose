@@ -1,9 +1,9 @@
 use anyhow::Result;
 use goose::agents::Agent;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Shared application state
 #[allow(dead_code)]

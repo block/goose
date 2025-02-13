@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
-use tracing;
 use utoipa::ToSchema;
 
 use crate::state::AppState;
@@ -190,10 +189,7 @@ pub async fn read_all_config(
     let config = Config::global();
 
     // Load values from config file
-    let values = match config.load_values() {
-        Ok(v) => v,
-        Err(_) => HashMap::new(),
-    };
+    let values = config.load_values().unwrap_or_default();
 
     Ok(Json(ConfigResponse { config: values }))
 }
