@@ -7,6 +7,7 @@ use super::{
     google::GoogleProvider,
     groq::GroqProvider,
     ollama::OllamaProvider,
+    openai_like::OpenAiLikeProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
 };
@@ -23,6 +24,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
+        OpenAiLikeProvider::metadata(),
         OpenRouterProvider::metadata(),
     ]
 }
@@ -30,6 +32,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
 pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send + Sync>> {
     match name {
         "openai" => Ok(Box::new(OpenAiProvider::from_env(model)?)),
+        "openai_like" => Ok(Box::new(OpenAiLikeProvider::from_env(model)?)),
         "anthropic" => Ok(Box::new(AnthropicProvider::from_env(model)?)),
         "azure_openai" => Ok(Box::new(AzureProvider::from_env(model)?)),
         "bedrock" => Ok(Box::new(BedrockProvider::from_env(model)?)),

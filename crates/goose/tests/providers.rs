@@ -3,9 +3,7 @@ use dotenv::dotenv;
 use goose::message::{Message, MessageContent};
 use goose::providers::base::Provider;
 use goose::providers::errors::ProviderError;
-use goose::providers::{
-    anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openrouter,
-};
+use goose::providers::{anthropic, azure, bedrock, databricks, google, groq, ollama, openai, openai_like, openrouter};
 use mcp_core::content::Content;
 use mcp_core::tool::Tool;
 use std::collections::HashMap;
@@ -359,6 +357,17 @@ async fn test_openai_provider() -> Result<()> {
         openai::OpenAiProvider::default,
     )
     .await
+}
+
+#[tokio::test]
+async fn test_openai_like_provider() -> Result<()> {
+    test_provider(
+        "OpenAI-Like",
+        &["OPENAI_API_LIKE_KEY"],
+        None,
+        openai_like::OpenAiLikeProvider::default,
+    )
+        .await
 }
 
 #[tokio::test]

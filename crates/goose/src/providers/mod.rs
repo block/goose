@@ -11,6 +11,7 @@ pub mod groq;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
+pub mod openai_like;
 pub mod openrouter;
 pub mod utils;
 
