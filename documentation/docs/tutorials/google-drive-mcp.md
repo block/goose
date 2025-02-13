@@ -13,9 +13,18 @@ This tutorial covers how to add the [Google Drive MCP Server](https://github.com
 
 :::tip TLDR
 
+**Authentication Command**
+
+In your terminal run the following:
+
+```sh
+GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
+GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
+npx -y @modelcontextprotocol/server-gdrive auth
+```
 **Command**
 ```sh
-npx -y @modelcontextprotocol/server-gdrive auth
+npx -y @modelcontextprotocol/server-gdrive 
 ```
 
 **Environment Variables**
@@ -58,8 +67,19 @@ To obtain your Google Drive server credentials and oauth keys, follow the steps 
             ```sh
             mv ~/Downloads/gcp-oauth.keys.json ~/.config/gcp-oauth.keys.json
             ```
+  4. Connect Google Account
+  
+     To connect your Google account, run the following authentication command in your terminal:
+          ```sh
+          GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
+          GDRIVE_CREDENTIALS_PATH=/Users/<username>/.config/.gdrive-server-credentials.json \ 
+          npx -y @modelcontextprotocol/server-gdrive auth
+          ```
+      A browser window will open for authentication. Follow the prompts to connect your Google account and complete the OAuth process. At this stage, your environment variable `GDRIVE_CREDENTIALS_PATH` will be set with the saved credentials.
 
-When you start your next Goose session and use the Google Drive extension, a browser window will open for authentication. Follow the prompts to connect your Google account and complete the OAuth process. At this stage, your environment variable `GDRIVE_CREDENTIALS_PATH` will be set with the saved credentials.
+:::tip
+You'll need to re-authenticate once a day when using the Google Drive extension. To re-authenticate, simply re-run the authentication command in your terminal.
+:::
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -116,7 +136,7 @@ When you start your next Goose session and use the Google Drive extension, a bro
     │
     // highlight-start
     ◆  What command should be run?
-    │  npx -y @modelcontextprotocol/server-gdrive auth
+    │  npx -y @modelcontextprotocol/server-gdrive 
     // highlight-end
     └ 
   ```  
@@ -136,7 +156,7 @@ When you start your next Goose session and use the Google Drive extension, a bro
     │  google drive
     │
     ◇  What command should be run?
-    │  npx -y @modelcontextprotocol/server-gdrive auth
+    │  npx -y @modelcontextprotocol/server-gdrive 
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
@@ -170,7 +190,7 @@ When you start your next Goose session and use the Google Drive extension, a bro
         * **ID**: `g-drive-mcp` (_set this to whatever you want_)
         * **Name**: `google drive` (_set this to whatever you want_)
         * **Description**: `Google Drive MCP Server` (_set this to whatever you want_)
-        * **Command**: `npx -y @modelcontextprotocol/server-gdrive auth`
+        * **Command**: `npx -y @modelcontextprotocol/server-gdrive`
         * **Environment Variables**
             * **Name**: `GDRIVE_CREDENTIALS_PATH`
             * **Value**: `~/.config/.gdrive-server-credentials.json`
