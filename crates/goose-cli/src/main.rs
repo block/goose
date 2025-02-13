@@ -47,8 +47,8 @@ enum Command {
         #[arg(
             short,
             long,
-            help = "Resume a previous session (last used or specified by --session)",
-            long_help = "Continue from a previous chat session. If --session is provided, resumes that specific session. Otherwise resumes the last used session."
+            help = "Resume a previous session (last used or specified by --name)",
+            long_help = "Continue from a previous chat session. If --name is provided, resumes that specific session. Otherwise resumes the last used session."
         )]
         resume: bool,
 
