@@ -150,12 +150,18 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 "Enable or disable connected extensions",
             )
             .item("remove", "Remove Extension", "Remove an extension")
+            .item(
+                "tool_output",
+                "Adjust Tool Output",
+                "Show more or less tool output",
+            )
             .interact()?;
 
         match action {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
             "remove" => remove_extension_dialog(),
+            "tool_output" => configure_tool_output_dialog(),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -611,6 +617,33 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         ExtensionManager::remove(name)?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
+
+    Ok(())
+}
+
+pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+    let tool_log_level = cliclack::select("Which tool output would you like to show?")
+        .item("high", "High Importance", "")
+        .item("medium", "Medium Importance", "Ex. results of file-writes")
+        .item("all", "All", "Ex. shell command output")
+        .interact()?;
+
+    match tool_log_level {
+        "high" => {
+            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
+            cliclack::outro("Showing tool output of high importance only.")?;
+        }
+        "med" => {
+            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
+            cliclack::outro("Showing tool output of medium importance.")?;
+        }
+        "all" => {
+            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
+            cliclack::outro("Showing all tool output.")?;
+        }
+        _ => unreachable!(),
+    };
 
     Ok(())
 }
