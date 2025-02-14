@@ -73,7 +73,7 @@ With the Memory extension, you’re not just storing static notes, you’re teac
 - **"Goose, learn everything about MCP servers and save it to memory."**   
 - Later, you can ask: **"Goose, utilizing our MCP server knowledge help me build an MCP server."**  
 
-Goose will recall everything you’ve saved, such as your preferences, past attempts, what worked, and what didn’t, as long as you instruct it to remember. This makes it easier to pick up where you left off and build consistently.
+Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
 
 ## Example Usage
 
