@@ -41,7 +41,7 @@ export function ConfigureProvidersGrid() {
   const { activeKeys, setActiveKeys } = useActiveKeys();
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [selectedForSetup, setSelectedForSetup] = useState<string | null>(null);
-  const [modalMode, setModalMode] = useState<'edit' | 'setup'>('setup');
+  const [modalMode, setModalMode] = useState<'edit' | 'setup' | 'battle'>('setup');
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
   const [providerToDelete, setProviderToDelete] = useState(null);
   const { currentModel } = useModel();
@@ -242,11 +242,21 @@ export function ConfigureProvidersGrid() {
                 ? `Edit ${providers.find((p) => p.id === selectedForSetup)?.name} Configuration`
                 : undefined
             }
-            onSubmit={handleModalSubmit}
+            onSubmit={(configValues) => {
+              if (configValues.forceBattle === 'true') {
+                setSelectedForSetup(selectedForSetup);
+                setModalMode('battle');
+                setShowSetupModal(true);
+                return;
+              }
+              handleModalSubmit(configValues);
+            }}
             onCancel={() => {
               setShowSetupModal(false);
               setSelectedForSetup(null);
+              setModalMode('setup');
             }}
+            forceBattle={modalMode === 'battle'}
           />
         </div>
       )}
