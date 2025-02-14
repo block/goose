@@ -8,9 +8,9 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 
-The Memory extension allows Goose to store, organize, and retrieve important information (like commands, code snippets, and configurations) across conversations, with support for both project-specific (local) and universal (global) knowledge management.
+The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it **personalized key information** (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
 
-This tutorial will cover enabling and using the Memory MCP Server, which is a built-in Goose extension. 
+This tutorial covers enabling and using the Memory MCP Server, which is a built-in Goose extension.  
 
 ## Configuration
 
@@ -67,9 +67,19 @@ This tutorial will cover enabling and using the Memory MCP Server, which is a bu
   </TabItem>
 </Tabs>
 
+## Why Use Memory?  
+With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:   
+
+- **"Goose, learn everything about MCP servers and save it to memory."**   
+- Later, you can ask: **"Goose, utilizing our MCP server knowledge help me build an MCP server."**  
+
+Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
+
 ## Example Usage
 
-In this example, I'm going to have Goose create a personal knowledge base for me. Instead of trying to remember everything on your own, Goose can store any form of information for you from commands, local or global project knowledge, preferences, etc.
+In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and retrieve it later to help with your tasks.
+
+This means you no longer have to repeat yourself. Goose will remember your project’s requirements and automatically apply them to new tasks.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -86,110 +96,85 @@ In this example, I'm going to have Goose create a personal knowledge base for me
   </TabItem>
 </Tabs>
 
-### Goose Prompt #1
-```
-can you store these for me:
+### Step 1: Teach Goose Your API Standards
+    #### Goose Prompt #1
+    ```
+    Goose, learn our API development standards:
 
-1. This Docker debugging command:
-    docker logs -f --tail=100 $(docker ps -q --filter name=api)
+    - All endpoints must use TypeScript interfaces
+    - Error responses follow RFC 7807 Problem Details spec
+    - Rate limiting headers are required
+    - Authentication uses JWT in Authorization header
+    - All endpoints need OpenAPI documentation
 
-2. This Python retry pattern:
-    def retry(max_attempts=3, delay=1):
-        def decorator(func):
-            def wrapper(*args, **kwargs):
-                attempts = 0
-                while attempts < max_attempts:
-                    try:
-                        return func(*args, **kwargs)
-                    except Exception as e:
-                        attempts += 1
-                        if attempts == max_attempts:
-                            raise e
-                        time.sleep(delay)
-            return wrapper
-        return decorator
+    Remember this so you can help me follow these practices.
+    ```
 
-3. And save this locally for the current project:
-    API Configuration:
-    PORT=3000
-    NODE_ENV=development
-    DATABASE_URL=postgresql://localhost:5432/myapp
-    REDIS_URL=redis://localhost:6379
+    #### Goose Output
 
-After storing these, show me everything you've saved.
-```
+    ```
+    I've learned your API standards. I'll help enforce these requirements when working on API endpoints.
 
-### Goose Output
+    Storing in:
+        - Category: development_standards
+        - Tags: #api #typescript #security #documentation
+        - Scope: global (these are general standards)
 
-```
-I'll help you store these items. Let me handle them one by one.
+    I can now help with:
+        - API endpoint implementation
+        - Error handling patterns
+        - Authentication flows
+        - Documentation requirements
+    ```
+### Step 2: Use Stored Knowledge to Create a New API Endpoint
+    #### Goose Prompt # 2
 
-[ ... storing and organizing ...]
+    ```
+    Help me create a new endpoint for user preferences
+    ```
+    #### Goose Output
+    ```
+    I see you need a new endpoint. Based on our API development standards that I have stored in memory, I'll ensure it meets all our requirements.
 
-Now, let me show you everything that's been saved. I'll check both global and local memories:
+    [.. Checking stored API standards ...]
 
-1. Storing Docker command in:
-    - Category: commands
-    - Tags: #docker #debugging #logs
-    - Scope: global
+    I've included all our required elements:
+    
+    ✅ TypeScript interfaces
+    ✅ RFC 7807 error response format
+    ✅ Rate limiting
+    ✅ JWT auth header
+    ✅ OpenAPI documentation
 
-2. Storing Python pattern in:
-    - Category: code_snippets
-    - Tags: #python #decorator #error_handling #retry
-    - Scope: global
+    Here's your compliant endpoint:
 
-3. Storing API configuration in:
-    - Category: project_setup
-    - Tags: #config #environment #api
-    - Scope: local
+    interface UserPreferences {
+        userId: string;
+        theme: 'light' | 'dark';
+        notifications: boolean;
+        timezone: string;
+    }
 
-All items have been stored! Here's everything in your knowledge base:
+    interface ErrorResponse { 
+        type: string;
+        title: string;
+        status: number;
+        detail: string;
+        instance: string;
+    }
 
-Commands Category:
-    - docker logs -f --tail=100 $(docker ps -q --filter name=api)
-    Description: Shows last 100 lines and follows logs for container with 'api' in name
+    @Route('/api/users/:userId/preferences')
+    class UserPreferencesController {
+        @Get()
+        @RateLimit(100)  // Adding required rate limiting
+        @OpenAPI({ ... }) // Including mandatory OpenAPI docs
+        async getUserPreferences(
+            @Header('Authorization') token: string,  // JWT auth as per our standard
+            @Param('userId') userId: string
+        ): Promise<UserPreferences | ErrorResponse> {
+            // Implementation following our error handling pattern
+        }
+    }
 
-Code Snippets Category:
-    - Python retry decorator pattern
-    Tags: #python #decorator #error_handling
-    (Use "Show me the retry pattern" to see full code)
-
-Project Setup Category (Local):
-    - API Configuration
-    Tags: #config #environment #api
-    (Use "Show me the API config" to see all variables)
-```
-### Goose Prompt # 2
-
-```
-Show me my saved retry pattern and delete my global docker command
-```
-### Goose Output
-```
-First, let me show you the stored retry pattern:
-
-Found in Code Snippets Category (#python #decorator #error_handling #retry):
-
-def retry(max_attempts=3, delay=1):
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            attempts = 0
-            while attempts < max_attempts:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    attempts += 1
-                    if attempts == max_attempts:
-                        raise e
-                    time.sleep(delay)
-        return wrapper
-    return decorator
-
-Now, removing the Docker command:
-Found and removed from Commands Category:
-- docker logs -f --tail=100 $(docker ps -q --filter name=api)
-
-Command has been deleted successfully. Your knowledge base now contains:
-- Python retry pattern (global)
-- API Configuration (local to current project)
-```
+    Would you like me to implement the full endpoint logic?
+    ```
