@@ -1,3 +1,4 @@
+mod linux;
 mod macos;
 mod windows;
 
@@ -6,6 +7,9 @@ pub use self::windows::WindowsAutomation;
 
 #[cfg(target_os = "macos")]
 pub use self::macos::MacOSAutomation;
+
+#[cfg(target_os = "linux")]
+pub use self::linux::LinuxAutomation;
 
 pub trait SystemAutomation: Send + Sync {
     fn execute_system_script(&self, script: &str) -> std::io::Result<String>;
@@ -22,7 +26,16 @@ pub fn create_system_automation() -> Box<dyn SystemAutomation + Send + Sync> {
     {
         Box::new(MacOSAutomation)
     }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "ios",
+        target_os = "none"
+    )))]
+    {
+        Box::new(LinuxAutomation::new())
+    }
+    #[cfg(any(target_os = "ios", target_os = "none"))]
     {
         unimplemented!("Unsupported operating system")
     }

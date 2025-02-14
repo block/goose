@@ -102,7 +102,7 @@ impl ComputerControllerRouter {
 
                 Can be combined with screenshot tool for visual task assistance.
             "#},
-            _ => indoc! {r#"
+            "macos" => indoc! {r#"
                 Control the computer using AppleScript (macOS only). Automate applications and system features.
 
                 Key capabilities:
@@ -116,6 +116,20 @@ impl ComputerControllerRouter {
                 - File Operations: Organize files/folders
                 - Integration: Calendar, reminders, messages
                 - Data: Interact with spreadsheets and documents
+
+                Can be combined with screenshot tool for visual task assistance.
+            "#},
+            _ => indoc! {r#"
+                Control the computer using Linux system automation.
+
+                Features available:
+                - Shell scripting for system control
+                - X11/Wayland window management
+                - D-Bus for system services
+                - File and system management
+                - Desktop environment control (GNOME, KDE, etc.)
+                - Process management and monitoring
+                - System settings and configurations
 
                 Can be combined with screenshot tool for visual task assistance.
             "#},
@@ -252,7 +266,7 @@ impl ComputerControllerRouter {
               - System automation using PowerShell
               - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
             "#},
-            _ => indoc! {r#"
+            "macos" => indoc! {r#"
             Here are some extra tools:
             automation_script
               - Create and run Shell and Ruby scripts
@@ -274,6 +288,30 @@ impl ComputerControllerRouter {
               - Extract content
               - Handle web-based workflows
             This is often more reliable than web scraping for modern web applications.
+            "#},
+            _ => indoc! {r#"
+            Here are some extra tools:
+            automation_script
+              - Create and run Shell scripts
+              - Shell (bash) is recommended for most tasks
+              - Scripts can save their output to files
+              - Linux-specific features:
+                - System automation through shell scripting
+                - X11/Wayland window management
+                - D-Bus system services integration
+                - Desktop environment control
+              - Use the screenshot tool if needed to help with tasks
+
+            computer_control
+              - System automation using shell commands and system tools
+              - Desktop environment automation (GNOME, KDE, etc.)
+              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+
+            When you need to interact with websites or web applications, consider using tools like xdotool or wmctrl for:
+              - Window management
+              - Simulating keyboard/mouse input
+              - Automating UI interactions
+              - Desktop environment control
             "#},
         };
 
