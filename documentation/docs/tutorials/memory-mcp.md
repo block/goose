@@ -8,9 +8,9 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 
-The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it **personalized key information**—like commands, code snippets, browser preferences and configurations—that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
+The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it **personalized key information** (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
 
-This tutorial will cover enabling and using the Memory MCP Server, which is a built-in Goose extension. 
+This tutorial covers enabling and using the Memory MCP Server, which is a built-in Goose extension.  
 
 ## Configuration
 
@@ -68,18 +68,18 @@ This tutorial will cover enabling and using the Memory MCP Server, which is a bu
 </Tabs>
 
 ## Why Use Memory?  
-With the Memory extension, you’re not just storing static notes—you’re teaching Goose how to assist you better. Imagine telling Goose:  
+With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:   
 
-- **"Goose, learn everything about MCP servers and save it."**  
+- **"Goose, learn everything about MCP servers and save it to memory."**   
 - Later, you can ask: **"Goose, utilizing our MCP server knowledge help me build an MCP server."**  
 
-Goose will recall everything you’ve saved—your preferences, past attempts, what worked, and what didn’t—making it easier to pick up where you left off and build consistently.
+Goose will recall everything you’ve saved, such as your preferences, past attempts, what worked, and what didn’t, as long as you instruct it to remember. This makes it easier to pick up where you left off and build consistently.
 
 ## Example Usage
 
 In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and retrieve it later to help with your tasks.
 
-This means you no longer have to repeat yourself—Goose will remember your project’s requirements and automatically apply them to new tasks.
+This means you no longer have to repeat yourself. Goose will remember your project’s requirements and automatically apply them to new tasks.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
