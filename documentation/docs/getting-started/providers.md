@@ -19,7 +19,9 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 
 | Provider                                      | Description                                         |   Parameters                          |
 |-----------------------------------------------|-----------------------------------------------------|---------------------------------------|
+|[Amazon Bedrock](https://aws.amazon.com/bedrock/)| Offers a variety of foundation models, including Claude, Jurassic-2, and others. **Environment variables must be set in advance, not configured through `goose configure`**  |  `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`|
 | [Anthropic](https://www.anthropic.com/)       | Offers Claude, an advanced AI model for natural language tasks. | `ANTHROPIC_API_KEY`                   |
+|[Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5.| `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME` |
 | [Databricks](https://www.databricks.com/)     | Unified data analytics and AI platform for building and deploying models. | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images).    | `GOOGLE_API_KEY`                      |
 | [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs.    | `GROQ_API_KEY`                        |
