@@ -1,11 +1,11 @@
 use bat::WrappingMode;
 use console::style;
+use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::path::Path;
-use goose::config::Config;
 
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
