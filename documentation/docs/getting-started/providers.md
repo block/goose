@@ -26,7 +26,7 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [Gemini](https://ai.google.dev/gemini-api/docs) | Advanced LLMs by Google with multimodal capabilities (text, images).    | `GOOGLE_API_KEY`                      |
 | [Groq](https://groq.com/)                     | High-performance inference hardware and tools for LLMs.    | `GROQ_API_KEY`                        |
 | [Ollama](https://ollama.com/)                 | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).** | `OLLAMA_HOST`                                 |
-| [OpenAI](https://platform.openai.com/api-keys) | Provides gpt-4o, o1, and other advanced language models. **o1-mini and o1-preview are not supported because Goose uses tool calling.**                                                                                  | `OPENAI_API_KEY`                      |
+| [OpenAI](https://platform.openai.com/api-keys) | Provides gpt-4o, o1, and other advanced language models. **o1-mini and o1-preview are not supported because Goose uses tool calling.**                                                                                  | `OPENAI_API_KEY`, `OPENAI_HOST` (optional, defaults to api.openai.com)                      |
 | [OpenRouter](https://openrouter.ai/)          | API gateway for unified access to various models with features like rate-limiting management.  | `OPENROUTER_API_KEY`                  |
 
 
@@ -105,9 +105,31 @@ To configure your chosen provider or see available options, run `goose configure
   5. Select a Provider from drop down menu
   6. Enter Model name and press `+ Add Model`
 
-  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider’s website. Once you've found the model you want, return to step 6 and paste the model name.
+  You can explore more models by selecting a `provider` name under `Browse by Provider`. A link will appear, directing you to the provider's website. Once you've found the model you want, return to step 6 and paste the model name.
   </TabItem>
 
+</Tabs>
+
+## Using Custom OpenAI Endpoints
+
+If you need to use a custom OpenAI-compatible endpoint (for example, a private server or proxy), you can configure this using the `OPENAI_HOST` environment variable:
+
+<Tabs groupId="interface">
+  <TabItem value="cli" label="Goose CLI" default>
+    1. Run `goose configure`
+    2. Select `Configure Providers`
+    3. Choose `OpenAI` as the provider
+    4. Enter your API key when prompted
+    5. When asked for additional configuration, set `OPENAI_HOST` to your custom endpoint (e.g., `https://your-custom-endpoint.com`)
+  </TabItem>
+  <TabItem value="ui" label="Goose Desktop">
+    1. Click `...` in the upper right corner
+    2. Click `Settings`
+    3. Next to `Models`, click the `browse` link
+    4. Click the `configure` link in the upper right corner
+    5. Press the `+` button next to OpenAI
+    6. Add your API key and custom host URL, then press `submit`
+  </TabItem>
 </Tabs>
 
 ## Using Goose for Free
