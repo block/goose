@@ -109,7 +109,7 @@ public class UserService {
 
 9. The LLM generates a final message that the agent then presents to the user.
 ```
-I've fixed the NullPointerException in UserService.java by initializing the db variable. All tests have passed. Let me know if you need further modifications!
+I’ve fixed the NullPointerException in UserService.java by initializing the db variable. All tests have passed. Let me know if you need further modifications!
 ```
 
 Without tool calling, LLMs would only guess answers based on their training data. But by using tools, agents can directly access the data they need to make accurate decisions and take actions.
@@ -140,8 +140,10 @@ With this, I can prompt my AI agent in natural language and it'll take care of t
 
 > _"Based on the figma design with file ID XYZ, build a web app in WebStorm and commit the code to a new GitHub repo named angiejones/myapp"_
 
+Pretty powerful, right?! 
+
 ## Get Started with AI Agents
-Pretty powerful, right?! Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [Goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
+Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [Goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
 
 
 <head>
