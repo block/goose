@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 
-The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it **personalized key information** (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
+The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it personalized key information (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
 
 This tutorial covers enabling and using the Memory MCP Server, which is a built-in Goose extension.  
 
@@ -68,10 +68,12 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
 </Tabs>
 
 ## Why Use Memory?  
-With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:   
+With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:  
 
-- **"Goose, learn everything about MCP servers and save it to memory."**   
-- Later, you can ask: **"Goose, utilizing our MCP server knowledge help me build an MCP server."**  
+> _learn everything about MCP servers and save it to memory._
+
+Later, you can ask:
+> _utilizing our MCP server knowledge help me build an MCP server._ 
 
 Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
 
