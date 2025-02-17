@@ -185,7 +185,7 @@ mod tests {
     async fn test_truncate_agent_with_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenAi,
-            model: "o3-mini",
+            model: "o3-mini-low",
             context_window: 200_000,
         })
         .await
