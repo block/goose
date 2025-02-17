@@ -140,8 +140,10 @@ With this, I can prompt my AI agent in natural language and it'll take care of t
 
 > _"Based on the figma design with file ID XYZ, build a web app in WebStorm and commit the code to a new GitHub repo named angiejones/myapp"_
 
+Pretty powerful, right?! 
+
 ## Get Started with AI Agents
-Pretty powerful, right?! Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [Goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
+Hopefully this has provided clear insight into what are AI agents, how they work, and what they can enable for you. [Goose](/docs/getting-started/installation) is free and open source and you can add as many [extensions](/docs/getting-started/using-extensions#adding-extensions) as you desire. This is a great way to get started with AI agents and see how they can automate tasks in your workflow to make you more efficient.
 
 
 <head>
@@ -156,4 +158,3 @@ Pretty powerful, right?! Hopefully this has provided clear insight into what are
   <meta name="twitter:description" content="A 101 introduction to AI Agents" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/agentic-ai-with-mcp-1e3050cc8d8ae7a620440e871ad9f0d2.png" />
 </head>
-
