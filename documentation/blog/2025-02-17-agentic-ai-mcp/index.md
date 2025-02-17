@@ -25,7 +25,7 @@ AI Agents greatly simplify this flow by talking with the LLM on my behalf and ta
 
 Because AI agents are connected to systems, they can analyze a situation, determine the next action, and execute it without much, if any, human intervention. This capability turns them from passive chatbots into automation assistants.
 
-By using an AI agent within my IDE, I can simply say "fix the error" and it'll have context about what's wrong and automatically fix the error for me.
+By using an AI agent, I can simply say "fix the error" and it'll have context about what's wrong and automatically fix the error for me.
 
 ## How AI Agents Work with LLMs
 
@@ -109,7 +109,7 @@ public class UserService {
 
 9. The LLM generates a final message that the agent then presents to the user.
 ```
-I’ve fixed the NullPointerException in UserService.java by initializing the db variable. All tests have passed. Let me know if you need further modifications!
+I've fixed the NullPointerException in UserService.java by initializing the db variable. All tests have passed. Let me know if you need further modifications!
 ```
 
 Without tool calling, LLMs would only guess answers based on their training data. But by using tools, agents can directly access the data they need to make accurate decisions and take actions.
@@ -156,4 +156,3 @@ Pretty powerful, right?! Hopefully this has provided clear insight into what are
   <meta name="twitter:description" content="A 101 introduction to AI Agents" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/agentic-ai-with-mcp-1e3050cc8d8ae7a620440e871ad9f0d2.png" />
 </head>
-

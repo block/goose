@@ -3,7 +3,7 @@ sidebar_position: 5
 ---
 # File Management
 
-As an autonomous agent, Goose is designed to carry out tasks following specified instructions. This may sometimes involve working with local files. It's essential to follow best practices for safe file modification to monitor changes and revert any where necessary.
+As an autonomous agent, Goose is designed to carry out tasks following specified instructions. This may sometimes involve working with local files. It's essential to follow best practices for safe file modification to monitor changes and revert anywhere necessary.
 
 Here are a few tips to help you manage file operations effectively while maintaining the integrity and safety of your codebase.
 
