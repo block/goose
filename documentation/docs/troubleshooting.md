@@ -172,9 +172,9 @@ An example is the GitHub extension whose command is `npx -y @modelcontextprotoco
 
 ---
 
-### macOS Permission Issues (M3 Macs)
+### macOS Permission Issues
 
-If you encounter an issue where the Goose desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file.
+If you encounter an issue where the Goose Desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file.
 
 #### How to Check and Fix Permissions:
 
@@ -204,6 +204,15 @@ If you encounter an issue where the Goose desktop app shows no window on launch,
     ```sh
     ls -ld ~/.config
     ```
+
+If you still experience issues after fixing permissions, try launching Goose with superuser (admin) privileges:
+```sh
+sudo /Applications/Goose.app/Contents/MacOS/Goose
+```
+
+:::note
+Running Goose with sudo may create files owned by root, which could lead to further permission issues. Use this as a troubleshooting step rather than a permanent fix.
+:::
 ---
 
 ### Connection Error with Ollama Provider on WSL
