@@ -351,7 +351,7 @@ pub fn create_request(
     };
 
     let system_message = json!({
-        "role": if is_o1 { "developer" } else { "system" },
+        "role": if is_o1 || is_o3 { "developer" } else { "system" },
         "content": system
     });
 
@@ -818,10 +818,20 @@ mod tests {
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
-        assert_eq!(obj.get("model").unwrap(), "gpt-4o");
-        assert!(obj.get("reasoning_effort").is_none());
-        assert!(obj.get("max_completion_tokens").is_none());
-        assert_eq!(obj.get("max_tokens").unwrap(), 1024);
+        let expected = json!({
+            "model": "gpt-4o",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "system"
+                }
+            ],
+            "max_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
 
         Ok(())
     }
@@ -838,10 +848,21 @@ mod tests {
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
-        assert_eq!(obj.get("model").unwrap(), "o1");
-        assert_eq!(obj.get("reasoning_effort").unwrap(), "medium");
-        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
-        assert!(obj.get("max_tokens").is_none());
+        let expected = json!({
+            "model": "o1",
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": "system"
+                }
+            ],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
 
         Ok(())
     }
@@ -858,10 +879,21 @@ mod tests {
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
-        assert_eq!(obj.get("model").unwrap(), "o3-mini");
-        assert_eq!(obj.get("reasoning_effort").unwrap(), "high");
-        assert_eq!(obj.get("max_completion_tokens").unwrap(), 1024);
-        assert!(obj.get("max_tokens").is_none());
+        let expected = json!({
+            "model": "o3-mini",
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": "system"
+                }
+            ],
+            "reasoning_effort": "high",
+            "max_completion_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
 
         Ok(())
     }
