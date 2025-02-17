@@ -14,8 +14,16 @@ Since Goose is working very quickly to implement your tasks, you may need to man
 
 :::tip
 To find a log of your token usage with Goose, you can run the following command:
+
 ```sh
+# macOS
 open ~/.config/goose/logs/goose.log
+
+# Linux
+xdg-open ~/.config/goose/logs/goose.log
+
+# Windows (PowerShell)
+Start-Process "$env:USERPROFILE\.config\goose\logs\goose.log"
 ```
 :::
 
