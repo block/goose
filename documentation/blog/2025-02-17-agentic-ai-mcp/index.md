@@ -25,7 +25,7 @@ AI Agents greatly simplify this flow by talking with the LLM on my behalf and ta
 
 Because AI agents are connected to systems, they can analyze a situation, determine the next action, and execute it without much, if any, human intervention. This capability turns them from passive chatbots into automation assistants.
 
-By using an AI agent within my IDE, I can simply say "fix the error" and it'll have context about what's wrong and automatically fix the error for me.
+By using an AI agent, I can simply say "fix the error" and it'll have context about what's wrong and automatically fix the error for me.
 
 ## How AI Agents Work with LLMs
 
