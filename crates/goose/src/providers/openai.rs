@@ -29,6 +29,8 @@ pub struct OpenAiProvider {
     client: Client,
     host: String,
     api_key: String,
+    organization: Option<String>,
+    project: Option<String>,
     model: ModelConfig,
 }
 
@@ -46,6 +48,8 @@ impl OpenAiProvider {
         let host: String = config
             .get("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+        let organization: Option<String> = config.get("OPENAI_ORGANIZATION").ok();
+        let project: Option<String> = config.get("OPENAI_PROJECT").ok();
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -54,6 +58,8 @@ impl OpenAiProvider {
             client,
             host,
             api_key,
+            organization,
+            project,
             model,
         })
     }
@@ -65,13 +71,22 @@ impl OpenAiProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let response = self
+        let mut request = self
             .client
             .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&payload)
-            .send()
-            .await?;
+            .header("Authorization", format!("Bearer {}", self.api_key));
+
+        // Add organization header if present
+        if let Some(org) = &self.organization {
+            request = request.header("OpenAI-Organization", org);
+        }
+
+        // Add project header if present
+        if let Some(project) = &self.project {
+            request = request.header("OpenAI-Project", project);
+        }
+
+        let response = request.json(&payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -93,6 +108,8 @@ impl Provider for OpenAiProvider {
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("OPENAI_HOST", false, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
+                ConfigKey::new("OPENAI_PROJECT", false, false, None),
             ],
         )
     }
