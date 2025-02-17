@@ -86,10 +86,7 @@ impl OpenAiProvider {
             request = request.header("OpenAI-Project", project);
         }
 
-        let response = request
-            .json(&payload)
-            .send()
-            .await?;
+        let response = request.json(&payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
