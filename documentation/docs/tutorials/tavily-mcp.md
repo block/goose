@@ -1,5 +1,5 @@
 ---
-title: Tavily Extension
+title: Tavily Web Search Extension
 description: Add Tavily MCP Server as a Goose Extension
 ---
 
