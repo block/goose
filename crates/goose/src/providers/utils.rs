@@ -1,4 +1,5 @@
 use super::base::Usage;
+use super::errors::GoogleErrorCode;
 use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
@@ -115,19 +116,13 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
         if let Some(payload) = payload {
             if let Some(error) = payload.get("error") {
                 if let Some(code) = error.get("code").and_then(|c| c.as_u64()) {
-                    return match code {
-                        400 => StatusCode::BAD_REQUEST,
-                        401 => StatusCode::UNAUTHORIZED,
-                        403 => StatusCode::FORBIDDEN,
-                        404 => StatusCode::NOT_FOUND,
-                        429 => StatusCode::TOO_MANY_REQUESTS,
-                        500 => StatusCode::INTERNAL_SERVER_ERROR,
-                        503 => StatusCode::SERVICE_UNAVAILABLE,
-                        _ => StatusCode::INTERNAL_SERVER_ERROR, // Default for unknown error codes
-                    };
+                    if let Some(google_error) = GoogleErrorCode::from_code(code) {
+                        return google_error.to_status_code();
+                    }
                 }
             }
         }
+        // Return the original status if no error is found
         status
     } else {
         // Return the original status if it's not a success
@@ -152,13 +147,13 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
 pub async fn handle_response_google_compat(response: Response) -> Result<Value, ProviderError> {
     let status = response.status();
     let payload: Option<Value> = response.json().await.ok();
-    let status = get_google_final_status(status, payload.as_ref());
+    let final_status = get_google_final_status(status, payload.as_ref());
 
-    match status {
+    match final_status {
         StatusCode::OK =>  payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
-                Status: {}. Response: {:?}", status, payload )))
+                Status: {}. Response: {:?}", final_status, payload )))
         }
         StatusCode::BAD_REQUEST => {
             let mut error_msg = "Unknown error".to_string();
@@ -172,9 +167,9 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                 }
             }
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, error_msg)))
+            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -184,9 +179,9 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
         }
         _ => {
             tracing::debug!(
-                "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
+                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", final_status)))
         }
     }
 }
