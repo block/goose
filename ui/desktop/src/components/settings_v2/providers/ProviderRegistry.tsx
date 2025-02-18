@@ -95,6 +95,25 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
     },
   },
   {
+    name: 'AWS Bedrock',
+    details: {
+      id: 'aws_bedrock',
+      name: 'AWS Bedrock',
+      description: 'Access a wide variety of models through AWS Bedrock',
+      parameters: [
+        {
+          name: 'AWS_PROFILE',
+          is_secret: false,
+        },
+        {
+          name: 'AWS_REGION',
+          is_secret: false,
+          default: 'us-west-2',
+        },
+      ],
+    },
+  },
+  {
     name: 'Google',
     details: {
       id: 'google',
