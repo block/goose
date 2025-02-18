@@ -19,6 +19,7 @@ export const goose_models: Model[] = [
   { id: 17, name: 'qwen2.5', provider: 'Ollama' },
   { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 20, name: 'anthropic.claude-3-5-sonnet-20240620-v1:0', provider: 'AWS Bedrock' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -56,6 +57,7 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
+  aws_bedrock: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -73,6 +75,7 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
+  'AWS Bedrock': ['AWS_PROFILE', 'AWS_REGION'],
 };
 
 export const supported_providers = [
@@ -84,6 +87,7 @@ export const supported_providers = [
   'Ollama',
   'OpenRouter',
   'Azure OpenAI',
+  'AWS Bedrock',
 ];
 
 export const model_docs_link = [
@@ -97,6 +101,8 @@ export const model_docs_link = [
   },
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
+  { name: 'Azure OpenAI', href: 'https://docs.microsoft.com/en-us/azure/openai/' },
+  { name: 'AWS Bedrock', href: 'https://console.aws.amazon.com/bedrock/home#/model-catalog' },
 ];
 
 export const provider_aliases = [
@@ -108,4 +114,5 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
+  { provider: 'AWS Bedrock', alias: 'aws_bedrock' },
 ];
