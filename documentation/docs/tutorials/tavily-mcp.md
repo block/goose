@@ -105,7 +105,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │  tavily
     │
     ◇  What command should be run?
-    │  npx @ramxx/mcp-tavily
+    │  uvx mcp-tavily
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
@@ -192,5 +192,5 @@ Would you like me to search for more specific information about any of these dev
 ```
 
 :::tip
-You can adjust the search parameters for different types of queries and depths of information. The extension supports both quick searches and comprehensive research.
+You can adjust the [search parameters](https://github.com/RamXX/mcp-tavily?tab=readme-ov-file#prompts) for different types of queries and depths of information. The extension supports both quick searches and comprehensive research.
 :::
