@@ -106,6 +106,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │
     ◇  What command should be run?
     │  uvx mcp-tavily
+    │
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
