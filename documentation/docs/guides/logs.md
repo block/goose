@@ -5,10 +5,13 @@ sidebar_position: 5
 
 # Goose Logging System
 
-Goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in:
+Goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in the following locations:
 
-  * `~/.local/share/goose/sessions/` - Session records
-  * `~/.local/state/goose/logs/` - System logs (CLI, server, extensions)
+| **Type**            | **Unix-like (macOS, Linux)**              | **Windows**                                  |
+|---------------------|----------------------------------------|---------------------------------------------|
+| **Session Records** | `~/.local/share/goose/sessions/`      | `%APPDATA%\Block\goose\data\sessions\`     |
+| **System Logs**     | `~/.local/state/goose/logs/`          | `%APPDATA%\Block\goose\data\logs\`         |
+
 
 :::info Privacy
 Goose is a local application and all log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all data remains private and under your control.
@@ -48,8 +51,11 @@ Each line in a session file is a JSON object with the following key fields:
 
 ### Main System Log
 
-The main system log is located at `~/.local/state/goose/logs/goose.log`. This log contains general application-level logging including:
+The main system log locations:
+* Unix-like: `~/.local/state/goose/logs/goose.log`
+* Windows: `%APPDATA%\Block\goose\data\logs\goose.log`
 
+This log contains general application-level logging including:
 * Session file locations
 * Token usage statistics as well as token counts (input, output, total)
 * LLM information (model names, versions)
@@ -57,13 +63,17 @@ The main system log is located at `~/.local/state/goose/logs/goose.log`. This lo
 
 ### Desktop Application Log
 
-The log file for the Goose Desktop application is `~/Library/Application Support/Goose/logs/main.log` and focuses on the desktop application's operation rather than conversation content or tool usage.
+The desktop application maintains its own logs:
+* macOS: `~/Library/Application Support/Goose/logs/main.log`
+* Windows: `%APPDATA%\Block\goose\logs\main.log`
 
-The Desktop application follows macOS conventions for its own operational logs and state data, but uses the standard Goose session records for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with Goose.
+The Desktop application follows platform conventions for its own operational logs and state data, but uses the standard Goose [session records](#session-records) for actual conversations and interactions. This means your conversation history is consistent regardless of which interface you use to interact with Goose.
 
 ### CLI Logs 
 
-The CLI logs are located under `~/.local/state/goose/logs/cli` and contain information about CLI sessions and MCP extensions used within CLI sessions. 
+CLI logs are stored in:
+* Unix-like: `~/.local/state/goose/logs/cli/`
+* Windows: `%APPDATA%\Block\goose\data\logs\cli\`
 
 CLI session logs contain:
 * Tool invocations and responses
@@ -82,7 +92,11 @@ Extension logs contain:
 
 ### Server Logs
 
-The Server logs are located under `~/.local/state/goose/logs/server` and contain information about the Goose daemon (`goosed`), which is a local server process that runs on your computer. This server component manages communication between the CLI, extensions, and LLMs. 
+Server logs are stored in:
+* Unix-like: `~/.local/state/goose/logs/server/`
+* Windows: `%APPDATA%\Block\goose\data\logs\server\`
+
+The Server logs contain information about the Goose daemon (`goosed`), which is a local server process that runs on your computer. This server component manages communication between the CLI, extensions, and LLMs. 
 
 Server logs include:
 * Server initialization details
