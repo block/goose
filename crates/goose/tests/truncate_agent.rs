@@ -37,7 +37,7 @@ impl ProviderType {
             ],
             ProviderType::OpenAi => &["OPENAI_API_KEY"],
             ProviderType::Anthropic => &["ANTHROPIC_API_KEY"],
-            ProviderType::Bedrock => &["AWS_PROFILE", "AWS_REGION"],
+            ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
             ProviderType::Groq => &["GROQ_API_KEY"],
