@@ -253,8 +253,8 @@ pub fn emit_debug_trace<T: serde::Serialize>(
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
+    
+    
 
     #[test]
     fn test_detect_image_path() {
@@ -266,7 +266,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data).unwrap();
+        std::fs::write(&png_path, png_data).unwrap();
         let png_path_str = png_path.to_str().unwrap();
 
         // Create a fake PNG (wrong magic numbers)
@@ -304,7 +304,7 @@ mod tests {
             0x0D, 0x0A, 0x1A, 0x0A, // PNG header
             0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
         ];
-        std::fs::write(&png_path, &png_data).unwrap();
+        std::fs::write(&png_path, png_data).unwrap();
         let png_path_str = png_path.to_str().unwrap();
 
         // Create a fake PNG (wrong magic numbers)
