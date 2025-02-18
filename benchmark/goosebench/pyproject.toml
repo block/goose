@@ -1,7 +1,28 @@
 [project]
-name = "goosebench"
+name = "goose-monitoring-job"
 version = "0.1.0"
-description = "Add your description here"
+description = ""
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
+authors = [
+    { name = "Your Name", email = "you@example.com" }
+]
+
+[[tool.poetry.source]]
+name = "artifactory"
+priority = "primary"
+url = "https://artifactory.global.square/artifactory/api/pypi/block-pypi/simple"
+
+
+[tool.poetry.dependencies]
+python = ">=3.11"
+pexpect = "^4.9.0"
+typer = "^0.15.1"
+rich = "^13.9.4"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
