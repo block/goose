@@ -18,8 +18,6 @@ OpenRouter provides a unified interface for LLMs that allows you to select and s
 
 1. Go to [openrouter.ai](https://openrouter.ai) and create an account. 
 2. Once verified, create your [API key](https://openrouter.ai/settings/keys).
-<!-- 3. Add your API key and OpenRouter configuration to your environment variables: -->
-
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
