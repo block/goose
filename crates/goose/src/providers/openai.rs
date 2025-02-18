@@ -98,7 +98,7 @@ impl Provider for OpenAiProvider {
         ProviderMetadata::new(
             "openai",
             "OpenAI",
-            "GPT-4 and other OpenAI models",
+            "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             OPEN_AI_KNOWN_MODELS
                 .iter()
@@ -107,7 +107,7 @@ impl Provider for OpenAiProvider {
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),
-                ConfigKey::new("OPENAI_HOST", false, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
             ],
