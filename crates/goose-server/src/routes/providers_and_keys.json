@@ -3,7 +3,7 @@
         "name": "OpenAI",
         "description": "Use GPT-4 and other OpenAI models",
         "models": ["gpt-4o", "gpt-4-turbo","o1"],
-        "required_keys": ["OPENAI_API_KEY"]
+        "required_keys": ["OPENAI_API_KEY", "OPENAI_HOST"]
     },
     "anthropic": {
         "name": "Anthropic",

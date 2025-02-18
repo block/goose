@@ -65,7 +65,7 @@ export function getDefaultModel(key: string): string | undefined {
 export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];
 
 export const required_keys = {
-  OpenAI: ['OPENAI_API_KEY'],
+  OpenAI: ['OPENAI_API_KEY', 'OPENAI_HOST'],
   Anthropic: ['ANTHROPIC_API_KEY'],
   Databricks: ['DATABRICKS_HOST'],
   Groq: ['GROQ_API_KEY'],
