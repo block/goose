@@ -83,10 +83,10 @@ export function ConfigureBuiltInExtensionModal({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0">
-        <div className="px-8 pb-0 space-y-8">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden pt-[24px]">
+        <div className="pb-0 space-y-8">
           {/* Header */}
-          <div className="flex">
+          <div className="flex px-8">
             <h2 className="text-2xl font-regular dark:text-white text-gray-900">
               Configure {extension.name}
             </h2>
@@ -94,7 +94,7 @@ export function ConfigureBuiltInExtensionModal({
 
           {/* Form */}
           <form onSubmit={handleExtensionConfigSubmit}>
-            <div className="mt-[24px]">
+            <div className="mt-[24px] px-8">
               {extension.env_keys?.length > 0 ? (
                 <>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
