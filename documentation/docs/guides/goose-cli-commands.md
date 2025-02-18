@@ -56,7 +56,7 @@ Name for the new chat session (e.g. `'project-x'`)
 goose session --name <name>
 ```
 
-- **`-r, --resume`** 
+- **`-r, --resume`**
 
 Resume the previous session
 
@@ -64,7 +64,7 @@ Resume the previous session
 goose session --resume --name <name>
 ```
 
-- **`--with-extension <COMMAND>`** 
+- **`--with-extension <COMMAND>`**
 
 Starts the session with the specified extension. Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`).
 
@@ -72,7 +72,7 @@ Starts the session with the specified extension. Can also include environment va
 goose session --name <name> --with-extension <command>
 ```
 
-- **`--with-builtin <NAME>`** 
+- **`--with-builtin <NAME>`**
 
 Starts the session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled. (e.g. 'developer')
 
@@ -84,10 +84,10 @@ goose session --with-builtin <id>
 
 Execute commands from an instruction file or stdin
 
-- **`-i, --instructions <FILE>`**: Path to instruction file containing commands  
-- **`-t, --text <TEXT>`**: Input text to provide to Goose directly  
-- **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')  
-- **`-r, --resume`**: Resume from a previous run  
+- **`-i, --instructions <FILE>`**: Path to instruction file containing commands
+- **`-t, --text <TEXT>`**: Input text to provide to Goose directly
+- **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')
+- **`-r, --resume`**: Resume from a previous run
 
 **Usage:**
 ```bash
@@ -98,9 +98,17 @@ goose run --instructions plan.md
 
 Configure Goose settings - providers, extensions, etc.
 
+**Usage:**
+```bash
+goose configure
+```
 
+### info [options]
+Shows Goose information, where goose will load `config.yaml`, store data and logs.
+
+- **`-v, --verbose`**: Show verbose information including config.yaml
 
 **Usage:**
 ```bash
-goose configure'
+goose info
 ```

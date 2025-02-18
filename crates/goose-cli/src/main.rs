@@ -5,6 +5,7 @@ use console::style;
 use goose::config::Config;
 use goose_cli::commands::agent_version::AgentCommand;
 use goose_cli::commands::configure::handle_configure;
+use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
@@ -22,6 +23,14 @@ enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
     Configure {},
+
+    /// Display Goose configuration information
+    #[command(about = "Display Goose information")]
+    Info {
+        /// Show verbose information including current configuration
+        #[arg(short, long, help = "Show verbose information including config.yaml")]
+        verbose: bool,
+    },
 
     /// Manage system prompts and behaviors
     #[command(about = "Run one of the mcp servers bundled with goose")]
@@ -156,6 +165,10 @@ async fn main() -> Result<()> {
     match cli.command {
         Some(Command::Configure {}) => {
             let _ = handle_configure().await;
+            return Ok(());
+        }
+        Some(Command::Info { verbose }) => {
+            handle_info(verbose)?;
             return Ok(());
         }
         Some(Command::Mcp { name }) => {
