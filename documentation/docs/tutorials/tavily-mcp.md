@@ -131,7 +131,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
         * **Type**: `Standard IO`
         * **ID**: `tavily-mcp` (_set this to whatever you want_)
         * **Name**: `Tavily` (_set this to whatever you want_)
-        * **Description**: `Tavily MCP Server` (_set this to whatever you want_)
+        * **Description**: `Tavily Web Search` (_set this to whatever you want_)
         * **Command**: `uvx mcp-tavily`
         * **Environment Variables**
             * **Name**: `TAVILY_API_KEY`
