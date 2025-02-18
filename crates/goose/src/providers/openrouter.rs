@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, handle_response_google_compat, is_google_model};
+use super::utils::{
+    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
+    is_google_model,
+};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -79,7 +82,6 @@ impl OpenRouterProvider {
         } else {
             handle_response_openai_compat(response).await
         }
-        
     }
 }
 

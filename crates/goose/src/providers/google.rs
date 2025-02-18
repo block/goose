@@ -3,7 +3,9 @@ use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{create_request, get_usage, response_to_message};
-use crate::providers::utils::{emit_debug_trace, unescape_json_values, handle_response_google_compat};
+use crate::providers::utils::{
+    emit_debug_trace, handle_response_google_compat, unescape_json_values,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::tool::Tool;

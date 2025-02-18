@@ -135,7 +135,6 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
     }
 }
 
-
 /// Handle response from Google Gemini API-compatible endpoints.
 ///
 /// Processes HTTP responses, handling specific statuses and parsing the payload
@@ -528,7 +527,7 @@ mod tests {
         let status = StatusCode::OK;
         let payload = json!({});
         let result = get_google_final_status(status, Some(&payload));
-        assert_eq!(result, StatusCode::OK); 
+        assert_eq!(result, StatusCode::OK);
     }
 
     #[test]
@@ -537,16 +536,20 @@ mod tests {
         let test_cases = vec![
             // (error code, status, expected status code)
             (200, None, StatusCode::OK),
-            (429, Some(StatusCode::OK), StatusCode::TOO_MANY_REQUESTS), 
+            (429, Some(StatusCode::OK), StatusCode::TOO_MANY_REQUESTS),
             (400, Some(StatusCode::OK), StatusCode::BAD_REQUEST),
             (401, Some(StatusCode::OK), StatusCode::UNAUTHORIZED),
-            (403, Some(StatusCode::OK), StatusCode::FORBIDDEN), 
+            (403, Some(StatusCode::OK), StatusCode::FORBIDDEN),
             (404, Some(StatusCode::OK), StatusCode::NOT_FOUND),
-            (500, Some(StatusCode::OK), StatusCode::INTERNAL_SERVER_ERROR), 
+            (500, Some(StatusCode::OK), StatusCode::INTERNAL_SERVER_ERROR),
             (503, Some(StatusCode::OK), StatusCode::SERVICE_UNAVAILABLE),
             (999, Some(StatusCode::OK), StatusCode::INTERNAL_SERVER_ERROR),
             (500, Some(StatusCode::BAD_REQUEST), StatusCode::BAD_REQUEST),
-            (404, Some(StatusCode::INTERNAL_SERVER_ERROR), StatusCode::INTERNAL_SERVER_ERROR), 
+            (
+                404,
+                Some(StatusCode::INTERNAL_SERVER_ERROR),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
         ];
 
         for (error_code, status, expected_status) in test_cases {
