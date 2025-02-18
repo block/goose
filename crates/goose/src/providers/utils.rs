@@ -122,12 +122,8 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
                 }
             }
         }
-        // Return the original status if no error is found
-        status
-    } else {
-        // Return the original status if it's not a success
-        status
     }
+    status
 }
 
 /// Handle response from Google Gemini API-compatible endpoints.
