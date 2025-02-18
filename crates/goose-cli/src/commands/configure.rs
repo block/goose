@@ -634,7 +634,7 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
             config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
-        "med" => {
+        "medium" => {
             config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
