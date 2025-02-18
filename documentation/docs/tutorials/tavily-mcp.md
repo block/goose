@@ -89,7 +89,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
   5. Obtain a [Tavily API Key](https://tavily.com/) and paste it in.
   :::info
-  You can get your API key by signing up at [tavily.com](https://tavily.com/) and navigating to your account settings.
+  You can get your API key by signing up at [tavily.com](https://app.tavily.com/) and navigating to your account settings.
   :::
 
    ```sh
