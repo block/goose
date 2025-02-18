@@ -4,7 +4,7 @@ use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use mcp_core::Tool;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -33,6 +33,12 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
+        let config = crate::config::Config::global();
+        for (key, value) in config.load_secrets()?.iter() {
+            if key.starts_with("AWS_") && value.is_string() {
+                std::env::set_var(key, value.as_str().unwrap());
+            }
+        }
         let sdk_config = futures::executor::block_on(aws_config::load_from_env());
         let client = Client::new(&sdk_config);
 
@@ -51,13 +57,13 @@ impl Default for BedrockProvider {
 impl Provider for BedrockProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "bedrock",
+            "aws_bedrock",
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock. You may have to set AWS_ACCESS_KEY_ID, AWS_ACCESS_KEY, and AWS_REGION as env vars before configuring.",
+            "Run models through Amazon Bedrock. You may have to set 'AWS_' environment variables to configure authentication.",
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
             BEDROCK_DOC_LINK,
-            vec![],
+            vec![ConfigKey::new("AWS_PROFILE", true, false, Some("us-west-2"))],
         )
     }
 
