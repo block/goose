@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
-cd ui/desktop && npx lint-staged
+# Only auto-format desktop TS code if relevant files are modified
+if git diff --cached --name-only | grep -q "^ui/desktop/"; then
+  . "$(dirname -- "$0")/_/husky.sh"
+  cd ui/desktop && npx lint-staged
+fi
