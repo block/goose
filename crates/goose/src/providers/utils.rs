@@ -140,14 +140,6 @@ fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> Statu
 /// Processes HTTP responses, handling specific statuses and parsing the payload
 /// for error messages. Logs the response payload for debugging purposes.
 ///
-/// ### Key Behaviors
-/// - **200 OK:** Parses the JSON response. Returns an error if parsing fails.
-/// - **400 Bad Request:** Extracts error details, including context length issues.
-/// - **401/403 Unauthorized/Forbidden:** Returns an authentication error.
-/// - **429 Too Many Requests:** Indicates rate limit exceeded.
-/// - **500/503 Server Errors:** Returns a server error.
-/// - **Other Status Codes:** Returns a generic error.
-///
 /// ### References
 /// - Error Codes: https://ai.google.dev/gemini-api/docs/troubleshooting?lang=python
 ///
