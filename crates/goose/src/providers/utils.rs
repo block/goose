@@ -92,10 +92,10 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
 
 /// Check if the model is a Google model based on the "model" field in the payload.
 ///
-/// # Arguments
+/// ### Arguments
 /// - `payload`: The JSON payload as a `serde_json::Value`.
 ///
-/// # Returns
+/// ### Returns
 /// - `bool`: Returns `true` if the model is a Google model, otherwise `false`.
 pub fn is_google_model(payload: &Value) -> bool {
     if let Some(model) = payload.get("model").and_then(|m| m.as_str()) {
