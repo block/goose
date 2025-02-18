@@ -38,7 +38,7 @@ function getArticle(word: string): string {
 
 export function getProviderDescription(provider) {
   const descriptions = {
-    OpenAI: 'Access GPT-4, GPT-3.5 Turbo, and other OpenAI models',
+    OpenAI: 'Access GPT-4 and other OpenAI models, including OpenAI compatible ones',
     Anthropic: 'Access Claude and other Anthropic models',
     Google: 'Access Gemini and other Google AI models',
     Groq: 'Access Mixtral and other Groq-hosted models',
