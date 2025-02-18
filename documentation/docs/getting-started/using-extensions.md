@@ -230,7 +230,28 @@ You can remove installed extensions.
 
 <Tabs groupId="interface">
 <TabItem value="cli" label="Config file" default>
-    To remove extensions, open `~/.config/goose/config.yaml` and delete the extensions.
+  :::info
+  To remove an extension, you must [disable](#enablingdisabling-extensions) it first.
+  :::
+
+    1. Run the following command to open up Goose's configurations:
+    ```sh
+    goose configure
+    ```
+    2. Select `Remove` from the menu. Disabled extensions will be listed.
+    3. Arrow down to the extension you want to remove.
+    4. Press the `space bar` to select the extension. Solid means selected. 
+    ```
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Remove Extension 
+    │
+    ◆  Select extensions to remove (note: you can only remove disabled extensions - use "space" to toggle and "enter" to submit)
+    │  ◼ fetch 
+    └  
+    ```
+    5. Press Enter to save
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
 
