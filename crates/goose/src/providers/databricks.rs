@@ -181,7 +181,16 @@ impl DatabricksProvider {
 
                 let mut error_msg = "Unknown error".to_string();
                 if let Some(payload) = &payload {
-                    error_msg = payload.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                    // try to convert message to string, if that fails use external_model_message
+                    error_msg = payload
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .or_else(|| {
+                            payload.get("external_model_message")
+                                .and_then(|ext| ext.get("message"))
+                                .and_then(|m| m.as_str())
+                        })
+                        .unwrap_or("Unknown error").to_string();
                 }
 
                 tracing::debug!(
