@@ -86,7 +86,7 @@ mod tests {
                 eprintln!("Failed to create log directory: {}", e);
                 return;
             }
-            let log_file = log_dir.join(format!("goose-{}.log", uuid::Uuid::new_v4()));
+            let log_file = log_dir.join(format!("goose-{}.log", Uuid::new_v4()));
 
             log_usage(
                 "path.txt".to_string(),
