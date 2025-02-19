@@ -95,6 +95,7 @@ mod tests {
                 std::thread::sleep(std::time::Duration::from_millis(100)); // Wait for 100ms
                 retries += 1;
             }
+            assert!(log_file.exists(), "Log file should exist");
 
             let log_content = std::fs::read_to_string(&log_file).unwrap();
             let log: SessionLog = serde_json::from_str(&log_content).unwrap();
