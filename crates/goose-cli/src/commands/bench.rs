@@ -3,13 +3,6 @@ use crate::Session;
 use async_trait::async_trait;
 use goose::message::Message;
 use goose_bench::eval_suites::{BenchAgent, EvaluationReport, EvaluationSuiteFactory};
-// use std::error::Error;
-
-// cli flag for suite_name [done]
-// default suite_name called core [done]
-// pass session messages in to run [done]
-// eval suite = suite_name / eval_name / test_file_name [done]
-// use session config expecting external proc to manage swapping out config
 
 #[async_trait]
 impl BenchAgent for Session {
