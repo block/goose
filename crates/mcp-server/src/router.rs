@@ -305,18 +305,21 @@ pub trait Router: Send + Sync + 'static {
             };
 
             // Validate required arguments
-            for arg in &prompt.arguments {
-                if arg.required
-                    && (!arguments.contains_key(&arg.name)
-                        || arguments
-                            .get(&arg.name)
-                            .and_then(Value::as_str)
-                            .is_none_or(str::is_empty))
-                {
-                    return Err(RouterError::InvalidParams(format!(
-                        "Missing required argument: '{}'",
-                        arg.name
-                    )));
+            if let Some(args) = &prompt.arguments {
+                for arg in args {
+                    if arg.required.is_some()
+                        && arg.required.unwrap()
+                        && (!arguments.contains_key(&arg.name)
+                            || arguments
+                                .get(&arg.name)
+                                .and_then(Value::as_str)
+                                .is_none_or(str::is_empty))
+                    {
+                        return Err(RouterError::InvalidParams(format!(
+                            "Missing required argument: '{}'",
+                            arg.name
+                        )));
+                    }
                 }
             }
 

@@ -10,22 +10,28 @@ use serde::{Deserialize, Serialize};
 pub struct Prompt {
     /// The name of the prompt
     pub name: String,
-    /// A description of what the prompt does
-    pub description: String,
-    /// The arguments that can be passed to customize the prompt
-    pub arguments: Vec<PromptArgument>,
+    /// Optional description of what the prompt does
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Optional arguments that can be passed to customize the prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<Vec<PromptArgument>>,
 }
 
 impl Prompt {
     /// Create a new prompt with the given name, description and arguments
-    pub fn new<N, D>(name: N, description: D, arguments: Vec<PromptArgument>) -> Self
+    pub fn new<N, D>(
+        name: N,
+        description: Option<D>,
+        arguments: Option<Vec<PromptArgument>>,
+    ) -> Self
     where
         N: Into<String>,
         D: Into<String>,
     {
         Prompt {
             name: name.into(),
-            description: description.into(),
+            description: description.map(Into::into),
             arguments,
         }
     }
@@ -37,9 +43,11 @@ pub struct PromptArgument {
     /// The name of the argument
     pub name: String,
     /// A description of what the argument is used for
-    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Whether this argument is required
-    pub required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<bool>,
 }
 
 /// Represents the role of a message sender in a prompt conversation
@@ -151,6 +159,6 @@ pub struct PromptTemplate {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PromptArgumentTemplate {
     pub name: String,
-    pub description: String,
-    pub required: bool,
+    pub description: Option<String>,
+    pub required: Option<bool>,
 }

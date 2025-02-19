@@ -70,9 +70,9 @@ pub fn load_prompt_files() -> HashMap<String, Prompt> {
                 description: arg.description,
                 required: arg.required,
             })
-            .collect();
+            .collect::<Vec<PromptArgument>>();
 
-        let prompt = Prompt::new(&template.id, &template.template, arguments);
+        let prompt = Prompt::new(&template.id, Some(&template.template), Some(arguments));
 
         if prompts.contains_key(&prompt.name) {
             eprintln!("Duplicate prompt name '{}' found. Skipping.", prompt.name);
@@ -854,15 +854,7 @@ impl Router for DeveloperRouter {
 
         Some(Box::pin(async move {
             match prompts.get(&prompt_name) {
-                Some(prompt) => {
-                    if prompt.description.trim().is_empty() {
-                        Err(PromptError::InternalError(format!(
-                            "Prompt '{prompt_name}' has an empty description"
-                        )))
-                    } else {
-                        Ok(prompt.description.clone())
-                    }
-                }
+                Some(prompt) => Ok(prompt.description.clone().unwrap_or_default()),
                 None => Err(PromptError::NotFound(format!(
                     "Prompt '{prompt_name}' not found"
                 ))),
