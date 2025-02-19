@@ -1,6 +1,5 @@
 use etcetera::{choose_app_strategy, AppStrategy};
 use goose::providers::base::ProviderUsage;
-use uuid::Uuid;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct SessionLog {
@@ -86,7 +85,7 @@ mod tests {
                 eprintln!("Failed to create log directory: {}", e);
                 return;
             }
-            let log_file = log_dir.join(format!("goose-{}.log", Uuid::new_v4()));
+            let log_file = log_dir.join(format!("goose-{}.log", uuid::Uuid::new_v4()));
 
             log_usage(
                 "path.txt".to_string(),
