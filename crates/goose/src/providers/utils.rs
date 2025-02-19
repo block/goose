@@ -58,23 +58,26 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
         StatusCode::BAD_REQUEST => {
             let mut message = "Unknown error".to_string();
             if let Some(error) = payload.get("error") {
-            tracing::debug!("Bad Request Error: {error:?}");
-            message = error
-                        .get("message")
-                        .and_then(|m| m.as_str())
-                        .unwrap_or("Unknown error")
-                        .to_string();
+                tracing::debug!("Bad Request Error: {error:?}");
+                message = error
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Unknown error")
+                            .to_string();
 
-            if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
-                if code == "context_length_exceeded" || code == "string_above_max_length" {
-                    return Err(ProviderError::ContextLengthExceeded(message));
+                if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
+                    if code == "context_length_exceeded" || code == "string_above_max_length" {
+                        return Err(ProviderError::ContextLengthExceeded(message));
+                    }
                 }
-            }
             }
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, message)))
+        }
+        StatusCode::NOT_FOUND => {
+            Err(ProviderError::RequestFailed(format!("{:?}", payload)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
