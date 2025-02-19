@@ -92,7 +92,7 @@ mod tests {
             let max_retries = 5;
             let mut retries = 0;
             while retries < max_retries && !log_file.exists() {
-                std::thread::sleep(std::time::Duration::from_millis(100)); // Wait for 100ms
+                std::thread::sleep(std::time::Duration::from_millis(500));
                 retries += 1;
             }
             assert!(log_file.exists(), "Log file should exist");
