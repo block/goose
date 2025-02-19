@@ -13,7 +13,6 @@ pub enum EvaluationMetric {
     Boolean(bool),
 }
 
-
 #[async_trait]
 pub trait BenchAgent: Send + Sync {
     async fn prompt(&mut self, p: String) -> Result<Vec<Message>>;
