@@ -2,27 +2,33 @@ use super::base::Config;
 use anyhow::Result;
 use std::collections::HashMap;
 
-const ALL_EXPERIMENTS: &[(&str, bool)] = &[
-    // TODO(yingjiehe): Cleanup EXPERIMENT_CONFIG once experiment is fully ready.
-    ("EXPERIMENT_CONFIG", false),
-];
+/// It is the ground truth for init experiments. The experiment names in users' experiment list but not
+/// in the list will be remove from user list; The experiment names in the ground-truth list but not
+/// in users' experiment list will be added to user list with default value false;
+const ALL_EXPERIMENTS: &[(&str, bool)] = &[("EXPERIMENT_CONFIG", false)];
 
 /// Experiment configuration management
 pub struct ExperimentManager;
 
 impl ExperimentManager {
     /// Get all experiments and their configurations
+    ///
+    /// - Ensures the user's experiment list is synchronized with `ALL_EXPERIMENTS`.
+    /// - Adds missing experiments from `ALL_EXPERIMENTS` with the default value.
+    /// - Removes experiments not in `ALL_EXPERIMENTS`.
     pub fn get_all() -> Result<Vec<(String, bool)>> {
         let config = Config::global();
-        let experiments: HashMap<String, bool> = config.get("experiments").unwrap_or_default();
-        if experiments.is_empty() {
-            Ok(experiments.iter().map(|(k, v)| (k.clone(), *v)).collect())
-        } else {
-            Ok(ALL_EXPERIMENTS
-                .iter()
-                .map(|(k, v)| (k.to_string(), *v))
-                .collect())
+        let mut experiments: HashMap<String, bool> = config.get("experiments").unwrap_or_default();
+
+        // Synchronize the user's experiments with the ground truth (`ALL_EXPERIMENTS`)
+        for &(key, default_value) in ALL_EXPERIMENTS {
+            experiments.entry(key.to_string()).or_insert(default_value);
         }
+
+        // Remove experiments not in `ALL_EXPERIMENTS`
+        experiments.retain(|key, _| ALL_EXPERIMENTS.iter().any(|(k, _)| k == key));
+
+        Ok(experiments.into_iter().collect())
     }
 
     /// Enable or disable an experiment
