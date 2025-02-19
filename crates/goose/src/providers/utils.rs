@@ -60,7 +60,7 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", status, payload)))
         }
-        StatusCode::BAD_REQUEST => {
+        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
@@ -72,9 +72,6 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
                 return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
             }
             Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
-        }
-        StatusCode::NOT_FOUND => {
-            Err(ProviderError::RequestFailed(format!("{:?}", payload)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
