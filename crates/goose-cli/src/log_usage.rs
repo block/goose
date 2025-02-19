@@ -66,7 +66,6 @@ mod tests {
 
     #[test]
     fn test_session_logging() {
-        use temp_env;
         use tempfile::tempdir;
 
         // Create a temporary directory
@@ -74,37 +73,37 @@ mod tests {
         let temp_home = temp_dir.path().to_path_buf();
 
         // Temporarily set `HOME` to the temp directory
-        temp_env::with_vars([("HOME", Some(temp_home.as_os_str()))], || {
-            let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone()).unwrap();
-            let log_file = home_dir
-                .in_state_dir("logs")
-                .unwrap_or_else(|| home_dir.in_data_dir("logs"))
-                .join("goose.log");
+        std::env::set_var("HOME", temp_home.as_os_str());
+        let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone()).unwrap();
+        let log_file = home_dir
+            .in_state_dir("logs")
+            .unwrap_or_else(|| home_dir.in_data_dir("logs"))
+            .join("goose.log");
 
-            println!("Log file in the test: {:?}", log_file);
+        println!("Log file in the test: {:?}", log_file);
 
-            log_usage(
-                "path.txt".to_string(),
-                vec![ProviderUsage::new(
-                    "model".to_string(),
-                    Usage::new(Some(10), Some(20), Some(30)),
-                )],
-            );
+        log_usage(
+            "path.txt".to_string(),
+            vec![ProviderUsage::new(
+                "model".to_string(),
+                Usage::new(Some(10), Some(20), Some(30)),
+            )],
+        );
 
-            // Check if log file exists and contains the expected content
-            assert!(log_file.exists(), "Log file should exist");
+        // Check if log file exists and contains the expected content
+        assert!(log_file.exists(), "Log file should exist");
 
-            let log_content = std::fs::read_to_string(&log_file).unwrap();
-            let log: SessionLog = serde_json::from_str(&log_content).unwrap();
+        let log_content = std::fs::read_to_string(&log_file).unwrap();
+        let log: SessionLog = serde_json::from_str(&log_content).unwrap();
 
-            assert!(log.session_file.contains("path.txt"));
-            assert_eq!(log.usage[0].usage.input_tokens, Some(10));
-            assert_eq!(log.usage[0].usage.output_tokens, Some(20));
-            assert_eq!(log.usage[0].usage.total_tokens, Some(30));
-            assert_eq!(log.usage[0].model, "model");
+        assert!(log.session_file.contains("path.txt"));
+        assert_eq!(log.usage[0].usage.input_tokens, Some(10));
+        assert_eq!(log.usage[0].usage.output_tokens, Some(20));
+        assert_eq!(log.usage[0].usage.total_tokens, Some(30));
+        assert_eq!(log.usage[0].model, "model");
 
-            // Remove the log file after test
-            std::fs::remove_file(&log_file).ok();
-        });
+        // Remove the log file after test
+        std::fs::remove_file(&log_file).ok();
+        std::env::remove_var("HOME");
     }
 }

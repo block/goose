@@ -2193,6 +2193,7 @@ dependencies = [
  "futures",
  "goose",
  "goose-mcp",
+ "lazy_static",
  "mcp-client",
  "mcp-core",
  "mcp-server",
