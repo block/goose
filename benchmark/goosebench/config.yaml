@@ -1,7 +1,0 @@
-GOOSE_MODEL: goose
-GOOSE_PROVIDER: databricks
-extensions:
-  developer:
-    enabled: true
-    name: developer
-    type: builtin
