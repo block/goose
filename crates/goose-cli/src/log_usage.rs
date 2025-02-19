@@ -89,12 +89,6 @@ mod tests {
             );
 
             // Check if log file exists and contains the expected content
-            let max_retries = 5;
-            let mut retries = 0;
-            while retries < max_retries && !log_file.exists() {
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                retries += 1;
-            }
             assert!(log_file.exists(), "Log file should exist");
 
             let log_content = std::fs::read_to_string(&log_file).unwrap();
