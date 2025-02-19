@@ -1,5 +1,6 @@
 mod factory;
-mod flappy_bird;
 mod evaluation;
+mod core;
+
 pub use evaluation::*;
-pub use factory::{register_evaluation, EvaluationFactory};
+pub use factory::{register_evaluation, EvaluationSuiteFactory};

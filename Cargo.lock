@@ -2198,7 +2198,9 @@ name = "goose-bench"
 version = "1.0.10"
 dependencies = [
  "anyhow",
+ "async-trait",
  "ctor",
+ "goose",
  "paste",
  "winapi",
 ]
@@ -2208,6 +2210,7 @@ name = "goose-cli"
 version = "1.0.10"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bat",
  "chrono",
  "clap",

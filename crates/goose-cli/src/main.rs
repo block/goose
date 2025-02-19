@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::Config;
+use goose_cli::commands::bench::run_benchmark;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
@@ -9,12 +10,7 @@ use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
 use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
-<<<<<<< HEAD
 use std::path::PathBuf;
-||||||| parent of 013933c5a (WIP)
-=======
-use goose_cli::commands::bench::run_benchmark;
->>>>>>> 013933c5a (WIP)
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -182,7 +178,6 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
-<<<<<<< HEAD
 
     /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
@@ -200,12 +195,18 @@ enum Command {
         #[arg(short, long, help = "Enforce to re-configure goose during update")]
         reconfigure: bool,
     },
-||||||| parent of 013933c5a (WIP)
-=======
 
-    /// Run benchmark suite
-    Bench {},
->>>>>>> 013933c5a (WIP)
+    Bench {
+        #[arg(
+            short = 's',
+            long = "suites",
+            value_name = "BENCH_SUITE_NAME",
+            help = "Run this list of bench-suites.",
+            long_help = "Specify a comma-separated list of evaluation-suite names to be run.",
+            value_delimiter = ','
+        )]
+        suites: Vec<String>,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -244,6 +245,7 @@ async fn main() -> Result<()> {
                 builtin,
             )
             .await;
+        
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.interactive(None).await;
             return Ok(());
@@ -302,8 +304,11 @@ async fn main() -> Result<()> {
             goose_cli::commands::update::update(canary, reconfigure)?;
             return Ok(());
         }
-        Some(Command::Bench {}) => {
-            run_benchmark().await;
+        Some(Command::Bench {
+            suites,
+             }) => {
+            let suites = if suites.is_empty() { vec!["core".to_string()] } else { suites };
+            run_benchmark(suites).await;
             return Ok(());
         }
         None => {

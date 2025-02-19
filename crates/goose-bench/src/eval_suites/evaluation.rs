@@ -1,5 +1,6 @@
 use anyhow::Result;
-
+use async_trait::async_trait;
+use goose::message::Message;
 
 pub type Model = (String, String);
 pub type Extension = String;
@@ -12,7 +13,6 @@ pub enum EvaluationMetric {
     Boolean(bool),
 }
 
-#[derive(Debug)]
 pub struct EvaluationReport {
     metrics: Vec<EvaluationMetric>,
 }
@@ -29,8 +29,12 @@ impl EvaluationReport {
     }
 }
 
+#[async_trait]
+pub trait BenchAgent: Send + Sync {
+    async fn prompt(&mut self, p: String) -> Result<Vec<Message>>;
+}
+
+#[async_trait]
 pub trait Evaluation: Send + Sync {
-    fn run(&self) -> Result<EvaluationReport>;
-    fn models(&self) -> Vec<Model>;
-    fn extensions(&self) -> Vec<Extension>;
+    async fn run(&self, agent: Box<dyn BenchAgent>) -> Result<EvaluationReport>;
 }
