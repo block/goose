@@ -53,8 +53,8 @@ winapi = { version = "0.3", features = ["wincred"] }
 
 
 [dev-dependencies]
+serial_test = "3.2.0"
 tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
 tokio = { version = "1.0", features = ["rt", "macros"] }
-uuid = { version = "1.0", features = ["v4"] }

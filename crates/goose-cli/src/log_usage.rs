@@ -67,25 +67,19 @@ mod tests {
 
         let temp_dir = tempdir().unwrap();
         let temp_dir_path = temp_dir.path().to_path_buf();
-        println!("Temporary directory created at: {:?}", temp_dir_path); // Debugging
 
         temp_env::with_vars([("HOME", Some(temp_dir_path.as_os_str()))], func)
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_session_logging() {
         run_with_tmp_dir(|| {
             let home_dir = choose_app_strategy(crate::APP_STRATEGY.clone()).unwrap();
-            let log_dir = home_dir
+            let log_file = home_dir
                 .in_state_dir("logs")
-                .unwrap_or_else(|| home_dir.in_data_dir("logs"));
-            println!("Log directory resolved to: {:?}", log_dir);
-
-            if let Err(e) = std::fs::create_dir_all(&log_dir) {
-                eprintln!("Failed to create log directory: {}", e);
-                return;
-            }
-            let log_file = log_dir.join(format!("goose-{}.log", uuid::Uuid::new_v4()));
+                .unwrap_or_else(|| home_dir.in_data_dir("logs"))
+                .join("goose.log");
 
             log_usage(
                 "path.txt".to_string(),
