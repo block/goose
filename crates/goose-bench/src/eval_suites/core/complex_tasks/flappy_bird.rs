@@ -6,7 +6,9 @@ use async_trait::async_trait;
 pub struct FlappyBird {}
 
 impl FlappyBird {
-    pub fn new() -> Self {FlappyBird {}}
+    pub fn new() -> Self {
+        FlappyBird {}
+    }
 }
 
 #[async_trait]
