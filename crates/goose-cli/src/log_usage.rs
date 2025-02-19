@@ -45,7 +45,7 @@ pub fn log_usage(session_file: String, usage: Vec<ProviderUsage>) {
             .and_then(|mut file| {
                 std::io::Write::write_all(&mut file, serialized.as_bytes())?;
                 std::io::Write::write_all(&mut file, b"\n")?;
-                Ok(())
+                file.sync_all() // Ensure all writes are flushed to disk
             })
         {
             eprintln!("Failed to write to usage log file: {}", e);
