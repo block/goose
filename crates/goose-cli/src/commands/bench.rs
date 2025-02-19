@@ -2,7 +2,7 @@ use crate::session::build_session;
 use crate::Session;
 use async_trait::async_trait;
 use goose::message::Message;
-use goose_bench::eval_suites::{BenchAgent, EvaluationReport, EvaluationSuiteFactory};
+use goose_bench::eval_suites::{BenchAgent, EvaluationSuiteFactory};
 
 #[async_trait]
 impl BenchAgent for Session {
@@ -13,8 +13,6 @@ impl BenchAgent for Session {
 }
 
 pub async fn run_benchmark(suites: Vec<String>) {
-    let mut all_reports: Vec<EvaluationReport> = vec![];
-
     let suites = EvaluationSuiteFactory::available_evaluations()
         .into_iter()
         .filter(|&s| suites.contains(&s.to_string()))
@@ -27,16 +25,10 @@ pub async fn run_benchmark(suites: Vec<String>) {
         };
         for evaluation in evaluations {
             let session = build_session(None, false, Vec::new(), Vec::new()).await;
-            let report = match evaluation.run(Box::new(session)).await {
+            let _ = match evaluation.run(Box::new(session)).await {
                 Ok(report) => report,
                 _ => continue,
             };
-
-            // print report?
-            all_reports.push(report);
         }
     }
-
-    // let summary = report_summary(all_reports)?
-    // print summary?
 }

@@ -13,21 +13,6 @@ pub enum EvaluationMetric {
     Boolean(bool),
 }
 
-pub struct EvaluationReport {
-    metrics: Vec<EvaluationMetric>,
-}
-
-impl Default for EvaluationReport {
-    fn default() -> Self {
-        Self { metrics: vec![] }
-    }
-}
-
-impl EvaluationReport {
-    pub fn new(metrics: Vec<EvaluationMetric>) -> Self {
-        EvaluationReport { metrics }
-    }
-}
 
 #[async_trait]
 pub trait BenchAgent: Send + Sync {
@@ -36,5 +21,5 @@ pub trait BenchAgent: Send + Sync {
 
 #[async_trait]
 pub trait Evaluation: Send + Sync {
-    async fn run(&self, agent: Box<dyn BenchAgent>) -> Result<EvaluationReport>;
+    async fn run(&self, agent: Box<dyn BenchAgent>) -> Result<Vec<EvaluationMetric>>;
 }

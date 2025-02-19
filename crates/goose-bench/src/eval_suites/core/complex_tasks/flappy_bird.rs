@@ -1,5 +1,4 @@
-use crate::eval_suites::evaluation::EvaluationReport;
-use crate::eval_suites::{BenchAgent, Evaluation};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
 use async_trait::async_trait;
 
@@ -13,10 +12,10 @@ impl FlappyBird {
 
 #[async_trait]
 impl Evaluation for FlappyBird {
-    async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<EvaluationReport> {
+    async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<Vec<EvaluationMetric>> {
         let metrics = Vec::new();
         let _ = agent.prompt("What can you do?".to_string()).await;
-        Ok(EvaluationReport::new(metrics))
+        Ok(metrics)
     }
 }
 
