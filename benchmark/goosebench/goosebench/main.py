@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-import dataclasses
-import os
-import subprocess
-import tempfile
-import time
-from enum import Enum
 from typing import List, Optional
 
 import typer
 from rich.console import Console
 from rich.theme import Theme
 from typing_extensions import Annotated
+
+from goosebench.bench import Bench
 
 # Initialize typer app and rich console
 app = typer.Typer(help="Goose CLI Integration Tests")
@@ -20,24 +16,6 @@ console = Console(theme=Theme({
     "error": "red",
     "success": "green"
 }))
-
-
-# Define workflow types
-class Workflow(str, Enum):
-    SERIAL = "serial"
-    CONVERSATIONAL = "conversational"
-
-
-@dataclasses.dataclass
-class Topic:
-    initial_prompt: str
-    follow_ups: List[str]
-
-
-@dataclasses.dataclass
-class Conversation:
-    topics: List[Topic]
-
 
 # Extension configurations
 EXTENSIONS = ['developer', 'computercontroller', 'google_drive', 'memory']
@@ -61,95 +39,6 @@ EXTENSION_PROMPTS = {
         "What is the capital of France?"
     ]
 }
-
-CONV_EXTENSION_PROMPTS = {
-    k: Conversation(topics=[
-        Topic(val, ["summarize"])
-        for val in v
-    ])
-    for k, v in EXTENSION_PROMPTS.items()
-}
-
-
-class Bench:
-    def __init__(self, workflow: Workflow):
-        self.error_log = []
-        self.workflow = workflow
-
-    def log_error(self, provider: str, model: str, extension: str, error: str) -> None:
-        """Log an error message."""
-        self.error_log.append(
-            f"Provider: {provider}, Model: {model}, Extension: {extension}\n{error}\n"
-        )
-
-    def evaluate(self,
-                 provider: str,
-                 model: str,
-                 extension: str,
-                 prompt: str,
-                 follow_ups: Optional[List[str]] = None) -> None:
-        """Run a single test with the given parameters using pexpect."""
-        console.print(f"Testing: {provider}/{model} with {extension}", style="info")
-        console.print(f"Prompt: {prompt}", style="info")
-        console.print(f"Workflow: {self.workflow.value}", style="info")
-
-        follow_ups = follow_ups or []
-
-        # Create temporary file for prompt
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp:
-            temp.write(prompt)
-            temp_path = temp.name
-
-        try:
-            # Run goose with timeout
-            cmd = ['goose', 'run', '--with-builtin', extension, '-t', prompt]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            if result.returncode != 0:
-                self.log_error(provider, model, extension,
-                               result.stdout + result.stderr)
-                console.print("✗ Test failed", style="error")
-
-            else:
-                console.print("✓ Test passed")
-
-        except subprocess.TimeoutExpired:
-            self.log_error(provider, model, extension,
-                           "Test timed out after 30 seconds")
-            console.print("✗ Test timed out", style="error")
-        except Exception as e:
-            self.log_error(provider, model, extension, str(e))
-            console.print("✗ Test failed with unexpected error", style="error")
-        finally:
-            os.unlink(temp_path)
-
-    def _run_serial(self, provider: str, model: str, extension: str) -> None:
-        prompts = EXTENSION_PROMPTS.get(extension, [])
-        for prompt in prompts:
-            self.evaluate(provider, model, extension, prompt)
-            time.sleep(2)  # brief pause between tests
-
-    def _run_conversational(self, provider: str, model: str, extension: str) -> None:
-        conv = CONV_EXTENSION_PROMPTS.get(extension, [])
-        for t in conv.topics:
-            self.evaluate(
-                provider, model, extension, t.initial_prompt, t.follow_ups
-            )
-            time.sleep(2)  # brief pause between tests
-
-    def test_extension(self, provider: str, model: str, extension: str) -> None:
-        """Test all prompts for a given extension."""
-        console.rule(f"Testing extension: {extension}")
-
-        if self.workflow == Workflow.CONVERSATIONAL:
-            return self._run_conversational(provider, model, extension)
-
-        return self._run_serial(provider, model, extension)
 
 
 def parse_provider_model(ctx: typer.Context, provider_models: List[str]) -> List[
@@ -177,13 +66,6 @@ def main(
                 help="Provider and model in format 'provider:model' or 'provider:model1,model2'"
             )
         ] = None,
-        workflow: Annotated[
-            Workflow,
-            typer.Option(
-                '--workflow', '-w',
-                help="Workflow type: serial or conversational"
-            )
-        ] = Workflow.SERIAL,
         verbose: Annotated[
             bool,
             typer.Option('--verbose', '-v', help="Enable verbose output")
@@ -194,15 +76,14 @@ def main(
     
     Example usage:
     
-    python main.py  # Uses default: databricks:goose with serial workflow
+    python main.py  # Uses default: databricks:goose
     python main.py -pm anthropic:claude
     python main.py -pm anthropic:claude,claude2
     python main.py -pm anthropic:claude -pm databricks:goose
-    python main.py --workflow conversational  # Use conversational workflow
     """
     console.print("Starting Goose CLI Integration Tests", style="bold")
 
-    runner = Bench(workflow)
+    runner = Bench()
 
     # Use default if no provider-models specified
     if not provider_models:

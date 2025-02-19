@@ -1,0 +1,21 @@
+[package]
+name = "goose-bench"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+
+[dependencies]
+anyhow = "1.0"
+paste = "1.0"
+ctor = "0.2.7"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3", features = ["wincred"] }
+
+#[[bench]]
+#name = "tokenization_benchmark"
+#harness = false

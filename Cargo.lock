@@ -2194,6 +2194,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-bench"
+version = "1.0.10"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "paste",
+ "winapi",
+]
+
+[[package]]
 name = "goose-cli"
 version = "1.0.10"
 dependencies = [
@@ -2206,6 +2216,7 @@ dependencies = [
  "etcetera",
  "futures",
  "goose",
+ "goose-bench",
  "goose-mcp",
  "mcp-client",
  "mcp-core",

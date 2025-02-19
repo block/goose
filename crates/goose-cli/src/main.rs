@@ -9,7 +9,12 @@ use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
 use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
+<<<<<<< HEAD
 use std::path::PathBuf;
+||||||| parent of 013933c5a (WIP)
+=======
+use goose_cli::commands::bench::run_benchmark;
+>>>>>>> 013933c5a (WIP)
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -177,6 +182,7 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
+<<<<<<< HEAD
 
     /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
@@ -194,6 +200,12 @@ enum Command {
         #[arg(short, long, help = "Enforce to re-configure goose during update")]
         reconfigure: bool,
     },
+||||||| parent of 013933c5a (WIP)
+=======
+
+    /// Run benchmark suite
+    Bench {},
+>>>>>>> 013933c5a (WIP)
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -288,6 +300,10 @@ async fn main() -> Result<()> {
             reconfigure,
         }) => {
             goose_cli::commands::update::update(canary, reconfigure)?;
+            return Ok(());
+        }
+        Some(Command::Bench {}) => {
+            run_benchmark().await;
             return Ok(());
         }
         None => {
