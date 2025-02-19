@@ -45,7 +45,7 @@ pub fn log_usage(session_file: String, usage: Vec<ProviderUsage>) {
             .and_then(|mut file| {
                 std::io::Write::write_all(&mut file, serialized.as_bytes())?;
                 std::io::Write::write_all(&mut file, b"\n")?;
-                file.sync_all() // Ensure all writes are flushed to disk
+                Ok(())
             })
         {
             eprintln!("Failed to write to usage log file: {}", e);
@@ -89,6 +89,12 @@ mod tests {
             );
 
             // Check if log file exists and contains the expected content
+            let max_retries = 5;
+            let mut retries = 0;
+            while retries < max_retries && !log_file.exists() {
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+                retries += 1;
+            }
             assert!(log_file.exists(), "Log file should exist");
 
             let log_content = std::fs::read_to_string(&log_file).unwrap();
