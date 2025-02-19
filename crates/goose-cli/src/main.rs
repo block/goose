@@ -2,14 +2,16 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::Config;
+
+use goose_cli::commands::agent_version::AgentCommand;
 use goose_cli::commands::bench::run_benchmark;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
-use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
+
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -277,6 +279,7 @@ async fn main() -> Result<()> {
             extension,
             builtin,
         }) => {
+
             // Validate that we have some input source
             if instructions.is_none() && input_text.is_none() {
                 eprintln!("Error: Must provide either --instructions or --text");
