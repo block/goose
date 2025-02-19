@@ -2203,7 +2203,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "serial_test",
  "temp-env",
  "tempfile",
  "test-case",
