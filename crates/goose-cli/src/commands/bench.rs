@@ -11,7 +11,6 @@ use goose_bench::eval_suites::{BenchAgent, EvaluationReport, EvaluationSuiteFact
 // eval suite = suite_name / eval_name / test_file_name [done]
 // use session config expecting external proc to manage swapping out config
 
-
 #[async_trait]
 impl BenchAgent for Session {
     async fn prompt(&mut self, p: String) -> anyhow::Result<Vec<Message>> {

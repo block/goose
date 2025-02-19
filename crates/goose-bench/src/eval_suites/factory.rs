@@ -5,7 +5,8 @@ use std::sync::{OnceLock, RwLock};
 type EvaluationConstructor = fn() -> Box<dyn Evaluation>;
 
 // Use std::sync::RwLock for interior mutability
-static EVALUATION_REGISTRY: OnceLock<RwLock<HashMap<&'static str, Vec<EvaluationConstructor>>>> = OnceLock::new();
+static EVALUATION_REGISTRY: OnceLock<RwLock<HashMap<&'static str, Vec<EvaluationConstructor>>>> =
+    OnceLock::new();
 
 /// Initialize the registry if it hasn't been initialized
 fn registry() -> &'static RwLock<HashMap<&'static str, Vec<EvaluationConstructor>>> {
@@ -13,10 +14,7 @@ fn registry() -> &'static RwLock<HashMap<&'static str, Vec<EvaluationConstructor
 }
 
 /// Register a new evaluation version
-pub fn register_evaluation(
-    suite_name: &'static str,
-    constructor: fn() -> Box<dyn Evaluation>,
-) {
+pub fn register_evaluation(suite_name: &'static str, constructor: fn() -> Box<dyn Evaluation>) {
     let registry = registry();
     if let Ok(mut map) = registry.write() {
         map.entry(suite_name)
