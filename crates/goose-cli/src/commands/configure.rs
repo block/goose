@@ -623,11 +623,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
 
 pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     let setting_type = cliclack::select("What setting would you like to configure?")
-        .item(
-            "goose_mode",
-            "Goose Mode",
-            "Configure Goose mode",
-        )
+        .item("goose_mode", "Goose Mode", "Configure Goose mode")
         .item(
             "tool_output",
             "Tool Output",
@@ -644,7 +640,7 @@ pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         _ => unreachable!(),
     };
- 
+
     Ok(())
 }
 
