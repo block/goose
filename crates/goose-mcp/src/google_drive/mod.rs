@@ -144,10 +144,18 @@ impl GoogleDriveRouter {
             json!({
               "type": "object",
               "properties": {
-              "query": {
-                  "type": "string",
-                  "description": "Search query",
-                  },
+                "query": {
+                    "type": "string",
+                    "description": "Search query",
+                },
+                "corpora": {
+                    "type": "string",
+                    "description": "Which corpus to search, either 'user' (default), 'drive' or 'allDrives'",
+                },
+                "pageSize": {
+                    "type": "number",
+                    "description": "How many items to return from the search query, default 10, max 100",
+                }
               },
               "required": ["query"],
             }),
@@ -188,6 +196,7 @@ impl GoogleDriveRouter {
 
             ### 1. Search Tool
             Search for files in Google Drive, by name and ordered by most recently viewedByMeTime.
+            A corpora parameter controls which corpus is searched.
             Returns: List of files with their names, MIME types, and IDs
 
             ### 2. Read File Tool
@@ -247,14 +256,51 @@ impl GoogleDriveRouter {
             .replace('\\', "\\\\")
             .replace('\'', "\\'");
 
+        // extract corpora query parameter, validate options, or default to "user"
+        let corpus = params
+            .get("corpora")
+            .and_then(|c| c.as_str())
+            .map(|s| {
+                if ["user", "drive", "allDrives"].contains(&s) {
+                    Ok(s)
+                } else {
+                    Err(ToolError::InvalidParameters(format!(
+                        "corpora must be either 'user', 'drive', or 'allDrives', got {}",
+                        s
+                    )))
+                }
+            })
+            .unwrap_or(Ok("user"))?;
+
+        // extract pageSize, and convert it to an i32, default to 10
+        let page_size: i32 = params
+            .get("pageSize")
+            .map(|s| {
+                s.as_i64()
+                    .and_then(|n| i32::try_from(n).ok())
+                    .ok_or_else(|| ToolError::InvalidParameters(format!("Invalid pageSize: {}", s)))
+                    .and_then(|n| {
+                        if (0..=100).contains(&n) {
+                            Ok(n)
+                        } else {
+                            Err(ToolError::InvalidParameters(format!(
+                                "pageSize must be between 0 and 100, got {}",
+                                n
+                            )))
+                        }
+                    })
+            })
+            .unwrap_or(Ok(10))?;
+
         let result = self
             .drive
             .files()
             .list()
+            .corpora(corpus)
             .q(format!("name contains '{}'", query).as_str())
             .order_by("viewedByMeTime desc")
             .param("fields", "files(id, name, mimeType, modifiedTime, size)")
-            .page_size(10)
+            .page_size(page_size)
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
