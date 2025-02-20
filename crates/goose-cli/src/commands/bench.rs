@@ -10,6 +10,7 @@ use goose_bench::work_dir::WorkDir;
 #[async_trait]
 impl BenchAgent for Session {
     async fn prompt(&mut self, p: String) -> anyhow::Result<Vec<Message>> {
+        println!("{}", p);
         self.headless_start(p).await?;
         Ok(self.message_history())
     }

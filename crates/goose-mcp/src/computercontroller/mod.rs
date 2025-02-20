@@ -158,7 +158,7 @@ impl ComputerControllerRouter {
 
         let quick_script_desc = match std::env::consts::OS {
             "windows" => indoc! {r#"
-                Create and run small PowerShell or Batch scripts for automation tasks.
+                Create and run small_models PowerShell or Batch scripts for automation tasks.
                 PowerShell is recommended for most tasks.
 
                 The script is saved to a temporary file and executed.
@@ -168,7 +168,7 @@ impl ComputerControllerRouter {
                 - Find text: Select-String -Pattern "pattern" -Path file.txt
             "#},
             _ => indoc! {r#"
-                Create and run small scripts for automation tasks.
+                Create and run small_models scripts for automation tasks.
                 Supports Shell and Ruby (on macOS).
 
                 The script is saved to a temporary file and executed.

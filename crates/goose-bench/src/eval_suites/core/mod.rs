@@ -1,1 +1,1 @@
-mod complex_tasks;
+mod example;

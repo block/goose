@@ -28,6 +28,6 @@ impl WorkDir {
 
 impl Drop for WorkDir {
     fn drop(&mut self) {
-        std::env::set_current_dir("..").unwrap();
+        std::env::set_current_dir("..").unwrap()
     }
 }

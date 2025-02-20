@@ -2,17 +2,18 @@ use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
 use async_trait::async_trait;
 
-pub struct FlappyBird {}
+pub struct ExampleEval {}
 
-impl FlappyBird {
+impl ExampleEval {
     pub fn new() -> Self {
-        FlappyBird {}
+        ExampleEval {}
     }
 }
 
 #[async_trait]
-impl Evaluation for FlappyBird {
+impl Evaluation for ExampleEval {
     async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<Vec<EvaluationMetric>> {
+        println!("ExampleEval - run");
         let metrics = Vec::new();
         let _ = agent.prompt("What can you do?".to_string()).await;
         Ok(metrics)
@@ -23,4 +24,4 @@ impl Evaluation for FlappyBird {
     }
 }
 
-register_evaluation!("core", FlappyBird);
+register_evaluation!("core", ExampleEval);
