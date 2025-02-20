@@ -10,11 +10,11 @@ impl Default for WorkDir {
 }
 impl WorkDir {
     pub fn new(path: &str) -> Self { WorkDir { path: PathBuf::from(path) } }
+
     pub fn work_from(path: String) -> anyhow::Result<WorkDir> {
-        match fs::create_dir_all(&path) {
-            Ok(_) => Ok(WorkDir::new(path.as_str())),
-            _ => Err(anyhow::Error::msg("work dir creation failed")),
-        }
+        let _ = fs::create_dir_all(&path)?;
+        let _ = std::env::set_current_dir(&path)?;
+        Ok(WorkDir::new(path.as_str()))
     }
 }
 

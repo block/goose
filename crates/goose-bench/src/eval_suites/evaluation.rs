@@ -21,4 +21,5 @@ pub trait BenchAgent: Send + Sync {
 #[async_trait]
 pub trait Evaluation: Send + Sync {
     async fn run(&self, agent: Box<dyn BenchAgent>) -> Result<Vec<EvaluationMetric>>;
+    fn name(&self) -> &str;
 }

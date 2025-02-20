@@ -17,6 +17,10 @@ impl Evaluation for FlappyBird {
         let _ = agent.prompt("What can you do?".to_string()).await;
         Ok(metrics)
     }
+
+    fn name(&self) -> &str {
+        "flappy_bird"
+    }
 }
 
 register_evaluation!("core", FlappyBird);

@@ -14,7 +14,12 @@ impl BenchAgent for Session {
         Ok(self.message_history())
     }
 }
-// provider suite now eval
+fn cwd_todo_remove() {
+    match std::env::current_dir() {
+        Ok(path) => println!("Current directory is: {:?}", path),
+        Err(e) => eprintln!("Failed to get current directory: {}", e)
+    }
+}
 pub async fn run_benchmark(suites: Vec<String>) {
     let suites = EvaluationSuiteFactory::available_evaluations()
         .into_iter()
@@ -27,22 +32,29 @@ pub async fn run_benchmark(suites: Vec<String>) {
         .expect("No provider configured. Run 'goose configure' first");
 
 
-    let current_time = Local::now();
+    let _ = cwd_todo_remove();
+    let current_time = Local::now().format("%H:%M:%S").to_string();
     let current_date = Local::now().format("%Y-%m-%d").to_string();
-    if let _ = WorkDir::work_from(format!("./{}", &provider_name)) {
+    if let _ = WorkDir::work_from(format!("./benchmark-{}", &provider_name)) {
+        let _ = cwd_todo_remove();
         for suite in suites {
-            if let _ = WorkDir::work_from(format!("./{}-{}/{}", &suite, &current_date, current_time)) {
+            if let _ = WorkDir::work_from(format!("./{}", &suite)) {
+                let _ = cwd_todo_remove();
                 let evaluations = match EvaluationSuiteFactory::create(suite) {
                     Some(evaluations) => evaluations,
                     None => continue,
                 };
-                for evaluation in evaluations {
-                    if let _ = WorkDir::work_from(format!("./{}", &evaluation)) {
-                        let session = build_session(None, false, Vec::new(), Vec::new()).await;
-                        let _ = match evaluation.run(Box::new(session)).await {
-                            Ok(report) => report,
-                            _ => continue,
-                        };
+                if let _ = WorkDir::work_from(format!("./{}-{}", &current_date, current_time)) {
+                    let _ = cwd_todo_remove();
+                    for evaluation in evaluations {
+                        if let _ = WorkDir::work_from(format!("./{}", &evaluation.name())) {
+                            let _ = cwd_todo_remove();
+                            let session = build_session(None, false, Vec::new(), Vec::new()).await;
+                            let _ = match evaluation.run(Box::new(session)).await {
+                                Ok(report) => report,
+                                _ => continue,
+                            };
+                        }
                     }
                 }
             }
