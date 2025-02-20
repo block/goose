@@ -646,6 +646,12 @@ pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
 
 pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
+
+    // Check if GOOSE_MODE is set as an environment variable
+    if std::env::var("GOOSE_MODE").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set but will be ignored. Please configure GOOSE_MODE here or in config.yaml");
+    }
+
     let mode = cliclack::select("Which Goose mode would you like to configure?")
         .item(
             "auto",
@@ -684,6 +690,10 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 
 pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
+    // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
+    if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set but will be ignored. Please configure GOOSE_CLI_MIN_PRIORITY here or in config.yaml");
+    }
     let tool_log_level = cliclack::select("Which tool output would you like to show?")
         .item("high", "High Importance", "")
         .item("medium", "Medium Importance", "Ex. results of file-writes")
