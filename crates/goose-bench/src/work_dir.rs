@@ -6,10 +6,18 @@ pub struct WorkDir {
 }
 
 impl Default for WorkDir {
-    fn default() -> Self { WorkDir { path: PathBuf::from(".") } }
+    fn default() -> Self {
+        WorkDir {
+            path: PathBuf::from("."),
+        }
+    }
 }
 impl WorkDir {
-    pub fn new(path: &str) -> Self { WorkDir { path: PathBuf::from(path) } }
+    pub fn new(path: &str) -> Self {
+        WorkDir {
+            path: PathBuf::from(path),
+        }
+    }
 
     pub fn work_from(path: String) -> anyhow::Result<WorkDir> {
         let _ = fs::create_dir_all(&path)?;

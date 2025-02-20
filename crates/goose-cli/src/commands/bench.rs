@@ -20,12 +20,16 @@ async fn run_eval(evaluation: Box<dyn Evaluation>) -> anyhow::Result<Vec<Evaluat
         let session = build_session(None, false, Vec::new(), Vec::new()).await;
         let report = evaluation.run(Box::new(session)).await;
         report
-    }else{
+    } else {
         Ok(vec![])
     }
 }
 
-async fn run_suite(suite: &str, current_time: &String, current_date: &String) -> anyhow::Result<()> {
+async fn run_suite(
+    suite: &str,
+    current_time: &String,
+    current_date: &String,
+) -> anyhow::Result<()> {
     if let Ok(_) = WorkDir::work_from(format!("./{}", &suite)) {
         if let Ok(_) = WorkDir::work_from(format!("./{}-{}", &current_date, current_time)) {
             if let Some(evals) = EvaluationSuiteFactory::create(suite) {
@@ -49,7 +53,6 @@ pub async fn run_benchmark(suites: Vec<String>) -> anyhow::Result<()> {
     let provider_name: String = config
         .get("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
-
 
     let current_time = Local::now().format("%H:%M:%S").to_string();
     let current_date = Local::now().format("%Y-%m-%d").to_string();
