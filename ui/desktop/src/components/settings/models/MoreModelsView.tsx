@@ -3,20 +3,17 @@ import { RecentModels } from './RecentModels';
 import { ProviderButtons } from './ProviderButtons';
 import BackButton from '../../ui/BackButton';
 import { SearchBar } from './Search';
-import { useModel } from './ModelContext';
 import { AddModelInline } from './AddModelInline';
 import { ScrollArea } from '../../ui/scroll-area';
-import type { View } from '../../../ChatWindow';
+import type { View } from '../../../App';
 
-export default function MoreModelsPage({
+export default function MoreModelsView({
   onClose,
   setView,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
 }) {
-  const { currentModel } = useModel();
-
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>

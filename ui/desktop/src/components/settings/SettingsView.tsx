@@ -14,7 +14,7 @@ import { ConfigureBuiltInExtensionModal } from './extensions/ConfigureBuiltInExt
 import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
-import type { View } from '../../ChatWindow';
+import type { View } from '../../App';
 
 const EXTENSIONS_DESCRIPTION =
   'The Model Context Protocol (MCP) is a system that allows AI models to securely connect with local or remote resources using standard server setups. It works like a client-server setup and expands AI capabilities using three main components: Prompts, Resources, and Tools.';
@@ -46,10 +46,7 @@ const DEFAULT_SETTINGS: SettingsType = {
   extensions: BUILT_IN_EXTENSIONS,
 };
 
-// We'll accept two props:
-// onClose: to go back to chat
-// setView: to switch to moreModels, configureProviders, etc.
-export default function Settings({
+export default function SettingsView({
   onClose,
   setView,
 }: {

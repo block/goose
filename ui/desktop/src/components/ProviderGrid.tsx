@@ -3,18 +3,18 @@ import {
   supported_providers,
   required_keys,
   provider_aliases,
-} from '../settings/models/hardcoded_stuff';
-import { useActiveKeys } from '../settings/api_keys/ActiveKeysContext';
-import { ProviderSetupModal } from '../settings/ProviderSetupModal';
-import { useModel } from '../settings/models/ModelContext';
-import { useRecentModels } from '../settings/models/RecentModels';
-import { createSelectedModel } from '../settings/models/utils';
-import { getDefaultModel } from '../settings/models/hardcoded_stuff';
-import { initializeSystem } from '../../utils/providerUtils';
-import { getApiUrl, getSecretKey } from '../../config';
+} from './settings/models/hardcoded_stuff';
+import { useActiveKeys } from './settings/api_keys/ActiveKeysContext';
+import { ProviderSetupModal } from './settings/ProviderSetupModal';
+import { useModel } from './settings/models/ModelContext';
+import { useRecentModels } from './settings/models/RecentModels';
+import { createSelectedModel } from './settings/models/utils';
+import { getDefaultModel } from './settings/models/hardcoded_stuff';
+import { initializeSystem } from '../utils/providerUtils';
+import { getApiUrl, getSecretKey } from '../config';
 import { toast } from 'react-toastify';
-import { getActiveProviders, isSecretKey } from '../settings/api_keys/utils';
-import { BaseProviderGrid, getProviderDescription } from '../settings/providers/BaseProviderGrid';
+import { getActiveProviders, isSecretKey } from './settings/api_keys/utils';
+import { BaseProviderGrid, getProviderDescription } from './settings/providers/BaseProviderGrid';
 
 interface ProviderGridProps {
   onSubmit?: () => void;
