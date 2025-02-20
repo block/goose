@@ -11,6 +11,10 @@ The Computer Controller extension helps automate everyday computer tasks and web
 
 This tutorial covers enabling and using the Computer Controller MCP Server, which is a built-in Goose extension.
 
+:::tip
+Let Goose complete its tasks without interruption - avoid using your mouse or keyboard until it's done.
+:::
+
 ## Configuration
 
 1. Ensure extension is enabled:
@@ -164,3 +168,4 @@ The file is now open in Numbers for your review. The environment has been reset 
 ```
 
 ### Results
+![Computer Controller MCP Output](../assets/guides/computer-controller-csv-result.png)
