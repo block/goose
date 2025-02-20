@@ -1,10 +1,17 @@
+---
+sidebar_position: 2
+---
 # Updating Goose
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { IconDownload } from "@site/src/components/icons/download";
+import Link from "@docusaurus/Link";
 
+:::info
+To update Goose to the latest stable version, reinstall using the instructions below
+:::
 
-This guide explains how to keep your Goose installation up to date with the latest features and improvements.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -22,12 +29,22 @@ This guide explains how to keep your Goose installation up to date with the late
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-    To update Goose Desktop:
-    - Download the latest version of Goose from the [releases page](https://github.com/block/goose/releases/download/stable/Goose.zip)
-    - Unzip the downloaded `Goose.zip` file.
-    - Overwrite the existing Goose application with the new version.
-    - Run the executable file to launch the Goose desktop application.
-    
+        <div style={{ marginTop: '1rem' }}>
+          1. To update Goose Desktop, click the button below:
+            <div className="pill-button">
+              <Link
+                className="button button--primary button--lg"
+                to="https://github.com/block/goose/releases/download/stable/Goose.zip"
+              >
+                <IconDownload />
+                download goose desktop for macOS
+              </Link>
+            </div>
+          2. Unzip the downloaded `Goose.zip` file.
+          3. Run the executable file to launch the Goose Desktop application.
+          4. Overwrite the existing Goose application with the new version.
+          5. Run the executable file to launch the Goose desktop application.
+        </div>
   </TabItem>
 </Tabs>
 
