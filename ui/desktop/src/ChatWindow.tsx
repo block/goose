@@ -363,12 +363,6 @@ export default function ChatWindow() {
     setupStoredProvider();
   }, []);
 
-  // Render everything inside ChatLayout now
-  // We'll switch views inside the ChatLayout children.
-
-  // If we want to skip showing ChatLayout for the welcome screen, we can do so.
-  // But let's do exactly what's requested: put all view options under ChatLayout.
-
   return (
     <ChatLayout mode={mode}>
       {/* Conditionally render based on `view` */}
@@ -391,14 +385,6 @@ export default function ChatWindow() {
         <MoreModelsSettings
           onClose={() => {
             setView('settings');
-          }}
-          setView={setView}
-        />
-      )}
-      {view === 'configPage' && (
-        <ConfigPage
-          onClose={() => {
-            setView('chat');
           }}
           setView={setView}
         />

@@ -56,7 +56,6 @@ export default function Settings({
   onClose: () => void;
   setView: (view: View) => void;
 }) {
-  // We'll read query params from window.location instead of react-router's useLocation
   const [searchParams] = useState(() => new URLSearchParams(window.location.search));
 
   const [settings, setSettings] = React.useState<SettingsType>(() => {
@@ -181,8 +180,6 @@ export default function Settings({
     return BUILT_IN_EXTENSIONS.some((builtIn) => builtIn.id === extensionId);
   };
 
-  function navigate(s: string) {}
-
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -190,12 +187,7 @@ export default function Settings({
       <ScrollArea className="h-full w-full">
         <div className="flex flex-col pb-24">
           <div className="px-8 pt-6 pb-4">
-            <BackButton
-              onClick={() => {
-                // Instead of navigate('/chat/1', { replace: true });
-                onClose();
-              }}
-            />
+            <BackButton onClick={() => onClose()} />
             <h1 className="text-3xl font-medium text-textStandard mt-1">Settings</h1>
           </div>
 
@@ -207,7 +199,6 @@ export default function Settings({
                   <h2 className="text-xl font-medium text-textStandard">Models</h2>
                   <button
                     onClick={() => {
-                      // Instead of navigate('/settings/more-models'):
                       setView('moreModels');
                     }}
                     className="text-indigo-500 hover:text-indigo-600 text-sm"
@@ -259,27 +250,6 @@ export default function Settings({
                       />
                     ))
                   )}
-                </div>
-              </section>
-
-              <section id="configuration">
-                <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
-                  <h2 className="text-xl font-semibold text-textStandard">Configuration</h2>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => navigate('/settings/config')}
-                      className="text-indigo-500 hover:text-indigo-600 text-sm"
-                    >
-                      Manage
-                    </button>
-                  </div>
-                </div>
-
-                <div className="px-8">
-                  <p className="text-sm text-textStandard mb-4">
-                    Manage application configuration and settings. You can view, add, edit, and
-                    remove configuration values.
-                  </p>
                 </div>
               </section>
             </div>

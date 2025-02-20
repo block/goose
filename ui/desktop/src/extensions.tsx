@@ -1,5 +1,4 @@
 import { getApiUrl, getSecretKey } from './config';
-import { NavigateFunction } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 // ExtensionConfig type matching the Rust version
@@ -258,7 +257,7 @@ function handleError(message: string, shouldThrow = false): void {
   }
 }
 
-export async function addExtensionFromDeepLink(url: string, navigate: NavigateFunction) {
+export async function addExtensionFromDeepLink(url: string, navigate: any) {
   if (!url.startsWith('goose://extension')) {
     handleError(
       'Failed to install extension: Invalid URL: URL must use the goose://extension scheme'

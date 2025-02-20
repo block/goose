@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { addExtensionFromDeepLink } from './extensions';
-import { useNavigate } from 'react-router-dom';
 import LauncherWindow from './LauncherWindow';
 import ChatWindow from './ChatWindow';
 import ErrorScreen from './components/ErrorScreen';
@@ -19,7 +18,7 @@ export default function App() {
   const [isInstalling, setIsInstalling] = useState(false); // Track installation progress
   const searchParams = new URLSearchParams(window.location.search);
   const isLauncher = searchParams.get('window') === 'launcher';
-  const navigate = useNavigate();
+  const navigate = () => console.log('todo - bring back nav');
 
   // Utility function to extract the command from the link
   function extractCommand(link: string): string {
@@ -55,7 +54,7 @@ export default function App() {
       console.log('Confirming installation for link:', pendingLink);
 
       try {
-        await addExtensionFromDeepLink(pendingLink, navigate); // Proceed with adding the extension
+        await addExtensionFromDeepLink(pendingLink, navigate);
       } catch (error) {
         console.error('Failed to add extension:', error);
       } finally {

@@ -3,8 +3,6 @@ import { useModel } from './settings/models/ModelContext';
 import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
-// Remove react-router-dom usage
-// import { useNavigate } from 'react-router-dom';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../ChatWindow';
 
@@ -13,7 +11,7 @@ export default function BottomMenu({
   setView,
 }: {
   hasMessages: boolean;
-  setView?: (view: View) => void;
+  setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
@@ -133,8 +131,7 @@ export default function BottomMenu({
                   border-t border-borderSubtle mt-2"
                 onClick={() => {
                   setIsModelMenuOpen(false);
-                  // Instead of navigate('/settings'), call setView('settings').
-                  setView?.('settings');
+                  setView('settings');
                 }}
               >
                 <span className="text-sm">Tools and Settings</span>
