@@ -111,13 +111,23 @@ impl SseActor {
                     // Attempt to parse the SSE data as a JsonRpcMessage
                     match serde_json::from_str::<JsonRpcMessage>(&e.data) {
                         Ok(message) => {
-                            // If it's a response, complete the pending request
-                            if let JsonRpcMessage::Response(resp) = &message {
-                                if let Some(id) = &resp.id {
-                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
+                            match &message {
+                                JsonRpcMessage::Response(response) => {
+                                    if let Some(id) = &response.id {
+                                        pending_requests
+                                            .respond(&id.to_string(), Ok(message))
+                                            .await;
+                                    }
                                 }
+                                JsonRpcMessage::Error(error) => {
+                                    if let Some(id) = &error.id {
+                                        pending_requests
+                                            .respond(&id.to_string(), Ok(message))
+                                            .await;
+                                    }
+                                }
+                                _ => {} // TODO: Handle other variants (Request, etc.)
                             }
-                            // If it's something else (notification, etc.), handle as needed
                         }
                         Err(err) => {
                             warn!("Failed to parse SSE message: {err}");
