@@ -289,7 +289,7 @@ fn ensure_valid_json_schema(schema: &mut Value) {
         let is_object_type = params_obj
             .get("type")
             .and_then(|t| t.as_str())
-            .map_or(true, |t| t == "object"); // Default to true if no type is specified
+            .is_none_or(|t| t == "object"); // Default to true if no type is specified
 
         // Only apply full schema validation to object types
         if is_object_type {
