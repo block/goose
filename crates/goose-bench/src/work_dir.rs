@@ -20,8 +20,6 @@ impl WorkDir {
 
 impl Drop for WorkDir {
     fn drop(&mut self) {
-        if let Some(parent_path) = self.path.parent() {
-            std::env::set_current_dir(parent_path).unwrap();
-        };
+        std::env::set_current_dir("..").unwrap();
     }
 }
