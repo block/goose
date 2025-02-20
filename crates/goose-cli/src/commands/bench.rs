@@ -26,9 +26,7 @@ async fn run_eval(evaluation: Box<dyn Evaluation>) -> anyhow::Result<Vec<Evaluat
     }
 }
 
-async fn run_suite(
-    suite: &str,
-) -> anyhow::Result<()> {
+async fn run_suite(suite: &str) -> anyhow::Result<()> {
     if let Ok(_) = WorkDir::work_from(format!("./{}", &suite)) {
         if let Some(evals) = EvaluationSuiteFactory::create(suite) {
             for eval in evals {
