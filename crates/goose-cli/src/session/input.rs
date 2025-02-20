@@ -9,6 +9,8 @@ pub enum InputResult {
     AddBuiltin(String),
     ToggleTheme,
     Retry,
+    ListPrompts,
+    //UsePrompt(String),
 }
 
 pub fn get_input(
@@ -59,6 +61,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
+        "/prompts" => Some(InputResult::ListPrompts),
         s if s.starts_with("/extension ") => Some(InputResult::AddExtension(s[11..].to_string())),
         s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
         _ => None,
@@ -72,6 +75,7 @@ fn print_help() {
 /t - Toggle Light/Dark/Ansi theme
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
+/prompts - List all available prompts by name
 /? or /help - Display this help message
 
 Navigation:

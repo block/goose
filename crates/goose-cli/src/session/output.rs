@@ -5,6 +5,7 @@ use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
 
 // Re-export theme for use in main
@@ -149,6 +150,17 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
 
 pub fn render_error(message: &str) {
     println!("\n  {} {}\n", style("error:").red().bold(), message);
+}
+
+pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
+    println!();
+    for (extension, prompts) in prompts {
+        println!(" {}", style(extension).green());
+        for prompt in prompts {
+            println!("  - {}", style(prompt).cyan());
+        }
+    }
+    println!();
 }
 
 pub fn render_extension_success(name: &str) {

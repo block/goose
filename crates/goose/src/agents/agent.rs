@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
@@ -34,4 +36,7 @@ pub trait Agent: Send + Sync {
 
     /// Override the system prompt with custom text
     async fn override_system_prompt(&mut self, template: String);
+
+    /// Lists all prompts from all extensions
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<String>>;
 }

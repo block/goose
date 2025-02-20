@@ -14,6 +14,7 @@ use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
 use rand::{distributions::Alphanumeric, Rng};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio;
 
@@ -103,6 +104,10 @@ impl Session {
         Ok(())
     }
 
+    pub async fn list_prompts(&mut self) -> HashMap<String, Vec<String>> {
+        self.agent.list_extension_prompts().await
+    }
+
     pub async fn start(&mut self) -> Result<()> {
         let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
@@ -165,6 +170,9 @@ impl Session {
                     continue;
                 }
                 input::InputResult::Retry => continue,
+                input::InputResult::ListPrompts => {
+                    output::render_prompts(&self.list_prompts().await)
+                }
             }
         }
 

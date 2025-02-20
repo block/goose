@@ -2,6 +2,7 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
@@ -301,6 +302,23 @@ impl Agent for TruncateAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<String>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
+            .list_prompts()
+            .await
+            .map(|prompts| {
+                prompts
+                    .into_iter()
+                    .map(|(extension, prompt_list)| {
+                        let names = prompt_list.into_iter().map(|p| p.name).collect();
+                        (extension, names)
+                    })
+                    .collect()
+            })
+            .expect("Failed to list prompts")
     }
 }
 
