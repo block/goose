@@ -96,7 +96,7 @@ impl SseActor {
                         .join(&e.data)
                         .expect("Failed to resolve endpoint URL");
 
-                    println!("Discovered SSE POST endpoint: {}", post_url);
+                    tracing::debug!("Discovered SSE POST endpoint: {}", post_url);
                     *post_endpoint.write().await = Some(post_url.to_string());
                     break;
                 }
