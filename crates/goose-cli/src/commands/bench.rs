@@ -28,15 +28,11 @@ async fn run_eval(evaluation: Box<dyn Evaluation>) -> anyhow::Result<Vec<Evaluat
 
 async fn run_suite(
     suite: &str,
-    current_time: &String,
-    current_date: &String,
 ) -> anyhow::Result<()> {
     if let Ok(_) = WorkDir::work_from(format!("./{}", &suite)) {
-        if let Ok(_) = WorkDir::work_from(format!("./{}-{}", &current_date, current_time)) {
-            if let Some(evals) = EvaluationSuiteFactory::create(suite) {
-                for eval in evals {
-                    run_eval(eval).await?;
-                }
+        if let Some(evals) = EvaluationSuiteFactory::create(suite) {
+            for eval in evals {
+                run_eval(eval).await?;
             }
         }
     }
@@ -58,8 +54,10 @@ pub async fn run_benchmark(suites: Vec<String>) -> anyhow::Result<()> {
     let current_time = Local::now().format("%H:%M:%S").to_string();
     let current_date = Local::now().format("%Y-%m-%d").to_string();
     if let Ok(_) = WorkDir::work_from(format!("./benchmark-{}", &provider_name)) {
-        for suite in suites {
-            run_suite(suite, &current_time, &current_date).await?;
+        if let Ok(_) = WorkDir::work_from(format!("./{}-{}", &current_date, current_time)) {
+            for suite in suites {
+                run_suite(suite).await?;
+            }
         }
     }
     Ok(())

@@ -20,7 +20,7 @@ impl Evaluation for ExampleEval {
     }
 
     fn name(&self) -> &str {
-        "flappy_bird"
+        "example_eval"
     }
 }
 
