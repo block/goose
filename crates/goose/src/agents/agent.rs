@@ -8,6 +8,7 @@ use serde_json::Value;
 use super::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::Message;
 use crate::providers::base::ProviderUsage;
+use mcp_core::prompt::Prompt;
 
 /// Core trait defining the behavior of an Agent
 #[async_trait]
@@ -38,5 +39,5 @@ pub trait Agent: Send + Sync {
     async fn override_system_prompt(&mut self, template: String);
 
     /// Lists all prompts from all extensions
-    async fn list_extension_prompts(&self) -> HashMap<String, Vec<String>>;
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>>;
 }

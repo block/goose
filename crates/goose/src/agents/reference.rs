@@ -15,6 +15,7 @@ use crate::providers::base::ProviderUsage;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
 use indoc::indoc;
+use mcp_core::prompt::Prompt;
 use mcp_core::tool::Tool;
 use serde_json::{json, Value};
 
@@ -196,20 +197,11 @@ impl Agent for ReferenceAgent {
         capabilities.set_system_prompt_override(template);
     }
 
-    async fn list_extension_prompts(&self) -> HashMap<String, Vec<String>> {
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
         let capabilities = self.capabilities.lock().await;
         capabilities
             .list_prompts()
             .await
-            .map(|prompts| {
-                prompts
-                    .into_iter()
-                    .map(|(extension, prompt_list)| {
-                        let names = prompt_list.into_iter().map(|p| p.name).collect();
-                        (extension, names)
-                    })
-                    .collect()
-            })
             .expect("Failed to list prompts")
     }
 }
