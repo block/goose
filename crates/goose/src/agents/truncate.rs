@@ -297,6 +297,11 @@ impl Agent for TruncateAgent {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.add_system_prompt_extension(extension);
     }
+
+    async fn override_system_prompt(&mut self, template: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.set_system_prompt_override(template);
+    }
 }
 
 register_agent!("truncate", TruncateAgent);

@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
-use crate::prompt_template::load_prompt_file;
+use crate::prompt_template::{load_prompt, load_prompt_file};
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
@@ -30,6 +30,7 @@ pub struct Capabilities {
     resource_capable_extensions: HashSet<String>,
     provider: Box<dyn Provider>,
     provider_usage: Mutex<Vec<ProviderUsage>>,
+    system_prompt_override: Option<String>,
     system_prompt_extensions: Vec<String>,
 }
 
@@ -89,6 +90,7 @@ impl Capabilities {
             resource_capable_extensions: HashSet::new(),
             provider,
             provider_usage: Mutex::new(Vec::new()),
+            system_prompt_override: None,
             system_prompt_extensions: Vec::new(),
         }
     }
@@ -169,6 +171,11 @@ impl Capabilities {
     /// Add a system prompt extension
     pub fn add_system_prompt_extension(&mut self, extension: String) {
         self.system_prompt_extensions.push(extension);
+    }
+
+    /// Override the system prompt with custom text
+    pub fn set_system_prompt_override(&mut self, template: String) {
+        self.system_prompt_override = Some(template);
     }
 
     /// Get a reference to the provider
@@ -310,7 +317,13 @@ impl Capabilities {
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
         context.insert("current_date_time", Value::String(current_date_time));
 
-        let base_prompt = load_prompt_file("system.md", &context).expect("Prompt should render");
+        // Conditionally load the override prompt or the default system prompt
+        // and set the base prompt to the context
+        let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
+            load_prompt(override_prompt, &context).expect("Prompt should render")
+        } else {
+            load_prompt_file("system.md", &context).expect("Prompt should render")
+        };
 
         if self.system_prompt_extensions.is_empty() {
             base_prompt

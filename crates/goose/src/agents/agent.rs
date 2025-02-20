@@ -31,4 +31,7 @@ pub trait Agent: Send + Sync {
 
     /// Add custom text to be included in the system prompt
     async fn extend_system_prompt(&mut self, extension: String);
+
+    /// Override the system prompt with custom text
+    async fn override_system_prompt(&mut self, template: String);
 }
