@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { HashRouter as Router } from 'react-router-dom';
 import App from './App';
 
 // Error Boundary Component
@@ -72,9 +71,7 @@ window.addEventListener('error', (event) => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <Router>
-        <App />
-      </Router>
+      <App />
     </ErrorBoundary>
   </React.StrictMode>
 );

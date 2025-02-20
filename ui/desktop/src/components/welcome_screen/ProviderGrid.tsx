@@ -1,5 +1,4 @@
 import React from 'react';
-import { Button } from '../ui/button';
 import {
   supported_providers,
   required_keys,
@@ -15,7 +14,6 @@ import { initializeSystem } from '../../utils/providerUtils';
 import { getApiUrl, getSecretKey } from '../../config';
 import { toast } from 'react-toastify';
 import { getActiveProviders, isSecretKey } from '../settings/api_keys/utils';
-import { useNavigate } from 'react-router-dom';
 import { BaseProviderGrid, getProviderDescription } from '../settings/providers/BaseProviderGrid';
 
 interface ProviderGridProps {
@@ -28,7 +26,6 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
   const [showSetupModal, setShowSetupModal] = React.useState(false);
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
-  const navigate = useNavigate();
 
   const providers = React.useMemo(() => {
     return supported_providers.map((providerName) => {

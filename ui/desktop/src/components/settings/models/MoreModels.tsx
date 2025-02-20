@@ -1,13 +1,10 @@
 import React from 'react';
-import { Button } from '../../ui/button';
 import { RecentModels } from './RecentModels';
 import { ProviderButtons } from './ProviderButtons';
 import BackButton from '../../ui/BackButton';
 import { SearchBar } from './Search';
 import { useModel } from './ModelContext';
 import { AddModelInline } from './AddModelInline';
-// Removed react-router-dom usage
-// import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/scroll-area';
 import type { View } from '../../../ChatWindow';
 

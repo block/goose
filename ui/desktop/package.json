@@ -93,7 +93,6 @@
     "react-dom": "^18.3.1",
     "react-icons": "^5.3.0",
     "react-markdown": "^9.0.1",
-    "react-router-dom": "^6.28.0",
     "react-select": "^5.9.0",
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^8.0.0",

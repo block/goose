@@ -26,7 +26,7 @@ const noWindowLocationHref = {
         ) {
           context.report({
             node,
-            message: 'Do not use window.location.href directly in Electron apps. Use React Router\'s navigate() instead.'
+            message: 'Do not use window.location.href directly in Electron apps. Use setView from the project instead'
           });
         }
       }
