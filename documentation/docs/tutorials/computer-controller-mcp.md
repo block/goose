@@ -74,6 +74,10 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
 
 In this example, I'll show you how Goose can multitask, handling everything from system controls and music playback to web research and data organization.
 
+:::info LLM
+Anthropic's Claude 3.5 Sonnet was used for this task.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
 
