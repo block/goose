@@ -31,7 +31,6 @@ pub fn log_usage(
     }
 
     let log_file = log_dir.join("goose.log");
-    println!("Log file in the method: {:?}", log_file);
 
     let serialized = match serde_json::to_string(&log) {
         Ok(s) => s,
@@ -78,8 +77,6 @@ mod tests {
             .in_state_dir("logs")
             .unwrap_or_else(|| home_dir.in_data_dir("logs"))
             .join("goose.log");
-
-        println!("Log file in the test: {:?}", log_file);
 
         log_usage(
             home_dir,
