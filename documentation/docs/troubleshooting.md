@@ -218,8 +218,9 @@ sudo /Applications/Goose.app/Contents/MacOS/Goose
 Running Goose with sudo may create files owned by root, which could lead to further permission issues. Use this as a troubleshooting step rather than a permanent fix.
 :::
 
-#### Update permission in system setting (MacOs)
-You can go to `System Settings` -> `Privacy & Security` -> `Files & Folders`, grant goose with the access.
+#### Update permission in System Settings (macOs)
+1. Go to `System Settings` -> `Privacy & Security` -> `Files & Folders`
+2. Grant Goose access
 
 ---
 
