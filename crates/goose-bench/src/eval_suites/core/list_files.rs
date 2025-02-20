@@ -59,4 +59,4 @@ impl Evaluation for DeveloperListFiles {
     }
 }
 
-register_evaluation!("core", DeveloperListFiles);
+register_evaluation!("developer", DeveloperListFiles);
