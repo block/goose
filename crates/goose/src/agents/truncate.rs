@@ -2,6 +2,7 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use mcp_core::protocol::GetPromptResult;
 use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
@@ -16,6 +17,7 @@ use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
+use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;
 use mcp_core::tool::Tool;
@@ -311,6 +313,29 @@ impl Agent for TruncateAgent {
             .list_prompts()
             .await
             .expect("Failed to list prompts")
+    }
+
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+        let capabilities = self.capabilities.lock().await;
+
+        // First find which extension has this prompt
+        let prompts = capabilities
+            .list_prompts()
+            .await
+            .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
+
+        if let Some(extension) = prompts
+            .iter()
+            .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
+            .map(|(extension, _)| extension)
+        {
+            return capabilities
+                .get_prompt(extension, name, arguments)
+                .await
+                .map_err(|e| anyhow!("Failed to get prompt: {}", e));
+        }
+
+        Err(anyhow!("Prompt '{}' not found", name))
     }
 }
 

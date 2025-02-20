@@ -14,7 +14,9 @@ use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
 
+use mcp_core::prompt::PromptMessage;
 use rand::{distributions::Alphanumeric, Rng};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio;
@@ -134,8 +136,14 @@ impl Session {
         Ok(None)
     }
 
+    pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
+        let result = self.agent.get_prompt(name, arguments).await?;
+        Ok(result.messages)
+    }
+
     pub async fn start(&mut self) -> Result<()> {
         let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
+        let mut initial_text = None;
 
         // Load history from messages
         for msg in self
@@ -154,8 +162,9 @@ impl Session {
 
         output::display_greeting();
         loop {
-            match input::get_input(&mut editor)? {
+            match input::get_input(&mut editor, initial_text.as_deref())? {
                 input::InputResult::Message(content) => {
+                    initial_text = None; // Reset for next iteration
                     self.messages.push(Message::user().with_text(&content));
                     storage::persist_messages(&self.session_file, &self.messages)?;
 
@@ -165,18 +174,21 @@ impl Session {
                 }
                 input::InputResult::Exit => break,
                 input::InputResult::AddExtension(cmd) => {
+                    initial_text = None; // Reset for next iteration
                     match self.add_extension(cmd.clone()).await {
                         Ok(_) => output::render_extension_success(&cmd),
                         Err(e) => output::render_extension_error(&cmd, &e.to_string()),
                     }
                 }
                 input::InputResult::AddBuiltin(names) => {
+                    initial_text = None; // Reset for next iteration
                     match self.add_builtin(names.clone()).await {
                         Ok(_) => output::render_builtin_success(&names),
                         Err(e) => output::render_builtin_error(&names, &e.to_string()),
                     }
                 }
                 input::InputResult::ToggleTheme => {
+                    initial_text = None; // Reset for next iteration
                     let current = output::get_theme();
                     let new_theme = match current {
                         output::Theme::Light => {
@@ -195,11 +207,16 @@ impl Session {
                     output::set_theme(new_theme);
                     continue;
                 }
-                input::InputResult::Retry => continue,
+                input::InputResult::Retry => {
+                    initial_text = None; // Reset for next iteration
+                    continue;
+                }
                 input::InputResult::ListPrompts => {
+                    initial_text = None; // Reset for next iteration
                     output::render_prompts(&self.list_prompts().await)
                 }
                 input::InputResult::PromptCommand(opts) => {
+                    initial_text = None; // Reset for next iteration
                     if opts.info {
                         match self.get_prompt_info(&opts.name).await? {
                             Some(info) => output::render_prompt_info(&info),
@@ -208,7 +225,20 @@ impl Session {
                             }
                         }
                     } else {
-                        output::render_error("Prompt execution not yet implemented");
+                        // Convert the arguments HashMap to a Value
+                        let arguments = serde_json::to_value(opts.arguments)
+                            .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
+
+                        match self.get_prompt(&opts.name, arguments).await {
+                            Ok(messages) => {
+                                initial_text = Some(
+                                    serde_json::to_string(&messages)
+                                        .unwrap_or("failed to get prompt".to_string()),
+                                );
+                                continue;
+                            }
+                            Err(e) => output::render_error(&e.to_string()),
+                        }
                     }
                 }
             }

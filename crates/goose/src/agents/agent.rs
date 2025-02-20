@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use mcp_core::protocol::GetPromptResult;
 use serde_json::Value;
 
 use super::extension::{ExtensionConfig, ExtensionResult};
@@ -40,4 +41,8 @@ pub trait Agent: Send + Sync {
 
     /// Lists all prompts from all extensions
     async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>>;
+
+    /// Get a prompt result with the given name and arguments
+    /// Returns the prompt text that would be used as user input
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult>;
 }

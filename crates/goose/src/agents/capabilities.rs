@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
+use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -14,11 +15,10 @@ use crate::prompt_template::{load_prompt, load_prompt_file};
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
+use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
-// This is to ensure that the resource is considered less important than resources with a more recent timestamp
 static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
     LazyLock::new(|| Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
 
@@ -510,7 +510,7 @@ impl Capabilities {
 
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call), fields(input, output))]
-    pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> ToolResult<Vec<Content>> {
+    pub async fn dispatch_tool_call(&self, tool_call: ToolCall) -> Result<Vec<Content>, ToolError> {
         let result = if tool_call.name == "platform__read_resource" {
             // Check if the tool is read_resource and handle it separately
             self.read_resource(tool_call.arguments.clone()).await
@@ -607,6 +607,24 @@ impl Capabilities {
         }
 
         Ok(all_prompts)
+    }
+
+    pub async fn get_prompt(
+        &self,
+        extension_name: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
+        let client = self
+            .clients
+            .get(extension_name)
+            .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .get_prompt(name, arguments)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
     }
 }
 

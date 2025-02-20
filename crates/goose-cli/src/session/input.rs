@@ -23,6 +23,7 @@ pub struct PromptCommandOptions {
 
 pub fn get_input(
     editor: &mut Editor<(), rustyline::history::DefaultHistory>,
+    initial_text: Option<&str>,
 ) -> Result<InputResult> {
     // Ensure Ctrl-J binding is set for newlines
     editor.bind_sequence(
@@ -31,7 +32,11 @@ pub fn get_input(
     );
 
     let prompt = format!("{} ", console::style("( O)>").cyan().bold());
-    let input = match editor.readline(&prompt) {
+    let input = match if let Some(initial) = initial_text {
+        editor.readline_with_initial(&prompt, (initial, ""))
+    } else {
+        editor.readline(&prompt)
+    } {
         Ok(text) => text,
         Err(e) => match e {
             rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
