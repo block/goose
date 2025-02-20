@@ -152,7 +152,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item("remove", "Remove Extension", "Remove an extension")
             .item(
                 "settings",
-                "Adjust Goose Settings",
+                "Goose Settings",
                 "Set the Goose Mode, Tool Output, and more",
             )
             .interact()?;
