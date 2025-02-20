@@ -8,6 +8,7 @@ mod thinking;
 pub use builder::build_session;
 
 use anyhow::Result;
+use etcetera::choose_app_strategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
@@ -168,12 +169,18 @@ impl Session {
         }
 
         // Log usage and cleanup
-        let usage = self.agent.usage().await;
-        log_usage(self.session_file.to_string_lossy().to_string(), usage);
-        println!(
-            "\nClosing session. Recorded to {}",
-            self.session_file.display()
-        );
+        if let Ok(home_dir) = choose_app_strategy(crate::APP_STRATEGY.clone()) {
+            let usage = self.agent.usage().await;
+            log_usage(
+                home_dir,
+                self.session_file.to_string_lossy().to_string(),
+                usage,
+            );
+            println!(
+                "\nClosing session. Recorded to {}",
+                self.session_file.display()
+            );
+        }
         Ok(())
     }
 
