@@ -6,6 +6,12 @@ const DOWNLOAD_SCRIPT_URL: &str =
     "https://github.com/block/goose/releases/download/stable/download_cli.sh";
 
 pub fn update(canary: bool, reconfigure: bool) -> Result<()> {
+    // Check for env var DISABLE_CLI_UPDATES
+    // If set, raise an error
+    if std::env::var("DISABLE_CLI_UPDATES").is_ok() {
+        anyhow::bail!("CLI updates are disabled by the DISABLE_CLI_UPDATES environment variable");
+    }
+
     // Get the download script from github
     let curl_output = Command::new("curl")
         .arg("-fsSL")
