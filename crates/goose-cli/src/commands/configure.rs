@@ -153,7 +153,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item(
                 "settings",
                 "Goose Settings",
-                "Set the Goose Mode, Tool Output, and more",
+                "Set the Goose Mode, Tool Output, Experiment and more",
             )
             .interact()?;
 
