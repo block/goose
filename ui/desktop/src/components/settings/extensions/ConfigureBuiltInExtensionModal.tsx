@@ -83,7 +83,7 @@ export function ConfigureBuiltInExtensionModal({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden px-[16px] py-[24px]">
         <div className="px-8 pb-0 space-y-8">
           {/* Header */}
           <div className="flex">
