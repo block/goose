@@ -6,6 +6,7 @@ use goose::config::Config;
 use goose::message::Message;
 use goose_bench::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, EvaluationSuiteFactory};
 use goose_bench::work_dir::WorkDir;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[async_trait]
@@ -72,7 +73,15 @@ pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> a
     Ok(())
 }
 
-pub async fn list_suites() -> anyhow::Result<Vec<String>> {
+pub async fn list_suites() -> anyhow::Result<HashMap<String, usize>> {
     let suites = EvaluationSuiteFactory::available_evaluations();
-    Ok(suites.into_iter().map(|s| s.to_string()).collect())
+    let mut suite_counts = HashMap::new();
+    
+    for suite in suites {
+        if let Some(evals) = EvaluationSuiteFactory::create(suite) {
+            suite_counts.insert(suite.to_string(), evals.len());
+        }
+    }
+
+    Ok(suite_counts)
 }

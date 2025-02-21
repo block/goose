@@ -29,7 +29,6 @@ impl Evaluation for MemoryRememberMemory {
         // Send the prompt to list files
         let messages = agent.prompt("Save this fact: The capital of France is Paris.".to_string());
         let messages = messages.await?;
-        println!("{:?}", messages);
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
@@ -40,8 +39,7 @@ impl Evaluation for MemoryRememberMemory {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
                         if tool_call.name != "memory__remember_memory" {
-                            println!("aws1");
-                            return true;
+                            false;
                         }
 
                         // Parse the arguments as JSON
@@ -51,15 +49,12 @@ impl Evaluation for MemoryRememberMemory {
                             args.get("data").and_then(Value::as_str) == Some("The capital of France is Paris.") && 
                             args.get("is_global").and_then(Value::as_bool) == Some(true)
                         } else {
-                            println!("aws2");
                             false
                         }
                     } else {
-                        println!("aws3");
                         false
                     }
                 } else {
-                    println!("aws4");
                     false
                 }
             })

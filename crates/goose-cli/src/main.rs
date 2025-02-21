@@ -342,7 +342,9 @@ async fn main() -> Result<()> {
         }) => {
             if list {
                 let suites = list_suites().await?;
-                println!("Available suites: {}", suites.join(", "));
+                for suite in suites.keys() {
+                    println!("{}: {}", suite, suites.get(suite).unwrap());
+                }
                 return Ok(());
             }
             let suites = if suites.is_empty() {
