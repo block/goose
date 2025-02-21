@@ -1,9 +1,13 @@
+<p align="center">
+  <img src="documentation/docs/assets/goose-logo.png" alt="Goose Logo" width="200">
+</p>
+
 <h1 align="center">
 codename goose
 </h1>
 
 <p align="center">
-  <strong>an open-source, extensible AI agent that goes beyond code suggestions<br>install, execute, edit, and test with any LLM</strong>
+  An open-source, extensible AI agent that goes beyond code suggestions</strong>
 </p>
 
 <p align="center">
@@ -18,5 +22,19 @@ codename goose
   </a>
 </p>
 
+## Key Features
+
+- **Runs Locally** - Execute tasks efficiently with full control
+- **Extensible** - Connect to any LLM, MCP server, or API
+- **Autonomous** - Independently handles complex tasks from debugging to deployment
+- **Open Source** - Built with transparency and collaboration in mind
+
+## Getting Started
+
 Check out our [documentation](https://block.github.io/goose), or to try it out head to the [installation](https://block.github.io/goose/docs/getting-started/installation) instructions!
+
+## Community
+
+Join our growing community:
+- [GitHub](https://github.com/block/goose/blob/main/CONTRIBUTING.md) - Contribute to the project
 
