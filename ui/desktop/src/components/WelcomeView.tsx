@@ -1,8 +1,8 @@
 import React from 'react';
 import { ProviderGrid } from './ProviderGrid';
-import { ScrollArea } from '../ui/scroll-area';
-import { Button } from '../ui/button';
-import WelcomeGooseLogo from '../WelcomeGooseLogo';
+import { ScrollArea } from './ui/scroll-area';
+import { Button } from './ui/button';
+import WelcomeGooseLogo from './WelcomeGooseLogo';
 
 // Extending React CSSProperties to include custom webkit property
 declare module 'react' {
@@ -15,7 +15,7 @@ interface WelcomeScreenProps {
   onSubmit?: () => void;
 }
 
-export function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
+export default function WelcomeScreen({ onSubmit }: WelcomeScreenProps) {
   return (
     <div className="h-screen w-full select-none bg-white dark:bg-black">
       {/* Draggable title bar region */}

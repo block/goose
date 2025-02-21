@@ -10,7 +10,6 @@ type ElectronAPI = {
   createChatWindow: (query?: string, dir?: string, version?: string) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: any) => void;
-  createWingToWingWindow: (query: string) => void;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<any>;
   reloadApp: () => void;
@@ -42,7 +41,6 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.send('create-chat-window', query, dir, version),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: any) => ipcRenderer.send('notify', data),
-  createWingToWingWindow: (query: string) => ipcRenderer.send('create-wing-to-wing-window', query),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),

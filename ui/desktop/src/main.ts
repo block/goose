@@ -181,47 +181,6 @@ let appConfig = {
   secretKey: generateSecretKey(),
 };
 
-const createLauncher = () => {
-  const launcherWindow = new BrowserWindow({
-    width: 600,
-    height: 60,
-    frame: process.platform === 'darwin' ? false : true,
-    transparent: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.ts'),
-      additionalArguments: [JSON.stringify(appConfig)],
-      partition: 'persist:goose',
-    },
-    skipTaskbar: true,
-    alwaysOnTop: true,
-  });
-
-  // Center on screen
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
-  const windowBounds = launcherWindow.getBounds();
-
-  launcherWindow.setPosition(
-    Math.round(width / 2 - windowBounds.width / 2),
-    Math.round(height / 3 - windowBounds.height / 2)
-  );
-
-  // Load launcher window content
-  const launcherParams = '?window=launcher#/launcher';
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    launcherWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${launcherParams}`);
-  } else {
-    launcherWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html${launcherParams}`)
-    );
-  }
-
-  // Destroy window when it loses focus
-  launcherWindow.on('blur', () => {
-    launcherWindow.destroy();
-  });
-};
-
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
@@ -486,9 +445,6 @@ app.whenReady().then(async () => {
   const recentDirs = loadRecentDirs();
   let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
   createChat(app, undefined, openDir);
-
-  // Show launcher input on key combo
-  globalShortcut.register('Control+Alt+Command+G', createLauncher);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
