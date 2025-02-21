@@ -11,6 +11,7 @@ use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
 use std::io::{self, Read};
+use std::path::PathBuf;
 
 use std::path::PathBuf;
 
