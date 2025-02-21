@@ -6,6 +6,7 @@ use goose::config::Config;
 use goose::message::Message;
 use goose_bench::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, EvaluationSuiteFactory};
 use goose_bench::work_dir::WorkDir;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[async_trait]
@@ -24,7 +25,9 @@ async fn run_eval(
 ) -> anyhow::Result<Vec<EvaluationMetric>> {
     if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
         let session = build_session(None, false, Vec::new(), Vec::new()).await;
-        evaluation.run(Box::new(session), work_dir).await
+        let report = evaluation.run(Box::new(session), work_dir).await;
+        println!("Report: {report:?}");
+        report
     } else {
         Ok(vec![])
     }
@@ -68,4 +71,17 @@ pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> a
         }
     }
     Ok(())
+}
+
+pub async fn list_suites() -> anyhow::Result<HashMap<String, usize>> {
+    let suites = EvaluationSuiteFactory::available_evaluations();
+    let mut suite_counts = HashMap::new();
+    
+    for suite in suites {
+        if let Some(evals) = EvaluationSuiteFactory::create(suite) {
+            suite_counts.insert(suite.to_string(), evals.len());
+        }
+    }
+
+    Ok(suite_counts)
 }

@@ -4,11 +4,12 @@ use clap::{CommandFactory, Parser, Subcommand};
 use console::style;
 use goose::config::Config;
 use goose_cli::commands::agent_version::AgentCommand;
-use goose_cli::commands::bench::run_benchmark;
+use goose_cli::commands::bench::{run_benchmark, list_suites};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
+use core::borrow;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
@@ -172,6 +173,13 @@ enum Command {
             default_value = "1"
         )]
         repeat: usize,
+
+        #[arg(
+            long = "list",
+            value_name = "LIST",
+            help="List all available bench suites."
+        )]
+        list: bool,
     },
 }
 
@@ -244,7 +252,15 @@ async fn main() -> Result<()> {
             suites,
             include_dirs,
             repeat,
+            list,
         }) => {
+            if list {
+                let suites = list_suites().await?;
+                for suite in suites.keys() {
+                    println!("{}: {}", suite, suites.get(suite).unwrap());
+                }
+                return Ok(());
+            }
             let suites = if suites.is_empty() {
                 vec!["core".to_string()]
             } else {
