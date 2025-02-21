@@ -2,7 +2,7 @@ use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
-use std::fs;
+// use std::fs;
 
 pub struct ExampleEval {}
 

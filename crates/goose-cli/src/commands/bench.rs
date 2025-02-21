@@ -71,3 +71,8 @@ pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> a
     }
     Ok(())
 }
+
+pub async fn list_suites() -> anyhow::Result<Vec<String>> {
+    let suites = EvaluationSuiteFactory::available_evaluations();
+    Ok(suites.into_iter().map(|s| s.to_string()).collect())
+}
