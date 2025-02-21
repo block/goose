@@ -1,3 +1,4 @@
+use crate::work_dir::WorkDir;
 use anyhow::Result;
 use async_trait::async_trait;
 use goose::message::Message;
@@ -20,6 +21,10 @@ pub trait BenchAgent: Send + Sync {
 
 #[async_trait]
 pub trait Evaluation: Send + Sync {
-    async fn run(&self, agent: Box<dyn BenchAgent>) -> Result<Vec<EvaluationMetric>>;
+    async fn run(
+        &self,
+        agent: Box<dyn BenchAgent>,
+        run_loc: &mut WorkDir,
+    ) -> Result<Vec<EvaluationMetric>>;
     fn name(&self) -> &str;
 }

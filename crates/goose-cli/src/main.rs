@@ -206,6 +206,24 @@ enum Command {
             value_delimiter = ','
         )]
         suites: Vec<String>,
+
+        #[arg(
+            short = 'i',
+            long = "include-dir",
+            value_name = "DIR_NAME",
+            action = clap::ArgAction::Append,
+            long_help = "Make one or more dirs available to all bench suites. Specify either a single dir-name, a comma-separated list of dir-names, or use this multiple instances of this flag to specify multiple dirs.",
+            value_delimiter = ','
+        )]
+        include_dirs: Vec<PathBuf>,
+
+        #[arg(
+            long = "repeat",
+            value_name = "QUANTITY",
+            long_help = "Number of times to repeat the benchmark run.",
+            default_value = "1"
+        )]
+        repeat: usize,
     },
 }
 
@@ -306,9 +324,18 @@ async fn main() -> Result<()> {
         }
         Some(Command::Bench {
             suites,
-             }) => {
-            let suites = if suites.is_empty() { vec!["core".to_string()] } else { suites };
-            run_benchmark(suites).await;
+            include_dirs,
+            repeat,
+        }) => {
+            let suites = if suites.is_empty() {
+                vec!["core".to_string()]
+            } else {
+                suites
+            };
+
+            for _ in 0..repeat {
+                let _ = run_benchmark(suites.clone(), include_dirs.clone()).await;
+            }
             return Ok(());
         }
         None => {

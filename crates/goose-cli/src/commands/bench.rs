@@ -6,6 +6,7 @@ use goose::config::Config;
 use goose::message::Message;
 use goose_bench::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, EvaluationSuiteFactory};
 use goose_bench::work_dir::WorkDir;
+use std::path::PathBuf;
 
 #[async_trait]
 impl BenchAgent for Session {
@@ -16,21 +17,25 @@ impl BenchAgent for Session {
     }
 }
 
-async fn run_eval(evaluation: Box<dyn Evaluation>) -> anyhow::Result<Vec<EvaluationMetric>> {
-    if let Ok(_) = WorkDir::work_from(format!("./{}", &evaluation.name())) {
+#[allow(clippy::redundant_pattern_matching)]
+async fn run_eval(
+    evaluation: Box<dyn Evaluation>,
+    work_dir: &mut WorkDir,
+) -> anyhow::Result<Vec<EvaluationMetric>> {
+    if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
         let session = build_session(None, false, Vec::new(), Vec::new()).await;
-        let report = evaluation.run(Box::new(session)).await;
-        report
+        evaluation.run(Box::new(session), work_dir).await
     } else {
         Ok(vec![])
     }
 }
 
-async fn run_suite(suite: &str) -> anyhow::Result<()> {
-    if let Ok(_) = WorkDir::work_from(format!("./{}", &suite)) {
+#[allow(clippy::redundant_pattern_matching)]
+async fn run_suite(suite: &str, work_dir: &mut WorkDir) -> anyhow::Result<()> {
+    if let Ok(work_dir) = work_dir.move_to(format!("./{}", &suite)) {
         if let Some(evals) = EvaluationSuiteFactory::create(suite) {
             for eval in evals {
-                run_eval(eval).await?;
+                run_eval(eval, work_dir).await?;
             }
         }
     }
@@ -38,7 +43,8 @@ async fn run_suite(suite: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run_benchmark(suites: Vec<String>) -> anyhow::Result<()> {
+#[allow(clippy::redundant_pattern_matching)]
+pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> anyhow::Result<()> {
     let suites = EvaluationSuiteFactory::available_evaluations()
         .into_iter()
         .filter(|&s| suites.contains(&s.to_string()))
@@ -51,10 +57,13 @@ pub async fn run_benchmark(suites: Vec<String>) -> anyhow::Result<()> {
 
     let current_time = Local::now().format("%H:%M:%S").to_string();
     let current_date = Local::now().format("%Y-%m-%d").to_string();
-    if let Ok(_) = WorkDir::work_from(format!("./benchmark-{}", &provider_name)) {
-        if let Ok(_) = WorkDir::work_from(format!("./{}-{}", &current_date, current_time)) {
+    if let Ok(mut work_dir) = WorkDir::at(
+        format!("./benchmark-{}", &provider_name),
+        include_dirs.clone(),
+    ) {
+        if let Ok(work_dir) = work_dir.move_to(format!("./{}-{}", &current_date, current_time)) {
             for suite in suites {
-                run_suite(suite).await?;
+                run_suite(suite, work_dir).await?;
             }
         }
     }
