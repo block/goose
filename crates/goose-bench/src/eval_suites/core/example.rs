@@ -17,7 +17,7 @@ impl Evaluation for ExampleEval {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut WorkDir,
+        _work_dir: &mut WorkDir,
     ) -> anyhow::Result<Vec<EvaluationMetric>> {
         println!("ExampleEval - run");
         let f = work_dir.fs_get(String::from("./arbitrary_dir/arbitrary_file.txt"))?;
