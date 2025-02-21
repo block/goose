@@ -1,5 +1,6 @@
 import { getApiUrl, getSecretKey } from './config';
 import { type View } from './App';
+import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
 // ExtensionConfig type matching the Rust version
@@ -194,7 +195,7 @@ function storeExtensionConfig(config: FullExtensionConfig) {
       localStorage.setItem('user_settings', JSON.stringify(userSettings));
       console.log('Extension config stored successfully in user_settings');
       // Notify settings update through electron IPC
-      window.electron.send('settings-updated');
+      window.electron.emit('settings-updated');
     } else {
       console.log('Extension config already exists in user_settings');
     }
@@ -258,7 +259,10 @@ function handleError(message: string, shouldThrow = false): void {
   }
 }
 
-export async function addExtensionFromDeepLink(url: string, setView: (view: View) => void) {
+export async function addExtensionFromDeepLink(
+  url: string,
+  setView: (view: View, options: SettingsViewOptions) => void
+) {
   if (!url.startsWith('goose://extension')) {
     handleError(
       'Failed to install extension: Invalid URL: URL must use the goose://extension scheme'
@@ -344,9 +348,7 @@ export async function addExtensionFromDeepLink(url: string, setView: (view: View
   // Check if extension requires env vars and go to settings if so
   if (envVarsRequired(config)) {
     console.log('Environment variables required, redirecting to settings');
-    setView('settings');
-    // TODO - add code which can auto-open the modal on the settings view
-    // navigate(`/settings?extensionId=${config.id}&showEnvVars=true`);
+    setView('settings', { extensionId: config.id, showEnvVars: true });
     return;
   }
 

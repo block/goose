@@ -13,12 +13,13 @@ import { extractExtensionName } from './components/settings/extensions/utils';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
-import SettingsView from './components/settings/SettingsView';
+import SettingsView, { type SettingsViewOptions } from './components/settings/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 
 import 'react-toastify/dist/ReactToastify.css';
 
+// Views and their options
 export type View =
   | 'welcome'
   | 'chat'
@@ -27,15 +28,27 @@ export type View =
   | 'configureProviders'
   | 'configPage';
 
+export type ViewConfig = {
+  view: View;
+  viewOptions?: SettingsViewOptions | Record<any, any>;
+};
+
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [isInstalling, setIsInstalling] = useState(false);
-  const [view, setView] = useState<View>('welcome');
+  const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>({
+    view: 'welcome',
+    viewOptions: {},
+  });
+
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
+  const setView = (view: View, viewOptions: Record<any, any> = {}) => {
+    setInternalView({ view, viewOptions });
+  };
 
   // Utility function to extract the command from the link
   function extractCommand(link: string): string {
@@ -193,6 +206,7 @@ export default function App() {
                 setView('chat');
               }}
               setView={setView}
+              viewOptions={viewOptions as SettingsViewOptions}
             />
           )}
           {view === 'moreModels' && (
