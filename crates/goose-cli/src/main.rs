@@ -4,6 +4,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use console::style;
 use goose::config::Config;
 use goose_cli::commands::agent_version::AgentCommand;
+use goose_cli::commands::bench::run_benchmark;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
@@ -149,6 +150,19 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
+
+    /// Run benchmark suite
+    Bench {
+        #[arg(
+            short = 's',
+            long = "suites",
+            value_name = "BENCH_SUITE_NAME",
+            help = "Run this list of bench-suites.",
+            long_help = "Specify a comma-separated list of evaluation-suite names to be run.",
+            value_delimiter = ','
+        )]
+        suites: Vec<String>,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -218,6 +232,15 @@ async fn main() -> Result<()> {
         }
         Some(Command::Agents(cmd)) => {
             cmd.run()?;
+            return Ok(());
+        }
+        Some(Command::Bench { suites }) => {
+            let suites = if suites.is_empty() {
+                vec!["core".to_string()]
+            } else {
+                suites
+            };
+            run_benchmark(suites).await;
             return Ok(());
         }
         None => {
