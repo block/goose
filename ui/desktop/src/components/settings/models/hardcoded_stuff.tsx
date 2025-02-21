@@ -75,6 +75,11 @@ export const required_keys = {
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
 };
 
+export const default_key_value = {
+  OPENAI_HOST: 'https://api.openai.com',
+  OLLAMA_HOST: 'localhost',
+};
+
 export const supported_providers = [
   'OpenAI',
   'Anthropic',

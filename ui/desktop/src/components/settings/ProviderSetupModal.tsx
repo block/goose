@@ -3,7 +3,7 @@ import { Card } from '../ui/card';
 import { Lock } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { required_keys } from './models/hardcoded_stuff';
+import { required_keys, default_key_value } from './models/hardcoded_stuff';
 import { isSecretKey } from './api_keys/utils';
 import { OllamaBattleGame } from './OllamaBattleGame';
 
@@ -26,7 +26,9 @@ export function ProviderSetupModal({
   onCancel,
   forceBattle = false,
 }: ProviderSetupModalProps) {
-  const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>({});
+  const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>(
+    default_key_value
+  );
   const requiredKeys = required_keys[provider] || ['API Key'];
   const headerText = title || `Setup ${provider}`;
 
