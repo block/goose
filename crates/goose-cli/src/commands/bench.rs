@@ -24,7 +24,7 @@ async fn run_eval(
 ) -> anyhow::Result<Vec<EvaluationMetric>> {
     if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
         let session = build_session(None, false, Vec::new(), Vec::new()).await;
-        let report = evaluation.run(Box::new(session), work_dir).await
+        let report = evaluation.run(Box::new(session), work_dir).await;
         println!("Report: {report:?}");
         report
     } else {

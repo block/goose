@@ -1,13 +1,13 @@
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
+use crate::work_dir::WorkDir;
 use async_trait::async_trait;
-use mcp_core::role::Role;
 use goose::message::MessageContent;
+use mcp_core::role::Role;
 use serde_json;
 
 #[derive(Debug)]
-pub struct DeveloperListFiles {
-}
+pub struct DeveloperListFiles {}
 
 impl DeveloperListFiles {
     pub fn new() -> Self {
@@ -17,13 +17,19 @@ impl DeveloperListFiles {
 
 #[async_trait]
 impl Evaluation for DeveloperListFiles {
-    async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<Vec<EvaluationMetric>> {
+    async fn run(
+        &self,
+        mut agent: Box<dyn BenchAgent>,
+        _work_dir: &mut WorkDir,
+    ) -> anyhow::Result<Vec<EvaluationMetric>> {
         let mut metrics = Vec::new();
-        
+
         // Send the prompt to list files
-        let messages = agent.prompt("list the files in the current directory".to_string()).await?;
+        let messages = agent
+            .prompt("list the files in the current directory".to_string())
+            .await?;
         // println!("asdhflkahjsdflkasdfl");
-        
+
         // Check if the assistant makes appropriate tool calls
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
@@ -49,7 +55,7 @@ impl Evaluation for DeveloperListFiles {
                 }
             })
         });
-        
+
         metrics.push(EvaluationMetric::Boolean(valid_tool_call));
         Ok(metrics)
     }

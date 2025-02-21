@@ -2,14 +2,14 @@
 
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
+use crate::work_dir::WorkDir;
 use async_trait::async_trait;
-use mcp_core::role::Role;
 use goose::message::MessageContent;
+use mcp_core::role::Role;
 use serde_json::{self, Value};
 
 #[derive(Debug)]
-pub struct DeveloperCreateFile {
-}
+pub struct DeveloperCreateFile {}
 
 impl DeveloperCreateFile {
     pub fn new() -> Self {
@@ -19,13 +19,17 @@ impl DeveloperCreateFile {
 
 #[async_trait]
 impl Evaluation for DeveloperCreateFile {
-    async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<Vec<EvaluationMetric>> {
+    async fn run(
+        &self,
+        mut agent: Box<dyn BenchAgent>,
+        _work_dir: &mut WorkDir,
+    ) -> anyhow::Result<Vec<EvaluationMetric>> {
         let mut metrics = Vec::new();
-        
+
         // Send the prompt to list files
         let messages = agent.prompt("Create a new file called test.txt in the current directory with the content 'Hello, World!'. Then read the contents of the new file to confirm.".to_string()).await?;
         // println!("asdhflkahjsdflkasdfl");
-        
+
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
             msg.role == Role::Assistant && 
@@ -55,7 +59,7 @@ impl Evaluation for DeveloperCreateFile {
                 }
             })
         });
-        
+
         metrics.push(EvaluationMetric::Boolean(valid_tool_call));
         Ok(metrics)
     }

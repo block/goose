@@ -2,14 +2,14 @@
 
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
+use crate::work_dir::WorkDir;
 use async_trait::async_trait;
-use mcp_core::role::Role;
 use goose::message::MessageContent;
+use mcp_core::role::Role;
 use serde_json::{self, Value};
 
 #[derive(Debug)]
-pub struct ComputerControllerScript {
-}
+pub struct ComputerControllerScript {}
 
 impl ComputerControllerScript {
     pub fn new() -> Self {
@@ -19,14 +19,20 @@ impl ComputerControllerScript {
 
 #[async_trait]
 impl Evaluation for ComputerControllerScript {
-    async fn run(&self, mut agent: Box<dyn BenchAgent>) -> anyhow::Result<Vec<EvaluationMetric>> {
+    async fn run(
+        &self,
+        mut agent: Box<dyn BenchAgent>,
+        _work_dir: &mut WorkDir,
+    ) -> anyhow::Result<Vec<EvaluationMetric>> {
         let mut metrics = Vec::new();
-        
+
         // Send the prompt to list files
-        let messages = agent.prompt("What are the headlines on hackernews? Organize the list into categories.".to_string());
+        let messages = agent.prompt(
+            "What are the headlines on hackernews? Organize the list into categories.".to_string(),
+        );
         let messages = messages.await?;
         println!("{:?}", messages);
-        
+
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
             msg.role == Role::Assistant && 
@@ -58,7 +64,7 @@ impl Evaluation for ComputerControllerScript {
                 }
             })
         });
-        
+
         metrics.push(EvaluationMetric::Boolean(valid_tool_call));
         Ok(metrics)
     }
