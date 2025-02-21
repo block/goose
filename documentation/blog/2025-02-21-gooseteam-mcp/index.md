@@ -21,12 +21,14 @@ Introducing [GooseTeam](https://github.com/cliffhall/GooseTeam/tree/main/p1), cr
 
 A Goose agent with the Project Coordinator role will assign roles to other agents, your connected agents will send messages that can retrieved at any time, and your team of agents will connect to the same MCP server to collaborate together.
 
+![Goose Agents](gooseteam-agents.png)
+
 ## A New Way to Goose
 
 Working with a team of AI agents on a task is a game changer. Instead of getting confused as to how to improve your prompt engineering on your own or work across sessions manually, tools like Cliff's GooseTeam or Aaron's Agent Communication Protocol help us make sure AI agents like Goose are doing the work for us as efficiently as possible. The possibilities feel endless!
 
 ## Get Your Contribution Featured
-Hopefully this contribution inspired you as much as it inspired our community. If you have a Goose contribution or project you'd like to share with our community, join our [Discord](https://discord.gg/block-opensource) and share your work in the** #share-what-you-do** channel. You may just be featured on our livestream or get a cool prize. 👀 You can also star Goose on GitHub or follow us on social media so you never miss an update from us. Until next time!
+Hopefully this contribution inspired you as much as it inspired our community. If you have a Goose contribution or project you'd like to share with our community, join our [Discord](https://discord.gg/block-opensource) and share your work in the** #share-your-work** channel. You may just be featured on our livestream or get a cool prize. 👀 You can also star Goose on GitHub or follow us on social media so you never miss an update from us. Until next time!
 
 
 <head>
