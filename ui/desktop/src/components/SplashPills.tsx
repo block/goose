@@ -20,12 +20,7 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
 export default function SplashPills({ append }) {
   return (
     <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
-      <SplashPill
-        content="What can you do?"
-        append={append}
-        className="bg-black dark:bg-white dark:hover:bg-gray-200 text-white dark:!text-black border-none hover:bg-slate"
-        longForm="Look around the users system, work out what capablities/apps there are there, what tools, and what sort user they are and suggest 3 serious and  3 fun tasks based on what you find that are likely to work (present fun markdown)."
-      />
+      <SplashPill content="What can you do?" append={append} />
       <SplashPill content="Demo writing and reading files" append={append} />
       <SplashPill content="Make a snake game in a new folder" append={append} />
       <SplashPill content="List files in my current directory" append={append} />
