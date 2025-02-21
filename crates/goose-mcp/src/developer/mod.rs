@@ -827,39 +827,35 @@ impl Router for DeveloperRouter {
         Box::pin(async move { Ok("".to_string()) })
     }
 
-    fn list_prompts(&self) -> Option<Vec<Prompt>> {
-        if self.prompts.is_empty() {
-            None
-        } else {
-            Some(self.prompts.values().cloned().collect())
-        }
+    fn list_prompts(&self) -> Vec<Prompt> {
+        self.prompts.values().cloned().collect()
     }
 
     fn get_prompt(
         &self,
         prompt_name: &str,
-    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
         let prompt_name = prompt_name.trim().to_owned();
 
         // Validate prompt name is not empty
         if prompt_name.is_empty() {
-            return Some(Box::pin(async move {
+            return Box::pin(async move {
                 Err(PromptError::InvalidParameters(
                     "Prompt name cannot be empty".to_string(),
                 ))
-            }));
+            });
         }
 
         let prompts = Arc::clone(&self.prompts);
 
-        Some(Box::pin(async move {
+        Box::pin(async move {
             match prompts.get(&prompt_name) {
                 Some(prompt) => Ok(prompt.description.clone().unwrap_or_default()),
                 None => Err(PromptError::NotFound(format!(
                     "Prompt '{prompt_name}' not found"
                 ))),
             }
-        }))
+        })
     }
 }
 
