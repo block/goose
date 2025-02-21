@@ -97,12 +97,8 @@ pub trait Router: Send + Sync + 'static {
         &self,
         uri: &str,
     ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>>;
-    fn list_prompts(&self) -> Option<Vec<Prompt>> {
-        None
-    }
-    fn get_prompt(&self, _prompt_name: &str) -> Option<PromptFuture> {
-        None
-    }
+    fn list_prompts(&self) -> Vec<Prompt>;
+    fn get_prompt(&self, prompt_name: &str) -> PromptFuture;
 
     // Helper method to create base response
     fn create_response(&self, id: Option<u64>) -> JsonRpcResponse {
@@ -257,7 +253,7 @@ pub trait Router: Send + Sync + 'static {
         req: JsonRpcRequest,
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
-            let prompts = self.list_prompts().unwrap_or_default();
+            let prompts = self.list_prompts();
 
             let result = ListPromptsResult { prompts };
 
@@ -294,15 +290,13 @@ pub trait Router: Send + Sync + 'static {
                 .ok_or_else(|| RouterError::InvalidParams("Missing arguments object".into()))?;
 
             // Fetch the prompt definition first
-            let prompt = match self.list_prompts() {
-                Some(prompts) => prompts
-                    .into_iter()
-                    .find(|p| p.name == prompt_name)
-                    .ok_or_else(|| {
-                        RouterError::PromptNotFound(format!("Prompt '{}' not found", prompt_name))
-                    })?,
-                None => return Err(RouterError::PromptNotFound("No prompts available".into())),
-            };
+            let prompt = self
+                .list_prompts()
+                .into_iter()
+                .find(|p| p.name == prompt_name)
+                .ok_or_else(|| {
+                    RouterError::PromptNotFound(format!("Prompt '{}' not found", prompt_name))
+                })?;
 
             // Validate required arguments
             if let Some(args) = &prompt.arguments {
@@ -326,7 +320,6 @@ pub trait Router: Send + Sync + 'static {
             // Now get the prompt content
             let description = self
                 .get_prompt(prompt_name)
-                .ok_or_else(|| RouterError::PromptNotFound("Prompt not found".into()))?
                 .await
                 .map_err(|e| RouterError::Internal(e.to_string()))?;
 
