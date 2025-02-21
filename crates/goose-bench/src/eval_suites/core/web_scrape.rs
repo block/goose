@@ -31,7 +31,6 @@ impl Evaluation for ComputerControllerWebScrape {
             "What are the headlines on hackernews? Organize the list into categories.".to_string(),
         );
         let messages = messages.await?;
-        println!("{:?}", messages);
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
@@ -42,8 +41,7 @@ impl Evaluation for ComputerControllerWebScrape {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
                         if tool_call.name != "computercontroller__web_scrape" {
-                            println!("aws1");
-                            return true;
+                            false;
                         }
 
                         // Parse the arguments as JSON
@@ -51,15 +49,12 @@ impl Evaluation for ComputerControllerWebScrape {
                             // Check all required parameters match exactly
                             args.get("url").and_then(Value::as_str) == Some("https://news.ycombinator.com")
                         } else {
-                            println!("aws2");
                             false
                         }
                     } else {
-                        println!("aws3");
                         false
                     }
                 } else {
-                    println!("aws4");
                     false
                 }
             })

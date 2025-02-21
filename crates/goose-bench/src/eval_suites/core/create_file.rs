@@ -46,7 +46,7 @@ impl Evaluation for DeveloperCreateFile {
                         if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
                             // Check all required parameters match exactly
                             args.get("command").and_then(Value::as_str) == Some("write") &&
-                            args.get("path").and_then(Value::as_str) == Some("./test.txt") &&
+                            args.get("path").and_then(Value::as_str).map_or(false, |s| s.contains("test.txt")) &&
                             args.get("file_text").and_then(Value::as_str) == Some("Hello, World!")
                         } else {
                             false

@@ -28,10 +28,9 @@ impl Evaluation for ComputerControllerScript {
 
         // Send the prompt to list files
         let messages = agent.prompt(
-            "What are the headlines on hackernews? Organize the list into categories.".to_string(),
+            "Make a ding sound".to_string(),
         );
         let messages = messages.await?;
-        println!("{:?}", messages);
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
@@ -41,9 +40,8 @@ impl Evaluation for ComputerControllerScript {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
-                        if tool_call.name != "computercontroller__script" {
-                            println!("aws1");
-                            return true;
+                        if tool_call.name != "computercontroller__computer_control" {
+                            return false;
                         }
 
                         // Parse the arguments as JSON
@@ -51,15 +49,12 @@ impl Evaluation for ComputerControllerScript {
                             // Check all required parameters match exactly
                             args.get("script").and_then(Value::as_str).map_or(false, |s| s.contains("beep"))
                         } else {
-                            println!("aws2");
                             false
                         }
                     } else {
-                        println!("aws3");
                         false
                     }
                 } else {
-                    println!("aws4");
                     false
                 }
             })

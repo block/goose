@@ -4,7 +4,7 @@ use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
-use serde_json;
+use serde_json::{self, Value};
 
 #[derive(Debug)]
 pub struct DeveloperListFiles {}
@@ -39,14 +39,20 @@ impl Evaluation for DeveloperListFiles {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     // Check if the tool call is for shell with ls or rg --files
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
-                        let args: String = serde_json::from_value(tool_call.arguments.clone())
-                            .unwrap_or_default();
-                        
-                        tool_call.name == "developer__shell" &&                    
-                        (args.to_lowercase().contains("ls ") || 
-                         args.to_lowercase().contains("ls\n") ||
-                         args.to_lowercase().contains("ls$") ||
-                         args.contains("rg --files"))
+                        // Parse arguments as JSON Value first
+                        if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
+                            tool_call.name == "developer__shell" &&                    
+                            args.get("command")
+                                .and_then(Value::as_str)
+                                .map_or(false, |cmd| {
+                                    cmd.contains("ls ") || 
+                                    cmd.contains("ls\n") ||
+                                    cmd.contains("ls$") ||
+                                    cmd.contains("rg --files")
+                                })
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
