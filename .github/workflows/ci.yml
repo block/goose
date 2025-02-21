@@ -105,3 +105,8 @@ jobs:
     if: github.event_name == 'pull_request'
     with:
       signing: false
+  bundle-desktop-windows-unsigned:
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    if: github.event_name == 'pull_request'
+    with:
+      signing: false

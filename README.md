@@ -19,4 +19,3 @@ codename goose
 </p>
 
 Check out our [documentation](https://block.github.io/goose), or to try it out head to the [installation](https://block.github.io/goose/docs/getting-started/installation) instructions!
-
