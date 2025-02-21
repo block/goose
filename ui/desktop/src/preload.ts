@@ -26,6 +26,7 @@ type ElectronAPI = {
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void
   ) => void;
+  emit: (channel: string, ...args: any[]) => void;
 };
 
 type AppConfigAPI = {
@@ -54,6 +55,9 @@ const electronAPI: ElectronAPI = {
   },
   off: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.off(channel, callback);
+  },
+  emit: (channel: string, ...args: any[]) => {
+    ipcRenderer.emit(channel, ...args);
   },
 };
 

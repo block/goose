@@ -14,7 +14,6 @@ import {
 } from 'electron';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
-import { handleSquirrelEvent } from './setup-events';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -34,82 +33,13 @@ import { promisify } from 'util';
 
 const exec = promisify(execCallback);
 
-// Handle Squirrel events for Windows installer
-if (process.platform === 'win32') {
-  console.log('Windows detected, command line args:', process.argv);
-
-  if (handleSquirrelEvent()) {
-    // squirrel event handled and app will exit in 1000ms, so don't do anything else
-    process.exit(0);
-  }
-
-  // Handle the protocol on Windows during first launch
-  if (process.argv.length >= 2) {
-    const url = process.argv[1];
-    console.log('Checking URL from command line:', url);
-    if (url.startsWith('goose://')) {
-      console.log('Found goose:// URL in command line args');
-      app.emit('open-url', { preventDefault: () => {} }, url);
-    }
-  }
-}
-
-// Ensure single instance lock
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (event, commandLine, _workingDirectory) => {
-    // Someone tried to run a second instance
-    console.log('Second instance detected with args:', commandLine);
-
-    // Get existing window or create new one
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      const window = existingWindows[0];
-      if (window.isMinimized()) window.restore();
-      window.focus();
-
-      if (process.platform === 'win32') {
-        // Protocol handling for Windows
-        const url = commandLine[commandLine.length - 1];
-        console.log('Checking last arg for protocol:', url);
-        if (url.startsWith('goose://')) {
-          console.log('Found goose:// URL in second instance');
-          // Send the URL to the window
-          if (!window.webContents.isLoading()) {
-            window.webContents.send('add-extension', url);
-          } else {
-            window.webContents.once('did-finish-load', () => {
-              window.webContents.send('add-extension', url);
-            });
-          }
-        }
-      }
-    }
-  });
-}
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
-// Register protocol handler
-if (process.platform === 'win32') {
-  const success = app.setAsDefaultProtocolClient('goose', process.execPath, ['--']);
-  console.log('Registering protocol handler for Windows:', success ? 'success' : 'failed');
-} else {
-  const success = app.setAsDefaultProtocolClient('goose');
-  console.log('Registering protocol handler:', success ? 'success' : 'failed');
-}
-
-// Log if we're the default protocol handler
-console.log('Is default protocol handler:', app.isDefaultProtocolClient('goose'));
+app.setAsDefaultProtocolClient('goose');
 
 // Triggered when the user opens "goose://..." links
 app.on('open-url', async (event, url) => {
   event.preventDefault();
-  console.log('open-url:', url);
 
   // Get existing window or create new one
   let targetWindow: BrowserWindow;

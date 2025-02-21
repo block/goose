@@ -46,15 +46,20 @@ const DEFAULT_SETTINGS: SettingsType = {
   extensions: BUILT_IN_EXTENSIONS,
 };
 
+export type SettingsViewOptions = {
+  extensionId: string;
+  showEnvVars: boolean;
+};
+
 export default function SettingsView({
   onClose,
   setView,
+  viewOptions,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
+  viewOptions: SettingsViewOptions;
 }) {
-  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
-
   const [settings, setSettings] = React.useState<SettingsType>(() => {
     const saved = localStorage.getItem('user_settings');
     window.electron.logInfo('Settings: ' + saved);
@@ -101,10 +106,10 @@ export default function SettingsView({
 
   // Handle URL parameters for auto-opening extension configuration
   useEffect(() => {
-    const extensionId = searchParams.get('extensionId');
-    const showEnvVars = searchParams.get('showEnvVars');
+    const extensionId = viewOptions.extensionId;
+    const showEnvVars = viewOptions.showEnvVars;
 
-    if (extensionId && showEnvVars === 'true') {
+    if (extensionId && showEnvVars === true) {
       // Find the extension in settings
       const extension = settings.extensions.find((ext) => ext.id === extensionId);
       if (extension) {
