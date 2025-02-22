@@ -1,5 +1,6 @@
 import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
+import { default_key_value } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
 
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
@@ -13,21 +14,34 @@ export function isSecretKey(keyName: string): boolean {
   return !nonSecretKeys.includes(keyName);
 }
 
+// A small helper: returns true if key is *not* in default_key_value
+function isRequiredKey(key: string): boolean {
+  return !Object.prototype.hasOwnProperty.call(default_key_value, key);
+}
+
 export async function getActiveProviders(): Promise<string[]> {
   try {
-    // Fetch the secrets settings
     const configSettings = await getConfigSettings();
 
-    // Extract active providers based on `is_set` in `secret_status` or providers with no keys
-    const activeProviders = Object.values(configSettings) // Convert object to array
+    const activeProviders = Object.values(configSettings)
       .filter((provider) => {
-        const apiKeyStatus = Object.values(provider.config_status || {}); // Get all key statuses
+        // 1. Get provider's config_status
+        const configStatus = provider.config_status ?? {};
 
-        // Include providers if all required keys are set
-        return apiKeyStatus.length > 0 && apiKeyStatus.every((key) => key.is_set);
+        // 2. Collect only the keys *not* in default_key_value
+        const requiredKeyEntries = Object.entries(configStatus).filter(([k]) => isRequiredKey(k));
+
+        // 3. If there are *no* non-default keys, it is NOT active
+        if (requiredKeyEntries.length === 0) {
+          return false;
+        }
+
+        // 4. Otherwise, all non-default keys must be `is_set`
+        return requiredKeyEntries.every(([_, value]) => value?.is_set);
       })
-      .map((provider) => provider.name || 'Unknown Provider'); // Extract provider name
+      .map((provider) => provider.name || 'Unknown Provider');
 
+    console.log('[GET ACTIVE PROVIDERS]:', activeProviders);
     return activeProviders;
   } catch (error) {
     console.error('Failed to get active providers:', error);
