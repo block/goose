@@ -10,6 +10,7 @@ export function isSecretKey(keyName: string): boolean {
     'OPENAI_HOST',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
+    'CUSTOM_OPENAI_HOST',
   ];
   return !nonSecretKeys.includes(keyName);
 }

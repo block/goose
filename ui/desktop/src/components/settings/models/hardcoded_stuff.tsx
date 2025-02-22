@@ -19,6 +19,7 @@ export const goose_models: Model[] = [
   { id: 17, name: 'qwen2.5', provider: 'Ollama' },
   { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 20, name: 'gpt-4', provider: 'Custom OpenAI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -47,6 +48,8 @@ export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
 export const azure_openai_models = ['gpt-4o'];
 
+export const custom_openai_models = ['gpt-4'];
+
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -56,6 +59,7 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
+  custom_openai: 'gpt-4',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -73,11 +77,13 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
+  'Custom OpenAI': ['CUSTOM_OPENAI_API_KEY', 'CUSTOM_OPENAI_HOST'],
 };
 
 export const default_key_value = {
   OPENAI_HOST: 'https://api.openai.com',
   OLLAMA_HOST: 'localhost',
+  CUSTOM_OPENAI_HOST: '',
 };
 
 export const supported_providers = [
@@ -89,6 +95,7 @@ export const supported_providers = [
   'Ollama',
   'OpenRouter',
   'Azure OpenAI',
+  'Custom OpenAI',
 ];
 
 export const model_docs_link = [
@@ -113,4 +120,5 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
+  { provider: 'Custom OpenAI', alias: 'custom_openai' },
 ];
