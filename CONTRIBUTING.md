@@ -1,16 +1,10 @@
 # Contribution Guide
 
-Goose is Open Source! There are numerous ways to be an open source contributor and contribute to Goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
+Goose is open source! 
 
-- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our Goose on GitHub! 🌟
-- **Ask Questions:** Your questions not only help us improve but also benefit the community. If you have a question, don't hesitate to ask it on [Discord](https://discord.gg/block-opensource).
-- **Give Feedback:** Have a feature you want to see or encounter an issue with Goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
-- **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/blockopensource) to stay in touch.
-- **Improve Documentation:** Good documentation is key to the success of any project. You can help improve the quality of our existing docs or add new pages.
-- **Help Other Members** See another community member stuck? Or a contributor blocked by a question you know the answer to? Reply to community threads or do a code review for others to help.
-- **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.
-- **Give Shoutouts:** Is there a project you love or a community/staff who's been especially helpful? Feel free to give them a shoutout in our [#general](https://discord.com/channels/1287729918100246654/1287729920797179957) channel.
-- **Spread the Word:** Help us reach more people by sharing Goose's project, website, YouTube, and/or Twitter/X.
+We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
+
+>[!TIP] Beyond code, check out [other ways to contribute](#other-ways-to-contribute)
 
 ## Prerequisites
 
@@ -154,3 +148,18 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 [rustup]: https://doc.rust-lang.org/cargo/getting-started/installation.html
 [nvm]: https://github.com/nvm-sh/nvm
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
+
+
+## Other Ways to Contribute
+
+There are numerous ways to be an open source contributor and contribute to Goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/block-opensource).
+
+- **Stars on GitHub:** If you resonate with our project and find it valuable, consider starring our Goose on GitHub! 🌟
+- **Ask Questions:** Your questions not only help us improve but also benefit the community. If you have a question, don't hesitate to ask it on [Discord](https://discord.gg/block-opensource).
+- **Give Feedback:** Have a feature you want to see or encounter an issue with Goose, [click here to open an issue](https://github.com/block/goose/issues/new/choose), [start a discussion](https://github.com/block/goose/discussions) or tell us on Discord.
+- **Participate in Community Events:** We host a variety of community events and livestreams on Discord every month, ranging from workshops to brainstorming sessions. You can subscribe to our [events calendar](https://calget.com/c/t7jszrie) or follow us on [social media](https://linktr.ee/blockopensource) to stay in touch.
+- **Improve Documentation:** Good documentation is key to the success of any project. You can help improve the quality of our existing docs or add new pages.
+- **Help Other Members** See another community member stuck? Or a contributor blocked by a question you know the answer to? Reply to community threads or do a code review for others to help.
+- **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.
+- **Give Shoutouts:** Is there a project you love or a community/staff who's been especially helpful? Feel free to give them a shoutout in our [#general](https://discord.com/channels/1287729918100246654/1287729920797179957) channel.
+- **Spread the Word:** Help us reach more people by sharing Goose's project, website, YouTube, and/or Twitter/X.
