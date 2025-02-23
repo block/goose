@@ -171,7 +171,7 @@ Please check extension configuration for {extension name}.
 
 ... it signals that the extension may not have been installed and you need the package runner in order to do so.
 
-An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 
 ---
 
