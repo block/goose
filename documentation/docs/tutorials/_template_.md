@@ -28,6 +28,10 @@ This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension 
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
   1. Run the `configure` command:
@@ -103,10 +107,10 @@ This tutorial covers how to add the [{name} MCP Server](/) as a Goose extension 
     │  Command-line Extension 
     │
     ◇  What would you like to call this extension?
-    │  {name}}
+    │  {name}
     │
     ◇  What command should be run?
-    │  {command}}
+    │  {command}
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
