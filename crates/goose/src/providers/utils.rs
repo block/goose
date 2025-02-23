@@ -5,12 +5,17 @@ use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{from_value, json, Map, Value};
 use std::io::Read;
 use std::path::Path;
 
-use crate::providers::errors::ProviderError;
+use crate::providers::errors::{OpenAIError, ProviderError};
 use mcp_core::content::ImageContent;
+
+#[derive(serde::Deserialize)]
+struct OpenAIErrorResponse {
+    error: OpenAIError,
+}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum ImageFormat {
@@ -55,29 +60,18 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", status, payload)))
         }
-        StatusCode::BAD_REQUEST => {
-            let mut message = "Unknown error".to_string();
-            if let Some(error) = payload.get("error") {
-                tracing::debug!("Bad Request Error: {error:?}");
-                message = error
-                            .get("message")
-                            .and_then(|m| m.as_str())
-                            .unwrap_or("Unknown error")
-                            .to_string();
-
-                if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
-                    if code == "context_length_exceeded" || code == "string_above_max_length" {
-                        return Err(ProviderError::ContextLengthExceeded(message));
-                    }
-                }
-            }
+        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, message)))
-        }
-        StatusCode::NOT_FOUND => {
-            Err(ProviderError::RequestFailed(format!("{:?}", payload)))
+            if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(payload) {
+                let err = err_resp.error;
+                if err.is_context_length_exceeded() {
+                    return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+                }
+                return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
+            }
+            Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
