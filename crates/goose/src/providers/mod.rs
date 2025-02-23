@@ -6,6 +6,8 @@ pub mod databricks;
 pub mod errors;
 mod factory;
 pub mod formats;
+mod gcpauth;
+pub mod gcpvertexai;
 pub mod google;
 pub mod groq;
 pub mod oauth;
