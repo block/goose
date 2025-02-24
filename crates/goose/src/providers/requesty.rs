@@ -16,7 +16,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use mcp_core::tool::Tool;
 
-pub const REQUESTY_DEFAULT_MODEL: &str = "anthropic/claude-3.5-sonnet";
+pub const REQUESTY_DEFAULT_MODEL: &str = "anthropic/claude-3-5-sonnet-latest";
 pub const REQUESTY_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // Requesty can run many models, we suggest the default

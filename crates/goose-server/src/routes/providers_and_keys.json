@@ -50,7 +50,7 @@
     "requesty": {
         "name": "Requesty",
         "description": "Access OpenAI models through Requesty Router",
-        "models": ["gpt-4"],
+        "models": [],
         "required_keys": ["REQUESTY_API_KEY"]
     }
 }
