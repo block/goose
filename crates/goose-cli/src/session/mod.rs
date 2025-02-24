@@ -13,7 +13,9 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
+
 use rand::{distributions::Alphanumeric, Rng};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio;
 
@@ -103,6 +105,35 @@ impl Session {
         Ok(())
     }
 
+    pub async fn list_prompts(&mut self) -> HashMap<String, Vec<String>> {
+        let prompts = self.agent.list_extension_prompts().await;
+        prompts
+            .into_iter()
+            .map(|(extension, prompt_list)| {
+                let names = prompt_list.into_iter().map(|p| p.name).collect();
+                (extension, names)
+            })
+            .collect()
+    }
+
+    pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
+        let prompts = self.agent.list_extension_prompts().await;
+
+        // Find which extension has this prompt
+        for (extension, prompt_list) in prompts {
+            if let Some(prompt) = prompt_list.iter().find(|p| p.name == name) {
+                return Ok(Some(output::PromptInfo {
+                    name: prompt.name.clone(),
+                    description: prompt.description.clone(),
+                    arguments: prompt.arguments.clone(),
+                    extension: Some(extension),
+                }));
+            }
+        }
+
+        Ok(None)
+    }
+
     pub async fn start(&mut self) -> Result<()> {
         let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
@@ -165,6 +196,21 @@ impl Session {
                     continue;
                 }
                 input::InputResult::Retry => continue,
+                input::InputResult::ListPrompts => {
+                    output::render_prompts(&self.list_prompts().await)
+                }
+                input::InputResult::PromptCommand(opts) => {
+                    if opts.info {
+                        match self.get_prompt_info(&opts.name).await? {
+                            Some(info) => output::render_prompt_info(&info),
+                            None => {
+                                output::render_error(&format!("Prompt '{}' not found", opts.name))
+                            }
+                        }
+                    } else {
+                        output::render_error("Prompt execution not yet implemented");
+                    }
+                }
             }
         }
 

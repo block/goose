@@ -2,6 +2,7 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
@@ -16,6 +17,7 @@ use crate::register_agent;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use indoc::indoc;
+use mcp_core::prompt::Prompt;
 use mcp_core::tool::Tool;
 use serde_json::{json, Value};
 
@@ -301,6 +303,14 @@ impl Agent for TruncateAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
+            .list_prompts()
+            .await
+            .expect("Failed to list prompts")
     }
 }
 

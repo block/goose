@@ -1,5 +1,6 @@
 use anyhow::Result;
 use rustyline::Editor;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -9,6 +10,15 @@ pub enum InputResult {
     AddBuiltin(String),
     ToggleTheme,
     Retry,
+    ListPrompts,
+    PromptCommand(PromptCommandOptions),
+}
+
+#[derive(Debug)]
+pub struct PromptCommandOptions {
+    pub name: String,
+    pub info: bool,
+    pub arguments: HashMap<String, String>,
 }
 
 pub fn get_input(
@@ -59,10 +69,45 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
+        "/prompts" => Some(InputResult::ListPrompts),
+        s if s.starts_with("/prompt ") => parse_prompt_command(&s[8..]),
         s if s.starts_with("/extension ") => Some(InputResult::AddExtension(s[11..].to_string())),
         s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
         _ => None,
     }
+}
+
+fn parse_prompt_command(args: &str) -> Option<InputResult> {
+    let parts: Vec<&str> = args.split_whitespace().collect();
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    let mut options = PromptCommandOptions {
+        name: parts[0].to_string(),
+        info: false,
+        arguments: HashMap::new(),
+    };
+
+    // Parse remaining arguments
+    let mut i = 1;
+    while i < parts.len() {
+        match parts[i] {
+            "--info" => {
+                options.info = true;
+            }
+            arg if arg.contains('=') => {
+                if let Some((key, value)) = arg.split_once('=') {
+                    options.arguments.insert(key.to_string(), value.to_string());
+                }
+            }
+            _ => return None, // Invalid format
+        }
+        i += 1;
+    }
+
+    Some(InputResult::PromptCommand(options))
 }
 
 fn print_help() {
@@ -72,6 +117,8 @@ fn print_help() {
 /t - Toggle Light/Dark/Ansi theme
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
+/prompts - List all available prompts by name
+/prompt <name> [--info] [key=value...] - Get prompt info or execute a prompt
 /? or /help - Display this help message
 
 Navigation:
@@ -129,6 +176,33 @@ mod tests {
 
         // Test unknown commands
         assert!(handle_slash_command("/unknown").is_none());
+    }
+
+    #[test]
+    fn test_prompt_command() {
+        // Test basic prompt info command
+        if let Some(InputResult::PromptCommand(opts)) =
+            handle_slash_command("/prompt test-prompt --info")
+        {
+            assert_eq!(opts.name, "test-prompt");
+            assert!(opts.info);
+            assert!(opts.arguments.is_empty());
+        } else {
+            panic!("Expected PromptCommand");
+        }
+
+        // Test prompt with arguments
+        if let Some(InputResult::PromptCommand(opts)) =
+            handle_slash_command("/prompt test-prompt arg1=val1 arg2=val2")
+        {
+            assert_eq!(opts.name, "test-prompt");
+            assert!(!opts.info);
+            assert_eq!(opts.arguments.len(), 2);
+            assert_eq!(opts.arguments.get("arg1"), Some(&"val1".to_string()));
+            assert_eq!(opts.arguments.get("arg2"), Some(&"val2".to_string()));
+        } else {
+            panic!("Expected PromptCommand");
+        }
     }
 
     // Test whitespace handling
