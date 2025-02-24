@@ -46,5 +46,11 @@
         "description": "Connect to Azure OpenAI Service",
         "models": ["gpt-4o", "gpt-4o-mini"],
         "required_keys": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]
+    },
+    "requesty": {
+        "name": "Requesty",
+        "description": "Access OpenAI models through Requesty Router",
+        "models": ["gpt-4"],
+        "required_keys": ["REQUESTY_API_KEY"]
     }
 }
