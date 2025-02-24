@@ -12,6 +12,7 @@ use mcp_core::content::{Content, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
 use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolRequest {
@@ -26,12 +27,21 @@ pub struct ToolResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ToolConfirmationRequest {
+    pub id: String,
+    pub tool_name: String,
+    pub arguments: Value,
+    pub prompt: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 pub enum MessageContent {
     Text(TextContent),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
+    ToolConfirmationRequest(ToolConfirmationRequest),
 }
 
 impl MessageContent {
@@ -64,6 +74,19 @@ impl MessageContent {
         })
     }
 
+    pub fn tool_confirmation_request<S: Into<String>>(
+        id: S,
+        tool_name: String,
+        arguments: Value,
+        prompt: Option<String>,
+    ) -> Self {
+        MessageContent::ToolConfirmationRequest(ToolConfirmationRequest {
+            id: id.into(),
+            tool_name,
+            arguments,
+            prompt,
+        })
+    }
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
             Some(tool_request)
@@ -75,6 +98,14 @@ impl MessageContent {
     pub fn as_tool_response(&self) -> Option<&ToolResponse> {
         if let MessageContent::ToolResponse(ref tool_response) = self {
             Some(tool_response)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
+        if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
+            Some(tool_confirmation_request)
         } else {
             None
         }
@@ -176,6 +207,19 @@ impl Message {
         result: ToolResult<Vec<Content>>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
+    }
+
+    /// Add a tool confirmation request to the message
+    pub fn with_tool_confirmation_request<S: Into<String>>(
+        self,
+        id: S,
+        tool_name: String,
+        arguments: Value,
+        prompt: Option<String>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_confirmation_request(
+            id, tool_name, arguments, prompt,
+        ))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
