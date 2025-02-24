@@ -12,9 +12,6 @@ export default function CardActions({ actions }: CardActionsProps) {
         // Store the rendered button in a variable first
         const ButtonElement = action.renderButton();
 
-        // Verify it's a valid React element
-        if (React.isValidElement(ButtonElement)) {
-          console.log('apparently a valid element');
           return <React.Fragment key={action.id}>{ButtonElement}</React.Fragment>;
         }
 
