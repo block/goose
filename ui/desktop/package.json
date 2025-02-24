@@ -19,7 +19,8 @@
     "lint:check": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
-    "prepare": "cd ../.. && husky install"
+    "prepare": "cd ../.. && husky install",
+    "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.5.0",
