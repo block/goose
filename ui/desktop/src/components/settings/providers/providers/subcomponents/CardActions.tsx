@@ -11,11 +11,7 @@ export default function CardActions({ actions }: CardActionsProps) {
       {actions.map((action) => {
         // Store the rendered button in a variable first
         const ButtonElement = action.renderButton();
-
-          return <React.Fragment key={action.id}>{ButtonElement}</React.Fragment>;
-        }
-
-        return null;
+        return <React.Fragment key={action.id}>{ButtonElement}</React.Fragment>;
       })}
     </div>
   );
