@@ -4,6 +4,7 @@ use super::{
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
     databricks::DatabricksProvider,
+    gcpvertexai::GcpVertexAIProvider,
     google::GoogleProvider,
     groq::GroqProvider,
     ollama::OllamaProvider,
@@ -19,6 +20,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         AzureProvider::metadata(),
         BedrockProvider::metadata(),
         DatabricksProvider::metadata(),
+        GcpVertexAIProvider::metadata(),
         GoogleProvider::metadata(),
         GroqProvider::metadata(),
         OllamaProvider::metadata(),
@@ -37,6 +39,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send 
         "groq" => Ok(Box::new(GroqProvider::from_env(model)?)),
         "ollama" => Ok(Box::new(OllamaProvider::from_env(model)?)),
         "openrouter" => Ok(Box::new(OpenRouterProvider::from_env(model)?)),
+        "gcp_vertex_ai" => Ok(Box::new(GcpVertexAIProvider::from_env(model)?)),
         "google" => Ok(Box::new(GoogleProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
