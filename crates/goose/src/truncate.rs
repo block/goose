@@ -158,6 +158,13 @@ pub fn truncate_messages(
         }
     }
 
+    // Ensure the first remaining message has content
+    if let Some(first_msg) = messages.first() {
+        if first_msg.content.is_empty() {
+            return Err(anyhow!("First message has empty content after truncation"));
+        }
+    }
+
     debug!("Total tokens after truncation: {}", total_tokens);
 
     // Ensure we have at least one message remaining and it's within context limit

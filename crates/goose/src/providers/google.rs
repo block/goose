@@ -9,10 +9,11 @@ use crate::providers::utils::{
 use anyhow::Result;
 use async_trait::async_trait;
 use mcp_core::tool::Tool;
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
+use rand::Rng;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash";
@@ -78,15 +79,49 @@ impl GoogleProvider {
                 ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
             })?;
 
-        let response = self
-            .client
-            .post(url)
-            .header("CONTENT_TYPE", "application/json")
-            .json(&payload)
-            .send()
-            .await?;
+        let max_retries = 5;
+        let mut retries = 0;
+        use rand::rngs::StdRng;
+        use rand::SeedableRng;
+        use rand::rngs::OsRng;
+        let mut rng = StdRng::from_seed(OsRng::default().gen());
 
-        handle_response_google_compat(response).await
+        loop {
+            let response = self
+                .client
+                .post(url.clone()) // Clone the URL for each retry
+                .header("CONTENT_TYPE", "application/json")
+                .json(&payload)
+                .send()
+                .await;
+
+            match response {
+                Ok(res) => {
+                    if res.status() == StatusCode::TOO_MANY_REQUESTS {
+                        retries += 1;
+                        if retries > max_retries {
+                            return Err(ProviderError::RateLimitExceeded(
+                                "Max retries exceeded".to_string(),
+                            ));
+                        }
+
+                        let delay = 2u64.pow(retries);
+                        let jitter: u64 = rng.gen_range(0..1000); // Up to 1 second of jitter, in milliseconds
+                        let total_delay = Duration::from_secs(delay) + Duration::from_millis(jitter);
+
+                        println!("Rate limit hit. Retrying in {:?}", total_delay);
+                        tokio::time::sleep(total_delay).await;
+                        continue;
+                    } else {
+                        // Successful response or other non-rate-limit error
+                        return handle_response_google_compat(res).await;
+                    }
+                }
+                Err(err) => {
+                    return Err(ProviderError::RequestFailed(format!("Request failed: {}", err)));
+                }
+            }
+        }
     }
 }
 
@@ -115,26 +150,43 @@ impl Provider for GoogleProvider {
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete(
-        &self,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools)?;
+async fn complete(
+    &self,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let payload = create_request(&self.model, system, messages, tools)?;
 
-        // Make request
-        let response = self.post(payload.clone()).await?;
+    // Make request
+    let response = self.post(payload.clone()).await;
 
-        // Parse response
-        let message = response_to_message(unescape_json_values(&response))?;
-        let usage = get_usage(&response)?;
-        let model = match response.get("modelVersion") {
-            Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
-            None => self.model.model_name.clone(),
-        };
-        emit_debug_trace(self, &payload, &response, &usage);
-        let provider_usage = ProviderUsage::new(model, usage);
-        Ok((message, provider_usage))
+    match response {
+        Ok(response) => {
+            // Parse response
+            let message = response_to_message(unescape_json_values(&response))?;
+            let usage = get_usage(&response)?;
+            let model = match response.get("modelVersion") {
+                Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
+                None => self.model.model_name.clone(),
+            };
+            emit_debug_trace(self, &payload, &response, &usage);
+            let provider_usage = ProviderUsage::new(model, usage);
+            Ok((message, provider_usage))
+        }
+        Err(err) => {
+            match err {
+                ProviderError::RateLimitExceeded(msg) => {
+                    println!("Rate limit exceeded: {}", msg);
+                    // Return a different error or take other action
+                    Err(ProviderError::Other("Gemini rate limit exceeded. Please try again later.".to_string()))
+                }
+                _ => {
+                    // Re-raise other errors
+                    Err(err)
+                }
+            }
+        }
     }
+}
 }
