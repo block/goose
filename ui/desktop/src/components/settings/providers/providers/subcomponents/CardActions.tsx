@@ -15,8 +15,6 @@ export default function CardActions({ actions }: CardActionsProps) {
           return <React.Fragment key={action.id}>{ButtonElement}</React.Fragment>;
         }
 
-        // Log an error if we get an invalid element
-        console.error('Invalid React element returned from renderButton for action:', action.id);
         return null;
       })}
     </div>
