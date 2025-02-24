@@ -4,12 +4,14 @@ use clap::{CommandFactory, Parser, Subcommand};
 use console::style;
 use goose::config::Config;
 use goose_cli::commands::agent_version::AgentCommand;
+use goose_cli::commands::bench::run_benchmark;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
 use std::io::{self, Read};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
@@ -149,6 +151,37 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
+
+    /// Run benchmark suite
+    Bench {
+        #[arg(
+            short = 's',
+            long = "suites",
+            value_name = "BENCH_SUITE_NAME",
+            help = "Run this list of bench-suites.",
+            long_help = "Specify a comma-separated list of evaluation-suite names to be run.",
+            value_delimiter = ','
+        )]
+        suites: Vec<String>,
+
+        #[arg(
+            short = 'i',
+            long = "include-dir",
+            value_name = "DIR_NAME",
+            action = clap::ArgAction::Append,
+            long_help = "Make one or more dirs available to all bench suites. Specify either a single dir-name, a comma-separated list of dir-names, or use this multiple instances of this flag to specify multiple dirs.",
+            value_delimiter = ','
+        )]
+        include_dirs: Vec<PathBuf>,
+
+        #[arg(
+            long = "repeat",
+            value_name = "QUANTITY",
+            long_help = "Number of times to repeat the benchmark run.",
+            default_value = "1"
+        )]
+        repeat: usize,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -218,6 +251,22 @@ async fn main() -> Result<()> {
         }
         Some(Command::Agents(cmd)) => {
             cmd.run()?;
+            return Ok(());
+        }
+        Some(Command::Bench {
+            suites,
+            include_dirs,
+            repeat,
+        }) => {
+            let suites = if suites.is_empty() {
+                vec!["core".to_string()]
+            } else {
+                suites
+            };
+
+            for _ in 0..repeat {
+                let _ = run_benchmark(suites.clone(), include_dirs.clone()).await;
+            }
             return Ok(());
         }
         None => {

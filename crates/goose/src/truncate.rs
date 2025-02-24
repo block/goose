@@ -442,12 +442,12 @@ mod tests {
 
     #[test]
     fn test_error_cases() -> Result<()> {
-        // Test impossibly small context window
+        // Test impossibly small_models context window
         let (mut messages, mut token_counts) = create_messages_with_counts(1, 10, false);
         let result = truncate_messages(
             &mut messages,
             &mut token_counts,
-            5, // Impossibly small context
+            5, // Impossibly small_models context
             &OldestFirstTruncation,
         );
         assert!(result.is_err());
