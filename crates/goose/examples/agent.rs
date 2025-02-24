@@ -26,7 +26,7 @@ async fn main() {
         .with_text("can you summarize the readme.md in this dir using just a haiku?")];
 
     let mut stream = agent
-        .reply(&messages, Some("auto".to_string()))
+        .reply(&messages)
         .await
         .unwrap();
     while let Some(message) = stream.next().await {
