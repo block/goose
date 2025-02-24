@@ -247,13 +247,14 @@ async fn stream_message(
                                 .await?;
                         }
                     }
+                    MessageContent::ToolConfirmationRequest(_) => {
+                        // skip tool confirmation requests
+                    }
                     MessageContent::Image(_) => {
-                        // TODO
-                        continue;
+                        // skip images
                     }
                     MessageContent::ToolResponse(_) => {
-                        // Tool responses should only come from the user
-                        continue;
+                        // skip tool responses
                     }
                 }
             }
@@ -311,7 +312,7 @@ async fn handler(
         let mut stream = match agent.reply(&messages).await {
             Ok(stream) => stream,
             Err(e) => {
-                tracing::error!("Failed to start reply stream: {}", e);
+                tracing::error!("Failed to start reply stream: {:?}", e);
                 let _ = tx
                     .send(ProtocolFormatter::format_error(&e.to_string()))
                     .await;
@@ -398,7 +399,7 @@ async fn ask_handler(
     let mut stream = match agent.reply(&messages).await {
         Ok(stream) => stream,
         Err(e) => {
-            tracing::error!("Failed to start reply stream: {}", e);
+            tracing::error!("Failed to start reply stream: {:?}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };

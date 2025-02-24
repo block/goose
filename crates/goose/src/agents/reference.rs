@@ -61,6 +61,10 @@ impl Agent for ReferenceAgent {
         Ok(Value::Null)
     }
 
+    async fn handle_confirmation(&self, _request_id: String, _confirmed: bool) {
+        // TODO implement
+    }
+
     #[instrument(skip(self, messages), fields(user_message))]
     async fn reply(
         &self,
