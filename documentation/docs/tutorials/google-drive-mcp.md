@@ -38,6 +38,10 @@ GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json
 
 ## Configuration
 
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
 To obtain your Google Drive server credentials and oauth keys, follow the steps below:
 
   1. Set up your Google Cloud Credentials, to enable API access:
