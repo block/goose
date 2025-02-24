@@ -211,15 +211,13 @@ impl Session {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt
-                                let prompt = format!(
-                                    "Goose would like to call the above tool. Allow? (y/n): ",
-                                );
+                                let prompt = "Goose would like to call the above tool. Allow? (y/n):".to_string();
 
                                 let confirmation_request = Message::user().with_tool_confirmation_request(
                                     confirmation.id.clone(),
                                     confirmation.tool_name.clone(),
                                     confirmation.arguments.clone(),
-                                    Some(prompt.clone())
+                                    Some(prompt)
                                 );
                                 output::render_message(&confirmation_request);
 

@@ -157,7 +157,7 @@ fn render_tool_confirmation_request(req: &ToolConfirmationRequest, theme: Theme)
                 prompt.replace("Allow? (y/n)", &format!("{}", style("Allow? (y/n)").cyan()));
             println!("{}", colored_prompt);
         }
-        None => print_markdown(&"No prompt provided".to_string(), theme),
+        None => print_markdown("No prompt provided", theme),
     }
 }
 
