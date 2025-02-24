@@ -212,10 +212,8 @@ You can enable or disable installed extensions based on your workflow needs.
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click the three dots in the top-right corner of the application.
-  2. Select `Settings` from the menu, then click on the `Extensions` section.
+  2. Select `Settings` from the menu, scroll down to the `Extensions` section.
   2. Use the toggle switch next to each extension to enable or disable it.
-
-  ![Install Extension](../assets/guides/manage-extensions-ui.png)
 
   </TabItem>
 </Tabs>
