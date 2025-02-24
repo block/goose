@@ -1,28 +1,27 @@
 import { Star, Download, Terminal, ChevronRight, Info } from "lucide-react";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader } from "./ui/card";
-import type { MCPServer } from "../types/server";
-import { Link, NavLink } from "react-router";
+import { Badge } from "@site/src/components/ui/badge";
+import { Button } from "@site/src/components/ui/button";
+import type { MCPServer } from "@site/src/types/server";
+import Link from "@docusaurus/Link";
 import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { getGooseInstallLink } from "../utils/install-links";
+import { motion, AnimatePresence } from "framer-motion";
+import { getGooseInstallLink } from "@site/src/utils/install-links";
 
 export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
 
   return (
-    <div className="relative h-full p-[2px] overflow-hidden rounded-[17px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
-      <div className="absolute opacity-0 group-hover/card:opacity-100 group-hover/card:duration-200 pointer-events-none w-[600px] h-[600px] top-[-150px] left-[-50px] origin-center bg-[linear-gradient(45deg,#13BBAF,#FF4F00)] animate-[rotate_6s_linear_infinite] z-[-1]"></div>
-      <Card className="h-full flex flex-col border-none">
-        <CardHeader className="flex items-center">
-          <div className="flex items-center gap-2">
-            <NavLink
-              to={`/detail/${server.id}`}
-              className="text-textStandard hover:text-textProminent flex items-center gap-2"
-              viewTransition
+    <div className="server-card">
+      <div className="card-glow"></div>
+      <div className="card">
+        <div className="card-header">
+          <div className="card-header-content">
+            <Link
+              to={`/extensions/detail?id=${server.id}`}
+              className="extension-title"
             >
               <svg
+                className="extension-icon"
                 width="13"
                 height="12"
                 viewBox="0 0 13 12"
@@ -42,36 +41,34 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   />
                 </g>
               </svg>
-              <div className="font-medium dark:text-gray-100 home-page-server-name">
+              <div className="home-page-server-name">
                 {server.name}
               </div>
-            </NavLink>
+            </Link>
           </div>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col h-full justify-between">
-          <div className="">
-            <div className="">
-              <p className="text-textStandard">{server.description}</p>
+        </div>
+        <div className="card-content">
+          <div>
+            <div>
+              <p className="card-description">{server.description}</p>
             </div>
 
             <div className="py-4">
               {server.is_builtin ? (
-                <div className="flex items-center gap-2 text-sm dark:text-gray-300">
-                  {/* <Terminal className="h-4 w-4" /> */}
-                  <Info className="h-4 w-4" />
-                  Can be enabled in the goose settings page
+                <div className="flex items-center gap-2">
+                  <Info style={{ width: '12px', height: '12px' }} className="text-textSubtle shrink-0" />
+                  <span style={{ fontSize: '12px' }} className="text-textSubtle leading-normal">Can be enabled in the goose settings page</span>
                 </div>
               ) : (
                 <>
                   <button
                     onClick={() => setIsCommandVisible(!isCommandVisible)}
-                    className="flex items-center gap-2 w-full hover:text-accent dark:text-gray-300
-                    dark:hover:text-accent/90 transition-colors"
+                    className="command-toggle"
                   >
                     <Terminal className="h-4 w-4" />
-                    <h4 className="font-medium">Command</h4>
+                    <h4 className="mx-2">Command</h4>
                     <ChevronRight
-                      className={`h-4 w-4 ml-auto transition-transform ${
+                      className={`ml-auto transition-transform ${
                         isCommandVisible ? "rotate-90" : ""
                       }`}
                     />
@@ -79,7 +76,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   <AnimatePresence>
                     {isCommandVisible && (
                       <motion.div
-                        className="block bg-gray-100 dark:bg-gray-900 p-2 mt-2 rounded text-sm dark:text-gray-300 z-[-1]"
+                        className="command-content"
                         initial={{ opacity: 0, translateY: -20 }}
                         animate={{ opacity: 1, translateY: 0 }}
                         exit={{
@@ -99,41 +96,39 @@ export function ServerCard({ server }: { server: MCPServer }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <a href={server.link} target="_blank" rel="noopener noreferrer" className="flex items-center text-textSubtle text-xs leading-[14px] hover:text-textProminent transition-colors">
+          <div className="card-footer">
+            <a
+              href={server.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="card-stats"
+            >
               <Star className="h-4 w-4" />
-              <span className="ml-1">{server.githubStars} on Github</span>
+              <span>{server.githubStars} on Github</span>
             </a>
-            {server.is_builtin ? (
-              <div
-                className="inline-block"
-                title="This extension is built into goose and can be enabled in the settings page"
-              >
-                <Badge variant="secondary" className="ml-2 text-xs cursor-help">
+            <div className="card-action">
+              {server.is_builtin ? (
+                <div
+                  className="built-in-badge"
+                  title="This extension is built into goose and can be enabled in the settings page"
+                >
                   Built-in
-                </Badge>
-              </div>
-            ) : (
-              <a
-                href={getGooseInstallLink(server)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="no-underline"
-              >
-                <Button
-                  size="icon"
-                  variant="link"
-                  className="group/download flex items-center justify-center text-xs leading-[14px] text-textSubtle px-0 transition-all"
-                  title="Install with Goose"
+                </div>
+              ) : (
+                <a
+                  href={getGooseInstallLink(server)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="install-button"
                 >
                   <span>Install</span>
-                  <Download className="h-4 w-4 ml-2 group-hover/download:text-[#FA5204]" />
-                </Button>
-              </a>
-            )}
+                  <Download className="h-4 w-4" />
+                </a>
+              )}
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
