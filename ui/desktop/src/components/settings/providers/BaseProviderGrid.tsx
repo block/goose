@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Check, Plus, Settings, X, Rocket } from 'lucide-react';
+import { Portal } from '@radix-ui/react-portal';
+import { Check, Plus, Rocket, Settings, X } from 'lucide-react';
+import React from 'react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/Tooltip';
-import { Portal } from '@radix-ui/react-portal';
-import { required_keys } from '../models/hardcoded_stuff';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
-import { getActiveProviders } from '../api_keys/utils';
+import { required_keys } from '../models/hardcoded_stuff';
 
 // Common interfaces and helper functions
 interface Provider {
@@ -251,7 +250,7 @@ export function BaseProviderGrid({
   onTakeoff,
 }: BaseProviderGridProps) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 auto-rows-fr max-w-full [&_*]:z-20">
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 auto-rows-fr max-w-full [&_*]:z-20">
       {providers.map((provider) => {
         const hasRequiredKeys = required_keys[provider.name]?.length > 0;
         return (
