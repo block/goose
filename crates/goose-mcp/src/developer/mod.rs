@@ -1373,7 +1373,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_goose_ignore_basic_patterns() {
-
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
@@ -1392,14 +1391,32 @@ mod tests {
         };
 
         // Test basic file matching
-        assert!(router.is_ignored(Path::new("secret.txt")), "secret.txt should be ignored");
-        assert!(router.is_ignored(Path::new("./secret.txt")), "./secret.txt should be ignored");
-        assert!(!router.is_ignored(Path::new("not_secret.txt")), "not_secret.txt should not be ignored");
+        assert!(
+            router.is_ignored(Path::new("secret.txt")),
+            "secret.txt should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("./secret.txt")),
+            "./secret.txt should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("not_secret.txt")),
+            "not_secret.txt should not be ignored"
+        );
 
         // Test pattern matching
-        assert!(router.is_ignored(Path::new("test.env")), "*.env pattern should match test.env");
-        assert!(router.is_ignored(Path::new("./test.env")), "*.env pattern should match ./test.env");
-        assert!(!router.is_ignored(Path::new("test.txt")), "*.env pattern should not match test.txt");
+        assert!(
+            router.is_ignored(Path::new("test.env")),
+            "*.env pattern should match test.env"
+        );
+        assert!(
+            router.is_ignored(Path::new("./test.env")),
+            "*.env pattern should match ./test.env"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "*.env pattern should not match test.txt"
+        );
 
         temp_dir.close().unwrap();
     }
@@ -1414,9 +1431,9 @@ mod tests {
         let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
         builder.add_line(None, "secret.txt").unwrap();
         let ignore_patterns = builder.build().unwrap();
-        
+
         let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools,  // Reuse default tools
+            tools: DeveloperRouter::new().tools, // Reuse default tools
             prompts: Arc::new(HashMap::new()),
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -1435,7 +1452,10 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_err(), "Should not be able to write to ignored file");
+        assert!(
+            result.is_err(),
+            "Should not be able to write to ignored file"
+        );
         assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
 
         // Try to write to a non-ignored file
@@ -1450,7 +1470,10 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Should be able to write to non-ignored file");
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
 
         temp_dir.close().unwrap();
     }
@@ -1467,7 +1490,7 @@ mod tests {
         let ignore_patterns = builder.build().unwrap();
 
         let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools,  // Reuse default tools
+            tools: DeveloperRouter::new().tools, // Reuse default tools
             prompts: Arc::new(HashMap::new()),
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -1483,8 +1506,8 @@ mod tests {
             .call_tool(
                 "shell",
                 json!({
-                "command": format!("cat {}", secret_file_path.to_str().unwrap())
-            }),
+                    "command": format!("cat {}", secret_file_path.to_str().unwrap())
+                }),
             )
             .await;
 
@@ -1499,8 +1522,8 @@ mod tests {
             .call_tool(
                 "shell",
                 json!({
-                "command": format!("cat {}", allowed_file_path.to_str().unwrap())
-            }),
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
             )
             .await;
 
