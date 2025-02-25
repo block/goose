@@ -11,9 +11,9 @@ use anyhow::Result;
 use etcetera::choose_app_strategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
-use goose::message::{Message, MessageContent};
+use goose::message::{prompt_content_to_message_content, Message, MessageContent};
 use mcp_core::handler::ToolError;
-use mcp_core::prompt::PromptMessage;
+use mcp_core::prompt::{PromptMessage, PromptMessageRole};
 
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
@@ -227,12 +227,25 @@ impl Session {
 
                         match self.get_prompt(&opts.name, arguments).await {
                             Ok(messages) => {
-                                println!(
-                                    "{:?}",
-                                    serde_json::to_string(&messages)
-                                        .unwrap_or("failed to get prompt".to_string())
-                                );
-                                continue;
+                                // convert the PromptMessages to Messages
+                                for message in messages {
+                                    let msg_content =
+                                        prompt_content_to_message_content(message.content);
+                                    match message.role {
+                                        PromptMessageRole::User => {
+                                            self.messages
+                                                .push(Message::user().with_content(msg_content));
+                                        }
+                                        PromptMessageRole::Assistant => {
+                                            self.messages.push(
+                                                Message::assistant().with_content(msg_content),
+                                            );
+                                        }
+                                    }
+                                }
+                                output::show_thinking();
+                                self.process_agent_response().await?;
+                                output::hide_thinking();
                             }
                             Err(e) => output::render_error(&e.to_string()),
                         }

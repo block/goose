@@ -10,8 +10,30 @@ use std::collections::HashSet;
 use chrono::Utc;
 use mcp_core::content::{Content, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
+use mcp_core::prompt::PromptMessageContent;
+use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
+
+/// Convert PromptMessageContent to MessageContent
+///
+/// This function allows converting from the prompt message content type
+/// to the message content type used in the agent.
+pub fn prompt_content_to_message_content(content: PromptMessageContent) -> MessageContent {
+    match content {
+        PromptMessageContent::Text { text } => MessageContent::text(text),
+        PromptMessageContent::Image { image } => MessageContent::image(image.data, image.mime_type),
+        PromptMessageContent::Resource { resource } => {
+            // For resources, convert to text content with the resource text
+            match resource.resource {
+                ResourceContents::TextResourceContents { text, .. } => MessageContent::text(text),
+                ResourceContents::BlobResourceContents { blob, .. } => {
+                    MessageContent::text(format!("[Binary content: {}]", blob))
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ToolRequest {
@@ -246,5 +268,118 @@ impl Message {
         self.content
             .iter()
             .all(|c| matches!(c, MessageContent::Text(_)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcp_core::content::EmbeddedResource;
+    use mcp_core::prompt::PromptMessageContent;
+    use mcp_core::resource::ResourceContents;
+
+    #[test]
+    fn test_prompt_content_to_message_content_text() {
+        let prompt_content = PromptMessageContent::Text {
+            text: "Hello, world!".to_string(),
+        };
+
+        let message_content = prompt_content_to_message_content(prompt_content);
+
+        if let MessageContent::Text(text_content) = message_content {
+            assert_eq!(text_content.text, "Hello, world!");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_prompt_content_to_message_content_image() {
+        let prompt_content = PromptMessageContent::Image {
+            image: ImageContent {
+                data: "base64data".to_string(),
+                mime_type: "image/jpeg".to_string(),
+                annotations: None,
+            },
+        };
+
+        let message_content = prompt_content_to_message_content(prompt_content);
+
+        if let MessageContent::Image(image_content) = message_content {
+            assert_eq!(image_content.data, "base64data");
+            assert_eq!(image_content.mime_type, "image/jpeg");
+        } else {
+            panic!("Expected MessageContent::Image");
+        }
+    }
+
+    #[test]
+    fn test_prompt_content_to_message_content_text_resource() {
+        let resource = ResourceContents::TextResourceContents {
+            uri: "file:///test.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            text: "Resource content".to_string(),
+        };
+
+        let prompt_content = PromptMessageContent::Resource {
+            resource: EmbeddedResource {
+                resource,
+                annotations: None,
+            },
+        };
+
+        let message_content = prompt_content_to_message_content(prompt_content);
+
+        if let MessageContent::Text(text_content) = message_content {
+            assert_eq!(text_content.text, "Resource content");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_prompt_content_to_message_content_blob_resource() {
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///test.bin".to_string(),
+            mime_type: Some("application/octet-stream".to_string()),
+            blob: "binary_data".to_string(),
+        };
+
+        let prompt_content = PromptMessageContent::Resource {
+            resource: EmbeddedResource {
+                resource,
+                annotations: None,
+            },
+        };
+
+        let message_content = prompt_content_to_message_content(prompt_content);
+
+        if let MessageContent::Text(text_content) = message_content {
+            assert_eq!(text_content.text, "[Binary content: binary_data]");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_message_with_text() {
+        let message = Message::user().with_text("Hello");
+        assert_eq!(message.as_concat_text(), "Hello");
+    }
+
+    #[test]
+    fn test_message_with_tool_request() {
+        let tool_call = Ok(ToolCall {
+            name: "test_tool".to_string(),
+            arguments: serde_json::json!({}),
+        });
+
+        let message = Message::assistant().with_tool_request("req1", tool_call);
+        assert!(message.is_tool_call());
+        assert!(!message.is_tool_response());
+
+        let ids = message.get_tool_ids();
+        assert_eq!(ids.len(), 1);
+        assert!(ids.contains("req1"));
     }
 }
