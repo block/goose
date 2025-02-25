@@ -224,9 +224,9 @@ async fn main() -> Result<()> {
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
 
             if interactive {
-                let _ = session.interactive(Some(contents)).await?;
+                session.interactive(Some(contents)).await?;
             } else {
-                let _ = session.headless(contents).await?;
+                session.headless(contents).await?;
             }
             return Ok(());
         }
