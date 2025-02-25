@@ -67,35 +67,17 @@ log "uv: $(which uv)"
 log "uvx: $(which uvx)"
 
 
-log "Checking for GOOSE_UV_REGISTRY and GOOSE_UV_CERT environment variables for custom python/pip/UV registry setup..."
+log "Checking for GOOSE_UV_REGISTRY environment variable for custom python/pip/UV registry setup..."
 # Check if GOOSE_UV_REGISTRY is set and accessible
 if [ -n "${GOOSE_UV_REGISTRY:-}" ] && curl -s --head --fail "$GOOSE_UV_REGISTRY" > /dev/null; then
     log "Checking custom goose registry availability: $GOOSE_UV_REGISTRY"
-    log "$GOOSE_UV_REGISTRY is accessible. Using it for UV registry."
+    log "$GOOSE_UV_REGISTRY is accessible, setting it as UV_INDEX_URL. Setting UV_NATIVE_TLS to true."
     export UV_INDEX_URL="$GOOSE_UV_REGISTRY"
-
-    if [ -n "${GOOSE_UV_CERT:-}" ] && curl -s --head --fail "$GOOSE_UV_CERT" > /dev/null; then
-        log "Downloading certificate from: $GOOSE_UV_CERT"
-        curl -sSL -o ~/.config/goose/mcp-hermit/cert.pem "$GOOSE_UV_CERT"
-        if [ $? -eq 0 ]; then
-            log "Certificate downloaded successfully."
-            export SSL_CERT_FILE=~/.config/goose/mcp-hermit/cert.pem
-        else
-            log "Unable to download the certificate. Skipping certificate setup."
-        fi
-    else
-        log "GOOSE_UV_CERT is either not set or not accessible. Skipping certificate setup."
-    fi
-
+    export UV_NATIVE_TLS=true
 else
     log "GOOSE_UV_REGISTRY is either not set or not accessible. Falling back to default pip registry."
     export UV_INDEX_URL="https://pypi.org/simple"
 fi
-
-
-
-
-
 
 # Final step: Execute uvx with passed arguments
 log "Executing 'uvx' command with arguments: $*"
