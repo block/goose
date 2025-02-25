@@ -28,6 +28,7 @@ pub struct OpenAiProvider {
     #[serde(skip)]
     client: Client,
     host: String,
+    base_path: String,
     api_key: String,
     organization: Option<String>,
     project: Option<String>,
@@ -48,6 +49,9 @@ impl OpenAiProvider {
         let host: String = config
             .get("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+        let base_path: String = config
+            .get("OPENAI_BASE_PATH")
+            .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get("OPENAI_PROJECT").ok();
         let client = Client::builder()
@@ -57,6 +61,7 @@ impl OpenAiProvider {
         Ok(Self {
             client,
             host,
+            base_path,
             api_key,
             organization,
             project,
@@ -67,7 +72,7 @@ impl OpenAiProvider {
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("v1/chat/completions").map_err(|e| {
+        let url = base_url.join(&self.base_path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
@@ -108,6 +113,7 @@ impl Provider for OpenAiProvider {
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
             ],

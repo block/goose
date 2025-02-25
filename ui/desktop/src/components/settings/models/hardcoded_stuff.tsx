@@ -65,7 +65,7 @@ export function getDefaultModel(key: string): string | undefined {
 export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];
 
 export const required_keys = {
-  OpenAI: ['OPENAI_API_KEY', 'OPENAI_HOST'],
+  OpenAI: ['OPENAI_API_KEY', 'OPENAI_HOST', 'OPENAI_BASE_PATH'],
   Anthropic: ['ANTHROPIC_API_KEY'],
   Databricks: ['DATABRICKS_HOST'],
   Groq: ['GROQ_API_KEY'],
@@ -77,6 +77,7 @@ export const required_keys = {
 
 export const default_key_value = {
   OPENAI_HOST: 'https://api.openai.com',
+  OPENAI_BASE_PATH: 'v1/chat/completions',
   OLLAMA_HOST: 'localhost',
 };
 
