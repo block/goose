@@ -86,13 +86,13 @@ pub async fn detect_read_only_tools(
         .complete(
             "You are a good analyst and can detect operations whether they have read-only operations.",
             &check_messages,
-            &vec![tool.clone()],
+            &[tool.clone()],
         )
         .await;
 
     // Process the response and return an empty vector if the response is invalid
     if let Ok((message, _usage)) = res {
-        extract_read_only_tools(&message).unwrap_or_else(|| vec![])
+        extract_read_only_tools(&message).unwrap_or_else(|| Vec::new)
     } else {
         vec![]
     }
