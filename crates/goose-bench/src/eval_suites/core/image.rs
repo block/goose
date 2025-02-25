@@ -22,15 +22,13 @@ impl Evaluation for DeveloperImage {
         &self,
         mut agent: Box<dyn BenchAgent>,
         _work_dir: &mut WorkDir,
-    ) -> anyhow::Result<Vec<EvaluationMetric>> {
+    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
         let messages = agent
             .prompt("Take a screenshot of the display 0 and describe what you see.".to_string())
             .await?;
-
-        println!("{:#?}", messages);
         
         // Check if the assistant makes appropriate tool calls and gets valid responses
         let mut valid_tool_call = false;
@@ -76,7 +74,7 @@ impl Evaluation for DeveloperImage {
             }
         }
         // Both the tool call and response must be valid
-        metrics.push(EvaluationMetric::Boolean(valid_tool_call && valid_response));
+        metrics.push(("Take a screenshot and upload images".to_string(), EvaluationMetric::Boolean(valid_tool_call && valid_response)));
         Ok(metrics)
     }
 

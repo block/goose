@@ -23,7 +23,7 @@ impl Evaluation for DeveloperCreateFile {
         &self,
         mut agent: Box<dyn BenchAgent>,
         _work_dir: &mut WorkDir,
-    ) -> anyhow::Result<Vec<EvaluationMetric>> {
+    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
@@ -60,7 +60,7 @@ impl Evaluation for DeveloperCreateFile {
             })
         });
 
-        metrics.push(EvaluationMetric::Boolean(valid_tool_call));
+        metrics.push(("Create files".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
         Ok(metrics)
     }
 

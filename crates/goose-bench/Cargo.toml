@@ -17,6 +17,7 @@ mcp-core = { path = "../mcp-core" }
 async-trait = "0.1.86"
 chrono = "0.4"
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

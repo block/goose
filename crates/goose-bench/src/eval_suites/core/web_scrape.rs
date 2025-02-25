@@ -23,7 +23,7 @@ impl Evaluation for ComputerControllerWebScrape {
         &self,
         mut agent: Box<dyn BenchAgent>,
         _work_dir: &mut WorkDir,
-    ) -> anyhow::Result<Vec<EvaluationMetric>> {
+    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
@@ -60,7 +60,7 @@ impl Evaluation for ComputerControllerWebScrape {
             })
         });
 
-        metrics.push(EvaluationMetric::Boolean(valid_tool_call));
+        metrics.push(("Retrieve and scrape web pages".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
         Ok(metrics)
     }
 
