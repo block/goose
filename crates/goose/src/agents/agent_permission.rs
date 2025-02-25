@@ -92,7 +92,7 @@ pub async fn detect_read_only_tools(
 
     // Process the response and return an empty vector if the response is invalid
     if let Ok((message, _usage)) = res {
-        extract_read_only_tools(&message).unwrap_or_else(Vec::new)
+        extract_read_only_tools(&message).unwrap_or_default()
     } else {
         vec![]
     }
