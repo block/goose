@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
+use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
@@ -237,6 +238,8 @@ impl Agent for TruncateAgent {
                             break;
                         }
 
+                        let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
+
                         // Process tool requests depending on goose_mode
                         let mut message_tool_response = Message::user();
                         // Clone goose_mode once before the match to avoid move issues
@@ -246,31 +249,40 @@ impl Agent for TruncateAgent {
                                 // Process each tool request sequentially with confirmation
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        let confirmation = Message::user().with_tool_confirmation_request(
-                                            request.id.clone(),
-                                            tool_call.name.clone(),
-                                            tool_call.arguments.clone(),
-                                            Some("Goose would like to call the tool: {}\nAllow? (y/n): ".to_string()),
-                                        );
-                                        yield confirmation;
-
-                                        // Wait for confirmation response through the channel
-                                        let mut rx = self.confirmation_rx.lock().await;
-                                        if let Some((req_id, confirmed)) = rx.recv().await {
-                                            if req_id == request.id {
-                                                if confirmed {
-                                                    // User approved - dispatch the tool call
-                                                    let output = capabilities.dispatch_tool_call(tool_call).await;
+                                        // Skip confirmation if the tool_call.name is in the read_only_tools list
+                                        if read_only_tools.contains(&tool_call.name) {
+                                            let output = capabilities.dispatch_tool_call(tool_call).await;
                                                     message_tool_response = message_tool_response.with_tool_response(
                                                         request.id.clone(),
                                                         output,
                                                     );
-                                                } else {
-                                                    // User declined - add declined response
-                                                    message_tool_response = message_tool_response.with_tool_response(
-                                                        request.id.clone(),
-                                                        Ok(vec![Content::text("User declined to run this tool.")]),
-                                                    );
+                                        } else {
+                                            let confirmation = Message::user().with_tool_confirmation_request(
+                                                request.id.clone(),
+                                                tool_call.name.clone(),
+                                                tool_call.arguments.clone(),
+                                                Some("Goose would like to call the tool: {}\nAllow? (y/n): ".to_string()),
+                                            );
+                                            yield confirmation;
+
+                                            // Wait for confirmation response through the channel
+                                            let mut rx = self.confirmation_rx.lock().await;
+                                            if let Some((req_id, confirmed)) = rx.recv().await {
+                                                if req_id == request.id {
+                                                    if confirmed {
+                                                        // User approved - dispatch the tool call
+                                                        let output = capabilities.dispatch_tool_call(tool_call).await;
+                                                        message_tool_response = message_tool_response.with_tool_response(
+                                                            request.id.clone(),
+                                                            output,
+                                                        );
+                                                    } else {
+                                                        // User declined - add declined response
+                                                        message_tool_response = message_tool_response.with_tool_response(
+                                                            request.id.clone(),
+                                                            Ok(vec![Content::text("User declined to run this tool.")]),
+                                                        );
+                                                    }
                                                 }
                                             }
                                         }
