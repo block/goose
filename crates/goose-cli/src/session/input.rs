@@ -1,5 +1,6 @@
 use anyhow::Result;
 use rustyline::Editor;
+use shlex;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -70,7 +71,22 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         }
         "/t" => Some(InputResult::ToggleTheme),
         "/prompts" => Some(InputResult::ListPrompts),
-        s if s.starts_with("/prompt ") => parse_prompt_command(&s[8..]),
+        s if s.starts_with("/prompt") => {
+            if s == "/prompt" {
+                // No arguments case
+                Some(InputResult::PromptCommand(PromptCommandOptions {
+                    name: String::new(), // Empty name will trigger the error message in the rendering
+                    info: false,
+                    arguments: HashMap::new(),
+                }))
+            } else if let Some(stripped) = s.strip_prefix("/prompt ") {
+                // Has arguments case
+                parse_prompt_command(stripped)
+            } else {
+                // Handle invalid cases like "/promptxyz"
+                None
+            }
+        }
         s if s.starts_with("/extension ") => Some(InputResult::AddExtension(s[11..].to_string())),
         s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
         _ => None,
@@ -78,32 +94,37 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
 }
 
 fn parse_prompt_command(args: &str) -> Option<InputResult> {
-    let parts: Vec<&str> = args.split_whitespace().collect();
+    let parts: Vec<String> = shlex::split(args).unwrap_or_default();
 
-    if parts.is_empty() {
-        return None;
-    }
-
+    // set name to empty and error out in the rendering
     let mut options = PromptCommandOptions {
-        name: parts[0].to_string(),
+        name: parts.first().cloned().unwrap_or_default(),
         info: false,
         arguments: HashMap::new(),
     };
 
+    // handle info at any point in the command
+    if parts.iter().any(|part| part == "--info") {
+        options.info = true;
+    }
+
     // Parse remaining arguments
     let mut i = 1;
+
     while i < parts.len() {
-        match parts[i] {
-            "--info" => {
-                options.info = true;
-            }
-            arg if arg.contains('=') => {
-                if let Some((key, value)) = arg.split_once('=') {
-                    options.arguments.insert(key.to_string(), value.to_string());
-                }
-            }
-            _ => return None, // Invalid format
+        let part = &parts[i];
+
+        // Skip flag arguments
+        if part == "--info" {
+            i += 1;
+            continue;
         }
+
+        // Process key=value pairs - removed redundant contains check
+        if let Some((key, value)) = part.split_once('=') {
+            options.arguments.insert(key.to_string(), value.to_string());
+        }
+
         i += 1;
     }
 
@@ -221,6 +242,75 @@ mod tests {
             assert_eq!(names, "dev,git");
         } else {
             panic!("Expected AddBuiltin");
+        }
+    }
+
+    // Test prompt with no arguments
+    #[test]
+    fn test_prompt_no_args() {
+        // Test just "/prompt" with no arguments
+        if let Some(InputResult::PromptCommand(opts)) = handle_slash_command("/prompt") {
+            assert_eq!(opts.name, "");
+            assert!(!opts.info);
+            assert!(opts.arguments.is_empty());
+        } else {
+            panic!("Expected PromptCommand");
+        }
+
+        // Test invalid prompt command
+        assert!(handle_slash_command("/promptxyz").is_none());
+    }
+
+    // Test quoted arguments
+    #[test]
+    fn test_quoted_arguments() {
+        // Test prompt with quoted arguments
+        if let Some(InputResult::PromptCommand(opts)) = handle_slash_command(
+            r#"/prompt test-prompt arg1="value with spaces" arg2="another value""#,
+        ) {
+            assert_eq!(opts.name, "test-prompt");
+            assert_eq!(opts.arguments.len(), 2);
+            assert_eq!(
+                opts.arguments.get("arg1"),
+                Some(&"value with spaces".to_string())
+            );
+            assert_eq!(
+                opts.arguments.get("arg2"),
+                Some(&"another value".to_string())
+            );
+        } else {
+            panic!("Expected PromptCommand");
+        }
+
+        // Test prompt with mixed quoted and unquoted arguments
+        if let Some(InputResult::PromptCommand(opts)) = handle_slash_command(
+            r#"/prompt test-prompt simple=value quoted="value with \"nested\" quotes""#,
+        ) {
+            assert_eq!(opts.name, "test-prompt");
+            assert_eq!(opts.arguments.len(), 2);
+            assert_eq!(opts.arguments.get("simple"), Some(&"value".to_string()));
+            assert_eq!(
+                opts.arguments.get("quoted"),
+                Some(&r#"value with "nested" quotes"#.to_string())
+            );
+        } else {
+            panic!("Expected PromptCommand");
+        }
+    }
+
+    // Test invalid arguments
+    #[test]
+    fn test_invalid_arguments() {
+        // Test prompt with invalid arguments
+        if let Some(InputResult::PromptCommand(opts)) =
+            handle_slash_command(r#"/prompt test-prompt valid=value invalid_arg another_invalid"#)
+        {
+            assert_eq!(opts.name, "test-prompt");
+            assert_eq!(opts.arguments.len(), 1);
+            assert_eq!(opts.arguments.get("valid"), Some(&"value".to_string()));
+            // Invalid arguments are ignored but logged
+        } else {
+            panic!("Expected PromptCommand");
         }
     }
 }

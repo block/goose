@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
+use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -607,6 +608,24 @@ impl Capabilities {
         }
 
         Ok(all_prompts)
+    }
+
+    pub async fn get_prompt(
+        &self,
+        extension_name: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
+        let client = self
+            .clients
+            .get(extension_name)
+            .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .get_prompt(name, arguments)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
     }
 }
 

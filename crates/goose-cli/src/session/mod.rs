@@ -13,8 +13,10 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
+use mcp_core::prompt::PromptMessage;
 
 use rand::{distributions::Alphanumeric, Rng};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio;
@@ -134,6 +136,11 @@ impl Session {
         Ok(None)
     }
 
+    pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
+        let result = self.agent.get_prompt(name, arguments).await?;
+        Ok(result.messages)
+    }
+
     pub async fn start(&mut self) -> Result<()> {
         let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
@@ -200,6 +207,12 @@ impl Session {
                     output::render_prompts(&self.list_prompts().await)
                 }
                 input::InputResult::PromptCommand(opts) => {
+                    // name is required
+                    if opts.name.is_empty() {
+                        output::render_error("Prompt name argument is required");
+                        continue;
+                    }
+
                     if opts.info {
                         match self.get_prompt_info(&opts.name).await? {
                             Some(info) => output::render_prompt_info(&info),
@@ -208,7 +221,21 @@ impl Session {
                             }
                         }
                     } else {
-                        output::render_error("Prompt execution not yet implemented");
+                        // Convert the arguments HashMap to a Value
+                        let arguments = serde_json::to_value(opts.arguments)
+                            .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
+
+                        match self.get_prompt(&opts.name, arguments).await {
+                            Ok(messages) => {
+                                println!(
+                                    "{:?}",
+                                    serde_json::to_string(&messages)
+                                        .unwrap_or("failed to get prompt".to_string())
+                                );
+                                continue;
+                            }
+                            Err(e) => output::render_error(&e.to_string()),
+                        }
                     }
                 }
             }
