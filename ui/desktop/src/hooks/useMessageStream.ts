@@ -1,13 +1,16 @@
 import { useState, useCallback, useEffect, useRef, useId } from 'react';
-import useSWR, { KeyedMutator } from 'swr';
+import useSWR from 'swr';
 import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
 
+// Ensure TextDecoder is available in the global scope
+const TextDecoder = globalThis.TextDecoder;
+
 // Event types for SSE stream
-type MessageEvent = 
-  | { type: 'Message', message: Message }
-  | { type: 'Error', error: string }
-  | { type: 'Finish', reason: string };
+type MessageEvent =
+  | { type: 'Message'; message: Message }
+  | { type: 'Error'; error: string }
+  | { type: 'Finish'; reason: string };
 
 export interface UseMessageStreamOptions {
   /**
@@ -37,7 +40,7 @@ export interface UseMessageStreamOptions {
    * Callback function to be called when a tool call is received.
    * You can optionally return a result for the tool call.
    */
-  onToolCall?: (toolCall: any) => void | Promise<any> | any;
+  _onToolCall?: (toolCall: Record<string, unknown>) => void | Promise<unknown> | unknown;
 
   /**
    * Callback function to be called when the API response is received.
@@ -57,7 +60,7 @@ export interface UseMessageStreamOptions {
   /**
    * HTTP headers to be sent with the API request.
    */
-  headers?: Record<string, string> | Headers;
+  headers?: Record<string, string> | HeadersInit;
 
   /**
    * Extra body object to be sent with the API request.
@@ -74,50 +77,50 @@ export interface UseMessageStreamOptions {
 export interface UseMessageStreamHelpers {
   /** Current messages in the chat */
   messages: Message[];
-  
+
   /** The error object of the API request */
   error: undefined | Error;
-  
+
   /**
    * Append a user message to the chat list. This triggers the API call to fetch
    * the assistant's response.
    */
   append: (message: Message | string) => Promise<void>;
-  
+
   /**
    * Reload the last AI chat response for the given chat history.
    */
   reload: () => Promise<void>;
-  
+
   /**
    * Abort the current request immediately.
    */
   stop: () => void;
-  
+
   /**
    * Update the `messages` state locally.
    */
   setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void;
-  
+
   /** The current value of the input */
   input: string;
-  
+
   /** setState-powered method to update the input value */
   setInput: React.Dispatch<React.SetStateAction<string>>;
-  
+
   /** An input/textarea-ready onChange handler to control the value of the input */
   handleInputChange: (
     e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>
   ) => void;
-  
+
   /** Form submission handler to automatically reset input and append a user message */
   handleSubmit: (event?: { preventDefault?: () => void }) => void;
-  
+
   /** Whether the API request is in progress */
   isLoading: boolean;
 
   /** Add a tool result to a tool call */
-  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: any }) => void;
+  addToolResult: ({ toolCallId, result }: { toolCallId: string; result: unknown }) => void;
 }
 
 /**
@@ -128,7 +131,6 @@ export function useMessageStream({
   id,
   initialMessages = [],
   initialInput = '',
-  onToolCall,
   onResponse,
   onFinish,
   onError,
@@ -191,9 +193,13 @@ export function useMessageStream({
       let buffer = '';
 
       try {
-        while (true) {
+        let running = true;
+        while (running) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            running = false;
+            break;
+          }
 
           // Decode the chunk and add it to our buffer
           buffer += decoder.decode(value, { stream: true });
@@ -214,10 +220,10 @@ export function useMessageStream({
                     currentMessages = [...currentMessages, parsedEvent.message];
                     mutate(currentMessages, false);
                     break;
-                  
+
                   case 'Error':
                     throw new Error(parsedEvent.error);
-                  
+
                   case 'Finish':
                     // Call onFinish with the last message if available
                     if (onFinish && currentMessages.length > 0) {
@@ -305,7 +311,7 @@ export function useMessageStream({
                 break;
               }
             }
-            
+
             if (assistantCount < maxSteps) {
               await sendRequest(updatedMessages);
             }
@@ -315,7 +321,7 @@ export function useMessageStream({
         abortControllerRef.current = null;
       } catch (err) {
         // Ignore abort errors as they are expected
-        if ((err as any).name === 'AbortError') {
+        if (err instanceof Error && err.name === 'AbortError') {
           abortControllerRef.current = null;
           return;
         }
@@ -336,12 +342,10 @@ export function useMessageStream({
   const append = useCallback(
     async (message: Message | string) => {
       // If a string is passed, convert it to a Message object
-      const messageToAppend = typeof message === 'string' 
-        ? createUserMessage(message) 
-        : message;
-      
+      const messageToAppend = typeof message === 'string' ? createUserMessage(message) : message;
+
       console.log('Appending message:', JSON.stringify(messageToAppend, null, 2));
-      
+
       const currentMessages = [...messagesRef.current, messageToAppend];
       mutate(currentMessages, false);
       await sendRequest(currentMessages);
@@ -358,10 +362,9 @@ export function useMessageStream({
 
     // Remove last assistant message if present
     const lastMessage = currentMessages[currentMessages.length - 1];
-    const messagesToSend = lastMessage.role === 'assistant' 
-      ? currentMessages.slice(0, -1)
-      : currentMessages;
-    
+    const messagesToSend =
+      lastMessage.role === 'assistant' ? currentMessages.slice(0, -1) : currentMessages;
+
     await sendRequest(messagesToSend);
   }, [sendRequest]);
 
@@ -412,16 +415,15 @@ export function useMessageStream({
 
   // Add tool result to a message
   const addToolResult = useCallback(
-    ({ toolCallId, result }: { toolCallId: string; result: any }) => {
+    ({ toolCallId, result }: { toolCallId: string; result: unknown }) => {
       const currentMessages = messagesRef.current;
-      
+
       // Find the last assistant message with the tool call
       let lastAssistantIndex = -1;
       for (let i = currentMessages.length - 1; i >= 0; i--) {
         if (currentMessages[i].role === 'assistant') {
           const toolRequests = currentMessages[i].content.filter(
-            content => 'ToolRequest' in content && 
-                      content.ToolRequest.id === toolCallId
+            (content) => 'ToolRequest' in content && content.ToolRequest.id === toolCallId
           );
           if (toolRequests.length > 0) {
             lastAssistantIndex = i;

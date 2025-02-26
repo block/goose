@@ -1,15 +1,15 @@
 import React, { useMemo } from 'react';
-import ToolInvocations from './ToolInvocations';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
+import ToolCallWithResponse from './ToolCallWithResponse';
 import { Message, getTextContent, getToolRequests, getToolResponses } from '../types/message';
 
 interface GooseMessageProps {
   message: Message;
   messages: Message[];
-  metadata?: any;
+  metadata?: string[];
   append: (value: string) => void;
 }
 
@@ -51,46 +51,27 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
-  // Convert tool requests to the format expected by ToolInvocations
-  const toolInvocations = useMemo(() => {
-    const invocations = toolRequests
-      .map((toolRequest) => {
-        const toolCall = toolRequest.tool_call.Ok;
-
-        if (!toolCall) {
-          return null;
-        }
-
-        const toolResponse = toolResponsesMap.get(toolRequest.id);
-
-        return {
-          toolCallId: toolRequest.id,
-          toolName: toolCall.name,
-          args: toolCall.arguments,
-          state: toolResponse ? 'result' : 'running',
-          result: toolResponse?.tool_result?.Ok || undefined,
-        };
-      })
-      .filter(Boolean);
-
-    return invocations;
-  }, [toolRequests, toolResponsesMap]);
-
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col w-full">
         {/* Always show the top content area if there are tool calls, even if textContent is empty */}
-        {(textContent || toolInvocations.length > 0) && (
+        {(textContent || toolRequests.length > 0) && (
           <div
-            className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolInvocations.length > 0 ? 'rounded-b-none' : ''}`}
+            className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
           >
             {textContent ? <MarkdownContent content={textContent} /> : null}
           </div>
         )}
 
-        {toolInvocations.length > 0 && (
+        {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
-            <ToolInvocations toolInvocations={toolInvocations} />
+            {toolRequests.map((toolRequest) => (
+              <ToolCallWithResponse
+                key={toolRequest.id}
+                toolRequest={toolRequest}
+                toolResponse={toolResponsesMap.get(toolRequest.id)}
+              />
+            ))}
           </div>
         )}
       </div>

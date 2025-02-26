@@ -7,25 +7,21 @@ export type Role = 'user' | 'assistant';
 
 export interface TextContent {
   text: string;
-  annotations?: any;
+  annotations?: Record<string, unknown>;
 }
 
 export interface ImageContent {
   data: string;
   mime_type: string;
-  annotations?: any;
+  annotations?: Record<string, unknown>;
 }
 
 export interface ToolCall {
   name: string;
-  arguments: any;
+  arguments: Record<string, unknown>;
 }
 
-export interface Content {
-  text?: string;
-  priority?: number;
-  // Add other content types as needed
-}
+export type Content = { Text: TextContent } | { Image: ImageContent };
 
 export interface ToolRequest {
   id: string;
@@ -46,7 +42,7 @@ export interface ToolResponse {
 export interface ToolConfirmationRequest {
   id: string;
   tool_name: string;
-  arguments: any;
+  arguments: Record<string, unknown>;
   prompt?: string;
 }
 
@@ -83,7 +79,11 @@ export function createAssistantMessage(text: string): Message {
   };
 }
 
-export function createToolRequestMessage(id: string, toolName: string, args: any): Message {
+export function createToolRequestMessage(
+  id: string,
+  toolName: string,
+  args: Record<string, unknown>
+): Message {
   return {
     id: generateId(),
     role: 'assistant',
@@ -166,7 +166,7 @@ export function getToolRequests(message: Message): ToolRequest[] {
         return content.ToolRequest;
       } else {
         // Handle potential lowercase property name
-        return (content as any).toolRequest;
+        return (content as { toolRequest: ToolRequest }).toolRequest;
       }
     });
 }
@@ -183,7 +183,7 @@ export function getToolResponses(message: Message): ToolResponse[] {
         return content.ToolResponse;
       } else {
         // Handle potential lowercase property name
-        return (content as any).toolResponse;
+        return (content as { toolResponse: ToolResponse }).toolResponse;
       }
     });
 }

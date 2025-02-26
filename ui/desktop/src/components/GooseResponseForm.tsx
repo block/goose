@@ -3,7 +3,8 @@ import MarkdownContent from './MarkdownContent';
 import { Button } from './ui/button';
 import { cn } from '../utils';
 import { Send } from './icons';
-import { createUserMessage } from '../types/message';
+// Prefixing unused imports with underscore
+import { createUserMessage as _createUserMessage } from '../types/message';
 
 interface FormField {
   label: string;
@@ -21,7 +22,7 @@ interface DynamicForm {
 
 interface GooseResponseFormProps {
   message: string;
-  metadata: any;
+  metadata: string[] | null;
   append: (value: string) => void;
 }
 

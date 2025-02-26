@@ -3,40 +3,32 @@ import { Card } from './ui/card';
 import Box from './ui/Box';
 import { ToolCallArguments } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { snakeToTitleCase } from '../utils';
 import { LoadingPlaceholder } from './LoadingPlaceholder';
 import { ChevronUp } from 'lucide-react';
-import { Content } from '../types/message';
+import { Content, ToolRequest, ToolResponse } from '../types/message';
+import { snakeToTitleCase } from '../utils';
 
-interface ToolInvocation {
-  toolCallId: string;
-  toolName: string;
-  args: any;
-  state: 'running' | 'result';
-  result?: Content[];
+interface ToolCallWithResponseProps {
+  toolRequest: ToolRequest;
+  toolResponse?: ToolResponse;
 }
 
-interface ToolInvocationsProps {
-  toolInvocations: ToolInvocation[];
-}
+export default function ToolCallWithResponse({
+  toolRequest,
+  toolResponse,
+}: ToolCallWithResponseProps) {
+  const toolCall = toolRequest.tool_call.Ok;
 
-export default function ToolInvocations({ toolInvocations }: ToolInvocationsProps) {
-  return (
-    <>
-      {toolInvocations.map((toolInvocation) => (
-        <ToolInvocation key={toolInvocation.toolCallId} toolInvocation={toolInvocation} />
-      ))}
-    </>
-  );
-}
+  if (!toolCall) {
+    return null;
+  }
 
-function ToolInvocation({ toolInvocation }: { toolInvocation: ToolInvocation }) {
   return (
     <div className="w-full">
       <Card className="">
-        <ToolCall call={toolInvocation} />
-        {toolInvocation.state === 'result' ? (
-          <ToolResult result={toolInvocation} />
+        <ToolCallView toolCall={toolCall} />
+        {toolResponse ? (
+          <ToolResultView result={toolResponse.tool_result.Ok} />
         ) : (
           <LoadingPlaceholder />
         )}
@@ -45,56 +37,48 @@ function ToolInvocation({ toolInvocation }: { toolInvocation: ToolInvocation }) 
   );
 }
 
-interface ToolCallProps {
-  call: {
-    state: 'running' | 'result';
-    toolCallId: string;
-    toolName: string;
-    args: Record<string, any>;
+interface ToolCallViewProps {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
   };
 }
 
-function ToolCall({ call }: ToolCallProps) {
+function ToolCallView({ toolCall }: ToolCallViewProps) {
   return (
     <div>
       <div className="flex items-center mb-4">
         <Box size={16} />
         <span className="ml-[8px] text-textStandard">
-          {snakeToTitleCase(call.toolName.substring(call.toolName.lastIndexOf('__') + 2))}
+          {snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))}
         </span>
       </div>
 
-      {call.args && <ToolCallArguments args={call.args} />}
+      {toolCall.arguments && <ToolCallArguments args={toolCall.arguments} />}
 
       <div className="self-stretch h-px my-[10px] -mx-4 bg-borderSubtle dark:bg-gray-700" />
     </div>
   );
 }
 
-interface ToolResultProps {
-  result: {
-    result?: Content[];
-    state?: string;
-    toolCallId?: string;
-    toolName?: string;
-    args?: any;
-  };
+interface ToolResultViewProps {
+  result?: Content[];
 }
 
-function ToolResult({ result }: ToolResultProps) {
+function ToolResultView({ result }: ToolResultViewProps) {
   // State to track expanded items
   const [expandedItems, setExpandedItems] = React.useState<number[]>([]);
 
   // If no result info, don't show anything
-  if (!result || !result.result) return null;
+  if (!result) return null;
 
-  // Normalize to an array
-  const results = Array.isArray(result.result) ? result.result : [result.result];
+  // Find results where either audience is not set, or it's set to a list that includes user
+  const filteredResults = result.filter((item) => {
+    // Check audience (which may not be in the type)
+    const audience = item.annotations?.audience;
 
-  // Find results where either audience is not set, or it's set to a list that contains user
-  const filteredResults = results.filter(
-    (item) => !item.audience || item.audience?.includes('user')
-  );
+    return !audience || audience.includes('user');
+  });
 
   if (filteredResults.length === 0) return null;
 
@@ -105,20 +89,14 @@ function ToolResult({ result }: ToolResultProps) {
   };
 
   const shouldShowExpanded = (item: Content, index: number) => {
-    // (priority is defined and > 0.5) OR already in the expandedItems
-    return (
-      (item.priority !== undefined && item.priority >= 0.5) ||
-      expandedItems.includes(index)
-    );
+    return (item.priority !== undefined && item.priority >= 0.5) || expandedItems.includes(index);
   };
 
   return (
     <div className="">
       {filteredResults.map((item, index) => {
         const isExpanded = shouldShowExpanded(item, index);
-        // minimize if priority is not set or < 0.5
-        const shouldMinimize =
-          item.priority === undefined || item.priority < 0.5;
+        const shouldMinimize = item.priority === undefined || item.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (

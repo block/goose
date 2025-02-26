@@ -36,27 +36,27 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
   const [showGame, setShowGame] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
-  const { 
-    messages, 
-    append, 
-    stop, 
-    isLoading, 
-    error, 
+  const {
+    messages,
+    append,
+    stop,
+    isLoading,
+    error,
     setMessages,
-    input,
-    setInput,
-    handleInputChange,
-    handleSubmit: submitMessage
+    input: _input,
+    setInput: _setInput,
+    handleInputChange: _handleInputChange,
+    handleSubmit: _submitMessage,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat?.messages || [],
-    onFinish: async (message, reason) => {
+    onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
       // Extract text content from the message to pass to askAi
       const messageText = getTextContent(message);
       const fetchResponses = await askAi(messageText);
-      setMessageMetadata((prev) => ({ ...prev, [message.id || ''] : fetchResponses }));
+      setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
@@ -72,12 +72,12 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
       // Handle tool calls if needed
       console.log('Tool call received:', toolCall);
       // Implement tool call handling logic here
-    }
+    },
   });
 
   // Update chat messages when they change
   useEffect(() => {
-    setChat({ ...chat, messages });
+    setChat((prevChat) => ({ ...prevChat, messages }));
   }, [messages]);
 
   useEffect(() => {
@@ -125,19 +125,19 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
 
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
-  const filteredMessages = messages.filter(message => {
+  const filteredMessages = messages.filter((message) => {
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
-    
+
     // For user messages, check if they're only tool responses
     if (message.role === 'user') {
-      const hasOnlyToolResponses = message.content.every(c => 'ToolResponse' in c);
-      const hasTextContent = message.content.some(c => 'Text' in c);
-      
+      const hasOnlyToolResponses = message.content.every((c) => 'ToolResponse' in c);
+      const hasTextContent = message.content.some((c) => 'Text' in c);
+
       // Keep the message if it has text content or is not just tool responses
       return hasTextContent || !hasOnlyToolResponses;
     }
-    
+
     return true;
   });
 
