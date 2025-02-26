@@ -73,10 +73,43 @@ const addAgent = async (provider: string, model: string) => {
   return response;
 };
 
+// Desktop-specific system prompt extension
+const desktopPrompt = `You are being accessed through the Goose Desktop application.
+
+The user is interacting with you through a graphical user interface with the following features:
+- A chat interface where messages are displayed in a conversation format
+- Support for markdown formatting in your responses
+- Support for code blocks with syntax highlighting
+- Tool use messages are included in the chat but outputs may need to be expanded
+
+The user can add extensions for you through the "Settings" page, which is available in the menu
+on the top right of the window. There is a section on that page for extensions, and it links to
+the registry.
+
+Some extensions are builtin, such as Developer and Memory, while
+3rd party extensions can be browsed at https://block.github.io/goose/v1/extensions/.
+`;
+
 export const initializeSystem = async (provider: string, model: string) => {
   try {
     console.log('initializing agent with provider', provider, 'model', model);
     await addAgent(provider.toLowerCase().replace(/ /g, '_'), model);
+
+    // Extend the system prompt with desktop-specific information
+    const response = await fetch(getApiUrl('/agent/prompt'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify({ extension: desktopPrompt }),
+    });
+
+    if (!response.ok) {
+      console.warn(`Failed to extend system prompt: ${response.statusText}`);
+    } else {
+      console.log('Extended system prompt with desktop-specific information');
+    }
 
     loadAndAddStoredExtensions().catch((error) => {
       console.error('Failed to load and add stored extension configs:', error);
