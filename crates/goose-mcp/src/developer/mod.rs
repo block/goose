@@ -388,46 +388,6 @@ impl DeveloperRouter {
         self.ignore_patterns.matched(path, false).is_ignore()
     }
 
-    // Helper method to check if a shell command might access ignored files
-    fn check_command_for_ignored_files(&self, command: &str) -> Option<String> {
-        // Common file reading/writing commands to check
-        let file_commands = ["cat", "less", "more", "head", "tail", "grep", "awk", "sed"];
-
-        // Skip checking for certain safe commands
-        let safe_commands = ["ls", "pwd", "echo", "which", "whoami", "date", "ps"];
-
-        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
-        if cmd_parts.is_empty() {
-            return None;
-        }
-
-        // If it's a safe command, don't check further
-        if safe_commands.contains(&cmd_parts[0]) {
-            return None;
-        }
-
-        // If it's a known file-accessing command, check the arguments
-        if file_commands.contains(&cmd_parts[0]) {
-            for arg in &cmd_parts[1..] {
-                // Skip command flags
-                if arg.starts_with('-') {
-                    continue;
-                }
-
-                // Convert argument to path and check if it's ignored
-                let path = Path::new(arg);
-                if self.is_ignored(path) {
-                    return Some(format!(
-                        "Warning: The command attempts to access '{}' which is restricted by .gooseignore",
-                        arg
-                    ));
-                }
-            }
-        }
-
-        None
-    }
-
     // Helper method to resolve a path relative to cwd with platform-specific handling
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ToolError> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -457,8 +417,24 @@ impl DeveloperRouter {
                 ))?;
 
         // Check if command might access ignored files and return early if it does
-        if let Some(error_msg) = self.check_command_for_ignored_files(command) {
-            return Err(ToolError::ExecutionError(error_msg));
+        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+        for arg in &cmd_parts[1..] {
+            // Skip command flags
+            if arg.starts_with('-') {
+                continue;
+            }
+            // Skip invalid paths
+            let path = Path::new(arg);
+            if !path.exists() {
+                continue;
+            }
+
+            if self.is_ignored(path) {
+                return Err(ToolError::ExecutionError(format!(
+                    "The command attempts to access '{}' which is restricted by .gooseignore",
+                    arg
+                )));
+            }
         }
 
         // Get platform-specific shell configuration
