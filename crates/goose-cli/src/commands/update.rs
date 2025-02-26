@@ -6,7 +6,6 @@ const DOWNLOAD_SCRIPT_URL: &str =
     "https://github.com/block/goose/releases/download/stable/download_cli.sh";
 
 pub fn update(canary: bool, reconfigure: bool) -> Result<()> {
-
     // Get the download script from github
     let curl_output = Command::new("curl")
         .arg("-fsSL")
