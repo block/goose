@@ -423,7 +423,7 @@ export function useMessageStream({
       for (let i = currentMessages.length - 1; i >= 0; i--) {
         if (currentMessages[i].role === 'assistant') {
           const toolRequests = currentMessages[i].content.filter(
-            (content) => 'ToolRequest' in content && content.ToolRequest.id === toolCallId
+            (content) => content.type === 'toolRequest' && content.id === toolCallId
           );
           if (toolRequests.length > 0) {
             lastAssistantIndex = i;
@@ -435,16 +435,18 @@ export function useMessageStream({
       if (lastAssistantIndex === -1) return;
 
       // Create a tool response message
-      const toolResponseMessage = {
+      const toolResponseMessage: Message = {
         role: 'user' as const,
         created: Math.floor(Date.now() / 1000),
         content: [
           {
-            ToolResponse: {
-              id: toolCallId,
-              tool_result: {
-                ok: Array.isArray(result) ? result : [{ text: String(result), priority: 0 }],
-              },
+            type: 'toolResponse' as const,
+            id: toolCallId,
+            toolResult: {
+              status: 'success' as const,
+              value: Array.isArray(result)
+                ? result
+                : [{ type: 'text' as const, text: String(result), priority: 0 }],
             },
           },
         ],

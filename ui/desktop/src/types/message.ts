@@ -6,52 +6,74 @@
 export type Role = 'user' | 'assistant';
 
 export interface TextContent {
+  type: 'text';
   text: string;
   annotations?: Record<string, unknown>;
 }
 
 export interface ImageContent {
+  type: 'image';
   data: string;
-  mime_type: string;
+  mimeType: string;
   annotations?: Record<string, unknown>;
 }
+
+export type Content = TextContent | ImageContent;
 
 export interface ToolCall {
   name: string;
   arguments: Record<string, unknown>;
 }
 
-export type Content = { Text: TextContent } | { Image: ImageContent };
+export interface ToolCallResult<T> {
+  status: 'success' | 'error';
+  value?: T;
+  error?: string;
+}
 
 export interface ToolRequest {
   id: string;
-  tool_call: {
-    Ok?: ToolCall;
-    Err?: string;
-  };
+  toolCall: ToolCallResult<ToolCall>;
 }
 
 export interface ToolResponse {
   id: string;
-  tool_result: {
-    Ok?: Content[];
-    Err?: string;
-  };
+  toolResult: ToolCallResult<Content[]>;
 }
 
 export interface ToolConfirmationRequest {
   id: string;
-  tool_name: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+  prompt?: string;
+}
+
+export interface ToolRequestMessageContent {
+  type: 'toolRequest';
+  id: string;
+  toolCall: ToolCallResult<ToolCall>;
+}
+
+export interface ToolResponseMessageContent {
+  type: 'toolResponse';
+  id: string;
+  toolResult: ToolCallResult<Content[]>;
+}
+
+export interface ToolConfirmationRequestMessageContent {
+  type: 'toolConfirmationRequest';
+  id: string;
+  toolName: string;
   arguments: Record<string, unknown>;
   prompt?: string;
 }
 
 export type MessageContent =
-  | { Text: TextContent }
-  | { Image: ImageContent }
-  | { ToolRequest: ToolRequest }
-  | { ToolResponse: ToolResponse }
-  | { ToolConfirmationRequest: ToolConfirmationRequest };
+  | TextContent
+  | ImageContent
+  | ToolRequestMessageContent
+  | ToolResponseMessageContent
+  | ToolConfirmationRequestMessageContent;
 
 export interface Message {
   id?: string;
@@ -66,7 +88,7 @@ export function createUserMessage(text: string): Message {
     id: generateId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
-    content: [{ Text: { text } }],
+    content: [{ type: 'text', text }],
   };
 }
 
@@ -75,7 +97,7 @@ export function createAssistantMessage(text: string): Message {
     id: generateId(),
     role: 'assistant',
     created: Math.floor(Date.now() / 1000),
-    content: [{ Text: { text } }],
+    content: [{ type: 'text', text }],
   };
 }
 
@@ -90,14 +112,13 @@ export function createToolRequestMessage(
     created: Math.floor(Date.now() / 1000),
     content: [
       {
-        ToolRequest: {
-          id,
-          tool_call: {
-            Ok: {
-              // Using Ok to match the server format
-              name: toolName,
-              arguments: args,
-            },
+        type: 'toolRequest',
+        id,
+        toolCall: {
+          status: 'success',
+          value: {
+            name: toolName,
+            arguments: args,
           },
         },
       },
@@ -112,11 +133,11 @@ export function createToolResponseMessage(id: string, result: Content[]): Messag
     created: Math.floor(Date.now() / 1000),
     content: [
       {
-        ToolResponse: {
-          id,
-          tool_result: {
-            Ok: result, // Using Ok to match the server format
-          },
+        type: 'toolResponse',
+        id,
+        toolResult: {
+          status: 'success',
+          value: result,
         },
       },
     ],
@@ -130,11 +151,11 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
     created: Math.floor(Date.now() / 1000),
     content: [
       {
-        ToolResponse: {
-          id,
-          tool_result: {
-            Err: error, // Using Err to match the server format
-          },
+        type: 'toolResponse',
+        id,
+        toolResult: {
+          status: 'error',
+          error,
         },
       },
     ],
@@ -149,43 +170,21 @@ function generateId(): string {
 // Helper functions to extract content from messages
 export function getTextContent(message: Message): string {
   return message.content
-    .filter((content): content is { Text: TextContent } => 'Text' in content)
-    .map((content) => content.Text.text)
+    .filter((content): content is TextContent => content.type === 'text')
+    .map((content) => content.text)
     .join('\n');
 }
 
-export function getToolRequests(message: Message): ToolRequest[] {
-  // Try both casing variations
-  return message.content
-    .filter(
-      (content): content is { ToolRequest: ToolRequest } | { toolRequest: ToolRequest } =>
-        'ToolRequest' in content || 'toolRequest' in content
-    )
-    .map((content) => {
-      if ('ToolRequest' in content) {
-        return content.ToolRequest;
-      } else {
-        // Handle potential lowercase property name
-        return (content as { toolRequest: ToolRequest }).toolRequest;
-      }
-    });
+export function getToolRequests(message: Message): ToolRequestMessageContent[] {
+  return message.content.filter(
+    (content): content is ToolRequestMessageContent => content.type === 'toolRequest'
+  );
 }
 
-export function getToolResponses(message: Message): ToolResponse[] {
-  // Try both casing variations
-  return message.content
-    .filter(
-      (content): content is { ToolResponse: ToolResponse } | { toolResponse: ToolResponse } =>
-        'ToolResponse' in content || 'toolResponse' in content
-    )
-    .map((content) => {
-      if ('ToolResponse' in content) {
-        return content.ToolResponse;
-      } else {
-        // Handle potential lowercase property name
-        return (content as { toolResponse: ToolResponse }).toolResponse;
-      }
-    });
+export function getToolResponses(message: Message): ToolResponseMessageContent[] {
+  return message.content.filter(
+    (content): content is ToolResponseMessageContent => content.type === 'toolResponse'
+  );
 }
 
 export function hasCompletedToolCalls(message: Message): boolean {

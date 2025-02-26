@@ -5,19 +5,19 @@ import { ToolCallArguments } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { LoadingPlaceholder } from './LoadingPlaceholder';
 import { ChevronUp } from 'lucide-react';
-import { Content, ToolRequest, ToolResponse } from '../types/message';
+import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 import { snakeToTitleCase } from '../utils';
 
 interface ToolCallWithResponseProps {
-  toolRequest: ToolRequest;
-  toolResponse?: ToolResponse;
+  toolRequest: ToolRequestMessageContent;
+  toolResponse?: ToolResponseMessageContent;
 }
 
 export default function ToolCallWithResponse({
   toolRequest,
   toolResponse,
 }: ToolCallWithResponseProps) {
-  const toolCall = toolRequest.tool_call.Ok;
+  const toolCall = toolRequest.toolCall.status === 'success' ? toolRequest.toolCall.value : null;
 
   if (!toolCall) {
     return null;
@@ -28,7 +28,13 @@ export default function ToolCallWithResponse({
       <Card className="">
         <ToolCallView toolCall={toolCall} />
         {toolResponse ? (
-          <ToolResultView result={toolResponse.tool_result.Ok} />
+          <ToolResultView
+            result={
+              toolResponse.toolResult.status === 'success'
+                ? toolResponse.toolResult.value
+                : undefined
+            }
+          />
         ) : (
           <LoadingPlaceholder />
         )}
@@ -89,14 +95,18 @@ function ToolResultView({ result }: ToolResultViewProps) {
   };
 
   const shouldShowExpanded = (item: Content, index: number) => {
-    return (item.priority !== undefined && item.priority >= 0.5) || expandedItems.includes(index);
+    return (
+      (item.annotations.priority !== undefined && item.annotations.priority >= 0.5) ||
+      expandedItems.includes(index)
+    );
   };
 
   return (
     <div className="">
       {filteredResults.map((item, index) => {
         const isExpanded = shouldShowExpanded(item, index);
-        const shouldMinimize = item.priority === undefined || item.priority < 0.5;
+        const shouldMinimize =
+          item.annotations.priority === undefined || item.annotations.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (

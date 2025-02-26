@@ -131,8 +131,8 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
 
     // For user messages, check if they're only tool responses
     if (message.role === 'user') {
-      const hasOnlyToolResponses = message.content.every((c) => 'ToolResponse' in c);
-      const hasTextContent = message.content.some((c) => 'Text' in c);
+      const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
+      const hasTextContent = message.content.some((c) => c.type === 'text');
 
       // Keep the message if it has text content or is not just tool responses
       return hasTextContent || !hasOnlyToolResponses;
