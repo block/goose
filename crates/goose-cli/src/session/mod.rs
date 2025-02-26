@@ -108,15 +108,28 @@ impl Session {
         Ok(())
     }
 
-    pub async fn list_prompts(&mut self) -> HashMap<String, Vec<String>> {
+    pub async fn list_prompts(
+        &mut self,
+        extension: Option<String>,
+    ) -> Result<HashMap<String, Vec<String>>> {
         let prompts = self.agent.list_extension_prompts().await;
-        prompts
+
+        // Early validation if filtering by extension
+        if let Some(filter) = &extension {
+            if !prompts.contains_key(filter) {
+                return Err(anyhow::anyhow!("Extension '{}' not found", filter));
+            }
+        }
+
+        // Convert prompts into filtered map of extension names to prompt names
+        Ok(prompts
             .into_iter()
+            .filter(|(ext, _)| extension.as_ref().is_none_or(|f| f == ext))
             .map(|(extension, prompt_list)| {
                 let names = prompt_list.into_iter().map(|p| p.name).collect();
                 (extension, names)
             })
-            .collect()
+            .collect())
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
@@ -217,8 +230,11 @@ impl Session {
                     continue;
                 }
                 input::InputResult::Retry => continue,
-                input::InputResult::ListPrompts => {
-                    output::render_prompts(&self.list_prompts().await)
+                input::InputResult::ListPrompts(extension) => {
+                    match self.list_prompts(extension).await {
+                        Ok(prompts) => output::render_prompts(&prompts),
+                        Err(e) => output::render_error(&e.to_string()),
+                    }
                 }
                 input::InputResult::PromptCommand(opts) => {
                     // name is required

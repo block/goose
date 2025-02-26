@@ -11,7 +11,7 @@ pub enum InputResult {
     AddBuiltin(String),
     ToggleTheme,
     Retry,
-    ListPrompts,
+    ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
 }
 
@@ -70,7 +70,12 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
-        "/prompts" => Some(InputResult::ListPrompts),
+        "/prompts" => Some(InputResult::ListPrompts(None)),
+        s if s.starts_with("/prompts ") => {
+            // Parse arguments for /prompts command
+            let args = s.strip_prefix("/prompts ").unwrap_or_default();
+            parse_prompts_command(args)
+        }
         s if s.starts_with("/prompt") => {
             if s == "/prompt" {
                 // No arguments case
@@ -91,6 +96,21 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
         _ => None,
     }
+}
+
+fn parse_prompts_command(args: &str) -> Option<InputResult> {
+    let parts: Vec<String> = shlex::split(args).unwrap_or_default();
+
+    // Look for --extension flag
+    for i in 0..parts.len() {
+        if parts[i] == "--extension" && i + 1 < parts.len() {
+            // Return the extension name that follows the flag
+            return Some(InputResult::ListPrompts(Some(parts[i + 1].clone())));
+        }
+    }
+
+    // If we got here, there was no valid --extension flag
+    Some(InputResult::ListPrompts(None))
 }
 
 fn parse_prompt_command(args: &str) -> Option<InputResult> {
@@ -138,8 +158,8 @@ fn print_help() {
 /t - Toggle Light/Dark/Ansi theme
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
-/prompts - List all available prompts by name
-/prompt <name> [--info] [key=value...] - Get prompt info or execute a prompt
+/prompts [--extension <name>] - List all available prompts, optionally filtered by extension
+/prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
 /? or /help - Display this help message
 
 Navigation:
@@ -197,6 +217,25 @@ mod tests {
 
         // Test unknown commands
         assert!(handle_slash_command("/unknown").is_none());
+    }
+
+    #[test]
+    fn test_prompts_command() {
+        // Test basic prompts command
+        if let Some(InputResult::ListPrompts(extension)) = handle_slash_command("/prompts") {
+            assert!(extension.is_none());
+        } else {
+            panic!("Expected ListPrompts");
+        }
+
+        // Test prompts with extension filter
+        if let Some(InputResult::ListPrompts(extension)) =
+            handle_slash_command("/prompts --extension test")
+        {
+            assert_eq!(extension, Some("test".to_string()));
+        } else {
+            panic!("Expected ListPrompts with extension");
+        }
     }
 
     #[test]
