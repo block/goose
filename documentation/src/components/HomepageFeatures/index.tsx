@@ -115,7 +115,7 @@ const FeatureQuotes: FeatureQuote[] = [
   //   github: "https://github.com/",
   //   role: "Product Lead",
   //   testimonial:
-  //     "I know Goose is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Goose, I drafted a product requirements document for a small change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
+  //     "I know Goose is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Goose, I drafted a product requirements document for a small_models change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
   // },
 ];
 
