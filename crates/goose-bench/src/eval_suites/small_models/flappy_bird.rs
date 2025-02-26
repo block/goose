@@ -17,10 +17,11 @@ impl Evaluation for FlappyBird {
         &self,
         mut agent: Box<dyn BenchAgent>,
         _: &mut WorkDir,
-    ) -> anyhow::Result<Vec<EvaluationMetric>> {
+    ) -> anyhow::Result<Vec<(String, EvaluationMetric) >> {
         println!("FlappyBird - run");
-        let metrics = Vec::new();
+        let mut metrics = Vec::new();
         let _ = agent.prompt("What can you do?".to_string()).await;
+        metrics.push(("flappy_bird".to_string(), EvaluationMetric::Boolean(true)));
         Ok(metrics)
     }
 

@@ -2,11 +2,12 @@ use crate::work_dir::WorkDir;
 use anyhow::Result;
 use async_trait::async_trait;
 use goose::message::Message;
+use serde::Serialize;
 
 pub type Model = (String, String);
 pub type Extension = String;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum EvaluationMetric {
     Integer(i64),
     Float(f64),
@@ -25,6 +26,6 @@ pub trait Evaluation: Send + Sync {
         &self,
         agent: Box<dyn BenchAgent>,
         run_loc: &mut WorkDir,
-    ) -> Result<Vec<EvaluationMetric>>;
+    ) -> Result<Vec<(String, EvaluationMetric)>>;
     fn name(&self) -> &str;
 }

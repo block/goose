@@ -40,3 +40,6 @@ debug_*.txt
 # Generated files
 .docusaurus
 .cache-loader
+
+# Benchmark paths
+benchmark-*
