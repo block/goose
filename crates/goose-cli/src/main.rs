@@ -106,6 +106,14 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Continue in interactive mode after processing input
+        #[arg(
+            short = 's',
+            long = "interactive",
+            help = "Continue in interactive mode after processing initial input"
+        )]
+        interactive: bool,
+
         /// Name for this run session
         #[arg(
             short,
@@ -182,12 +190,13 @@ async fn main() -> Result<()> {
         }) => {
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-            let _ = session.start().await;
+            let _ = session.interactive(None).await;
             return Ok(());
         }
         Some(Command::Run {
             instructions,
             input_text,
+            interactive,
             name,
             resume,
             extension,
@@ -213,7 +222,12 @@ async fn main() -> Result<()> {
             };
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-            let _ = session.headless_start(contents.clone()).await;
+
+            if interactive {
+                session.interactive(Some(contents)).await?;
+            } else {
+                session.headless(contents).await?;
+            }
             return Ok(());
         }
         Some(Command::Agents(cmd)) => {

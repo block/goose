@@ -14,7 +14,6 @@ use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
 use rand::{distributions::Alphanumeric, Rng};
-use rustyline::Editor;
 use std::path::PathBuf;
 use tokio;
 
@@ -104,8 +103,22 @@ impl Session {
         Ok(())
     }
 
-    pub async fn start(&mut self) -> Result<()> {
-        let mut editor = Editor::<(), rustyline::history::DefaultHistory>::new()?;
+    /// Process a single message and get the response
+    async fn process_message(&mut self, message: String) -> Result<()> {
+        self.messages.push(Message::user().with_text(&message));
+        storage::persist_messages(&self.session_file, &self.messages)?;
+        self.process_agent_response(false).await?;
+        Ok(())
+    }
+
+    /// Start an interactive session, optionally with an initial message
+    pub async fn interactive(&mut self, message: Option<String>) -> Result<()> {
+        // Process initial message if provided
+        if let Some(msg) = message {
+            self.process_message(msg).await?;
+        }
+
+        let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
         // Load history from messages
         for msg in self
@@ -129,7 +142,7 @@ impl Session {
                     storage::persist_messages(&self.session_file, &self.messages)?;
 
                     output::show_thinking();
-                    self.process_agent_response(&mut editor).await?;
+                    self.process_agent_response(true).await?;
                     output::hide_thinking();
                 }
                 input::InputResult::Exit => break,
@@ -184,19 +197,12 @@ impl Session {
         Ok(())
     }
 
-    pub async fn headless_start(&mut self, initial_message: String) -> Result<()> {
-        self.messages
-            .push(Message::user().with_text(&initial_message));
-        storage::persist_messages(&self.session_file, &self.messages)?;
-        let mut editor = Editor::<(), rustyline::history::DefaultHistory>::new()?;
-        self.process_agent_response(&mut editor).await?;
-        Ok(())
+    /// Process a single message and exit
+    pub async fn headless(&mut self, message: String) -> Result<()> {
+        self.process_message(message).await
     }
 
-    async fn process_agent_response(
-        &mut self,
-        editor: &mut Editor<(), rustyline::history::DefaultHistory>,
-    ) -> Result<()> {
+    async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
         let mut stream = self.agent.reply(&self.messages).await?;
 
         use futures::StreamExt;
@@ -204,45 +210,26 @@ impl Session {
             tokio::select! {
                 result = stream.next() => {
                     match result {
-                        Some(Ok(mut message)) => {
-
-                            // Handle tool confirmation requests before rendering
+                        Some(Ok(message)) => {
+                            // If it's a confirmation request, get approval but otherwise do not render/persist
                             if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool. Allow? (y/n):".to_string();
-
-                                let confirmation_request = Message::user().with_tool_confirmation_request(
-                                    confirmation.id.clone(),
-                                    confirmation.tool_name.clone(),
-                                    confirmation.arguments.clone(),
-                                    Some(prompt)
-                                );
-                                output::render_message(&confirmation_request);
+                                let prompt = "Goose would like to call the above tool, do you approve?".to_string();
 
                                 // Get confirmation from user
-                                let confirmed = match input::get_input(editor)? {
-                                    input::InputResult::Message(content) => {
-                                        content.trim().to_lowercase().starts_with('y')
-                                    }
-                                    _ => false,
-                                };
-
+                                let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
                                 self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
-
-                                message = confirmation_request;
                             }
-
-                            // Only push the message if it's not a tool confirmation request
-                            if !message.content.iter().any(|content| matches!(content, MessageContent::ToolConfirmationRequest(_))) {
+                            // otherwise we have a model/tool to render
+                            else {
                                 self.messages.push(message.clone());
+                                storage::persist_messages(&self.session_file, &self.messages)?;
+                                if interactive {output::hide_thinking()};
+                                output::render_message(&message);
+                                if interactive {output::show_thinking()};
                             }
-
-                            storage::persist_messages(&self.session_file, &self.messages)?;
-                            output::hide_thinking();
-                            output::render_message(&message);
-                            output::show_thinking();
                         }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
