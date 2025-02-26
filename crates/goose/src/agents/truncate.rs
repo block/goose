@@ -261,7 +261,7 @@ impl Agent for TruncateAgent {
                                                 request.id.clone(),
                                                 tool_call.name.clone(),
                                                 tool_call.arguments.clone(),
-                                                Some("Goose would like to call the tool: {}\nAllow? (y/n): ".to_string()),
+                                                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
                                             );
                                             yield confirmation;
 
