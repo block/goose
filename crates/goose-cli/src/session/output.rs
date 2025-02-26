@@ -1,7 +1,7 @@
 use bat::WrappingMode;
 use console::style;
 use goose::config::Config;
-use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::message::{Message, MessageContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -94,6 +94,9 @@ pub fn render_message(message: &Message) {
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, theme),
+            MessageContent::ToolConfirmationRequest(req) => {
+                render_tool_confirmation_request(req, theme)
+            }
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
@@ -144,6 +147,17 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
             }
         }
         Err(e) => print_markdown(&e.to_string(), theme),
+    }
+}
+
+fn render_tool_confirmation_request(req: &ToolConfirmationRequest, theme: Theme) {
+    match &req.prompt {
+        Some(prompt) => {
+            let colored_prompt =
+                prompt.replace("Allow? (y/n)", &format!("{}", style("Allow? (y/n)").cyan()));
+            println!("{}", colored_prompt);
+        }
+        None => print_markdown("No prompt provided", theme),
     }
 }
 

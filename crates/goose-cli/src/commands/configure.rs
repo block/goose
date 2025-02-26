@@ -1,7 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::{Config, ConfigError, ExtensionEntry, ExtensionManager};
+use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use mcp_core::Tool;
@@ -151,9 +151,9 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             )
             .item("remove", "Remove Extension", "Remove an extension")
             .item(
-                "tool_output",
-                "Adjust Tool Output",
-                "Show more or less tool output",
+                "settings",
+                "Goose Settings",
+                "Set the Goose Mode, Tool Output, Experiment and more",
             )
             .interact()?;
 
@@ -161,7 +161,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
             "remove" => remove_extension_dialog(),
-            "tool_output" => configure_tool_output_dialog(),
+            "settings" => configure_settings_dialog(),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -621,12 +621,96 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
+    let mut setting_select_builder = cliclack::select("What setting would you like to configure?")
+        .item("goose_mode", "Goose Mode", "Configure Goose mode")
+        .item(
+            "tool_output",
+            "Tool Output",
+            "Show more or less tool output",
+        );
+
+    // Conditionally add the "Toggle Experiment" option
+    if ExperimentManager::is_enabled("EXPERIMENT_CONFIG")? {
+        setting_select_builder = setting_select_builder.item(
+            "experiment",
+            "Toggle Experiment",
+            "Enable or disable an experiment feature",
+        );
+    }
+
+    let setting_type = setting_select_builder.interact()?;
+
+    match setting_type {
+        "goose_mode" => {
+            configure_goose_mode_dialog()?;
+        }
+        "tool_output" => {
+            configure_tool_output_dialog()?;
+        }
+        "experiment" => {
+            toggle_experiments_dialog()?;
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(())
+}
+
+pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_MODE is set as an environment variable
+    if std::env::var("GOOSE_MODE").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
+    }
+
+    let mode = cliclack::select("Which Goose mode would you like to configure?")
+        .item(
+            "auto",
+            "Auto Mode", 
+            "Full file modification, extension usage, edit, create and delete files freely"
+        )
+        .item(
+            "approve",
+            "Approve Mode",
+            "Editing, creating, deleting files and using extensions will require human approval"
+        )
+        .item(
+            "chat",
+            "Chat Mode",
+            "Engage with the selected provider without using tools, extensions, or file modification"
+        )
+        .interact()?;
+
+    match mode {
+        "auto" => {
+            config.set("GOOSE_MODE", Value::String("auto".to_string()))?;
+            cliclack::outro("Set to Auto Mode - full file modification enabled")?;
+        }
+        "approve" => {
+            config.set("GOOSE_MODE", Value::String("approve".to_string()))?;
+            cliclack::outro("Set to Approve Mode - modifications require approval")?;
+        }
+        "chat" => {
+            config.set("GOOSE_MODE", Value::String("chat".to_string()))?;
+            cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
+        }
+        _ => unreachable!(),
+    };
+    Ok(())
+}
+
 pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
+    // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
+    if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.");
+    }
     let tool_log_level = cliclack::select("Which tool output would you like to show?")
         .item("high", "High Importance", "")
         .item("medium", "Medium Importance", "Ex. results of file-writes")
-        .item("all", "All", "Ex. shell command output")
+        .item("all", "All (default)", "Ex. shell command output")
         .interact()?;
 
     match tool_log_level {
@@ -645,5 +729,45 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
         _ => unreachable!(),
     };
 
+    Ok(())
+}
+
+/// Configure experiment features that can be used with goose
+/// Dialog for toggling which experiments are enabled/disabled
+pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
+    let experiments = ExperimentManager::get_all()?;
+
+    if experiments.is_empty() {
+        cliclack::outro("No experiments supported yet.")?;
+        return Ok(());
+    }
+
+    // Get currently enabled experiments for the selection
+    let enabled_experiments: Vec<&String> = experiments
+        .iter()
+        .filter(|(_, enabled)| *enabled)
+        .map(|(name, _)| name)
+        .collect();
+
+    // Let user toggle experiments
+    let selected = cliclack::multiselect(
+        "enable experiments: (use \"space\" to toggle and \"enter\" to submit)",
+    )
+    .required(false)
+    .items(
+        &experiments
+            .iter()
+            .map(|(name, _)| (name, name.as_str(), ""))
+            .collect::<Vec<_>>(),
+    )
+    .initial_values(enabled_experiments)
+    .interact()?;
+
+    // Update enabled status for each experiments
+    for name in experiments.iter().map(|(name, _)| name) {
+        ExperimentManager::set_enabled(name, selected.iter().any(|&s| s.as_str() == name))?;
+    }
+
+    cliclack::outro("Experiments settings updated successfully")?;
     Ok(())
 }

@@ -96,7 +96,7 @@ impl SseActor {
                         .join(&e.data)
                         .expect("Failed to resolve endpoint URL");
 
-                    println!("Discovered SSE POST endpoint: {}", post_url);
+                    tracing::debug!("Discovered SSE POST endpoint: {}", post_url);
                     *post_endpoint.write().await = Some(post_url.to_string());
                     break;
                 }
@@ -129,7 +129,7 @@ impl SseActor {
         }
 
         // SSE stream ended or errored; signal any pending requests
-        eprintln!("SSE stream ended or encountered an error; clearing pending requests.");
+        tracing::error!("SSE stream ended or encountered an error; clearing pending requests.");
         pending_requests.clear().await;
     }
 
@@ -200,7 +200,7 @@ impl SseActor {
         }
 
         // mpsc channel closed => no more outgoing messages
-        eprintln!("SseActor: outgoing message loop ended. Clearing pending requests.");
+        tracing::error!("SseActor: outgoing message loop ended. Clearing pending requests.");
         pending_requests.clear().await;
     }
 }

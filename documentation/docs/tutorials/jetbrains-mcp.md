@@ -1,6 +1,6 @@
 ---
 title: JetBrains Extension
-description: Add JetBrains MCP Server as a Goose Extension
+description: Use JetBrains MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';

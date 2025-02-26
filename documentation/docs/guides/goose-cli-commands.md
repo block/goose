@@ -16,83 +16,7 @@ Used to display the help menu
 goose --help
 ```
 
-### version
-
-Used to check the current Goose version you have installed
-
-**Usage:**
-```bash
-goose --version
-```
-
-### agents
-
-Used to list all available agents
-
-**Usage:**
-```bash
-goose agents
-```
-
-### mcp
-
-Run an enabled MCP server specified by `<name>` (e.g. 'Google Drive')
-
-**Usage:**
-```bash
-goose mcp <name>
-```
-
-### session [options]
-
-Start or resume sessions with the following options.
-
-**Options:**
-- **`-n, --name <NAME>`**
-
-Name for the new chat session (e.g. `'project-x'`)
-
-```bash
-goose session --name <name>
-```
-
-- **`-r, --resume`**
-
-Resume the previous session
-
-```bash
-goose session --resume --name <name>
-```
-
-- **`--with-extension <COMMAND>`**
-
-Starts the session with the specified extension. Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`).
-
-```bash
-goose session --name <name> --with-extension <command>
-```
-
-- **`--with-builtin <NAME>`**
-
-Starts the session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled. (e.g. 'developer')
-
-```bash
-goose session --with-builtin <id>
-```
-
-### run [options]
-
-Execute commands from an instruction file or stdin
-
-- **`-i, --instructions <FILE>`**: Path to instruction file containing commands
-- **`-t, --text <TEXT>`**: Input text to provide to Goose directly
-- **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')
-- **`-r, --resume`**: Resume from a previous run
-
-**Usage:**
-```bash
-goose run --instructions plan.md
-```
+---
 
 ### configure [options]
 
@@ -103,6 +27,62 @@ Configure Goose settings - providers, extensions, etc.
 goose configure
 ```
 
+---
+
+### session [options]
+
+- Start a session and give it a name
+
+    **Options:**
+
+    **`-n, --name <name>`**
+
+    **Usage:**
+
+    ```bash
+    goose session --name <name>
+    ```
+
+- Resume a previous session
+
+    **Options:**
+
+    **`-r, --resume`**
+
+    **Usage:**
+
+    ```bash
+    goose session --resume --name <name>
+    ```
+
+- Start a session with the specified extension
+
+     **Options:**
+
+     **`--with-extension <command>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-extension <command>
+    ```
+
+    Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`)
+
+- Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
+
+    **Options:**
+
+    **`--with-builtin <id>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-builtin <id>
+    ```
+
+---
+
 ### info [options]
 Shows Goose information, where goose will load `config.yaml`, store data and logs.
 
@@ -111,4 +91,57 @@ Shows Goose information, where goose will load `config.yaml`, store data and log
 **Usage:**
 ```bash
 goose info
+```
+
+---
+
+### version
+
+Used to check the current Goose version you have installed
+
+**Usage:**
+```bash
+goose --version
+```
+
+---
+
+### mcp
+
+Run an enabled MCP server specified by `<name>` (e.g. 'Google Drive')
+
+**Usage:**
+```bash
+goose mcp <name>
+```
+
+---
+
+### run [options]
+
+Execute commands from an instruction file or stdin
+
+**Options:**
+
+- **`-i, --instructions <FILE>`**: Path to instruction file containing commands
+- **`-t, --text <TEXT>`**: Input text to provide to Goose directly
+- **`-n, --name <NAME>`**: Name for this run session (e.g., 'daily-tasks')
+- **`-r, --resume`**: Resume from a previous run
+
+**Usage:**
+
+```bash
+goose run --instructions plan.md
+```
+
+---
+
+### agents
+
+Used to show the available implementations of the agent loop itself
+
+**Usage:**
+
+```bash
+goose agents
 ```

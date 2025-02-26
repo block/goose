@@ -14,6 +14,7 @@ use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
 use rand::{distributions::Alphanumeric, Rng};
+use rustyline::Editor;
 use std::path::PathBuf;
 use tokio;
 
@@ -104,7 +105,7 @@ impl Session {
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
+        let mut editor = Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
         // Load history from messages
         for msg in self
@@ -120,7 +121,6 @@ impl Session {
                 }
             }
         }
-
         output::display_greeting();
         loop {
             match input::get_input(&mut editor)? {
@@ -129,7 +129,7 @@ impl Session {
                     storage::persist_messages(&self.session_file, &self.messages)?;
 
                     output::show_thinking();
-                    self.process_agent_response().await?;
+                    self.process_agent_response(&mut editor).await?;
                     output::hide_thinking();
                 }
                 input::InputResult::Exit => break,
@@ -188,11 +188,15 @@ impl Session {
         self.messages
             .push(Message::user().with_text(&initial_message));
         storage::persist_messages(&self.session_file, &self.messages)?;
-        self.process_agent_response().await?;
+        let mut editor = Editor::<(), rustyline::history::DefaultHistory>::new()?;
+        self.process_agent_response(&mut editor).await?;
         Ok(())
     }
 
-    async fn process_agent_response(&mut self) -> Result<()> {
+    async fn process_agent_response(
+        &mut self,
+        editor: &mut Editor<(), rustyline::history::DefaultHistory>,
+    ) -> Result<()> {
         let mut stream = self.agent.reply(&self.messages).await?;
 
         use futures::StreamExt;
@@ -200,8 +204,41 @@ impl Session {
             tokio::select! {
                 result = stream.next() => {
                     match result {
-                        Some(Ok(message)) => {
-                            self.messages.push(message.clone());
+                        Some(Ok(mut message)) => {
+
+                            // Handle tool confirmation requests before rendering
+                            if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
+                                output::hide_thinking();
+
+                                // Format the confirmation prompt
+                                let prompt = "Goose would like to call the above tool. Allow? (y/n):".to_string();
+
+                                let confirmation_request = Message::user().with_tool_confirmation_request(
+                                    confirmation.id.clone(),
+                                    confirmation.tool_name.clone(),
+                                    confirmation.arguments.clone(),
+                                    Some(prompt)
+                                );
+                                output::render_message(&confirmation_request);
+
+                                // Get confirmation from user
+                                let confirmed = match input::get_input(editor)? {
+                                    input::InputResult::Message(content) => {
+                                        content.trim().to_lowercase().starts_with('y')
+                                    }
+                                    _ => false,
+                                };
+
+                                self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
+
+                                message = confirmation_request;
+                            }
+
+                            // Only push the message if it's not a tool confirmation request
+                            if !message.content.iter().any(|content| matches!(content, MessageContent::ToolConfirmationRequest(_))) {
+                                self.messages.push(message.clone());
+                            }
+
                             storage::persist_messages(&self.session_file, &self.messages)?;
                             output::hide_thinking();
                             output::render_message(&message);

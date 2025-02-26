@@ -311,7 +311,7 @@ pub trait Router: Send + Sync + 'static {
                         || arguments
                             .get(&arg.name)
                             .and_then(Value::as_str)
-                            .map_or(true, str::is_empty))
+                            .is_none_or(str::is_empty))
                 {
                     return Err(RouterError::InvalidParams(format!(
                         "Missing required argument: '{}'",
