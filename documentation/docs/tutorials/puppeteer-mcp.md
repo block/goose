@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 
-This tutorial covers how to add the [Puppeteer MCP Server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/puppeteer) as a Goose extension, enabling Goose to interact with websites just like a human would - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
+This tutorial covers how to add the [Puppeteer MCP Server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/puppeteer) as a Goose extension, enabling Goose to interact with websites - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
 
 
 :::tip TLDR
@@ -85,6 +85,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
+  5. Add Extension
+
    ```sh
     ┌   goose-configure 
     │
@@ -122,6 +124,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   </TabItem>
 </Tabs>
 
+
 ## Example Usage
 In this example, I’ll show you how to use Goose with the Puppeteer Extension to perform an accessibility audit on a website. By automating browser interactions, Goose can navigate the site, test keyboard navigation, check color contrast, analyze ARIA attributes, and generate a detailed report with recommendations and code fixes.
 
@@ -158,309 +161,190 @@ Can you check if our website, primarily the docs section, is accessible? Please 
 
 6. Fixes & Code Recommendations: Suggest HTML, CSS, or JavaScript changes to resolve any compliance issues.
 
-Here is the website to test: https://block.github.io/goose/. I want to ensure that our documentation meets accessibility standards. Please generate a detailed report with steps to fix any issues found.
+Here is the website to test: https://broken-workshop.dequelabs.com/. I want to ensure that our documentation meets accessibility standards. Please generate a detailed report with steps to fix any issues found.
 
 ```
 
 ### Goose Output
 
 :::note Desktop
-I'll help you perform an accessibility audit of the Goose documentation website. I'll break this down into several steps:
+I'll help you conduct a comprehensive accessibility audit of the website. I'll use a combination of automated and manual testing approaches to evaluate different accessibility aspects.
 
     1. First, let's navigate to the site
     2. Take screenshots and perform keyboard navigation testing
     3. Run accessibility audits including color contrast analysis
     4. Document findings
 
-Let's begin:
+**Let's begin:**
 
     `─── Puppeteer Navigate ──────────────────────────`
 
+**Let's take a screenshot of the homepage for reference:**
+
     `─── Puppeteer Screenshot ────────────────────────`
 
-Now let's perform a comprehensive accessibility audit. I'll use Puppeteer to run various accessibility checks and tests.
 
-First, let's check keyboard navigation by evaluating focus indicators and tab order:
+I'll conduct a detailed accessibility audit of the recipe dashboard website. From the initial view, I can already identify several accessibility concerns. Let me break down the findings by category:
+
+**1. Keyboard Navigation Issues:**
+- The "COOK" buttons for recipes appear to lack proper focus indicators
+- The edit icons (pencil icons) on recipe cards don't seem to have keyboard focus states
+- The navigation sequence may not be logical as there's no clear tab order
+
+**2. Color Contrast Issues:**
+- The light gray text used for "Difficulty" labels may not meet WCAG contrast requirements
+- The green "Beginner" text appears to have insufficient contrast against the white background
+- The bar chart in the "YUMMINESS" section uses colors that may be difficult to distinguish
+
+**3. Semantic Structure Problems:**
+- The heading hierarchy is unclear - "RECIPE DASHBOARD" appears to be an h1, but recipe titles don't seem to use proper heading tags
+- The statistics (9 EGGS USED, 10 RECIPES MADE, etc.) don't appear to use semantic list structures
+- The chart lacks proper ARIA labels for screen readers
+
+**4. ARIA and Screen Reader Issues:**
+- The recipe cards don't appear to have proper aria-labelledby associations
+- The edit buttons lack aria-labels describing their purpose
+- The chart data isn't properly accessible to screen readers
+- No ARIA landmarks are visible for main navigation areas
+
+Let me run some additional tests to verify these issues:
 
     `─── Puppeteer Evaluate ──────────────────────────`
 
-Based on my analysis of the documentation site, I'll provide a comprehensive accessibility audit report:
+Let me capture some specific sections for detailed analysis:
 
-**Positive Findings:**
+    `─── Puppeteer Screenshot ──────────────────────────`
 
-    **Keyboard Navigation:** ➕
-        - The site has a logical tab order through the main navigation elements
-        - Navigation menu items are keyboard accessible
-        - The sidebar navigation appears to be properly structured
-        - Previous/Next navigation buttons are present and focusable
+Based on my analysis, here's a detailed report with recommendations:
 
-    **ARIA and Semantic Structure:** ➕
-        - Clear heading hierarchy with "Getting Started" as H1
-        - Breadcrumb navigation is present
-        - Card-based navigation elements are used for main content
+**ACCESSIBILITY AUDIT REPORT**
 
-    **Content Structure:** ➕
-        - Clear visual hierarchy
-        - Well-organized navigation structure
-        - Consistent layout across pages
-        - Good use of white space and typography
-
-**Recommendations for Improvement:** 
-
-        **Keyboard Navigation:** ➖
-            - Add a visible "Skip to main content" link for keyboard users
-            - Ensure focus indicators are clearly visible in both light and dark modes
-
-        **ARIA and Semantics:** ➖
-            - Add `aria-current="page"` to active navigation items
-            - Include `role="navigation"` on main nav elements
-            - Add aria-labels to indicate external links
-            - Ensure all interactive elements have accessible names
-
-        **Color Contrast:** ➖
-            - Consider increasing contrast for any gray text used for secondary information
-
-        **Images and Media:** ➖
-            - While the logo has alt text, ensure all decorative images have empty alt attributes
-            - Add descriptive alt text for any informational images in the documentation
-
-        **Additional Recommendations:** ➖
-            - Add language attributes to the HTML element
-            - Ensure proper heading hierarchy throughout all pages
-            - Consider adding ARIA landmarks for major page sections
-            - Implement better focus management for interactive components
-            - Add tooltips or aria-label for icon-only buttons
-            - Ensure all form controls have associated labels
-
-**To fully implement these recommendations:**
-
-    - Add proper ARIA landmarks
-    - Enhance keyboard navigation
-    - Implement skip links
-    - Improve focus indicators
-    - Add missing aria labels
-    - Ensure consistent heading hierarchy
-
-**Based on the evaluation, here are the code fixes needed:**
-
-1. Basic HTML Structure and Skip Link:
+**1. Structural Issues:**
 
 ```html
-<!-- Add to the top of the document, right after <body> -->
-<a href="#main-content" class="skip-to-main-content">
-    Skip to main content
-</a>
+<!-- Current -->
+<div class="recipe-title">Chocolate Cake</div>
 
-<style>
-.skip-to-main-content {
-    position: absolute;
-    top: -40px;
-    left: 0;
-    background: #000;
-    color: white;
-    padding: 8px;
-    z-index: 100;
-    transition: top 0.2s ease;
-}
-
-.skip-to-main-content:focus {
-    top: 0;
-}
-</style>
+<!-- Recommended -->
+<h2 class="recipe-title">Chocolate Cake</h2>
 ```
-2. Proper ARIA Landmarks and Roles:
+**2. Interactive Elements:**
+
 ```html
-<!-- Update the header structure -->
-<header role="banner">
-    <nav role="navigation" aria-label="Main navigation">
-        <!-- Existing navigation content -->
-    </nav>
-</header>
+<!-- Current -->
+<button class="cook-button">COOK CHOCOLATE CAKE</button>
 
-<!-- Update the sidebar navigation -->
-<nav role="navigation" aria-label="Documentation sections">
-    <!-- Existing sidebar content -->
-</nav>
-
-<!-- Update the main content area -->
-<main id="main-content" role="main">
-    <!-- Existing main content -->
-</main>
-
-<!-- Update the footer -->
-<footer role="contentinfo">
-    <!-- Existing footer content -->
-</footer>
+<!-- Recommended -->
+<button 
+  class="cook-button"
+  aria-label="Cook Chocolate Cake recipe"
+  tabindex="0">
+  COOK CHOCOLATE CAKE
+</button>
 ```
-3. Improved Navigation and External Links:
+**3. Image Accessibility:**
+```html
+<!-- Current -->
+<img src="chocolate-cake.jpg">
 
-```js
-<!-- Update navigation items to include proper ARIA attributes -->
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    // Add aria-current to active nav items
-    const currentPath = window.location.pathname;
-    const navLinks = document.querySelectorAll('nav a');
-    navLinks.forEach(link => {
-        if (link.pathname === currentPath) {
-            link.setAttribute('aria-current', 'page');
-        }
-    });
-
-    // Add aria-label to external links
-    const externalLinks = document.querySelectorAll('a[target="_blank"]');
-    externalLinks.forEach(link => {
-        link.setAttribute('aria-label', `${link.textContent} (opens in new tab)`);
-    });
-});
-</script>
+<!-- Recommended -->
+<img 
+  src="chocolate-cake.jpg" 
+  alt="Chocolate cake with dark chocolate frosting"
+  role="img">
 ```
-4. Enhanced Focus Management:
-```css
-/* Add to your CSS */
-:focus {
-    outline: 3px solid #007FFF;
-    outline-offset: 2px;
-}
 
-/* For dark mode */
-@media (prefers-color-scheme: dark) {
-    :focus {
-        outline-color: #00BFFF;
-    }
-}
+**4. Chart Accessibility:**
 
-/* Remove outline only for mouse users */
-:focus:not(:focus-visible) {
-    outline: none;
-}
-
-/* Keep outline for keyboard users */
-:focus-visible {
-    outline: 3px solid #007FFF;
-    outline-offset: 2px;
-}
-```
-5. Improved Color Contrast and Visual Indicators:
-```css
-/* Add to your CSS */
-:root {
-    --text-primary: #1C1E21;
-    --text-secondary: #4B5563;
-    --background-primary: #FFFFFF;
-    --focus-color: #007FFF;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --text-primary: #F3F4F6;
-        --text-secondary: #D1D5DB;
-        --background-primary: #1F2937;
-        --focus-color: #00BFFF;
-    }
-}
-
-body {
-    color: var(--text-primary);
-    background-color: var(--background-primary);
-}
-
-.text-secondary {
-    color: var(--text-secondary);
-}
-```
-6. Form and Interactive Elements:
-
-```js
-<!-- Update form elements to include proper labels and ARIA attributes -->
-<div class="search-container">
-    <label for="search" class="sr-only">Search documentation</label>
-    <input 
-        type="search" 
-        id="search" 
-        name="search"
-        aria-label="Search documentation"
-        placeholder="Search for anything..."
-    >
+```html
+<!-- Recommended addition -->
+<div class="yumminess-chart" 
+     role="region" 
+     aria-label="Monthly yumminess ratings">
+  <table class="sr-only">
+    <!-- Add hidden table for screen readers -->
+  </table>
 </div>
+```
+**5. Color Contrast Fixes:**
 
-<style>
-/* Visually hidden class for screen reader text */
-.sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
+```css
+/* Current */
+.difficulty-beginner {
+  color: #90EE90;
 }
-</style>
+
+/* Recommended */
+.difficulty-beginner {
+  color: #2E7D32; /* Darker green for better contrast */
+}
+```
+**6. Focus Management:**
+
+```css
+/* Add to CSS */
+:focus {
+  outline: 3px solid #2196F3;
+  outline-offset: 2px;
+}
+
+.cook-button:focus {
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.4);
+}
+```
+**Priority Fixes Needed:**
+
+**1. High Priority:**
+
+- Add proper heading structure using h1-h6 tags
+- Implement keyboard focus indicators
+- Add alt text to all recipe images
+- Fix color contrast for difficulty labels
+
+**2. Medium Priority:**
+
+- Add ARIA labels to interactive elements
+- Implement proper list structure for statistics
+- Add skip links for keyboard navigation
+- Make chart data accessible via screen reader
+
+**3. Low Priority:**
+
+- Enhance focus order
+- Add ARIA landmarks
+- Implement announcement of dynamic content changes
+
+**Additional Recommendations:**
+
+**1. Add a skip link:**
+
+```html
+<a href="#main-content" class="skip-link">
+  Skip to main content
+</a>
+```
+**2. Implement proper form labels:**
+
+```html
+<label for="prep-time">Preparation Time</label>
+<input id="prep-time" type="text" value="20 min">
+```
+**3. Add ARIA live regions for dynamic updates:**
+
+```html
+<div aria-live="polite" role="status">
+  <!-- Dynamic content updates -->
+</div>
 ```
 
-7. JavaScript for Dynamic Content:
-```js
-// Add to your JavaScript
-document.addEventListener('DOMContentLoaded', () => {
-    // Manage focus for dynamic content
-    const handleDynamicContent = () => {
-        const dynamicContent = document.querySelector('[aria-live="polite"]');
-        if (!dynamicContent) {
-            const div = document.createElement('div');
-            div.setAttribute('aria-live', 'polite');
-            div.setAttribute('role', 'status');
-            document.body.appendChild(div);
-        }
-    };
+**Testing Tools Recommended:**
 
-    // Add aria-expanded for collapsible sections
-    const collapsibleButtons = document.querySelectorAll('.collapse-trigger');
-    collapsibleButtons.forEach(button => {
-        button.setAttribute('aria-expanded', 'false');
-        button.addEventListener('click', () => {
-            const isExpanded = button.getAttribute('aria-expanded') === 'true';
-            button.setAttribute('aria-expanded', !isExpanded);
-        });
-    });
-});
-```
-8. Add proper heading hierarchy check:
-```js
-// Add this to your JavaScript to validate heading hierarchy
-const validateHeadings = () => {
-    const headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    let lastLevel = 0;
-    const issues = [];
-    
-    headings.forEach((heading) => {
-        const level = parseInt(heading.tagName.substring(1));
-        if (level - lastLevel > 1) {
-            issues.push(`Skipped heading level: from h${lastLevel} to h${level}`);
-        }
-        lastLevel = level;
-    });
-    
-    return issues;
-};
-```
-**To implement these changes:**
+1. WAVE Web Accessibility Evaluation Tool
+2. axe DevTools
+3. Keyboard-only navigation testing
+4. Screen reader testing with VoiceOver (Mac)
 
-- Add the skip link as the first element after the `<body>` tag
-- Update the main layout structure with proper ARIA landmarks
-- Add the CSS for focus management and color contrast
-- Update the JavaScript file to include the accessibility enhancements
-- Add the screen reader utilities class
-- Update form elements with proper labels and ARIA attributes
-
-**Would you like me to:**
-
-- Generate a complete template file with all these changes integrated?
-- Create a script to automatically apply these changes to your existing files?
-- Focus on implementing any specific part of these improvements?
-
-Also, I can run an accessibility audit after implementing these changes to verify the improvements. Let me know how you'd like to proceed!
+This audit reveals several critical accessibility issues that should be addressed to ensure WCAG 2.1 compliance. The most urgent concerns are the lack of proper semantic structure, insufficient color contrast, and missing ARIA attributes. Would you like me to provide more specific details about implementing any of these fixes?
 :::
 
 ### Further Automation with GitHub Extension
