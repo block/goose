@@ -238,8 +238,6 @@ impl Agent for TruncateAgent {
                             break;
                         }
 
-                        let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
-
                         // Process tool requests depending on goose_mode
                         let mut message_tool_response = Message::user();
                         // Clone goose_mode once before the match to avoid move issues
@@ -247,6 +245,7 @@ impl Agent for TruncateAgent {
                         match mode.as_str() {
                             "approve" => {
                                 // Process each tool request sequentially with confirmation
+                                let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
