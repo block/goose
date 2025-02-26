@@ -157,6 +157,23 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
+
+    /// Update the Goose CLI version
+    #[command(about = "Update the goose CLI version")]
+    Update {
+        /// Update to canary version
+        #[arg(
+            short,
+            long,
+            help = "Update to canary version",
+            long_help = "Update to the latest canary version of the goose CLI, otherwise updates to the latest stable version."
+        )]
+        canary: bool,
+
+        /// Enforce to re-configure Goose during update
+        #[arg(short, long, help = "Enforce to re-configure goose during update")]
+        reconfigure: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -232,6 +249,13 @@ async fn main() -> Result<()> {
         }
         Some(Command::Agents(cmd)) => {
             cmd.run()?;
+            return Ok(());
+        }
+        Some(Command::Update {
+            canary,
+            reconfigure,
+        }) => {
+            goose_cli::commands::update::update(canary, reconfigure)?;
             return Ok(());
         }
         None => {
