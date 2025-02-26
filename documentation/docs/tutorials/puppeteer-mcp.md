@@ -147,7 +147,7 @@ This allows you to quickly identify and resolve accessibility issues without man
 
 ### Goose Prompt
 ```
-Can you check if our website, primarily the docs section, is accessible? Please conduct a full accessibility audit, focusing on the following:
+Can you check if my website is accessible? Please conduct a full accessibility audit, focusing on the following:
 
 1. Keyboard Navigation: Test all interactive elements (links, buttons, dropdowns, etc.) to ensure they are accessible without a mouse.
 
