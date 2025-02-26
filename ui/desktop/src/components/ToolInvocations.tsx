@@ -6,8 +6,21 @@ import MarkdownContent from './MarkdownContent';
 import { snakeToTitleCase } from '../utils';
 import { LoadingPlaceholder } from './LoadingPlaceholder';
 import { ChevronUp } from 'lucide-react';
+import { Content } from '../types/message';
 
-export default function ToolInvocations({ toolInvocations }) {
+interface ToolInvocation {
+  toolCallId: string;
+  toolName: string;
+  args: any;
+  state: 'running' | 'result';
+  result?: Content[];
+}
+
+interface ToolInvocationsProps {
+  toolInvocations: ToolInvocation[];
+}
+
+export default function ToolInvocations({ toolInvocations }: ToolInvocationsProps) {
   return (
     <>
       {toolInvocations.map((toolInvocation) => (
@@ -17,7 +30,7 @@ export default function ToolInvocations({ toolInvocations }) {
   );
 }
 
-function ToolInvocation({ toolInvocation }) {
+function ToolInvocation({ toolInvocation }: { toolInvocation: ToolInvocation }) {
   return (
     <div className="w-full">
       <Card className="">
@@ -34,7 +47,7 @@ function ToolInvocation({ toolInvocation }) {
 
 interface ToolCallProps {
   call: {
-    state: 'call' | 'result';
+    state: 'running' | 'result';
     toolCallId: string;
     toolName: string;
     args: Record<string, any>;
@@ -58,28 +71,13 @@ function ToolCall({ call }: ToolCallProps) {
   );
 }
 
-interface Annotations {
-  audience?: string[]; // Array of audience types
-  priority?: number; // Priority value between 0 and 1
-}
-
-interface ResultItem {
-  text?: string;
-  type: 'text' | 'image';
-  mimeType?: string;
-  data?: string; // Base64 encoded image data
-  annotations?: Annotations;
-}
-
 interface ToolResultProps {
   result: {
-    message?: string;
-    result?: ResultItem[];
+    result?: Content[];
     state?: string;
     toolCallId?: string;
     toolName?: string;
     args?: any;
-    input_todo?: any;
   };
 }
 
@@ -95,8 +93,7 @@ function ToolResult({ result }: ToolResultProps) {
 
   // Find results where either audience is not set, or it's set to a list that contains user
   const filteredResults = results.filter(
-    (item: ResultItem) =>
-      !item.annotations?.audience || item.annotations?.audience?.includes('user')
+    (item) => !item.audience || item.audience?.includes('user')
   );
 
   if (filteredResults.length === 0) return null;
@@ -107,21 +104,21 @@ function ToolResult({ result }: ToolResultProps) {
     );
   };
 
-  const shouldShowExpanded = (item: ResultItem, index: number) => {
+  const shouldShowExpanded = (item: Content, index: number) => {
     // (priority is defined and > 0.5) OR already in the expandedItems
     return (
-      (item.annotations?.priority !== undefined && item.annotations?.priority >= 0.5) ||
+      (item.priority !== undefined && item.priority >= 0.5) ||
       expandedItems.includes(index)
     );
   };
 
   return (
     <div className="">
-      {filteredResults.map((item: ResultItem, index: number) => {
+      {filteredResults.map((item, index) => {
         const isExpanded = shouldShowExpanded(item, index);
         // minimize if priority is not set or < 0.5
         const shouldMinimize =
-          item.annotations?.priority === undefined || item.annotations?.priority < 0.5;
+          item.priority === undefined || item.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (
@@ -137,21 +134,10 @@ function ToolResult({ result }: ToolResultProps) {
             )}
             {(isExpanded || !shouldMinimize) && (
               <>
-                {item.type === 'text' && item.text && (
+                {item.text && (
                   <MarkdownContent
                     content={item.text}
                     className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
-                  />
-                )}
-                {item.type === 'image' && item.data && item.mimeType && (
-                  <img
-                    src={`data:${item.mimeType};base64,${item.data}`}
-                    alt="Tool result"
-                    className="max-w-full h-auto rounded-md"
-                    onError={(e) => {
-                      console.error('Failed to load image: Invalid MIME-type encoded image data');
-                      e.currentTarget.style.display = 'none';
-                    }}
                   />
                 )}
               </>

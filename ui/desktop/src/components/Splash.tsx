@@ -1,6 +1,5 @@
 import React from 'react';
 import SplashPills from './SplashPills';
-import { Goose, Rain } from './icons/Goose';
 import GooseLogo from './GooseLogo';
 
 export default function Splash({ append }) {

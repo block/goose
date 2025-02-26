@@ -3,6 +3,7 @@ import MarkdownContent from './MarkdownContent';
 import { Button } from './ui/button';
 import { cn } from '../utils';
 import { Send } from './icons';
+import { createUserMessage } from '../types/message';
 
 interface FormField {
   label: string;
@@ -21,7 +22,7 @@ interface DynamicForm {
 interface GooseResponseFormProps {
   message: string;
   metadata: any;
-  append: (value: any) => void;
+  append: (value: string) => void;
 }
 
 export default function GooseResponseForm({
@@ -103,31 +104,19 @@ export default function GooseResponseForm({
   };
 
   const handleAccept = () => {
-    const message = {
-      content: 'Yes - go ahead.',
-      role: 'user',
-    };
-    append(message);
+    append('Yes - go ahead.');
   };
 
   const handleSubmit = () => {
     if (selectedOption !== null && options[selectedOption]) {
-      const message = {
-        content: `Yes - continue with: ${options[selectedOption].optionTitle}`,
-        role: 'user',
-      };
-      append(message);
+      append(`Yes - continue with: ${options[selectedOption].optionTitle}`);
     }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (dynamicForm) {
-      const message = {
-        content: JSON.stringify(formValues),
-        role: 'user',
-      };
-      append(message);
+      append(JSON.stringify(formValues));
     }
   };
 
