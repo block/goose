@@ -107,7 +107,6 @@ impl Session {
         Ok(())
     }
 
-
     pub async fn list_prompts(&mut self) -> HashMap<String, Vec<String>> {
         let prompts = self.agent.list_extension_prompts().await;
         prompts
@@ -258,7 +257,7 @@ impl Session {
                                     }
                                 }
                                 output::show_thinking();
-                                self.process_agent_response().await?;
+                                self.process_agent_response(true).await?;
                                 output::hide_thinking();
                             }
                             Err(e) => output::render_error(&e.to_string()),
