@@ -85,7 +85,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  5. Add Extension
+  5. Specify no environment variables are needed
 
    ```sh
     ┌   goose-configure 
