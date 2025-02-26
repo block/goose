@@ -3,6 +3,7 @@ mod example;
 mod create_file;
 mod list_files;
 mod image;
+mod search_replace;
 // computer controller extension evals
 mod script;
 mod web_scrape;
