@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -19,7 +19,8 @@
     "lint:check": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
-    "prepare": "cd ../.. && husky install"
+    "prepare": "cd ../.. && husky install",
+    "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.5.0",

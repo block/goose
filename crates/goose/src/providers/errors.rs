@@ -74,3 +74,50 @@ impl GoogleErrorCode {
         }
     }
 }
+
+#[derive(serde::Deserialize)]
+pub struct OpenAIError {
+    pub code: Option<String>,
+    pub message: Option<String>,
+    #[serde(rename = "type")]
+    pub error_type: Option<String>,
+}
+
+impl OpenAIError {
+    pub fn is_context_length_exceeded(&self) -> bool {
+        if let Some(code) = &self.code {
+            code == "context_length_exceeded" || code == "string_above_max_length"
+        } else {
+            false
+        }
+    }
+}
+
+impl std::fmt::Display for OpenAIError {
+    /// Format the error for display.
+    /// E.g. {"message": "Invalid API key", "code": "invalid_api_key", "type": "client_error"}
+    /// would be formatted as "Invalid API key (code: invalid_api_key, type: client_error)"
+    /// and {"message": "Foo"} as just "Foo", etc.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(message) = &self.message {
+            write!(f, "{}", message)?;
+        }
+        let mut in_parenthesis = false;
+        if let Some(code) = &self.code {
+            write!(f, " (code: {}", code)?;
+            in_parenthesis = true;
+        }
+        if let Some(typ) = &self.error_type {
+            if in_parenthesis {
+                write!(f, ", type: {}", typ)?;
+            } else {
+                write!(f, " (type: {}", typ)?;
+                in_parenthesis = true;
+            }
+        }
+        if in_parenthesis {
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}

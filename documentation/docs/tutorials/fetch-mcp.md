@@ -24,12 +24,12 @@ uvx mcp-server-fetch
 ```
 :::
 
+
+## Configuration
+
 :::info
 Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
-
-
-## Configuration
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>

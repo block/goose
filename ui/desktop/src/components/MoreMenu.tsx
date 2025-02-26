@@ -1,14 +1,13 @@
 import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-ui/react-popover';
 import React, { useEffect, useState } from 'react';
 import { More } from './icons';
-import type { View } from '../../ChatWindow';
-
+import { View } from '../App';
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
 }
 
-// Accept setView as a prop from the parent (e.g. ChatContent)
+// Accept setView as a prop from the parent (e.g. Chat)
 export default function MoreMenu({ setView }: { setView: (view: View) => void }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
@@ -260,6 +259,17 @@ export default function MoreMenu({ setView }: { setView: (view: View) => void })
             >
               Reset Provider
             </button>
+            {process.env.ALPHA && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setView('alphaConfigureProviders');
+                }}
+                className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors text-indigo-800"
+              >
+                See new providers grid
+              </button>
+            )}
           </div>
         </PopoverContent>
       </PopoverPortal>

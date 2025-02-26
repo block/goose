@@ -124,7 +124,7 @@ jobs:
 
       - name: Add MacOS certs for signing and notarization
         if: ${{ inputs.signing }}
-        run: ./add-macos-cert.sh
+        run: ./scripts/add-macos-cert.sh
         working-directory: ui/desktop
         env:
           CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
