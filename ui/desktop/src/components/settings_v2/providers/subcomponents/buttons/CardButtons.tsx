@@ -56,7 +56,7 @@ export function ActionButton({
   const ButtonElement = (
     <Button size={size} variant={variant} className={buttonStyle} {...props}>
       {Icon && <Icon className={clsx('!size-4', iconClassName)} />}
-      {text && <span className={Icon ? 'ml-1' : ''}>{text}</span>}
+      {text && <span>{text}</span>}
     </Button>
   );
 

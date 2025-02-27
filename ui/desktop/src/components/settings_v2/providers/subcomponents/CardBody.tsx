@@ -7,9 +7,8 @@ interface CardBodyProps {
 }
 
 export default function CardBody({ actions }: CardBodyProps) {
-  console.log('in card body');
   return (
-    <div className="space-x-2 text-center flex items-center justify-between">
+    <div className="flex items-center justify-start">
       <CardActions actions={actions} />
     </div>
   );
