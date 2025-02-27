@@ -193,12 +193,7 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
 
         <div className="relative">
           {isLoading && <LoadingGoose />}
-          <Input
-            handleSubmit={handleSubmit}
-            disabled={isLoading}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-          />
+          <Input handleSubmit={handleSubmit} isLoading={isLoading} onStop={onStopGoose} />
           <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
       </Card>
