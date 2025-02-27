@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Message, useChat } from '../ai-sdk-fork/useChat';
 import { getApiUrl } from '../config';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
@@ -14,15 +13,13 @@ import UserMessage from './UserMessage';
 import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
+import { useMessageStream } from '../hooks/useMessageStream';
+import { Message, createUserMessage, getTextContent } from '../types/message';
 
 export interface ChatType {
   id: number;
   title: string;
-  messages: Array<{
-    id: string;
-    role: 'function' | 'system' | 'user' | 'assistant' | 'data' | 'tool';
-    content: string;
-  }>;
+  messages: Message[];
 }
 
 export default function ChatView({ setView }: { setView: (view: View) => void }) {
@@ -39,14 +36,27 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
   const [showGame, setShowGame] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
-  const { messages, append, stop, isLoading, error, setMessages } = useChat({
+  const {
+    messages,
+    append,
+    stop,
+    isLoading,
+    error,
+    setMessages,
+    input: _input,
+    setInput: _setInput,
+    handleInputChange: _handleInputChange,
+    handleSubmit: _submitMessage,
+  } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat?.messages || [],
-    onFinish: async (message, _) => {
+    onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
-      const fetchResponses = await askAi(message.content);
-      setMessageMetadata((prev) => ({ ...prev, [message.id]: fetchResponses }));
+      // Extract text content from the message to pass to askAi
+      const messageText = getTextContent(message);
+      const fetchResponses = await askAi(messageText);
+      setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
@@ -58,11 +68,16 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
         });
       }
     },
+    onToolCall: (toolCall) => {
+      // Handle tool calls if needed
+      console.log('Tool call received:', toolCall);
+      // Implement tool call handling logic here
+    },
   });
 
   // Update chat messages when they change
   useEffect(() => {
-    setChat({ ...chat, messages });
+    setChat((prevChat) => ({ ...prevChat, messages }));
   }, [messages]);
 
   useEffect(() => {
@@ -78,10 +93,7 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
     const content = customEvent.detail?.value || '';
     if (content.trim()) {
       setLastInteractionTime(Date.now());
-      append({
-        role: 'user',
-        content,
-      });
+      append(createUserMessage(content));
       if (scrollRef.current?.scrollToBottom) {
         scrollRef.current.scrollToBottom();
       }
@@ -97,46 +109,37 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
     setLastInteractionTime(Date.now());
     window.electron.stopPowerSaveBlocker();
 
-    const lastMessage: Message = messages[messages.length - 1];
-    if (lastMessage.role === 'user' && lastMessage.toolInvocations === undefined) {
-      // Remove the last user message.
+    // Handle stopping the message stream
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'user') {
+      // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
-    } else if (lastMessage.role === 'assistant' && lastMessage.toolInvocations !== undefined) {
-      // Add messaging about interrupted ongoing tool invocations
-      const newLastMessage: Message = {
-        ...lastMessage,
-        toolInvocations: lastMessage.toolInvocations.map((invocation) => {
-          if (invocation.state !== 'result') {
-            return {
-              ...invocation,
-              result: [
-                {
-                  audience: ['user'],
-                  text: 'Interrupted.\n',
-                  type: 'text',
-                },
-                {
-                  audience: ['assistant'],
-                  text: 'Interrupted by the user to make a correction.\n',
-                  type: 'text',
-                },
-              ],
-              state: 'result',
-            };
-          } else {
-            return invocation;
-          }
-        }),
-      };
-
-      const updatedMessages = [...messages.slice(0, -1), newLastMessage];
-      setMessages(updatedMessages);
     }
+    // Note: Tool call interruption handling would need to be implemented
+    // differently with the new message format
   };
+
+  // Filter out standalone tool response messages for rendering
+  // They will be shown as part of the tool invocation in the assistant message
+  const filteredMessages = messages.filter((message) => {
+    // Keep all assistant messages and user messages that aren't just tool responses
+    if (message.role === 'assistant') return true;
+
+    // For user messages, check if they're only tool responses
+    if (message.role === 'user') {
+      const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
+      const hasTextContent = message.content.some((c) => c.type === 'text');
+
+      // Keep the message if it has text content or is not just tool responses
+      return hasTextContent || !hasOnlyToolResponses;
+    }
+
+    return true;
+  });
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -145,19 +148,19 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
       </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
-          <Splash append={append} />
+          <Splash append={(text) => append(createUserMessage(text))} />
         ) : (
           <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
-            {messages.map((message) => (
-              <div key={message.id} className="mt-[16px]">
+            {filteredMessages.map((message, index) => (
+              <div key={message.id || index} className="mt-[16px]">
                 {message.role === 'user' ? (
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage
                     message={message}
                     messages={messages}
-                    metadata={messageMetadata[message.id]}
-                    append={append}
+                    metadata={messageMetadata[message.id || '']}
+                    append={(text) => append(createUserMessage(text))}
                   />
                 )}
               </div>
@@ -166,20 +169,17 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
                   {error.message || 'Honk! Goose experienced an error while responding'}
-                  {error.status && <span className="ml-2">(Status: {error.status})</span>}
                 </div>
                 <div
                   className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
                   onClick={async () => {
+                    // Find the last user message
                     const lastUserMessage = messages.reduceRight(
                       (found, m) => found || (m.role === 'user' ? m : null),
-                      null
+                      null as Message | null
                     );
                     if (lastUserMessage) {
-                      append({
-                        role: 'user',
-                        content: lastUserMessage.content,
-                      });
+                      append(lastUserMessage);
                     }
                   }}
                 >
