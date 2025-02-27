@@ -328,6 +328,209 @@ impl Validator for GooseCompleter {
 
 #[cfg(test)]
 mod tests {
-    // Tests are disabled for now due to mismatch between mock and real types
-    // We've manually tested the completion functionality
+    use super::*;
+    use crate::session::output;
+    use mcp_core::prompt::PromptArgument;
+    use std::sync::{Arc, RwLock};
+
+    // Helper function to create a test completion cache
+    fn create_test_cache() -> Arc<RwLock<CompletionCache>> {
+        let mut cache = CompletionCache::new();
+
+        // Add some test prompts
+        let mut extension1_prompts = Vec::new();
+        extension1_prompts.push("test_prompt1".to_string());
+        extension1_prompts.push("test_prompt2".to_string());
+        cache
+            .prompts
+            .insert("extension1".to_string(), extension1_prompts);
+
+        let mut extension2_prompts = Vec::new();
+        extension2_prompts.push("other_prompt".to_string());
+        cache
+            .prompts
+            .insert("extension2".to_string(), extension2_prompts);
+
+        // Add prompt info with arguments
+        let test_prompt1_args = vec![
+            PromptArgument {
+                name: "required_arg".to_string(),
+                description: Some("A required argument".to_string()),
+                required: Some(true),
+            },
+            PromptArgument {
+                name: "optional_arg".to_string(),
+                description: Some("An optional argument".to_string()),
+                required: Some(false),
+            },
+        ];
+
+        let test_prompt1_info = output::PromptInfo {
+            name: "test_prompt1".to_string(),
+            description: Some("Test prompt 1 description".to_string()),
+            arguments: Some(test_prompt1_args),
+            extension: Some("extension1".to_string()),
+        };
+        cache
+            .prompt_info
+            .insert("test_prompt1".to_string(), test_prompt1_info);
+
+        let test_prompt2_info = output::PromptInfo {
+            name: "test_prompt2".to_string(),
+            description: Some("Test prompt 2 description".to_string()),
+            arguments: None,
+            extension: Some("extension1".to_string()),
+        };
+        cache
+            .prompt_info
+            .insert("test_prompt2".to_string(), test_prompt2_info);
+
+        let other_prompt_info = output::PromptInfo {
+            name: "other_prompt".to_string(),
+            description: Some("Other prompt description".to_string()),
+            arguments: None,
+            extension: Some("extension2".to_string()),
+        };
+        cache
+            .prompt_info
+            .insert("other_prompt".to_string(), other_prompt_info);
+
+        Arc::new(RwLock::new(cache))
+    }
+
+    #[test]
+    fn test_complete_slash_commands() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test complete match
+        let (pos, candidates) = completer.complete_slash_commands("/exit").unwrap();
+        assert_eq!(pos, 0);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "/exit");
+        assert_eq!(candidates[0].replacement, "/exit ");
+
+        // Test partial match
+        let (pos, candidates) = completer.complete_slash_commands("/e").unwrap();
+        assert_eq!(pos, 0);
+        // There might be multiple commands starting with "e" like "/exit" and "/extension"
+        assert!(candidates.len() >= 1);
+
+        // Test multiple matches
+        let (pos, candidates) = completer.complete_slash_commands("/").unwrap();
+        assert_eq!(pos, 0);
+        assert!(candidates.len() > 1);
+
+        // Test no match
+        let (_pos, candidates) = completer.complete_slash_commands("/nonexistent").unwrap();
+        assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn test_complete_prompt_names() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test with just "/prompt "
+        let (pos, candidates) = completer.complete_prompt_names("/prompt ").unwrap();
+        assert_eq!(pos, 8);
+        assert_eq!(candidates.len(), 3); // All prompts
+
+        // Test with partial prompt name
+        let (pos, candidates) = completer.complete_prompt_names("/prompt test").unwrap();
+        assert_eq!(pos, 8);
+        assert_eq!(candidates.len(), 2); // test_prompt1 and test_prompt2
+
+        // Test with specific prompt name
+        let (pos, candidates) = completer
+            .complete_prompt_names("/prompt test_prompt1")
+            .unwrap();
+        assert_eq!(pos, 8);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "test_prompt1");
+
+        // Test with no match
+        let (pos, candidates) = completer
+            .complete_prompt_names("/prompt nonexistent")
+            .unwrap();
+        assert_eq!(pos, 8);
+        assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn test_complete_prompt_flags() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test with partial flag
+        let (_pos, candidates) = completer
+            .complete_prompt_flags("/prompt test_prompt1 --")
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "--info");
+
+        // Test with exact flag
+        let (_pos, candidates) = completer
+            .complete_prompt_flags("/prompt test_prompt1 --info")
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "--info");
+
+        // Test with no match
+        let (_pos, candidates) = completer
+            .complete_prompt_flags("/prompt test_prompt1 --nonexistent")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+
+        // Test with no flag
+        let (_pos, candidates) = completer
+            .complete_prompt_flags("/prompt test_prompt1")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+    }
+
+    #[test]
+    fn test_complete_argument_keys() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test with just a prompt name (no space after)
+        // This case doesn't return any candidates in the current implementation
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt test_prompt1")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+
+        // Test with partial argument
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt test_prompt1 req")
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "required_arg=");
+
+        // Test with one argument already provided
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt test_prompt1 required_arg=value")
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "optional_arg=");
+
+        // Test with all arguments provided
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt test_prompt1 required_arg=value optional_arg=value")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+
+        // Test with prompt that has no arguments
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt test_prompt2")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+
+        // Test with nonexistent prompt
+        let (_pos, candidates) = completer
+            .complete_argument_keys("/prompt nonexistent")
+            .unwrap();
+        assert_eq!(candidates.len(), 0);
+    }
 }
