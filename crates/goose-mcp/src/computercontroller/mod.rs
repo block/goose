@@ -721,12 +721,10 @@ impl ComputerControllerRouter {
 
                 Ok(vec![Content::text("Cache cleared successfully.")])
             }
-            _ => {
-                return Err(ToolError::InvalidParameters(format!(
+            _ => Err(ToolError::InvalidParameters(format!(
                 "Invalid 'command' parameter: {}. Valid options are: 'list', 'view', 'delete', 'clear'",
                 command
-            )));
-            }
+            )))
         }
     }
 }
