@@ -17,7 +17,7 @@ Aaron Goldsmith made an AI agent team consisting of multiple Goose instances a r
 
 ## GooseTeam MCP Server
 
-Introducing [GooseTeam](https://github.com/cliffhall/GooseTeam/tree/main/p1), created by Software Architect and community member, Cliff Hall. GooseTeam takes Aaron's protocol and iterates on it into an MCP server and collaboration protocol for Goose Agents. With features like task management, message storage, and agent waiting, you can have an entire team of Goose agents work together on a task or project for you.
+Introducing [GooseTeam](https://github.com/cliffhall/GooseTeam), created by Software Architect and community member, Cliff Hall. GooseTeam takes Aaron's protocol and iterates on it into an MCP server and collaboration protocol for Goose Agents. With features like task management, message storage, and agent waiting, you can have an entire team of Goose agents work together on a task or project for you.
 
 A Goose agent with the Project Coordinator role will assign roles to other agents, your connected agents will send messages that can retrieved at any time, and your team of agents will connect to the same MCP server to collaborate together.
 
