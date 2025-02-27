@@ -12,6 +12,7 @@ use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
+use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -242,15 +243,17 @@ impl Agent for TruncateAgent {
                             break;
                         }
 
-                        let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
-
                         // Process tool requests depending on goose_mode
                         let mut message_tool_response = Message::user();
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
                         match mode.as_str() {
                             "approve" => {
+                                let mut read_only_tools = Vec::new();
                                 // Process each tool request sequentially with confirmation
+                                if ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
+                                    read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
+                                }
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list

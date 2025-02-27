@@ -106,6 +106,30 @@ goose --version
 
 ---
 
+### update [options]
+
+Update the Goose CLI to a newer version.
+
+**Options:**
+
+- **`--canary, -c`**: Update to the canary (development) version instead of the stable version
+- **`--reconfigure, -r`**: Forces Goose to reset configuration settings during the update process
+
+**Usage:**
+
+```bash
+# Update to latest stable version
+goose update
+
+# Update to latest canary version
+goose update --canary
+
+# Update and reconfigure settings
+goose update --reconfigure
+```
+
+---
+
 ### mcp
 
 Run an enabled MCP server specified by `<name>` (e.g. 'Google Drive')

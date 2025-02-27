@@ -204,9 +204,10 @@ function BaseProviderCard({
                       e.stopPropagation();
                       onTakeoff();
                     }}
-                    className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                    className="rounded-full h-7 px-3 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-transparent hover:bg-[#FF9772] hover:text-textProminent transition-colors"
                   >
                     <Rocket className="!size-4" />
+                    Launch
                   </Button>
                 </TooltipTrigger>
                 <Portal>

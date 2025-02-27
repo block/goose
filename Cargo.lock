@@ -2131,7 +2131,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2181,7 +2181,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "anyhow",
  "bat",
@@ -2216,7 +2216,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2225,6 +2225,7 @@ dependencies = [
  "etcetera",
  "google-drive3",
  "http-body-util",
+ "ignore",
  "include_dir",
  "indoc",
  "kill_tree",
@@ -2239,6 +2240,7 @@ dependencies = [
  "serial_test",
  "shellexpand",
  "sysinfo 0.32.1",
+ "temp-env",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -2253,7 +2255,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.9"
+version = "1.0.10"
 dependencies = [
  "anyhow",
  "async-trait",

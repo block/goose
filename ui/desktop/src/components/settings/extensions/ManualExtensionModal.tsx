@@ -132,7 +132,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0">
         <div className="px-4 pb-0 space-y-8">
           <div className="flex">
-            <h2 className="text-2xl font-regular text-textStandard">Add Extension Manually</h2>
+            <h2 className="text-2xl font-regular text-textStandard">Add custom extension</h2>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -275,7 +275,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 variant="ghost"
                 className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-regular"
               >
-                Add Extension
+                Add
               </Button>
               <Button
                 type="button"

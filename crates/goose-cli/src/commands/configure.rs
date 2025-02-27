@@ -622,24 +622,19 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
-    let mut setting_select_builder = cliclack::select("What setting would you like to configure?")
+    let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "Goose Mode", "Configure Goose mode")
         .item(
             "tool_output",
             "Tool Output",
             "Show more or less tool output",
-        );
-
-    // Conditionally add the "Toggle Experiment" option
-    if ExperimentManager::is_enabled("EXPERIMENT_CONFIG")? {
-        setting_select_builder = setting_select_builder.item(
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
-        );
-    }
-
-    let setting_type = setting_select_builder.interact()?;
+        )
+        .interact()?;
 
     match setting_type {
         "goose_mode" => {

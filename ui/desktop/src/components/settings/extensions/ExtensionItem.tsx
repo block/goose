@@ -12,7 +12,7 @@ export const ExtensionItem: React.FC<ExtensionItemProps> = (props) => {
   const { id, name, description, enabled, onToggle, onConfigure, canConfigure } = props;
 
   return (
-    <div className="rounded-lg py-2 mb-2">
+    <div className="rounded-lg border border-borderSubtle p-4">
       <div className="flex justify-between items-center">
         <div className="">
           <div className="flex items-center">

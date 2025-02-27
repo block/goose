@@ -216,24 +216,14 @@ export default function SettingsView({
               <section id="extensions">
                 <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
                   <h2 className="text-xl font-semibold text-textStandard">Extensions</h2>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => setIsManualModalOpen(true)}
-                      className="text-indigo-500 hover:text-indigo-600 text-sm"
-                      title="Add Manually"
-                    >
-                      Add
-                    </button>
-
-                    <a
-                      href={EXTENSIONS_SITE_LINK}
-                      target="_blank"
-                      className="text-indigo-500 hover:text-indigo-600 text-sm"
-                      rel="noreferrer"
-                    >
-                      Browse
-                    </a>
-                  </div>
+                  <a
+                    href={EXTENSIONS_SITE_LINK}
+                    target="_blank"
+                    className="text-indigo-500 hover:text-indigo-600 text-sm"
+                    rel="noreferrer"
+                  >
+                    Browse
+                  </a>
                 </div>
 
                 <div className="px-8">
@@ -242,15 +232,26 @@ export default function SettingsView({
                   {settings.extensions.length === 0 ? (
                     <p className="text-textSubtle text-center py-4">No Extensions Added</p>
                   ) : (
-                    settings.extensions.map((ext) => (
-                      <ExtensionItem
-                        key={ext.id}
-                        {...ext}
-                        canConfigure={true}
-                        onToggle={handleExtensionToggle}
-                        onConfigure={(extension) => setExtensionBeingConfigured(extension)}
-                      />
-                    ))
+                    <div className="grid grid-cols-2 gap-2">
+                      {settings.extensions.map((ext) => (
+                        <ExtensionItem
+                          key={ext.id}
+                          {...ext}
+                          canConfigure={true}
+                          onToggle={handleExtensionToggle}
+                          onConfigure={(extension) => setExtensionBeingConfigured(extension)}
+                        />
+                      ))}
+                      <button
+                        onClick={() => setIsManualModalOpen(true)}
+                        className="text-indigo-500 hover:text-indigo-600 text-sm"
+                        title="Add Manually"
+                      >
+                        <div className="rounded-lg border border-dashed border-borderSubtle hover:border-borderStandard p-4 transition-colors">
+                          Add custom extension
+                        </div>
+                      </button>
+                    </div>
                   )}
                 </div>
               </section>
