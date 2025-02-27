@@ -39,6 +39,8 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
 
@@ -90,6 +92,7 @@ pub struct DeveloperRouter {
     prompts: Arc<HashMap<String, Prompt>>,
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
+    ignore_patterns: Arc<Gitignore>,
 }
 
 impl Default for DeveloperRouter {
@@ -326,6 +329,46 @@ impl DeveloperRouter {
             format!("{base_instructions}\n{hints}")
         };
 
+        let mut builder = GitignoreBuilder::new(cwd.clone());
+        let mut has_ignore_file = false;
+        // Initialize ignore patterns
+        // - macOS/Linux: ~/.config/goose/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\
+        let global_ignore_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".gooseignore"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.gooseignore").to_string())
+            });
+
+        // Create the directory if it doesn't exist
+        let _ = std::fs::create_dir_all(global_ignore_path.parent().unwrap());
+
+        // Read global ignores if they exist
+        if global_ignore_path.is_file() {
+            let _ = builder.add(global_ignore_path);
+            has_ignore_file = true;
+        }
+
+        // Check for local ignores in current directory
+        let local_ignore_path = cwd.join(".gooseignore");
+
+        // Read local ignores if they exist
+        if local_ignore_path.is_file() {
+            let _ = builder.add(local_ignore_path);
+            has_ignore_file = true;
+        }
+
+        // Only use default patterns if no .gooseignore files were found
+        // If the file is empty, we will not ignore any file
+        if !has_ignore_file {
+            // Add some sensible defaults
+            let _ = builder.add_line(None, "**/.env");
+            let _ = builder.add_line(None, "**/.env.*");
+            let _ = builder.add_line(None, "**/secrets.*");
+        }
+
+        let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
+
         Self {
             tools: vec![
                 bash_tool,
@@ -336,7 +379,13 @@ impl DeveloperRouter {
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
         }
+    }
+
+    // Helper method to check if a path should be ignored
+    fn is_ignored(&self, path: &Path) -> bool {
+        self.ignore_patterns.matched(path, false).is_ignore()
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
@@ -366,6 +415,27 @@ impl DeveloperRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The command string is required".to_string(),
                 ))?;
+
+        // Check if command might access ignored files and return early if it does
+        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+        for arg in &cmd_parts[1..] {
+            // Skip command flags
+            if arg.starts_with('-') {
+                continue;
+            }
+            // Skip invalid paths
+            let path = Path::new(arg);
+            if !path.exists() {
+                continue;
+            }
+
+            if self.is_ignored(path) {
+                return Err(ToolError::ExecutionError(format!(
+                    "The command attempts to access '{}' which is restricted by .gooseignore",
+                    arg
+                )));
+            }
+        }
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
@@ -424,6 +494,14 @@ impl DeveloperRouter {
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
 
         let path = self.resolve_path(path_str)?;
+
+        // Check if file is ignored before proceeding with any text editor operation
+        if self.is_ignored(&path) {
+            return Err(ToolError::ExecutionError(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            )));
+        }
 
         match command {
             "view" => self.text_editor_view(&path).await,
@@ -878,6 +956,7 @@ impl Clone for DeveloperRouter {
             prompts: Arc::clone(&self.prompts),
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
+            ignore_patterns: Arc::clone(&self.ignore_patterns),
         }
     }
 }
@@ -1262,6 +1341,169 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(text.contains("First line"));
+
+        temp_dir.close().unwrap();
+    }
+
+    // Test GooseIgnore pattern matching
+    #[tokio::test]
+    #[serial]
+    async fn test_goose_ignore_basic_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        builder.add_line(None, "*.env").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: vec![],
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Test basic file matching
+        assert!(
+            router.is_ignored(Path::new("secret.txt")),
+            "secret.txt should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("./secret.txt")),
+            "./secret.txt should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("not_secret.txt")),
+            "not_secret.txt should not be ignored"
+        );
+
+        // Test pattern matching
+        assert!(
+            router.is_ignored(Path::new("test.env")),
+            "*.env pattern should match test.env"
+        );
+        assert!(
+            router.is_ignored(Path::new("./test.env")),
+            "*.env pattern should match ./test.env"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "*.env pattern should not match test.txt"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_respects_ignore_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: DeveloperRouter::new().tools, // Reuse default tools
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Try to write to an ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to write to ignored file"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to write to a non-ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_respects_ignore_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: DeveloperRouter::new().tools, // Reuse default tools
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Create an ignored file
+        let secret_file_path = temp_dir.path().join("secret.txt");
+        std::fs::write(&secret_file_path, "secret content").unwrap();
+
+        // Try to cat the ignored file
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", secret_file_path.to_str().unwrap())
+                }),
+            )
+            .await;
+
+        assert!(result.is_err(), "Should not be able to cat ignored file");
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to cat a non-ignored file
+        let allowed_file_path = temp_dir.path().join("allowed.txt");
+        std::fs::write(&allowed_file_path, "allowed content").unwrap();
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should be able to cat non-ignored file");
 
         temp_dir.close().unwrap();
     }
