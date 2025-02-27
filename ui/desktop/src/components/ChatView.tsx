@@ -53,10 +53,10 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
-      // Extract text content from the message to pass to askAi
-      const messageText = getTextContent(message);
-      const fetchResponses = await askAi(messageText);
-      setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
+      // Disabled askAi calls to save costs
+      // const messageText = getTextContent(message);
+      // const fetchResponses = await askAi(messageText);
+      // setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
