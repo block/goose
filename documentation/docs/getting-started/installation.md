@@ -31,6 +31,13 @@ import RateLimits from '@site/src/components/RateLimits';
         ```sh
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
+
+        :::tip Updating Goose
+        It's best to keep Goose updated. To update Goose, run:
+        ```sh
+        goose update
+        ```
+        :::
       </TabItem>
       <TabItem value="ui" label="Goose Desktop">
         To install Goose, click the **button** below:
@@ -47,6 +54,10 @@ import RateLimits from '@site/src/components/RateLimits';
           1. Unzip the downloaded `Goose.zip` file.
           2. Run the executable file to launch the Goose desktop application.
 
+          :::tip Updating Goose
+          It's best to keep Goose updated. To update, reperform installation steps.
+          :::
+
           :::note Permissions
             If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
 
@@ -55,7 +66,6 @@ import RateLimits from '@site/src/components/RateLimits';
             Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues-m3-macs)
           :::
         </div>
-
       </TabItem>
     </Tabs>
   </TabItem>
@@ -104,13 +114,7 @@ import RateLimits from '@site/src/components/RateLimits';
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
     ```  
   </TabItem>
-
 </Tabs>
-
-  :::tip Updating Goose
-  It’s best to keep Goose updated. To update, reperform installation steps.
-  :::
-
 
 ## Set LLM Provider
 Goose works with a set of [supported LLM providers][providers], and you’ll need an API key to get started. When you use Goose for the first time, you’ll be prompted to select a provider and enter your API key.
