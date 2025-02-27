@@ -84,11 +84,12 @@ To configure your chosen goose permissions, run `goose configure` in the CLI or 
    ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  **To update Goose permissions in the desktop version:** 
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Navigate to `Goose Mode`
-  4. Click the `configure` link in the upper right corner
-  4. Choose `Auto Mode`, `Approve Mode`, or `Chat Mode` based on your preference.
+    :::info 🚀 Goose Modes in Desktop – Coming Soon!
+        Currently, Goose Modes can only be configured via the CLI. 
+        
+        By default, Goose Desktop operates in **Auto Mode**, allowing full automation.   
+        
+        A future update will bring **Goose Mode selection** to the Desktop app. Stay tuned!
+    :::
   </TabItem>
 </Tabs>
