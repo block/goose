@@ -6,7 +6,7 @@ import OnAdd from './callbacks/AddProviderParameters';
 import OnDelete from './callbacks/DeleteProviderParameters';
 import OnShowSettings from './callbacks/UpdateProviderParameters';
 import OnRefresh from './callbacks/RefreshActiveProviders';
-import DefaultProviderActions from './subcomponents/actions/DefaultProviderActions';
+import DefaultProviderActions from '@/src/components/settings_v2/providers/subcomponents/buttons/DefaultProviderActions';
 
 function GridLayout({ children }: { children: React.ReactNode }) {
   return (

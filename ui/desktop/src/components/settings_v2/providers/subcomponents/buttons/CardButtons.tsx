@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../../../../ui/button';
 import clsx from 'clsx';
 import { TooltipWrapper } from './TooltipWrapper';
-import { Check, CircleHelp, Plus, RefreshCw, Rocket, Settings, X } from 'lucide-react';
+import { Check, CircleHelp, Plus, RefreshCw, Rocket, Sliders, X } from 'lucide-react';
 
 interface ActionButtonProps extends React.ComponentProps<typeof Button> {
   /** Icon component to render, e.g. `RefreshCw` from lucide-react */
@@ -11,11 +11,15 @@ interface ActionButtonProps extends React.ComponentProps<typeof Button> {
   tooltip?: React.ReactNode;
   /** Additional classes for styling. */
   className?: string;
+  /** Text to display next to the icon */
+  text?: string;
+  /** Additional class for the icon specifically */
+  iconClassName?: string;
 }
 
-// className is the styling for the <Button/> component -- below is the default
+// Base styles for all action buttons
 const baseActionButtonClasses = `
-  rounded-full h-7 w-7 p-0
+  rounded-full
   bg-bgApp hover:bg-bgApp shadow-none
   text-textSubtle   
   border border-borderSubtle
@@ -24,22 +28,35 @@ const baseActionButtonClasses = `
   transition-colors
 `;
 
+// Additional styles for icon-only buttons
+const iconOnlyClasses = `
+  h-7 w-7 p-0
+`;
+
+// Additional styles for buttons with text and icon
+const withTextClasses = `
+  px-3 py-1
+`;
+
 export function ActionButton({
   icon: Icon,
   size = 'sm',
   variant = 'default',
   tooltip,
   className,
+  text,
+  iconClassName,
   ...props
 }: ActionButtonProps) {
+  // Determine if this is an icon-only button or one with text
+  const buttonStyle = text
+    ? clsx(baseActionButtonClasses, withTextClasses, className)
+    : clsx(baseActionButtonClasses, iconOnlyClasses, className);
+
   const ButtonElement = (
-    <Button
-      size={size}
-      variant={variant}
-      className={clsx(baseActionButtonClasses, className)}
-      {...props}
-    >
-      {Icon && <Icon className="!size-4" />}
+    <Button size={size} variant={variant} className={buttonStyle} {...props}>
+      {Icon && <Icon className={clsx('!size-4', iconClassName)} />}
+      {text && <span className={Icon ? 'ml-1' : ''}>{text}</span>}
     </Button>
   );
 
@@ -69,7 +86,7 @@ export function GreenCheckButton({
                 shadow-none
                 w-5 h-5
                 cursor-default
-                ${className}  // Removed the nullish coalescing operator as default is provided
+                ${className}
             `}
       onClick={() => {}}
       {...props}
@@ -81,8 +98,17 @@ export function ExclamationButton({ tooltip, className, ...props }: ActionButton
   return <ActionButton icon={CircleHelp} tooltip={tooltip} onClick={() => {}} {...props} />;
 }
 
-export function GearSettingsButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={Settings} tooltip={tooltip} className={className} {...props} />;
+export function ConfigureSettingsButton({ tooltip, className, ...props }: ActionButtonProps) {
+  return (
+    <ActionButton
+      icon={Sliders}
+      tooltip={tooltip}
+      className={className}
+      text={'Configure'}
+      iconClassName="rotate-90"
+      {...props}
+    />
+  );
 }
 
 export function AddButton({ tooltip, className, ...props }: ActionButtonProps) {
@@ -98,5 +124,13 @@ export function RefreshButton({ tooltip, className, ...props }: ActionButtonProp
 }
 
 export function RocketButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={Rocket} tooltip={tooltip} className={className} {...props} />;
+  return (
+    <ActionButton
+      icon={Rocket}
+      tooltip={tooltip}
+      className={className}
+      text={'Launch'}
+      {...props}
+    />
+  );
 }

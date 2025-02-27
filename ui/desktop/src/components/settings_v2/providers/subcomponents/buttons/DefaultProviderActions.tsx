@@ -1,5 +1,5 @@
 import React from 'react';
-import { AddButton, DeleteButton, GearSettingsButton } from './ActionButtons';
+import { AddButton, DeleteButton, ConfigureSettingsButton } from './CardButtons';
 
 interface ProviderActionsProps {
   name: string;
@@ -44,7 +44,7 @@ export default function DefaultProviderActions({
       )}
       {/*Edit settings of configured provider*/}
       {isConfigured && (
-        <GearSettingsButton
+        <ConfigureSettingsButton
           tooltip={getDefaultTooltipMessages(name, 'edit')}
           onClick={(e) => {
             e.stopPropagation();

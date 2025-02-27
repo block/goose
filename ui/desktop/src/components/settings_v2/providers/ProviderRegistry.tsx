@@ -1,7 +1,7 @@
 import React from 'react';
 import ProviderDetails from './interfaces/ProviderDetails';
-import DefaultProviderActions from './subcomponents/actions/DefaultProviderActions';
-import OllamaActions from './subcomponents/actions/OllamaActions';
+import DefaultProviderActions from './subcomponents/buttons/DefaultProviderActions';
+import OllamaActions from './subcomponents/buttons/OllamaActions';
 
 export interface ProviderRegistry {
   name: string;

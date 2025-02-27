@@ -1,5 +1,5 @@
 import React from 'react';
-import { AddButton, DeleteButton, GearSettingsButton, RefreshButton } from './ActionButtons';
+import { AddButton, DeleteButton, ConfigureSettingsButton, RefreshButton } from './CardButtons';
 import OllamaMetadata from '../../interfaces/OllamaMetadata';
 
 interface OllamaActionsProps {
@@ -74,13 +74,13 @@ export default function OllamaActions({
 
       {/* (4) If configured location = 'host', show a gear to view and edit config */}
       {showHostUrlSettingsButton && (
-        <GearSettingsButton
+        <ConfigureSettingsButton
           tooltip={'View and edit OLLAMA_HOST'}
           onClick={(e) => {
             e.stopPropagation();
             onShowSettings?.();
           }}
-        ></GearSettingsButton>
+        ></ConfigureSettingsButton>
       )}
     </div>
   );

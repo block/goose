@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExclamationButton, GreenCheckButton } from './actions/ActionButtons';
+import { ExclamationButton, GreenCheckButton } from './buttons/CardButtons';
 import {
   ConfiguredProviderTooltipMessage,
   OllamaNotConfiguredTooltipMessage,
