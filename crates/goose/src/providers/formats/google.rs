@@ -94,7 +94,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     parts.push(json!({
                                         "functionResponse": {
                                             "name": response.id,
-                                            "response": {"content": text},
+                                            "response": {"content": {"text": text}},
                                         }}
                                     ));
                                 }
@@ -413,6 +413,37 @@ mod tests {
             payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
             "Hello"
         );
+    }
+
+    #[test]
+    fn test_message_to_google_spec_tool_result_multiple_texts() {
+        let tool_result: Vec<Content> = vec![
+            Content::text("Hello"),
+            Content::text("World"),
+            Content::text("This is a test."),
+        ];
+
+        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let payload = format_messages(&messages);
+        tracing::debug!("debug {:?}", payload);
+
+        let expected_payload = vec![json!({
+            "role": "model",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "response_id",
+                        "response": {
+                            "content": {
+                                "text": "Hello\nWorld\nThis is a test."
+                            }
+                        }
+                    }
+                }
+            ]
+        })];
+
+        assert_eq!(payload, expected_payload);
     }
 
     #[test]
