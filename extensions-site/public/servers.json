@@ -118,5 +118,17 @@
         "required": true
       }
     ]
+  },
+  {
+    "id": "mcpx",
+    "name": "mcp.run",
+    "description": "Secure & portable MCP tools, managed on mcp.run",
+    "command": "npx --yes @dylibso/mcpx@latest",
+    "link": "https://www.mcp.run",
+    "installation_notes": "Install & prompt Goose with 'log me into mcp.run' to get started.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 0,
+    "environmentVariables": []
   }
 ]
