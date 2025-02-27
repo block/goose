@@ -103,21 +103,27 @@ impl Capabilities {
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
         let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse { uri, envs, .. } => {
+            ExtensionConfig::Sse {
+                uri, envs, timeout, ..
+            } => {
                 let transport = SseTransport::new(uri, envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
                 Box::new(McpClient::new(service))
             }
             ExtensionConfig::Stdio {
-                cmd, args, envs, ..
+                cmd,
+                args,
+                envs,
+                timeout,
+                ..
             } => {
                 let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
                 Box::new(McpClient::new(service))
             }
-            ExtensionConfig::Builtin { name } => {
+            ExtensionConfig::Builtin { name, timeout } => {
                 // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -130,7 +136,7 @@ impl Capabilities {
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
                 Box::new(McpClient::new(service))
             }
         };

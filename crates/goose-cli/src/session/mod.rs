@@ -79,6 +79,8 @@ impl Session {
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
+            // TODO: should set timeout
+            timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
         };
 
         self.agent
@@ -95,6 +97,8 @@ impl Session {
         for name in builtin_name.split(',') {
             let config = ExtensionConfig::Builtin {
                 name: name.trim().to_string(),
+                // TODO: should set a timeout
+                timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             };
             self.agent
                 .add_extension(config)
