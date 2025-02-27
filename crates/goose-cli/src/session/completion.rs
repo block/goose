@@ -140,6 +140,13 @@ impl GooseCompleter {
 
                 // Check if we're trying to complete a partial argument name
                 if let Some(last_part) = parts.last() {
+                    // ignore if last_part starts with = / \ for suggestions
+                    if let Some(c) = last_part.chars().next() {
+                        if matches!(c, '=' | '/' | '\\') {
+                            return Ok((line.len(), vec![]));
+                        }
+                    }
+
                     // If the last part doesn't contain '=', it might be a partial argument name
                     if !last_part.contains('=') {
                         // Find arguments that match the prefix
@@ -170,30 +177,21 @@ impl GooseCompleter {
                     }
                 }
 
-                // If no partial match or no last part, suggest the first required argument
-                // Use a reference to avoid moving args
-                for arg in &args {
-                    if arg.required.unwrap_or(false) && !existing_args.contains(&arg.name.as_str())
-                    {
-                        let candidates = vec![Pair {
-                            display: format!("{}=", arg.name),
-                            replacement: format!("{}=", arg.name),
-                        }];
-                        return Ok((line.len(), candidates));
-                    }
-                }
+                // Partition the arguments into required and optional, then try to find a candidate.
+                let (required_args, optional_args): (Vec<_>, Vec<_>) =
+                    args.iter().partition(|arg| arg.required.unwrap_or(false));
 
-                // If no required arguments left, suggest optional ones
-                // Use a reference to avoid moving args
-                for arg in &args {
-                    if !arg.required.unwrap_or(true) && !existing_args.contains(&arg.name.as_str())
-                    {
-                        let candidates = vec![Pair {
-                            display: format!("{}=", arg.name),
-                            replacement: format!("{}=", arg.name),
-                        }];
-                        return Ok((line.len(), candidates));
-                    }
+                let candidate = required_args
+                    .iter()
+                    .chain(optional_args.iter()) // chain optional_args after required_args
+                    .find(|arg| !existing_args.contains(&arg.name.as_str()))
+                    .map(|arg| Pair {
+                        display: format!("{}=", arg.name),
+                        replacement: format!("{}=", arg.name),
+                    });
+
+                if let Some(candidate) = candidate {
+                    return Ok((line.len(), vec![candidate]));
                 }
             }
         }
@@ -338,15 +336,12 @@ mod tests {
         let mut cache = CompletionCache::new();
 
         // Add some test prompts
-        let mut extension1_prompts = Vec::new();
-        extension1_prompts.push("test_prompt1".to_string());
-        extension1_prompts.push("test_prompt2".to_string());
+        let extension1_prompts = vec!["test_prompt1".to_string(), "test_prompt2".to_string()];
         cache
             .prompts
             .insert("extension1".to_string(), extension1_prompts);
 
-        let mut extension2_prompts = Vec::new();
-        extension2_prompts.push("other_prompt".to_string());
+        let extension2_prompts = vec!["other_prompt".to_string()];
         cache
             .prompts
             .insert("extension2".to_string(), extension2_prompts);
@@ -414,7 +409,7 @@ mod tests {
         let (pos, candidates) = completer.complete_slash_commands("/e").unwrap();
         assert_eq!(pos, 0);
         // There might be multiple commands starting with "e" like "/exit" and "/extension"
-        assert!(candidates.len() >= 1);
+        assert!(!candidates.is_empty());
 
         // Test multiple matches
         let (pos, candidates) = completer.complete_slash_commands("/").unwrap();
