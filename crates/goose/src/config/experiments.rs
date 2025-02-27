@@ -19,14 +19,7 @@ impl ExperimentManager {
     pub fn get_all() -> Result<Vec<(String, bool)>> {
         let config = Config::global();
         let mut experiments: HashMap<String, bool> = config.get("experiments").unwrap_or_default();
-
-        // Synchronize the user's experiments with the ground truth (`ALL_EXPERIMENTS`)
-        for &(key, default_value) in ALL_EXPERIMENTS {
-            experiments.entry(key.to_string()).or_insert(default_value);
-        }
-
-        // Remove experiments not in `ALL_EXPERIMENTS`
-        experiments.retain(|key, _| ALL_EXPERIMENTS.iter().any(|(k, _)| k == key));
+        Self::refresh_experiments(&mut experiments);
 
         Ok(experiments.into_iter().collect())
     }
@@ -36,7 +29,7 @@ impl ExperimentManager {
         let config = Config::global();
         let mut experiments: HashMap<String, bool> =
             config.get("experiments").unwrap_or_else(|_| HashMap::new());
-
+        Self::refresh_experiments(&mut experiments);
         experiments.insert(name.to_string(), enabled);
 
         config.set("experiments", serde_json::to_value(experiments)?)?;
@@ -48,5 +41,15 @@ impl ExperimentManager {
         let experiments = Self::get_all()?;
         let experiments_map: HashMap<String, bool> = experiments.into_iter().collect();
         Ok(*experiments_map.get(name).unwrap_or(&false))
+    }
+
+    fn refresh_experiments(experiments: &mut HashMap<String, bool>) {
+        // Add missing experiments from `ALL_EXPERIMENTS`
+        for &(key, default_value) in ALL_EXPERIMENTS {
+            experiments.entry(key.to_string()).or_insert(default_value);
+        }
+
+        // Remove experiments not present in `ALL_EXPERIMENTS`
+        experiments.retain(|key, _| ALL_EXPERIMENTS.iter().any(|(k, _)| k == key));
     }
 }
