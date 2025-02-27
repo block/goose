@@ -501,7 +501,12 @@ impl ComputerControllerRouter {
                     })?;
                     (bytes.to_vec(), "bin")
                 }
-                _ => unreachable!(), // Prevented by enum in tool definition
+                _ => {
+                    return Err(ToolError::InvalidParameters(format!(
+                    "Invalid 'save_as' parameter: {}. Valid options are: 'text', 'json', 'binary'",
+                    save_as
+                )));
+                }
             };
 
         // Save to cache
@@ -571,7 +576,11 @@ impl ComputerControllerRouter {
                     script_path.display()
                 )
             }
-            _ => unreachable!(), // Prevented by enum in tool definition
+            _ => {
+                return Err( ToolError::InvalidParameters(
+                    format!("Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell", language)
+                ));
+            }
         };
 
         // Run the script
