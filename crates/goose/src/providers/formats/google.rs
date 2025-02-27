@@ -425,7 +425,6 @@ mod tests {
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
         let payload = format_messages(&messages);
-        tracing::debug!("debug {:?}", payload);
 
         let expected_payload = vec![json!({
             "role": "model",
