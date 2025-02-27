@@ -9,16 +9,22 @@ import TabItem from '@theme/TabItem';
 import { IconDownload } from "@site/src/components/icons/download";
 import Link from "@docusaurus/Link";
 
-:::info
-To update Goose to the latest stable version, reinstall using the instructions below
-:::
-
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    You can update Goose by simply running:
+    You can update Goose by running:
 
     ```sh
     goose update
+    ```
+
+    Additional [options](/docs/guides/goose-cli-commands#update-options):
+    
+    ```sh
+    # Update to latest canary (development) version
+    goose update --canary
+
+    # Update and reconfigure settings
+    goose update --reconfigure
     ```
 
     Or you can run the [installation](/docs/getting-started/installation) script again:
@@ -35,6 +41,9 @@ To update Goose to the latest stable version, reinstall using the instructions b
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
+        :::info
+        To update Goose to the latest stable version, reinstall using the instructions below
+        :::
         <div style={{ marginTop: '1rem' }}>
           1. To update Goose Desktop, click the button below:
             <div className="pill-button">
@@ -53,5 +62,3 @@ To update Goose to the latest stable version, reinstall using the instructions b
         </div>
   </TabItem>
 </Tabs>
-
-All configuration settings will remain the same, with Goose updated to the latest version.
