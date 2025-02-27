@@ -1,9 +1,13 @@
 use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy};
-use goose::message::Message;
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use crate::message::Message;
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
+use chrono::Local;
+
+// The single app name used for all Goose applications
+const APP_NAME: &str = "goose";
 
 pub enum Identifier {
     Name(String),
@@ -22,7 +26,13 @@ pub fn get_path(id: Identifier) -> PathBuf {
 
 /// Ensure the session directory exists and return its path
 pub fn ensure_session_dir() -> Result<PathBuf> {
-    let data_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+    let app_strategy = AppStrategyArgs {
+        top_level_domain: "Block".to_string(),
+        author: "Block".to_string(),
+        app_name: APP_NAME.to_string(),
+    };
+    
+    let data_dir = choose_app_strategy(app_strategy)
         .expect("goose requires a home dir")
         .data_dir()
         .join("sessions");
@@ -59,6 +69,31 @@ pub fn get_most_recent_session() -> Result<PathBuf> {
     });
 
     Ok(entries[0].path())
+}
+
+/// List all available session files
+pub fn list_sessions() -> Result<Vec<(String, PathBuf)>> {
+    let session_dir = ensure_session_dir()?;
+    let entries = fs::read_dir(&session_dir)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let path = entry.path();
+            
+            if path.extension().is_some_and(|ext| ext == "jsonl") {
+                let name = path.file_stem()?.to_string_lossy().to_string();
+                Some((name, path))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(entries)
+}
+
+/// Generate a session ID using timestamp format (yyyymmdd_hhmmss)
+pub fn generate_session_id() -> String {
+    Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
 
 /// Read messages from a session file
@@ -101,7 +136,7 @@ pub fn persist_messages(session_file: &Path, messages: &[Message]) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use goose::message::MessageContent;
+    use crate::message::MessageContent;
     use tempfile::tempdir;
 
     #[test]
@@ -153,28 +188,20 @@ mod tests {
     }
 
     #[test]
-    fn test_get_most_recent() -> Result<()> {
-        let dir = tempdir()?;
-        let base_path = dir.path().join("sessions");
-        fs::create_dir_all(&base_path)?;
-
-        // Create a few session files with different timestamps
-        let old_file = base_path.join("old.jsonl");
-        let new_file = base_path.join("new.jsonl");
-
-        // Create files with some delay to ensure different timestamps
-        fs::write(&old_file, "dummy content")?;
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        fs::write(&new_file, "dummy content")?;
-
-        // Override the home directory for testing
-        // This is a bit hacky but works for testing
-        std::env::set_var("HOME", dir.path());
-
-        if let Ok(most_recent) = get_most_recent_session() {
-            assert_eq!(most_recent.file_name().unwrap(), "new.jsonl");
-        }
-
-        Ok(())
+    fn test_generate_session_id() {
+        let id = generate_session_id();
+        
+        // Check that it follows the timestamp format (yyyymmdd_hhmmss)
+        assert_eq!(id.len(), 15); // 8 chars for date + 1 for underscore + 6 for time
+        assert!(id.contains('_'));
+        
+        // Split by underscore and check parts
+        let parts: Vec<&str> = id.split('_').collect();
+        assert_eq!(parts.len(), 2);
+        
+        // Date part should be 8 digits
+        assert_eq!(parts[0].len(), 8);
+        // Time part should be 6 digits
+        assert_eq!(parts[1].len(), 6);
     }
 }

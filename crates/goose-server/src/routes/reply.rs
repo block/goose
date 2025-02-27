@@ -9,6 +9,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::message::{Message, MessageContent};
+use goose::session;
 
 use mcp_core::role::Role;
 use serde::{Deserialize, Serialize};
@@ -108,8 +109,18 @@ async fn handler(
     // Get messages directly from the request
     let messages = request.messages;
 
+    // Generate a new session ID for this conversation if not provided
+    let session_id = headers
+        .get("X-Session-ID")
+        .and_then(|value| value.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| session::generate_session_id());
+
     // Get a lock on the shared agent
     let agent = state.agent.clone();
+
+    // Clone messages for storage
+    let messages_for_storage = messages.clone();
 
     // Spawn task to handle streaming
     tokio::spawn(async move {
@@ -157,11 +168,22 @@ async fn handler(
             }
         };
 
+        // Collect all messages for storage
+        let mut all_messages = messages_for_storage.clone();
+        let mut response_message = Message::assistant();
+
         loop {
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
+                            // Accumulate the message content for storage
+                            if message.role == Role::Assistant {
+                                for content in &message.content {
+                                    response_message.content.push(content.clone());
+                                }
+                            }
+                            
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
                                 let _ = stream_event(
@@ -195,6 +217,17 @@ async fn handler(
                     }
                 }
             }
+        }
+
+        // Add the complete response message to the conversation history
+        if !response_message.content.is_empty() {
+            all_messages.push(response_message);
+        }
+
+        // Store the conversation history
+        let session_path = session::get_path(session::Identifier::Name(session_id));
+        if let Err(e) = session::persist_messages(&session_path, &all_messages) {
+            tracing::error!("Failed to store session history: {:?}", e);
         }
 
         // Send finish event
@@ -236,6 +269,13 @@ async fn ask_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Generate a new session ID for this conversation if not provided
+    let session_id = headers
+        .get("X-Session-ID")
+        .and_then(|value| value.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| session::generate_session_id());
+
     let agent = state.agent.clone();
     let agent = agent.lock().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
@@ -253,15 +293,20 @@ async fn ask_handler(
         }
     };
 
+    // Collect all messages for storage
+    let mut all_messages = messages.clone();
+    let mut response_message = Message::assistant();
+
     while let Some(response) = stream.next().await {
         match response {
             Ok(message) => {
                 if message.role == Role::Assistant {
-                    for content in message.content {
+                    for content in &message.content {
                         if let MessageContent::Text(text) = content {
                             response_text.push_str(&text.text);
                             response_text.push('\n');
                         }
+                        response_message.content.push(content.clone());
                     }
                 }
             }
@@ -270,6 +315,17 @@ async fn ask_handler(
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
+    }
+
+    // Add the complete response message to the conversation history
+    if !response_message.content.is_empty() {
+        all_messages.push(response_message);
+    }
+
+    // Store the conversation history
+    let session_path = session::get_path(session::Identifier::Name(session_id));
+    if let Err(e) = session::persist_messages(&session_path, &all_messages) {
+        tracing::error!("Failed to store session history: {:?}", e);
     }
 
     Ok(Json(AskResponse {

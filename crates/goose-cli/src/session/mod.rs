@@ -2,17 +2,17 @@ mod builder;
 mod input;
 mod output;
 mod prompt;
-mod storage;
 mod thinking;
 
 pub use builder::build_session;
-pub use storage::Identifier;
+pub use goose::session::Identifier;
 
 use anyhow::Result;
 use etcetera::choose_app_strategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
+use goose::session;
 use mcp_core::handler::ToolError;
 use rand::{distributions::Alphanumeric, Rng};
 use std::path::PathBuf;
@@ -28,7 +28,7 @@ pub struct Session {
 
 impl Session {
     pub fn new(agent: Box<dyn Agent>, session_file: PathBuf) -> Self {
-        let messages = match storage::read_messages(&session_file) {
+        let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
                 eprintln!("Warning: Failed to load message history: {}", e);
@@ -107,7 +107,7 @@ impl Session {
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
-        storage::persist_messages(&self.session_file, &self.messages)?;
+        session::persist_messages(&self.session_file, &self.messages)?;
         self.process_agent_response(false).await?;
         Ok(())
     }
@@ -140,7 +140,7 @@ impl Session {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
                     self.messages.push(Message::user().with_text(&content));
-                    storage::persist_messages(&self.session_file, &self.messages)?;
+                    session::persist_messages(&self.session_file, &self.messages)?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -226,7 +226,7 @@ impl Session {
                             // otherwise we have a model/tool to render
                             else {
                                 self.messages.push(message.clone());
-                                storage::persist_messages(&self.session_file, &self.messages)?;
+                                session::persist_messages(&self.session_file, &self.messages)?;
                                 if interactive {output::hide_thinking()};
                                 output::render_message(&message);
                                 if interactive {output::show_thinking()};

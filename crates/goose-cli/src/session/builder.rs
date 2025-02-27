@@ -2,16 +2,17 @@ use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::AgentFactory;
 use goose::config::{Config, ExtensionManager};
+use goose::session;
+use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
 use std::path::PathBuf;
 use std::process;
 
 use super::output;
-use super::storage;
 use super::Session;
 
 pub async fn build_session(
-    identifier: Option<storage::Identifier>,
+    identifier: Option<Identifier>,
     resume: bool,
     extensions: Vec<String>,
     builtins: Vec<String>,
@@ -65,7 +66,7 @@ pub async fn build_session(
     // Handle session file resolution and resuming
     let session_file = if resume {
         if let Some(identifier) = identifier {
-            let session_file = storage::get_path(identifier);
+            let session_file = session::get_path(identifier);
             if !session_file.exists() {
                 output::render_error(&format!(
                     "Cannot resume session {} - no such session exists",
@@ -76,7 +77,7 @@ pub async fn build_session(
             session_file
         } else {
             // Try to resume most recent session
-            match storage::get_most_recent_session() {
+            match session::get_most_recent_session() {
                 Ok(file) => file,
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
@@ -88,9 +89,9 @@ pub async fn build_session(
         // Create new session with provided name/path or generated name
         let id = match identifier {
             Some(identifier) => identifier,
-            None => storage::Identifier::Name(generate_session_name()),
+            None => Identifier::Name(generate_session_name()),
         };
-        let session_file = storage::get_path(id);
+        let session_file = session::get_path(id);
         create_new_session_file(session_file)
     };
 
@@ -132,12 +133,8 @@ pub async fn build_session(
 }
 
 fn generate_session_name() -> String {
-    use rand::{distributions::Alphanumeric, Rng};
-    rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect()
+    // Use the same timestamp format as in storage.rs
+    session::generate_session_id()
 }
 
 fn create_new_session_file(session_file: PathBuf) -> PathBuf {
