@@ -3,12 +3,12 @@ use clap::{Args, CommandFactory, Parser, Subcommand};
 
 use console::style;
 use goose::config::Config;
-use goose_cli::{commands::agent_version::AgentCommand, session};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
+use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
 use std::path::PathBuf;
 
@@ -226,7 +226,13 @@ async fn main() -> Result<()> {
             extension,
             builtin,
         }) => {
-            let mut session = build_session(identifier.map(extract_identifier), resume, extension, builtin).await;
+            let mut session = build_session(
+                identifier.map(extract_identifier),
+                resume,
+                extension,
+                builtin,
+            )
+            .await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.interactive(None).await;
             return Ok(());
@@ -258,7 +264,13 @@ async fn main() -> Result<()> {
                     .expect("Failed to read from stdin");
                 stdin
             };
-            let mut session = build_session(identifier.map(extract_identifier), resume, extension, builtin).await;
+            let mut session = build_session(
+                identifier.map(extract_identifier),
+                resume,
+                extension,
+                builtin,
+            )
+            .await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
 
             if interactive {

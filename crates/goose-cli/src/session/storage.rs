@@ -16,9 +16,7 @@ pub fn get_path(id: Identifier) -> PathBuf {
             let session_dir = ensure_session_dir().expect("Failed to create session directory");
             session_dir.join(format!("{}.jsonl", name))
         }
-        Identifier::Path(path) => {
-            path
-        }
+        Identifier::Path(path) => path,
     }
 }
 
