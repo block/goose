@@ -1,45 +1,83 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
 import { Plus } from 'lucide-react';
 import { Gear } from '../icons/Gear';
 import { GPSIcon } from '../ui/icons';
+import { useConfig } from '../ConfigContext';
+
+interface ExtensionConfig {
+  args?: string[];
+  cmd?: string;
+  enabled: boolean;
+  envs?: Record<string, string>;
+  name: string;
+  type: 'stdio' | 'builtin';
+}
 
 interface ExtensionItem {
   id: string;
   title: string;
   subtitle: string;
   enabled: boolean;
-  canConfigure?: boolean;
+  canConfigure: boolean;
+  config: ExtensionConfig;
 }
 
-const extensionItems: ExtensionItem[] = [
-  {
-    id: 'dev',
-    title: 'Developer Tools',
-    subtitle: 'Code editing and shell access',
-    enabled: true,
-    canConfigure: true,
-  },
-  {
-    id: 'browser',
-    title: 'Web Browser',
-    subtitle: 'Internet access and web automation',
-    enabled: false,
-    canConfigure: true,
-  },
-];
+// Helper function to get a friendly title from extension name
+const getFriendlyTitle = (name: string): string => {
+  return name
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Helper function to get a subtitle based on extension type and configuration
+const getSubtitle = (config: ExtensionConfig): string => {
+  if (config.type === 'builtin') {
+    return 'Built-in extension';
+  }
+  return `${config.type.toUpperCase()} extension${config.cmd ? ` (${config.cmd})` : ''}`;
+};
 
 export default function ExtensionsSection() {
-  const [extensions, setExtensions] = useState<ExtensionItem[]>(extensionItems);
+  const { config, updateExtension } = useConfig();
+  const [extensions, setExtensions] = useState<ExtensionItem[]>([]);
 
-  const handleExtensionToggle = (id: string) => {
-    setExtensions(
-      extensions.map((extension) => ({
-        ...extension,
-        enabled: extension.id === id ? !extension.enabled : extension.enabled,
-      }))
-    );
+  useEffect(() => {
+    if (config.extensions) {
+      const extensionItems: ExtensionItem[] = Object.entries(config.extensions).map(
+        ([name, ext]) => {
+          const extensionConfig = ext as ExtensionConfig;
+          return {
+            id: name,
+            title: getFriendlyTitle(name),
+            subtitle: getSubtitle(extensionConfig),
+            enabled: extensionConfig.enabled,
+            canConfigure: extensionConfig.type === 'stdio' && !!extensionConfig.envs,
+            config: extensionConfig,
+          };
+        }
+      );
+      setExtensions(extensionItems);
+    }
+  }, [config.extensions]);
+
+  const handleExtensionToggle = async (id: string) => {
+    const extension = extensions.find((ext) => ext.id === id);
+    if (extension) {
+      const updatedConfig = {
+        ...extension.config,
+        enabled: !extension.config.enabled,
+      };
+
+      try {
+        await updateExtension(id, updatedConfig);
+      } catch (error) {
+        console.error('Failed to update extension:', error);
+        // Here you might want to add a toast notification for error feedback
+      }
+    }
   };
 
   return (
