@@ -1,13 +1,15 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 
 use async_trait::async_trait;
-use mcp_core::protocol::JsonRpcMessage;
+use mcp_core::protocol::{JsonRpcMessage, JsonRpcNotification};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Mutex};
 
 use super::{send_message, Error, PendingRequests, Transport, TransportHandle, TransportMessage};
+use crate::transport::logging::{LoggingManager, handle_notification};
 
 /// A `StdioTransport` uses a child process's stdin/stdout as a communication channel.
 ///
@@ -20,13 +22,18 @@ pub struct StdioActor {
     stdin: ChildStdin,
     stdout: ChildStdout,
     stderr: ChildStderr,
+    logging_manager: Arc<LoggingManager>,
 }
 
 impl StdioActor {
     pub async fn run(mut self) {
         use tokio::pin;
 
-        let incoming = Self::handle_incoming_messages(self.stdout, self.pending_requests.clone());
+        let incoming = Self::handle_incoming_messages(
+            self.stdout, 
+            self.pending_requests.clone(),
+            self.logging_manager.clone(),
+        );
         let outgoing = Self::handle_outgoing_messages(
             self.receiver,
             self.stdin,
@@ -71,7 +78,11 @@ impl StdioActor {
         self.pending_requests.clear().await;
     }
 
-    async fn handle_incoming_messages(stdout: ChildStdout, pending_requests: Arc<PendingRequests>) {
+    async fn handle_incoming_messages(
+        stdout: ChildStdout, 
+        pending_requests: Arc<PendingRequests>,
+        logging_manager: Arc<LoggingManager>,
+    ) {
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
         loop {
@@ -81,17 +92,36 @@ impl StdioActor {
                     break;
                 } // EOF
                 Ok(_) => {
+                    eprintln!("Got line from stdout: {}", line);
                     if let Ok(message) = serde_json::from_str::<JsonRpcMessage>(&line) {
                         tracing::debug!(
                             message = ?message,
                             "Received incoming message"
                         );
 
-                        if let JsonRpcMessage::Response(response) = &message {
-                            if let Some(id) = &response.id {
-                                pending_requests.respond(&id.to_string(), Ok(message)).await;
+                    match &message {
+                            JsonRpcMessage::Response(response) => {
+                                tracing::debug!("Got response message with id: {:?}", response.id);
+                                if let Some(id) = &response.id {
+                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
+                                }
+                            }
+                            JsonRpcMessage::Notification(n) => {
+                                tracing::debug!("Got notification message with method: {}", n.method);
+                                let notification: JsonRpcNotification = n.clone();
+                                if n.method == "notifications/message" {
+                                    println!("Processing log notification with params: {:?}", n.params);
+                                }
+                                if let Err(e) = handle_notification(notification, &logging_manager).await {
+                                    tracing::error!("Error handling notification: {:?}", e);
+                                }
+                            }
+                            _ => {
+                                tracing::debug!("Got other message type: {:?}", message);
                             }
                         }
+                    } else {
+                        tracing::debug!("Failed to parse line as JsonRpcMessage: {}", line);
                     }
                     line.clear();
                 }
@@ -151,6 +181,7 @@ impl StdioActor {
 pub struct StdioTransportHandle {
     sender: mpsc::Sender<TransportMessage>,
     error_receiver: Arc<Mutex<mpsc::Receiver<Error>>>,
+    logging_manager: Arc<LoggingManager>,
 }
 
 #[async_trait::async_trait]
@@ -173,6 +204,42 @@ impl StdioTransportHandle {
             }
             Err(_) => Ok(()),
         }
+    }
+
+    /// Register a handler for log messages
+    pub async fn on_log<F>(&self, handler: F)
+    where
+        F: Fn(super::logging::LogMessage) + Send + Sync + 'static,
+    {
+        self.logging_manager.add_handler(handler).await;
+    }
+
+    /// Enable logging to a file
+    pub async fn enable_file_logging(&self, log_path: impl Into<PathBuf>) -> Result<(), Error> {
+        let file_logger = super::logging::file_logger::FileLogger::new(log_path.into())
+            .map_err(|e| Error::Io(e))?;
+        
+        let file_logger = Arc::new(file_logger);
+        let file_logger_clone = file_logger.clone();
+
+        self.on_log(move |msg| {
+            let file_logger = file_logger_clone.clone();
+            tokio::spawn(async move {
+                if let Err(e) = file_logger.log(&msg).await {
+                    tracing::error!("Failed to write to log file: {}", e);
+                }
+            });
+        })
+        .await;
+
+        Ok(())
+    }
+
+    /// Set the desired log level
+    pub async fn set_log_level(&self, level: super::logging::LogLevel) -> Result<(), Error> {
+        let request = super::logging::create_set_level_request(level);
+        self.send(request).await?;
+        Ok(())
     }
 }
 
@@ -244,6 +311,7 @@ impl Transport for StdioTransport {
         let (process, stdin, stdout, stderr) = self.spawn_process().await?;
         let (message_tx, message_rx) = mpsc::channel(32);
         let (error_tx, error_rx) = mpsc::channel(1);
+        let logging_manager = Arc::new(LoggingManager::new());
 
         let actor = StdioActor {
             receiver: message_rx,
@@ -253,6 +321,7 @@ impl Transport for StdioTransport {
             stdin,
             stdout,
             stderr,
+            logging_manager: logging_manager.clone(),
         };
 
         tokio::spawn(actor.run());
@@ -260,11 +329,61 @@ impl Transport for StdioTransport {
         let handle = StdioTransportHandle {
             sender: message_tx,
             error_receiver: Arc::new(Mutex::new(error_rx)),
+            logging_manager,
         };
         Ok(handle)
     }
 
     async fn close(&self) -> Result<(), Error> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn test_logging_flow() {
+        let transport = StdioTransport::new("echo", vec![], HashMap::new());
+        let handle = transport.start().await.unwrap();
+
+        let counter = Arc::new(AtomicUsize::new(0));
+        let counter_clone = counter.clone();
+
+        // Register log handler
+        handle
+            .on_log(move |msg| {
+                assert_eq!(msg.level, crate::transport::logging::LogLevel::Info);
+                assert_eq!(msg.message, "test message");
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+            })
+            .await;
+
+        // Set log level
+        handle.set_log_level(crate::transport::logging::LogLevel::Info).await.unwrap();
+
+        // Create a test notification
+        let notification = JsonRpcNotification {
+            jsonrpc: "2.0".to_string(),
+            method: "notifications/message".to_string(),
+            params: Some(serde_json::json!({
+                "level": "info",
+                "data": "test message"
+            })),
+        };
+
+        // Send the notification through the transport
+        handle
+            .send(JsonRpcMessage::Notification(notification))
+            .await
+            .unwrap();
+
+        // Give some time for the handler to process
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Verify the handler was called
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
     }
 }
