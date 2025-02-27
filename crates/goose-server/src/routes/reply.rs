@@ -224,9 +224,14 @@ async fn handler(
             all_messages.push(response_message);
         }
 
-        // Store the conversation history
+        // Get the session path - file will be created when needed
         let session_path = session::get_path(session::Identifier::Name(session_id));
-        if let Err(e) = session::persist_messages(&session_path, &all_messages) {
+        
+        // Get provider for description generation
+        let provider = agent.provider();
+        
+        // Persist messages with description generation
+        if let Err(e) = session::persist_messages(&session_path, &all_messages, Some(provider)).await {
             tracing::error!("Failed to store session history: {:?}", e);
         }
 
@@ -322,9 +327,14 @@ async fn ask_handler(
         all_messages.push(response_message);
     }
 
-    // Store the conversation history
+    // Get the session path - file will be created when needed
     let session_path = session::get_path(session::Identifier::Name(session_id));
-    if let Err(e) = session::persist_messages(&session_path, &all_messages) {
+    
+    // Get provider for description generation
+    let provider = agent.provider();
+    
+    // Persist messages with description generation
+    if let Err(e) = session::persist_messages(&session_path, &all_messages, Some(provider)).await {
         tracing::error!("Failed to store session history: {:?}", e);
     }
 

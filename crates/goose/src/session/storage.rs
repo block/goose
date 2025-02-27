@@ -1,10 +1,20 @@
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use crate::message::Message;
+use crate::providers::Provider;
 use std::fs::{self, File};
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use chrono::Local;
+use serde::{Serialize, Deserialize};
+use std::sync::Arc;
+
+/// Metadata for a session, stored as the first line in the session file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionMetadata {
+    /// A short description of the session, typically 3 words or less
+    pub description: String,
+}
 
 // The single app name used for all Goose applications
 const APP_NAME: &str = "goose";
@@ -96,9 +106,44 @@ pub fn generate_session_id() -> String {
     Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
 
-/// Read messages from a session file
+/// Create a new session file with empty metadata
+///
+/// Creates parent directories if needed and initializes the file with empty metadata.
+/// Returns the path to the created session file.
+/// 
+/// Note: This function is provided for cases where you need to explicitly create
+/// a session file before adding messages. In most cases, you can simply use
+/// `persist_messages` which will create the file if needed.
+pub fn create_session(id: Identifier) -> Result<PathBuf> {
+    let session_file = get_path(id);
+    
+    // Check if file already exists
+    if session_file.exists() {
+        return Err(anyhow::anyhow!("Session '{}' already exists", session_file.display()));
+    }
+    
+    // Create parent directories if they don't exist
+    if let Some(parent) = session_file.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    // Initialize the session file with empty metadata
+    let metadata = SessionMetadata {
+        description: String::new(),
+    };
+    
+    // Write the metadata to the file
+    persist_messages_with_metadata(&session_file, &metadata, &[])?;
+
+    Ok(session_file)
+}
+
+/// Read messages and metadata from a session file
 ///
 /// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
+/// The first line of the file is expected to be metadata, and the rest are messages.
 pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
     let file = fs::OpenOptions::new()
         .read(true)
@@ -108,22 +153,113 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
         .open(session_file)?;
 
     let reader = io::BufReader::new(file);
+    let mut lines = reader.lines();
     let mut messages = Vec::new();
 
-    for line in reader.lines() {
+    // Read the first line as metadata or create default if empty/missing
+    if let Some(line) = lines.next() {
+        let line = line?;
+        // Try to parse as metadata, but if it fails, treat it as a message
+        if let Ok(_metadata) = serde_json::from_str::<SessionMetadata>(&line) {
+            // Metadata successfully parsed, continue with the rest of the lines as messages
+        } else {
+            // This is not metadata, it's a message
+            messages.push(serde_json::from_str::<Message>(&line)?);
+        }
+    }
+
+    // Read the rest of the lines as messages
+    for line in lines {
         messages.push(serde_json::from_str::<Message>(&line?)?);
     }
 
     Ok(messages)
 }
 
-/// Write messages to a session file
+/// Read session metadata from a session file
 ///
-/// Overwrites the file with all messages in JSONL format.
-pub fn persist_messages(session_file: &Path, messages: &[Message]) -> Result<()> {
+/// Returns default empty metadata if the file doesn't exist or has no metadata.
+pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
+    if !session_file.exists() {
+        return Ok(SessionMetadata {
+            description: String::new(),
+        });
+    }
+
+    let file = fs::File::open(session_file)?;
+    let mut reader = io::BufReader::new(file);
+    let mut first_line = String::new();
+    
+    // Read just the first line
+    if reader.read_line(&mut first_line)? > 0 {
+        // Try to parse as metadata
+        match serde_json::from_str::<SessionMetadata>(&first_line) {
+            Ok(metadata) => Ok(metadata),
+            Err(_) => {
+                // If the first line isn't metadata, return default
+                Ok(SessionMetadata {
+                    description: String::new(),
+                })
+            }
+        }
+    } else {
+        // Empty file, return default
+        Ok(SessionMetadata {
+            description: String::new(),
+        })
+    }
+}
+
+/// Write messages to a session file with metadata
+///
+/// Overwrites the file with metadata as the first line, followed by all messages in JSONL format.
+/// If a provider is supplied, it will automatically generate a description when appropriate.
+pub async fn persist_messages(
+    session_file: &Path, 
+    messages: &[Message], 
+    provider: Option<&dyn Provider>
+) -> Result<()> {
+    // Read existing metadata
+    let mut metadata = read_metadata(session_file)?;
+    
+    // Count user messages
+    let user_message_count = messages.iter()
+        .filter(|m| m.role == mcp_core::role::Role::User)
+        .count();
+    
+    // Check if we need to update the description (after 1st or 3rd user message)
+    if let Some(provider) = provider {
+        if (user_message_count == 1 || user_message_count == 3) {
+            // Generate description in the background
+            tokio::spawn(async move {
+                match generate_description(session_file, messages, provider).await {
+                    Ok(_) => (),
+                    Err(e) => tracing::error!("Failed to generate session description: {:?}", e),
+                }
+            });
+        }
+    }
+    
+    // Write the file with metadata and messages
+    persist_messages_with_metadata(session_file, &metadata, messages)
+}
+
+/// Write messages to a session file with the provided metadata
+///
+/// Overwrites the file with metadata as the first line, followed by all messages in JSONL format.
+pub fn persist_messages_with_metadata(
+    session_file: &Path, 
+    metadata: &SessionMetadata, 
+    messages: &[Message]
+) -> Result<()> {
     let file = File::create(session_file).expect("The path specified does not exist");
     let mut writer = io::BufWriter::new(file);
 
+    // Write metadata as the first line
+    serde_json::to_writer(&mut writer, &metadata)?;
+    writeln!(writer)?;
+
+    // Write all messages
     for message in messages {
         serde_json::to_writer(&mut writer, &message)?;
         writeln!(writer)?;
@@ -131,6 +267,67 @@ pub fn persist_messages(session_file: &Path, messages: &[Message]) -> Result<()>
 
     writer.flush()?;
     Ok(())
+}
+
+/// Generate a description for the session using the provider
+///
+/// This function is called internally by persist_messages when appropriate.
+async fn generate_description(
+    session_file: &Path,
+    messages: &[Message],
+    provider: &dyn Provider
+) -> Result<()> {
+    // Create a special message asking for a 3-word description
+    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 3 words or less.".to_string();
+    
+    // Add a bit of context from the messages
+    if !messages.is_empty() {
+        let context: Vec<String> = messages.iter()
+            .filter(|m| m.role == mcp_core::role::Role::User)
+            .take(3)  // Use up to first 3 user messages for context
+            .filter_map(|m| Some(m.as_concat_text()))
+            .collect();
+        
+        if !context.is_empty() {
+            description_prompt = format!(
+                "Here are the first few user messages:\n{}\n\n{}",
+                context.join("\n"),
+                description_prompt
+            );
+        }
+    }
+    
+    // Generate the description
+    let description = match provider.generate(&description_prompt, None).await {
+        Ok(text) => {
+            // Clean up the description - keep only the first 3 words
+            let words: Vec<&str> = text.split_whitespace().collect();
+            words.into_iter().take(3).collect::<Vec<_>>().join(" ")
+        },
+        Err(e) => {
+            return Err(anyhow::anyhow!("Failed to generate description: {}", e));
+        }
+    };
+    
+    // Read current metadata
+    let mut metadata = read_metadata(session_file)?;
+    
+    // Update description
+    metadata.description = description;
+    
+    // Update the file with the new metadata and existing messages
+    update_metadata(session_file, &metadata)?;
+    
+    Ok(())
+}
+
+/// Update only the metadata in a session file, preserving all messages
+pub fn update_metadata(session_file: &Path, metadata: &SessionMetadata) -> Result<()> {
+    // Read all messages from the file
+    let messages = read_messages(session_file)?;
+    
+    // Rewrite the file with the new metadata and existing messages
+    persist_messages_with_metadata(session_file, metadata, &messages)
 }
 
 #[cfg(test)]

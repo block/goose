@@ -91,8 +91,9 @@ pub async fn build_session(
             Some(identifier) => identifier,
             None => Identifier::Name(generate_session_name()),
         };
-        let session_file = session::get_path(id);
-        create_new_session_file(session_file)
+        
+        // Just get the path - file will be created when needed
+        session::get_path(id)
     };
 
     // Create new session
@@ -135,12 +136,4 @@ pub async fn build_session(
 fn generate_session_name() -> String {
     // Use the same timestamp format as in storage.rs
     session::generate_session_id()
-}
-
-fn create_new_session_file(session_file: PathBuf) -> PathBuf {
-    if session_file.exists() {
-        eprintln!("Session '{:?}' already exists", session_file);
-        process::exit(1);
-    }
-    session_file
 }

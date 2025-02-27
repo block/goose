@@ -107,7 +107,13 @@ impl Session {
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
-        session::persist_messages(&self.session_file, &self.messages)?;
+        
+        // Get the provider from the agent for description generation
+        let provider = self.agent.provider();
+        
+        // Persist messages with provider for automatic description generation
+        session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+        
         self.process_agent_response(false).await?;
         Ok(())
     }
@@ -140,7 +146,12 @@ impl Session {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
                     self.messages.push(Message::user().with_text(&content));
-                    session::persist_messages(&self.session_file, &self.messages)?;
+                    
+                    // Get the provider from the agent for description generation
+                    let provider = self.agent.provider();
+                    
+                    // Persist messages with provider for automatic description generation
+                    session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -226,7 +237,10 @@ impl Session {
                             // otherwise we have a model/tool to render
                             else {
                                 self.messages.push(message.clone());
-                                session::persist_messages(&self.session_file, &self.messages)?;
+                                
+                                // No need to update description on assistant messages
+                                session::persist_messages(&self.session_file, &self.messages, None).await?;
+                                
                                 if interactive {output::hide_thinking()};
                                 output::render_message(&message);
                                 if interactive {output::show_thinking()};
@@ -297,12 +311,19 @@ impl Session {
                 ));
             }
             self.messages.push(response_message);
+            
+            // No need for description update here
+            session::persist_messages(&self.session_file, &self.messages, None).await?;
 
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
             self.messages.push(Message::assistant().with_text(&prompt));
+            
+            // No need for description update here
+            session::persist_messages(&self.session_file, &self.messages, None).await?;
+            
             output::render_message(&Message::assistant().with_text(&prompt));
         } else {
             // An interruption occurred outside of a tool request-response.
@@ -313,6 +334,10 @@ impl Session {
                             // Interruption occurred after a tool had completed but not assistant reply
                             let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
                             self.messages.push(Message::assistant().with_text(prompt));
+                            
+                            // No need for description update here
+                            session::persist_messages(&self.session_file, &self.messages, None).await?;
+                            
                             output::render_message(&Message::assistant().with_text(prompt));
                         }
                         Some(_) => {
