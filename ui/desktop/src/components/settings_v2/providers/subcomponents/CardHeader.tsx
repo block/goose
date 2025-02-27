@@ -28,7 +28,7 @@ function ProviderNameAndStatus({ name, isConfigured }: ProviderNameAndStatusProp
   const ollamaNotConfigured = !isConfigured && name === 'Ollama';
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center justify-between w-full">
       <CardTitle name={name} />
 
       {/* Configured state: Green check */}

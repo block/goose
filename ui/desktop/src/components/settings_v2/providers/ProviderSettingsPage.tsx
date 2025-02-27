@@ -1,6 +1,6 @@
 import React from 'react';
-import { ScrollArea } from '../../../ui/scroll-area';
-import BackButton from '../../../ui/BackButton';
+import { ScrollArea } from '../../ui/scroll-area';
+import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import ProviderState from './interfaces/ProviderState';
 

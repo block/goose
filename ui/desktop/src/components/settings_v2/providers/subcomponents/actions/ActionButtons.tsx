@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../../../../../ui/button';
+import { Button } from '../../../../ui/button';
 import clsx from 'clsx';
 import { TooltipWrapper } from './TooltipWrapper';
 import { Check, CircleHelp, Plus, RefreshCw, Rocket, Settings, X } from 'lucide-react';
@@ -62,11 +62,8 @@ export function GreenCheckButton({
       icon={Check}
       tooltip={tooltip}
       className={`
-                bg-green-100
-                dark:bg-green-900/30
                 text-green-600
                 dark:text-green-500
-                hover:bg-green-100
                 hover:text-green-600
                 border-none
                 shadow-none
