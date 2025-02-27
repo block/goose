@@ -530,6 +530,10 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on('create-chat-window', (_, query, dir, version) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : null;
+    }
     createChat(app, query, dir, version);
   });
 
