@@ -63,6 +63,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     .map(|content| content.unannotated())
                                     .collect();
 
+                                let mut tool_content = Vec::new();
                                 for content in abridged {
                                     match content {
                                         Content::Image(image) => {
@@ -74,14 +75,28 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                             }));
                                         }
                                         _ => {
-                                            parts.push(json!({
-                                                "functionResponse": {
-                                                    "name": response.id,
-                                                    "response": {"content": content},
-                                                }}
-                                            ));
+                                            tool_content.push(content);
                                         }
                                     }
+                                }
+                                let mut text = tool_content
+                                    .iter()
+                                    .filter_map(|c| match c {
+                                        Content::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                if !tool_content.is_empty() {
+                                    if text.is_empty() {
+                                        text = "Tool call is done.".to_string();
+                                    }
+                                    parts.push(json!({
+                                        "functionResponse": {
+                                            "name": response.id,
+                                            "response": {"content": text},
+                                        }}
+                                    ));
                                 }
                             }
                             Err(e) => {
