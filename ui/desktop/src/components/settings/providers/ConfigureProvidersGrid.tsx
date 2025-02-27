@@ -235,8 +235,8 @@ export function ConfigureProvidersGrid() {
         <div className="relative z-[9999]">
           <ProviderSetupModal
             provider={providers.find((p) => p.id === selectedForSetup)?.name || ''}
-            model="Example Model"
-            endpoint="Example Endpoint"
+            _model="Example Model"
+            _endpoint="Example Endpoint"
             title={
               modalMode === 'edit'
                 ? `Edit ${providers.find((p) => p.id === selectedForSetup)?.name} Configuration`

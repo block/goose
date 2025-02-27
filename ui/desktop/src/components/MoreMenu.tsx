@@ -1,21 +1,14 @@
 import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-ui/react-popover';
 import React, { useEffect, useState } from 'react';
-import { FaMoon, FaSun } from 'react-icons/fa';
-import VertDots from './ui/VertDots';
-// Removed react-router-dom import
-// import { useNavigate } from 'react-router-dom';
 import { More } from './icons';
-import { Settings, Grid, MessageSquare } from 'lucide-react';
-import { Button } from './ui/button';
-import type { View } from '../../ChatWindow';
-
+import { View } from '../App';
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
 }
 
-// Accept setView as a prop from the parent (e.g. ChatContent)
-export default function MoreMenu({ setView }: { setView?: (view: View) => void }) {
+// Accept setView as a prop from the parent (e.g. Chat)
+export default function MoreMenu({ setView }: { setView: (view: View) => void }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
@@ -231,8 +224,7 @@ export default function MoreMenu({ setView }: { setView?: (view: View) => void }
             <button
               onClick={() => {
                 setOpen(false);
-                // Instead of navigate('/settings'), call setView to switch.
-                setView?.('settings');
+                setView('settings');
               }}
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
             >
@@ -267,6 +259,17 @@ export default function MoreMenu({ setView }: { setView?: (view: View) => void }
             >
               Reset Provider
             </button>
+            {process.env.ALPHA && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  setView('alphaConfigureProviders');
+                }}
+                className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors text-indigo-800"
+              >
+                See new providers grid
+              </button>
+            )}
           </div>
         </PopoverContent>
       </PopoverPortal>

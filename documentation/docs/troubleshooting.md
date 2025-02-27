@@ -171,13 +171,14 @@ Please check extension configuration for {extension name}.
 
 ... it signals that the extension may not have been installed and you need the package runner in order to do so.
 
-An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+An example is the GitHub extension whose command is `npx -y @modelcontextprotocol/server-github`. You'd need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 
 ---
 
 ### macOS Permission Issues
 
-If you encounter an issue where the Goose Desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file.
+If you encounter an issue where the Goose Desktop app shows no window on launch, it may be due to file and folder permissions. This typically happens because Goose needs read and write access to the `~/.config` directory to create its log directory and file. 
+Similarly, if tools fail to create files or directories during use, it could be caused by the same permission issue.
 
 #### How to Check and Fix Permissions:
 
@@ -216,6 +217,11 @@ sudo /Applications/Goose.app/Contents/MacOS/Goose
 :::note
 Running Goose with sudo may create files owned by root, which could lead to further permission issues. Use this as a troubleshooting step rather than a permanent fix.
 :::
+
+#### Update permission in System Settings (macOs)
+1. Go to `System Settings` -> `Privacy & Security` -> `Files & Folders`
+2. Grant Goose access
+
 ---
 
 ### Connection Error with Ollama Provider on WSL

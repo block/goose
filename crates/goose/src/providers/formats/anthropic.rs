@@ -57,6 +57,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }));
                     }
                 }
+                MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
+                    // Skip tool confirmation requests
+                }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
             }
         }

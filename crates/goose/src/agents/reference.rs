@@ -61,6 +61,10 @@ impl Agent for ReferenceAgent {
         Ok(Value::Null)
     }
 
+    async fn handle_confirmation(&self, _request_id: String, _confirmed: bool) {
+        // TODO implement
+    }
+
     #[instrument(skip(self, messages), fields(user_message))]
     async fn reply(
         &self,
@@ -188,6 +192,11 @@ impl Agent for ReferenceAgent {
     async fn extend_system_prompt(&mut self, extension: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.add_system_prompt_extension(extension);
+    }
+
+    async fn override_system_prompt(&mut self, template: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.set_system_prompt_override(template);
     }
 }
 

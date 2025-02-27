@@ -86,7 +86,7 @@ impl LinuxAutomation {
     }
 
     fn check_wayland_dependencies(&self) -> Result<()> {
-        let wayland_deps = ["wtype", "wl-clipboard"];
+        let wayland_deps = ["wtype", "wl-copy", "wl-paste"];
         self.check_dependencies(&wayland_deps)
     }
 

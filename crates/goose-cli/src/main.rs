@@ -106,6 +106,14 @@ enum Command {
         )]
         input_text: Option<String>,
 
+        /// Continue in interactive mode after processing input
+        #[arg(
+            short = 's',
+            long = "interactive",
+            help = "Continue in interactive mode after processing initial input"
+        )]
+        interactive: bool,
+
         /// Name for this run session
         #[arg(
             short,
@@ -149,6 +157,23 @@ enum Command {
 
     /// List available agent versions
     Agents(AgentCommand),
+
+    /// Update the Goose CLI version
+    #[command(about = "Update the goose CLI version")]
+    Update {
+        /// Update to canary version
+        #[arg(
+            short,
+            long,
+            help = "Update to canary version",
+            long_help = "Update to the latest canary version of the goose CLI, otherwise updates to the latest stable version."
+        )]
+        canary: bool,
+
+        /// Enforce to re-configure Goose during update
+        #[arg(short, long, help = "Enforce to re-configure goose during update")]
+        reconfigure: bool,
+    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -182,12 +207,13 @@ async fn main() -> Result<()> {
         }) => {
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-            let _ = session.start().await;
+            let _ = session.interactive(None).await;
             return Ok(());
         }
         Some(Command::Run {
             instructions,
             input_text,
+            interactive,
             name,
             resume,
             extension,
@@ -213,11 +239,23 @@ async fn main() -> Result<()> {
             };
             let mut session = build_session(name, resume, extension, builtin).await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
-            let _ = session.headless_start(contents.clone()).await;
+
+            if interactive {
+                session.interactive(Some(contents)).await?;
+            } else {
+                session.headless(contents).await?;
+            }
             return Ok(());
         }
         Some(Command::Agents(cmd)) => {
             cmd.run()?;
+            return Ok(());
+        }
+        Some(Command::Update {
+            canary,
+            reconfigure,
+        }) => {
+            goose_cli::commands::update::update(canary, reconfigure)?;
             return Ok(());
         }
         None => {

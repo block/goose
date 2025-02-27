@@ -8,6 +8,7 @@ mod thinking;
 pub use builder::build_session;
 
 use anyhow::Result;
+use etcetera::choose_app_strategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
@@ -102,7 +103,21 @@ impl Session {
         Ok(())
     }
 
-    pub async fn start(&mut self) -> Result<()> {
+    /// Process a single message and get the response
+    async fn process_message(&mut self, message: String) -> Result<()> {
+        self.messages.push(Message::user().with_text(&message));
+        storage::persist_messages(&self.session_file, &self.messages)?;
+        self.process_agent_response(false).await?;
+        Ok(())
+    }
+
+    /// Start an interactive session, optionally with an initial message
+    pub async fn interactive(&mut self, message: Option<String>) -> Result<()> {
+        // Process initial message if provided
+        if let Some(msg) = message {
+            self.process_message(msg).await?;
+        }
+
         let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
 
         // Load history from messages
@@ -119,7 +134,6 @@ impl Session {
                 }
             }
         }
-
         output::display_greeting();
         loop {
             match input::get_input(&mut editor)? {
@@ -128,7 +142,7 @@ impl Session {
                     storage::persist_messages(&self.session_file, &self.messages)?;
 
                     output::show_thinking();
-                    self.process_agent_response().await?;
+                    self.process_agent_response(true).await?;
                     output::hide_thinking();
                 }
                 input::InputResult::Exit => break,
@@ -168,24 +182,27 @@ impl Session {
         }
 
         // Log usage and cleanup
-        let usage = self.agent.usage().await;
-        log_usage(self.session_file.to_string_lossy().to_string(), usage);
-        println!(
-            "\nClosing session. Recorded to {}",
-            self.session_file.display()
-        );
+        if let Ok(home_dir) = choose_app_strategy(crate::APP_STRATEGY.clone()) {
+            let usage = self.agent.usage().await;
+            log_usage(
+                home_dir,
+                self.session_file.to_string_lossy().to_string(),
+                usage,
+            );
+            println!(
+                "\nClosing session. Recorded to {}",
+                self.session_file.display()
+            );
+        }
         Ok(())
     }
 
-    pub async fn headless_start(&mut self, initial_message: String) -> Result<()> {
-        self.messages
-            .push(Message::user().with_text(&initial_message));
-        storage::persist_messages(&self.session_file, &self.messages)?;
-        self.process_agent_response().await?;
-        Ok(())
+    /// Process a single message and exit
+    pub async fn headless(&mut self, message: String) -> Result<()> {
+        self.process_message(message).await
     }
 
-    async fn process_agent_response(&mut self) -> Result<()> {
+    async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
         let mut stream = self.agent.reply(&self.messages).await?;
 
         use futures::StreamExt;
@@ -194,11 +211,25 @@ impl Session {
                 result = stream.next() => {
                     match result {
                         Some(Ok(message)) => {
-                            self.messages.push(message.clone());
-                            storage::persist_messages(&self.session_file, &self.messages)?;
-                            output::hide_thinking();
-                            output::render_message(&message);
-                            output::show_thinking();
+                            // If it's a confirmation request, get approval but otherwise do not render/persist
+                            if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
+                                output::hide_thinking();
+
+                                // Format the confirmation prompt
+                                let prompt = "Goose would like to call the above tool, do you approve?".to_string();
+
+                                // Get confirmation from user
+                                let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
+                                self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
+                            }
+                            // otherwise we have a model/tool to render
+                            else {
+                                self.messages.push(message.clone());
+                                storage::persist_messages(&self.session_file, &self.messages)?;
+                                if interactive {output::hide_thinking()};
+                                output::render_message(&message);
+                                if interactive {output::show_thinking()};
+                            }
                         }
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);

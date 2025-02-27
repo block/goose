@@ -5,6 +5,9 @@ description: Add Tavily MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
 This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/RamXX/mcp-tavily) as a Goose extension to enable AI-powered web search functionality.
 
@@ -21,11 +24,11 @@ TAVILY_API_KEY: <YOUR_API_KEY>
 ```
 :::
 
+## Configuration
+
 :::info
 Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
-
-## Configuration
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>

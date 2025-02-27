@@ -97,6 +97,9 @@ pub fn render_message(message: &Message) {
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
+            _ => {
+                println!("Message type could not be rendered");
+            }
         }
     }
     println!();
