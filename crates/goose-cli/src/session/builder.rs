@@ -11,7 +11,7 @@ use super::storage;
 use super::Session;
 
 pub async fn build_session(
-    name: Option<String>,
+    identifier: Option<storage::Identifier>,
     resume: bool,
     extensions: Vec<String>,
     builtins: Vec<String>,
@@ -22,7 +22,6 @@ pub async fn build_session(
     let provider_name: String = config
         .get("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
-    let session_dir = storage::ensure_session_dir().expect("Failed to create session directory");
 
     let model: String = config
         .get("GOOSE_MODEL")
@@ -65,13 +64,12 @@ pub async fn build_session(
 
     // Handle session file resolution and resuming
     let session_file = if resume {
-        if let Some(ref session_name) = name {
-            // Try to resume specific named session
-            let session_file = session_dir.join(format!("{}.jsonl", session_name));
+        if let Some(identifier) = identifier {
+            let session_file = storage::get_path(identifier);
             if !session_file.exists() {
                 output::render_error(&format!(
                     "Cannot resume session {} - no such session exists",
-                    style(session_name).cyan()
+                    style(session_file.display()).cyan()
                 ));
                 process::exit(1);
             }
@@ -87,9 +85,13 @@ pub async fn build_session(
             }
         }
     } else {
-        // Create new session with provided or generated name
-        let session_name = name.unwrap_or_else(generate_session_name);
-        create_new_session_file(&session_dir, &session_name)
+        // Create new session with provided name/path or generated name
+        let id = match identifier {
+            Some(identifier) => identifier,
+            None => storage::Identifier::Name(generate_session_name()),
+        };
+        let session_file = storage::get_path(id);
+        create_new_session_file(session_file)
     };
 
     // Create new session
@@ -138,10 +140,9 @@ fn generate_session_name() -> String {
         .collect()
 }
 
-fn create_new_session_file(session_dir: &std::path::Path, name: &str) -> PathBuf {
-    let session_file = session_dir.join(format!("{}.jsonl", name));
+fn create_new_session_file(session_file: PathBuf) -> PathBuf {
     if session_file.exists() {
-        eprintln!("Session '{}' already exists", name);
+        eprintln!("Session '{:?}' already exists", session_file);
         process::exit(1);
     }
     session_file

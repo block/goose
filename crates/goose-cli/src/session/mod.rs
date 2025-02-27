@@ -6,6 +6,7 @@ mod storage;
 mod thinking;
 
 pub use builder::build_session;
+pub use storage::Identifier;
 
 use anyhow::Result;
 use etcetera::choose_app_strategy;

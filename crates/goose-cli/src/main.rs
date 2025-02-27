@@ -1,21 +1,54 @@
 use anyhow::Result;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 
 use console::style;
 use goose::config::Config;
-use goose_cli::commands::agent_version::AgentCommand;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
 use goose_cli::session::build_session;
+use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(author, version, display_name = "", about, long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+}
+
+#[derive(Args)]
+#[group(required = false, multiple = false)]
+struct Identifier {
+    #[arg(
+        short,
+        long,
+        value_name = "NAME",
+        help = "Name for the chat session (e.g., 'project-x')",
+        long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
+    )]
+    name: Option<String>,
+
+    #[arg(
+        short,
+        long,
+        value_name = "PATH",
+        help = "Path for the chat session (e.g., './playground.jsonl')",
+        long_help = "Specify a path for your chat session. When used with --resume, will resume this specific session if it exists."
+    )]
+    path: Option<PathBuf>,
+}
+
+fn extract_identifier(identifier: Identifier) -> session::Identifier {
+    if let Some(name) = identifier.name {
+        session::Identifier::Name(name)
+    } else if let Some(path) = identifier.path {
+        session::Identifier::Path(path)
+    } else {
+        unreachable!()
+    }
 }
 
 #[derive(Subcommand)]
@@ -42,22 +75,16 @@ enum Command {
         visible_alias = "s"
     )]
     Session {
-        /// Name for the chat session
-        #[arg(
-            short,
-            long,
-            value_name = "NAME",
-            help = "Name for the chat session (e.g., 'project-x')",
-            long_help = "Specify a name for your chat session. When used with --resume, will resume this specific session if it exists."
-        )]
-        name: Option<String>,
+        /// Identifier for the chat session
+        #[command(flatten)]
+        identifier: Option<Identifier>,
 
         /// Resume a previous session
         #[arg(
             short,
             long,
             help = "Resume a previous session (last used or specified by --name)",
-            long_help = "Continue from a previous chat session. If --name is provided, resumes that specific session. Otherwise resumes the last used session."
+            long_help = "Continue from a previous chat session. If --name or --path is provided, resumes that specific session. Otherwise resumes the last used session."
         )]
         resume: bool,
 
@@ -114,15 +141,9 @@ enum Command {
         )]
         interactive: bool,
 
-        /// Name for this run session
-        #[arg(
-            short,
-            long,
-            value_name = "NAME",
-            help = "Name for this run session (e.g., 'daily-tasks')",
-            long_help = "Specify a name for this run session. This helps identify and resume specific runs later."
-        )]
-        name: Option<String>,
+        /// Identifier for this run session
+        #[command(flatten)]
+        identifier: Option<Identifier>,
 
         /// Resume a previous run
         #[arg(
@@ -200,12 +221,18 @@ async fn main() -> Result<()> {
             let _ = run_server(&name).await;
         }
         Some(Command::Session {
-            name,
+            identifier,
             resume,
             extension,
             builtin,
         }) => {
-            let mut session = build_session(name, resume, extension, builtin).await;
+            let mut session = build_session(
+                identifier.map(extract_identifier),
+                resume,
+                extension,
+                builtin,
+            )
+            .await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.interactive(None).await;
             return Ok(());
@@ -214,7 +241,7 @@ async fn main() -> Result<()> {
             instructions,
             input_text,
             interactive,
-            name,
+            identifier,
             resume,
             extension,
             builtin,
@@ -237,7 +264,13 @@ async fn main() -> Result<()> {
                     .expect("Failed to read from stdin");
                 stdin
             };
-            let mut session = build_session(name, resume, extension, builtin).await;
+            let mut session = build_session(
+                identifier.map(extract_identifier),
+                resume,
+                extension,
+                builtin,
+            )
+            .await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
 
             if interactive {
