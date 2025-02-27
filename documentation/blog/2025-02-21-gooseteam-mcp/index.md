@@ -17,7 +17,7 @@ Aaron Goldsmith made an AI agent team consisting of multiple Goose instances a r
 
 ## GooseTeam MCP Server
 
-Introducing [GooseTeam](https://github.com/cliffhall/GooseTeam/tree/main/p1), created by Software Architect and community member, Cliff Hall. GooseTeam takes Aaron's protocol and iterates on it into an MCP server and collaboration protocol for Goose Agents. With features like task management, message storage, and agent waiting, you can have an entire team of Goose agents work together on a task or project for you.
+Introducing [GooseTeam](https://github.com/cliffhall/GooseTeam), created by Software Architect and community member, Cliff Hall. GooseTeam takes Aaron's protocol and iterates on it into an MCP server and collaboration protocol for Goose Agents. With features like task management, message storage, and agent waiting, you can have an entire team of Goose agents work together on a task or project for you.
 
 A Goose agent with the Project Coordinator role will assign roles to other agents, your connected agents will send messages that can retrieved at any time, and your team of agents will connect to the same MCP server to collaborate together.
 
@@ -28,7 +28,7 @@ A Goose agent with the Project Coordinator role will assign roles to other agent
 Working with a team of AI agents on a task is a game changer. Instead of getting confused as to how to improve your prompt engineering on your own or work across sessions manually, tools like Cliff's GooseTeam or Aaron's Agent Communication Protocol help us make sure AI agents like Goose are doing the work for us as efficiently as possible. The possibilities feel endless!
 
 ## Get Your Contribution Featured
-Hopefully this contribution inspired you as much as it inspired our community. If you have a Goose contribution or project you'd like to share with our community, join our [Discord](https://discord.gg/block-opensource) and share your work in the** #share-your-work** channel. You may just be featured on our livestream or get a cool prize. 👀 You can also star Goose on GitHub or follow us on social media so you never miss an update from us. Until next time!
+Hopefully this contribution inspired you as much as it inspired our community. If you have a Goose contribution or project you'd like to share with our community, join our [Discord](https://discord.gg/block-opensource) and share your work in the **#share-your-work** channel. You may just be featured on our livestream or get a cool prize. 👀 You can also star Goose on GitHub or follow us on social media so you never miss an update from us. Until next time!
 
 
 <head>
