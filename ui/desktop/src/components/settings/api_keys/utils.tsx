@@ -8,6 +8,7 @@ export function isSecretKey(keyName: string): boolean {
     'DATABRICKS_HOST',
     'OLLAMA_HOST',
     'OPENAI_HOST',
+    'OPENAI_BASE_PATH',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
   ];
@@ -24,22 +25,22 @@ export async function getActiveProviders(): Promise<string[]> {
     const configSettings = await getConfigSettings();
 
     const activeProviders = Object.values(configSettings)
-        .filter((provider) => {
-          // 1. Get provider's config_status
-          const configStatus = provider.config_status ?? {};
+      .filter((provider) => {
+        // 1. Get provider's config_status
+        const configStatus = provider.config_status ?? {};
 
-          // 2. Collect only the keys *not* in default_key_value
-          const requiredKeyEntries = Object.entries(configStatus).filter(([k]) => isRequiredKey(k));
+        // 2. Collect only the keys *not* in default_key_value
+        const requiredKeyEntries = Object.entries(configStatus).filter(([k]) => isRequiredKey(k));
 
-          // 3. If there are *no* non-default keys, it is NOT active
-          if (requiredKeyEntries.length === 0) {
-            return false;
-          }
+        // 3. If there are *no* non-default keys, it is NOT active
+        if (requiredKeyEntries.length === 0) {
+          return false;
+        }
 
-          // 4. Otherwise, all non-default keys must be `is_set`
-          return requiredKeyEntries.every(([_, value]) => value?.is_set);
-        })
-        .map((provider) => provider.name || 'Unknown Provider');
+        // 4. Otherwise, all non-default keys must be `is_set`
+        return requiredKeyEntries.every(([_, value]) => value?.is_set);
+      })
+      .map((provider) => provider.name || 'Unknown Provider');
 
     console.log('[GET ACTIVE PROVIDERS]:', activeProviders);
     return activeProviders;

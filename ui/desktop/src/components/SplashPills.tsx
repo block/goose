@@ -5,11 +5,8 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
     <div
       className={`px-4 py-2 text-sm text-center text-textSubtle dark:text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
       onClick={async () => {
-        const message = {
-          content: longForm || content,
-          role: 'user',
-        };
-        await append(message);
+        // Use the longForm text if provided, otherwise use the content
+        await append(longForm || content);
       }}
     >
       <div className="line-clamp-2">{content}</div>

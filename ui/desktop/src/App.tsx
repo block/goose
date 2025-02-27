@@ -14,6 +14,7 @@ import { extractExtensionName } from './components/settings/extensions/utils';
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
 import SettingsView, { type SettingsViewOptions } from './components/settings/SettingsView';
+import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import ProviderSettings from './components/settings/providers/providers/NewProviderSettingsPage';
@@ -28,7 +29,8 @@ export type View =
   | 'moreModels'
   | 'configureProviders'
   | 'configPage'
-  | 'alphaConfigureProviders';
+  | 'alphaConfigureProviders'
+  | 'settingsV2';
 
 export type ViewConfig = {
   view: View;
@@ -202,15 +204,24 @@ export default function App() {
               }}
             />
           )}
-          {view === 'settings' && (
-            <SettingsView
-              onClose={() => {
-                setView('chat');
-              }}
-              setView={setView}
-              viewOptions={viewOptions as SettingsViewOptions}
-            />
-          )}
+          {view === 'settings' &&
+            (process.env.ALPHA ? (
+              <SettingsViewV2
+                onClose={() => {
+                  setView('chat');
+                }}
+                setView={setView}
+                viewOptions={viewOptions as SettingsViewOptions}
+              />
+            ) : (
+              <SettingsView
+                onClose={() => {
+                  setView('chat');
+                }}
+                setView={setView}
+                viewOptions={viewOptions as SettingsViewOptions}
+              />
+            ))}
           {view === 'moreModels' && (
             <MoreModelsView
               onClose={() => {

@@ -5,6 +5,21 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 
+pub enum Identifier {
+    Name(String),
+    Path(PathBuf),
+}
+
+pub fn get_path(id: Identifier) -> PathBuf {
+    match id {
+        Identifier::Name(name) => {
+            let session_dir = ensure_session_dir().expect("Failed to create session directory");
+            session_dir.join(format!("{}.jsonl", name))
+        }
+        Identifier::Path(path) => path,
+    }
+}
+
 /// Ensure the session directory exists and return its path
 pub fn ensure_session_dir() -> Result<PathBuf> {
     let data_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
@@ -71,7 +86,7 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 ///
 /// Overwrites the file with all messages in JSONL format.
 pub fn persist_messages(session_file: &Path, messages: &[Message]) -> Result<()> {
-    let file = File::create(session_file)?;
+    let file = File::create(session_file).expect("The path specified does not exist");
     let mut writer = io::BufWriter::new(file);
 
     for message in messages {

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 ---
+
 # Updating Goose
 
 import Tabs from '@theme/Tabs';
@@ -12,10 +13,15 @@ import Link from "@docusaurus/Link";
 To update Goose to the latest stable version, reinstall using the instructions below
 :::
 
-
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-    You can update Goose by running the [installation](/docs/getting-started/installation) script again:
+    You can update Goose by simply running:
+
+    ```sh
+    goose update
+    ```
+
+    Or you can run the [installation](/docs/getting-started/installation) script again:
 
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
@@ -49,4 +55,3 @@ To update Goose to the latest stable version, reinstall using the instructions b
 </Tabs>
 
 All configuration settings will remain the same, with Goose updated to the latest version.
-
