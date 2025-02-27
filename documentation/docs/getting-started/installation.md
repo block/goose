@@ -32,7 +32,7 @@ import RateLimits from '@site/src/components/RateLimits';
         curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
-        :::tip Updating Goose CLI
+        :::tip Updating Goose
         It's best to keep Goose updated. To update Goose, run:
         ```sh
         goose update
@@ -54,7 +54,7 @@ import RateLimits from '@site/src/components/RateLimits';
           1. Unzip the downloaded `Goose.zip` file.
           2. Run the executable file to launch the Goose desktop application.
 
-          :::tip Updating Goose Desktop
+          :::tip Updating Goose
           It's best to keep Goose updated. To update, reperform installation steps.
           :::
 
