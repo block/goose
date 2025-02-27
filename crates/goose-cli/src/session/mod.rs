@@ -12,9 +12,9 @@ use anyhow::Result;
 use etcetera::choose_app_strategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
-use goose::message::{prompt_content_to_message_content, Message, MessageContent};
+use goose::message::{Message, MessageContent};
 use mcp_core::handler::ToolError;
-use mcp_core::prompt::{PromptMessage, PromptMessageRole};
+use mcp_core::prompt::PromptMessage;
 
 use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
@@ -242,20 +242,8 @@ impl Session {
                         match self.get_prompt(&opts.name, arguments).await {
                             Ok(messages) => {
                                 // convert the PromptMessages to Messages
-                                for message in messages {
-                                    let msg_content =
-                                        prompt_content_to_message_content(message.content);
-                                    match message.role {
-                                        PromptMessageRole::User => {
-                                            self.messages
-                                                .push(Message::user().with_content(msg_content));
-                                        }
-                                        PromptMessageRole::Assistant => {
-                                            self.messages.push(
-                                                Message::assistant().with_content(msg_content),
-                                            );
-                                        }
-                                    }
+                                for prompt_message in messages {
+                                    self.messages.push(Message::from(prompt_message));
                                 }
                                 output::show_thinking();
                                 self.process_agent_response(true).await?;
