@@ -241,13 +241,39 @@ impl Session {
 
                         match self.get_prompt(&opts.name, arguments).await {
                             Ok(messages) => {
-                                // convert the PromptMessages to Messages
-                                for prompt_message in messages {
-                                    self.messages.push(Message::from(prompt_message));
+                                let start_len = self.messages.len();
+                                let mut valid = true;
+                                for (i, prompt_message) in messages.into_iter().enumerate() {
+                                    let msg = Message::from(prompt_message);
+                                    // ensure we get a User - Assistant - User type pattern
+                                    let expected_role = if i % 2 == 0 {
+                                        mcp_core::Role::User
+                                    } else {
+                                        mcp_core::Role::Assistant
+                                    };
+
+                                    if msg.role != expected_role {
+                                        output::render_error(&format!(
+                                            "Expected {:?} message at position {}, but found {:?}",
+                                            expected_role, i, msg.role
+                                        ));
+                                        valid = false;
+                                        // get rid of everything we added to messages
+                                        self.messages.truncate(start_len);
+                                        break;
+                                    }
+
+                                    if msg.role == mcp_core::Role::User {
+                                        output::render_message(&msg);
+                                    }
+                                    self.messages.push(msg);
                                 }
-                                output::show_thinking();
-                                self.process_agent_response(true).await?;
-                                output::hide_thinking();
+
+                                if valid {
+                                    output::show_thinking();
+                                    self.process_agent_response(true).await?;
+                                    output::hide_thinking();
+                                }
                             }
                             Err(e) => output::render_error(&e.to_string()),
                         }
