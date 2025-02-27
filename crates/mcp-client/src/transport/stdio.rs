@@ -221,8 +221,7 @@ impl StdioTransport {
     }
 
     async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout, ChildStderr), Error> {
-        let resolved_command = self.resolve_command_path()?;
-        let mut command = Command::new(&resolved_command);
+        let mut command = Command::new(&self.resolve_command_path()?);
         command
             .envs(&self.env)
             .args(&self.args)
