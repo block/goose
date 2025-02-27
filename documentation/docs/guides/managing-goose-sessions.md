@@ -44,7 +44,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 
         ```
         starting session | provider: openai model: gpt-4o
-        logging to ~/.config/goose/sessions/react-migration.json1
+        logging to ~/.local/share/goose/sessions/react-migration.json1
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
@@ -58,7 +58,7 @@ If this is your first session, Goose will prompt you for an API key to access an
     <TabItem value="cli" label="Goose CLI" default>
         To save and exit a session, hold down `Ctrl` + `C`. Alternatively, you can type `exit` to save and exit the session.
 
-        Your session will be stored locally in `~/.config/goose/sessions`.
+        Your session will be stored locally in `~/.local/share/goose/sessions`.
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
     To exit a session, simply close the application.
