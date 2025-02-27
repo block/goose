@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
 use mcp_core::{
-    handler::{ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ToolError},
+    prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
@@ -617,6 +618,23 @@ impl Router for GoogleDriveRouter {
         let this = self.clone();
         let uri_clone = uri.to_string();
         Box::pin(async move { this.read_google_resource(uri_clone).await })
+    }
+
+    fn list_prompts(&self) -> Vec<Prompt> {
+        vec![]
+    }
+
+    fn get_prompt(
+        &self,
+        prompt_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
+        let prompt_name = prompt_name.to_string();
+        Box::pin(async move {
+            Err(PromptError::NotFound(format!(
+                "Prompt {} not found",
+                prompt_name
+            )))
+        })
     }
 }
 

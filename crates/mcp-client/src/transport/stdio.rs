@@ -87,10 +87,18 @@ impl StdioActor {
                             "Received incoming message"
                         );
 
-                        if let JsonRpcMessage::Response(response) = &message {
-                            if let Some(id) = &response.id {
-                                pending_requests.respond(&id.to_string(), Ok(message)).await;
+                        match &message {
+                            JsonRpcMessage::Response(response) => {
+                                if let Some(id) = &response.id {
+                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
+                                }
                             }
+                            JsonRpcMessage::Error(error) => {
+                                if let Some(id) = &error.id {
+                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
+                                }
+                            }
+                            _ => {} // TODO: Handle other variants (Request, etc.)
                         }
                     }
                     line.clear();

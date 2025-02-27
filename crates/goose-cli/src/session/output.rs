@@ -2,9 +2,11 @@ use bat::WrappingMode;
 use console::style;
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
 
 // Re-export theme for use in main
@@ -71,6 +73,14 @@ impl ThinkingIndicator {
             spinner.stop("");
         }
     }
+}
+
+#[derive(Debug)]
+pub struct PromptInfo {
+    pub name: String,
+    pub description: Option<String>,
+    pub arguments: Option<Vec<PromptArgument>>,
+    pub extension: Option<String>,
 }
 
 // Global thinking indicator
@@ -152,6 +162,51 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
 
 pub fn render_error(message: &str) {
     println!("\n  {} {}\n", style("error:").red().bold(), message);
+}
+
+pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
+    println!();
+    for (extension, prompts) in prompts {
+        println!(" {}", style(extension).green());
+        for prompt in prompts {
+            println!("  - {}", style(prompt).cyan());
+        }
+    }
+    println!();
+}
+
+pub fn render_prompt_info(info: &PromptInfo) {
+    println!();
+
+    if let Some(ext) = &info.extension {
+        println!(" {}: {}", style("Extension").green(), ext);
+    }
+
+    println!(" Prompt: {}", style(&info.name).cyan().bold());
+
+    if let Some(desc) = &info.description {
+        println!("\n {}", desc);
+    }
+
+    if let Some(args) = &info.arguments {
+        println!("\n Arguments:");
+        for arg in args {
+            let required = arg.required.unwrap_or(false);
+            let req_str = if required {
+                style("(required)").red()
+            } else {
+                style("(optional)").dim()
+            };
+
+            println!(
+                "  {} {} {}",
+                style(&arg.name).yellow(),
+                req_str,
+                arg.description.as_deref().unwrap_or("")
+            );
+        }
+    }
+    println!();
 }
 
 pub fn render_extension_success(name: &str) {

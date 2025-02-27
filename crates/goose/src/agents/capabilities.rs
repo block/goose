@@ -1,6 +1,8 @@
+use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
+use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -13,7 +15,7 @@ use crate::prompt_template::{load_prompt, load_prompt_file};
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
-use mcp_core::{Content, Tool, ToolCall, ToolError, ToolResult};
+use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -544,6 +546,87 @@ impl Capabilities {
 
         result
     }
+
+    pub async fn list_prompts_from_extension(
+        &self,
+        extension_name: &str,
+    ) -> Result<Vec<Prompt>, ToolError> {
+        let client = self.clients.get(extension_name).ok_or_else(|| {
+            ToolError::InvalidParameters(format!("Extension {} is not valid", extension_name))
+        })?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .list_prompts(None)
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!(
+                    "Unable to list prompts for {}, {:?}",
+                    extension_name, e
+                ))
+            })
+            .map(|lp| lp.prompts)
+    }
+
+    pub async fn list_prompts(&self) -> Result<HashMap<String, Vec<Prompt>>, ToolError> {
+        let mut futures = FuturesUnordered::new();
+
+        for extension_name in self.clients.keys() {
+            futures.push(async move {
+                (
+                    extension_name,
+                    self.list_prompts_from_extension(extension_name).await,
+                )
+            });
+        }
+
+        let mut all_prompts = HashMap::new();
+        let mut errors = Vec::new();
+
+        // Process results as they complete
+        while let Some(result) = futures.next().await {
+            let (name, prompts) = result;
+            match prompts {
+                Ok(content) => {
+                    all_prompts.insert(name.to_string(), content);
+                }
+                Err(tool_error) => {
+                    errors.push(tool_error);
+                }
+            }
+        }
+
+        // Log any errors that occurred
+        if !errors.is_empty() {
+            tracing::error!(
+                errors = ?errors
+                    .into_iter()
+                    .map(|e| format!("{:?}", e))
+                    .collect::<Vec<_>>(),
+                "errors from listing prompts"
+            );
+        }
+
+        Ok(all_prompts)
+    }
+
+    pub async fn get_prompt(
+        &self,
+        extension_name: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
+        let client = self
+            .clients
+            .get(extension_name)
+            .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .get_prompt(name, arguments)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
+    }
 }
 
 #[cfg(test)]
@@ -556,7 +639,8 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, InitializeResult, ListResourcesResult, ListToolsResult, ReadResourceResult,
+        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, ReadResourceResult,
     };
     use serde_json::json;
 
@@ -624,6 +708,21 @@ mod tests {
                 }),
                 _ => Err(Error::NotInitialized),
             }
+        }
+
+        async fn list_prompts(
+            &self,
+            _next_cursor: Option<String>,
+        ) -> Result<ListPromptsResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn get_prompt(
+            &self,
+            _name: &str,
+            _arguments: Value,
+        ) -> Result<GetPromptResult, Error> {
+            Err(Error::NotInitialized)
         }
     }
 

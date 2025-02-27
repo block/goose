@@ -2203,6 +2203,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "shlex",
  "temp-env",
  "tempfile",
  "test-case",

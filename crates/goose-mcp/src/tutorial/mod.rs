@@ -5,7 +5,8 @@ use serde_json::{json, Value};
 use std::{future::Future, pin::Pin};
 
 use mcp_core::{
-    handler::{ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ToolError},
+    prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
     role::Role,
@@ -155,6 +156,23 @@ impl Router for TutorialRouter {
         _uri: &str,
     ) -> Pin<Box<dyn Future<Output = Result<String, ResourceError>> + Send + 'static>> {
         Box::pin(async move { Ok("".to_string()) })
+    }
+
+    fn list_prompts(&self) -> Vec<Prompt> {
+        vec![]
+    }
+
+    fn get_prompt(
+        &self,
+        prompt_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
+        let prompt_name = prompt_name.to_string();
+        Box::pin(async move {
+            Err(PromptError::NotFound(format!(
+                "Prompt {} not found",
+                prompt_name
+            )))
+        })
     }
 }
 

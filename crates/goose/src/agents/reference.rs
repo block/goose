@@ -2,6 +2,7 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
@@ -13,7 +14,10 @@ use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
+use anyhow::{anyhow, Result};
 use indoc::indoc;
+use mcp_core::prompt::Prompt;
+use mcp_core::protocol::GetPromptResult;
 use mcp_core::tool::Tool;
 use serde_json::{json, Value};
 
@@ -197,6 +201,37 @@ impl Agent for ReferenceAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
+            .list_prompts()
+            .await
+            .expect("Failed to list prompts")
+    }
+
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+        let capabilities = self.capabilities.lock().await;
+
+        // First find which extension has this prompt
+        let prompts = capabilities
+            .list_prompts()
+            .await
+            .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
+
+        if let Some(extension) = prompts
+            .iter()
+            .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
+            .map(|(extension, _)| extension)
+        {
+            return capabilities
+                .get_prompt(extension, name, arguments)
+                .await
+                .map_err(|e| anyhow!("Failed to get prompt: {}", e));
+        }
+
+        Err(anyhow!("Prompt '{}' not found", name))
     }
 }
 
