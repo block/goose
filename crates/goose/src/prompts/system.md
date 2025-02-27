@@ -30,6 +30,8 @@ and platform__list_resources on this extension.
 No extensions are defined. You should let the user know that they should add extensions.
 {% endif %}
 
+
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.
@@ -39,3 +41,12 @@ No extensions are defined. You should let the user know that they should add ext
   - Links formatted correctly, either as linked text (e.g., [this is linked text](https://example.com)) or automatic links using angle brackets (e.g., <http://example.com/>).
 - For code examples, use fenced code blocks by placing triple backticks (` ``` `) before and after the code. Include the language identifier after the opening backticks (e.g., ` ```python `) to enable syntax highlighting.
 - Ensure clarity, conciseness, and proper formatting to enhance readability and usability.
+
+Tell the user what tool to use by specifying the tools in this JSON format
+{
+  "name": "tool_name",
+  "arguments": {
+    "parameter1": "value1",
+    "parameter2": "value2"
+            }
+}
