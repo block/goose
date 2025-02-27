@@ -22,7 +22,7 @@ Goose’s **permissions** determine how much autonomy it has when modifying file
 :::
 
 ## Configuring Goose Permissions
-To configure your chosen goose permissions, run `goose configure` in the CLI or visit the `Provider Settings` page in the Goose Desktop.
+Here's how to configure your chosen goose permissions:
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
