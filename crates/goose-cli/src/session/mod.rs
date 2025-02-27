@@ -1,4 +1,5 @@
 mod builder;
+mod completion;
 mod input;
 mod output;
 mod prompt;
@@ -6,6 +7,7 @@ mod storage;
 mod thinking;
 
 pub use builder::build_session;
+use completion::GooseCompleter;
 
 use anyhow::Result;
 use etcetera::choose_app_strategy;
@@ -19,6 +21,8 @@ use rand::{distributions::Alphanumeric, Rng};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
 use tokio;
 
 use crate::log_usage::log_usage;
@@ -27,6 +31,25 @@ pub struct Session {
     agent: Box<dyn Agent>,
     messages: Vec<Message>,
     session_file: PathBuf,
+    // Cache for completion data - using std::sync for thread safety without async
+    completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+}
+
+// Cache structure for completion data
+struct CompletionCache {
+    prompts: HashMap<String, Vec<String>>,
+    prompt_info: HashMap<String, output::PromptInfo>,
+    last_updated: Instant,
+}
+
+impl CompletionCache {
+    fn new() -> Self {
+        Self {
+            prompts: HashMap::new(),
+            prompt_info: HashMap::new(),
+            last_updated: Instant::now(),
+        }
+    }
 }
 
 impl Session {
@@ -43,6 +66,7 @@ impl Session {
             agent,
             messages,
             session_file,
+            completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
         }
     }
 
@@ -87,7 +111,12 @@ impl Session {
         self.agent
             .add_extension(config)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+
+        // Invalidate the completion cache when a new extension is added
+        self.invalidate_completion_cache().await;
+
+        Ok(())
     }
 
     /// Add a builtin extension to the session
@@ -104,6 +133,10 @@ impl Session {
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
         }
+
+        // Invalidate the completion cache when a new extension is added
+        self.invalidate_completion_cache().await;
+
         Ok(())
     }
 
@@ -169,7 +202,21 @@ impl Session {
             self.process_message(msg).await?;
         }
 
-        let mut editor = rustyline::Editor::<(), rustyline::history::DefaultHistory>::new()?;
+        // Initialize the completion cache
+        self.update_completion_cache().await?;
+
+        // Create a new editor with our custom completer
+        let config = rustyline::Config::builder()
+            .completion_type(rustyline::CompletionType::Circular)
+            .build();
+        let mut editor =
+            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
+                config,
+            )?;
+
+        // Set up the completer with a reference to the completion cache
+        let completer = GooseCompleter::new(self.completion_cache.clone());
+        editor.set_helper(Some(completer));
 
         // Load history from messages
         for msg in self
@@ -431,5 +478,46 @@ impl Session {
 
     pub fn session_file(&self) -> PathBuf {
         self.session_file.clone()
+    }
+
+    /// Update the completion cache with fresh data
+    /// This should be called before the interactive session starts
+    pub async fn update_completion_cache(&mut self) -> Result<()> {
+        // Get fresh data
+        let prompts = self.agent.list_extension_prompts().await;
+
+        // Update the cache with write lock
+        let mut cache = self.completion_cache.write().unwrap();
+        cache.prompts.clear();
+        cache.prompt_info.clear();
+
+        for (extension, prompt_list) in prompts {
+            let names: Vec<String> = prompt_list.iter().map(|p| p.name.clone()).collect();
+            cache.prompts.insert(extension.clone(), names);
+
+            for prompt in prompt_list {
+                cache.prompt_info.insert(
+                    prompt.name.clone(),
+                    output::PromptInfo {
+                        name: prompt.name.clone(),
+                        description: prompt.description.clone(),
+                        arguments: prompt.arguments.clone(),
+                        extension: Some(extension.clone()),
+                    },
+                );
+            }
+        }
+
+        cache.last_updated = Instant::now();
+        Ok(())
+    }
+
+    /// Invalidate the completion cache
+    /// This should be called when extensions are added or removed
+    async fn invalidate_completion_cache(&self) {
+        let mut cache = self.completion_cache.write().unwrap();
+        cache.prompts.clear();
+        cache.prompt_info.clear();
+        cache.last_updated = Instant::now();
     }
 }

@@ -75,7 +75,7 @@ impl ThinkingIndicator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PromptInfo {
     pub name: String,
     pub description: Option<String>,

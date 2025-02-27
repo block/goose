@@ -3,6 +3,8 @@ use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
 
+use super::completion::GooseCompleter;
+
 #[derive(Debug)]
 pub enum InputResult {
     Message(String),
@@ -23,7 +25,7 @@ pub struct PromptCommandOptions {
 }
 
 pub fn get_input(
-    editor: &mut Editor<(), rustyline::history::DefaultHistory>,
+    editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
     // Ensure Ctrl-J binding is set for newlines
     editor.bind_sequence(
