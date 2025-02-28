@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
 
@@ -203,8 +204,32 @@ impl StdioTransport {
         }
     }
 
+    fn resolve_command_path(&self) -> Result<String, Error> {
+        let command = &self.command;
+        let path = Path::new(command);
+
+        let abs_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .map_err(|e| {
+                    Error::StdioProcessError(format!("Failed to get current directory: {}", e))
+                })?
+                .join(path)
+        };
+
+        if !abs_path.exists() {
+            return Err(Error::StdioProcessError(format!(
+                "Command not found at path: {}",
+                abs_path.display()
+            )));
+        }
+
+        Ok(abs_path.to_string_lossy().into_owned())
+    }
+
     async fn spawn_process(&self) -> Result<(Child, ChildStdin, ChildStdout, ChildStderr), Error> {
-        let mut command = Command::new(&self.command);
+        let mut command = Command::new(&self.resolve_command_path()?);
         command
             .envs(&self.env)
             .args(&self.args)
