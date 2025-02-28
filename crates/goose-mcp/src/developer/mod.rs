@@ -202,42 +202,68 @@ impl DeveloperRouter {
         );
 
         let list_windows_tool = Tool::new(
-            "list_windows",
-            indoc! {r#"
-                List all available window titles that can be used with screen_capture.
-                Returns a list of window titles that can be used with the window_title parameter
-                of the screen_capture tool.
-            "#},
+            "list_windows".to_string(),
+            "List available window titles for screen capture.".to_string(),
             json!({
                 "type": "object",
-                "required": [],
                 "properties": {}
             }),
         );
 
         let screen_capture_tool = Tool::new(
-            "screen_capture",
+            "screen_capture".to_string(),
             indoc! {r#"
-                Capture a screenshot of a specified display or window.
-                You can capture either:
-                1. A full display (monitor) using the display parameter
-                2. A specific window by its title using the window_title parameter
+                Captures the screen or a specific window.
 
-                Only one of display or window_title should be specified.
-            "#},
+                Use `window_title` to capture a specific window. If no window title is provided, the primary display will be captured.
+                The `display` parameter (default 0) specifies which display to capture when no window is specified.
+            "#}.to_string(),
             json!({
                 "type": "object",
-                "required": [],
                 "properties": {
-                    "display": {
-                        "type": "integer",
-                        "default": 0,
-                        "description": "The display number to capture (0 is main display)"
-                    },
-                    "window_title": {
-                        "type": "string",
-                        "default": null,
-                        "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
+                    "window_title": {"type": "string", "description": "Title of the window to capture. If not provided, captures the display."},
+                    "display": {"type": "integer", "description": "Display number to capture (default: 0). Only used if window_title is not provided."}
+                }
+            }),
+        );
+
+        let reset_session_messages_tool = Tool::new(
+            "reset_session_messages".to_string(),
+            indoc! {r#"
+                Reset the current session's messages with a new set of messages.
+                
+                This tool allows you to replace all messages in the current session with a new set of messages.
+                The new messages should be provided as a JSON array of message objects, where each message has:
+                - role: "user" or "assistant"
+                - content: An array of content objects, typically with "text" content
+
+                Use this tool with caution as it will replace the entire conversation history.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "required": ["messages"],
+                "properties": {
+                    "messages": {
+                        "type": "array",
+                        "description": "Array of message objects to replace the current session messages with",
+                        "items": {
+                            "type": "object",
+                            "required": ["role", "content"],
+                            "properties": {
+                                "role": {
+                                    "type": "string",
+                                    "enum": ["user", "assistant"],
+                                    "description": "The role of the message sender"
+                                },
+                                "content": {
+                                    "type": "array",
+                                    "description": "Array of content objects",
+                                    "items": {
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }),
@@ -375,6 +401,7 @@ impl DeveloperRouter {
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
+                reset_session_messages_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
@@ -853,6 +880,32 @@ impl DeveloperRouter {
             Content::image(data, "image/png").with_priority(0.0),
         ])
     }
+
+    async fn reset_session_messages(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        // In this function, we just return a response that will be specially handled by the Session struct
+        // Check that messages parameter exists
+        let messages = params.get("messages").ok_or_else(|| {
+            ToolError::InvalidParameters("Missing required parameter: messages".into())
+        })?;
+
+        // Validate that messages is an array
+        if !messages.is_array() {
+            return Err(ToolError::InvalidParameters(
+                "messages must be an array".into(),
+            ));
+        }
+
+        // Return a special response that will be processed by the Session struct
+        Ok(vec![
+            Content::text("⚠️ Request to reset session messages received.").with_audience(vec![Role::Assistant]),
+            // Use custom text prefix to identify this as a special message for resetting
+            Content::text(format!("__RESET_SESSION_MESSAGES__:{}", 
+                serde_json::to_string(messages).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to serialize messages: {}", e))
+                })?
+            )).with_audience(vec![Role::Assistant]),
+        ])
+    }
 }
 
 impl Router for DeveloperRouter {
@@ -888,6 +941,7 @@ impl Router for DeveloperRouter {
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
+                "reset_session_messages" => this.reset_session_messages(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
