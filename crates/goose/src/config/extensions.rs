@@ -33,7 +33,7 @@ impl ExtensionManager {
                         enabled: true,
                         config: ExtensionConfig::Builtin {
                             name: DEFAULT_EXTENSION.to_string(),
-                            timeout: DEFAULT_EXTENSION_TIMEOUT,
+                            timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                         },
                     },
                 )]);

@@ -108,7 +108,12 @@ impl Capabilities {
             } => {
                 let transport = SseTransport::new(uri, envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
             ExtensionConfig::Stdio {
@@ -120,7 +125,12 @@ impl Capabilities {
             } => {
                 let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
             ExtensionConfig::Builtin { name, timeout } => {
@@ -136,7 +146,12 @@ impl Capabilities {
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(*timeout));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
         };

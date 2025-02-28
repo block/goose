@@ -38,7 +38,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                     enabled: true,
                     config: ExtensionConfig::Builtin {
                         name: "developer".to_string(),
-                        timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                     },
                 })?;
             }
@@ -443,7 +443,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
                     // NOTE: default timeout for builtin tools
-                    timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+                    timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                 },
             })?;
 
@@ -517,7 +517,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
-                    timeout,
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -587,7 +587,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
-                    timeout,
+                    timeout: Some(timeout),
                 },
             })?;
 

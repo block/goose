@@ -54,7 +54,9 @@ pub enum ExtensionConfig {
         uri: String,
         #[serde(default)]
         envs: Envs,
-        timeout: u64,
+        // NOTE: set timeout to be optional for compatibility.
+        // However, new configurations should include this field.
+        timeout: Option<u64>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -65,14 +67,14 @@ pub enum ExtensionConfig {
         args: Vec<String>,
         #[serde(default)]
         envs: Envs,
-        timeout: u64,
+        timeout: Option<u64>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
     Builtin {
         /// The name used to identify this extension
         name: String,
-        timeout: u64,
+        timeout: Option<u64>,
     },
 }
 
@@ -80,7 +82,7 @@ impl Default for ExtensionConfig {
     fn default() -> Self {
         Self::Builtin {
             name: config::DEFAULT_EXTENSION.to_string(),
-            timeout: config::DEFAULT_EXTENSION_TIMEOUT,
+            timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
         }
     }
 }
@@ -91,7 +93,7 @@ impl ExtensionConfig {
             name: name.into(),
             uri: uri.into(),
             envs: Envs::default(),
-            timeout: timeout.into(),
+            timeout: Some(timeout.into()),
         }
     }
 
@@ -101,7 +103,7 @@ impl ExtensionConfig {
             cmd: cmd.into(),
             args: vec![],
             envs: Envs::default(),
-            timeout: timeout.into(),
+            timeout: Some(timeout.into()),
         }
     }
 
