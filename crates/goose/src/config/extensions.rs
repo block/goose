@@ -4,7 +4,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-const DEFAULT_EXTENSION: &str = "developer";
+pub const DEFAULT_EXTENSION: &str = "developer";
+pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ExtensionEntry {
@@ -32,6 +33,7 @@ impl ExtensionManager {
                         enabled: true,
                         config: ExtensionConfig::Builtin {
                             name: DEFAULT_EXTENSION.to_string(),
+                            timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                         },
                     },
                 )]);
