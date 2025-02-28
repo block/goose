@@ -272,7 +272,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               {formData.type !== 'builtin' && (
                 <div>
                   <label className="block text-sm font-medium text-textStandard mb-2">
-                    Timeout *
+                    Timeout (secs)*
                   </label>
                   <Input
                     type="number"
