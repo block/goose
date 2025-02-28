@@ -29,11 +29,14 @@ export default function ProviderConfigurationModal({
 
   return (
     <ProviderSetupOverlay>
-      {/* Logo area - centered above title */}
-      <ProviderLogo providerName={provider.id} />
-
-      {/* Title and some information - centered */}
-      <ProviderSetupHeader title={headerText} body={descriptionText} />
+      <div className="space-y-1">
+        {' '}
+        {/* Reduced space between items */}
+        {/* Logo area - centered above title */}
+        <ProviderLogo providerName={provider.id} />
+        {/* Title and some information - centered */}
+        <ProviderSetupHeader title={headerText} body={descriptionText} />
+      </div>
 
       {/* Contains information used to set up each provider */}
       <ProviderSetupForm
