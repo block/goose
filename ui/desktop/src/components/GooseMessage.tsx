@@ -79,13 +79,13 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
             </div>
             <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
               <button
-                className="px-4 py-2 bg-green-400 text-white rounded-lg hover:bg-green-500"
+                className="hover:bg-slate hover:text-white rounded-full px-6 py-2 transition"
                 onClick={() => ConfirmToolRequest(toolConfirmationId, true)}
               >
                 Allow tool
               </button>
               <button
-                className="px-4 py-2 bg-red-400 text-white rounded-lg hover:bg-red-500"
+                className="hover:bg-slate hover:text-white rounded-full px-6 py-2 transition"
                 onClick={() => ConfirmToolRequest(toolConfirmationId, false)}
               >
                 Deny
