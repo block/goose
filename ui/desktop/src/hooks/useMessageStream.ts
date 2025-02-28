@@ -217,7 +217,6 @@ export function useMessageStream({
                 switch (parsedEvent.type) {
                   case 'Message':
                     // Update messages with the new message
-                    console.log(parsedEvent);
                     currentMessages = [...currentMessages, parsedEvent.message];
                     mutate(currentMessages, false);
                     break;
