@@ -4,6 +4,8 @@ use mcp_client::client::Error as ClientError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::config;
+
 /// Errors from Extension operation
 #[derive(Error, Debug)]
 pub enum ExtensionError {
@@ -52,6 +54,9 @@ pub enum ExtensionConfig {
         uri: String,
         #[serde(default)]
         envs: Envs,
+        // NOTE: set timeout to be optional for compatibility.
+        // However, new configurations should include this field.
+        timeout: Option<u64>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -62,38 +67,43 @@ pub enum ExtensionConfig {
         args: Vec<String>,
         #[serde(default)]
         envs: Envs,
+        timeout: Option<u64>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
     Builtin {
         /// The name used to identify this extension
         name: String,
+        timeout: Option<u64>,
     },
 }
 
 impl Default for ExtensionConfig {
     fn default() -> Self {
         Self::Builtin {
-            name: String::from("default"),
+            name: config::DEFAULT_EXTENSION.to_string(),
+            timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
         }
     }
 }
 
 impl ExtensionConfig {
-    pub fn sse<S: Into<String>>(name: S, uri: S) -> Self {
+    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, timeout: T) -> Self {
         Self::Sse {
             name: name.into(),
             uri: uri.into(),
             envs: Envs::default(),
+            timeout: Some(timeout.into()),
         }
     }
 
-    pub fn stdio<S: Into<String>>(name: S, cmd: S) -> Self {
+    pub fn stdio<S: Into<String>, T: Into<u64>>(name: S, cmd: S, timeout: T) -> Self {
         Self::Stdio {
             name: name.into(),
             cmd: cmd.into(),
             args: vec![],
             envs: Envs::default(),
+            timeout: Some(timeout.into()),
         }
     }
 
@@ -104,12 +114,17 @@ impl ExtensionConfig {
     {
         match self {
             Self::Stdio {
-                name, cmd, envs, ..
+                name,
+                cmd,
+                envs,
+                timeout,
+                ..
             } => Self::Stdio {
                 name,
                 cmd,
                 envs,
                 args: args.into_iter().map(Into::into).collect(),
+                timeout,
             },
             other => other,
         }
@@ -120,7 +135,7 @@ impl ExtensionConfig {
         match self {
             Self::Sse { name, .. } => name,
             Self::Stdio { name, .. } => name,
-            Self::Builtin { name } => name,
+            Self::Builtin { name, .. } => name,
         }
     }
 }
@@ -134,7 +149,7 @@ impl std::fmt::Display for ExtensionConfig {
             } => {
                 write!(f, "Stdio({}: {} {})", name, cmd, args.join(" "))
             }
-            ExtensionConfig::Builtin { name } => write!(f, "Builtin({})", name),
+            ExtensionConfig::Builtin { name, .. } => write!(f, "Builtin({})", name),
         }
     }
 }
