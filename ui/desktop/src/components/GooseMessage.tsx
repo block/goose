@@ -36,11 +36,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(textContent, previousUrls) : [];
 
-  const isToolConfirmationActive = messageIndex === messages.length - 1;
   const [toolConfirmationId, hasToolConfirmation] = getToolConfirmationRequestId(message);
-  if (hasToolConfirmation) {
-    textContent = 'Goose would like to call the above tool. Allow?';
-  }
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -77,20 +73,25 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         )}
 
         {hasToolConfirmation && (
-          <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-2">
-            <button
-              className="px-4 py-2 bg-green-400 text-white rounded-lg hover:bg-green-500"
-              onClick={() => ConfirmToolRequest(toolConfirmationId, true)}
-            >
-              Allow tool
-            </button>
-            <button
-              className="px-4 py-2 bg-red-400 text-white rounded-lg hover:bg-red-500"
-              onClick={() => ConfirmToolRequest(toolConfirmationId, false)}
-            >
-              Deny
-            </button>
-          </div>
+          <>
+            <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none">
+              Goose would like to call the above tool. Allow?
+            </div>
+            <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
+              <button
+                className="px-4 py-2 bg-green-400 text-white rounded-lg hover:bg-green-500"
+                onClick={() => ConfirmToolRequest(toolConfirmationId, true)}
+              >
+                Allow tool
+              </button>
+              <button
+                className="px-4 py-2 bg-red-400 text-white rounded-lg hover:bg-red-500"
+                onClick={() => ConfirmToolRequest(toolConfirmationId, false)}
+              >
+                Deny
+              </button>
+            </div>
+          </>
         )}
 
         {toolRequests.length > 0 && (
