@@ -292,14 +292,15 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         None => {
-            Cli::command().print_help()?;
-            println!();
             if !Config::global().exists() {
-                println!(
-                    "\n  {}: Run '{}' to setup goose for the first time",
-                    style("Tip").green().italic(),
-                    style("goose configure").cyan()
-                );
+                let _ = handle_configure().await;
+                return Ok(());
+            } else {
+                // Run session command by default
+                let mut session = build_session(None, false, vec![], vec![]).await;
+                setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
+                let _ = session.interactive(None).await;
+                return Ok(());
             }
         }
     }
