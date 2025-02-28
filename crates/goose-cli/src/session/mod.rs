@@ -12,6 +12,7 @@ pub use storage::Identifier;
 use anyhow::Result;
 use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
+use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
@@ -223,24 +224,41 @@ impl Session {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        // Load history from messages
-        for msg in self
-            .messages
-            .iter()
-            .filter(|m| m.role == mcp_core::role::Role::User)
-        {
-            for content in msg.content.iter() {
-                if let Some(text) = content.as_text() {
-                    if let Err(e) = editor.add_history_entry(text) {
-                        eprintln!("Warning: Failed to add history entry: {}", e);
-                    }
-                }
+        // Create and use a global history file in ~/.config/goose directory
+        // This allows command history to persist across different chat sessions
+        // instead of being tied to each individual session's messages
+        let history_file = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .in_config_dir("history.txt");
+
+        // Ensure config directory exists
+        if let Some(parent) = history_file.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent)?;
             }
         }
+
+        // Load history from the global file
+        if history_file.exists() {
+            if let Err(err) = editor.load_history(&history_file) {
+                eprintln!("Warning: Failed to load command history: {}", err);
+            }
+        }
+
+        // Helper function to save history after commands
+        let save_history =
+            |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
+                if let Err(err) = editor.save_history(&history_file) {
+                    eprintln!("Warning: Failed to save command history: {}", err);
+                }
+            };
+
         output::display_greeting();
         loop {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
+                    save_history(&mut editor);
+
                     self.messages.push(Message::user().with_text(&content));
                     storage::persist_messages(&self.session_file, &self.messages)?;
 
@@ -250,18 +268,24 @@ impl Session {
                 }
                 input::InputResult::Exit => break,
                 input::InputResult::AddExtension(cmd) => {
+                    save_history(&mut editor);
+
                     match self.add_extension(cmd.clone()).await {
                         Ok(_) => output::render_extension_success(&cmd),
                         Err(e) => output::render_extension_error(&cmd, &e.to_string()),
                     }
                 }
                 input::InputResult::AddBuiltin(names) => {
+                    save_history(&mut editor);
+
                     match self.add_builtin(names.clone()).await {
                         Ok(_) => output::render_builtin_success(&names),
                         Err(e) => output::render_builtin_error(&names, &e.to_string()),
                     }
                 }
                 input::InputResult::ToggleTheme => {
+                    save_history(&mut editor);
+
                     let current = output::get_theme();
                     let new_theme = match current {
                         output::Theme::Light => {
@@ -282,12 +306,16 @@ impl Session {
                 }
                 input::InputResult::Retry => continue,
                 input::InputResult::ListPrompts(extension) => {
+                    save_history(&mut editor);
+
                     match self.list_prompts(extension).await {
                         Ok(prompts) => output::render_prompts(&prompts),
                         Err(e) => output::render_error(&e.to_string()),
                     }
                 }
                 input::InputResult::PromptCommand(opts) => {
+                    save_history(&mut editor);
+
                     // name is required
                     if opts.name.is_empty() {
                         output::render_error("Prompt name argument is required");
