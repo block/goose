@@ -119,9 +119,6 @@ async fn handler(
     // Get a lock on the shared agent
     let agent = state.agent.clone();
 
-    // Clone messages for storage
-    let messages_for_storage = messages.clone();
-
     // Spawn task to handle streaming
     tokio::spawn(async move {
         let agent = agent.lock().await;
@@ -169,21 +166,16 @@ async fn handler(
         };
 
         // Collect all messages for storage
-        let mut all_messages = messages_for_storage.clone();
-        let mut response_message = Message::assistant();
+        let mut all_messages = messages.clone();
+        let session_path = session::get_path(session::Identifier::Name(session_id));
+        let provider = agent.provider();
 
         loop {
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
-                            // Accumulate the message content for storage
-                            if message.role == Role::Assistant {
-                                for content in &message.content {
-                                    response_message.content.push(content.clone());
-                                }
-                            }
-                            
+                            all_messages.push(message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
                                 let _ = stream_event(
@@ -194,6 +186,16 @@ async fn handler(
                                 ).await;
                                 break;
                             }
+                            
+                            // Store messages and generate description in background
+                            let session_path = session_path.clone();
+                            let messages = all_messages.clone();
+                            let provider = provider.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = session::persist_messages(&session_path, &messages, provider).await {
+                                    tracing::error!("Failed to store session history: {:?}", e);
+                                }
+                            });
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
@@ -217,22 +219,6 @@ async fn handler(
                     }
                 }
             }
-        }
-
-        // Add the complete response message to the conversation history
-        if !response_message.content.is_empty() {
-            all_messages.push(response_message);
-        }
-
-        // Get the session path - file will be created when needed
-        let session_path = session::get_path(session::Identifier::Name(session_id));
-        
-        // Get provider for description generation
-        let provider = agent.provider();
-        
-        // Persist messages with description generation
-        if let Err(e) = session::persist_messages(&session_path, &all_messages, Some(provider)).await {
-            tracing::error!("Failed to store session history: {:?}", e);
         }
 
         // Send finish event
@@ -333,10 +319,15 @@ async fn ask_handler(
     // Get provider for description generation
     let provider = agent.provider();
     
-    // Persist messages with description generation
-    if let Err(e) = session::persist_messages(&session_path, &all_messages, Some(provider)).await {
-        tracing::error!("Failed to store session history: {:?}", e);
-    }
+    // Store messages and generate description in background
+    let session_path = session_path.clone();
+    let messages = all_messages.clone();
+    let provider = provider.clone();
+    tokio::spawn(async move {
+        if let Err(e) = session::persist_messages(&session_path, &messages, provider).await {
+            tracing::error!("Failed to store session history: {:?}", e);
+        }
+    });
 
     Ok(Json(AskResponse {
         response: response_text.trim().to_string(),

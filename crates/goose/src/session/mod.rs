@@ -2,17 +2,6 @@ pub mod storage;
 
 // Re-export common session types and functions
 pub use storage::{
-    Identifier, 
-    SessionMetadata,
-    ensure_session_dir, 
-    get_path, 
-    get_most_recent_session, 
-    list_sessions,
-    read_messages, 
-    read_metadata,
-    persist_messages,
-    persist_messages_with_metadata,
-    update_metadata,
-    generate_session_id,
-    create_session,
+    ensure_session_dir, generate_session_id, get_most_recent_session, get_path, list_sessions,
+    persist_messages, read_messages, read_metadata, update_metadata, generate_description, Identifier, SessionMetadata,
 };

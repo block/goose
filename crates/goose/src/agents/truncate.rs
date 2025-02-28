@@ -5,6 +5,7 @@ use futures::stream::BoxStream;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
+use std::sync::Arc;
 
 use super::detect_read_only_tools;
 use super::Agent;
@@ -393,6 +394,11 @@ impl Agent for TruncateAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    fn provider(&self) -> Option<Arc<Box<dyn Provider>>> {
+        let capabilities = self.capabilities.try_lock().ok()?;
+        Some(capabilities.provider())
     }
 }
 

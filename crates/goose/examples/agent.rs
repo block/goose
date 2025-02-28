@@ -14,7 +14,7 @@ async fn main() {
     // Setup an agent with the developer extension
     let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
 
-    let config = ExtensionConfig::stdio("developer", "./target/debug/developer");
+    let config = ExtensionConfig::stdio("developer", "./target/debug/developer", 500);
     agent.add_extension(config).await.unwrap();
 
     println!("Extensions:");

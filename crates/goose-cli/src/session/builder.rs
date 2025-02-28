@@ -89,7 +89,7 @@ pub async fn build_session(
         // Create new session with provided name/path or generated name
         let id = match identifier {
             Some(identifier) => identifier,
-            None => Identifier::Name(generate_session_name()),
+            None => Identifier::Name(session::generate_session_id()),
         };
         
         // Just get the path - file will be created when needed
@@ -131,9 +131,4 @@ pub async fn build_session(
 
     output::display_session_info(resume, &provider_name, &model, &session_file);
     session
-}
-
-fn generate_session_name() -> String {
-    // Use the same timestamp format as in storage.rs
-    session::generate_session_id()
 }

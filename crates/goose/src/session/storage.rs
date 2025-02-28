@@ -1,13 +1,13 @@
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use crate::message::Message;
-use crate::providers::Provider;
+use crate::providers::base::Provider;
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufWriter, Write};
+use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use chrono::Local;
 use serde::{Serialize, Deserialize};
-use std::sync::Arc;
 
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,41 +106,7 @@ pub fn generate_session_id() -> String {
     Local::now().format("%Y%m%d_%H%M%S").to_string()
 }
 
-/// Create a new session file with empty metadata
-///
-/// Creates parent directories if needed and initializes the file with empty metadata.
-/// Returns the path to the created session file.
-/// 
-/// Note: This function is provided for cases where you need to explicitly create
-/// a session file before adding messages. In most cases, you can simply use
-/// `persist_messages` which will create the file if needed.
-pub fn create_session(id: Identifier) -> Result<PathBuf> {
-    let session_file = get_path(id);
-    
-    // Check if file already exists
-    if session_file.exists() {
-        return Err(anyhow::anyhow!("Session '{}' already exists", session_file.display()));
-    }
-    
-    // Create parent directories if they don't exist
-    if let Some(parent) = session_file.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent)?;
-        }
-    }
-
-    // Initialize the session file with empty metadata
-    let metadata = SessionMetadata {
-        description: String::new(),
-    };
-    
-    // Write the metadata to the file
-    persist_messages_with_metadata(&session_file, &metadata, &[])?;
-
-    Ok(session_file)
-}
-
-/// Read messages and metadata from a session file
+/// Read messages from a session file
 ///
 /// Creates the file if it doesn't exist, reads and deserializes all messages if it does.
 /// The first line of the file is expected to be metadata, and the rest are messages.
@@ -217,7 +183,7 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 pub async fn persist_messages(
     session_file: &Path, 
     messages: &[Message], 
-    provider: Option<&dyn Provider>
+    provider: Option<Arc<Box<dyn Provider>>>
 ) -> Result<()> {
     // Read existing metadata
     let mut metadata = read_metadata(session_file)?;
@@ -229,25 +195,50 @@ pub async fn persist_messages(
     
     // Check if we need to update the description (after 1st or 3rd user message)
     if let Some(provider) = provider {
-        if (user_message_count == 1 || user_message_count == 3) {
-            // Generate description in the background
-            tokio::spawn(async move {
-                match generate_description(session_file, messages, provider).await {
-                    Ok(_) => (),
-                    Err(e) => tracing::error!("Failed to generate session description: {:?}", e),
+        if user_message_count == 1 || user_message_count == 3 {
+            // Generate description
+            let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
+            
+            // get context from messages so far
+            let context: Vec<String> = messages.iter()
+                .filter(|m| m.role == mcp_core::role::Role::User)
+                .take(3)  // Use up to first 3 user messages for context
+                .filter_map(|m| Some(m.as_concat_text()))
+                .collect();
+
+            if !context.is_empty() {
+                description_prompt = format!(
+                    "Here are the first few user messages:\n{}\n\n{}",
+                    context.join("\n"),
+                    description_prompt
+                );
+            }
+
+            // Generate the description
+            let message = Message::user().with_text(&description_prompt);
+            match provider.complete(
+                "Reply with only a description in four words or less",
+                &[message],
+                &[]
+            ).await {
+                Ok((response, _)) => {
+                    metadata.description = response.as_concat_text();
+                },
+                Err(e) => {
+                    tracing::error!("Failed to generate session description: {:?}", e);
                 }
-            });
+            }
         }
     }
     
     // Write the file with metadata and messages
-    persist_messages_with_metadata(session_file, &metadata, messages)
+    save_messages_with_metadata(session_file, &metadata, messages)
 }
 
 /// Write messages to a session file with the provided metadata
 ///
 /// Overwrites the file with metadata as the first line, followed by all messages in JSONL format.
-pub fn persist_messages_with_metadata(
+pub fn save_messages_with_metadata(
     session_file: &Path, 
     metadata: &SessionMetadata, 
     messages: &[Message]
@@ -271,44 +262,41 @@ pub fn persist_messages_with_metadata(
 
 /// Generate a description for the session using the provider
 ///
-/// This function is called internally by persist_messages when appropriate.
-async fn generate_description(
+/// This function is called when appropriate to generate a short description
+/// of the session based on the conversation history.
+pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
     provider: &dyn Provider
 ) -> Result<()> {
     // Create a special message asking for a 3-word description
-    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 3 words or less.".to_string();
+    let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
     
-    // Add a bit of context from the messages
-    if !messages.is_empty() {
-        let context: Vec<String> = messages.iter()
-            .filter(|m| m.role == mcp_core::role::Role::User)
-            .take(3)  // Use up to first 3 user messages for context
-            .filter_map(|m| Some(m.as_concat_text()))
-            .collect();
-        
-        if !context.is_empty() {
-            description_prompt = format!(
-                "Here are the first few user messages:\n{}\n\n{}",
-                context.join("\n"),
-                description_prompt
-            );
-        }
+    // get context from messages so far
+    let context: Vec<String> = messages.iter()
+        .filter(|m| m.role == mcp_core::role::Role::User)
+        .take(3)  // Use up to first 3 user messages for context
+        .filter_map(|m| Some(m.as_concat_text()))
+        .collect();
+
+    if !context.is_empty() {
+        description_prompt = format!(
+            "Here are the first few user messages:\n{}\n\n{}",
+            context.join("\n"),
+            description_prompt
+        );
     }
-    
+
     // Generate the description
-    let description = match provider.generate(&description_prompt, None).await {
-        Ok(text) => {
-            // Clean up the description - keep only the first 3 words
-            let words: Vec<&str> = text.split_whitespace().collect();
-            words.into_iter().take(3).collect::<Vec<_>>().join(" ")
-        },
-        Err(e) => {
-            return Err(anyhow::anyhow!("Failed to generate description: {}", e));
-        }
-    };
-    
+    let message = Message::user().with_text(&description_prompt);
+    let result = provider.complete(
+        "Reply with only a description in four words or less",
+        &[message],
+        &[]
+    ).await?;
+
+    let description = result.0.as_concat_text();
+
     // Read current metadata
     let mut metadata = read_metadata(session_file)?;
     
@@ -327,7 +315,7 @@ pub fn update_metadata(session_file: &Path, metadata: &SessionMetadata) -> Resul
     let messages = read_messages(session_file)?;
     
     // Rewrite the file with the new metadata and existing messages
-    persist_messages_with_metadata(session_file, metadata, &messages)
+    save_messages_with_metadata(session_file, metadata, &messages)
 }
 
 #[cfg(test)]

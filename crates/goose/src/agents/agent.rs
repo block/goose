@@ -2,10 +2,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use serde_json::Value;
+use std::sync::Arc;
 
 use super::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::Message;
-use crate::providers::base::ProviderUsage;
+use crate::providers::base::{Provider, ProviderUsage};
 
 /// Core trait defining the behavior of an Agent
 #[async_trait]
@@ -37,4 +38,7 @@ pub trait Agent: Send + Sync {
 
     /// Override the system prompt with custom text
     async fn override_system_prompt(&mut self, template: String);
+
+    /// Get a reference to the provider used by this agent
+    fn provider(&self) -> Option<Arc<Box<dyn Provider>>>;
 }

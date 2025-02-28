@@ -112,7 +112,7 @@ impl Session {
         let provider = self.agent.provider();
         
         // Persist messages with provider for automatic description generation
-        session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+        session::persist_messages(&self.session_file, &self.messages, provider).await?;
         
         self.process_agent_response(false).await?;
         Ok(())
@@ -151,7 +151,7 @@ impl Session {
                     let provider = self.agent.provider();
                     
                     // Persist messages with provider for automatic description generation
-                    session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+                    session::persist_messages(&self.session_file, &self.messages, provider).await?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -249,7 +249,9 @@ impl Session {
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);
-                            self.handle_interrupted_messages(false);
+                            if let Err(e) = self.handle_interrupted_messages(false).await {
+                                eprintln!("Error handling interruption: {}", e);
+                            }
                             output::render_error(
                                 "The error above was an exception we were not able to handle.\n\
                                 These errors are often related to connection or authentication\n\
@@ -263,7 +265,9 @@ impl Session {
                 }
                 _ = tokio::signal::ctrl_c() => {
                     drop(stream);
-                    self.handle_interrupted_messages(true);
+                    if let Err(e) = self.handle_interrupted_messages(true).await {
+                        eprintln!("Error handling interruption: {}", e);
+                    }
                     break;
                 }
             }
@@ -271,7 +275,7 @@ impl Session {
         Ok(())
     }
 
-    fn handle_interrupted_messages(&mut self, interrupt: bool) {
+    async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
         // First, get any tool requests from the last message if it exists
         let tool_requests = self
             .messages
@@ -351,6 +355,7 @@ impl Session {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn session_file(&self) -> PathBuf {

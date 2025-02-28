@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
+use std::sync::Arc;
 
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
@@ -197,6 +198,11 @@ impl Agent for ReferenceAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    fn provider(&self) -> Option<Arc<Box<dyn Provider>>> {
+        let capabilities = self.capabilities.try_lock().ok()?;
+        Some(capabilities.provider())
     }
 }
 
