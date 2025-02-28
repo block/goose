@@ -334,7 +334,7 @@ fn print_markdown(content: &str, theme: Theme) {
         .input(bat::Input::from_bytes(content.as_bytes()))
         .theme(theme.as_str())
         .language("Markdown")
-        .wrapping_mode(WrappingMode::Character)
+        .wrapping_mode(WrappingMode::NoWrapping(true))
         .print()
         .unwrap();
 }
