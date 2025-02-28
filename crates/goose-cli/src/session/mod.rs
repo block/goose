@@ -243,7 +243,7 @@ impl Session {
 
         // Helper function to save history after commands
         let save_history =
-            |editor: &mut rustyline::Editor<(), rustyline::history::DefaultHistory>| {
+            |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
                 if let Err(err) = editor.save_history(&history_file) {
                     eprintln!("Warning: Failed to save command history: {}", err);
                 }
@@ -303,7 +303,7 @@ impl Session {
                 input::InputResult::Retry => continue,
                 input::InputResult::ListPrompts(extension) => {
                     save_history(&mut editor);
-                  
+
                     match self.list_prompts(extension).await {
                         Ok(prompts) => output::render_prompts(&prompts),
                         Err(e) => output::render_error(&e.to_string()),
