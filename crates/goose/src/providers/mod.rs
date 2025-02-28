@@ -2,6 +2,7 @@ pub mod anthropic;
 pub mod azure;
 pub mod base;
 pub mod bedrock;
+pub mod custom_openai;
 pub mod databricks;
 pub mod errors;
 mod factory;
