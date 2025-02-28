@@ -4,6 +4,7 @@ import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
 // ExtensionConfig type matching the Rust version
+// TODO: refactor this
 export type ExtensionConfig =
   | {
       type: 'sse';

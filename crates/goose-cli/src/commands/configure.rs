@@ -442,7 +442,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
-                    // TODO: should set timeout
+                    // NOTE: default timeout for builtin tools
                     timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
                 },
             })?;
@@ -472,6 +472,14 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     } else {
                         Ok(())
                     }
+                })
+                .interact()?;
+
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
                 })
                 .interact()?;
 
@@ -509,8 +517,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
-                    // TODO: should set timeout
-                    timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+                    timeout,
                 },
             })?;
 
@@ -544,6 +551,14 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
+                })
+                .interact()?;
+
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
@@ -572,8 +587,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
-                    // TODO: should set timeout
-                    timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+                    timeout,
                 },
             })?;
 
