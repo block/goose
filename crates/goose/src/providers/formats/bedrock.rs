@@ -34,6 +34,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
+        MessageContent::Thinking(_) => {
+            // Thinking blocks are not supported in Bedrock - skip
+            bedrock::ContentBlock::Text("".to_string())
+        }
+        MessageContent::RedactedThinking(_) => {
+            // Redacted thinking blocks are not supported in Bedrock - skip
+            bedrock::ContentBlock::Text("".to_string())
+        }
         MessageContent::ToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {

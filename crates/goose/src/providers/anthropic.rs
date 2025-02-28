@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use axum::http::HeaderMap;
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
 use std::time::Duration;
@@ -17,6 +18,8 @@ pub const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-3-5-sonnet-latest",
     "claude-3-5-haiku-latest",
     "claude-3-opus-latest",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-7-sonnet-latest",
 ];
 
 pub const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
@@ -57,7 +60,7 @@ impl AnthropicProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, headers: HeaderMap, payload: Value) -> Result<Value, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
         let url = base_url.join("v1/messages").map_err(|e| {
@@ -67,8 +70,7 @@ impl AnthropicProvider {
         let response = self
             .client
             .post(url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
+            .headers(headers)
             .json(&payload)
             .send()
             .await?;
@@ -155,8 +157,22 @@ impl Provider for AnthropicProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("x-api-key", self.api_key.parse().unwrap());
+        headers.insert("anthropic-version", "2023-06-01".parse().unwrap());
+
+        let is_thinking_enabled = std::env::var("ANTHROPIC_THINKING_ENABLED").is_ok();
+        if self.model.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
+            // https://docs.anthropic.com/en/docs/build-with-claude/tool-use/token-efficient-tool-use
+            headers.insert(
+                "anthropic-beta",
+                "token-efficient-tools-2025-02-19".parse().unwrap(),
+            );
+            // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
+            headers.insert("anthropic-beta", "output-128k-2025-02-19".parse().unwrap());
+        }
         // Make request
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(headers, payload.clone()).await?;
 
         // Parse response
         let message = response_to_message(response.clone())?;

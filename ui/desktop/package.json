@@ -99,6 +99,7 @@
     "react-toastify": "^8.0.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
-    "unist-util-visit": "^5.0.0"
+    "unist-util-visit": "^5.0.0",
+    "uuid": "^11.1.0"
   }
 }

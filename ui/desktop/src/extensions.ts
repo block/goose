@@ -74,6 +74,14 @@ export const BUILT_IN_EXTENSIONS = [
     type: 'builtin',
     env_keys: [],
   },
+  {
+    id: 'tutorial',
+    name: 'Tutorial',
+    description: 'Access interactive tutorials and guides',
+    enabled: false,
+    type: 'builtin',
+    env_keys: [],
+  },
   /* TODO re-enable when we have a smoother auth flow {
     id: 'google_drive',
     name: 'Google Drive',
