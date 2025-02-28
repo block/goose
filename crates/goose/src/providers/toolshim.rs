@@ -1,14 +1,52 @@
+//! # ToolShim Module
+//!
+//! The ToolShim module provides a reusable component for interpreting and augmenting LLM outputs with tool calls,
+//! regardless of whether the underlying model natively supports tool/function calling.
+//!
+//! ## Overview
+//!
+//! ToolShim addresses the challenge of working with models that don't natively support tools by:
+//!
+//! 1. Taking the text output from any LLM
+//! 2. Sending it to a separate "interpreter" model (which can be the same or different model)
+//! 3. Using a model to extract tool call intentions into the appropriate format
+//! 4. Converting the outputs of the interpreter model into proper tool call structs
+//! 5. Augmenting the original message with the extracted tool calls
+//!
+//! ## Key Components
+//!
+//! ### ToolInterpreter Trait
+//!
+//! The core of ToolShim is the `ToolInterpreter` trait, which defines the interface for any model that can interpret text and extract tool calls.
+//!
+//! ### Implementations
+//!
+//! The module provides an implementation for Ollama:
+//!
+//! - `OllamaInterpreter`: Uses Ollama's structured output API to interpret tool calls
+//!
+//! ### Helper Functions
+//!
+//! - `augment_message_with_tool_calls`: A utility function that takes any message, extracts text content, sends it to an interpreter, and adds any detected tool calls back to the message.
+//!
+
 use super::errors::ProviderError;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
-use indoc::formatdoc;
 use mcp_core::tool::{Tool, ToolCall};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
+
+/// Default model to use for tool interpretation
+pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral";
+
+/// Environment variables that affect behavior:
+/// - GOOSE_TOOLSHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
+/// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter (default: DEFAULT_INTERPRETER_MODEL)
 
 /// A trait for models that can interpret text into structured tool call JSON format
 #[async_trait::async_trait]
@@ -19,28 +57,6 @@ pub trait ToolInterpreter {
         content: &str,
         tools: &[Tool],
     ) -> Result<Vec<ToolCall>, ProviderError>;
-}
-
-/// Configuration for the tool interpretation shim
-///
-/// Environment variables that affect behavior:
-/// - GOOSE_TOOL_SHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
-/// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter
-#[derive(Clone, Debug)]
-pub struct ToolShimConfig {
-    /// Model configuration for the interpreter model
-    pub model: ModelConfig,
-    /// Schema to use for structured output (if None, a default will be used)
-    pub format_schema: Option<Value>,
-}
-
-impl Default for ToolShimConfig {
-    fn default() -> Self {
-        Self {
-            model: ModelConfig::new("llama3.2".to_string()),
-            format_schema: None,
-        }
-    }
 }
 
 /// Ollama-specific implementation of the ToolInterpreter trait
@@ -59,7 +75,7 @@ impl OllamaInterpreter {
         Self { client, base_url }
     }
 
-    pub fn tool_structured_ouput_format_schema() -> Value {
+    fn tool_structured_ouput_format_schema() -> Value {
         json!({
             "type": "object",
             "properties": {
@@ -139,7 +155,7 @@ impl OllamaInterpreter {
         Ok(response_json)
     }
 
-    pub fn process_interpreter_response(response: &Value) -> Result<Vec<ToolCall>, ProviderError> {
+    fn process_interpreter_response(response: &Value) -> Result<Vec<ToolCall>, ProviderError> {
         let mut tool_calls = Vec::new();
 
         // Extract tool_calls array from the response
@@ -217,8 +233,8 @@ If NO tools are asked for, return an object with an empty tool_calls array:
         let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
 
         // Determine which model to use for interpretation (from env var or default)
-        let interpreter_model =
-            std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").unwrap_or_else(|_| "phi4".to_string());
+        let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL")
+            .unwrap_or_else(|_| DEFAULT_INTERPRETER_MODEL_OLLAMA.to_string());
 
         // Make a call to ollama with structured output
         let interpreter_response = self
