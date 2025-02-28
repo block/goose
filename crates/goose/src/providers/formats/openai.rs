@@ -127,7 +127,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
                             // First add the tool response with all content
                             output.push(json!({
-                                "role": "user",
+                                "role": "tool",
                                 "content": tool_response_content,
                                 "tool_call_id": response.id
                             }));
