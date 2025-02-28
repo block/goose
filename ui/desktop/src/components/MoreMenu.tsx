@@ -228,7 +228,7 @@ export default function MoreMenu({ setView }: { setView: (view: View) => void })
               }}
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
             >
-              Settings
+              Settings (cmd+,)
             </button>
 
             <button
