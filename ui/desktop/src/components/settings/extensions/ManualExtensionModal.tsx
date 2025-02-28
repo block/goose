@@ -269,22 +269,18 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 )}
               </div>
 
-              {formData.type !== 'builtin' && (
-                <div>
-                  <label className="block text-sm font-medium text-textStandard mb-2">
-                    Timeout (secs)*
-                  </label>
-                  <Input
-                    type="number"
-                    value={formData.timeout || DEFAULT_EXTENSION_TIMEOUT}
-                    onChange={(e) =>
-                      setFormData({ ...formData, timeout: parseInt(e.target.value) })
-                    }
-                    className="w-full"
-                    required
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-textStandard mb-2">
+                  Timeout (secs)*
+                </label>
+                <Input
+                  type="number"
+                  value={formData.timeout || DEFAULT_EXTENSION_TIMEOUT}
+                  onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
+                  className="w-full"
+                  required
+                />
+              </div>
             </div>
             <div className="mt-[8px] -ml-8 -mr-8 pt-8">
               <Button
