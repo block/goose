@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::formats::databricks::{create_request, get_usage, response_to_message};
 use super::oauth;
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
@@ -145,6 +145,13 @@ impl DatabricksProvider {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
+        if std::env::var("GOOSE_DEBUG").is_ok() {
+            println!(
+                "\nRequest:\n{}\n",
+                serde_json::to_string_pretty(&payload).unwrap()
+            );
+        }
+
         let auth_header = self.ensure_auth_header().await?;
         let response = self
             .client
@@ -156,6 +163,13 @@ impl DatabricksProvider {
 
         let status = response.status();
         let payload: Option<Value> = response.json().await.ok();
+
+        if std::env::var("GOOSE_DEBUG").is_ok() {
+            println!(
+                "\nResponse [ {status} ]:\n{}\n",
+                serde_json::to_string_pretty(&payload).unwrap()
+            );
+        }
 
         match status {
             StatusCode::OK => payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),

@@ -87,7 +87,7 @@ impl AnthropicProvider {
 
         if std::env::var("GOOSE_DEBUG").is_ok() {
             println!(
-                "\nResponse:\n{}\n",
+                "\nResponse [ {status} ]:\n{}\n",
                 serde_json::to_string_pretty(&payload).unwrap()
             );
         }
