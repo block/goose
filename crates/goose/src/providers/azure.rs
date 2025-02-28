@@ -67,11 +67,17 @@ impl AzureProvider {
         // Get the existing path without trailing slashes
         let existing_path = base_url.path().trim_end_matches('/');
         let new_path = if existing_path.is_empty() {
-            format!("/openai/deployments/{}/chat/completions", self.deployment_name)
+            format!(
+                "/openai/deployments/{}/chat/completions",
+                self.deployment_name
+            )
         } else {
-            format!("{}/openai/deployments/{}/chat/completions", existing_path, self.deployment_name)
+            format!(
+                "{}/openai/deployments/{}/chat/completions",
+                existing_path, self.deployment_name
+            )
         };
-                
+
         base_url.set_path(&new_path);
         base_url.set_query(Some(&format!("api-version={}", self.api_version)));
 
