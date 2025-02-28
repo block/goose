@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '../config';
+import { v4 as uuidv4 } from 'uuid';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -23,9 +24,33 @@ export interface ChatType {
 }
 
 export default function ChatView({ setView }: { setView: (view: View) => void }) {
+  // Generate or retrieve a unique window ID
+  const [windowId] = useState(() => {
+    // Check if we already have a window ID in sessionStorage
+    const existingId = window.sessionStorage.getItem('goose-window-id');
+    if (existingId) {
+      return existingId;
+    }
+    // Create a new ID if none exists
+    const newId = uuidv4();
+    window.sessionStorage.setItem('goose-window-id', newId);
+    return newId;
+  });
+
   const [chat, setChat] = useState<ChatType>(() => {
+    // Try to load saved chat from sessionStorage
+    const savedChat = window.sessionStorage.getItem(`goose-chat-${windowId}`);
+    if (savedChat) {
+      try {
+        return JSON.parse(savedChat);
+      } catch (e) {
+        console.error('Failed to parse saved chat:', e);
+      }
+    }
+
+    // Return default chat if no saved chat exists
     return {
-      id: 1,
+      id: Date.now(),
       title: 'Chat 1',
       messages: [],
     };
@@ -75,10 +100,19 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
     },
   });
 
-  // Update chat messages when they change
+  // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat) => ({ ...prevChat, messages }));
-  }, [messages]);
+    setChat((prevChat) => {
+      const updatedChat = { ...prevChat, messages };
+      // Save to sessionStorage
+      try {
+        window.sessionStorage.setItem(`goose-chat-${windowId}`, JSON.stringify(updatedChat));
+      } catch (e) {
+        console.error('Failed to save chat to sessionStorage:', e);
+      }
+      return updatedChat;
+    });
+  }, [messages, windowId]);
 
   useEffect(() => {
     if (messages.length > 0) {
