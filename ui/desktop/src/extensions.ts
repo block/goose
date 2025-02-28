@@ -3,6 +3,8 @@ import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
+export const DEFAULT_EXTENSION_TIMEOUT: number = 300;
+
 // ExtensionConfig type matching the Rust version
 // TODO: refactor this
 export type ExtensionConfig =
@@ -11,6 +13,7 @@ export type ExtensionConfig =
       name: string;
       uri: string;
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'stdio';
@@ -18,11 +21,13 @@ export type ExtensionConfig =
       cmd: string;
       args: string[];
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'builtin';
       name: string;
       env_keys?: string[];
+      timeout?: number;
     };
 
 // FullExtensionConfig type matching all the fields that come in deep links and are stored in local storage
@@ -39,6 +44,7 @@ export interface ExtensionPayload {
   args?: string[];
   uri?: string;
   env_keys?: string[];
+  timeout?: number;
 }
 
 export const BUILT_IN_EXTENSIONS = [
@@ -49,6 +55,7 @@ export const BUILT_IN_EXTENSIONS = [
     enabled: true,
     type: 'builtin',
     env_keys: [],
+    timeout: DEFAULT_EXTENSION_TIMEOUT,
   },
   {
     id: 'computercontroller',
@@ -58,6 +65,7 @@ export const BUILT_IN_EXTENSIONS = [
     enabled: false,
     type: 'builtin',
     env_keys: [],
+    timeout: DEFAULT_EXTENSION_TIMEOUT,
   },
   {
     id: 'memory',
@@ -66,6 +74,7 @@ export const BUILT_IN_EXTENSIONS = [
     enabled: false,
     type: 'builtin',
     env_keys: [],
+    timeout: DEFAULT_EXTENSION_TIMEOUT,
   },
   {
     id: 'jetbrains',
@@ -74,6 +83,7 @@ export const BUILT_IN_EXTENSIONS = [
     enabled: false,
     type: 'builtin',
     env_keys: [],
+    timeout: DEFAULT_EXTENSION_TIMEOUT,
   },
   /* TODO re-enable when we have a smoother auth flow {
     id: 'google_drive',
@@ -86,6 +96,7 @@ export const BUILT_IN_EXTENSIONS = [
       'GOOGLE_DRIVE_CREDENTIALS_PATH',
       'GOOGLE_DRIVE_OAUTH_CONFIG',
     ],
+	timeout: DEFAULT_EXTENSION_TIMEOUT,
   },*/
 ];
 
@@ -114,6 +125,7 @@ export async function addExtension(
         name: sanitizeName(extension.name),
       }),
       env_keys: extension.env_keys,
+      timeout: extension.timeout,
     };
 
     const response = await fetch(getApiUrl('/extensions/add'), {
@@ -320,6 +332,7 @@ export async function addExtensionFromDeepLink(
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
   const description = parsedUrl.searchParams.get('description');
+  const timeout = parsedUrl.searchParams.get('timeout');
 
   // split env based on delimiter to a map
   const envs = envList.reduce(
@@ -332,6 +345,9 @@ export async function addExtensionFromDeepLink(
   );
 
   // Create a ExtensionConfig from the URL parameters
+  // Parse timeout if provided, otherwise use default
+  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
+
   const config: FullExtensionConfig = {
     id,
     name,
@@ -341,6 +357,10 @@ export async function addExtensionFromDeepLink(
     description,
     enabled: true,
     env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : [],
+    timeout:
+      parsedTimeout !== null && !isNaN(parsedTimeout) && Number.isInteger(parsedTimeout)
+        ? parsedTimeout
+        : DEFAULT_EXTENSION_TIMEOUT,
   };
 
   // Store the extension config regardless of env vars status

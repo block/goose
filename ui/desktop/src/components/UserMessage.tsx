@@ -11,7 +11,7 @@ interface UserMessageProps {
 export default function UserMessage({ message }: UserMessageProps) {
   // Extract text content from the message
   const textContent = getTextContent(message);
-  
+
   // Extract URLs which explicitly contain the http:// or https:// protocol
   const urls = extractUrls(textContent, []);
 
