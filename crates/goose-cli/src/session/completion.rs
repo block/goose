@@ -140,6 +140,13 @@ impl GooseCompleter {
 
                 // Check if we're trying to complete a partial argument name
                 if let Some(last_part) = parts.last() {
+                    // ignore if last_part starts with = / \ for suggestions
+                    if let Some(c) = last_part.chars().next() {
+                        if matches!(c, '=' | '/' | '\\') {
+                            return Ok((line.len(), vec![]));
+                        }
+                    }
+
                     // If the last part doesn't contain '=', it might be a partial argument name
                     if !last_part.contains('=') {
                         // Find arguments that match the prefix
@@ -164,37 +171,41 @@ impl GooseCompleter {
 
                         // If we have a partial argument that doesn't match anything,
                         // return an empty list rather than suggesting unrelated arguments
-                        if !last_part.is_empty() {
+                        if !last_part.is_empty() && *last_part != prompt_name {
                             return Ok((line.len(), vec![]));
                         }
                     }
                 }
 
-                // If no partial match or no last part, suggest the first required argument
+                // If no partial match or no last part, suggest all required arguments
                 // Use a reference to avoid moving args
+                let mut candidates: Vec<_> = Vec::new();
                 for arg in &args {
                     if arg.required.unwrap_or(false) && !existing_args.contains(&arg.name.as_str())
                     {
-                        let candidates = vec![Pair {
+                        candidates.push(Pair {
                             display: format!("{}=", arg.name),
                             replacement: format!("{}=", arg.name),
-                        }];
-                        return Ok((line.len(), candidates));
+                        });
                     }
                 }
 
-                // If no required arguments left, suggest optional ones
+                if !candidates.is_empty() {
+                    return Ok((line.len(), candidates));
+                }
+
+                // If no required arguments left, suggest all optional ones
                 // Use a reference to avoid moving args
                 for arg in &args {
                     if !arg.required.unwrap_or(true) && !existing_args.contains(&arg.name.as_str())
                     {
-                        let candidates = vec![Pair {
+                        candidates.push(Pair {
                             display: format!("{}=", arg.name),
                             replacement: format!("{}=", arg.name),
-                        }];
-                        return Ok((line.len(), candidates));
+                        });
                     }
                 }
+                return Ok((line.len(), candidates));
             }
         }
 
