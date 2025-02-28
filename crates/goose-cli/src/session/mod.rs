@@ -323,6 +323,62 @@ impl Session {
                                 let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
                                 self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
                             }
+                            // Check if this is a reset_session_messages response
+                            else if let Some(reset_msg) = message.content.iter().find_map(|content| {
+                                if let MessageContent::Text(text) = content {
+                                    if text.text.starts_with("__RESET_SESSION_MESSAGES__:") {
+                                        return Some(text.text.strip_prefix("__RESET_SESSION_MESSAGES__:").unwrap());
+                                    }
+                                }
+                                None
+                            }) {
+                                // This might be a reset_session_messages response, try to parse it
+                                if let Ok(messages_value) = serde_json::from_str::<serde_json::Value>(reset_msg) {
+                                    if messages_value.is_array() {
+                                        // Try to parse the messages
+                                        match serde_json::from_value::<Vec<Message>>(messages_value) {
+                                            Ok(new_messages) => {
+                                                // Found a valid reset_session_messages response!
+                                                output::hide_thinking();
+                                                
+                                                // Get confirmation from user
+                                                let prompt = "Reset all conversation messages with new ones?".to_string();
+                                                let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
+                                                
+                                                if confirmed {
+                                                    // Drop the stream to release the borrow on self
+                                                    drop(stream);
+                                                    
+                                                    // Reset the messages
+                                                    self.reset_messages(new_messages)?;
+                                                    
+                                                    // Show success message to user
+                                                    let success_msg = Message::assistant().with_text("✅ Session messages have been reset successfully.");
+                                                    output::render_message(&success_msg);
+                                                    
+                                                    // Return early as we've reset the conversation state
+                                                    return Ok(());
+                                                } else {
+                                                    // User declined, continue with normal message rendering
+                                                    let decline_msg = Message::assistant().with_text("Session reset was declined.");
+                                                    output::render_message(&decline_msg);
+                                                    continue;
+                                                }
+                                            }
+                                            Err(_) => {
+                                                // Not a valid messages array, continue with normal message handling
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // If we get here, continue with normal message handling
+                                self.messages.push(message.clone());
+                                storage::persist_messages(&self.session_file, &self.messages)?;
+                                if interactive {output::hide_thinking()};
+                                output::render_message(&message);
+                                if interactive {output::show_thinking()};
+                            }
                             // otherwise we have a model/tool to render
                             else {
                                 self.messages.push(message.clone());
@@ -430,5 +486,19 @@ impl Session {
 
     pub fn session_file(&self) -> PathBuf {
         self.session_file.clone()
+    }
+
+    /// Reset the session messages with a new set of messages
+    ///
+    /// # Arguments
+    /// * `new_messages` - A Vec of Messages to replace the current messages with
+    pub fn reset_messages(&mut self, new_messages: Vec<Message>) -> Result<()> {
+        // Replace the messages
+        self.messages = new_messages;
+        
+        // Persist the new messages to the session file
+        storage::persist_messages(&self.session_file, &self.messages)?;
+        
+        Ok(())
     }
 }
