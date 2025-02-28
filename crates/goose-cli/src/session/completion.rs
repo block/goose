@@ -223,6 +223,11 @@ impl Completer for GooseCompleter {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> Result<(usize, Vec<Self::Candidate>)> {
+        // If the cursor is not at the end of the line, don't try to complete
+        if pos < line.len() {
+            return Ok((pos, vec![]));
+        }
+
         // If the line starts with '/', it might be a slash command
         if line.starts_with('/') {
             // If it's just a partial slash command (no space yet)
@@ -510,7 +515,8 @@ mod tests {
         let (_pos, candidates) = completer
             .complete_argument_keys("/prompt test_prompt1")
             .unwrap();
-        assert_eq!(candidates.len(), 0);
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "required_arg=");
 
         // Test with partial argument
         let (_pos, candidates) = completer
