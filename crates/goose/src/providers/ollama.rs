@@ -251,13 +251,18 @@ impl Provider for OllamaProvider {
             tracing::info!("Parsing initial response to message");
             let mut message = response_to_message(response.clone())?;
             
-            // Create an interpreter instance using our base URL
-            let base_url = if self.host.starts_with("http://") || self.host.starts_with("https://") {
-                self.host.clone()
-            } else {
-                format!("http://{}", self.host)
+            // Get the base URL with port already included
+            let base_url = match self.get_base_url() {
+                Ok(url) => {
+                    let url_str = url.to_string();
+                    tracing::info!("Using interpreter base URL: {}", url_str);
+                    url_str
+                },
+                Err(e) => {
+                    tracing::error!("Failed to get base URL: {}", e);
+                    return Err(e);
+                }
             };
-            tracing::info!("Using interpreter base URL: {}", base_url);
             
             // Check if interpreter model is configured
             let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL");
@@ -269,27 +274,6 @@ impl Provider for OllamaProvider {
             // Create interpreter with the specified model
             tracing::info!("Creating OllamaInterpreter instance");
             let interpreter = super::toolshim::OllamaInterpreter::new(base_url);
-            
-            // Log message content before augmentation
-            tracing::info!("Message before augmentation: {} content items", message.content.len());
-            for (i, content) in message.content.iter().enumerate() {
-                match content {
-                    crate::message::MessageContent::Text(text) => {
-                        tracing::info!("Content item {}: Text (length: {}): {}", i, text.text.len(),
-                            if text.text.len() > 200 {
-                                format!("{}...", &text.text[..200])
-                            } else {
-                                text.text.clone()
-                            });
-                    },
-                    crate::message::MessageContent::ToolRequest(_) => {
-                        tracing::info!("Content item {}: ToolRequest (unexpected at this stage)", i);
-                    },
-                    _ => {
-                        tracing::info!("Content item {}: Other type", i);
-                    }
-                }
-            }
             
             // Use the toolshim to augment the message with tool calls
             tracing::info!("Augmenting message with tool calls using interpreter");
@@ -304,27 +288,6 @@ impl Provider for OllamaProvider {
                 }
             };
             
-            // Log message content after augmentation
-            tracing::info!("Message after augmentation: {} content items", message.content.len());
-            for (i, content) in message.content.iter().enumerate() {
-                match content {
-                    crate::message::MessageContent::Text(text) => {
-                        tracing::info!("Content item {}: Text (length: {})", i, text.text.len());
-                    },
-                    crate::message::MessageContent::ToolRequest(tool_req) => {
-                        if let Ok(tool_call) = &tool_req.tool_call {
-                            tracing::info!("Content item {}: ToolRequest - name={}, arguments={}", 
-                                i, tool_call.name, 
-                                serde_json::to_string_pretty(&tool_call.arguments).unwrap_or_default());
-                        } else {
-                            tracing::warn!("Content item {}: ToolRequest with error", i);
-                        }
-                    },
-                    _ => {
-                        tracing::info!("Content item {}: Other type", i);
-                    }
-                }
-            }
             
             // Get usage information
             let usage = match get_usage(&response) {
@@ -368,32 +331,6 @@ impl Provider for OllamaProvider {
             tracing::info!("Parsing response to message");
             let message = response_to_message(response.clone())?;
             
-            // Log message content
-            tracing::info!("Message from response: {} content items", message.content.len());
-            for (i, content) in message.content.iter().enumerate() {
-                match content {
-                    crate::message::MessageContent::Text(text) => {
-                        tracing::info!("Content item {}: Text (length: {}): {}", i, text.text.len(),
-                            if text.text.len() > 200 {
-                                format!("{}...", &text.text[..200])
-                            } else {
-                                text.text.clone()
-                            });
-                    },
-                    crate::message::MessageContent::ToolRequest(tool_req) => {
-                        if let Ok(tool_call) = &tool_req.tool_call {
-                            tracing::info!("Content item {}: ToolRequest - name={}, arguments={}", 
-                                i, tool_call.name, 
-                                serde_json::to_string_pretty(&tool_call.arguments).unwrap_or_default());
-                        } else {
-                            tracing::warn!("Content item {}: ToolRequest with error: {:?}", i, tool_req.tool_call.as_ref().err());
-                        }
-                    },
-                    _ => {
-                        tracing::info!("Content item {}: Other type", i);
-                    }
-                }
-            }
             
             // Get usage information
             let usage = match get_usage(&response) {
