@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
-
 use goose::config::Config;
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
