@@ -8,6 +8,9 @@ export interface ProviderRegistry {
   details: ProviderDetails;
 }
 
+// TODO: abstract out the card actions
+// TODO: define configuration form parts
+// TODO: rename isOnboardingPage to 'showOnBoardingPageButtons' or something
 export const PROVIDER_REGISTRY: ProviderRegistry[] = [
   {
     name: 'OpenAI',
@@ -21,7 +24,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -33,6 +36,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -52,7 +56,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -64,6 +68,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -83,7 +88,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -95,6 +100,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -114,7 +120,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -126,6 +132,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -145,7 +152,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -157,6 +164,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -176,7 +184,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onShowSettings } = callbacks || {};
         return [
           {
@@ -188,6 +196,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
                 onAdd={onAdd}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },
@@ -207,19 +216,19 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks) => {
+      getActions: (provider, callbacks, isOnboardingPage) => {
         const { onAdd, onDelete, onRefresh, onShowSettings } = callbacks || {};
         return [
           {
-            id: 'ollama-actions',
+            id: 'default-provider-actions',
             renderButton: () => (
-              <OllamaActions
+              <DefaultProviderActions
+                name={provider.name}
                 isConfigured={provider.isConfigured}
-                ollamaMetadata={provider.metadata}
                 onAdd={onAdd}
-                onRefresh={onRefresh}
                 onDelete={onDelete}
                 onShowSettings={onShowSettings}
+                isOnboardingPage={isOnboardingPage}
               />
             ),
           },

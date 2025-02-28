@@ -1,4 +1,4 @@
-export default interface ProviderCallbacks {
+export default interface ButtonCallbacks {
   onShowModal?: () => void;
   onAdd?: () => void;
   onDelete?: () => void;

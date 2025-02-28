@@ -2,7 +2,7 @@
 import ProviderState from './ProviderState';
 import ConfigurationAction from './ConfigurationAction';
 import ParameterSchema from '../interfaces/ParameterSchema';
-import ProviderCallbacks from './ConfigurationCallbacks';
+import ButtonCallbacks from './ConfigurationCallbacks';
 
 export default interface ProviderDetails {
   id: string;
@@ -10,5 +10,9 @@ export default interface ProviderDetails {
   description: string;
   parameters: ParameterSchema[];
   getTags?: (name: string) => string[];
-  getActions?: (provider: ProviderState, callbacks: ProviderCallbacks) => ConfigurationAction[];
+  getActions?: (
+    provider: ProviderState,
+    callbacks: ButtonCallbacks,
+    isOnboardingPage: boolean
+  ) => ConfigurationAction[];
 }

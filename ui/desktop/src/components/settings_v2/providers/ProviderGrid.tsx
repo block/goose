@@ -6,7 +6,6 @@ import OnAdd from './callbacks/AddProviderParameters';
 import OnDelete from './callbacks/DeleteProviderParameters';
 import OnShowSettings from './callbacks/UpdateProviderParameters';
 import OnRefresh from './callbacks/RefreshActiveProviders';
-import DefaultProviderActions from '@/src/components/settings_v2/providers/subcomponents/buttons/DefaultProviderActions';
 
 function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +15,13 @@ function GridLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProviderCards({ providers }: { providers: ProviderState[] }) {
+function ProviderCards({
+  providers,
+  isOnboarding,
+}: {
+  providers: ProviderState[];
+  isOnboarding: boolean;
+}) {
   const providerCallbacks = {
     onShowModal: OnShowModal,
     onAdd: OnAdd,
@@ -30,18 +35,25 @@ function ProviderCards({ providers }: { providers: ProviderState[] }) {
         <ProviderCard
           key={provider.name} // helps React efficiently update and track components when rendering lists
           provider={provider}
-          providerCallbacks={providerCallbacks}
+          buttonCallbacks={providerCallbacks}
+          isOnboarding={isOnboarding}
         />
       ))}
     </>
   );
 }
 
-export default function ProviderGrid({ providers }: { providers: ProviderState[] }) {
-  console.log('got these providers', providers);
+export default function ProviderGrid({
+  providers,
+  isOnboarding,
+}: {
+  providers: ProviderState[];
+  isOnboarding: boolean;
+}) {
+  console.log('(1) Provider Grid -- is  this the onboarding page?', isOnboarding);
   return (
     <GridLayout>
-      <ProviderCards providers={providers} />
+      <ProviderCards providers={providers} isOnboarding={isOnboarding} />
     </GridLayout>
   );
 }

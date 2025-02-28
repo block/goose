@@ -32,6 +32,7 @@ export default function DefaultProviderActions({
   onDelete,
   onShowSettings,
 }: ProviderActionsProps) {
+  console.log('is this the onboarding page?', isOnboardingPage);
   return (
     <>
       {/*Set up an unconfigured provider */}

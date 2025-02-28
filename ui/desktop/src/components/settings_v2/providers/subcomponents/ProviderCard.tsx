@@ -3,15 +3,16 @@ import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
 import ProviderState from '../interfaces/ProviderState';
 import CardBody from './CardBody';
-import ProviderCallbacks from '../interfaces/ConfigurationCallbacks';
+import ButtonCallbacks from '../interfaces/ConfigurationCallbacks';
 import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 
 interface ProviderCardProps {
   provider: ProviderState;
-  providerCallbacks: ProviderCallbacks;
+  buttonCallbacks: ButtonCallbacks;
+  isOnboarding: boolean;
 }
 
-export function ProviderCard({ provider, providerCallbacks }: ProviderCardProps) {
+export function ProviderCard({ provider, buttonCallbacks, isOnboarding }: ProviderCardProps) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
 
   // Add safety check
@@ -29,7 +30,7 @@ export function ProviderCard({ provider, providerCallbacks }: ProviderCardProps)
   console.log('provider details', providerDetails);
 
   try {
-    const actions = providerDetails.getActions(provider, providerCallbacks);
+    const actions = providerDetails.getActions(provider, buttonCallbacks, isOnboarding);
 
     return (
       <CardContainer

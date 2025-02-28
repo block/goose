@@ -1,13 +1,11 @@
 import React from 'react';
-import { Card } from '../../../ui/card';
-import ProviderSetupOverlay from './configuration_modal_subcomponents/ProviderSetupOverlay';
-import ProviderSetupHeader from './configuration_modal_subcomponents/ProviderSetupHeader';
-import ProviderSetupForm from './configuration_modal_subcomponents/ProviderSetupForm';
-import ProviderSetupActions from './configuration_modal_subcomponents/ProviderSetupActions';
-import ProviderLogo from './configuration_modal_subcomponents/ProviderLogo';
+import ProviderSetupOverlay from './subcomponents/ProviderSetupOverlay';
+import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
+import ProviderSetupForm from './subcomponents/ProviderSetupForm';
+import ProviderSetupActions from './subcomponents/ProviderSetupActions';
+import ProviderLogo from './subcomponents/ProviderLogo';
 import ProviderConfiguationModalProps from './interfaces/ProviderConfigurationModalProps';
 import { QUICKSTART_GUIDE_URL } from './constants';
-import { ExternalLink } from 'lucide-react';
 
 export default function ProviderConfigurationModal({
   provider,
