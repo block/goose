@@ -1,5 +1,6 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
+use super::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -86,6 +87,37 @@ impl OllamaProvider {
         let response = self.client.post(url).json(&payload).send().await?;
 
         handle_response_openai_compat(response).await
+    }
+
+    fn process_response(
+        &self,
+        payload: Value,
+        response: Value,
+        message: Message,
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        // Get usage information
+        let usage = match get_usage(&response) {
+            Ok(usage) => {
+                tracing::info!(
+                    "Got usage data: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
+                    usage.input_tokens,
+                    usage.output_tokens,
+                    usage.total_tokens
+                );
+                usage
+            }
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+        tracing::info!("Using model: {}", model);
+        super::utils::emit_debug_trace(self, &payload, &response, &usage);
+
+        tracing::info!("Successfully completed request");
+        Ok((message, ProviderUsage::new(model, usage)))
     }
 }
 
@@ -180,8 +212,8 @@ impl Provider for OllamaProvider {
   "arguments": {{
     "parameter1": "value1",
     "parameter2": "value2"
-            }}
-            }}
+  }}
+}}
 ```
         Info: at the start of the session, the user's directory is:
         "#};
@@ -215,24 +247,10 @@ impl Provider for OllamaProvider {
         initial_messages.extend_from_slice(messages);
 
         // Check if tool shim is enabled via environment variables
-        let use_tool_shim = std::env::var("GOOSE_TOOL_SHIM")
+        let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
             .unwrap_or(false);
 
-        tracing::info!("Tool shim enabled: {}", use_tool_shim);
-
-        // Log information about tools
-        tracing::info!("Complete request with {} tools provided", tools.len());
-        for (i, tool) in tools.iter().enumerate() {
-            tracing::info!(
-                "Tool {}: name={}, schema={}",
-                i,
-                tool.name,
-                serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default()
-            );
-        }
-
-        // Choose which approach to use based on environment variables
         if use_tool_shim {
             tracing::info!("Using tool shim approach with Ollama");
 
@@ -242,18 +260,13 @@ impl Provider for OllamaProvider {
                 &self.model,
                 "", // No system prompt, using modified_system as user message content instead
                 &initial_messages,
-                &vec![], // Don't include tools in the initial request
+                &vec![], // No need to include tools since using tool shim
                 &super::utils::ImageFormat::OpenAi,
             )?;
 
-            tracing::info!("Sending initial request to Ollama without tool specifications");
             let response = self.post(payload.clone()).await?;
-
-            // Get the basic message from the response
-            tracing::info!("Parsing initial response to message");
             let mut message = response_to_message(response.clone())?;
 
-            // Get the base URL with port already included
             let base_url = match self.get_base_url() {
                 Ok(url) => {
                     let url_str = url.to_string();
@@ -266,26 +279,8 @@ impl Provider for OllamaProvider {
                 }
             };
 
-            // Check if interpreter model is configured
-            let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL");
-            match &interpreter_model {
-                Ok(model) => tracing::info!("Using interpreter model from env: {}", model),
-                Err(_) => tracing::info!("No interpreter model specified in env, will use default"),
-            }
-
-            // Create interpreter with the specified model
-            tracing::info!("Creating OllamaInterpreter instance");
-            let interpreter = super::toolshim::OllamaInterpreter::new(base_url);
-
-            // Use the toolshim to augment the message with tool calls
-            tracing::info!("Augmenting message with tool calls using interpreter");
-            message = match super::toolshim::augment_message_with_tool_calls(
-                &interpreter,
-                message,
-                tools,
-            )
-            .await
-            {
+            let interpreter = OllamaInterpreter::new(base_url);
+            message = match augment_message_with_tool_calls(&interpreter, message, tools).await {
                 Ok(augmented) => {
                     tracing::info!("Successfully augmented message with tool calls");
                     augmented
@@ -296,75 +291,23 @@ impl Provider for OllamaProvider {
                 }
             };
 
-            // Get usage information
-            let usage = match get_usage(&response) {
-                Ok(usage) => {
-                    tracing::info!(
-                        "Got usage data: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                        usage.input_tokens,
-                        usage.output_tokens,
-                        usage.total_tokens
-                    );
-                    usage
-                }
-                Err(ProviderError::UsageError(e)) => {
-                    tracing::debug!("Failed to get usage data: {}", e);
-                    Usage::default()
-                }
-                Err(e) => return Err(e),
-            };
-
-            let model = get_model(&response);
-            tracing::info!("Using model: {}", model);
-            super::utils::emit_debug_trace(self, &payload, &response, &usage);
-
-            tracing::info!("Successfully completed request with tool shim");
-            Ok((message, ProviderUsage::new(model, usage)))
+            // Process the response and return the result
+            self.process_response(payload, response, message)
         } else {
-            // Traditional approach: include tools in the request
-            tracing::info!("Using traditional approach with Ollama (tools included in request)");
-
-            // Create request with tools included
-            tracing::info!("Creating request with tools for completion");
             let payload = create_request(
                 &self.model,
                 "", // No system prompt, using modified_system as user message content instead
                 &initial_messages,
-                tools, // This is already a &[Tool] so we pass it directly
+                tools,
                 &super::utils::ImageFormat::OpenAi,
             )?;
 
-            tracing::info!("Sending request to Ollama with tool specifications");
             let response = self.post(payload.clone()).await?;
 
-            // Get the message directly from the response
-            tracing::info!("Parsing response to message");
             let message = response_to_message(response.clone())?;
 
-            // Get usage information
-            let usage = match get_usage(&response) {
-                Ok(usage) => {
-                    tracing::info!(
-                        "Got usage data: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                        usage.input_tokens,
-                        usage.output_tokens,
-                        usage.total_tokens
-                    );
-                    usage
-                }
-                Err(ProviderError::UsageError(e)) => {
-                    tracing::debug!("Failed to get usage data: {}", e);
-                    Usage::default()
-                }
-                Err(e) => return Err(e),
-            };
-
-            let model = get_model(&response);
-            tracing::info!("Using model: {}", model);
-            super::utils::emit_debug_trace(self, &payload, &response, &usage);
-
-            tracing::info!("Successfully completed request with traditional approach");
-            Ok((message, ProviderUsage::new(model, usage)))
+            // Process the response and return the result
+            self.process_response(payload, response, message)
         }
     }
 }
