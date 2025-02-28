@@ -1,9 +1,10 @@
 import React from 'react';
-import { AddButton, DeleteButton, ConfigureSettingsButton } from './CardButtons';
+import { AddButton, DeleteButton, ConfigureSettingsButton, RocketButton } from './CardButtons';
 
 interface ProviderActionsProps {
   name: string;
   isConfigured: boolean;
+  isOnboardingPage?: boolean;
   onAdd?: () => void;
   onConfigure?: () => void;
   onDelete?: () => void;
@@ -26,6 +27,7 @@ function getDefaultTooltipMessages(name: string, actionType: string) {
 export default function DefaultProviderActions({
   name,
   isConfigured,
+  isOnboardingPage,
   onAdd,
   onDelete,
   onShowSettings,
@@ -34,7 +36,7 @@ export default function DefaultProviderActions({
     <>
       {/*Set up an unconfigured provider */}
       {!isConfigured && (
-        <AddButton
+        <ConfigureSettingsButton
           tooltip={getDefaultTooltipMessages(name, 'add')}
           onClick={(e) => {
             e.stopPropagation();
@@ -42,8 +44,8 @@ export default function DefaultProviderActions({
           }}
         />
       )}
-      {/*Edit settings of configured provider*/}
-      {isConfigured && (
+      {/*show edit tooltip instead when hovering over button for configured providers*/}
+      {isConfigured && !isOnboardingPage && (
         <ConfigureSettingsButton
           tooltip={getDefaultTooltipMessages(name, 'edit')}
           onClick={(e) => {
@@ -52,13 +54,12 @@ export default function DefaultProviderActions({
           }}
         />
       )}
-      {/*Delete configuration*/}
-      {isConfigured && (
-        <DeleteButton
-          tooltip={getDefaultTooltipMessages(name, 'delete')}
+      {/*show Launch button for configured providers on onboarding page*/}
+      {isConfigured && isOnboardingPage && (
+        <RocketButton
           onClick={(e) => {
             e.stopPropagation();
-            onDelete?.();
+            onShowSettings?.();
           }}
         />
       )}

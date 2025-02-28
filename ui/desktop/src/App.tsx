@@ -18,6 +18,7 @@ import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import ModalTest from './components/settings_v2/providers/modals/modalTest';
 
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -30,7 +31,8 @@ export type View =
   | 'configureProviders'
   | 'configPage'
   | 'alphaConfigureProviders'
-  | 'settingsV2';
+  | 'settingsV2'
+  | 'modalTest';
 
 export type ViewConfig = {
   view: View;
@@ -237,6 +239,7 @@ export default function App() {
               }}
             />
           )}
+          {view === 'modalTest' && <ModalTest onClose={() => setView('chat')} />}
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
