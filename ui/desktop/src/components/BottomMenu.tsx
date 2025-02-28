@@ -5,6 +5,7 @@ import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../ChatWindow';
+import { ConfigureGooseHints } from './ConfigureGooseHints';
 
 export default function BottomMenu({
   hasMessages,
@@ -75,6 +76,10 @@ export default function BottomMenu({
         Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
         <ChevronUp className="ml-1" />
       </span>
+
+      <div className="ml-4">
+        <ConfigureGooseHints directory={window.appConfig.get('GOOSE_WORKING_DIR')} />
+      </div>
 
       {/* Model Selector Dropdown - Only in development */}
       <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>

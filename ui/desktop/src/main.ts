@@ -623,6 +623,41 @@ app.whenReady().then(async () => {
       spawn('xdg-open', [url]);
     }
   });
+
+  ipcMain.handle('read-file', (event, filePath) => {
+    return new Promise((resolve) => {
+      exec(`cat ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+          // File not found
+          resolve({ file: "", filePath, error: null, found: false });
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve({ file: "", filePath, error, found: false });
+        }
+        resolve({ file: stdout, filePath, error: null, found: true });
+      });
+    })
+  })
+
+  ipcMain.handle('write-file', (event, filePath, content) => {
+    return new Promise((resolve) => {
+      const command = `cat << 'EOT' > ${filePath}
+${content}
+EOT`;
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error writing to file:', error);
+          resolve(false);
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve(false);
+        }
+        resolve(true);
+      });
+    });
+  });
 });
 
 // Quit when all windows are closed, except on macOS.
