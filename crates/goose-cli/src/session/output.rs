@@ -107,8 +107,19 @@ pub fn render_message(message: &Message) {
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                // For redacted thinking, print thinking was redacted
+                println!("\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
             _ => {
-                println!("Message type could not be rendered");
+                println!("WARNING: Message content type could not be rendered");
             }
         }
     }

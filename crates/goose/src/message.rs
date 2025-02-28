@@ -44,6 +44,17 @@ pub struct ToolConfirmationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ThinkingContent {
+    pub thinking: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RedactedThinkingContent {
+    pub data: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -52,6 +63,8 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    Thinking(ThinkingContent),
+    RedactedThinking(RedactedThinkingContent),
 }
 
 impl MessageContent {
@@ -97,6 +110,17 @@ impl MessageContent {
             prompt,
         })
     }
+
+    pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
+        MessageContent::Thinking(ThinkingContent {
+            thinking: thinking.into(),
+            signature: signature.into(),
+        })
+    }
+
+    pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
+        MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
+    }
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
             Some(tool_request)
@@ -140,6 +164,22 @@ impl MessageContent {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             MessageContent::Text(text) => Some(&text.text),
+            _ => None,
+        }
+    }
+
+    /// Get the thinking content if this is a ThinkingContent variant
+    pub fn as_thinking(&self) -> Option<&ThinkingContent> {
+        match self {
+            MessageContent::Thinking(thinking) => Some(thinking),
+            _ => None,
+        }
+    }
+
+    /// Get the redacted thinking content if this is a RedactedThinkingContent variant
+    pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
+        match self {
+            MessageContent::RedactedThinking(redacted) => Some(redacted),
             _ => None,
         }
     }
@@ -262,6 +302,20 @@ impl Message {
         self.with_content(MessageContent::tool_confirmation_request(
             id, tool_name, arguments, prompt,
         ))
+    }
+
+    /// Add thinking content to the message
+    pub fn with_thinking<S1: Into<String>, S2: Into<String>>(
+        self,
+        thinking: S1,
+        signature: S2,
+    ) -> Self {
+        self.with_content(MessageContent::thinking(thinking, signature))
+    }
+
+    /// Add redacted thinking content to the message
+    pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
+        self.with_content(MessageContent::redacted_thinking(data))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
