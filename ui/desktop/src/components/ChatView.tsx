@@ -167,13 +167,27 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
     if (message.role === 'user') {
       const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
       const hasTextContent = message.content.some((c) => c.type === 'text');
+      const hasToolConfirmation = message.content.every(
+        (c) => c.type === 'toolConfirmationRequest'
+      );
 
-      // Keep the message if it has text content or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses;
+      // Keep the message if it has text content or tool confirmation or is not just tool responses
+      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
     }
 
     return true;
   });
+
+  const isUserMessage = (message: Message) => {
+    if (message.role === 'assistant') {
+      return false;
+    }
+
+    if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
+      return false;
+    }
+    return true;
+  };
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -187,7 +201,7 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
           <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
             {filteredMessages.map((message, index) => (
               <div key={message.id || index} className="mt-[16px]">
-                {message.role === 'user' ? (
+                {isUserMessage(message) ? (
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage

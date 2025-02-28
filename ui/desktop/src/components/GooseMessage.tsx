@@ -4,7 +4,14 @@ import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
-import { Message, getTextContent, getToolRequests, getToolResponses } from '../types/message';
+import {
+  Message,
+  getTextContent,
+  getToolRequests,
+  getToolResponses,
+  getToolConfirmationRequestId,
+} from '../types/message';
+import { ConfirmToolRequest } from '../utils/toolConfirm';
 
 interface GooseMessageProps {
   message: Message;
@@ -15,10 +22,15 @@ interface GooseMessageProps {
 
 export default function GooseMessage({ message, metadata, messages, append }: GooseMessageProps) {
   // Extract text content from the message
-  const textContent = getTextContent(message);
+  let textContent = getTextContent(message);
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
+
+  const [toolConfirmationId, hasToolConfirmation] = getToolConfirmationRequestId(message);
+  if (hasToolConfirmation) {
+    textContent = 'Goose would like to call the above tool. Allow?';
+  }
 
   // Extract URLs under a few conditions
   // 1. The message is purely text
@@ -60,6 +72,23 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
             className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
           >
             {textContent ? <MarkdownContent content={textContent} /> : null}
+          </div>
+        )}
+
+        {hasToolConfirmation && (
+          <div className="flex gap-4 mt-2">
+            <button
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500"
+              onClick={() => ConfirmToolRequest(toolConfirmationId, true)}
+            >
+              Yes
+            </button>
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500"
+              onClick={() => ConfirmToolRequest(toolConfirmationId, false)}
+            >
+              No
+            </button>
           </div>
         )}
 
