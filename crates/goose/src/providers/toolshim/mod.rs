@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
 use super::errors::ProviderError;
+use crate::providers::formats::openai::create_request;
 
 /// A trait for models that can convert text to structured tool calls
 #[async_trait::async_trait]
@@ -19,11 +20,8 @@ pub trait ToolInterpreter {
 /// Configuration for the tool interpretation shim
 /// 
 /// Environment variables that affect behavior:
-/// - TOOLSHIM_OLLAMA_MODEL: Specify the Ollama model to use for tool call interpretation (default: "phi4")
-/// - TOOLSHIM_ENABLED: If set to "true" or "1", enables the tool shim in EnhancedOllamaProvider (default: true)
 /// - GOOSE_TOOL_SHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
-/// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Must be set along with GOOSE_TOOL_SHIM to specify which model to use for tool interpretation
-///   in the standard OllamaProvider. If GOOSE_TOOL_SHIM is set but this value isn't, the tool shim will be disabled.
+/// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter
 #[derive(Clone, Debug)]
 pub struct ToolShimConfig {
     /// Model configuration for the interpreter model
@@ -44,12 +42,12 @@ impl Default for ToolShimConfig {
     }
 }
 
-/// Helper function to process tool call response 
-/// Extracted from Ollama provider to be reusable
 pub fn process_interpreter_response(
     response: &Value,
-    original_message: Message,
-) -> Result<Message, ProviderError> {
+) -> Result<Vec<ToolCall>, ProviderError> {
+    // Create an empty message to use as fallback
+    let original_message = Message::assistant();
+    
     // First, try to extract text content using response_to_message
     let extracted_message = match super::formats::openai::response_to_message(response.clone()) {
         Ok(message) => message,
@@ -111,13 +109,23 @@ pub fn process_interpreter_response(
                     
                     return match super::formats::openai::response_to_message(wrapped_response) {
                         Ok(message) => {
-                            if !message.content.is_empty() {
-                                Ok(message)
-                            } else {
-                                Ok(original_message)
-                            }
+                            // Extract tool calls from the message
+                            let tool_calls = message.content.iter()
+                                .filter_map(|content| {
+                                    if let MessageContent::ToolRequest(tool_request) = content {
+                                        if let Ok(tool_call) = &tool_request.tool_call {
+                                            Some(tool_call.clone())
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            Ok(tool_calls)
                         },
-                        Err(_) => Ok(original_message)
+                        Err(_) => Ok(vec![])
                     };
                 }
             }
@@ -141,13 +149,23 @@ pub fn process_interpreter_response(
                 
                 return match super::formats::openai::response_to_message(wrapped_response) {
                     Ok(message) => {
-                        if !message.content.is_empty() {
-                            Ok(message)
-                        } else {
-                            Ok(original_message)
-                        }
+                        // Extract tool calls from the message
+                        let tool_calls = message.content.iter()
+                            .filter_map(|content| {
+                                if let MessageContent::ToolRequest(tool_request) = content {
+                                    if let Ok(tool_call) = &tool_request.tool_call {
+                                        Some(tool_call.clone())
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        Ok(tool_calls)
                     },
-                    Err(_) => Ok(original_message)
+                    Err(_) => Ok(vec![])
                 };
             }
         }
@@ -182,13 +200,23 @@ pub fn process_interpreter_response(
         
         return match super::formats::openai::response_to_message(wrapped_response) {
             Ok(message) => {
-                if !message.content.is_empty() {
-                    Ok(message)
-                } else {
-                    Ok(original_message)
-                }
+                // Extract tool calls from the message
+                let tool_calls = message.content.iter()
+                    .filter_map(|content| {
+                        if let MessageContent::ToolRequest(tool_request) = content {
+                            if let Ok(tool_call) = &tool_request.tool_call {
+                                Some(tool_call.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Ok(tool_calls)
             },
-            Err(_) => Ok(original_message)
+            Err(_) => Ok(vec![])
         };
     }
     // Primary direct array format handling (for backward compatibility)
@@ -220,13 +248,23 @@ pub fn process_interpreter_response(
         // Use the OpenAI message parser to handle the array of tool calls
         return match super::formats::openai::response_to_message(wrapped_response) {
             Ok(message) => {
-                if !message.content.is_empty() {
-                    Ok(message)
-                } else {
-                    Ok(original_message)
-                }
+                // Extract tool calls from the message
+                let tool_calls = message.content.iter()
+                    .filter_map(|content| {
+                        if let MessageContent::ToolRequest(tool_request) = content {
+                            if let Ok(tool_call) = &tool_request.tool_call {
+                                Some(tool_call.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Ok(tool_calls)
             },
-            Err(_) => Ok(original_message)
+            Err(_) => Ok(vec![])
         };
     }
     // Handle single direct tool call format (for backward compatibility)
@@ -249,26 +287,46 @@ pub fn process_interpreter_response(
         // Use the OpenAI message parser
         return match super::formats::openai::response_to_message(wrapped_response) {
             Ok(message) => {
-                if !message.content.is_empty() {
-                    Ok(message)
-                } else {
-                    Ok(original_message)
-                }
+                // Extract tool calls from the message
+                let tool_calls = message.content.iter()
+                    .filter_map(|content| {
+                        if let MessageContent::ToolRequest(tool_request) = content {
+                            if let Ok(tool_call) = &tool_request.tool_call {
+                                Some(tool_call.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Ok(tool_calls)
             },
-            Err(_) => Ok(original_message)
+            Err(_) => Ok(vec![])
         };
     }
     // OpenAI format might already be in the correct format
     else if response.get("choices").is_some() {
         return match super::formats::openai::response_to_message(response.clone()) {
             Ok(message) => {
-                if !message.content.is_empty() {
-                    Ok(message)
-                } else {
-                    Ok(original_message)
-                }
+                // Extract tool calls from the message
+                let tool_calls = message.content.iter()
+                    .filter_map(|content| {
+                        if let MessageContent::ToolRequest(tool_request) = content {
+                            if let Ok(tool_call) = &tool_request.tool_call {
+                                Some(tool_call.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                Ok(tool_calls)
             },
-            Err(_) => Ok(original_message)
+            Err(_) => Ok(vec![])
         };
     }
     // Handle content embedded in a message structure
@@ -317,13 +375,23 @@ pub fn process_interpreter_response(
                     
                     return match super::formats::openai::response_to_message(wrapped_response) {
                         Ok(message) => {
-                            if !message.content.is_empty() {
-                                Ok(message)
-                            } else {
-                                Ok(original_message)
-                            }
+                            // Extract tool calls from the message
+                            let tool_calls = message.content.iter()
+                                .filter_map(|content| {
+                                    if let MessageContent::ToolRequest(tool_request) = content {
+                                        if let Ok(tool_call) = &tool_request.tool_call {
+                                            Some(tool_call.clone())
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
+                            Ok(tool_calls)
                         },
-                        Err(_) => Ok(original_message)
+                        Err(_) => Ok(vec![])
                     };
                 }
             }
@@ -347,69 +415,50 @@ pub fn process_interpreter_response(
                 
                 return match super::formats::openai::response_to_message(wrapped_response) {
                     Ok(message) => {
-                        if !message.content.is_empty() {
-                            Ok(message)
-                        } else {
-                            Ok(original_message)
-                        }
+                        // Extract tool calls from the message
+                        let tool_calls = message.content.iter()
+                            .filter_map(|content| {
+                                if let MessageContent::ToolRequest(tool_request) = content {
+                                    if let Ok(tool_call) = &tool_request.tool_call {
+                                        Some(tool_call.clone())
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        Ok(tool_calls)
                     },
-                    Err(_) => Ok(original_message)
+                    Err(_) => Ok(vec![])
                 };
             }
         }
     }
     
-    // Default: return the original message if no valid tool calls were detected
-    Ok(original_message)
+    // Default: return empty vec if no valid tool calls were detected
+    let processed_message = original_message;
+    
+    // Extract tool calls from the processed message
+    let tool_calls = processed_message.content.iter()
+        .filter_map(|content| {
+            if let MessageContent::ToolRequest(tool_request) = content {
+                if let Ok(tool_call) = &tool_request.tool_call {
+                    Some(tool_call.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+    
+    Ok(tool_calls)
 }
 
-/// Get the default system prompt for tool call interpretation
-pub fn default_system_prompt() -> String {
-    formatdoc!(
-        "Rewrite detectable attempts at JSON-formatted tool requests into proper JSON tool calls.
-
-Always use an object with a tool_calls array format:
-{{
-  \"tool_calls\": [
-    {{
-      \"name\": \"tool_name\",
-      \"arguments\": {{
-        \"param1\": \"value1\",
-        \"param2\": \"value2\"
-      }}
-    }}
-  ]
-}}
-
-For multiple tool calls, use the same format:
-{{
-  \"tool_calls\": [
-    {{
-      \"name\": \"first_tool_name\",
-      \"arguments\": {{
-        \"param1\": \"value1\"
-      }}
-    }},
-    {{
-      \"name\": \"second_tool_name\",
-      \"arguments\": {{
-        \"param1\": \"value1\",
-        \"param2\": \"value2\"
-      }}
-    }}
-  ]
-}}
-
-If NO tools are asked for, return an object with an empty tool_calls array:
-{{
-  \"tool_calls\": []
-}}
-"
-    )
-}
-
-/// Get the default JSON schema for tool call format
-pub fn default_format_schema() -> Value {
+pub fn ollama_tool_structured_ouput_format_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
@@ -454,101 +503,37 @@ impl OllamaInterpreter {
         }
     }
     
-    /// Helper function to ensure the base URL has the correct port
-    fn get_processed_base_url(&self) -> Result<String, ProviderError> {
-        // Process the base URL to ensure it has a scheme
-        let base = if self.base_url.starts_with("http://") || self.base_url.starts_with("https://") {
-            self.base_url.clone()
-        } else {
-            format!("http://{}", self.base_url)
-        };
-        
-        // Parse the URL to check and add port if needed
-        let mut url_parsed = url::Url::parse(&base)
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        
-        // Set the default Ollama port (11434) if no port is specified
-        let explicit_default_port = self.base_url.ends_with(":80") || self.base_url.ends_with(":443");
-        if url_parsed.port().is_none() && !explicit_default_port {
-            // Use the same port constant as in ollama.rs
-            let ollama_default_port = super::ollama::OLLAMA_DEFAULT_PORT;
-            url_parsed.set_port(Some(ollama_default_port)).map_err(|_| {
-                ProviderError::RequestFailed("Failed to set default port".to_string())
-            })?;
-        }
-        
-        Ok(url_parsed.to_string())
-    }
-    
-    /// Send a request to Ollama with structured output format
     async fn post_structured(
         &self,
-        messages: &[Message],
+        system_prompt: &str,
+        format_instruction: &str,
         format_schema: Value,
-        system_prompt: Option<&str>,
         model: &str,
     ) -> Result<Value, ProviderError> {
-        // Get properly formatted base URL with port
-        let base_url = self.get_processed_base_url()?;
-        
-        // Remove trailing slash if present to avoid double slashes
-        let base_url = base_url.trim_end_matches('/');
+        let base_url = self.base_url.trim_end_matches('/');
         let url = format!("{}/api/chat", base_url);
         
-        // Create a Vec to store all ollama messages
-        let mut ollama_messages: Vec<Value> = Vec::new();
+        let mut messages = Vec::new();
+        let user_message = Message::user().with_text(format_instruction);
+        messages.push(user_message);
         
-        // Add system prompt if provided
-        if let Some(system) = system_prompt {
-            ollama_messages.push(json!({
-                "role": "system",
-                "content": system
-            }));
-        }
+        let model_config = ModelConfig::new(model.to_string());
         
-        // Convert user messages to Ollama format and add them
-        for msg in messages.iter() {
-            // Convert role to string for Ollama
-            let role = if msg.role == mcp_core::role::Role::User {
-                "user"
-            } else if msg.role == mcp_core::role::Role::Assistant {
-                "assistant"
-            } else {
-                // Default to user role for any other role type
-                "user"
-            };
-            
-            // Extract text content from the message
-            let content_parts: Vec<String> = msg.content.iter()
-                .filter_map(|c| {
-                    if let MessageContent::Text(text) = c {
-                        Some(text.text.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            
-            let content = content_parts.join("\n");
-            
-            ollama_messages.push(json!({
-                "role": role,
-                "content": content
-            }));
-        }
+        let mut payload = create_request(
+            &model_config,
+            &system_prompt, 
+            &messages,
+            &vec![], // No tools
+            &super::utils::ImageFormat::OpenAi,
+        )?;
         
-        // Build the structured output request
-        let payload = json!({
-            "model": model,
-            "messages": ollama_messages,
-            "stream": false,
-            "format": format_schema
-        });
+        payload["stream"] = json!(false); // needed for the /api/chat endpoint to work
+        payload["format"] = format_schema;
         
-        // Send the request
+        tracing::warn!("payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        
         let response = self.client.post(&url).json(&payload).send().await?;
         
-        // Handle error responses
         if !response.status().is_success() {
             let status = response.status();
             
@@ -563,7 +548,6 @@ impl OllamaInterpreter {
             )));
         }
         
-        // Parse the response
         let response_json: Value = response.json().await.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to parse Ollama structured API response: {e}"))
         })?;
@@ -574,57 +558,52 @@ impl OllamaInterpreter {
 
 #[async_trait::async_trait]
 impl ToolInterpreter for OllamaInterpreter {
-    async fn interpret_to_tool_calls(&self, content: &str, tools: &[Tool]) -> Result<Vec<ToolCall>, ProviderError> {
+    async fn interpret_to_tool_calls(&self, last_assistant_msg: &str, tools: &[Tool]) -> Result<Vec<ToolCall>, ProviderError> {
         if tools.is_empty() {
             return Ok(vec![]);
         }
         
         // Create the system prompt
-        let system_prompt = default_system_prompt();
+        let system_prompt = "Rewrite detectable attempts at JSON-formatted tool requests into proper JSON tool calls.
+
+Always use an object with a tool_calls array format:
+{{
+  \"tool_calls\": [
+    {{
+      \"name\": \"tool_name\",
+      \"arguments\": {{
+        \"param1\": \"value1\",
+        \"param2\": \"value2\"
+      }}
+    }}
+  ]
+}}
+
+If NO tools are asked for, return an object with an empty tool_calls array:
+{{
+  \"tool_calls\": []
+}}
+";
         
         // Create enhanced content with instruction to output tool calls as JSON
-        let enhanced_content = format!("{}\n\nWrite valid json if there is detectable json or an attempt at json", content);
-        
-        // Create message for interpretation
-        let messages = vec![
-            Message::user().with_text(enhanced_content),
-        ];
+        let format_instruction = format!("{}\n\nWrite valid json if there is detectable json or an attempt at json", last_assistant_msg);
         
         // Define the JSON schema for tool call format
-        let tool_call_schema = default_format_schema();
+        let format_schema = ollama_tool_structured_ouput_format_schema();
         
         // Determine which model to use for interpretation (from env var or default)
         let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").unwrap_or_else(|_| "phi4".to_string());
         
         // Make a call to ollama with structured output
         let interpreter_response = self.post_structured(
-            &messages,
-            tool_call_schema,
-            Some(&system_prompt),
-            &interpreter_model,
+            &system_prompt,
+            &format_instruction,
+            format_schema,
+            &interpreter_model
         ).await?;
         
-        // Process the interpreter response
-        let dummy_message = Message::assistant().with_text(content);
-        let processed_message = process_interpreter_response(
-            &interpreter_response,
-            dummy_message,
-        )?;
-        
-        // Extract tool calls from the processed message
-        let tool_calls = processed_message.content.iter()
-            .filter_map(|content| {
-                if let MessageContent::ToolRequest(tool_request) = content {
-                    if let Ok(tool_call) = &tool_request.tool_call {
-                        Some(tool_call.clone())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
+        // Process the interpreter response to get tool calls directly
+        let tool_calls = process_interpreter_response(&interpreter_response)?;
         
         Ok(tool_calls)
     }
