@@ -1,0 +1,801 @@
+use crate::message::{Message, MessageContent};
+use crate::model::ModelConfig;
+use anyhow::Result;
+use indoc::formatdoc;
+use mcp_core::tool::{Tool, ToolCall};
+use reqwest::Client;
+use serde_json::{json, Value};
+use std::time::Duration;
+use uuid::Uuid;
+use super::errors::ProviderError;
+
+/// A trait for models that can convert text to structured tool calls
+#[async_trait::async_trait]
+pub trait ToolInterpreter {
+    /// Interpret potential tool calls from text and convert them to proper tool call format
+    async fn interpret_to_tool_calls(&self, content: &str, tools: &[Tool]) -> Result<Vec<ToolCall>, ProviderError>;
+}
+
+/// Configuration for the tool interpretation shim
+/// 
+/// Environment variables that affect behavior:
+/// - TOOLSHIM_OLLAMA_MODEL: Specify the Ollama model to use for tool call interpretation (default: "phi4")
+/// - TOOLSHIM_ENABLED: If set to "true" or "1", enables the tool shim in EnhancedOllamaProvider (default: true)
+/// - GOOSE_TOOL_SHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
+/// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Must be set along with GOOSE_TOOL_SHIM to specify which model to use for tool interpretation
+///   in the standard OllamaProvider. If GOOSE_TOOL_SHIM is set but this value isn't, the tool shim will be disabled.
+#[derive(Clone, Debug)]
+pub struct ToolShimConfig {
+    /// Model configuration for the interpreter model
+    pub model: ModelConfig,
+    /// Custom system prompt to use for interpretation (if None, a default will be used)
+    pub system_prompt: Option<String>,
+    /// Schema to use for structured output (if None, a default will be used)
+    pub format_schema: Option<Value>,
+}
+
+impl Default for ToolShimConfig {
+    fn default() -> Self {
+        Self {
+            model: ModelConfig::new("phi4".to_string()),
+            system_prompt: None,
+            format_schema: None,
+        }
+    }
+}
+
+/// Helper function to process tool call response 
+/// Extracted from Ollama provider to be reusable
+pub fn process_interpreter_response(
+    response: &Value,
+    original_message: Message,
+) -> Result<Message, ProviderError> {
+    tracing::warn!("Starting process_interpreter_response");
+    tracing::warn!("Response type: {}", 
+        if response.is_object() { "object" } 
+        else if response.is_array() { "array" } 
+        else { "other" });
+    
+    // Debug log the whole response for analysis
+    let response_str = serde_json::to_string_pretty(response)
+        .unwrap_or_else(|_| "Could not serialize response".to_string());
+    tracing::warn!("Processing interpreter response (length: {}): {}", 
+        response_str.len(),
+        if response_str.len() > 1000 {
+            format!("{}...[truncated]", &response_str[..1000])
+        } else {
+            response_str
+        });
+    
+    let mut final_message = original_message.clone();
+    let mut tool_calls_processed = false;
+    
+    // Handle case 1: Direct single tool call format {name: "foo", arguments: {...}}
+    if response.get("name").is_some() && response.get("arguments").is_some() {
+        tracing::warn!("Found direct tool call format with name and arguments fields");
+        
+        let tool_name = response["name"].as_str().unwrap_or_default();
+        tracing::warn!("Tool name: {}", tool_name);
+        
+        let tool_arguments = response["arguments"].clone();
+        tracing::warn!("Tool arguments type: {}", 
+            if tool_arguments.is_object() { "object" } 
+            else if tool_arguments.is_array() { "array" } 
+            else { "other" });
+        
+        if !tool_name.is_empty() {
+            tracing::warn!("Processing direct tool call: name={}, arguments={}", 
+                tool_name, 
+                serde_json::to_string_pretty(&tool_arguments).unwrap_or_default());
+            
+            let id = Uuid::new_v4().to_string();
+            tracing::warn!("Generated tool call ID: {}", id);
+            
+            let tool_call = ToolCall::new(tool_name, tool_arguments);
+            final_message = final_message.with_tool_request(id, Ok(tool_call));
+            tool_calls_processed = true;
+            tracing::warn!("Added direct tool call to message");
+        } else {
+            tracing::warn!("Tool name is empty, skipping");
+        }
+    } else {
+        tracing::warn!("Response is not in direct tool call format (missing name and/or arguments field)");
+    }
+    
+    // Handle case 2: Structured message format with content containing JSON tool call(s)
+    if !tool_calls_processed && response.get("message").is_some() {
+        tracing::warn!("Found message object in response");
+        let message_obj = &response["message"];
+        
+        // Check if content exists and can be parsed as JSON
+        if let Some(content) = message_obj.get("content").and_then(|c| c.as_str()) {
+            tracing::warn!("Found content in message object (length: {}): {}", 
+                content.len(),
+                if content.len() > 200 {
+                    format!("{}...[truncated]", &content[..200])
+                } else {
+                    content.to_string()
+                });
+            
+            // Try to parse the content as JSON
+            match serde_json::from_str::<Value>(content) {
+                Ok(content_json) => {
+                    tracing::warn!("Successfully parsed content as JSON");
+                    tracing::warn!("Content JSON type: {}", 
+                        if content_json.is_object() { "object" } 
+                        else if content_json.is_array() { "array" } 
+                        else { "other" });
+                    
+                    // Handle case 2a: Single tool call in content
+                    if content_json.is_object() && content_json.get("name").is_some() && content_json.get("arguments").is_some() {
+                        tracing::warn!("Found single tool call in content");
+                        
+                        let tool_name = content_json["name"].as_str().unwrap_or_default();
+                        tracing::warn!("Tool name from content: {}", tool_name);
+                        
+                        let tool_arguments = content_json["arguments"].clone();
+                        tracing::warn!("Tool arguments from content type: {}", 
+                            if tool_arguments.is_object() { "object" } 
+                            else if tool_arguments.is_array() { "array" } 
+                            else { "other" });
+                        
+                        if !tool_name.is_empty() {
+                            tracing::warn!("Processing content-embedded tool call: name={}, arguments={}", 
+                                tool_name, 
+                                serde_json::to_string_pretty(&tool_arguments).unwrap_or_default());
+                                
+                            let id = Uuid::new_v4().to_string();
+                            tracing::warn!("Generated tool call ID: {}", id);
+                            
+                            let tool_call = ToolCall::new(tool_name, tool_arguments);
+                            final_message = final_message.with_tool_request(id, Ok(tool_call));
+                            tool_calls_processed = true;
+                            tracing::warn!("Added content-embedded tool call to message");
+                        } else {
+                            tracing::warn!("Tool name from content is empty, skipping");
+                        }
+                    } 
+                    // Handle case 2b: Array of tool calls in content
+                    else if content_json.is_array() {
+                        let array = content_json.as_array().unwrap();
+                        tracing::warn!("Found array of potential tool calls in content, length: {}", array.len());
+                        
+                        for (i, tool_item) in array.iter().enumerate() {
+                            tracing::warn!("Processing array item {}", i);
+                            tracing::warn!("Array item {} type: {}", i,
+                                if tool_item.is_object() { "object" } 
+                                else if tool_item.is_array() { "array" } 
+                                else { "other" });
+                            
+                            if tool_item.is_object() && tool_item.get("name").is_some() && tool_item.get("arguments").is_some() {
+                                let tool_name = tool_item["name"].as_str().unwrap_or_default();
+                                tracing::warn!("Tool name from array item {}: {}", i, tool_name);
+                                
+                                let tool_arguments = tool_item["arguments"].clone();
+                                tracing::warn!("Tool arguments from array item {} type: {}", i,
+                                    if tool_arguments.is_object() { "object" } 
+                                    else if tool_arguments.is_array() { "array" } 
+                                    else { "other" });
+                                
+                                if !tool_name.is_empty() {
+                                    tracing::warn!("Processing array tool call: name={}, arguments={}", 
+                                        tool_name, 
+                                        serde_json::to_string_pretty(&tool_arguments).unwrap_or_default());
+                                        
+                                    let id = Uuid::new_v4().to_string();
+                                    tracing::warn!("Generated tool call ID: {}", id);
+                                    
+                                    let tool_call = ToolCall::new(tool_name, tool_arguments);
+                                    final_message = final_message.with_tool_request(id, Ok(tool_call));
+                                    tool_calls_processed = true;
+                                    tracing::warn!("Added array tool call {} to message", i);
+                                } else {
+                                    tracing::warn!("Tool name from array item {} is empty, skipping", i);
+                                }
+                            } else {
+                                tracing::warn!("Array item {} is not a valid tool call (missing name and/or arguments)", i);
+                            }
+                        }
+                    } else {
+                        tracing::warn!("Content JSON is neither a valid tool call object nor an array of tool calls");
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("Failed to parse content as JSON: {}", e);
+                    tracing::warn!("Raw content that failed to parse: {}", 
+                        if content.len() > 200 {
+                            format!("{}...", &content[..200])
+                        } else {
+                            content.to_string()
+                        });
+                }
+            }
+        } else {
+            tracing::warn!("No content field found in message object or content is not a string");
+        }
+    } else if !tool_calls_processed {
+        tracing::warn!("Response does not contain a message object");
+    }
+    
+    // Try to extract tool calls from response.message.tool_calls if present
+    if !tool_calls_processed && 
+       response.get("message").is_some() && 
+       response["message"].get("tool_calls").is_some() {
+        
+        tracing::warn!("Found tool_calls field in message object");
+        let tool_calls = &response["message"]["tool_calls"];
+        
+        if tool_calls.is_array() {
+            let array = tool_calls.as_array().unwrap();
+            tracing::warn!("Found array of tool_calls, length: {}", array.len());
+            
+            for (i, tool_item) in array.iter().enumerate() {
+                tracing::warn!("Processing tool_calls item {}", i);
+                
+                if tool_item.is_object() && 
+                   tool_item.get("function").is_some() && 
+                   tool_item["function"].get("name").is_some() && 
+                   tool_item["function"].get("arguments").is_some() {
+                    
+                    let tool_name = tool_item["function"]["name"].as_str().unwrap_or_default();
+                    tracing::warn!("Tool name from tool_calls[{}]: {}", i, tool_name);
+                    
+                    // Arguments could be a string that needs parsing or an object
+                    let raw_arguments = &tool_item["function"]["arguments"];
+                    let tool_arguments = if raw_arguments.is_string() {
+                        // Try to parse string as JSON
+                        match serde_json::from_str::<Value>(raw_arguments.as_str().unwrap_or("{}")) {
+                            Ok(parsed) => {
+                                tracing::warn!("Parsed string arguments as JSON");
+                                parsed
+                            },
+                            Err(e) => {
+                                tracing::warn!("Failed to parse arguments string as JSON: {}", e);
+                                raw_arguments.clone()
+                            }
+                        }
+                    } else {
+                        raw_arguments.clone()
+                    };
+                    
+                    tracing::warn!("Tool arguments from tool_calls[{}]: {}", i,
+                        serde_json::to_string_pretty(&tool_arguments).unwrap_or_default());
+                    
+                    if !tool_name.is_empty() {
+                        let id = if tool_item.get("id").is_some() && tool_item["id"].is_string() {
+                            tool_item["id"].as_str().unwrap().to_string()
+                        } else {
+                            Uuid::new_v4().to_string()
+                        };
+                        
+                        tracing::warn!("Using tool call ID: {}", id);
+                        
+                        let tool_call = ToolCall::new(tool_name, tool_arguments);
+                        final_message = final_message.with_tool_request(id, Ok(tool_call));
+                        tool_calls_processed = true;
+                        tracing::warn!("Added tool_calls[{}] to message", i);
+                    } else {
+                        tracing::warn!("Tool name from tool_calls[{}] is empty, skipping", i);
+                    }
+                } else {
+                    tracing::warn!("tool_calls[{}] is not a valid tool call (missing required fields)", i);
+                }
+            }
+        } else {
+            tracing::warn!("tool_calls field is not an array");
+        }
+    }
+    
+    // Return the final message (either original or with tool calls)
+    if tool_calls_processed {
+        tracing::warn!("Successfully processed structured tool calls");
+        Ok(final_message)
+    } else {
+        tracing::warn!("No tool calls detected in interpreter response");
+        Ok(original_message)
+    }
+}
+
+/// Get the default system prompt for tool call interpretation
+pub fn default_system_prompt() -> String {
+    formatdoc!(
+        "Rewrite detectable attempts at JSON-formatted tool requests into proper JSON tool calls.
+
+If there is a SINGLE tool call, use this format:
+{{
+  \"name\": \"tool_name\",
+  \"arguments\": {{
+    \"param1\": \"value1\",
+    \"param2\": \"value2\"
+  }}
+}}
+
+If there are MULTIPLE tool calls, use this format:
+[
+  {{
+    \"name\": \"first_tool_name\",
+    \"arguments\": {{
+      \"param1\": \"value1\"
+    }}
+  }},
+  {{
+    \"name\": \"second_tool_name\",
+    \"arguments\": {{
+      \"param1\": \"value1\",
+      \"param2\": \"value2\"
+    }}
+  }}
+]
+
+If NO tools are asked for:
+{{}}
+"
+    )
+}
+
+/// Get the default JSON schema for tool call format
+pub fn default_format_schema() -> Value {
+    json!({
+        "oneOf": [
+            // Schema for a single tool call
+            {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "message for user"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the tool to call"
+                    },
+                    "arguments": {
+                        "type": "object",
+                        "description": "The arguments to pass to the tool"
+                    }
+                },
+                "required": ["name", "arguments"]
+            },
+            // Schema for multiple tool calls in an array
+            {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "message for user"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the tool to call"
+                        },
+                        "arguments": {
+                            "type": "object",
+                            "description": "The arguments to pass to the tool"
+                        }
+                    },
+                    "required": ["name", "arguments"]
+                }
+            }
+        ]
+    })
+}
+
+/// Ollama-specific implementation of the ToolInterpreter trait
+pub struct OllamaInterpreter {
+    client: Client,
+    base_url: String,
+}
+
+impl OllamaInterpreter {
+    pub fn new(base_url: String) -> Self {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(600))
+            .build()
+            .expect("Failed to create HTTP client");
+            
+        Self {
+            client,
+            base_url,
+        }
+    }
+    
+    /// Helper function to ensure the base URL has the correct port
+    fn get_processed_base_url(&self) -> Result<String, ProviderError> {
+        // Process the base URL to ensure it has a scheme
+        let base = if self.base_url.starts_with("http://") || self.base_url.starts_with("https://") {
+            self.base_url.clone()
+        } else {
+            format!("http://{}", self.base_url)
+        };
+        
+        // Parse the URL to check and add port if needed
+        let mut url_parsed = url::Url::parse(&base)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+        
+        // Set the default Ollama port (11434) if no port is specified
+        let explicit_default_port = self.base_url.ends_with(":80") || self.base_url.ends_with(":443");
+        if url_parsed.port().is_none() && !explicit_default_port {
+            // Use the same port constant as in ollama.rs
+            let ollama_default_port = super::ollama::OLLAMA_DEFAULT_PORT;
+            url_parsed.set_port(Some(ollama_default_port)).map_err(|_| {
+                ProviderError::RequestFailed("Failed to set default port".to_string())
+            })?;
+        }
+        
+        Ok(url_parsed.to_string())
+    }
+    
+    /// Send a request to Ollama with structured output format
+    async fn post_structured(
+        &self,
+        messages: &[Message],
+        format_schema: Value,
+        system_prompt: Option<&str>,
+        model: &str,
+    ) -> Result<Value, ProviderError> {
+        // Get properly formatted base URL with port
+        let base_url = self.get_processed_base_url()?;
+        
+        // Remove trailing slash if present to avoid double slashes
+        let base_url = base_url.trim_end_matches('/');
+        let url = format!("{}/api/chat", base_url);
+        tracing::warn!("POST to Ollama structured URL: {}", url);
+        
+        // Create a Vec to store all ollama messages
+        let mut ollama_messages: Vec<Value> = Vec::new();
+        
+        // Add system prompt if provided
+        if let Some(system) = system_prompt {
+            tracing::warn!("Adding system prompt (length: {})", system.len());
+            ollama_messages.push(json!({
+                "role": "system",
+                "content": system
+            }));
+        }
+        
+        // Log info about input messages
+        tracing::warn!("Processing {} input messages for Ollama structured request", messages.len());
+        
+        // Convert user messages to Ollama format and add them
+        for (idx, msg) in messages.iter().enumerate() {
+            // Convert role to string for Ollama
+            let role = if msg.role == mcp_core::role::Role::User {
+                "user"
+            } else if msg.role == mcp_core::role::Role::Assistant {
+                "assistant"
+            } else {
+                // Default to user role for any other role type
+                tracing::warn!("Unexpected role type, defaulting to 'user'");
+                "user"
+            };
+            
+            tracing::warn!("Processing message {}: role={}", idx, role);
+            
+            // Extract text content from the message
+            let content_parts: Vec<String> = msg.content.iter()
+                .filter_map(|c| {
+                    if let MessageContent::Text(text) = c {
+                        Some(text.text.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            tracing::warn!("Message {} has {} text content parts", idx, content_parts.len());
+            
+            let content = content_parts.join("\n");
+            tracing::warn!("Message {} combined content (length: {}): {}", idx, content.len(), 
+                if content.len() > 100 { 
+                    format!("{}...", &content[..100]) 
+                } else { 
+                    content.clone() 
+                });
+            
+            ollama_messages.push(json!({
+                "role": role,
+                "content": content
+            }));
+        }
+        
+        // Build the structured output request
+        let format_schema_str = serde_json::to_string(&format_schema)
+            .unwrap_or_else(|_| "Could not serialize format schema".to_string());
+        tracing::warn!("Using format schema (length: {}): {}", format_schema_str.len(), 
+            if format_schema_str.len() > 200 {
+                format!("{}...", &format_schema_str[..200])
+            } else {
+                format_schema_str.clone()
+            });
+        
+        let payload = json!({
+            "model": model,
+            "messages": ollama_messages,
+            "stream": false,
+            "format": format_schema
+        });
+        
+        // Log the full payload but truncate very long content
+        let payload_str = serde_json::to_string_pretty(&payload)
+            .unwrap_or_else(|_| "Could not serialize payload".to_string());
+        tracing::warn!("Sending structured output request to Ollama (length: {}): {}", 
+            payload_str.len(),
+            if payload_str.len() > 1000 {
+                format!("{}...[truncated]", &payload_str[..1000])
+            } else {
+                payload_str
+            });
+        
+        // Send the request
+        tracing::warn!("Sending POST request to Ollama");
+        let response = match self.client.post(&url).json(&payload).send().await {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!("Failed to send request to Ollama: {}", e);
+                return Err(ProviderError::RequestFailed(format!("HTTP request failed: {e}")));
+            }
+        };
+        
+        // Handle error responses
+        if !response.status().is_success() {
+            let status = response.status();
+            tracing::error!("Ollama returned error status: {}", status);
+            
+            let error_text = match response.text().await {
+                Ok(text) => {
+                    tracing::error!("Error response: {}", text);
+                    text
+                },
+                Err(e) => {
+                    tracing::error!("Failed to read error response: {}", e);
+                    "Could not read error response".to_string()
+                }
+            };
+            
+            return Err(ProviderError::RequestFailed(format!(
+                "Ollama structured API returned error status {}: {}", 
+                status, error_text
+            )));
+        }
+        
+        // Parse the response
+        tracing::warn!("Received successful response, parsing JSON");
+        let response_json: Value = match response.json().await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::error!("Failed to parse response as JSON: {}", e);
+                return Err(ProviderError::RequestFailed(format!("Failed to parse Ollama structured API response: {e}")));
+            }
+        };
+        
+        // Log the response
+        let response_str = serde_json::to_string_pretty(&response_json)
+            .unwrap_or_else(|_| "Could not serialize response".to_string());
+        tracing::warn!("Received structured response (length: {}): {}", 
+            response_str.len(),
+            if response_str.len() > 1000 {
+                format!("{}...[truncated]", &response_str[..1000])
+            } else {
+                response_str
+            });
+        
+        Ok(response_json)
+    }
+}
+
+#[async_trait::async_trait]
+impl ToolInterpreter for OllamaInterpreter {
+    async fn interpret_to_tool_calls(&self, content: &str, tools: &[Tool]) -> Result<Vec<ToolCall>, ProviderError> {
+        tracing::warn!("Starting interpret_to_tool_calls");
+        tracing::warn!("Content length: {}", content.len());
+        tracing::warn!("Content sample: {}", 
+            if content.len() > 200 {
+                format!("{}...", &content[..200])
+            } else {
+                content.to_string()
+            });
+        tracing::warn!("Tools count: {}", tools.len());
+        
+        if tools.is_empty() {
+            tracing::warn!("No tools provided, returning empty tool calls");
+            return Ok(vec![]);
+        }
+        
+        // Log available tools for debugging
+        for (i, tool) in tools.iter().enumerate() {
+            tracing::warn!("Tool {}: name={}, schema={}", i, 
+                tool.name, 
+                serde_json::to_string(&tool.input_schema).unwrap_or_else(|_| "Could not serialize schema".to_string()));
+        }
+        
+        // Create the system prompt
+        let system_prompt = default_system_prompt();
+        tracing::warn!("Using system prompt (length: {})", system_prompt.len());
+        
+        // Create enhanced content with instruction to output tool calls as JSON
+        let enhanced_content = format!("{}\n\nWrite valid json if there is detectable json or an attempt at json", content);
+        tracing::warn!("Enhanced content length: {}", enhanced_content.len());
+        
+        // Create message for interpretation
+        let messages = vec![
+            Message::user().with_text(enhanced_content),
+        ];
+        tracing::warn!("Created user message for interpreter");
+        
+        // Define the JSON schema for tool call format
+        let tool_call_schema = default_format_schema();
+        tracing::warn!("Using default format schema");
+        
+        // Determine which model to use for interpretation (from env var or default)
+        let interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").unwrap_or_else(|_| "phi4".to_string());
+        tracing::warn!("Using {} as the interpreter model", interpreter_model);
+        
+        // Make a call to ollama with structured output
+        tracing::warn!("Calling post_structured to make Ollama API request");
+        let interpreter_response = match self.post_structured(
+            &messages,
+            tool_call_schema,
+            Some(&system_prompt),
+            &interpreter_model,
+        ).await {
+            Ok(response) => {
+                tracing::warn!("Received successful interpreter response");
+                response
+            },
+            Err(e) => {
+                tracing::error!("Failed to get interpreter response: {}", e);
+                return Err(e);
+            }
+        };
+        
+        // Process the interpreter response
+        let dummy_message = Message::assistant().with_text(content);
+        tracing::warn!("Created dummy assistant message with original content");
+        
+        tracing::warn!("Processing interpreter response to extract tool calls");
+        let processed_message = match process_interpreter_response(
+            &interpreter_response,
+            dummy_message,
+        ) {
+            Ok(message) => {
+                tracing::warn!("Successfully processed interpreter response");
+                message
+            },
+            Err(e) => {
+                tracing::error!("Failed to process interpreter response: {}", e);
+                return Err(e);
+            }
+        };
+        
+        // Extract tool calls from the processed message
+        tracing::warn!("Extracting tool calls from processed message");
+        tracing::warn!("Processed message content items: {}", processed_message.content.len());
+        
+        let mut tool_calls_found = 0;
+        let mut tool_request_errors = 0;
+        
+        let tool_calls = processed_message.content.iter()
+            .filter_map(|content| {
+                match content {
+                    MessageContent::ToolRequest(tool_request) => {
+                        tracing::warn!("Found ToolRequest in processed message");
+                        match &tool_request.tool_call {
+                            Ok(tool_call) => {
+                                tool_calls_found += 1;
+                                tracing::warn!("Found valid tool call: name={}, arguments={}", 
+                                    tool_call.name,
+                                    serde_json::to_string(&tool_call.arguments)
+                                        .unwrap_or_else(|_| "Could not serialize arguments".to_string()));
+                                Some(tool_call.clone())
+                            },
+                            Err(e) => {
+                                tool_request_errors += 1;
+                                tracing::warn!("Tool request contains an error: {}", e);
+                                None
+                            }
+                        }
+                    },
+                    MessageContent::Text(text) => {
+                        tracing::warn!("Found Text content in processed message: {}", 
+                            if text.text.len() > 100 {
+                                format!("{}...", &text.text[..100])
+                            } else {
+                                text.text.clone()
+                            });
+                        None
+                    },
+                    _ => {
+                        tracing::warn!("Found other content type in processed message");
+                        None
+                    }
+                }
+            })
+            .collect();
+        
+        tracing::warn!("Extracted {} tool calls (found={}, errors={})", 
+            tool_calls_found, tool_calls_found, tool_request_errors);
+        
+        Ok(tool_calls)
+    }
+}
+
+/// Helper function to augment a message with tool calls if any are detected
+pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
+    interpreter: &T,
+    message: Message,
+    tools: &[Tool],
+) -> Result<Message, ProviderError> {
+    tracing::warn!("Starting augment_message_with_tool_calls with tools count: {}", tools.len());
+    
+    // If there are no tools or the message is empty, return the original message
+    if tools.is_empty() {
+        tracing::warn!("No tools provided, skipping augmentation");
+        return Ok(message);
+    }
+    
+    // Log available tools for debugging
+    for (i, tool) in tools.iter().enumerate() {
+        tracing::warn!("Tool {}: name={}, schema={}", i, 
+            tool.name, 
+            serde_json::to_string(&tool.input_schema).unwrap_or_else(|_| "Could not serialize schema".to_string()));
+    }
+    
+    // Extract content from the message
+    let content_opt = message.content.iter().find_map(|content| {
+        if let MessageContent::Text(text) = content {
+            Some(text.text.as_str())
+        } else {
+            None
+        }
+    });
+    
+    // If there's no text content or it's already a tool request, return the original message
+    let content = match content_opt {
+        Some(text) => {
+            tracing::warn!("Found text content: {}", text);
+            text
+        },
+        None => {
+            tracing::warn!("No text content found in message");
+            return Ok(message);
+        }
+    };
+    
+    // Check if there's already a tool request
+    if message.content.iter().any(|content| {
+        matches!(content, MessageContent::ToolRequest(_))
+    }) {
+        tracing::warn!("Message already contains a tool request, skipping interpretation");
+        return Ok(message);
+    }
+    
+    // Use the interpreter to convert the content to tool calls
+    tracing::warn!("Calling interpreter.interpret_to_tool_calls with content length: {}", content.len());
+    let tool_calls = interpreter.interpret_to_tool_calls(content, tools).await?;
+    
+    // If no tool calls were detected, return the original message
+    if tool_calls.is_empty() {
+        tracing::warn!("No tool calls detected, returning original message");
+        return Ok(message);
+    }
+    
+    // Log detected tool calls for debugging
+    tracing::warn!("Found {} tool calls to add to message", tool_calls.len());
+    for (i, tool_call) in tool_calls.iter().enumerate() {
+        tracing::warn!("Tool call {}: name={}, arguments={}", i, 
+            tool_call.name,
+            serde_json::to_string(&tool_call.arguments).unwrap_or_else(|_| "Could not serialize arguments".to_string()));
+    }
+    
+    // Add each tool call to the message
+    let mut final_message = message;
+    for tool_call in tool_calls {
+        let id = Uuid::new_v4().to_string();
+        tracing::warn!("Adding tool call: id={}, name={}", id, tool_call.name);
+        final_message = final_message.with_tool_request(id, Ok(tool_call));
+    }
+    
+    Ok(final_message)
+}
