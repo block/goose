@@ -23,7 +23,7 @@ enum ExtensionConfigRequest {
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
-        timeout: u64,
+        timeout: Option<u64>,
     },
     /// Standard I/O (stdio) extension.
     #[serde(rename = "stdio")]
@@ -38,14 +38,14 @@ enum ExtensionConfigRequest {
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
-        timeout: u64,
+        timeout: Option<u64>,
     },
     /// Built-in extension that is part of the goose binary.
     #[serde(rename = "builtin")]
     Builtin {
         /// The name of the built-in extension.
         name: String,
-        timeout: u64,
+        timeout: Option<u64>,
     },
 }
 
@@ -115,7 +115,7 @@ async fn add_extension(
                 name,
                 uri,
                 envs: Envs::new(env_map),
-                timeout: Some(timeout),
+                timeout,
             }
         }
         ExtensionConfigRequest::Stdio {
@@ -152,13 +152,12 @@ async fn add_extension(
                 cmd,
                 args,
                 envs: Envs::new(env_map),
-                timeout: Some(timeout),
+                timeout,
             }
         }
-        ExtensionConfigRequest::Builtin { name, timeout } => ExtensionConfig::Builtin {
-            name,
-            timeout: Some(timeout),
-        },
+        ExtensionConfigRequest::Builtin { name, timeout } => {
+            ExtensionConfig::Builtin { name, timeout }
+        }
     };
 
     // Acquire a lock on the agent and attempt to add the extension.
