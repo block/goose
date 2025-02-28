@@ -57,10 +57,24 @@ jobs:
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-windows.yml
     with:
-      signing: true
+      signing: false  # false for now as we don't have a cert yet
     secrets:
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
+  bundle-desktop-intel:
+    # Only run this if ".bundle" command is detected.
+    needs: [ trigger-on-command ]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
+    uses: ./.github/workflows/bundle-desktop-intel.yml
+    with:
+      signing: true
+    secrets:
+      CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
+      CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
   pr-comment:
     name: PR Comment with Desktop App
