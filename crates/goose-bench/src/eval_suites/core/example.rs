@@ -20,10 +20,10 @@ impl Evaluation for ExampleEval {
         work_dir: &mut WorkDir,
     ) -> anyhow::Result<Vec<EvaluationMetric>> {
         println!("ExampleEval - run");
-        let f = work_dir.fs_get(String::from("./arbitrary_dir/arbitrary_file.txt"))?;
-        let _contents = fs::read_to_string(f)?;
+        // let f = work_dir.fs_get(String::from("./arbitrary_dir/arbitrary_file.txt"))?;
+        // let _contents = fs::read_to_string(f)?;
         let metrics = Vec::new();
-        let _ = agent.prompt("What can you do?".to_string()).await;
+        let output = agent.prompt("What can you do?".to_string()).await?;
         Ok(metrics)
     }
 

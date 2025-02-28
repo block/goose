@@ -4,4 +4,3 @@ pub mod configure;
 pub mod info;
 pub mod mcp;
 pub mod update;
-pub mod bench;
