@@ -11,7 +11,7 @@ import {
   getToolResponses,
   getToolConfirmationRequestId,
 } from '../types/message';
-import { ConfirmToolRequest } from '../utils/toolConfirm';
+import ToolCallConfirmation from './ToolCallConfirmation';
 
 interface GooseMessageProps {
   message: Message;
@@ -72,27 +72,7 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {hasToolConfirmation && (
-          <>
-            <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none">
-              Goose would like to call the above tool. Allow?
-            </div>
-            <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
-              <button
-                className="hover:bg-slate hover:text-white rounded-full px-6 py-2 transition"
-                onClick={() => ConfirmToolRequest(toolConfirmationId, true)}
-              >
-                Allow tool
-              </button>
-              <button
-                className="hover:bg-slate hover:text-white rounded-full px-6 py-2 transition"
-                onClick={() => ConfirmToolRequest(toolConfirmationId, false)}
-              >
-                Deny
-              </button>
-            </div>
-          </>
-        )}
+        {hasToolConfirmation && <ToolCallConfirmation toolConfirmationId />}
 
         {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
