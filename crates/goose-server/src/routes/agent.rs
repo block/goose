@@ -86,7 +86,7 @@ async fn extend_prompt(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let mut agent = state.agent.lock().await;
+    let mut agent = state.agent.write().await;
     if let Some(ref mut agent) = *agent {
         agent.extend_system_prompt(payload.extension).await;
         Ok(Json(ExtendPromptResponse { success: true }))
@@ -134,7 +134,7 @@ async fn create_agent(
 
     let new_agent = AgentFactory::create(&version, provider).expect("Failed to create agent");
 
-    let mut agent = state.agent.lock().await;
+    let mut agent = state.agent.write().await;
     *agent = Some(new_agent);
 
     Ok(Json(CreateAgentResponse { version }))
