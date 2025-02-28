@@ -11,6 +11,8 @@ export function isSecretKey(keyName: string): boolean {
     'OPENAI_BASE_PATH',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
+    'GCP_PROJECT_ID',
+    'GCP_LOCATION',
   ];
   return !nonSecretKeys.includes(keyName);
 }
