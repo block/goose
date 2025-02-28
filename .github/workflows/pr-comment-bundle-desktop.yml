@@ -64,7 +64,7 @@ jobs:
 
   bundle-desktop-intel:
     # Only run this if ".bundle" command is detected.
-    needs: [ trigger-on-command ]
+    needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
     uses: ./.github/workflows/bundle-desktop-intel.yml
     with:
@@ -76,35 +76,86 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-  pr-comment:
-    name: PR Comment with Desktop App
+  pr-comment-arm64:
+    name: PR Comment with macOS ARM64 App
     runs-on: ubuntu-latest
-    needs: [trigger-on-command, bundle-desktop, bundle-desktop-windows]
+    needs: [trigger-on-command, bundle-desktop]
     permissions:
       pull-requests: write
 
     steps:
-      - name: Download all artifacts
+      - name: Download ARM64 artifact
         uses: actions/download-artifact@v4
         with:
-          merge-multiple: true
+          name: Goose-darwin-arm64
+          path: arm64-dist
 
-      - name: Comment on PR with download link
+      - name: Comment on PR with ARM64 download link
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
-            ### Desktop App for this PR
+            ### macOS ARM64 Desktop App (Apple Silicon)
 
-            The following builds are available for testing:
+            [📱 Download macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
-            - [📱 macOS Desktop App (arm64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
-            - [🪟 Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
-
-            **macOS Instructions:**
+            **Instructions:**
             After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
 
-            **Windows Instructions:**
+            This link is provided by nightly.link and will work even if you're not logged into GitHub.
+
+  pr-comment-intel:
+    name: PR Comment with macOS Intel App
+    runs-on: ubuntu-latest
+    needs: [trigger-on-command, bundle-desktop-intel]
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download Intel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Goose-darwin-x64
+          path: intel-dist
+
+      - name: Comment on PR with Intel download link
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
+          body: |
+            ### macOS Intel Desktop App (x64)
+
+            [💻 Download macOS Desktop App (Intel x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-x64.zip)
+
+            **Instructions:**
+            After downloading, unzip the file and drag the Goose.app to your Applications folder. The app is signed and notarized for macOS.
+
+            This link is provided by nightly.link and will work even if you're not logged into GitHub.
+
+  pr-comment-windows:
+    name: PR Comment with Windows App
+    runs-on: ubuntu-latest
+    needs: [trigger-on-command, bundle-desktop-windows]
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-dist
+          path: windows-dist
+
+      - name: Comment on PR with Windows download link
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
+          body: |
+            ### Windows Desktop App
+
+            [🪟 Download Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
+
+            **Instructions:**
             After downloading, unzip the file and run Goose.exe. The app is signed for Windows.
 
-            These links are provided by nightly.link and will work even if you're not logged into GitHub.
+            This link is provided by nightly.link and will work even if you're not logged into GitHub.
