@@ -204,16 +204,6 @@ impl Provider for OllamaProvider {
         - Capture display: `developer__screen_capture(display=0)`  # Main display
         - Capture window: `developer__screen_capture(window_title="Window Title")`
         To use tools, ask the user to execute the tools for you by requesting the tool use in the exact JSON format below. 
-
-## Tool Call JSON Format
-```json
-{{
-  "name": "tool_name",
-  "arguments": {{
-    "parameter1": "value1",
-    "parameter2": "value2"
-  }}
-}}
 ```
         Info: at the start of the session, the user's directory is:
         "#};
@@ -235,17 +225,6 @@ impl Provider for OllamaProvider {
             system.to_string()
         };
 
-        // Create initial messages with modified_system as the content of a user message
-        // and add an assistant reply acknowledging it
-        let mut initial_messages = vec![
-            Message::user().with_text(&modified_system),
-            Message::assistant()
-                .with_text("I understand. I'm ready to help with any tasks or questions you have."),
-        ];
-
-        // Append the actual user messages
-        initial_messages.extend_from_slice(messages);
-
         // Check if tool shim is enabled via environment variables
         let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
@@ -254,12 +233,30 @@ impl Provider for OllamaProvider {
         if use_tool_shim {
             tracing::info!("Using tool shim approach with Ollama");
 
+            // Create a string with tool information
+            let mut tool_info = String::new();
+            for tool in tools {
+                tool_info.push_str(&format!(
+                    "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
+                    tool.name,
+                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+                    tool.description
+                ));
+            }
+
+            // Append tool information to the modified_system
+            let modified_system_with_tools = format!(
+                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}",
+                modified_system,
+                tool_info
+            );
+
             // Create request without tools
             tracing::info!("Creating request without tools for initial completion");
             let payload = create_request(
                 &self.model,
-                "", // No system prompt, using modified_system as user message content instead
-                &initial_messages,
+                &modified_system_with_tools, // No system prompt, using modified_system as user message content instead
+                &messages,
                 &vec![], // No need to include tools since using tool shim
                 &super::utils::ImageFormat::OpenAi,
             )?;
@@ -296,8 +293,8 @@ impl Provider for OllamaProvider {
         } else {
             let payload = create_request(
                 &self.model,
-                "", // No system prompt, using modified_system as user message content instead
-                &initial_messages,
+                &modified_system,
+                &messages,
                 tools,
                 &super::utils::ImageFormat::OpenAi,
             )?;
