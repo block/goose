@@ -18,7 +18,7 @@ import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
-import ModalTest from './components/settings_v2/providers/modals/modalTest';
+import ModalTest from './components/settings_v2/providers/modal/modalTest';
 
 import 'react-toastify/dist/ReactToastify.css';
 

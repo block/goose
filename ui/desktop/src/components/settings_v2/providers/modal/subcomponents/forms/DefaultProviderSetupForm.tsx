@@ -1,20 +1,18 @@
 import React from 'react';
-import { Input } from '../../../../ui/input';
+import { Input } from '../../../../../ui/input';
 import { Lock } from 'lucide-react';
-import ProviderSetupFormProps from '../interfaces/ProviderSetupFormProps';
-import ParameterSchema from '../../interfaces/ParameterSchema';
+import ProviderSetupFormProps from '../../interfaces/ProviderSetupFormProps';
+import ParameterSchema from '../../../interfaces/ParameterSchema';
+import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 
-/**
- * Renders the form with required input fields and the "lock" info row.
- * Updated to match the design in the screenshots.
- */
-export default function ProviderSetupForm({
+export default function DefaultProviderSetupForm({
   configValues,
   setConfigValues,
   onSubmit,
   provider,
 }: ProviderSetupFormProps) {
-  const parameters: ParameterSchema[] = provider.parameters;
+  const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
+  const parameters: ParameterSchema[] = providerEntry.details.parameters;
 
   return (
     <form onSubmit={onSubmit}>

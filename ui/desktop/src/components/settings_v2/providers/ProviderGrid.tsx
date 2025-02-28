@@ -1,11 +1,9 @@
 import React from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
 import ProviderState from './interfaces/ProviderState';
-import OnShowModal from './callbacks/ShowModal';
-import OnAdd from './callbacks/AddProviderParameters';
-import OnDelete from './callbacks/DeleteProviderParameters';
-import OnShowSettings from './callbacks/UpdateProviderParameters';
 import OnRefresh from './callbacks/RefreshActiveProviders';
+import { ProviderModalProvider, useProviderModal } from './modal/ProviderModalProvider';
+import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 
 function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,13 +20,27 @@ function ProviderCards({
   providers: ProviderState[];
   isOnboarding: boolean;
 }) {
+  const { openModal } = useProviderModal();
+
+  // Define the callbacks for provider actions
   const providerCallbacks = {
-    onShowModal: OnShowModal,
-    onAdd: OnAdd,
-    onDelete: OnDelete,
-    onShowSettings: OnShowSettings,
-    onRefresh: OnRefresh,
+    // Replace your OnShowSettings with the modal opener
+    onConfigure: (provider: ProviderState) => {
+      console.log('Configure button clicked for:', provider.name);
+      openModal(provider, {
+        onSubmit: (values: any) => {
+          console.log(`Configuring ${provider.name}:`, values);
+          // Your logic to save the configuration
+        },
+        formProps: {},
+      });
+      console.log('openModal called'); // Check if this executes
+    },
+    onLaunch: (provider: ProviderState) => {
+      OnRefresh();
+    },
   };
+
   return (
     <>
       {providers.map((provider) => (
@@ -53,7 +65,10 @@ export default function ProviderGrid({
   console.log('(1) Provider Grid -- is  this the onboarding page?', isOnboarding);
   return (
     <GridLayout>
-      <ProviderCards providers={providers} isOnboarding={isOnboarding} />
+      <ProviderModalProvider>
+        <ProviderCards providers={providers} isOnboarding={isOnboarding} />
+        <ProviderConfigurationModal /> {/* This is missing! */}
+      </ProviderModalProvider>
     </GridLayout>
   );
 }

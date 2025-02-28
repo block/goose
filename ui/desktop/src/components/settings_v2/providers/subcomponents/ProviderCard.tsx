@@ -3,7 +3,7 @@ import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
 import ProviderState from '../interfaces/ProviderState';
 import CardBody from './CardBody';
-import ButtonCallbacks from '../interfaces/ConfigurationCallbacks';
+import ButtonCallbacks from '../interfaces/ButtonCallbacks';
 import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 
 interface ProviderCardProps {

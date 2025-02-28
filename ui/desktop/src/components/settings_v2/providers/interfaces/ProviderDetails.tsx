@@ -2,7 +2,7 @@
 import ProviderState from './ProviderState';
 import ConfigurationAction from './ConfigurationAction';
 import ParameterSchema from '../interfaces/ParameterSchema';
-import ButtonCallbacks from './ConfigurationCallbacks';
+import ButtonCallbacks from './ButtonCallbacks';
 
 export default interface ProviderDetails {
   id: string;

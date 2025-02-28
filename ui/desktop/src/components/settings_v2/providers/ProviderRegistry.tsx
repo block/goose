@@ -1,16 +1,88 @@
 import React from 'react';
 import ProviderDetails from './interfaces/ProviderDetails';
-import DefaultProviderActions from './subcomponents/buttons/DefaultProviderActions';
-import OllamaActions from './subcomponents/buttons/OllamaActions';
+import DefaultCardButtons from './subcomponents/buttons/DefaultCardButtons';
+import ButtonCallbacks from '@/src/components/settings_v2/providers/interfaces/ButtonCallbacks';
+import ProviderState from '@/src/components/settings_v2/providers/interfaces/ProviderState';
+
+// Helper function to generate default actions for most providers
+const getDefaultButtons = (
+  provider: ProviderState,
+  callbacks: ButtonCallbacks,
+  isOnboardingPage
+) => {
+  return [
+    {
+      id: 'default-buttons',
+      renderButton: () => (
+        <DefaultCardButtons
+          provider={provider}
+          callbacks={callbacks}
+          isOnboardingPage={isOnboardingPage}
+        />
+      ),
+    },
+  ];
+};
 
 export interface ProviderRegistry {
   name: string;
   details: ProviderDetails;
 }
 
-// TODO: abstract out the card actions
-// TODO: define configuration form parts
-// TODO: rename isOnboardingPage to 'showOnBoardingPageButtons' or something
+/**
+ * Provider Registry System
+ * ========================
+ *
+ * This registry defines all available providers and how they behave in the UI.
+ * It works with a dynamic modal system to create a flexible, extensible architecture
+ * for managing provider configurations.
+ *
+ * How the System Works:
+ * --------------------
+ *
+ * 1. Provider Definition:
+ *    Each provider entry in the registry defines its core properties:
+ *    - Basic info (id, name, description)
+ *    - Parameters needed for configuration
+ *    - Optional custom form component
+ *    - Action buttons that appear on provider cards
+ *
+ * 2. Two-Level Configuration:
+ *    a) Provider Card UI - What buttons appear on each provider card
+ *       - Controlled by the provider's getActions() function
+ *       - Most providers use default buttons (configure/launch)
+ *       - Can be customized for special providers
+ *
+ *    b) Modal Content - What form appears in the configuration modal
+ *       - A single modal component exists in the app
+ *       - Content changes dynamically based on the provider being configured
+ *       - If provider has CustomForm property, that component is rendered
+ *       - Otherwise, DefaultProviderForm renders based on parameters array
+ *
+ * 3. Modal Flow:
+ *    - User clicks Configure button on a provider card
+ *    - Button handler calls openModal() with the provider object
+ *    - Modal context stores the current provider and opens the modal
+ *    - ProviderConfigModal checks for CustomForm on the current provider
+ *    - Appropriate form is rendered with provider data passed as props
+ *
+ * Adding a New Provider:
+ * ---------------------
+ *
+ * For a standard provider with simple configuration:
+ * - Define parameters array with all required fields
+ * - Use the default getActions function
+ * - No need to specify a CustomForm
+ *
+ * For a provider needing custom configuration:
+ * - Define parameters array (even if just for documentation)
+ * - Create a custom form component and assign to CustomForm property
+ * - Use the default or custom getActions function
+ *
+ * This architecture centralizes provider definitions while allowing
+ * flexibility for special cases, keeping the codebase maintainable.
+ */
+
 export const PROVIDER_REGISTRY: ProviderRegistry[] = [
   {
     name: 'OpenAI',
@@ -24,24 +96,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -56,24 +112,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -88,24 +128,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -120,24 +144,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -152,24 +160,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -184,24 +176,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -216,36 +192,8 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) => {
-        const { onAdd, onDelete, onRefresh, onShowSettings } = callbacks || {};
-        return [
-          {
-            id: 'default-provider-actions',
-            renderButton: () => (
-              <DefaultProviderActions
-                name={provider.name}
-                isConfigured={provider.isConfigured}
-                onAdd={onAdd}
-                onDelete={onDelete}
-                onShowSettings={onShowSettings}
-                isOnboardingPage={isOnboardingPage}
-              />
-            ),
-          },
-        ];
-      },
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
 ];
-
-// const ACTION_IMPLEMENTATIONS = {
-//   'default': (provider, callbacks) => [{
-//     id: 'default-provider-actions',
-//     renderButton: () => <DefaultProviderActions {...} />
-//   }],
-//
-//   'ollama': (provider, callbacks) => [{
-//     id: 'ollama-actions',
-//     renderButton: () => <OllamaActions {...} />
-//   }]
-// };
