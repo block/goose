@@ -438,12 +438,19 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .interact()?
                 .to_string();
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
+                })
+                .interact()?;
+
             ExtensionManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
-                    // NOTE: default timeout for builtin tools
-                    timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                    timeout: Some(timeout),
                 },
             })?;
 
