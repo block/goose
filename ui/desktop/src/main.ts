@@ -473,6 +473,22 @@ app.whenReady().then(async () => {
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
+  // App menu
+  const appMenu = menu.items.find((item) => item.label === 'Goose');
+  // add Settings to app menu after About
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  appMenu.submenu.insert(1,
+    new MenuItem({
+      label: 'Settings',
+      accelerator: 'CmdOrCtrl+,',
+      click() {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+      },
+    })
+  );
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+
   // Add Environment menu items to View menu
   const viewMenu = menu.items.find((item) => item.label === 'View');
   if (viewMenu) {

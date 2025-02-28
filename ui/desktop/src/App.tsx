@@ -150,6 +150,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleSetView = (_, view) => setView(view);
+    window.electron.on('set-view', handleSetView);
+    return () => window.electron.off('set-view', handleSetView);
+  }, []);
+
   const handleConfirm = async () => {
     if (pendingLink && !isInstalling) {
       setIsInstalling(true);
