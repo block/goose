@@ -42,7 +42,7 @@ pub fn get_input(
         },
     };
 
-    // Add valid input to history
+    // Add valid input to history (history saving to file is handled in the Session::interactive method)
     if !input.trim().is_empty() {
         editor.add_history_entry(input.as_str())?;
     }
