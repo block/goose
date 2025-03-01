@@ -1,7 +1,7 @@
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use crate::message::Message;
-use crate::providers::base::{Provider, ProviderUsage, Usage};
+use crate::providers::base::Provider;
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -16,8 +16,8 @@ pub struct SessionMetadata {
     pub description: String,
     /// Number of messages in the session
     pub message_count: usize,
-    /// The total usage for the session. Stored from the provider's most recent usage.
-    pub usage: ProviderUsage,
+    /// The total number of tokens used in the session. Retrieved from the provider's last usage.
+    pub total_tokens: Option<i32>,
 }
 
 impl SessionMetadata {
@@ -25,9 +25,7 @@ impl SessionMetadata {
         Self {
             description: String::new(),
             message_count: 0,
-            usage: ProviderUsage::new(
-                String::new(), Usage::new(None, None, None)
-            ),
+            total_tokens: None,
         }
     }
 }

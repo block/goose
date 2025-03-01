@@ -410,7 +410,8 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let mut stream = self.agent.reply(&self.messages, None).await?;
+        let session_id = session::Identifier::Path(self.session_file.clone());
+        let mut stream = self.agent.reply(&self.messages, Some(session_id)).await?;
 
         use futures::StreamExt;
         loop {

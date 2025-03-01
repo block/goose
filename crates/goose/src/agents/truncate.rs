@@ -232,8 +232,10 @@ impl Agent for TruncateAgent {
                         if let Some(session_id) = session_id.clone() {
                             let session_file = session::get_path(session_id);
                             let mut metadata = session::read_metadata(&session_file)?;
-                            metadata.usage = usage.clone();
-                            metadata.message_count = messages.len();
+                            metadata.total_tokens = usage.usage.total_tokens;
+                            // The message count is the number of messages in the session + 1 for the response
+                            // The message count does not include the tool response till next iteration
+                            metadata.message_count = messages.len() + 1;
                             session::update_metadata(&session_file, &metadata).await?;
                         }
 

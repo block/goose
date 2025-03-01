@@ -5,7 +5,6 @@ use goose::config::{Config, ExtensionManager};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
-use std::path::PathBuf;
 use std::process;
 
 use super::output;
@@ -91,7 +90,7 @@ pub async fn build_session(
             Some(identifier) => identifier,
             None => Identifier::Name(session::generate_session_id()),
         };
-        
+
         // Just get the path - file will be created when needed
         session::get_path(id)
     };
