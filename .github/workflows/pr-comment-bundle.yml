@@ -4,6 +4,12 @@
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: string
 
 # permissions needed for reacting to IssueOps commands on PRs
 permissions:
@@ -21,11 +27,12 @@ jobs:
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     outputs:
-      continue: ${{ steps.command.outputs.continue }}
+      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
       # Cannot use github.event.pull_request.number since the trigger is 'issue_comment'
-      pr_number: ${{ steps.command.outputs.issue_number }}
+      pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
     steps:
-      - uses: github/command@v1.3.0
+      - if: ${{ github.event_name == 'issue_comment' }}
+        uses: github/command@v1.3.0
         id: command
         with:
           command: ".bundle"
