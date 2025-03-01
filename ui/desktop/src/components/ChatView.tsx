@@ -23,9 +23,23 @@ export interface ChatType {
   messages: Message[];
 }
 
-export default function ChatView({ setView }: { setView: (view: View) => void }) {
+export default function ChatView({
+  setView,
+  viewOptions,
+}: {
+  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  viewOptions?: Record<any, any>;
+}) {
+  // Check if we're resuming a session
+  const resumedSession = viewOptions?.resumedSession;
+
   // Generate or retrieve session ID
   const [sessionId] = useState(() => {
+    // If resuming a session, use that session ID
+    if (resumedSession?.session_id) {
+      return resumedSession.session_id;
+    }
+
     const existingId = window.sessionStorage.getItem('goose-session-id');
     if (existingId) {
       return existingId;
@@ -36,6 +50,32 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
   });
 
   const [chat, setChat] = useState<ChatType>(() => {
+    // If resuming a session, convert the session messages to our format
+    if (resumedSession) {
+      try {
+        // Convert the resumed session messages to the expected format
+        const convertedMessages = resumedSession.messages.map((msg): Message => {
+          return {
+            id: `${msg.role}-${msg.created}`,
+            role: msg.role,
+            created: new Date(msg.created * 1000),
+            content: msg.content.map((c) => ({
+              type: c.type,
+              text: c.text,
+            })),
+          };
+        });
+
+        return {
+          id: Date.now(),
+          title: resumedSession.description || `Chat ${resumedSession.session_id}`,
+          messages: convertedMessages,
+        };
+      } catch (e) {
+        console.error('Failed to parse resumed session:', e);
+      }
+    }
+
     // Try to load saved chat from sessionStorage
     const savedChat = window.sessionStorage.getItem(`goose-chat-${sessionId}`);
     if (savedChat) {

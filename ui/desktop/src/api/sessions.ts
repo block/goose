@@ -1,0 +1,78 @@
+import { getApiUrl, getSecretKey } from '../config';
+
+export interface Session {
+  id: string;
+  path: string;
+  modified: string;
+  description: string;
+}
+
+export interface SessionsResponse {
+  sessions: Session[];
+}
+
+export interface SessionMessage {
+  role: 'user' | 'assistant';
+  created: number;
+  content: {
+    type: string;
+    text: string;
+  }[];
+}
+
+export interface SessionDetails {
+  session_id: string;
+  description: string;
+  messages: SessionMessage[];
+}
+
+/**
+ * Fetches all available sessions from the API
+ * @returns Promise with sessions data
+ */
+export async function fetchSessions(): Promise<SessionsResponse> {
+  try {
+    const response = await fetch(getApiUrl('/sessions'), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches details for a specific session
+ * @param sessionId The ID of the session to fetch
+ * @returns Promise with session details
+ */
+export async function fetchSessionDetails(sessionId: string): Promise<SessionDetails> {
+  try {
+    const response = await fetch(getApiUrl(`/sessions/${sessionId}`), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch session details: ${response.status} ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`Error fetching session details for ${sessionId}:`, error);
+    throw error;
+  }
+}

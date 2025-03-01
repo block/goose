@@ -248,7 +248,7 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && <ChatView setView={setView} />}
+          {view === 'chat' && <ChatView setView={setView} viewOptions={viewOptions} />}
           {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
       </div>
