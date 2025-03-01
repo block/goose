@@ -14,7 +14,7 @@ struct SessionInfo {
     id: String,
     path: String,
     modified: String,
-    description: String,
+    metadata: session::SessionMetadata,
 }
 
 #[derive(Serialize)]
@@ -65,17 +65,15 @@ async fn list_sessions(
                         .to_string()
                 })
                 .unwrap_or_else(|_| "Unknown".to_string());
-            
+
             // Get session description
-            let description = session::read_metadata(&path)
-                .map(|meta| meta.description)
-                .unwrap_or_else(|_| String::new());
+            let metadata = session::read_metadata(&path).expect("Failed to read session metadata");
 
             SessionInfo {
                 id,
                 path: path.to_string_lossy().to_string(),
                 modified,
-                description,
+                metadata,
             }
         })
         .collect();

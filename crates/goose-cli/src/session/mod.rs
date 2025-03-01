@@ -410,7 +410,7 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let mut stream = self.agent.reply(&self.messages).await?;
+        let mut stream = self.agent.reply(&self.messages, None).await?;
 
         use futures::StreamExt;
         loop {

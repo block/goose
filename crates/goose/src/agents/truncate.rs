@@ -19,6 +19,7 @@ use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
+use crate::session;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use anyhow::{anyhow, Result};
@@ -144,10 +145,11 @@ impl Agent for TruncateAgent {
         }
     }
 
-    #[instrument(skip(self, messages), fields(user_message))]
+    #[instrument(skip(self, messages, session_id), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
+        session_id: Option<session::Identifier>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
@@ -224,7 +226,16 @@ impl Agent for TruncateAgent {
                     &tools,
                 ).await {
                     Ok((response, usage)) => {
-                        capabilities.record_usage(usage).await;
+                        capabilities.record_usage(usage.clone()).await;
+
+                        // record usage for the session in the session file
+                        if let Some(session_id) = session_id.clone() {
+                            let session_file = session::get_path(session_id);
+                            let mut metadata = session::read_metadata(&session_file)?;
+                            metadata.usage = usage.clone();
+                            metadata.message_count = messages.len();
+                            session::update_metadata(&session_file, &metadata).await?;
+                        }
 
                         // Reset truncation attempt
                         truncation_attempt = 0;

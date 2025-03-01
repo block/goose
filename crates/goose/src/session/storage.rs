@@ -1,7 +1,7 @@
 use anyhow::Result;
 use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use crate::message::Message;
-use crate::providers::base::Provider;
+use crate::providers::base::{Provider, ProviderUsage, Usage};
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -14,11 +14,28 @@ use serde::{Serialize, Deserialize};
 pub struct SessionMetadata {
     /// A short description of the session, typically 3 words or less
     pub description: String,
+    /// Number of messages in the session
+    pub message_count: usize,
+    /// The total usage for the session. Stored from the provider's most recent usage.
+    pub usage: ProviderUsage,
+}
+
+impl SessionMetadata {
+    pub fn new() -> Self {
+        Self {
+            description: String::new(),
+            message_count: 0,
+            usage: ProviderUsage::new(
+                String::new(), Usage::new(None, None, None)
+            ),
+        }
+    }
 }
 
 // The single app name used for all Goose applications
 const APP_NAME: &str = "goose";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Identifier {
     Name(String),
     Path(PathBuf),
@@ -147,9 +164,7 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 /// Returns default empty metadata if the file doesn't exist or has no metadata.
 pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
     if !session_file.exists() {
-        return Ok(SessionMetadata {
-            description: String::new(),
-        });
+        return Ok(SessionMetadata::new());
     }
 
     let file = fs::File::open(session_file)?;
@@ -163,16 +178,12 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
             Ok(metadata) => Ok(metadata),
             Err(_) => {
                 // If the first line isn't metadata, return default
-                Ok(SessionMetadata {
-                    description: String::new(),
-                })
+                Ok(SessionMetadata::new())
             }
         }
     } else {
         // Empty file, return default
-        Ok(SessionMetadata {
-            description: String::new(),
-        })
+        Ok(SessionMetadata::new())
     }
 }
 
@@ -308,13 +319,13 @@ pub async fn generate_description(
     metadata.description = description;
 
     // Update the file with the new metadata and existing messages
-    update_metadata(session_file, &metadata)?;
+    update_metadata(session_file, &metadata).await?;
 
     Ok(())
 }
 
 /// Update only the metadata in a session file, preserving all messages
-pub fn update_metadata(session_file: &Path, metadata: &SessionMetadata) -> Result<()> {
+pub async fn update_metadata(session_file: &Path, metadata: &SessionMetadata) -> Result<()> {
     // Read all messages from the file
     let messages = read_messages(session_file)?;
 

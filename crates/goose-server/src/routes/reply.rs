@@ -143,7 +143,7 @@ async fn handler(
         // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
-        let mut stream = match agent.reply(&messages).await {
+        let mut stream = match agent.reply(&messages, Some(session::Identifier::Name(session_id.clone()))).await {
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
@@ -167,7 +167,7 @@ async fn handler(
 
         // Collect all messages for storage
         let mut all_messages = messages.clone();
-        let session_path = session::get_path(session::Identifier::Name(session_id));
+        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
@@ -275,7 +275,7 @@ async fn ask_handler(
 
     // Get response from agent
     let mut response_text = String::new();
-    let mut stream = match agent.reply(&messages).await {
+    let mut stream = match agent.reply(&messages, Some(session::Identifier::Name(session_id.clone()))).await {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to start reply stream: {:?}", e);
@@ -313,7 +313,7 @@ async fn ask_handler(
     }
 
     // Get the session path - file will be created when needed
-    let session_path = session::get_path(session::Identifier::Name(session_id));
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     // Store messages and generate description in background
     let session_path = session_path.clone();
@@ -415,6 +415,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&AskRequest {
                         prompt: "test prompt".to_string(),
+                        session_id: Some("test-session".to_string()),
                     })
                     .unwrap(),
                 ))

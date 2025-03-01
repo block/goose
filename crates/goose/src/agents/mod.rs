@@ -3,7 +3,7 @@ mod capabilities;
 pub mod extension;
 mod factory;
 mod permission_judge;
-mod reference;
+// mod reference;
 mod truncate;
 
 pub use agent::Agent;
