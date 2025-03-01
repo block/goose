@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ConfirmToolRequest } from '../utils/toolConfirm';
 
 export default function ToolConfirmation({ toolConfirmationId }) {
-  const [hovered, setHovered] = useState(false);
   const [disabled, setDisabled] = useState(false);
 
   const handleButtonClick = (confirmed) => {
@@ -20,7 +19,6 @@ export default function ToolConfirmation({ toolConfirmationId }) {
           className={
             'bg-black text-white dark:bg-white dark:text-black rounded-full px-6 py-2 transition'
           }
-          onMouseEnter={() => setHovered(true)}
           onClick={() => handleButtonClick(true)}
           disabled={disabled}
         >
