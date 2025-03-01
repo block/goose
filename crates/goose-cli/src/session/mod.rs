@@ -271,7 +271,8 @@ impl Session {
                     let provider = self.agent.provider().await;
 
                     // Persist messages with provider for automatic description generation
-                    session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+                    session::persist_messages(&self.session_file, &self.messages, Some(provider))
+                        .await?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -536,7 +537,8 @@ impl Session {
                             self.messages.push(Message::assistant().with_text(prompt));
 
                             // No need for description update here
-                            session::persist_messages(&self.session_file, &self.messages, None).await?;
+                            session::persist_messages(&self.session_file, &self.messages, None)
+                                .await?;
 
                             output::render_message(&Message::assistant().with_text(prompt));
                         }

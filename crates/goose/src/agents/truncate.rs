@@ -3,10 +3,10 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
-use std::sync::Arc;
 
 use super::detect_read_only_tools;
 use super::Agent;

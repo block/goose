@@ -1,13 +1,13 @@
-use anyhow::Result;
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use crate::message::Message;
 use crate::providers::base::Provider;
+use anyhow::Result;
+use chrono::Local;
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
+use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use chrono::Local;
-use serde::{Serialize, Deserialize};
 
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,13 +192,14 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 pub async fn persist_messages(
     session_file: &Path,
     messages: &[Message],
-    provider: Option<Arc<Box<dyn Provider>>>
+    provider: Option<Arc<Box<dyn Provider>>>,
 ) -> Result<()> {
     // Read existing metadata
     let mut metadata = read_metadata(session_file)?;
 
     // Count user messages
-    let user_message_count = messages.iter()
+    let user_message_count = messages
+        .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
         .filter(|m| !m.as_concat_text().trim().is_empty())
         .count();
@@ -213,7 +214,8 @@ pub async fn persist_messages(
             let mut description_prompt = "Based on the conversation so far, provide a concise header for this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the header. Avoid filler words such as help, summary, exchange, request etc that do not help distinguish different conversations.".to_string();
 
             // get context from messages so far
-            let context: Vec<String> = messages.iter()
+            let context: Vec<String> = messages
+                .iter()
                 .filter_map(|m| Some(m.as_concat_text()))
                 .collect();
 
@@ -229,14 +231,17 @@ pub async fn persist_messages(
 
             // Generate the description
             let message = Message::user().with_text(&description_prompt);
-            match provider.complete(
-                "Reply with only a description in four words or less.",
-                &[message],
-                &[]
-            ).await {
+            match provider
+                .complete(
+                    "Reply with only a description in four words or less.",
+                    &[message],
+                    &[],
+                )
+                .await
+            {
                 Ok((response, _)) => {
                     metadata.description = response.as_concat_text();
-                },
+                }
                 Err(e) => {
                     tracing::error!("Failed to generate session description: {:?}", e);
                 }
@@ -254,7 +259,7 @@ pub async fn persist_messages(
 pub fn save_messages_with_metadata(
     session_file: &Path,
     metadata: &SessionMetadata,
-    messages: &[Message]
+    messages: &[Message],
 ) -> Result<()> {
     let file = File::create(session_file).expect("The path specified does not exist");
     let mut writer = io::BufWriter::new(file);
@@ -280,15 +285,16 @@ pub fn save_messages_with_metadata(
 pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
-    provider: &dyn Provider
+    provider: &dyn Provider,
 ) -> Result<()> {
     // Create a special message asking for a 3-word description
     let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
 
     // get context from messages so far
-    let context: Vec<String> = messages.iter()
+    let context: Vec<String> = messages
+        .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
-        .take(3)  // Use up to first 3 user messages for context
+        .take(3) // Use up to first 3 user messages for context
         .filter_map(|m| Some(m.as_concat_text()))
         .collect();
 
@@ -302,11 +308,13 @@ pub async fn generate_description(
 
     // Generate the description
     let message = Message::user().with_text(&description_prompt);
-    let result = provider.complete(
-        "Reply with only a description in four words or less",
-        &[message],
-        &[]
-    ).await?;
+    let result = provider
+        .complete(
+            "Reply with only a description in four words or less",
+            &[message],
+            &[],
+        )
+        .await?;
 
     let description = result.0.as_concat_text();
 
