@@ -7,7 +7,7 @@ import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 
 function GridLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 auto-rows-fr max-w-full [&_*]:z-20">
+    <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 [&_*]:z-20">
       {children}
     </div>
   );
