@@ -58,7 +58,7 @@ export default function ChatView({
           return {
             id: `${msg.role}-${msg.created}`,
             role: msg.role,
-            created: new Date(msg.created * 1000),
+            created: msg.created,
             content: msg.content.map((c) => ({
               type: c.type,
               text: c.text,

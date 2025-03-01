@@ -18,7 +18,7 @@ The Goose Desktop App is an Electron application built with TypeScript, React, a
   - `/preload.ts`: Preload script for secure renderer access
   - `/renderer.tsx`: React entry point for the renderer process
   - `/App.tsx`: Main React component that manages views
-  - `/components`: React components
+  - `/components`: React components (page views, UI components, icons)
   - `/api`: API client code
   - `/utils`: Utility functions
   - `/hooks`: React hooks
