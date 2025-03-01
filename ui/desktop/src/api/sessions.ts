@@ -1,10 +1,16 @@
 import { getApiUrl, getSecretKey } from '../config';
 
+export interface SessionMetadata {
+  description: string;
+  message_count: number;
+  total_tokens: number | null;
+}
+
 export interface Session {
   id: string;
   path: string;
   modified: string;
-  description: string;
+  metadata: SessionMetadata;
 }
 
 export interface SessionsResponse {
@@ -47,7 +53,7 @@ export async function fetchSessions(): Promise<SessionsResponse> {
     // TODO: remove this logic once everyone migrates to the new sessions format
     // for now, filter out sessions whose description is empty (old CLI sessions)
     const sessions = (await response.json()).sessions.filter(
-      (session: Session) => session.description !== ''
+      (session: Session) => session.metadata.description !== ''
     );
 
     // order sessions by 'modified' date descending

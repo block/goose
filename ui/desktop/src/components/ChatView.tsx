@@ -68,7 +68,7 @@ export default function ChatView({
 
         return {
           id: Date.now(),
-          title: resumedSession.description || `Chat ${resumedSession.session_id}`,
+          title: resumedSession.metadata.description || `Chat ${resumedSession.session_id}`,
           messages: convertedMessages,
         };
       } catch (e) {

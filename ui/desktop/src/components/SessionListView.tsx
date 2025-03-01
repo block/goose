@@ -106,7 +106,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                   >
                     <div className="flex justify-between items-start">
                       <h3 className="text-lg font-medium text-textStandard">
-                        {session.description || session.id}
+                        {session.metadata.description || session.id}
                       </h3>
                       <div className="flex items-center text-sm text-textSubtle">
                         <Clock className="w-4 h-4 mr-1" />
