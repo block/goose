@@ -89,6 +89,33 @@ export type AddExtensionResponses = {
 
 export type AddExtensionResponse = AddExtensionResponses[keyof AddExtensionResponses];
 
+export type UpdateExtensionData = {
+    body: ExtensionQuery;
+    path?: never;
+    query?: never;
+    url: '/config/extension';
+};
+
+export type UpdateExtensionErrors = {
+    /**
+     * Extension not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateExtensionResponses = {
+    /**
+     * Extension configuration updated successfully
+     */
+    200: string;
+};
+
+export type UpdateExtensionResponse = UpdateExtensionResponses[keyof UpdateExtensionResponses];
+
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;

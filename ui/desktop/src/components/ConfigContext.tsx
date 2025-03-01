@@ -1,5 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Config } from '../api/config';
+import {
+  readAllConfig,
+  readConfig,
+  removeConfig,
+  upsertConfig,
+  addExtension as apiAddExtension,
+  removeExtension as apiRemoveExtension,
+  updateExtension as apiUpdateExtension,
+} from '../api';
+import { client } from '../api/client.gen';
+
+// Initialize client configuration
+client.setConfig({
+  baseUrl: window.appConfig.get('GOOSE_API_HOST') + ':' + window.appConfig.get('GOOSE_PORT'),
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Secret-Key': window.appConfig.get('secretKey'),
+  },
+});
 
 interface ConfigContextType {
   config: Record<string, any>;
@@ -7,6 +25,7 @@ interface ConfigContextType {
   read: (key: string) => Promise<any>;
   remove: (key: string) => Promise<void>;
   addExtension: (name: string, config: any) => Promise<void>;
+  updateExtension: (name: string, config: any) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
 }
 
@@ -22,42 +41,65 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   useEffect(() => {
     // Load all configuration data on mount
     (async () => {
-      const initialConfig = await Config.readAll();
-      setConfig(initialConfig || {});
+      const response = await readAllConfig();
+      setConfig(response.data.config || {});
     })();
   }, []);
 
   const reloadConfig = async () => {
-    const newConfig = await Config.readAll();
-    setConfig(newConfig || {});
+    const response = await readAllConfig();
+    setConfig(response.data.config || {});
   };
 
   const upsert = async (key: string, value: any, isSecret?: boolean) => {
-    await Config.upsert(key, value, isSecret);
+    await upsertConfig({
+      body: {
+        key,
+        value,
+        is_secret: isSecret,
+      },
+    });
     await reloadConfig();
   };
 
   const read = async (key: string) => {
-    return Config.read(key);
+    return await readConfig({
+      body: { key },
+    });
   };
 
   const remove = async (key: string) => {
-    await Config.remove(key);
+    await removeConfig({
+      body: { key },
+    });
     await reloadConfig();
   };
 
   const addExtension = async (name: string, config: any) => {
-    await Config.addExtension(name, config);
+    await apiAddExtension({
+      body: { name, config },
+    });
     await reloadConfig();
   };
 
   const removeExtension = async (name: string) => {
-    await Config.removeExtension(name);
+    await apiRemoveExtension({
+      body: { key: name },
+    });
+    await reloadConfig();
+  };
+
+  const updateExtension = async (name: string, config: any) => {
+    await apiUpdateExtension({
+      body: { name, config },
+    });
     await reloadConfig();
   };
 
   return (
-    <ConfigContext.Provider value={{ config, upsert, read, remove, addExtension, removeExtension }}>
+    <ConfigContext.Provider
+      value={{ config, upsert, read, remove, addExtension, updateExtension, removeExtension }}
+    >
       {children}
     </ConfigContext.Provider>
   );
