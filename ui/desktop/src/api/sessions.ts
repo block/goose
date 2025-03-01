@@ -44,7 +44,18 @@ export async function fetchSessions(): Promise<SessionsResponse> {
       throw new Error(`Failed to fetch sessions: ${response.status} ${response.statusText}`);
     }
 
-    return await response.json();
+    // TODO: remove this logic once everyone migrates to the new sessions format
+    // for now, filter out sessions whose description is empty (old CLI sessions)
+    const sessions = (await response.json()).sessions.filter(
+      (session: Session) => session.description !== ''
+    );
+
+    // order sessions by 'modified' date descending
+    sessions.sort(
+      (a: Session, b: Session) => new Date(b.modified).getTime() - new Date(a.modified).getTime()
+    );
+
+    return { sessions };
   } catch (error) {
     console.error('Error fetching sessions:', error);
     throw error;
