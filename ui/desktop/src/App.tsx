@@ -18,6 +18,7 @@ import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import ProviderSettings from './components/settings/providers/providers/NewProviderSettingsPage';
+import SessionsView from './components/SessionsView';
 
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -30,7 +31,8 @@ export type View =
   | 'configureProviders'
   | 'configPage'
   | 'alphaConfigureProviders'
-  | 'settingsV2';
+  | 'settingsV2'
+  | 'sessions';
 
 export type ViewConfig = {
   view: View;
@@ -247,6 +249,7 @@ export default function App() {
             <ProviderSettings onClose={() => setView('chat')} />
           )}
           {view === 'chat' && <ChatView setView={setView} />}
+          {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
       </div>
     </>

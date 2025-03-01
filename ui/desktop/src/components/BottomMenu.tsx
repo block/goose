@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModel } from './settings/models/ModelContext';
 import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
-import { Sliders } from 'lucide-react';
+import { Sliders, History } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View } from '../ChatWindow';
+import type { View } from '../App';
 import { ConfigureGooseHints } from './ConfigureGooseHints';
 
 export default function BottomMenu({
@@ -81,8 +81,17 @@ export default function BottomMenu({
         <ConfigureGooseHints directory={window.appConfig.get('GOOSE_WORKING_DIR')} />
       </div>
 
-      {/* Model Selector Dropdown - Only in development */}
-      <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
+      {/* Session History Button */}
+      <button
+        className="flex items-center ml-auto mr-4 hover:text-textPrimary transition-colors"
+        onClick={() => setView('sessions')}
+      >
+        <History className="w-4 h-4 mr-1" />
+        <span>History</span>
+      </button>
+
+      {/* Model Selector Dropdown */}
+      <div className="relative flex items-center mr-4" ref={dropdownRef}>
         <div
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
