@@ -32,11 +32,35 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     return session.messages.length;
   };
 
+  // Move the tool response mapping logic outside of the render loop
+  const getToolResponsesMap = (messageIndex: number, toolRequests: ToolRequestMessageContent[]) => {
+    const responseMap = new Map();
+
+    // Look for tool responses in subsequent messages
+    if (messageIndex >= 0) {
+      for (let i = messageIndex + 1; i < session.messages.length; i++) {
+        const responses = session.messages[i].content
+          .filter((c) => c.type === 'toolResponse')
+          .map((c) => c as ToolResponseMessageContent);
+
+        for (const response of responses) {
+          // Check if this response matches any of our tool requests
+          const matchingRequest = toolRequests.find((req) => req.id === response.id);
+          if (matchingRequest) {
+            responseMap.set(response.id, response);
+          }
+        }
+      }
+    }
+
+    return responseMap;
+  };
+
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
-      <ScrollArea className="h-full w-full">
-        <div className="flex flex-col h-screen bg-bgApp">
+      <ScrollArea className="h-[calc(100vh-36px)] w-full">
+        <div className="flex flex-col bg-bgApp">
           {/* Header */}
           <div className="px-8 pt-6 pb-4">
             {/* Navigation row */}
@@ -64,7 +88,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 pb-8">
             <div className="flex flex-col space-y-4">
               <div className="space-y-4">
                 {isLoading ? (
@@ -110,31 +134,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                         .filter((c) => c.type === 'toolRequest')
                         .map((c) => c as ToolRequestMessageContent);
 
-                      // Find tool responses that correspond to the tool requests in this message
-                      const toolResponsesMap = useMemo(() => {
-                        const responseMap = new Map();
-
-                        // Look for tool responses in subsequent messages
-                        if (index >= 0) {
-                          for (let i = index + 1; i < session.messages.length; i++) {
-                            const responses = session.messages[i].content
-                              .filter((c) => c.type === 'toolResponse')
-                              .map((c) => c as ToolResponseMessageContent);
-
-                            for (const response of responses) {
-                              // Check if this response matches any of our tool requests
-                              const matchingRequest = toolRequests.find(
-                                (req) => req.id === response.id
-                              );
-                              if (matchingRequest) {
-                                responseMap.set(response.id, response);
-                              }
-                            }
-                          }
-                        }
-
-                        return responseMap;
-                      }, [session.messages, index, toolRequests]);
+                      // Get tool responses map using the helper function
+                      const toolResponsesMap = getToolResponsesMap(index, toolRequests);
 
                       // Skip pure tool response messages for cleaner display
                       const isOnlyToolResponse =
