@@ -45,6 +45,10 @@ jobs:
     runs-on: macos-latest
     name: Bundle Desktop App on macOS
     steps:
+      # Check initial disk space
+      - name: Check initial disk space
+        run: df -h
+
       # Validate Signing Secrets if signing is enabled
       - name: Validate Signing Secrets
         if: ${{ inputs.signing }}
@@ -86,6 +90,21 @@ jobs:
           cd ui/desktop
           npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
+      # Pre-build cleanup to ensure enough disk space
+      - name: Pre-build cleanup
+        run: |
+          echo "Performing pre-build cleanup..."
+          # Clean npm cache
+          npm cache clean --force || true
+          # Clean any previous build artifacts
+          rm -rf target || true
+          # Clean Homebrew cache
+          brew cleanup || true
+          # Remove unnecessary large directories
+          rm -rf ~/Library/Caches/* || true
+          # Check disk space after cleanup
+          df -h
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -115,9 +134,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
-      # Rest of the workflow remains the same...
+      # Build the project
       - name: Build goosed
         run: cargo build --release -p goose-server
+
+      # Post-build cleanup to free space
+      - name: Post-build cleanup
+        run: |
+          echo "Performing post-build cleanup..."
+          # Remove debug artifacts
+          rm -rf target/debug || true
+          # Keep only what's needed for the next steps
+          rm -rf target/release/deps || true
+          rm -rf target/release/build || true
+          rm -rf target/release/incremental || true
+          # Check disk space after cleanup
+          df -h
 
       - name: Copy binary into Electron folder
         run: cp target/release/goosed ui/desktop/src/bin/goosed
@@ -138,6 +170,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: ui/desktop
+
+      # Check disk space before bundling
+      - name: Check disk space before bundling
+        run: df -h
 
       - name: Make Unsigned App
         if: ${{ !inputs.signing }}
@@ -176,6 +212,14 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Final cleanup before artifact upload
+        run: |
+          echo "Performing final cleanup..."
+          # Remove build artifacts that are no longer needed
+          rm -rf target || true
+          # Check disk space after cleanup
+          df -h
 
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4

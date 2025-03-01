@@ -76,6 +76,31 @@ jobs:
           cargo test
         working-directory: crates
 
+      # Add disk space cleanup before linting
+      - name: Check disk space before cleanup
+        run: df -h
+
+      - name: Clean up disk space
+        run: |
+          echo "Cleaning up disk space..."
+          # Remove debug artifacts that are no longer needed after tests
+          rm -rf target/debug/deps
+          rm -rf target/debug/build
+          rm -rf target/debug/incremental
+          # Clean npm cache if it exists
+          npm cache clean --force || true
+          # Clean apt cache
+          sudo apt-get clean
+          # Remove unnecessary large directories
+          rm -rf ~/.cargo/registry/index || true
+          # Remove docker images if any
+          docker system prune -af || true
+          # Remove unused packages
+          sudo apt-get autoremove -y || true
+
+      - name: Check disk space after cleanup
+        run: df -h
+
       - name: Lint
         run: cargo clippy -- -D warnings
 
