@@ -11,6 +11,7 @@ use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::compress::Compressor;
 use crate::config::Config;
 use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
@@ -19,7 +20,7 @@ use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
-use crate::truncate::{truncate_messages, OldestFirstTruncation};
+use crate::truncate::{OldestFirstTruncation, Truncator};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;
@@ -36,6 +37,7 @@ pub struct TruncateAgent {
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
+    compressor: Box<dyn Compressor + Send + Sync>,
 }
 
 impl TruncateAgent {
@@ -49,6 +51,9 @@ impl TruncateAgent {
             token_counter,
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
+            compressor: Box::new(Truncator {
+                strategy: &OldestFirstTruncation,
+            }),
         }
     }
 
@@ -99,12 +104,8 @@ impl TruncateAgent {
             })
             .collect();
 
-        truncate_messages(
-            messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )
+        self.compressor
+            .compress(messages, &mut token_counts, context_limit)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::message::Message;
+use crate::{compress::Compressor, message::Message};
 use anyhow::{anyhow, Result};
 use mcp_core::Role;
 use std::collections::HashSet;
@@ -75,106 +75,124 @@ impl TruncationStrategy for OldestFirstTruncation {
     }
 }
 
-/// Truncates the messages to fit within the model's context window.
-/// Mutates the input messages and token counts in place.
-/// Returns an error if it's impossible to truncate the messages within the context limit.
-/// - messages: The vector of messages in the conversation.
-/// - token_counts: A parallel vector containing the token count for each message.
-/// - context_limit: The maximum allowed context length in tokens.
-/// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
-pub fn truncate_messages(
-    messages: &mut Vec<Message>,
-    token_counts: &mut Vec<usize>,
-    context_limit: usize,
-    strategy: &dyn TruncationStrategy,
-) -> Result<(), anyhow::Error> {
-    if messages.len() != token_counts.len() {
-        return Err(anyhow!(
-            "The vector for messages and token_counts must have same length"
-        ));
+pub struct Truncator {
+    pub strategy: &'static (dyn TruncationStrategy + Send + Sync),
+}
+
+impl Compressor for Truncator {
+    fn compress(
+        &self,
+        messages: &mut Vec<Message>,
+        token_counts: &mut Vec<usize>,
+        context_limit: usize,
+    ) -> Result<(), anyhow::Error> {
+        self.truncate_messages(messages, token_counts, context_limit)
     }
+}
 
-    // Step 1: Calculate total tokens
-    let mut total_tokens: usize = token_counts.iter().sum();
-    debug!("Total tokens before truncation: {}", total_tokens);
-
-    // Check if any individual message is larger than the context limit
-    let min_user_msg_tokens = messages
-        .iter()
-        .zip(token_counts.iter())
-        .filter(|(msg, _)| msg.role == Role::User && msg.has_only_text_content())
-        .map(|(_, &tokens)| tokens)
-        .min();
-
-    // If there are no valid user messages, or the smallest one is too big for the context
-    if min_user_msg_tokens.is_none() || min_user_msg_tokens.unwrap() > context_limit {
-        return Err(anyhow!(
-            "Not possible to truncate messages within context limit"
-        ));
-    }
-
-    if total_tokens <= context_limit {
-        return Ok(()); // No truncation needed
-    }
-
-    // Step 2: Determine indices to remove based on strategy
-    let indices_to_remove =
-        strategy.determine_indices_to_remove(messages, token_counts, context_limit)?;
-
-    // Step 3: Remove the marked messages
-    // Vectorize the set and sort in reverse order to avoid shifting indices when removing
-    let mut indices_to_remove = indices_to_remove.iter().cloned().collect::<Vec<usize>>();
-    indices_to_remove.sort_unstable_by(|a, b| b.cmp(a));
-
-    for &index in &indices_to_remove {
-        if index < messages.len() {
-            let _ = messages.remove(index);
-            let removed_tokens = token_counts.remove(index);
-            total_tokens -= removed_tokens;
+impl Truncator {
+    /// Truncates the messages to fit within the model's context window.
+    /// Mutates the input messages and token counts in place.
+    /// Returns an error if it's impossible to truncate the messages within the context limit.
+    /// - messages: The vector of messages in the conversation.
+    /// - token_counts: A parallel vector containing the token count for each message.
+    /// - context_limit: The maximum allowed context length in tokens.
+    /// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
+    fn truncate_messages(
+        &self,
+        messages: &mut Vec<Message>,
+        token_counts: &mut Vec<usize>,
+        context_limit: usize,
+    ) -> Result<(), anyhow::Error> {
+        if messages.len() != token_counts.len() {
+            return Err(anyhow!(
+                "The vector for messages and token_counts must have same length"
+            ));
         }
-    }
 
-    // Step 4: Ensure the last message is a user message with TextContent only
-    while let Some(last_msg) = messages.last() {
-        if last_msg.role != Role::User || !last_msg.has_only_text_content() {
-            let _ = messages.pop().ok_or(anyhow!("Failed to pop message"))?;
-            let removed_tokens = token_counts
-                .pop()
-                .ok_or(anyhow!("Failed to pop token count"))?;
-            total_tokens -= removed_tokens;
-        } else {
-            break;
+        // Step 1: Calculate total tokens
+        let mut total_tokens: usize = token_counts.iter().sum();
+        debug!("Total tokens before truncation: {}", total_tokens);
+
+        // Check if any individual message is larger than the context limit
+        let min_user_msg_tokens = messages
+            .iter()
+            .zip(token_counts.iter())
+            .filter(|(msg, _)| msg.role == Role::User && msg.has_only_text_content())
+            .map(|(_, &tokens)| tokens)
+            .min();
+
+        // If there are no valid user messages, or the smallest one is too big for the context
+        if min_user_msg_tokens.is_none() || min_user_msg_tokens.unwrap() > context_limit {
+            return Err(anyhow!(
+                "Not possible to truncate messages within context limit"
+            ));
         }
-    }
 
-    // Step 5: Check first msg is a User message with TextContent only
-    while let Some(first_msg) = messages.first() {
-        if first_msg.role != Role::User || !first_msg.has_only_text_content() {
-            let _ = messages.remove(0);
-            let removed_tokens = token_counts.remove(0);
-            total_tokens -= removed_tokens;
-        } else {
-            break;
+        if total_tokens <= context_limit {
+            return Ok(()); // No truncation needed
         }
+
+        // Step 2: Determine indices to remove based on strategy
+        let indices_to_remove =
+            self.strategy
+                .determine_indices_to_remove(messages, token_counts, context_limit)?;
+
+        // Step 3: Remove the marked messages
+        // Vectorize the set and sort in reverse order to avoid shifting indices when removing
+        let mut indices_to_remove = indices_to_remove.iter().cloned().collect::<Vec<usize>>();
+        indices_to_remove.sort_unstable_by(|a, b| b.cmp(a));
+
+        for &index in &indices_to_remove {
+            if index < messages.len() {
+                let _ = messages.remove(index);
+                let removed_tokens = token_counts.remove(index);
+                total_tokens -= removed_tokens;
+            }
+        }
+
+        // Step 4: Ensure the last message is a user message with TextContent only
+        while let Some(last_msg) = messages.last() {
+            if last_msg.role != Role::User || !last_msg.has_only_text_content() {
+                let _ = messages.pop().ok_or(anyhow!("Failed to pop message"))?;
+                let removed_tokens = token_counts
+                    .pop()
+                    .ok_or(anyhow!("Failed to pop token count"))?;
+                total_tokens -= removed_tokens;
+            } else {
+                break;
+            }
+        }
+
+        // Step 5: Check first msg is a User message with TextContent only
+        while let Some(first_msg) = messages.first() {
+            if first_msg.role != Role::User || !first_msg.has_only_text_content() {
+                let _ = messages.remove(0);
+                let removed_tokens = token_counts.remove(0);
+                total_tokens -= removed_tokens;
+            } else {
+                break;
+            }
+        }
+
+        debug!("Total tokens after truncation: {}", total_tokens);
+
+        // Ensure we have at least one message remaining and it's within context limit
+        if messages.is_empty() {
+            return Err(anyhow!(
+                "Unable to preserve any messages within context limit"
+            ));
+        }
+
+        if total_tokens > context_limit {
+            return Err(anyhow!(
+                "Unable to truncate messages within context window."
+            ));
+        }
+
+        debug!("Truncation complete. Total tokens: {}", total_tokens);
+        Ok(())
     }
-
-    debug!("Total tokens after truncation: {}", total_tokens);
-
-    // Ensure we have at least one message remaining and it's within context limit
-    if messages.is_empty() {
-        return Err(anyhow!(
-            "Unable to preserve any messages within context limit"
-        ));
-    }
-
-    if total_tokens > context_limit {
-        return Err(anyhow!(
-            "Unable to truncate messages within context window."
-        ));
-    }
-
-    debug!("Truncation complete. Total tokens: {}", total_tokens);
-    Ok(())
 }
 
 // truncate.rs
@@ -245,12 +263,11 @@ mod tests {
 
         let mut messages_clone = messages.clone();
         let mut token_counts_clone = token_counts.clone();
-        truncate_messages(
-            &mut messages_clone,
-            &mut token_counts_clone,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
 
         assert_eq!(messages_clone, messages);
         assert_eq!(token_counts_clone, token_counts);
@@ -290,12 +307,11 @@ mod tests {
 
         let mut messages_clone = messages.clone();
         let mut token_counts_clone = token_counts.clone();
-        truncate_messages(
-            &mut messages_clone,
-            &mut token_counts_clone,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
 
         // Verify that tool pairs are kept together and the conversation remains coherent
         assert!(messages_clone.len() >= 3); // At least one complete interaction should remain
@@ -326,12 +342,10 @@ mod tests {
         let (mut messages, mut token_counts) = create_messages_with_counts(2, 25, false);
         let context_limit = 100; // Exactly matches total tokens
 
-        truncate_messages(
-            &mut messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
 
         assert_eq!(messages.len(), 4); // No truncation needed
         assert_eq!(token_counts.iter().sum::<usize>(), 100);
@@ -340,12 +354,10 @@ mod tests {
         messages.push(user_text(5, 1).0);
         token_counts.push(1);
 
-        truncate_messages(
-            &mut messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
 
         assert!(token_counts.iter().sum::<usize>() <= context_limit);
         assert!(messages.last().unwrap().role == Role::User);
@@ -380,12 +392,10 @@ mod tests {
         let mut messages_clone = messages.clone();
         let mut token_counts_clone = token_counts.clone();
 
-        truncate_messages(
-            &mut messages_clone,
-            &mut token_counts_clone,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
 
         // Verify that remaining tool chains are complete
         let remaining_tool_ids: HashSet<_> = messages_clone
@@ -425,12 +435,10 @@ mod tests {
         let mut token_counts = vec![50, 10, 10, 20, 5];
         let context_limit = 45; // Force truncation
 
-        truncate_messages(
-            &mut messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )?;
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
 
         // Verify the conversation still makes sense
         assert!(messages.len() >= 1);
@@ -444,23 +452,22 @@ mod tests {
     fn test_error_cases() -> Result<()> {
         // Test impossibly small context window
         let (mut messages, mut token_counts) = create_messages_with_counts(1, 10, false);
-        let result = truncate_messages(
+
+        let truncator = Truncator {
+            strategy: &OldestFirstTruncation,
+        };
+
+        let result = truncator.compress(
             &mut messages,
             &mut token_counts,
             5, // Impossibly small context
-            &OldestFirstTruncation,
         );
         assert!(result.is_err());
 
         // Test unmatched token counts
         let mut messages = vec![user_text(1, 10).0];
         let mut token_counts = vec![10, 10]; // Mismatched length
-        let result = truncate_messages(
-            &mut messages,
-            &mut token_counts,
-            100,
-            &OldestFirstTruncation,
-        );
+        let result = truncator.compress(&mut messages, &mut token_counts, 100);
         assert!(result.is_err());
 
         Ok(())

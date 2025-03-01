@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod compress;
 pub mod config;
 pub mod message;
 pub mod model;
