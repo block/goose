@@ -187,6 +187,22 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
+export function getToolConfirmationRequestId(message: Message): [string, boolean] {
+  const hasToolConfirmationRequest = message.content.some(
+    (content): content is ToolConfirmationRequestMessageContent =>
+      content.type === 'toolConfirmationRequest'
+  );
+
+  const contentId = hasToolConfirmationRequest
+    ? message.content.find(
+        (content): content is ToolConfirmationRequestMessageContent =>
+          content.type === 'toolConfirmationRequest'
+      )?.id || ''
+    : '';
+
+  return [contentId, hasToolConfirmationRequest];
+}
+
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   if (toolRequests.length === 0) return false;

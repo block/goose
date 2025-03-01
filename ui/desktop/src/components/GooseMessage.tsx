@@ -4,7 +4,14 @@ import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
-import { Message, getTextContent, getToolRequests, getToolResponses } from '../types/message';
+import {
+  Message,
+  getTextContent,
+  getToolRequests,
+  getToolResponses,
+  getToolConfirmationRequestId,
+} from '../types/message';
+import ToolCallConfirmation from './ToolCallConfirmation';
 
 interface GooseMessageProps {
   message: Message;
@@ -15,7 +22,7 @@ interface GooseMessageProps {
 
 export default function GooseMessage({ message, metadata, messages, append }: GooseMessageProps) {
   // Extract text content from the message
-  const textContent = getTextContent(message);
+  let textContent = getTextContent(message);
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
@@ -28,6 +35,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
   const previousMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(textContent, previousUrls) : [];
+
+  const [toolConfirmationId, hasToolConfirmation] = getToolConfirmationRequestId(message);
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -62,6 +71,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
             {textContent ? <MarkdownContent content={textContent} /> : null}
           </div>
         )}
+
+        {hasToolConfirmation && <ToolCallConfirmation toolConfirmationId={toolConfirmationId} />}
 
         {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">

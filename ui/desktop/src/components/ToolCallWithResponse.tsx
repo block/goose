@@ -80,6 +80,9 @@ function ToolResultView({ result }: ToolResultViewProps) {
 
   // Find results where either audience is not set, or it's set to a list that includes user
   const filteredResults = result.filter((item) => {
+    if (!item.annotations) {
+      return false;
+    }
     // Check audience (which may not be in the type)
     const audience = item.annotations?.audience;
 
