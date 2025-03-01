@@ -59,16 +59,40 @@ export default function ChatView({
             id: `${msg.role}-${msg.created}`,
             role: msg.role,
             created: msg.created,
-            content: msg.content.map((c) => ({
-              type: c.type,
-              text: c.text,
-            })),
+            content: msg.content.map((c) => {
+              // Properly handle different content types
+              if (c.type === 'text') {
+                return {
+                  type: 'text',
+                  text: c.text,
+                };
+              } else if (c.type === 'toolRequest') {
+                return {
+                  type: 'toolRequest',
+                  id: c.id,
+                  toolCall: c.toolCall,
+                };
+              } else if (c.type === 'toolResponse') {
+                return {
+                  type: 'toolResponse',
+                  id: c.id,
+                  toolResult: c.toolResult,
+                };
+              } else if (c.type === 'resource' && c.resource) {
+                return {
+                  type: 'resource',
+                  resource: c.resource,
+                };
+              }
+              // Default fallback for any other types
+              return c;
+            }),
           };
         });
 
         return {
           id: Date.now(),
-          title: resumedSession.metadata.description || `Chat ${resumedSession.session_id}`,
+          title: resumedSession.description || `Chat ${resumedSession.session_id}`,
           messages: convertedMessages,
         };
       } catch (e) {

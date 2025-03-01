@@ -118,6 +118,52 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                             {content.type === 'text' && (
                               <div className="whitespace-pre-wrap">{content.text}</div>
                             )}
+                            {content.type === 'toolRequest' && (
+                              <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
+                                <div className="font-medium text-sm text-blue-600 dark:text-blue-400">
+                                  Tool Request: {content.toolCall.value?.name}
+                                </div>
+                                {content.toolCall.value?.arguments && (
+                                  <pre className="text-xs mt-1 overflow-x-auto">
+                                    {JSON.stringify(content.toolCall.value.arguments, null, 2)}
+                                  </pre>
+                                )}
+                              </div>
+                            )}
+                            {content.type === 'toolResponse' && (
+                              <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
+                                <div className="font-medium text-sm text-green-600 dark:text-green-400">
+                                  Tool Response
+                                </div>
+                                {content.toolResult.status === 'error' ? (
+                                  <div className="text-red-500 text-sm">
+                                    {content.toolResult.error}
+                                  </div>
+                                ) : (
+                                  content.toolResult.value?.map((item, idx) => (
+                                    <div key={idx} className="text-xs mt-1">
+                                      {item.type === 'text' && (
+                                        <div className="whitespace-pre-wrap">{item.text}</div>
+                                      )}
+                                      {item.type === 'resource' && item.resource && (
+                                        <div className="mt-1">
+                                          <div className="text-xs text-blue-500">
+                                            Resource: {item.resource.uri}
+                                          </div>
+                                          {item.resource.text && (
+                                            <pre className="text-xs mt-1 max-h-40 overflow-y-auto p-2 bg-gray-50 dark:bg-gray-900 rounded">
+                                              {item.resource.text.length > 500
+                                                ? `${item.resource.text.substring(0, 500)}... (truncated)`
+                                                : item.resource.text}
+                                            </pre>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
