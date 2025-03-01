@@ -72,7 +72,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             {/* Session info row */}
             <div>
               <h1 className="text-xl font-medium text-textStandard">
-                {session.description || session.session_id}
+                {session.metadata.description || session.session_id}
               </h1>
               <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
                 <span className="flex items-center">

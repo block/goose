@@ -28,7 +28,7 @@ export interface SessionMessage {
 
 export interface SessionDetails {
   session_id: string;
-  description: string;
+  metadata: SessionMetadata;
   messages: SessionMessage[];
 }
 
