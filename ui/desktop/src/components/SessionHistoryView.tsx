@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { ViewConfig } from '../App';
-import { ArrowLeft, Clock, MessageSquare } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Clock, MessageSquare } from 'lucide-react';
 import { type SessionDetails } from '../api/sessions';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import BackButton from './ui/BackButton';
 import ResumeButton from './ui/ResumeButton';
 import { ScrollArea } from './ui/scroll-area';
+import MarkdownContent from './MarkdownContent';
+import ToolCallWithResponse from './ToolCallWithResponse';
+import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 
 interface SessionHistoryViewProps {
   session: SessionDetails;
@@ -95,80 +97,97 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                     </Button>
                   </div>
                 ) : session?.messages?.length > 0 ? (
-                  session.messages.map((message, index) => (
-                    <Card
-                      key={index}
-                      className={`p-4 ${
-                        message.role === 'user'
-                          ? 'bg-bgSecondary border border-borderSubtle'
-                          : 'bg-bgSubtle'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-textStandard">
-                          {message.role === 'user' ? 'You' : 'Goose'}
-                        </span>
-                        <span className="text-xs text-textSubtle">
-                          {new Date(message.created * 1000).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="prose dark:prose-invert max-w-none">
-                        {message.content.map((content, i) => (
-                          <div key={i}>
-                            {content.type === 'text' && (
-                              <div className="whitespace-pre-wrap">{content.text}</div>
-                            )}
-                            {content.type === 'toolRequest' && (
-                              <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
-                                <div className="font-medium text-sm text-blue-600 dark:text-blue-400">
-                                  Tool Request: {content.toolCall.value?.name}
-                                </div>
-                                {content.toolCall.value?.arguments && (
-                                  <pre className="text-xs mt-1 overflow-x-auto">
-                                    {JSON.stringify(content.toolCall.value.arguments, null, 2)}
-                                  </pre>
-                                )}
+                  session.messages
+                    .map((message, index) => {
+                      // Extract text content from the message
+                      const textContent = message.content
+                        .filter((c) => c.type === 'text')
+                        .map((c) => c.text)
+                        .join('\n');
+
+                      // Get tool requests from the message
+                      const toolRequests = message.content
+                        .filter((c) => c.type === 'toolRequest')
+                        .map((c) => c as ToolRequestMessageContent);
+
+                      // Find tool responses that correspond to the tool requests in this message
+                      const toolResponsesMap = useMemo(() => {
+                        const responseMap = new Map();
+
+                        // Look for tool responses in subsequent messages
+                        if (index >= 0) {
+                          for (let i = index + 1; i < session.messages.length; i++) {
+                            const responses = session.messages[i].content
+                              .filter((c) => c.type === 'toolResponse')
+                              .map((c) => c as ToolResponseMessageContent);
+
+                            for (const response of responses) {
+                              // Check if this response matches any of our tool requests
+                              const matchingRequest = toolRequests.find(
+                                (req) => req.id === response.id
+                              );
+                              if (matchingRequest) {
+                                responseMap.set(response.id, response);
+                              }
+                            }
+                          }
+                        }
+
+                        return responseMap;
+                      }, [session.messages, index, toolRequests]);
+
+                      // Skip pure tool response messages for cleaner display
+                      const isOnlyToolResponse =
+                        message.content.length > 0 &&
+                        message.content.every((c) => c.type === 'toolResponse');
+
+                      if (message.role === 'user' && isOnlyToolResponse) {
+                        return null;
+                      }
+
+                      return (
+                        <Card
+                          key={index}
+                          className={`p-4 ${
+                            message.role === 'user'
+                              ? 'bg-bgSecondary border border-borderSubtle'
+                              : 'bg-bgSubtle'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium text-textStandard">
+                              {message.role === 'user' ? 'You' : 'Goose'}
+                            </span>
+                            <span className="text-xs text-textSubtle">
+                              {new Date(message.created * 1000).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col w-full">
+                            {/* Text content */}
+                            {textContent && (
+                              <div className={`${toolRequests.length > 0 ? 'mb-4' : ''}`}>
+                                <MarkdownContent content={textContent} />
                               </div>
                             )}
-                            {content.type === 'toolResponse' && (
-                              <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
-                                <div className="font-medium text-sm text-green-600 dark:text-green-400">
-                                  Tool Response
-                                </div>
-                                {content.toolResult.status === 'error' ? (
-                                  <div className="text-red-500 text-sm">
-                                    {content.toolResult.error}
-                                  </div>
-                                ) : (
-                                  content.toolResult.value?.map((item, idx) => (
-                                    <div key={idx} className="text-xs mt-1">
-                                      {item.type === 'text' && (
-                                        <div className="whitespace-pre-wrap">{item.text}</div>
-                                      )}
-                                      {item.type === 'resource' && item.resource && (
-                                        <div className="mt-1">
-                                          <div className="text-xs text-blue-500">
-                                            Resource: {item.resource.uri}
-                                          </div>
-                                          {item.resource.text && (
-                                            <pre className="text-xs mt-1 max-h-40 overflow-y-auto p-2 bg-gray-50 dark:bg-gray-900 rounded">
-                                              {item.resource.text.length > 500
-                                                ? `${item.resource.text.substring(0, 500)}... (truncated)`
-                                                : item.resource.text}
-                                            </pre>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))
-                                )}
+
+                            {/* Tool requests and responses */}
+                            {toolRequests.length > 0 && (
+                              <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                                {toolRequests.map((toolRequest) => (
+                                  <ToolCallWithResponse
+                                    key={toolRequest.id}
+                                    toolRequest={toolRequest}
+                                    toolResponse={toolResponsesMap.get(toolRequest.id)}
+                                  />
+                                ))}
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </Card>
-                  ))
+                        </Card>
+                      );
+                    })
+                    .filter(Boolean) // Filter out null entries
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
                     <MessageSquare className="w-12 h-12 mb-4" />
