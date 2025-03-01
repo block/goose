@@ -9,6 +9,7 @@ use super::{
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
+    requesty::RequestyProvider,
 };
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -24,6 +25,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
         OllamaProvider::metadata(),
         OpenAiProvider::metadata(),
         OpenRouterProvider::metadata(),
+        RequestyProvider::metadata(),
     ]
 }
 
@@ -38,6 +40,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send 
         "ollama" => Ok(Box::new(OllamaProvider::from_env(model)?)),
         "openrouter" => Ok(Box::new(OpenRouterProvider::from_env(model)?)),
         "google" => Ok(Box::new(GoogleProvider::from_env(model)?)),
+        "requesty" => Ok(Box::new(RequestyProvider::from_env(model)?)),
         _ => Err(anyhow::anyhow!("Unknown provider: {}", name)),
     }
 }
