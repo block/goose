@@ -40,6 +40,7 @@ pub struct TruncateAgent {
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
     compressor: Box<dyn Compressor + Send + Sync>,
+    fallback_compressor: Option<Box<dyn Compressor + Send + Sync>>,
 }
 
 impl TruncateAgent {
@@ -54,6 +55,9 @@ impl TruncateAgent {
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
             compressor: Box::new(MemoryCondense),
+            fallback_compressor: Some(Box::new(Truncator {
+                strategy: &OldestFirstTruncation,
+            })),
         }
     }
 
@@ -105,7 +109,7 @@ impl TruncateAgent {
             .collect();
 
         let capabilities_guard = self.capabilities.lock().await;
-        compress_messages(
+        if let Err(e) = compress_messages(
             &capabilities_guard,
             &self.token_counter,
             messages,
@@ -114,6 +118,25 @@ impl TruncateAgent {
             self.compressor.as_ref(),
         )
         .await
+        {
+            // Fallback to the legacy truncator if the model fails to condense the messages.
+            match self.fallback_compressor {
+                Some(ref fallback_compressor) => {
+                    compress_messages(
+                        &capabilities_guard,
+                        &self.token_counter,
+                        messages,
+                        &mut token_counts,
+                        context_limit,
+                        fallback_compressor.as_ref(),
+                    )
+                    .await
+                }
+                None => Err(e),
+            }
+        } else {
+            Ok(())
+        }
     }
 }
 

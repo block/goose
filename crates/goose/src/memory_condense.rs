@@ -71,12 +71,15 @@ impl MemoryCondense {
                 batch.push(message_stack.pop().unwrap());
                 current_tokens += count_stack.pop().unwrap();
             }
+
             diff = -(current_tokens as isize);
             let request = self.create_summarize_request(&batch);
             let response_text = self
                 .single_request(capabilities, &request)
                 .await?
                 .as_concat_text();
+
+            // Ensure the conversation starts with a User message
             let curr_messages = vec![
                 // shoule be in reversed order
                 Message::assistant().with_text(&response_text),
