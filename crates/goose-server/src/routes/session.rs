@@ -14,7 +14,7 @@ struct SessionInfo {
     id: String,
     path: String,
     modified: String,
-    description: String,
+    metadata: session::SessionMetadata,
 }
 
 #[derive(Serialize)]
@@ -25,7 +25,7 @@ struct SessionListResponse {
 #[derive(Serialize)]
 struct SessionHistoryResponse {
     session_id: String,
-    description: String,
+    metadata: session::SessionMetadata,
     messages: Vec<Message>,
 }
 
@@ -65,17 +65,15 @@ async fn list_sessions(
                         .to_string()
                 })
                 .unwrap_or_else(|_| "Unknown".to_string());
-            
+
             // Get session description
-            let description = session::read_metadata(&path)
-                .map(|meta| meta.description)
-                .unwrap_or_else(|_| String::new());
+            let metadata = session::read_metadata(&path).expect("Failed to read session metadata");
 
             SessionInfo {
                 id,
                 path: path.to_string_lossy().to_string(),
                 modified,
-                description,
+                metadata,
             }
         })
         .collect();
@@ -104,13 +102,8 @@ async fn get_session_history(
     let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     // Read metadata
-    let description = match session::read_metadata(&session_path) {
-        Ok(metadata) => metadata.description,
-        Err(e) => {
-            tracing::error!("Failed to read session metadata: {:?}", e);
-            String::new()
-        }
-    };
+    let metadata = session::read_metadata(&session_path)
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
     let messages = match session::read_messages(&session_path) {
         Ok(messages) => messages,
@@ -122,8 +115,9 @@ async fn get_session_history(
 
     Ok(Json(SessionHistoryResponse {
         session_id,
-        description,
+        metadata,
         messages,
+
     }))
 }
 

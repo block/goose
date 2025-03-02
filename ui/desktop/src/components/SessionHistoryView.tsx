@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { ViewConfig } from '../App';
-import { ArrowLeft, Clock, MessageSquare } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Clock, MessageSquare } from 'lucide-react';
 import { type SessionDetails } from '../api/sessions';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import BackButton from './ui/BackButton';
 import ResumeButton from './ui/ResumeButton';
 import { ScrollArea } from './ui/scroll-area';
+import MarkdownContent from './MarkdownContent';
+import ToolCallWithResponse from './ToolCallWithResponse';
+import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
 
 interface SessionHistoryViewProps {
   session: SessionDetails;
@@ -25,16 +27,35 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onResume,
   onRetry,
 }) => {
-  // Get the message count
-  const getMessageCount = (session: SessionDetails): number => {
-    return session.messages.length;
+  // Move the tool response mapping logic outside of the render loop
+  const getToolResponsesMap = (messageIndex: number, toolRequests: ToolRequestMessageContent[]) => {
+    const responseMap = new Map();
+
+    // Look for tool responses in subsequent messages
+    if (messageIndex >= 0) {
+      for (let i = messageIndex + 1; i < session.messages.length; i++) {
+        const responses = session.messages[i].content
+          .filter((c) => c.type === 'toolResponse')
+          .map((c) => c as ToolResponseMessageContent);
+
+        for (const response of responses) {
+          // Check if this response matches any of our tool requests
+          const matchingRequest = toolRequests.find((req) => req.id === response.id);
+          if (matchingRequest) {
+            responseMap.set(response.id, response);
+          }
+        }
+      }
+    }
+
+    return responseMap;
   };
 
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
-      <ScrollArea className="h-full w-full">
-        <div className="flex flex-col h-screen bg-bgApp">
+      <ScrollArea className="h-[calc(100vh-36px)] w-full">
+        <div className="flex flex-col bg-bgApp">
           {/* Header */}
           <div className="px-8 pt-6 pb-4">
             {/* Navigation row */}
@@ -46,7 +67,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             {/* Session info row */}
             <div>
               <h1 className="text-xl font-medium text-textStandard">
-                {session.description || session.session_id}
+                {session.metadata.description || session.session_id}
               </h1>
               <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
                 <span className="flex items-center">
@@ -55,14 +76,19 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 </span>
                 <span className="flex items-center">
                   <MessageSquare className="w-4 h-4 mr-1" />
-                  {getMessageCount(session)} messages
+                  {session.metadata.message_count} messages
                 </span>
+                {session.metadata.total_tokens !== null && (
+                  <span className="flex items-center">
+                    {session.metadata.total_tokens.toLocaleString()} tokens
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-4 pb-8">
             <div className="flex flex-col space-y-4">
               <div className="space-y-4">
                 {isLoading ? (
@@ -95,34 +121,74 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                     </Button>
                   </div>
                 ) : session?.messages?.length > 0 ? (
-                  session.messages.map((message, index) => (
-                    <Card
-                      key={index}
-                      className={`p-4 ${
-                        message.role === 'user'
-                          ? 'bg-bgSecondary border border-borderSubtle'
-                          : 'bg-bgSubtle'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium text-textStandard">
-                          {message.role === 'user' ? 'You' : 'Goose'}
-                        </span>
-                        <span className="text-xs text-textSubtle">
-                          {new Date(message.created * 1000).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="prose dark:prose-invert max-w-none">
-                        {message.content.map((content, i) => (
-                          <div key={i}>
-                            {content.type === 'text' && (
-                              <div className="whitespace-pre-wrap">{content.text}</div>
+                  session.messages
+                    .map((message, index) => {
+                      // Extract text content from the message
+                      const textContent = message.content
+                        .filter((c) => c.type === 'text')
+                        .map((c) => c.text)
+                        .join('\n');
+
+                      // Get tool requests from the message
+                      const toolRequests = message.content
+                        .filter((c) => c.type === 'toolRequest')
+                        .map((c) => c as ToolRequestMessageContent);
+
+                      // Get tool responses map using the helper function
+                      const toolResponsesMap = getToolResponsesMap(index, toolRequests);
+
+                      // Skip pure tool response messages for cleaner display
+                      const isOnlyToolResponse =
+                        message.content.length > 0 &&
+                        message.content.every((c) => c.type === 'toolResponse');
+
+                      if (message.role === 'user' && isOnlyToolResponse) {
+                        return null;
+                      }
+
+                      return (
+                        <Card
+                          key={index}
+                          className={`p-4 ${
+                            message.role === 'user'
+                              ? 'bg-bgSecondary border border-borderSubtle'
+                              : 'bg-bgSubtle'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium text-textStandard">
+                              {message.role === 'user' ? 'You' : 'Goose'}
+                            </span>
+                            <span className="text-xs text-textSubtle">
+                              {new Date(message.created * 1000).toLocaleTimeString()}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col w-full">
+                            {/* Text content */}
+                            {textContent && (
+                              <div className={`${toolRequests.length > 0 ? 'mb-4' : ''}`}>
+                                <MarkdownContent content={textContent} />
+                              </div>
+                            )}
+
+                            {/* Tool requests and responses */}
+                            {toolRequests.length > 0 && (
+                              <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                                {toolRequests.map((toolRequest) => (
+                                  <ToolCallWithResponse
+                                    key={toolRequest.id}
+                                    toolRequest={toolRequest}
+                                    toolResponse={toolResponsesMap.get(toolRequest.id)}
+                                  />
+                                ))}
+                              </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    </Card>
-                  ))
+                        </Card>
+                      );
+                    })
+                    .filter(Boolean) // Filter out null entries
                 ) : (
                   <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
                     <MessageSquare className="w-12 h-12 mb-4" />

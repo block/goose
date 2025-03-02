@@ -271,7 +271,8 @@ impl Session {
                     let provider = self.agent.provider().await;
 
                     // Persist messages with provider for automatic description generation
-                    session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+                    session::persist_messages(&self.session_file, &self.messages, Some(provider))
+                        .await?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -410,7 +411,8 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let mut stream = self.agent.reply(&self.messages).await?;
+        let session_id = session::Identifier::Path(self.session_file.clone());
+        let mut stream = self.agent.reply(&self.messages, Some(session_id)).await?;
 
         use futures::StreamExt;
         loop {
@@ -535,7 +537,8 @@ impl Session {
                             self.messages.push(Message::assistant().with_text(prompt));
 
                             // No need for description update here
-                            session::persist_messages(&self.session_file, &self.messages, None).await?;
+                            session::persist_messages(&self.session_file, &self.messages, None)
+                                .await?;
 
                             output::render_message(&Message::assistant().with_text(prompt));
                         }

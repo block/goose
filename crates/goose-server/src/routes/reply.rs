@@ -111,7 +111,9 @@ async fn handler(
     let messages = request.messages;
 
     // Generate a new session ID if not provided in the request
-    let session_id = request.session_id.unwrap_or_else(|| session::generate_session_id());
+    let session_id = request
+        .session_id
+        .unwrap_or_else(|| session::generate_session_id());
 
     // Get a lock on the shared agent
     let agent = state.agent.clone();
@@ -143,7 +145,13 @@ async fn handler(
         // Get the provider first, before starting the reply stream
         let provider = agent.provider().await;
 
-        let mut stream = match agent.reply(&messages).await {
+        let mut stream = match agent
+            .reply(
+                &messages,
+                Some(session::Identifier::Name(session_id.clone())),
+            )
+            .await
+        {
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
@@ -167,7 +175,7 @@ async fn handler(
 
         // Collect all messages for storage
         let mut all_messages = messages.clone();
-        let session_path = session::get_path(session::Identifier::Name(session_id));
+        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
@@ -261,7 +269,9 @@ async fn ask_handler(
     }
 
     // Generate a new session ID if not provided in the request
-    let session_id = request.session_id.unwrap_or_else(|| session::generate_session_id());
+    let session_id = request
+        .session_id
+        .unwrap_or_else(|| session::generate_session_id());
 
     let agent = state.agent.clone();
     let agent = agent.lock().await;
@@ -275,7 +285,13 @@ async fn ask_handler(
 
     // Get response from agent
     let mut response_text = String::new();
-    let mut stream = match agent.reply(&messages).await {
+    let mut stream = match agent
+        .reply(
+            &messages,
+            Some(session::Identifier::Name(session_id.clone())),
+        )
+        .await
+    {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to start reply stream: {:?}", e);
@@ -313,7 +329,7 @@ async fn ask_handler(
     }
 
     // Get the session path - file will be created when needed
-    let session_path = session::get_path(session::Identifier::Name(session_id));
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     // Store messages and generate description in background
     let session_path = session_path.clone();
@@ -415,6 +431,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&AskRequest {
                         prompt: "test prompt".to_string(),
+                        session_id: Some("test-session".to_string()),
                     })
                     .unwrap(),
                 ))
