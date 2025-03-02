@@ -67,6 +67,10 @@ impl MemoryCondense {
                 batch.push(message_stack.pop().unwrap());
                 current_tokens += count_stack.pop().unwrap();
             }
+            if !batch.is_empty() {
+                batch.push(message_stack.pop().unwrap());
+                current_tokens += count_stack.pop().unwrap();
+            }
             diff = -(current_tokens as isize);
             let request = self.create_summarize_request(&batch);
             let response_text = self
@@ -76,10 +80,9 @@ impl MemoryCondense {
             let message = Message::assistant().with_text(&response_text);
             let tokens = token_counter.count_tokens(&response_text);
             diff += tokens as isize;
-            total_tokens += tokens;
             count_stack.push(tokens);
             message_stack.push(message);
-            total_tokens = (total_tokens as isize + diff) as usize;
+            total_tokens = total_tokens.checked_add_signed(diff).unwrap();
         }
 
         if total_tokens <= context_limit {
