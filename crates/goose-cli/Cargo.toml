@@ -17,6 +17,9 @@ goose-mcp = { path = "../goose-mcp" }
 mcp-client = { path = "../mcp-client" }
 mcp-server = { path = "../mcp-server" }
 mcp-core = { path = "../mcp-core" }
+cpal = "0.15.2"
+whisper-rs = "0.8.0"
+vosk = "0.2.0"
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
