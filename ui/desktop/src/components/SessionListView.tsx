@@ -100,17 +100,16 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                     className="p-2 bg-bgSecondary hover:bg-bgSubtle cursor-pointer transition-all duration-150"
                   >
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-base font-medium text-textStandard">
+                      <div className="w-full">
+                        <h3 className="text-base font-medium text-textStandard truncate">
                           {session.metadata.description || session.id}
                         </h3>
-                        <div className="flex flex-col items-center mt-1 text-textSubtle text-sm truncate">
-                          <span className="flex items-center truncate max-w-[300px]">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {formatDate(session.modified)}
-                          </span>
+                        <div className="flex items-center mt-1 text-textSubtle text-sm">
+                          <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="truncate">{formatDate(session.modified)}</span>
                         </div>
                       </div>
+
                       <div className="flex items-center gap-3">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center text-sm text-textSubtle">
