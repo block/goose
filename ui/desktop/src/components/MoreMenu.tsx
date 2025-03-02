@@ -220,12 +220,12 @@ export default function MoreMenu({ setView }: { setView: (view: View) => void })
               </>
             )}
 
-            {/* View Previous Threads */}
+            {/* View Previous Sessions */}
             <button
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
               onClick={() => setView('sessions')}
             >
-              <span>Previous Threads</span>
+              <span>Previous Sessions</span>
             </button>
 
             {/* Settings Menu */}
