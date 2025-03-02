@@ -15,6 +15,7 @@ use crate::compress::compress_messages;
 use crate::compress::Compressor;
 use crate::config::Config;
 use crate::config::ExperimentManager;
+use crate::memory_condense::MemoryCondense;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -52,9 +53,7 @@ impl TruncateAgent {
             token_counter,
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
-            compressor: Box::new(Truncator {
-                strategy: &OldestFirstTruncation,
-            }),
+            compressor: Box::new(MemoryCondense),
         }
     }
 
@@ -108,6 +107,7 @@ impl TruncateAgent {
         let capabilities_guard = self.capabilities.lock().await;
         compress_messages(
             &capabilities_guard,
+            &self.token_counter,
             messages,
             &mut token_counts,
             context_limit,
