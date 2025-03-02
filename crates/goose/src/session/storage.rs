@@ -348,8 +348,8 @@ mod tests {
     use crate::message::MessageContent;
     use tempfile::tempdir;
 
-    #[test]
-    fn test_read_write_messages() -> Result<()> {
+    #[tokio::test]
+    async fn test_read_write_messages() -> Result<()> {
         let dir = tempdir()?;
         let file_path = dir.path().join("test.jsonl");
 
@@ -360,7 +360,7 @@ mod tests {
         ];
 
         // Write messages
-        persist_messages(&file_path, &messages, None);
+        persist_messages(&file_path, &messages, None).await?;
 
         // Read them back
         let read_messages = read_messages(&file_path)?;
