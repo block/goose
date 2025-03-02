@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ViewConfig } from '../App';
-import { fetchSessionDetails, type SessionDetails } from '../api/sessions';
+import { fetchSessionDetails, type SessionDetails } from '../sessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 
