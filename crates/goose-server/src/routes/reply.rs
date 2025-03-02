@@ -114,7 +114,7 @@ async fn handler(
     // Generate a new session ID if not provided in the request
     let session_id = request
         .session_id
-        .unwrap_or_else(|| session::generate_session_id());
+        .unwrap_or_else(session::generate_session_id);
 
     // Get a lock on the shared agent
     let agent = state.agent.clone();
@@ -272,7 +272,7 @@ async fn ask_handler(
     // Generate a new session ID if not provided in the request
     let session_id = request
         .session_id
-        .unwrap_or_else(|| session::generate_session_id());
+        .unwrap_or_else(session::generate_session_id);
 
     let agent = state.agent.clone();
     let agent = agent.write().await;

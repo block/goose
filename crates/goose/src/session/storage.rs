@@ -30,6 +30,12 @@ impl SessionMetadata {
     }
 }
 
+impl Default for SessionMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // The single app name used for all Goose applications
 const APP_NAME: &str = "goose";
 
@@ -214,10 +220,7 @@ pub async fn persist_messages(
             let mut description_prompt = "Based on the conversation so far, provide a concise header for this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the header. Avoid filler words such as help, summary, exchange, request etc that do not help distinguish different conversations.".to_string();
 
             // get context from messages so far
-            let context: Vec<String> = messages
-                .iter()
-                .filter_map(|m| Some(m.as_concat_text()))
-                .collect();
+            let context: Vec<String> = messages.iter().map(|m| m.as_concat_text()).collect();
 
             if !context.is_empty() {
                 description_prompt = format!(
@@ -295,7 +298,7 @@ pub async fn generate_description(
         .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
         .take(3) // Use up to first 3 user messages for context
-        .filter_map(|m| Some(m.as_concat_text()))
+        .map(|m| m.as_concat_text())
         .collect();
 
     if !context.is_empty() {

@@ -3,9 +3,9 @@
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
-use std::sync::Arc;
 
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
@@ -13,8 +13,8 @@ use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
-use crate::{register_agent, session};
 use crate::token_counter::TokenCounter;
+use crate::{register_agent, session};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;

@@ -102,8 +102,7 @@ async fn get_session_history(
     let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
     // Read metadata
-    let metadata = session::read_metadata(&session_path)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
 
     let messages = match session::read_messages(&session_path) {
         Ok(messages) => messages,
@@ -117,7 +116,6 @@ async fn get_session_history(
         session_id,
         metadata,
         messages,
-
     }))
 }
 
