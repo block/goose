@@ -1,4 +1,5 @@
 use crate::agents::Capabilities;
+use crate::token_counter::TokenCounter;
 use crate::{compress::Compressor, message::Message};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -86,6 +87,7 @@ impl Compressor for Truncator {
     async fn compress(
         &self,
         _capabilities: &Capabilities,
+        _token_counter: &TokenCounter,
         messages: &mut Vec<Message>,
         token_counts: &mut Vec<usize>,
         context_limit: usize,
@@ -275,6 +277,7 @@ mod tests {
         };
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages_clone,
             &mut token_counts_clone,
             context_limit,
@@ -326,6 +329,7 @@ mod tests {
         };
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages_clone,
             &mut token_counts_clone,
             context_limit,
@@ -367,6 +371,7 @@ mod tests {
         };
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -383,6 +388,7 @@ mod tests {
 
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -428,6 +434,7 @@ mod tests {
         };
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages_clone,
             &mut token_counts_clone,
             context_limit,
@@ -478,6 +485,7 @@ mod tests {
         };
         compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -504,6 +512,7 @@ mod tests {
 
         let result = compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages,
             &mut token_counts,
             5,
@@ -517,6 +526,7 @@ mod tests {
         let mut token_counts = vec![10, 10]; // Mismatched length
         let result = compress_messages(
             &create_mock_capabilities(),
+            &TokenCounter::new("Xenova--gpt-4o"),
             &mut messages,
             &mut token_counts,
             100,

@@ -1,5 +1,6 @@
 use crate::agents::Capabilities;
 use crate::message::Message;
+use crate::token_counter::TokenCounter;
 use anyhow::Result;
 use async_trait::async_trait;
 use tracing::debug;
@@ -10,6 +11,7 @@ pub trait Compressor {
     async fn compress(
         &self,
         capabilities: &Capabilities,
+        token_counter: &TokenCounter,
         messages: &mut Vec<Message>,
         token_counts: &mut Vec<usize>,
         context_limit: usize,
@@ -18,6 +20,7 @@ pub trait Compressor {
 
 pub async fn compress_messages(
     capabilities: &Capabilities,
+    token_counter: &TokenCounter,
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
     context_limit: usize,
@@ -29,7 +32,13 @@ pub async fn compress_messages(
     // The compressor should determine whether we need to compress the messages or not. This
     // function just checks if the limit is satisfied.
     compressor
-        .compress(capabilities, messages, token_counts, context_limit)
+        .compress(
+            capabilities,
+            token_counter,
+            messages,
+            token_counts,
+            context_limit,
+        )
         .await?;
 
     let total_tokens: usize = token_counts.iter().sum();
