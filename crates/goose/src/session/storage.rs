@@ -210,9 +210,6 @@ pub async fn persist_messages(
         .filter(|m| !m.as_concat_text().trim().is_empty())
         .count();
 
-    println!("Provider none?: {:?}", provider.is_none());
-    println!("User message count: {}", user_message_count);
-
     // Check if we need to update the description (after 1st or 3rd user message)
     if let Some(provider) = provider {
         if user_message_count < 4 {
@@ -229,8 +226,6 @@ pub async fn persist_messages(
                     description_prompt
                 );
             }
-
-            println!("Description prompt: {}", description_prompt);
 
             // Generate the description
             let message = Message::user().with_text(&description_prompt);
