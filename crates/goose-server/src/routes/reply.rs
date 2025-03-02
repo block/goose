@@ -13,6 +13,7 @@ use goose::session;
 
 use mcp_core::role::Role;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -120,7 +121,7 @@ async fn handler(
 
     // Spawn task to handle streaming
     tokio::spawn(async move {
-        let agent = agent.lock().await;
+        let agent = agent.read().await;
         let agent = match agent.as_ref() {
             Some(agent) => agent,
             None => {
@@ -274,7 +275,7 @@ async fn ask_handler(
         .unwrap_or_else(|| session::generate_session_id());
 
     let agent = state.agent.clone();
-    let agent = agent.lock().await;
+    let agent = agent.write().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     // Get the provider first, before starting the reply stream
@@ -346,11 +347,42 @@ async fn ask_handler(
     }))
 }
 
+#[derive(Debug, Deserialize)]
+struct ToolConfirmationRequest {
+    id: String,
+    confirmed: bool,
+}
+
+async fn confirm_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<ToolConfirmationRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let agent = state.agent.clone();
+    let agent = agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    agent
+        .handle_confirmation(request.id.clone(), request.confirmed)
+        .await;
+    Ok(Json(Value::Object(serde_json::Map::new())))
+}
+
 // Configure routes for this module
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
+        .route("/confirm", post(confirm_handler))
         .with_state(state)
 }
 
@@ -401,7 +433,7 @@ mod tests {
         use axum::{body::Body, http::Request};
         use std::collections::HashMap;
         use std::sync::Arc;
-        use tokio::sync::Mutex;
+        use tokio::sync::{Mutex, RwLock};
         use tower::ServiceExt;
 
         // This test requires tokio runtime
@@ -415,7 +447,7 @@ mod tests {
             let agent = AgentFactory::create("reference", mock_provider).unwrap();
             let state = AppState {
                 config: Arc::new(Mutex::new(HashMap::new())),
-                agent: Arc::new(Mutex::new(Some(agent))),
+                agent: Arc::new(RwLock::new(Some(agent))),
                 secret_key: "test-secret".to_string(),
             };
 

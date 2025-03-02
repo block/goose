@@ -288,7 +288,8 @@ impl Agent for TruncateAgent {
 
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
-                                            if let Some((req_id, confirmed)) = rx.recv().await {
+                                            // Loop the recv until we have a matched req_id due to potential duplicate messages.
+                                            while let Some((req_id, confirmed)) = rx.recv().await {
                                                 if req_id == request.id {
                                                     if confirmed {
                                                         // User approved - dispatch the tool call
@@ -304,6 +305,7 @@ impl Agent for TruncateAgent {
                                                             Ok(vec![Content::text("User declined to run this tool.")]),
                                                         );
                                                     }
+                                                    break; // Exit the loop once the matching `req_id` is found
                                                 }
                                             }
                                         }

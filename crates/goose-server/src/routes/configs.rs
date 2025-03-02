@@ -1,5 +1,9 @@
 use crate::state::AppState;
-use axum::{extract::State, routing::delete, routing::post, Json, Router};
+use axum::{
+    extract::{Query, State},
+    routing::{delete, get, post},
+    Json, Router,
+};
 use goose::config::Config;
 use http::{HeaderMap, StatusCode};
 use once_cell::sync::Lazy;
@@ -141,6 +145,45 @@ async fn check_provider_configs(
 }
 
 #[derive(Deserialize)]
+pub struct GetConfigQuery {
+    key: String,
+}
+
+#[derive(Serialize)]
+pub struct GetConfigResponse {
+    value: Option<String>,
+}
+
+pub async fn get_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GetConfigQuery>,
+) -> Result<Json<GetConfigResponse>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Fetch the configuration value. Right now we don't allow get a secret.
+    let config = Config::global();
+    let value = if let Ok(config_value) = config.get::<String>(&query.key) {
+        Some(config_value)
+    } else if let Ok(env_value) = std::env::var(&query.key) {
+        Some(env_value)
+    } else {
+        None
+    };
+
+    // Return the value
+    Ok(Json(GetConfigResponse { value }))
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeleteConfigRequest {
     key: String,
@@ -178,6 +221,7 @@ async fn delete_config(
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/configs/providers", post(check_provider_configs))
+        .route("/configs/get", get(get_config))
         .route("/configs/store", post(store_config))
         .route("/configs/delete", delete(delete_config))
         .with_state(state)

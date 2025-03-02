@@ -17,8 +17,8 @@ import SettingsView, { type SettingsViewOptions } from './components/settings/Se
 import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
-import ProviderSettings from './components/settings/providers/providers/NewProviderSettingsPage';
 import SessionsView from './components/SessionsView';
+import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 
 import 'react-toastify/dist/ReactToastify.css';
 

@@ -161,7 +161,7 @@ async fn add_extension(
     };
 
     // Acquire a lock on the agent and attempt to add the extension.
-    let mut agent = state.agent.lock().await;
+    let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
     let response = agent.add_extension(extension_config).await;
 
@@ -201,7 +201,7 @@ async fn remove_extension(
     }
 
     // Acquire a lock on the agent and attempt to remove the extension
-    let mut agent = state.agent.lock().await;
+    let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
     agent.remove_extension(&name).await;
 
