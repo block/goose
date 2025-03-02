@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '../config';
-import { generateSessionId } from '../utils/session';
+import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
