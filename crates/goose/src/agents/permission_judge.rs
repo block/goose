@@ -131,63 +131,12 @@ pub async fn detect_read_only_tools(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::capabilities::Capabilities;
     use crate::message::{Message, MessageContent, ToolRequest};
-    use crate::model::ModelConfig;
-    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
-    use crate::providers::errors::ProviderError;
     use chrono::Utc;
     use mcp_core::ToolCall;
-    use mcp_core::{tool::Tool, Role, ToolResult};
+    use mcp_core::{Role, ToolResult};
     use serde_json::json;
-
-    #[derive(Clone)]
-    struct MockProvider {
-        model_config: ModelConfig,
-    }
-
-    #[async_trait::async_trait]
-    impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::empty()
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
-        async fn complete(
-            &self,
-            _system: &str,
-            _messages: &[Message],
-            _tools: &[Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::ToolRequest(ToolRequest {
-                        id: "mock_tool_request".to_string(),
-                        tool_call: ToolResult::Ok(ToolCall {
-                            name: "platform__tool_by_tool_permission".to_string(),
-                            arguments: json!({
-                                "read_only_tools": ["file_reader", "data_fetcher"]
-                            }),
-                        }),
-                    })],
-                },
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
-        }
-    }
-
-    fn create_mock_capabilities() -> Capabilities {
-        let mock_model_config =
-            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
-        Capabilities::new(Box::new(MockProvider {
-            model_config: mock_model_config,
-        }))
-    }
+    use crate::agents::mock::create_mock_capabilities;
 
     #[tokio::test]
     async fn test_create_read_only_tool() {

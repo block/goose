@@ -1,3 +1,4 @@
+use crate::agents::Capabilities;
 use crate::message::Message;
 use anyhow::Result;
 use tracing::debug;
@@ -6,6 +7,7 @@ use tracing::debug;
 pub trait Compressor {
     fn compress(
         &self,
+        capabilities: &Capabilities,
         messages: &mut Vec<Message>,
         token_counts: &mut Vec<usize>,
         context_limit: usize,
@@ -13,6 +15,7 @@ pub trait Compressor {
 }
 
 pub fn compress_messages(
+    capabilities: &Capabilities,
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
     context_limit: usize,
@@ -23,7 +26,7 @@ pub fn compress_messages(
 
     // The compressor should determine whether we need to compress the messages or not. This
     // function just checks if the limit is satisfied.
-    compressor.compress(messages, token_counts, context_limit)?;
+    compressor.compress(capabilities, messages, token_counts, context_limit)?;
 
     let total_tokens: usize = token_counts.iter().sum();
     debug!("Total tokens after compression: {}", total_tokens);

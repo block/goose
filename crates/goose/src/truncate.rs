@@ -1,4 +1,6 @@
+use crate::agents::Capabilities;
 use crate::{compress::Compressor, message::Message};
+use crate::compress::compress_messages;
 use anyhow::{anyhow, Result};
 use mcp_core::Role;
 use std::collections::HashSet;
@@ -82,6 +84,7 @@ pub struct Truncator {
 impl Compressor for Truncator {
     fn compress(
         &self,
+        _capabilities: &Capabilities,
         messages: &mut Vec<Message>,
         token_counts: &mut Vec<usize>,
         context_limit: usize,
@@ -205,6 +208,7 @@ mod tests {
     use mcp_core::content::Content;
     use mcp_core::tool::ToolCall;
     use serde_json::json;
+    use crate::agents::mock::create_mock_capabilities;
 
     // Helper function to create a user text message with a specified token count
     fn user_text(index: usize, tokens: usize) -> (Message, usize) {
@@ -267,7 +271,7 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
 
         assert_eq!(messages_clone, messages);
         assert_eq!(token_counts_clone, token_counts);
@@ -311,7 +315,7 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
 
         // Verify that tool pairs are kept together and the conversation remains coherent
         assert!(messages_clone.len() >= 3); // At least one complete interaction should remain
@@ -345,7 +349,7 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
 
         assert_eq!(messages.len(), 4); // No truncation needed
         assert_eq!(token_counts.iter().sum::<usize>(), 100);
@@ -354,10 +358,7 @@ mod tests {
         messages.push(user_text(5, 1).0);
         token_counts.push(1);
 
-        let truncator = Truncator {
-            strategy: &OldestFirstTruncation,
-        };
-        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
 
         assert!(token_counts.iter().sum::<usize>() <= context_limit);
         assert!(messages.last().unwrap().role == Role::User);
@@ -395,7 +396,7 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        truncator.compress(&mut messages_clone, &mut token_counts_clone, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
 
         // Verify that remaining tool chains are complete
         let remaining_tool_ids: HashSet<_> = messages_clone
@@ -438,7 +439,7 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        truncator.compress(&mut messages, &mut token_counts, context_limit)?;
+        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
 
         // Verify the conversation still makes sense
         assert!(messages.len() >= 1);
@@ -457,17 +458,13 @@ mod tests {
             strategy: &OldestFirstTruncation,
         };
 
-        let result = truncator.compress(
-            &mut messages,
-            &mut token_counts,
-            5, // Impossibly small context
-        );
+        let result = compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, 5, &truncator);
         assert!(result.is_err());
 
         // Test unmatched token counts
         let mut messages = vec![user_text(1, 10).0];
         let mut token_counts = vec![10, 10]; // Mismatched length
-        let result = truncator.compress(&mut messages, &mut token_counts, 100);
+        let result = compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, 100, &truncator);
         assert!(result.is_err());
 
         Ok(())

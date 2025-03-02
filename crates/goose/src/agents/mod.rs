@@ -11,3 +11,6 @@ pub use capabilities::Capabilities;
 pub use extension::ExtensionConfig;
 pub use factory::{register_agent, AgentFactory};
 pub use permission_judge::detect_read_only_tools;
+
+#[cfg(test)]
+pub(crate) mod mock;

@@ -20,6 +20,7 @@ use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
+use crate::compress::compress_messages;
 use crate::truncate::{OldestFirstTruncation, Truncator};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
@@ -104,8 +105,8 @@ impl TruncateAgent {
             })
             .collect();
 
-        self.compressor
-            .compress(messages, &mut token_counts, context_limit)
+        let capabilities_guard = self.capabilities.lock().await;
+        compress_messages(&capabilities_guard, messages, &mut token_counts, context_limit, self.compressor.as_ref())
     }
 }
 
