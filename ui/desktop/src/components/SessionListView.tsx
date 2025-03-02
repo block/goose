@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ViewConfig } from '../App';
-import { ArrowLeft, Clock, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Clock, MessageSquare, RefreshCw } from 'lucide-react';
 import { fetchSessions, type Session } from '../api/sessions';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -97,26 +97,41 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                 </Button>
               </div>
             ) : sessions.length > 0 ? (
-              <div className="grid gap-4">
+              <div className="grid gap-2">
                 {sessions.map((session) => (
                   <Card
                     key={session.id}
                     onClick={() => onSelectSession(session.id)}
-                    className="p-4 bg-bgSecondary border border-borderSubtle hover:border-borderPrimary cursor-pointer transition-all"
+                    className="p-3 bg-bgSecondary border border-borderSubtle hover:border-borderPrimary cursor-pointer transition-all"
                   >
                     <div className="flex justify-between items-start">
-                      <h3 className="text-lg font-medium text-textStandard">
-                        {session.metadata.description || session.id}
-                      </h3>
-                      <div className="flex items-center text-sm text-textSubtle">
-                        <Clock className="w-4 h-4 mr-1" />
-                        <span>{formatDate(session.modified)}</span>
+                      <div>
+                        <h3 className="text-base font-medium text-textStandard">
+                          {session.metadata.description || session.id}
+                        </h3>
+                        <div className="flex items-center mt-1 text-textSubtle text-sm truncate">
+                          <span className="truncate max-w-[300px]">
+                            {session.path.split('/').pop() || session.path}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center mt-2 text-textSubtle text-sm truncate">
-                      <span className="truncate max-w-[300px]">
-                        {session.path.split('/').pop() || session.path}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <div className="flex items-center text-sm text-textSubtle">
+                          <Clock className="w-4 h-4 mr-1" />
+                          <span>{formatDate(session.modified)}</span>
+                        </div>
+                        <div className="flex items-center mt-1 space-x-3 text-sm text-textSubtle">
+                          <div className="flex items-center">
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            <span>{session.metadata.message_count}</span>
+                          </div>
+                          {session.metadata.total_tokens !== null && (
+                            <div className="flex items-center">
+                              <span>{session.metadata.total_tokens.toLocaleString()} tokens</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 ))}

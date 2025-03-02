@@ -27,11 +27,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onResume,
   onRetry,
 }) => {
-  // Get the message count
-  const getMessageCount = (session: SessionDetails): number => {
-    return session.messages.length;
-  };
-
   // Move the tool response mapping logic outside of the render loop
   const getToolResponsesMap = (messageIndex: number, toolRequests: ToolRequestMessageContent[]) => {
     const responseMap = new Map();
@@ -81,8 +76,13 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 </span>
                 <span className="flex items-center">
                   <MessageSquare className="w-4 h-4 mr-1" />
-                  {getMessageCount(session)} messages
+                  {session.metadata.message_count} messages
                 </span>
+                {session.metadata.total_tokens !== null && (
+                  <span className="flex items-center">
+                    {session.metadata.total_tokens.toLocaleString()} tokens
+                  </span>
+                )}
               </div>
             </div>
           </div>
