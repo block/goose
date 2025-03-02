@@ -131,12 +131,12 @@ pub async fn detect_read_only_tools(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::mock::create_mock_capabilities;
     use crate::message::{Message, MessageContent, ToolRequest};
     use chrono::Utc;
     use mcp_core::ToolCall;
     use mcp_core::{Role, ToolResult};
     use serde_json::json;
-    use crate::agents::mock::create_mock_capabilities;
 
     #[tokio::test]
     async fn test_create_read_only_tool() {

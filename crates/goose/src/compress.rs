@@ -1,11 +1,13 @@
 use crate::agents::Capabilities;
 use crate::message::Message;
 use anyhow::Result;
+use async_trait::async_trait;
 use tracing::debug;
 
 /// A more general abstraction allowing for custom compression strategy (specifically for memory condensation), instead of truncation-based ones.
+#[async_trait]
 pub trait Compressor {
-    fn compress(
+    async fn compress(
         &self,
         capabilities: &Capabilities,
         messages: &mut Vec<Message>,
@@ -14,19 +16,21 @@ pub trait Compressor {
     ) -> Result<(), anyhow::Error>;
 }
 
-pub fn compress_messages(
+pub async fn compress_messages(
     capabilities: &Capabilities,
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
     context_limit: usize,
-    compressor: &dyn Compressor,
+    compressor: &(dyn Compressor + Send + Sync),
 ) -> Result<(), anyhow::Error> {
     let total_tokens: usize = token_counts.iter().sum();
     debug!("Total tokens before compression: {}", total_tokens);
 
     // The compressor should determine whether we need to compress the messages or not. This
     // function just checks if the limit is satisfied.
-    compressor.compress(capabilities, messages, token_counts, context_limit)?;
+    compressor
+        .compress(capabilities, messages, token_counts, context_limit)
+        .await?;
 
     let total_tokens: usize = token_counts.iter().sum();
     debug!("Total tokens after compression: {}", total_tokens);

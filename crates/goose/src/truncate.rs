@@ -1,7 +1,7 @@
 use crate::agents::Capabilities;
 use crate::{compress::Compressor, message::Message};
-use crate::compress::compress_messages;
 use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use mcp_core::Role;
 use std::collections::HashSet;
 use tracing::debug;
@@ -81,8 +81,9 @@ pub struct Truncator {
     pub strategy: &'static (dyn TruncationStrategy + Send + Sync),
 }
 
+#[async_trait]
 impl Compressor for Truncator {
-    fn compress(
+    async fn compress(
         &self,
         _capabilities: &Capabilities,
         messages: &mut Vec<Message>,
@@ -203,12 +204,13 @@ impl Truncator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::mock::create_mock_capabilities;
+    use crate::compress::compress_messages;
     use crate::message::Message;
     use anyhow::Result;
     use mcp_core::content::Content;
     use mcp_core::tool::ToolCall;
     use serde_json::json;
-    use crate::agents::mock::create_mock_capabilities;
 
     // Helper function to create a user text message with a specified token count
     fn user_text(index: usize, tokens: usize) -> (Message, usize) {
@@ -260,8 +262,8 @@ mod tests {
         (messages, token_counts)
     }
 
-    #[test]
-    fn test_oldest_first_no_truncation() -> Result<()> {
+    #[tokio::test]
+    async fn test_oldest_first_no_truncation() -> Result<()> {
         let (messages, token_counts) = create_messages_with_counts(1, 10, false);
         let context_limit = 25;
 
@@ -271,15 +273,22 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages_clone,
+            &mut token_counts_clone,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         assert_eq!(messages_clone, messages);
         assert_eq!(token_counts_clone, token_counts);
         Ok(())
     }
 
-    #[test]
-    fn test_complex_conversation_with_tools() -> Result<()> {
+    #[tokio::test]
+    async fn test_complex_conversation_with_tools() -> Result<()> {
         // Simulating a real conversation with multiple tool interactions
         let tool_call1 = ToolCall::new("file_read", json!({"path": "/tmp/test.txt"}));
         let tool_call2 = ToolCall::new("database_query", json!({"query": "SELECT * FROM users"}));
@@ -315,7 +324,14 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages_clone,
+            &mut token_counts_clone,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         // Verify that tool pairs are kept together and the conversation remains coherent
         assert!(messages_clone.len() >= 3); // At least one complete interaction should remain
@@ -340,8 +356,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_edge_case_context_window() -> Result<()> {
+    #[tokio::test]
+    async fn test_edge_case_context_window() -> Result<()> {
         // Test case where we're exactly at the context limit
         let (mut messages, mut token_counts) = create_messages_with_counts(2, 25, false);
         let context_limit = 100; // Exactly matches total tokens
@@ -349,7 +365,14 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages,
+            &mut token_counts,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         assert_eq!(messages.len(), 4); // No truncation needed
         assert_eq!(token_counts.iter().sum::<usize>(), 100);
@@ -358,7 +381,14 @@ mod tests {
         messages.push(user_text(5, 1).0);
         token_counts.push(1);
 
-        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages,
+            &mut token_counts,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         assert!(token_counts.iter().sum::<usize>() <= context_limit);
         assert!(messages.last().unwrap().role == Role::User);
@@ -366,8 +396,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_multi_tool_chain() -> Result<()> {
+    #[tokio::test]
+    async fn test_multi_tool_chain() -> Result<()> {
         // Simulate a chain of dependent tool calls
         let tool_calls = vec![
             ToolCall::new("git_status", json!({})),
@@ -396,7 +426,14 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        compress_messages(&create_mock_capabilities(), &mut messages_clone, &mut token_counts_clone, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages_clone,
+            &mut token_counts_clone,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         // Verify that remaining tool chains are complete
         let remaining_tool_ids: HashSet<_> = messages_clone
@@ -423,8 +460,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_truncation_with_image_content() -> Result<()> {
+    #[tokio::test]
+    async fn test_truncation_with_image_content() -> Result<()> {
         // Create a conversation with image content mixed in
         let mut messages = vec![
             Message::user().with_image("base64_data", "image/png"), // 50 tokens
@@ -439,7 +476,14 @@ mod tests {
         let truncator = Truncator {
             strategy: &OldestFirstTruncation,
         };
-        compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, context_limit, &truncator)?;
+        compress_messages(
+            &create_mock_capabilities(),
+            &mut messages,
+            &mut token_counts,
+            context_limit,
+            &truncator,
+        )
+        .await?;
 
         // Verify the conversation still makes sense
         assert!(messages.len() >= 1);
@@ -449,8 +493,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_error_cases() -> Result<()> {
+    #[tokio::test]
+    async fn test_error_cases() -> Result<()> {
         // Test impossibly small context window
         let (mut messages, mut token_counts) = create_messages_with_counts(1, 10, false);
 
@@ -458,13 +502,27 @@ mod tests {
             strategy: &OldestFirstTruncation,
         };
 
-        let result = compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, 5, &truncator);
+        let result = compress_messages(
+            &create_mock_capabilities(),
+            &mut messages,
+            &mut token_counts,
+            5,
+            &truncator,
+        )
+        .await;
         assert!(result.is_err());
 
         // Test unmatched token counts
         let mut messages = vec![user_text(1, 10).0];
         let mut token_counts = vec![10, 10]; // Mismatched length
-        let result = compress_messages(&create_mock_capabilities(), &mut messages, &mut token_counts, 100, &truncator);
+        let result = compress_messages(
+            &create_mock_capabilities(),
+            &mut messages,
+            &mut token_counts,
+            100,
+            &truncator,
+        )
+        .await;
         assert!(result.is_err());
 
         Ok(())

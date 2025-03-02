@@ -11,6 +11,7 @@ use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::compress::compress_messages;
 use crate::compress::Compressor;
 use crate::config::Config;
 use crate::config::ExperimentManager;
@@ -20,7 +21,6 @@ use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
-use crate::compress::compress_messages;
 use crate::truncate::{OldestFirstTruncation, Truncator};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
@@ -106,7 +106,14 @@ impl TruncateAgent {
             .collect();
 
         let capabilities_guard = self.capabilities.lock().await;
-        compress_messages(&capabilities_guard, messages, &mut token_counts, context_limit, self.compressor.as_ref())
+        compress_messages(
+            &capabilities_guard,
+            messages,
+            &mut token_counts,
+            context_limit,
+            self.compressor.as_ref(),
+        )
+        .await
     }
 }
 

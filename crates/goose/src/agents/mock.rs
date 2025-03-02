@@ -1,11 +1,11 @@
-use crate::providers::base::{Provider, ProviderUsage, ProviderMetadata, Usage};
-use crate::providers::errors::ProviderError;
-use crate::model::ModelConfig;
-use crate::message::{Message, MessageContent, ToolRequest};
-use chrono::Utc;
-use mcp_core::{tool::Tool, Role, ToolResult, ToolCall};
-use serde_json::json;
 use crate::agents::capabilities::Capabilities;
+use crate::message::{Message, MessageContent, ToolRequest};
+use crate::model::ModelConfig;
+use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use crate::providers::errors::ProviderError;
+use chrono::Utc;
+use mcp_core::{tool::Tool, Role, ToolCall, ToolResult};
+use serde_json::json;
 
 #[derive(Clone)]
 pub(crate) struct MockProvider {
@@ -29,20 +29,20 @@ impl Provider for MockProvider {
         _tools: &[Tool],
     ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
         Ok((
-                Message {
-                    role: Role::Assistant,
-                    created: Utc::now().timestamp(),
-                    content: vec![MessageContent::ToolRequest(ToolRequest {
-                        id: "mock_tool_request".to_string(),
-                        tool_call: ToolResult::Ok(ToolCall {
-                            name: "platform__tool_by_tool_permission".to_string(),
-                            arguments: json!({
-                                "read_only_tools": ["file_reader", "data_fetcher"]
-                            }),
+            Message {
+                role: Role::Assistant,
+                created: Utc::now().timestamp(),
+                content: vec![MessageContent::ToolRequest(ToolRequest {
+                    id: "mock_tool_request".to_string(),
+                    tool_call: ToolResult::Ok(ToolCall {
+                        name: "platform__tool_by_tool_permission".to_string(),
+                        arguments: json!({
+                            "read_only_tools": ["file_reader", "data_fetcher"]
                         }),
-                    })],
-                },
-                ProviderUsage::new("mock".to_string(), Usage::default()),
+                    }),
+                })],
+            },
+            ProviderUsage::new("mock".to_string(), Usage::default()),
         ))
     }
 }
@@ -54,4 +54,3 @@ pub(crate) fn create_mock_capabilities() -> Capabilities {
         model_config: mock_model_config,
     }))
 }
-
