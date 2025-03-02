@@ -77,11 +77,15 @@ impl MemoryCondense {
                 .single_request(capabilities, &request)
                 .await?
                 .as_concat_text();
-            let message = Message::assistant().with_text(&response_text);
-            let tokens = token_counter.count_tokens(&response_text);
-            diff += tokens as isize;
-            count_stack.push(tokens);
-            message_stack.push(message);
+            let curr_messages = vec![
+                // shoule be in reversed order
+                Message::assistant().with_text(&response_text),
+                Message::user().with_text("Hello! How are we progressing?"),
+            ];
+            let curr_tokens = token_counter.count_chat_tokens("", &curr_messages, &[]);
+            diff += curr_tokens as isize;
+            count_stack.push(curr_tokens);
+            message_stack.extend(curr_messages);
             total_tokens = total_tokens.checked_add_signed(diff).unwrap();
         }
 
