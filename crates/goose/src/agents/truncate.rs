@@ -230,6 +230,7 @@ impl Agent for TruncateAgent {
 
                         // record usage for the session in the session file
                         if let Some(session_id) = session_id.clone() {
+                            // TODO: track session_id in langfuse tracing
                             let session_file = session::get_path(session_id);
                             let mut metadata = session::read_metadata(&session_file)?;
                             metadata.total_tokens = usage.usage.total_tokens;
