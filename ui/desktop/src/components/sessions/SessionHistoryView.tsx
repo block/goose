@@ -1,13 +1,13 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Clock, MessageSquare, ArrowLeft, AlertCircle } from 'lucide-react';
-import { type SessionDetails } from '../api/sessions';
-import { Card } from './ui/card';
-import { Button } from './ui/button';
-import BackButton from './ui/BackButton';
-import { ScrollArea } from './ui/scroll-area';
-import MarkdownContent from './MarkdownContent';
-import ToolCallWithResponse from './ToolCallWithResponse';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import { type SessionDetails } from '../../sessions';
+import { Card } from '../ui/card';
+import { Button } from '../ui/button';
+import BackButton from '../ui/BackButton';
+import { ScrollArea } from '../ui/scroll-area';
+import MarkdownContent from '../MarkdownContent';
+import ToolCallWithResponse from '../ToolCallWithResponse';
+import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
 
 interface SessionHistoryViewProps {
   session: SessionDetails;
