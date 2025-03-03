@@ -227,6 +227,33 @@ export default function MoreMenu({
               </>
             )}
 
+            <div
+              onClick={() => setIsGoosehintsModalOpen(true)}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors cursor-pointer"
+            >
+              Configure .goosehints
+            </div>
+
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.electron.directoryChooser();
+              }}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+            >
+              Open Directory (cmd+O)
+            </button>
+
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.electron.createChatWindow();
+              }}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+            >
+              New Session (cmd+N)
+            </button>
+
             {/* View Previous Sessions */}
             <button
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
@@ -246,30 +273,6 @@ export default function MoreMenu({
               Settings (cmd+,)
             </button>
 
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.electron.directoryChooser();
-              }}
-              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
-            >
-              Open Directory (cmd+O)
-            </button>
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.electron.createChatWindow();
-              }}
-              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
-            >
-              New Session (cmd+N)
-            </button>
-            <div
-              onClick={() => setIsGoosehintsModalOpen(true)}
-              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors cursor-pointer"
-            >
-              Configure .goosehints
-            </div>
             <button
               onClick={() => {
                 localStorage.removeItem('GOOSE_PROVIDER');
