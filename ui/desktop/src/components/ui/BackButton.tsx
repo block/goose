@@ -4,9 +4,16 @@ import Back from '../icons/Back';
 interface BackButtonProps {
   onClick?: () => void; // Mark onClick as optional
   className?: string;
+  textSize?: 'sm' | 'base' | 'md' | 'lg';
+  showText?: boolean; // Add new prop
 }
 
-const BackButton: React.FC<BackButtonProps> = ({ onClick, className = '' }) => {
+const BackButton: React.FC<BackButtonProps> = ({
+  onClick,
+  className = '',
+  textSize = 'sm',
+  showText = true,
+}) => {
   const handleExit = () => {
     if (onClick) {
       onClick(); // Custom onClick handler passed via props
@@ -20,10 +27,10 @@ const BackButton: React.FC<BackButtonProps> = ({ onClick, className = '' }) => {
   return (
     <button
       onClick={handleExit}
-      className={`flex items-center text-sm text-textSubtle group hover:text-textStandard ${className}`}
+      className={`flex items-center text-${textSize} text-textSubtle group hover:text-textStandard ${className}`}
     >
       <Back className="w-3 h-3 group-hover:-translate-x-1 transition-all mr-1" />
-      <span>Exit</span>
+      {showText && <span>Exit</span>}
     </button>
   );
 };

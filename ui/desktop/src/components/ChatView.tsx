@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '../config';
-import { v4 as uuidv4 } from 'uuid';
+import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -23,23 +23,58 @@ export interface ChatType {
   messages: Message[];
 }
 
-export default function ChatView({ setView }: { setView: (view: View) => void }) {
-  // Generate or retrieve a unique window ID
-  const [windowId] = useState(() => {
-    // Check if we already have a window ID in sessionStorage
-    const existingId = window.sessionStorage.getItem('goose-window-id');
+export default function ChatView({
+  setView,
+  viewOptions,
+}: {
+  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  viewOptions?: Record<any, any>;
+}) {
+  // Check if we're resuming a session
+  const resumedSession = viewOptions?.resumedSession;
+
+  // Generate or retrieve session ID
+  const [sessionId] = useState(() => {
+    // If resuming a session, use that session ID
+    if (resumedSession?.session_id) {
+      return resumedSession.session_id;
+    }
+
+    const existingId = window.sessionStorage.getItem('goose-session-id');
     if (existingId) {
       return existingId;
     }
-    // Create a new ID if none exists
-    const newId = uuidv4();
-    window.sessionStorage.setItem('goose-window-id', newId);
+    const newId = generateSessionId();
+    window.sessionStorage.setItem('goose-session-id', newId);
     return newId;
   });
 
   const [chat, setChat] = useState<ChatType>(() => {
+    // If resuming a session, convert the session messages to our format
+    if (resumedSession) {
+      try {
+        // Convert the resumed session messages to the expected format
+        const convertedMessages = resumedSession.messages.map((msg): Message => {
+          return {
+            id: `${msg.role}-${msg.created}`,
+            role: msg.role,
+            created: msg.created,
+            content: msg.content,
+          };
+        });
+
+        return {
+          id: Date.now(),
+          title: resumedSession.description || `Chat ${resumedSession.session_id}`,
+          messages: convertedMessages,
+        };
+      } catch (e) {
+        console.error('Failed to parse resumed session:', e);
+      }
+    }
+
     // Try to load saved chat from sessionStorage
-    const savedChat = window.sessionStorage.getItem(`goose-chat-${windowId}`);
+    const savedChat = window.sessionStorage.getItem(`goose-chat-${sessionId}`);
     if (savedChat) {
       try {
         return JSON.parse(savedChat);
@@ -75,6 +110,7 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat?.messages || [],
+    body: { session_id: sessionId },
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
@@ -106,13 +142,13 @@ export default function ChatView({ setView }: { setView: (view: View) => void })
       const updatedChat = { ...prevChat, messages };
       // Save to sessionStorage
       try {
-        window.sessionStorage.setItem(`goose-chat-${windowId}`, JSON.stringify(updatedChat));
+        window.sessionStorage.setItem(`goose-chat-${sessionId}`, JSON.stringify(updatedChat));
       } catch (e) {
         console.error('Failed to save chat to sessionStorage:', e);
       }
       return updatedChat;
     });
-  }, [messages, windowId]);
+  }, [messages, sessionId]);
 
   useEffect(() => {
     if (messages.length > 0) {
