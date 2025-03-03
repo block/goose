@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { ConfirmToolRequest } from '../utils/toolConfirm';
 import { snakeToTitleCase } from '../utils';
-import Box from './ui/Box';
 
 export default function ToolConfirmation({ toolConfirmationId, toolName }) {
   const [clicked, setClicked] = useState(false);
@@ -15,7 +14,7 @@ export default function ToolConfirmation({ toolConfirmationId, toolName }) {
 
   return (
     <>
-      <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none">
+      <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
         Goose would like to call the above tool. Allow?
       </div>
       {clicked ? (
