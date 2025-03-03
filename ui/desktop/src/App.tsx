@@ -10,6 +10,7 @@ import ErrorScreen from './components/ErrorScreen';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
+import { GoosehintsModal } from './components/GoosehintsModal';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -49,6 +50,7 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
+  const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
 
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
@@ -248,10 +250,22 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && <ChatView setView={setView} viewOptions={viewOptions} />}
+          {view === 'chat' && (
+            <ChatView
+              setView={setView}
+              viewOptions={viewOptions}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+            />
+          )}
           {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
       </div>
+      {isGoosehintsModalOpen && (
+        <GoosehintsModal
+          directory={window.appConfig.get('GOOSE_WORKING_DIR')}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
     </>
   );
 }
