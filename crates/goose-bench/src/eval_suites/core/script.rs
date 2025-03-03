@@ -27,14 +27,12 @@ impl Evaluation for ComputerControllerScript {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
-        let messages = agent.prompt(
-            "Make a ding sound".to_string(),
-        );
+        let messages = agent.prompt("Make a ding sound".to_string());
         let messages = messages.await?;
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
-            msg.role == Role::Assistant && 
+            msg.role == Role::Assistant &&
             // Check if any content item is a tool request for creating a file
             msg.content.iter().any(|content| {
                 if let MessageContent::ToolRequest(tool_req) = content {
@@ -60,7 +58,10 @@ impl Evaluation for ComputerControllerScript {
             })
         });
 
-        metrics.push(("Running os scripts".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "Running os scripts".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
         Ok(metrics)
     }
 

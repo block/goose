@@ -52,7 +52,10 @@ async fn run_suite(suite: &str, work_dir: &mut WorkDir) -> anyhow::Result<SuiteR
     Ok(suite_result)
 }
 
-pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> anyhow::Result<BenchmarkResults> {
+pub async fn run_benchmark(
+    suites: Vec<String>,
+    include_dirs: Vec<PathBuf>,
+) -> anyhow::Result<BenchmarkResults> {
     let suites = EvaluationSuiteFactory::available_evaluations()
         .into_iter()
         .filter(|&s| suites.contains(&s.to_string()))
@@ -64,7 +67,7 @@ pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> a
         .expect("No provider configured. Run 'goose configure' first");
 
     let mut results = BenchmarkResults::new(provider_name.clone());
-    
+
     let current_time = Local::now().format("%H:%M:%S").to_string();
     let current_date = Local::now().format("%Y-%m-%d").to_string();
     if let Ok(mut work_dir) = WorkDir::at(
@@ -85,7 +88,7 @@ pub async fn run_benchmark(suites: Vec<String>, include_dirs: Vec<PathBuf>) -> a
 pub async fn list_suites() -> anyhow::Result<HashMap<String, usize>> {
     let suites = EvaluationSuiteFactory::available_evaluations();
     let mut suite_counts = HashMap::new();
-    
+
     for suite in suites {
         if let Some(evals) = EvaluationSuiteFactory::create(suite) {
             suite_counts.insert(suite.to_string(), evals.len());

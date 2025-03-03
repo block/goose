@@ -24,7 +24,10 @@ impl Evaluation for ExampleEval {
         // let _contents = fs::read_to_string(f)?;
         let mut metrics = Vec::new();
         let _ = agent.prompt("What can you do?".to_string()).await;
-        metrics.push(("example_metric".to_string(), EvaluationMetric::Boolean(true)));
+        metrics.push((
+            "example_metric".to_string(),
+            EvaluationMetric::Boolean(true),
+        ));
         metrics.push(("example_count".to_string(), EvaluationMetric::Integer(42)));
         Ok(metrics)
     }

@@ -34,14 +34,14 @@ impl Evaluation for ComputerControllerWebScrape {
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
-            msg.role == Role::Assistant && 
+            msg.role == Role::Assistant &&
             // Check if any content item is a tool request for creating a file
             msg.content.iter().any(|content| {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
                         if tool_call.name != "computercontroller__web_scrape" {
-                            false;
+                            return false;
                         }
 
                         // Parse the arguments as JSON
@@ -60,7 +60,10 @@ impl Evaluation for ComputerControllerWebScrape {
             })
         });
 
-        metrics.push(("Retrieve and scrape web pages".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "Retrieve and scrape web pages".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
         Ok(metrics)
     }
 

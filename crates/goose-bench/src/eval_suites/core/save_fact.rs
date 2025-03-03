@@ -32,14 +32,14 @@ impl Evaluation for MemoryRememberMemory {
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
-            msg.role == Role::Assistant && 
+            msg.role == Role::Assistant &&
             // Check if any content item is a tool request for creating a file
             msg.content.iter().any(|content| {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
                         if tool_call.name != "memory__remember_memory" {
-                            false;
+                            return false;
                         }
 
                         // Parse the arguments as JSON
@@ -60,7 +60,10 @@ impl Evaluation for MemoryRememberMemory {
             })
         });
 
-        metrics.push(("Saving facts".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "Saving facts".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
         Ok(metrics)
     }
 

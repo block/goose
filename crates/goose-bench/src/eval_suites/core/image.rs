@@ -3,8 +3,8 @@ use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
-use mcp_core::role::Role;
 use mcp_core::content::Content;
+use mcp_core::role::Role;
 use serde_json::{self, Value};
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl Evaluation for DeveloperImage {
         let messages = agent
             .prompt("Take a screenshot of the display 0 and describe what you see.".to_string())
             .await?;
-        
+
         // Check if the assistant makes appropriate tool calls and gets valid responses
         let mut valid_tool_call = false;
         let mut valid_response = false;
@@ -40,11 +40,15 @@ impl Evaluation for DeveloperImage {
                 for content in msg.content.iter() {
                     if let MessageContent::ToolRequest(tool_req) = content {
                         if let Ok(tool_call) = tool_req.tool_call.as_ref() {
-                            if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
-                                if tool_call.name == "developer__screen_capture" &&                    
-                                   args.get("display")
-                                       .and_then(Value::as_i64)
-                                       .map_or(false, |display| display == 0) {
+                            if let Ok(args) =
+                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                            {
+                                if tool_call.name == "developer__screen_capture"
+                                    && args
+                                        .get("display")
+                                        .and_then(Value::as_i64)
+                                        .map_or(false, |display| display == 0)
+                                {
                                     valid_tool_call = true;
                                 }
                             }
@@ -52,7 +56,7 @@ impl Evaluation for DeveloperImage {
                     }
                 }
             }
-            
+
             // Check for valid tool response
             if msg.role == Role::User && valid_tool_call {
                 for content in msg.content.iter() {
@@ -62,9 +66,11 @@ impl Evaluation for DeveloperImage {
                             for item in result {
                                 if let Content::Image(image) = item {
                                     // Image content already contains mime_type and data
-                                    if image.mime_type.starts_with("image/") && !image.data.is_empty() {
+                                    if image.mime_type.starts_with("image/")
+                                        && !image.data.is_empty()
+                                    {
                                         valid_response = true;
-                                        break;  // Found a valid image, no need to check further
+                                        break; // Found a valid image, no need to check further
                                     }
                                 }
                             }
@@ -74,7 +80,10 @@ impl Evaluation for DeveloperImage {
             }
         }
         // Both the tool call and response must be valid
-        metrics.push(("Take a screenshot and upload images".to_string(), EvaluationMetric::Boolean(valid_tool_call && valid_response)));
+        metrics.push((
+            "Take a screenshot and upload images".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call && valid_response),
+        ));
         Ok(metrics)
     }
 

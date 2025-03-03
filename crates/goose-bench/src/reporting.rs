@@ -71,17 +71,15 @@ impl BenchmarkResults {
         summary.push_str(&format!("Run at: {}\n\n", self.start_time));
 
         for suite in &self.suites {
-            summary.push_str(&format!("Suite: {} ({} evaluations)\n", 
-                suite.name, 
+            summary.push_str(&format!(
+                "Suite: {} ({} evaluations)\n",
+                suite.name,
                 suite.evaluations.len()
             ));
-            
+
             // Count total metrics
-            let total_metrics: usize = suite.evaluations
-                .iter()
-                .map(|e| e.metrics.len())
-                .sum();
-            
+            let total_metrics: usize = suite.evaluations.iter().map(|e| e.metrics.len()).sum();
+
             summary.push_str(&format!("  Total metrics: {}\n", total_metrics));
         }
 
@@ -109,7 +107,7 @@ impl fmt::Display for BenchmarkResults {
 
         for suite in &self.suites {
             writeln!(f, "Suite: {}", suite.name)?;
-            
+
             for eval in &suite.evaluations {
                 writeln!(f, "  Evaluation: {}", eval.name)?;
                 for (metric_name, metric_value) in &eval.metrics {

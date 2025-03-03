@@ -33,7 +33,7 @@ impl Evaluation for DeveloperListFiles {
         // Check if the assistant makes appropriate tool calls
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
-            msg.role == Role::Assistant && 
+            msg.role == Role::Assistant &&
             // Check if any content item is a tool request for listing files
             msg.content.iter().any(|content| {
                 if let MessageContent::ToolRequest(tool_req) = content {
@@ -62,7 +62,10 @@ impl Evaluation for DeveloperListFiles {
             })
         });
 
-        metrics.push(("Using the shell command tool".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "Using the shell command tool".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
         Ok(metrics)
     }
 

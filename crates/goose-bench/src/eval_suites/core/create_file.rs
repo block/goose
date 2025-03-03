@@ -32,7 +32,7 @@ impl Evaluation for DeveloperCreateFile {
 
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
-            msg.role == Role::Assistant && 
+            msg.role == Role::Assistant &&
             // Check if any content item is a tool request for creating a file
             msg.content.iter().any(|content| {
                 if let MessageContent::ToolRequest(tool_req) = content {
@@ -60,7 +60,10 @@ impl Evaluation for DeveloperCreateFile {
             })
         });
 
-        metrics.push(("Create files".to_string(), EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "Create files".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
         Ok(metrics)
     }
 
