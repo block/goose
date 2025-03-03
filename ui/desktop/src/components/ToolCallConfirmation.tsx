@@ -44,7 +44,7 @@ export default function ToolConfirmation({ toolConfirmationId, toolName }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             )}
-            <span className="ml-2 text-gray-500 dark:text-gray-400">
+            <span className="ml-2 text-textStandard">
               {snakeToTitleCase(toolName.substring(toolName.lastIndexOf('__') + 2))} is {status}
             </span>
           </div>
