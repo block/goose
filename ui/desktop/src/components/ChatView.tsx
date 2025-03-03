@@ -39,13 +39,12 @@ export default function ChatView({
   const [sessionId] = useState(() => {
     // If resuming a session, use that session ID
     if (resumedSession?.session_id) {
+      // Store the resumed session ID in sessionStorage
+      window.sessionStorage.setItem('goose-session-id', resumedSession.session_id);
       return resumedSession.session_id;
     }
 
-    const existingId = window.sessionStorage.getItem('goose-session-id');
-    if (existingId) {
-      return existingId;
-    }
+    // For a new chat, generate a new session ID
     const newId = generateSessionId();
     window.sessionStorage.setItem('goose-session-id', newId);
     return newId;
@@ -67,7 +66,7 @@ export default function ChatView({
 
         return {
           id: Date.now(),
-          title: resumedSession.description || `Chat ${resumedSession.session_id}`,
+          title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
           messages: convertedMessages,
         };
       } catch (e) {
