@@ -124,20 +124,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, click the `Add` link
-  4. On the `Add Extension Manually` modal, enter the following:
-        * **Type**: `Standard IO`
-        * **ID**: `google-maps-mcp` (_set this to whatever you want_)
-        * **Name**: `Google Maps` (_set this to whatever you want_)
-        * **Description**: `Google Maps API` (_set this to whatever you want_)
-        * **Command**: `npx -y @modelcontextprotocol/server-google-maps`
-        * **Environment Variables**
-            * **Name**: `GOOGLE_MAPS_API_KEY`
-            * **Value**: (_Obtain a [GOOGLE_MAPS_API_KEY](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in._)
-            * Click `Add` button
-  5. Click `Add Extension` button
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-google-maps&id=google-maps&name=Google%20Maps&description=Google%20Maps%20API%20integration&env=GOOGLE_MAPS_API_KEY%3DGoogle%20Maps%20API%20key)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [GOOGLE_MAPS_API_KEY](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

@@ -112,16 +112,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, click the `Add` link
-  4. On the `Add Extension Manually` modal, enter the following:
-        * **Type**: `Standard IO`
-        * **ID**: `knowledge-graph-mcp` (_set this to whatever you want_)
-        * **Name**: `knowledge graph memory` (_set this to whatever you want_)
-        * **Description**: `knowledge graph memory MCP Server` (_set this to whatever you want_)
-        * **Command**: `npx -y @modelcontextprotocol/server-memory`
-  5. Click `Add Extension` button
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)
+  2. Press `Yes` to confirm the installation
+  3. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
