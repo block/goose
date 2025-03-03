@@ -3,7 +3,10 @@ import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
-export const DEFAULT_EXTENSION_TIMEOUT: number = 300;
+import builtInExtensionsData from './built-in-extensions.json';
+
+// Hardcoded default extension timeout in seconds
+export const DEFAULT_EXTENSION_TIMEOUT = 300;
 
 // ExtensionConfig type matching the Rust version
 // TODO: refactor this
@@ -47,66 +50,7 @@ export interface ExtensionPayload {
   timeout?: number;
 }
 
-export const BUILT_IN_EXTENSIONS = [
-  {
-    id: 'developer',
-    name: 'Developer',
-    description: 'General development tools useful for software engineering.',
-    enabled: true,
-    type: 'builtin',
-    env_keys: [],
-    timeout: DEFAULT_EXTENSION_TIMEOUT,
-  },
-  {
-    id: 'computercontroller',
-    name: 'Computer Controller',
-    description:
-      "General computer control tools that don't require you to be a developer or engineer.",
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-    timeout: DEFAULT_EXTENSION_TIMEOUT,
-  },
-  {
-    id: 'memory',
-    name: 'Memory',
-    description: 'Teach goose your preferences as you go.',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-    timeout: DEFAULT_EXTENSION_TIMEOUT,
-  },
-  {
-    id: 'jetbrains',
-    name: 'Jetbrains',
-    description: 'Integration with any Jetbrains IDE',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-    timeout: DEFAULT_EXTENSION_TIMEOUT,
-  },
-  {
-    id: 'tutorial',
-    name: 'Tutorial',
-    description: 'Access interactive tutorials and guides',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  /* TODO re-enable when we have a smoother auth flow {
-    id: 'google_drive',
-    name: 'Google Drive',
-    description: 'Built-in Google Drive integration for file management and access',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [
-      'GOOGLE_DRIVE_OAUTH_PATH',
-      'GOOGLE_DRIVE_CREDENTIALS_PATH',
-      'GOOGLE_DRIVE_OAUTH_CONFIG',
-    ],
-	timeout: DEFAULT_EXTENSION_TIMEOUT,
-  },*/
-];
+export const BUILT_IN_EXTENSIONS = builtInExtensionsData as FullExtensionConfig[];
 
 function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
