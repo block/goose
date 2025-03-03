@@ -37,7 +37,7 @@ uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
 async-trait = "0.1"
 async-stream = "0.3"
-tera = "1.20.0"
+minijinja = "2.8.0"
 tokenizers = "0.20.3"
 include_dir = "0.7.4"
 chrono = { version = "0.4.38", features = ["serde"] }
