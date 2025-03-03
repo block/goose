@@ -3,11 +3,10 @@ mod completion;
 mod input;
 mod output;
 mod prompt;
-mod storage;
 mod thinking;
 
 pub use builder::build_session;
-pub use storage::Identifier;
+pub use goose::session::Identifier;
 
 use anyhow::Result;
 use completion::GooseCompleter;
@@ -16,6 +15,7 @@ use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
 use goose::message::{Message, MessageContent};
+use goose::session;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
 
@@ -56,7 +56,7 @@ impl CompletionCache {
 
 impl Session {
     pub fn new(agent: Box<dyn Agent>, session_file: PathBuf) -> Self {
-        let messages = match storage::read_messages(&session_file) {
+        let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
                 eprintln!("Warning: Failed to load message history: {}", e);
@@ -196,7 +196,13 @@ impl Session {
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
-        storage::persist_messages(&self.session_file, &self.messages)?;
+
+        // Get the provider from the agent for description generation
+        let provider = self.agent.provider().await;
+
+        // Persist messages with provider for automatic description generation
+        session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+
         self.process_agent_response(false).await?;
         Ok(())
     }
@@ -260,7 +266,13 @@ impl Session {
                     save_history(&mut editor);
 
                     self.messages.push(Message::user().with_text(&content));
-                    storage::persist_messages(&self.session_file, &self.messages)?;
+
+                    // Get the provider from the agent for description generation
+                    let provider = self.agent.provider().await;
+
+                    // Persist messages with provider for automatic description generation
+                    session::persist_messages(&self.session_file, &self.messages, Some(provider))
+                        .await?;
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -399,7 +411,8 @@ impl Session {
     }
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
-        let mut stream = self.agent.reply(&self.messages).await?;
+        let session_id = session::Identifier::Path(self.session_file.clone());
+        let mut stream = self.agent.reply(&self.messages, Some(session_id)).await?;
 
         use futures::StreamExt;
         loop {
@@ -421,7 +434,10 @@ impl Session {
                             // otherwise we have a model/tool to render
                             else {
                                 self.messages.push(message.clone());
-                                storage::persist_messages(&self.session_file, &self.messages)?;
+
+                                // No need to update description on assistant messages
+                                session::persist_messages(&self.session_file, &self.messages, None).await?;
+
                                 if interactive {output::hide_thinking()};
                                 output::render_message(&message);
                                 if interactive {output::show_thinking()};
@@ -430,7 +446,9 @@ impl Session {
                         Some(Err(e)) => {
                             eprintln!("Error: {}", e);
                             drop(stream);
-                            self.handle_interrupted_messages(false);
+                            if let Err(e) = self.handle_interrupted_messages(false).await {
+                                eprintln!("Error handling interruption: {}", e);
+                            }
                             output::render_error(
                                 "The error above was an exception we were not able to handle.\n\
                                 These errors are often related to connection or authentication\n\
@@ -444,7 +462,9 @@ impl Session {
                 }
                 _ = tokio::signal::ctrl_c() => {
                     drop(stream);
-                    self.handle_interrupted_messages(true);
+                    if let Err(e) = self.handle_interrupted_messages(true).await {
+                        eprintln!("Error handling interruption: {}", e);
+                    }
                     break;
                 }
             }
@@ -452,7 +472,7 @@ impl Session {
         Ok(())
     }
 
-    fn handle_interrupted_messages(&mut self, interrupt: bool) {
+    async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
         // First, get any tool requests from the last message if it exists
         let tool_requests = self
             .messages
@@ -493,11 +513,18 @@ impl Session {
             }
             self.messages.push(response_message);
 
+            // No need for description update here
+            session::persist_messages(&self.session_file, &self.messages, None).await?;
+
             let prompt = format!(
                 "The existing call to {} was interrupted. How would you like to proceed?",
                 last_tool_name
             );
             self.messages.push(Message::assistant().with_text(&prompt));
+
+            // No need for description update here
+            session::persist_messages(&self.session_file, &self.messages, None).await?;
+
             output::render_message(&Message::assistant().with_text(&prompt));
         } else {
             // An interruption occurred outside of a tool request-response.
@@ -508,6 +535,11 @@ impl Session {
                             // Interruption occurred after a tool had completed but not assistant reply
                             let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
                             self.messages.push(Message::assistant().with_text(prompt));
+
+                            // No need for description update here
+                            session::persist_messages(&self.session_file, &self.messages, None)
+                                .await?;
+
                             output::render_message(&Message::assistant().with_text(prompt));
                         }
                         Some(_) => {
@@ -521,6 +553,7 @@ impl Session {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn session_file(&self) -> PathBuf {

@@ -46,8 +46,22 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+  # ------------------------------------------------------------
+  # 4) Bundle Desktop App (macOS)
+  # ------------------------------------------------------------
+  bundle-desktop-intel:
+    uses: ./.github/workflows/bundle-desktop-intel.yml
+    with:
+      signing: true
+    secrets:
+      CERTIFICATE_OSX_APPLICATION: ${{ secrets.CERTIFICATE_OSX_APPLICATION }}
+      CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
 #  # ------------------------------------------------------------
-#  # 4) Bundle Desktop App (Windows)
+#  # 5) Bundle Desktop App (Windows)
 #  # ------------------------------------------------------------
 #  bundle-desktop-windows:
 #    uses: ./.github/workflows/bundle-desktop-windows.yml
@@ -60,7 +74,7 @@ jobs:
 #    #   WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
   # ------------------------------------
-  # 4) Create/Update GitHub Release
+  # 6) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release

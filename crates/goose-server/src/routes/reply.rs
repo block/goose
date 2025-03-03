@@ -9,6 +9,7 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::message::{Message, MessageContent};
+use goose::session;
 
 use mcp_core::role::Role;
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
     messages: Vec<Message>,
+    session_id: Option<String>,
 }
 
 // Custom SSE response type for streaming messages
@@ -109,6 +111,11 @@ async fn handler(
     // Get messages directly from the request
     let messages = request.messages;
 
+    // Generate a new session ID if not provided in the request
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
+
     // Get a lock on the shared agent
     let agent = state.agent.clone();
 
@@ -136,7 +143,16 @@ async fn handler(
             }
         };
 
-        let mut stream = match agent.reply(&messages).await {
+        // Get the provider first, before starting the reply stream
+        let provider = agent.provider().await;
+
+        let mut stream = match agent
+            .reply(
+                &messages,
+                Some(session::Identifier::Name(session_id.clone())),
+            )
+            .await
+        {
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
@@ -158,11 +174,16 @@ async fn handler(
             }
         };
 
+        // Collect all messages for storage
+        let mut all_messages = messages.clone();
+        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+
         loop {
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
+                            all_messages.push(message.clone());
                             if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
                                 let _ = stream_event(
@@ -173,6 +194,16 @@ async fn handler(
                                 ).await;
                                 break;
                             }
+
+                            // Store messages and generate description in background
+                            let session_path = session_path.clone();
+                            let messages = all_messages.clone();
+                            let provider = provider.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
+                                    tracing::error!("Failed to store session history: {:?}", e);
+                                }
+                            });
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
@@ -214,6 +245,7 @@ async fn handler(
 #[derive(Debug, Deserialize, Serialize)]
 struct AskRequest {
     prompt: String,
+    session_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -237,16 +269,30 @@ async fn ask_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Generate a new session ID if not provided in the request
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
+
     let agent = state.agent.clone();
     let agent = agent.write().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+
+    // Get the provider first, before starting the reply stream
+    let provider = agent.provider().await;
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
 
     // Get response from agent
     let mut response_text = String::new();
-    let mut stream = match agent.reply(&messages).await {
+    let mut stream = match agent
+        .reply(
+            &messages,
+            Some(session::Identifier::Name(session_id.clone())),
+        )
+        .await
+    {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to start reply stream: {:?}", e);
@@ -254,15 +300,20 @@ async fn ask_handler(
         }
     };
 
+    // Collect all messages for storage
+    let mut all_messages = messages.clone();
+    let mut response_message = Message::assistant();
+
     while let Some(response) = stream.next().await {
         match response {
             Ok(message) => {
                 if message.role == Role::Assistant {
-                    for content in message.content {
+                    for content in &message.content {
                         if let MessageContent::Text(text) = content {
                             response_text.push_str(&text.text);
                             response_text.push('\n');
                         }
+                        response_message.content.push(content.clone());
                     }
                 }
             }
@@ -272,6 +323,24 @@ async fn ask_handler(
             }
         }
     }
+
+    // Add the complete response message to the conversation history
+    if !response_message.content.is_empty() {
+        all_messages.push(response_message);
+    }
+
+    // Get the session path - file will be created when needed
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+
+    // Store messages and generate description in background
+    let session_path = session_path.clone();
+    let messages = all_messages.clone();
+    let provider = provider.clone();
+    tokio::spawn(async move {
+        if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
+            tracing::error!("Failed to store session history: {:?}", e);
+        }
+    });
 
     Ok(Json(AskResponse {
         response: response_text.trim().to_string(),
@@ -394,6 +463,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&AskRequest {
                         prompt: "test prompt".to_string(),
+                        session_id: Some("test-session".to_string()),
                     })
                     .unwrap(),
                 ))

@@ -1,0 +1,46 @@
+[
+  {
+    "id": "developer",
+    "name": "Developer",
+    "description": "General development tools useful for software engineering.",
+    "enabled": true,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
+    "id": "computercontroller",
+    "name": "Computer Controller",
+    "description": "General computer control tools that don't require you to be a developer or engineer.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Teach goose your preferences as you go.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
+    "id": "jetbrains",
+    "name": "Jetbrains",
+    "description": "Integration with any Jetbrains IDE",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
+    "id": "tutorial",
+    "name": "Tutorial",
+    "description": "Access interactive tutorials and guides",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": []
+  }
+]
