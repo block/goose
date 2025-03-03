@@ -263,7 +263,7 @@ async fn main() -> Result<()> {
                 builtin,
             )
             .await;
-        
+
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
             let _ = session.interactive(None).await;
             return Ok(());
