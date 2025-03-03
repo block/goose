@@ -14,6 +14,7 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [cursorPos, setCursorPos] = useState(0);
 
   useEffect(() => {
     if (textAreaRef.current) {
@@ -41,6 +42,12 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
     setValue(val);
   };
 
+  const handleCursorUpdate = (
+    e: React.KeyboardEvent<HTMLTextAreaElement> | React.MouseEvent<HTMLTextAreaElement>
+  ) => {
+    setCursorPos(e.currentTarget.selectionStart ?? 0);
+  };
+
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
@@ -66,6 +73,7 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
       if (!isLoading && value.trim()) {
         handleSubmit(new CustomEvent('submit', { detail: { value } }));
         setValue('');
+        setCursorPos(0);
       }
     }
   };
@@ -75,13 +83,17 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
     if (value.trim() && !isLoading) {
       handleSubmit(new CustomEvent('submit', { detail: { value } }));
       setValue('');
+      setCursorPos(0);
     }
   };
 
   const handleFileSelect = async () => {
     const path = await window.electron.selectFileOrDirectory();
     if (path) {
-      setValue(path);
+      const currentValue = value;
+      const newValue = currentValue.slice(0, cursorPos) + path + currentValue.slice(cursorPos);
+
+      setValue(newValue);
       textAreaRef.current?.focus();
     }
   };
@@ -99,6 +111,8 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
         onChange={handleChange}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
+        onKeyUp={handleCursorUpdate}
+        onClick={handleCursorUpdate}
         onKeyDown={handleKeyDown}
         ref={textAreaRef}
         rows={1}
