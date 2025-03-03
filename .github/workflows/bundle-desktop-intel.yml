@@ -1,4 +1,4 @@
-# This is a **reuseable** workflow that bundles the Desktop App for macOS.
+# This is a **reuseable** workflow that bundles the Desktop App for Intel macOS.
 # It doesn't get triggered on its own. It gets used in multiple workflows:
 #  - release.yml
 #  - canary.yml
@@ -38,12 +38,12 @@ on:
         description: 'Apple Team ID'
         required: false
 
-name: Reusable workflow to bundle desktop app
+name: Reusable workflow to bundle desktop app for Intel Mac
 
 jobs:
-  bundle-desktop:
+  bundle-desktop-intel:
     runs-on: macos-latest
-    name: Bundle Desktop App on macOS
+    name: Bundle Desktop App on Intel macOS
     steps:
       # Check initial disk space
       - name: Check initial disk space
@@ -90,6 +90,12 @@ jobs:
           cd ui/desktop
           npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-apple-darwin
+
       # Pre-build cleanup to ensure enough disk space
       - name: Pre-build cleanup
         run: |
@@ -105,38 +111,33 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
       - name: Cache Cargo registry
         uses: actions/cache@v3
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-intel-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+            ${{ runner.os }}-intel-cargo-registry-
 
       - name: Cache Cargo index
         uses: actions/cache@v3
         with:
           path: ~/.cargo/index
-          key: ${{ runner.os }}-cargo-index
+          key: ${{ runner.os }}-intel-cargo-index
           restore-keys: |
-            ${{ runner.os }}-cargo-index
+            ${{ runner.os }}-intel-cargo-index
 
       - name: Cache Cargo build
         uses: actions/cache@v3
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-intel-cargo-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-build-
+            ${{ runner.os }}-intel-cargo-build-
 
-      # Build the project
-      - name: Build goosed
-        run: cargo build --release -p goose-server
+      # Build specifically for Intel architecture
+      - name: Build goosed for Intel
+        run: cargo build --release -p goose-server --target x86_64-apple-darwin
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -144,15 +145,16 @@ jobs:
           echo "Performing post-build cleanup..."
           # Remove debug artifacts
           rm -rf target/debug || true
+          rm -rf target/x86_64-apple-darwin/debug || true
           # Keep only what's needed for the next steps
-          rm -rf target/release/deps || true
-          rm -rf target/release/build || true
-          rm -rf target/release/incremental || true
+          rm -rf target/x86_64-apple-darwin/release/deps || true
+          rm -rf target/x86_64-apple-darwin/release/build || true
+          rm -rf target/x86_64-apple-darwin/release/incremental || true
           # Check disk space after cleanup
           df -h
 
       - name: Copy binary into Electron folder
-        run: cp target/release/goosed ui/desktop/src/bin/goosed
+        run: cp target/x86_64-apple-darwin/release/goosed ui/desktop/src/bin/goosed
 
       - name: Add MacOS certs for signing and notarization
         if: ${{ inputs.signing }}
@@ -169,6 +171,13 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+        working-directory: ui/desktop
+
+      # Configure Electron builder for Intel architecture
+      - name: Configure for Intel build
+        run: |
+          # Set the architecture to x64 for Intel Mac build
+          jq '.build.mac.target[0].arch = "x64"' package.json > package.json.tmp && mv package.json.tmp package.json
         working-directory: ui/desktop
 
       # Check disk space before bundling
@@ -224,16 +233,16 @@ jobs:
       - name: Upload Desktop artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Goose-darwin-arm64
-          path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
+          name: Goose-darwin-x64
+          path: ui/desktop/out/Goose-darwin-x64/Goose.zip
 
       - name: Quick launch test (macOS)
         if: ${{ inputs.quick_test }}
         run: |
           # Ensure no quarantine attributes (if needed)
-          xattr -cr "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+          xattr -cr "ui/desktop/out/Goose-darwin-x64/Goose.app"
           echo "Opening Goose.app..."
-          open -g "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+          open -g "ui/desktop/out/Goose-darwin-x64/Goose.app"
 
           # Give the app a few seconds to start and write logs
           sleep 5
