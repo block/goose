@@ -15,7 +15,7 @@ export default function BottomMenu({
   setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [gooseMode, setGooseMode] = useState('approve');
+  const [gooseMode, setGooseMode] = useState('auto');
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,7 +50,9 @@ export default function BottomMenu({
 
         if (response.ok) {
           const { value } = await response.json();
-          setGooseMode(value);
+          if (value) {
+            setGooseMode(value);
+          }
         }
       } catch (error) {
         console.error('Error fetching current mode:', error);
