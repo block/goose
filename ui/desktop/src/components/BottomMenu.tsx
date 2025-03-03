@@ -5,6 +5,7 @@ import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../ChatWindow';
+import { getApiUrl, getSecretKey } from '../config';
 
 export default function BottomMenu({
   hasMessages,
@@ -14,6 +15,7 @@ export default function BottomMenu({
   setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [gooseMode, setGooseMode] = useState('approve');
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,29 @@ export default function BottomMenu({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isModelMenuOpen]);
+
+  useEffect(() => {
+    const fetchCurrentMode = async () => {
+      try {
+        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+        });
+
+        if (response.ok) {
+          const { value } = await response.json();
+          setGooseMode(value);
+        }
+      } catch (error) {
+        console.error('Error fetching current mode:', error);
+      }
+    };
+
+    fetchCurrentMode();
+  }, []);
 
   // Add effect to handle Escape key
   useEffect(() => {
@@ -75,6 +100,17 @@ export default function BottomMenu({
         Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
         <ChevronUp className="ml-1" />
       </span>
+
+      <div className="relative flex items-center ml-6">
+        <div
+          className="flex items-center cursor-pointer"
+          onClick={() => {
+            setView('settings');
+          }}
+        >
+          <span>Goose Mode: {gooseMode}</span>
+        </div>
+      </div>
 
       {/* Model Selector Dropdown - Only in development */}
       <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
