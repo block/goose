@@ -118,10 +118,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Go to the [Extensions Directory](https://block.github.io/goose/v1/extensions/)
-  2. Find the `Fetch` extension
-  3. Click `Install`
-  4. Press `Yes` to confirm the installation
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
+  2. Press `Yes` to confirm the installation
   </TabItem>
 </Tabs>
 

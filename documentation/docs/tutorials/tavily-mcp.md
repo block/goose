@@ -128,20 +128,11 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, click the `Add` link
-  4. On the `Add Extension Manually` modal, enter the following:
-        * **Type**: `Standard IO`
-        * **ID**: `tavily-mcp` (_set this to whatever you want_)
-        * **Name**: `Tavily` (_set this to whatever you want_)
-        * **Description**: `Tavily Web Search` (_set this to whatever you want_)
-        * **Command**: `uvx mcp-tavily`
-        * **Environment Variables**
-            * **Name**: `TAVILY_API_KEY`
-            * **Value**: (_Obtain a [Tavily API Key](https://tavily.com/) and paste it in._)
-            * Click `Add` button
-  5. Click `Add Extension` button
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-tavily&id=tavily&name=Tavily%20Web%20Search&description=Web%20search%20capabilities%20powered%20by%20Tavily&env=TAVILY_API_KEY%3DAPI%20key%20for%20Tavily%20web%20search%20service)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [TAVILY_API_KEY](hhttps://tavily.com/) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
