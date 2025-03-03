@@ -11,18 +11,16 @@ use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
-use crate::compress::compress_messages;
-use crate::compress::Compressor;
 use crate::config::Config;
 use crate::config::ExperimentManager;
-use crate::memory_condense::MemoryCondense;
+use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::token_counter::TokenCounter;
-use crate::truncate::{OldestFirstTruncation, Truncator};
+use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;
@@ -39,8 +37,6 @@ pub struct TruncateAgent {
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
-    compressor: Box<dyn Compressor + Send + Sync>,
-    fallback_compressor: Option<Box<dyn Compressor + Send + Sync>>,
 }
 
 impl TruncateAgent {
@@ -54,10 +50,6 @@ impl TruncateAgent {
             token_counter,
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
-            compressor: Box::new(MemoryCondense),
-            fallback_compressor: Some(Box::new(Truncator {
-                strategy: &OldestFirstTruncation,
-            })),
         }
     }
 
@@ -109,31 +101,23 @@ impl TruncateAgent {
             .collect();
 
         let capabilities_guard = self.capabilities.lock().await;
-        if let Err(e) = compress_messages(
+        if condense_messages(
             &capabilities_guard,
             &self.token_counter,
             messages,
             &mut token_counts,
             context_limit,
-            self.compressor.as_ref(),
         )
         .await
+        .is_err()
         {
             // Fallback to the legacy truncator if the model fails to condense the messages.
-            match self.fallback_compressor {
-                Some(ref fallback_compressor) => {
-                    compress_messages(
-                        &capabilities_guard,
-                        &self.token_counter,
-                        messages,
-                        &mut token_counts,
-                        context_limit,
-                        fallback_compressor.as_ref(),
-                    )
-                    .await
-                }
-                None => Err(e),
-            }
+            truncate_messages(
+                messages,
+                &mut token_counts,
+                context_limit,
+                &OldestFirstTruncation,
+            )
         } else {
             Ok(())
         }
