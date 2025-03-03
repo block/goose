@@ -18,6 +18,31 @@ interface SessionHistoryViewProps {
   onRetry: () => void;
 }
 
+export const getToolResponsesMap = (
+  session: SessionDetails,
+  messageIndex: number,
+  toolRequests: ToolRequestMessageContent[]
+) => {
+  const responseMap = new Map();
+
+  if (messageIndex >= 0) {
+    for (let i = messageIndex + 1; i < session.messages.length; i++) {
+      const responses = session.messages[i].content
+        .filter((c) => c.type === 'toolResponse')
+        .map((c) => c as ToolResponseMessageContent);
+
+      for (const response of responses) {
+        const matchingRequest = toolRequests.find((req) => req.id === response.id);
+        if (matchingRequest) {
+          responseMap.set(response.id, response);
+        }
+      }
+    }
+  }
+
+  return responseMap;
+};
+
 const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   session,
   isLoading,
@@ -26,30 +51,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onResume,
   onRetry,
 }) => {
-  // Move the tool response mapping logic outside of the render loop
-  const getToolResponsesMap = (messageIndex: number, toolRequests: ToolRequestMessageContent[]) => {
-    const responseMap = new Map();
-
-    // Look for tool responses in subsequent messages
-    if (messageIndex >= 0) {
-      for (let i = messageIndex + 1; i < session.messages.length; i++) {
-        const responses = session.messages[i].content
-          .filter((c) => c.type === 'toolResponse')
-          .map((c) => c as ToolResponseMessageContent);
-
-        for (const response of responses) {
-          // Check if this response matches any of our tool requests
-          const matchingRequest = toolRequests.find((req) => req.id === response.id);
-          if (matchingRequest) {
-            responseMap.set(response.id, response);
-          }
-        }
-      }
-    }
-
-    return responseMap;
-  };
-
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -84,7 +85,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           onClick={onResume}
           className="ml-auto text-md cursor-pointer text-textStandard hover:font-bold hover:scale-105 transition-all duration-150"
         >
-          Resume session
+          Resume Session
         </span>
       </Card>
 
@@ -123,7 +124,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                       .map((c) => c as ToolRequestMessageContent);
 
                     // Get tool responses map using the helper function
-                    const toolResponsesMap = getToolResponsesMap(index, toolRequests);
+                    const toolResponsesMap = getToolResponsesMap(session, index, toolRequests);
 
                     // Skip pure tool response messages for cleaner display
                     const isOnlyToolResponse =

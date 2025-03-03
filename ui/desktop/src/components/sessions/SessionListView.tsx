@@ -74,7 +74,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
           <div className="flex flex-col mb-6 px-8">
             <h1 className="text-3xl font-medium text-textStandard">Previous goose sessions</h1>
             <h3 className="text-sm text-textSubtle mt-2">
-              View previous goose threads and their contents to pick up where you left off.
+              View previous goose sessions and their contents to pick up where you left off.
             </h3>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
