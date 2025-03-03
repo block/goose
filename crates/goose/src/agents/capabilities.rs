@@ -619,7 +619,7 @@ impl Capabilities {
 
         // Log any errors that occurred
         if !errors.is_empty() {
-            tracing::error!(
+            tracing::debug!(
                 errors = ?errors
                     .into_iter()
                     .map(|e| format!("{:?}", e))
