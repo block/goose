@@ -26,7 +26,7 @@ export default function HomePage() {
           ? await searchMCPServers(trimmedQuery)
           : await fetchMCPServers();
 
-        console.log('Loaded servers:', results);
+        console.log("Loaded servers:", results);
         setServers(results);
       } catch (err) {
         const errorMessage =
@@ -45,15 +45,19 @@ export default function HomePage() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 pb-24">
+      <div className="container mx-auto px-4 p-24">
         <div className="pb-16">
-          <h1 className="text-[64px] font-medium">Browse Extensions</h1>
-          <p>Your central directory for discovering and installing extensions.</p>
+          <h1 className="text-[64px] font-medium text-textProminent">
+            Browse Extensions
+          </h1>
+          <p className="text-textProminent">
+            Your central directory for discovering and installing extensions.
+          </p>
         </div>
 
         <div className="search-container">
           <input
-            className="search-input"
+            className="bg-bgApp font-light text-textProminent placeholder-textPlaceholder w-full px-3 py-3 text-[40px] leading-[52px] border-b border-borderSubtle focus:outline-none focus:ring-purple-500 focus:border-borderProminent caret-[#FF4F00] pl-0"
             placeholder="Search for extensions"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -64,7 +68,7 @@ export default function HomePage() {
           <div className="p-4 bg-red-50 text-red-600 rounded-md">{error}</div>
         )}
 
-        <section className="pt-8">
+        <section className="">
           <div className={`${searchQuery ? "pb-2" : "pb-8"}`}>
             <p className="text-gray-600">
               {searchQuery
