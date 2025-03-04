@@ -158,7 +158,6 @@ for ((i=0; i<$COUNT; i++)); do
         # Basic validation of the JSON file
         if jq empty "$OUTPUT_FILE" 2>/dev/null; then
           # Extract basic information
-          echo "Valid JSON file found SJDASKDNASDNASDNASKDASKDANZNCZMNXSSD"
           PROVIDER_NAME=$(jq -r '.provider' "$OUTPUT_FILE")
           START_TIME=$(jq -r '.start_time' "$OUTPUT_FILE")
           SUITE_COUNT=$(jq '.suites | length' "$OUTPUT_FILE")
@@ -175,6 +174,7 @@ for ((i=0; i<$COUNT; i++)); do
           TOTAL_METRICS=0
           FAILED_METRICS=0
           PASSED_METRICS=0
+          TOTAL_ERRORS=0
           
           # Process each suite
           for j in $(seq 0 $((SUITE_COUNT-1))); do
@@ -190,27 +190,39 @@ for ((i=0; i<$COUNT; i++)); do
               METRIC_COUNT=$(jq ".suites[$j].evaluations[$k].metrics | length" "$OUTPUT_FILE")
               TOTAL_METRICS=$((TOTAL_METRICS + METRIC_COUNT))
               
+              # Check for errors in this evaluation
+              ERROR_COUNT=$(jq ".suites[$j].evaluations[$k].errors | length" "$OUTPUT_FILE")
+              TOTAL_ERRORS=$((TOTAL_ERRORS + ERROR_COUNT))
               
-              # Check for failures in this evaluation
-              # Look for any metrics with boolean false or 0 values
+              # Check for failures in metrics
               FAILURES=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
                 select(
                   .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
                 ) | .[0]" "$OUTPUT_FILE" | wc -l | tr -d ' ')
               
-              if [ "$FAILURES" -gt 0 ]; then
+              if [ "$FAILURES" -gt 0 ] || [ "$ERROR_COUNT" -gt 0 ]; then
                 FAILED_METRICS=$((FAILED_METRICS + FAILURES))
-                echo "  ❌ $EVAL_NAME: $FAILURES failures detected" >> "$ANALYSIS_FILE"
+                echo "  ❌ $EVAL_NAME:" >> "$ANALYSIS_FILE"
                 
-                # Print the specific failing metrics
-                FAILING_METRICS=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
-                  select(
-                  .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
-                ) | .[0]" "$OUTPUT_FILE")
-                echo "$FAILING_METRICS" >> "$ANALYSIS_FILE"
+                if [ "$FAILURES" -gt 0 ]; then
+                  echo "    - $FAILURES metric failures detected" >> "$ANALYSIS_FILE"
+                  # Print the specific failing metrics
+                  FAILING_METRICS=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
+                    select(
+                    .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
+                  ) | .[0]" "$OUTPUT_FILE")
+                  echo "    Failed metrics:" >> "$ANALYSIS_FILE"
+                  echo "$FAILING_METRICS" | sed 's/^/      - /' >> "$ANALYSIS_FILE"
+                fi
+                
+                if [ "$ERROR_COUNT" -gt 0 ]; then
+                  echo "    - $ERROR_COUNT errors detected" >> "$ANALYSIS_FILE"
+                  # Print the errors
+                  jq -r ".suites[$j].evaluations[$k].errors[] | \"      [\(.level)] \(.message)\"" "$OUTPUT_FILE" >> "$ANALYSIS_FILE"
+                fi
               else
                 PASSED_METRICS=$((PASSED_METRICS + METRIC_COUNT))
-                echo "  ✅ $EVAL_NAME: All metrics passed" >> "$ANALYSIS_FILE"
+                echo "  ✅ $EVAL_NAME: All metrics passed, no errors" >> "$ANALYSIS_FILE"
               fi
             done
             echo "" >> "$ANALYSIS_FILE"
@@ -223,15 +235,21 @@ for ((i=0; i<$COUNT; i++)); do
           echo "Total Metrics: $TOTAL_METRICS" >> "$ANALYSIS_FILE"
           echo "Passed Metrics: $PASSED_METRICS" >> "$ANALYSIS_FILE"
           echo "Failed Metrics: $FAILED_METRICS" >> "$ANALYSIS_FILE"
+          echo "Total Errors: $TOTAL_ERRORS" >> "$ANALYSIS_FILE"
           
           # Determine success/failure
-          if [ "$FAILED_METRICS" -gt 0 ]; then
-            echo "❌ Benchmark has $FAILED_METRICS failures" >> "$ANALYSIS_FILE"
-            echo "❌ Some tests failed for $provider/$model" | tee -a "$SUMMARY_FILE"
+          if [ "$FAILED_METRICS" -gt 0 ] || [ "$TOTAL_ERRORS" -gt 0 ]; then
+            if [ "$FAILED_METRICS" -gt 0 ]; then
+              echo "❌ Benchmark has $FAILED_METRICS failed metrics" >> "$ANALYSIS_FILE"
+            fi
+            if [ "$TOTAL_ERRORS" -gt 0 ]; then
+              echo "❌ Benchmark has $TOTAL_ERRORS errors" >> "$ANALYSIS_FILE"
+            fi
+            echo "❌ Tests failed for $provider/$model" | tee -a "$SUMMARY_FILE"
             cat "$ANALYSIS_FILE" >> "$SUMMARY_FILE"
             OVERALL_SUCCESS=false
           else
-            echo "✅ All metrics passed successfully" >> "$ANALYSIS_FILE"
+            echo "✅ All metrics passed successfully, no errors" >> "$ANALYSIS_FILE"
             echo "✅ All tests passed for $provider/$model" | tee -a "$SUMMARY_FILE"
             cat "$ANALYSIS_FILE" >> "$SUMMARY_FILE"
           fi

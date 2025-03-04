@@ -3,9 +3,17 @@ use anyhow::Result;
 use async_trait::async_trait;
 use goose::message::Message;
 use serde::Serialize;
+use chrono::{DateTime, Utc};
 
 pub type Model = (String, String);
 pub type Extension = String;
+
+#[derive(Debug, Serialize, Clone)]
+pub struct BenchAgentError {
+    pub message: String,
+    pub level: String,  // ERROR, WARN, etc.
+    pub timestamp: DateTime<Utc>,
+}
 
 #[derive(Debug, Serialize)]
 pub enum EvaluationMetric {
@@ -18,6 +26,9 @@ pub enum EvaluationMetric {
 #[async_trait]
 pub trait BenchAgent: Send + Sync {
     async fn prompt(&mut self, p: String) -> Result<Vec<Message>>;
+    
+    // Make get_errors async
+    async fn get_errors(&self) -> Vec<BenchAgentError>;
 }
 
 #[async_trait]
@@ -27,10 +38,9 @@ pub trait Evaluation: Send + Sync {
         agent: Box<dyn BenchAgent>,
         run_loc: &mut WorkDir,
     ) -> Result<Vec<(String, EvaluationMetric)>>;
-
+    
     fn name(&self) -> &str;
-
-    // New method to declare required extensions
+    
     fn required_extensions(&self) -> Vec<String> {
         Vec::new() // Default implementation returns empty vec
     }
