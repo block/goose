@@ -163,8 +163,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           default: 'localhost',
         },
       ],
-      customForm: OllamaForm,
-      customSubmit: OllamaSubmitHandler,
     },
   },
   {
@@ -185,6 +183,25 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         {
           name: 'AZURE_OPENAI_DEPLOYMENT_NAME',
           is_secret: false,
+        },
+      ],
+    },
+  },
+  {
+    name: 'GCP Vertex AI',
+    details: {
+      id: 'gcp_vertex_ai',
+      name: 'GCP Vertex AI',
+      description: 'GCP Vertex AI models',
+      parameters: [
+        {
+          name: 'GCP_PROJECT_ID',
+          is_secret: false,
+        },
+        {
+          name: 'GCP_LOCATION',
+          is_secret: false,
+          default: 'us-central1',
         },
       ],
     },

@@ -33,7 +33,7 @@ export default function ProviderConfigurationModal() {
   if (!isOpen || !currentProvider) return null;
 
   const headerText = `Configure ${currentProvider.name}`;
-  const descriptionText = `Add your generated api keys for this provider to integrate into Goose`;
+  const descriptionText = `Add your API key(s) for this provider to integrate into Goose`;
 
   // Find the provider in the registry to get the details with customForm
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);

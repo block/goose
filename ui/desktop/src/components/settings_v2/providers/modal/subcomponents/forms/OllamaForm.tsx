@@ -1,11 +1,10 @@
-import ProviderSetupFormProps from '../../interfaces/ProviderSetupFormProps';
 import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
-import ParameterSchema from '../../../interfaces/ParameterSchema';
 import { Input } from '../../../../../ui/input';
 import React from 'react';
 
 import { useState, useEffect } from 'react';
 import { Lock, RefreshCw } from 'lucide-react';
+import CustomRadio from '../../../../../ui/CustomRadio';
 
 export default function OllamaForm({ configValues, setConfigValues, provider }) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
@@ -18,6 +17,27 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
       ...prev,
       connection_type: value,
     }));
+  };
+
+  // Function to handle input changes and auto-select/deselect the host radio
+  const handleInputChange = (paramName, value) => {
+    // Update the parameter value
+    setConfigValues((prev) => ({
+      ...prev,
+      [paramName]: value,
+    }));
+
+    // If the user is typing, auto-select the host radio button
+    if (value && configValues.connection_type !== 'host') {
+      handleConnectionTypeChange('host');
+    }
+    // If the input becomes empty and the host radio is selected, switch to local if available
+    else if (!value && configValues.connection_type === 'host') {
+      if (isLocalAvailable) {
+        handleConnectionTypeChange('local');
+      }
+      // If local is not available, we keep the host selected but leave the input empty
+    }
   };
 
   const checkLocalAvailability = async () => {
@@ -58,36 +78,32 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
 
   return (
     <div className="mt-4 space-y-4">
-      <div className="font-medium text-gray-900 mb-2">Connection</div>
+      <div className="font-medium text-gray-900 dark:text-gray-100 mb-2">Connection</div>
 
       {/* Local Option */}
       <div className="flex items-center mb-3 justify-between">
         <div className="flex items-center">
-          <span className="text-gray-700">Background App</span>
+          <span className="text-gray-700 dark:text-gray-300">Background App</span>
           <button
             type="button"
-            className="ml-2 p-1 rounded-full hover:bg-gray-100"
+            className="ml-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
             onClick={checkLocalAvailability}
             disabled={isCheckingLocal}
           >
             <RefreshCw
-              className={`w-4 h-4 ${isCheckingLocal ? 'animate-spin' : ''} text-gray-600`}
+              className={`w-4 h-4 ${isCheckingLocal ? 'animate-spin' : ''} text-gray-600 dark:text-gray-400`}
             />
           </button>
         </div>
 
-        <div>
-          <input
-            type="radio"
-            id="connection-local"
-            name="connection_type"
-            value="local"
-            checked={configValues.connection_type === 'local'}
-            onChange={() => handleConnectionTypeChange('local')}
-            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-            disabled={!isLocalAvailable}
-          />
-        </div>
+        <CustomRadio
+          id="connection-local"
+          name="connection_type"
+          value="local"
+          checked={configValues.connection_type === 'local'}
+          onChange={() => handleConnectionTypeChange('local')}
+          disabled={!isLocalAvailable}
+        />
       </div>
 
       {/* Other Parameters */}
@@ -99,28 +115,21 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
               <Input
                 type={parameter.is_secret ? 'password' : 'text'}
                 value={configValues[parameter.name] || ''}
-                onChange={(e) =>
-                  setConfigValues((prev) => ({
-                    ...prev,
-                    [parameter.name]: e.target.value,
-                  }))
-                }
+                onChange={(e) => handleInputChange(parameter.name, e.target.value)}
                 placeholder={
                   parameter.default ? parameter.default : parameter.name.replace(/_/g, ' ')
                 }
-                className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
+                className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-lg placeholder:text-gray-400 dark:placeholder:text-gray-500 font-regular text-gray-900 dark:text-gray-100"
                 required={parameter.default == null}
               />
             </div>
             <div className="ml-4">
-              <input
-                type="radio"
-                id="connection-host"
+              <CustomRadio
+                id={`connection-host-${parameter.name}`}
                 name="connection_type"
                 value="host"
                 checked={configValues.connection_type === 'host'}
                 onChange={() => handleConnectionTypeChange('host')}
-                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
               />
             </div>
           </div>
