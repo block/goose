@@ -102,9 +102,15 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
                 None
             }
         }
-        s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(s[CMD_EXTENSION.len()..].to_string())),
-        s if s.starts_with(CMD_BUILTIN) => Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string())),
-        s if s.starts_with(CMD_MODE) => Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string())),
+        s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(
+            s[CMD_EXTENSION.len()..].to_string(),
+        )),
+        s if s.starts_with(CMD_BUILTIN) => {
+            Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string()))
+        }
+        s if s.starts_with(CMD_MODE) => {
+            Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
+        }
         _ => None,
     }
 }
