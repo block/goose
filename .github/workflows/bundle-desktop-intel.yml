@@ -190,7 +190,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:default && break
+            npm run bundle:intel && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
@@ -207,7 +207,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:default && break
+            npm run bundle:intel && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
@@ -234,7 +234,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Goose-darwin-x64
-          path: ui/desktop/out/Goose-darwin-x64/Goose.zip
+          path: ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip
 
       - name: Quick launch test (macOS)
         if: ${{ inputs.quick_test }}
