@@ -7,12 +7,11 @@ import ProviderLogo from './subcomponents/ProviderLogo';
 import { useProviderModal } from './ProviderModalProvider';
 import { toast } from 'react-toastify';
 import { PROVIDER_REGISTRY } from '../ProviderRegistry';
+import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 
 export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
-
-  console.log('Current provider:', currentProvider);
 
   // Reset form values when provider changes
   useEffect(() => {
@@ -38,27 +37,31 @@ export default function ProviderConfigurationModal() {
   // Find the provider in the registry to get the details with customForm
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
 
-  console.log('Provider entry:', providerEntry);
-
   // Get the custom form component from the provider details
   const CustomForm = providerEntry?.details?.customForm;
-  console.log('Custom form component:', CustomForm);
+
+  // Get the custom submit handler from the provider details
+  const customSubmitHandler = providerEntry?.details?.customSubmit;
 
   // Use custom form component if available, otherwise use default
   const FormComponent = CustomForm || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
+    console.log('Form submitted for:', currentProvider.name);
 
-    console.log('in handle submit');
-    // Use custom submit handler if provided in modalProps
-    if (modalProps.onSubmit) {
-      modalProps.onSubmit(configValues);
-    } else {
+    // check if the provider has a custom submit handler
+    if (customSubmitHandler) {
+      toast('custom submit handler');
+    }
+    //  fall back to default behavior
+    else {
       // Default submit behavior
       toast('Submitted configuration!');
     }
 
+    // Close the modal unless the custom handler explicitly returns false
+    // This gives custom handlers the ability to keep the modal open if needed
     closeModal();
   };
 
@@ -87,6 +90,10 @@ export default function ProviderConfigurationModal() {
         provider={currentProvider}
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
+
+      {providerEntry?.details?.parameters && providerEntry.details.parameters.length > 0 && (
+        <SecureStorageNotice />
+      )}
       <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />
     </Modal>
   );

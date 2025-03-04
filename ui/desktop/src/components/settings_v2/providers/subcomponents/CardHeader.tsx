@@ -25,7 +25,6 @@ interface ProviderNameAndStatusProps {
 
 function ProviderNameAndStatus({ name, isConfigured }: ProviderNameAndStatusProps) {
   console.log(`Provider Name: ${name}, Is Configured: ${isConfigured}`);
-  const ollamaNotConfigured = !isConfigured && name === 'Ollama';
 
   return (
     <div className="flex items-center justify-between w-full">
@@ -33,9 +32,6 @@ function ProviderNameAndStatus({ name, isConfigured }: ProviderNameAndStatusProp
 
       {/* Configured state: Green check */}
       {isConfigured && <GreenCheckButton tooltip={ConfiguredProviderTooltipMessage(name)} />}
-
-      {/* Not Configured + Ollama => Exclamation */}
-      {ollamaNotConfigured && <ExclamationButton tooltip={OllamaNotConfiguredTooltipMessage()} />}
     </div>
   );
 }

@@ -7,14 +7,9 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { Lock, RefreshCw } from 'lucide-react';
 
-export default function OllamaForm({
-  configValues,
-  setConfigValues,
-  onSubmit,
-  provider,
-}: ProviderSetupFormProps) {
+export default function OllamaForm({ configValues, setConfigValues, provider }) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
-  const parameters: ParameterSchema[] = providerEntry.details.parameters;
+  const parameters = providerEntry?.details?.parameters || [];
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const [isLocalAvailable, setIsLocalAvailable] = useState(false);
 
@@ -62,82 +57,74 @@ export default function OllamaForm({
   }, []);
 
   return (
-    <form onSubmit={onSubmit}>
-      <div className="mt-4 space-y-4">
-        <div className="font-medium text-gray-900 mb-2">Connection</div>
+    <div className="mt-4 space-y-4">
+      <div className="font-medium text-gray-900 mb-2">Connection</div>
 
-        {/* Local Option */}
-        <div className="flex items-center mb-3 justify-between">
-          <div className="flex items-center">
-            <span className="text-gray-700">Background App</span>
-            <button
-              type="button"
-              className="ml-2 p-1 rounded-full hover:bg-gray-100"
-              onClick={checkLocalAvailability}
-              disabled={isCheckingLocal}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isCheckingLocal ? 'animate-spin' : ''} text-gray-600`}
-              />
-            </button>
-          </div>
-
-          <div>
-            <input
-              type="radio"
-              id="connection-local"
-              name="connection_type"
-              value="local"
-              checked={configValues.connection_type === 'local'}
-              onChange={() => handleConnectionTypeChange('local')}
-              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-              disabled={!isLocalAvailable}
+      {/* Local Option */}
+      <div className="flex items-center mb-3 justify-between">
+        <div className="flex items-center">
+          <span className="text-gray-700">Background App</span>
+          <button
+            type="button"
+            className="ml-2 p-1 rounded-full hover:bg-gray-100"
+            onClick={checkLocalAvailability}
+            disabled={isCheckingLocal}
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${isCheckingLocal ? 'animate-spin' : ''} text-gray-600`}
             />
-          </div>
+          </button>
         </div>
 
-        {/* Other Parameters */}
-        {parameters
-          .filter((param) => param.name !== 'host_url') // Skip host_url as we handle it above
-          .map((parameter) => (
-            <div key={parameter.name} className="flex items-center mb-4">
-              <div className="flex-grow">
-                <input
-                  type={parameter.is_secret ? 'password' : 'text'}
-                  value={configValues[parameter.name] || ''}
-                  onChange={(e) =>
-                    setConfigValues((prev) => ({
-                      ...prev,
-                      [parameter.name]: e.target.value,
-                    }))
-                  }
-                  placeholder={
-                    parameter.default ? parameter.default : parameter.name.replace(/_/g, ' ')
-                  }
-                  className="w-full h-10 px-3 rounded-lg border shadow-none border-gray-300 bg-white text-gray-900"
-                  required={parameter.default == null}
-                />
-              </div>
-              <div className="ml-4">
-                <input
-                  type="radio"
-                  id="connection-host"
-                  name="connection_type"
-                  value="host"
-                  checked={configValues.connection_type === 'host'}
-                  onChange={() => handleConnectionTypeChange('host')}
-                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          ))}
-
-        {/* Secure storage notice */}
-        <div className="flex items-start mt-2 text-gray-600 dark:text-gray-300">
-          <Lock className="w-5 h-5 mt-1" />
-          <span className="text-sm font-light ml-2">Keys are stored in a secure .env file</span>
+        <div>
+          <input
+            type="radio"
+            id="connection-local"
+            name="connection_type"
+            value="local"
+            checked={configValues.connection_type === 'local'}
+            onChange={() => handleConnectionTypeChange('local')}
+            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+            disabled={!isLocalAvailable}
+          />
         </div>
       </div>
-    </form>
+
+      {/* Other Parameters */}
+      {parameters
+        .filter((param) => param.name !== 'host_url') // Skip host_url as we handle it above
+        .map((parameter) => (
+          <div key={parameter.name} className="flex items-center mb-4">
+            <div className="flex-grow">
+              <Input
+                type={parameter.is_secret ? 'password' : 'text'}
+                value={configValues[parameter.name] || ''}
+                onChange={(e) =>
+                  setConfigValues((prev) => ({
+                    ...prev,
+                    [parameter.name]: e.target.value,
+                  }))
+                }
+                placeholder={
+                  parameter.default ? parameter.default : parameter.name.replace(/_/g, ' ')
+                }
+                className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
+                required={parameter.default == null}
+              />
+            </div>
+            <div className="ml-4">
+              <input
+                type="radio"
+                id="connection-host"
+                name="connection_type"
+                value="host"
+                checked={configValues.connection_type === 'host'}
+                onChange={() => handleConnectionTypeChange('host')}
+                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        ))}
+    </div>
   );
 }

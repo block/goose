@@ -17,4 +17,5 @@ export default interface ProviderDetails {
     isOnboardingPage: boolean
   ) => ConfigurationAction[];
   customForm?: React.ComponentType<ProviderSetupFormProps>;
+  customSubmit?: (e: any) => void;
 }
