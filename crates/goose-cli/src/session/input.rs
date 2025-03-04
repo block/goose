@@ -1,9 +1,8 @@
+use super::completion::GooseCompleter;
 use anyhow::Result;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
-
-use super::completion::GooseCompleter;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -15,6 +14,7 @@ pub enum InputResult {
     Retry,
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
+    GooseMode(String),
 }
 
 #[derive(Debug)]
@@ -65,6 +65,14 @@ pub fn get_input(
 fn handle_slash_command(input: &str) -> Option<InputResult> {
     let input = input.trim();
 
+    // Command prefix constants
+    const CMD_PROMPTS: &str = "/prompts ";
+    const CMD_PROMPT: &str = "/prompt";
+    const CMD_PROMPT_WITH_SPACE: &str = "/prompt ";
+    const CMD_EXTENSION: &str = "/extension ";
+    const CMD_BUILTIN: &str = "/builtin ";
+    const CMD_MODE: &str = "/mode ";
+
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
         "/?" | "/help" => {
@@ -73,20 +81,20 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         }
         "/t" => Some(InputResult::ToggleTheme),
         "/prompts" => Some(InputResult::ListPrompts(None)),
-        s if s.starts_with("/prompts ") => {
+        s if s.starts_with(CMD_PROMPTS) => {
             // Parse arguments for /prompts command
-            let args = s.strip_prefix("/prompts ").unwrap_or_default();
+            let args = s.strip_prefix(CMD_PROMPTS).unwrap_or_default();
             parse_prompts_command(args)
         }
-        s if s.starts_with("/prompt") => {
-            if s == "/prompt" {
+        s if s.starts_with(CMD_PROMPT) => {
+            if s == CMD_PROMPT {
                 // No arguments case
                 Some(InputResult::PromptCommand(PromptCommandOptions {
                     name: String::new(), // Empty name will trigger the error message in the rendering
                     info: false,
                     arguments: HashMap::new(),
                 }))
-            } else if let Some(stripped) = s.strip_prefix("/prompt ") {
+            } else if let Some(stripped) = s.strip_prefix(CMD_PROMPT_WITH_SPACE) {
                 // Has arguments case
                 parse_prompt_command(stripped)
             } else {
@@ -94,8 +102,15 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
                 None
             }
         }
-        s if s.starts_with("/extension ") => Some(InputResult::AddExtension(s[11..].to_string())),
-        s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
+        s if s.starts_with(CMD_EXTENSION) => Some(InputResult::AddExtension(
+            s[CMD_EXTENSION.len()..].to_string(),
+        )),
+        s if s.starts_with(CMD_BUILTIN) => {
+            Some(InputResult::AddBuiltin(s[CMD_BUILTIN.len()..].to_string()))
+        }
+        s if s.starts_with(CMD_MODE) => {
+            Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
+        }
         _ => None,
     }
 }

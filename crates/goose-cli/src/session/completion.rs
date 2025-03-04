@@ -75,6 +75,46 @@ impl GooseCompleter {
         Ok((line.len(), vec![]))
     }
 
+    /// Complete flags for the /mode command
+    fn complete_mode_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
+        let modes = ["auto", "approve", "chat"];
+
+        let parts: Vec<&str> = line.split_whitespace().collect();
+
+        // If we're just after "/mode" with a space, show all options
+        if line == "/mode " {
+            return Ok((
+                line.len(),
+                modes
+                    .iter()
+                    .map(|mode| Pair {
+                        display: mode.to_string(),
+                        replacement: format!("{} ", mode),
+                    })
+                    .collect(),
+            ));
+        }
+
+        // If we're typing a mode name, show the flags for that mode
+        if parts.len() == 2 {
+            let partial = parts[1].to_lowercase();
+            return Ok((
+                line.len() - partial.len(),
+                modes
+                    .iter()
+                    .filter(|mode| mode.to_lowercase().starts_with(&partial.to_lowercase()))
+                    .map(|mode| Pair {
+                        display: mode.to_string(),
+                        replacement: format!("{} ", mode),
+                    })
+                    .collect(),
+            ));
+        }
+
+        // No completions available
+        Ok((line.len(), vec![]))
+    }
+
     /// Complete slash commands
     fn complete_slash_commands(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
         // Define available slash commands
@@ -88,6 +128,7 @@ impl GooseCompleter {
             "/builtin",
             "/prompts",
             "/prompt",
+            "/mode",
         ];
 
         // Find commands that match the prefix
@@ -291,6 +332,10 @@ impl Completer for GooseCompleter {
                         }],
                     ));
                 }
+            }
+
+            if line.starts_with("/mode") {
+                return self.complete_mode_flags(line);
             }
         }
 
