@@ -7,6 +7,7 @@ use std::time::Duration;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -134,23 +135,84 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+        let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
+            .map(|val| val == "1" || val.to_lowercase() == "true")
+            .unwrap_or(false);
 
-        // Make request
-        let response = self.post(payload.clone()).await?;
-
-        // Parse response
-        let message = response_to_message(response.clone())?;
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
+        if use_tool_shim {
+            // Create a string with tool information
+            let mut tool_info = String::new();
+            for tool in tools {
+                tool_info.push_str(&format!(
+                    "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
+                    tool.name,
+                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+                    tool.description
+                ));
             }
-            Err(e) => return Err(e),
-        };
-        let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
+
+            // Append tool information and format instruction to system prompt when using tool shim
+            let modified_system = format!(
+                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. You can only use one tool at a time.",
+                system,
+                tool_info
+            );
+
+            // Create request without tools
+            let payload = create_request(&self.model, &modified_system, messages, &[], &ImageFormat::OpenAi)?;
+            let response = self.post(payload.clone()).await?;
+            let mut message = response_to_message(response.clone())?;
+
+            // Create interpreter for tool calls - use Ollama's default host and port
+            let base_url = format!(
+                "http://{}:{}",
+                super::ollama::OLLAMA_HOST,
+                super::ollama::OLLAMA_DEFAULT_PORT
+            );
+            let interpreter = OllamaInterpreter::new(base_url);
+
+            // Augment message with tool calls
+            message = match augment_message_with_tool_calls(&interpreter, message, tools).await {
+                Ok(augmented) => {
+                    tracing::info!("Successfully augmented message with tool calls");
+                    augmented
+                }
+                Err(e) => {
+                    tracing::error!("Failed to augment message with tool calls: {}", e);
+                    return Err(e);
+                }
+            };
+
+            let usage = match get_usage(&response) {
+                Ok(usage) => usage,
+                Err(ProviderError::UsageError(e)) => {
+                    tracing::debug!("Failed to get usage data: {}", e);
+                    Usage::default()
+                }
+                Err(e) => return Err(e),
+            };
+            let model = get_model(&response);
+            emit_debug_trace(self, &payload, &response, &usage);
+            Ok((message, ProviderUsage::new(model, usage)))
+        } else {
+            let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+
+            // Make request
+            let response = self.post(payload.clone()).await?;
+
+            // Parse response
+            let message = response_to_message(response.clone())?;
+            let usage = match get_usage(&response) {
+                Ok(usage) => usage,
+                Err(ProviderError::UsageError(e)) => {
+                    tracing::debug!("Failed to get usage data: {}", e);
+                    Usage::default()
+                }
+                Err(e) => return Err(e),
+            };
+            let model = get_model(&response);
+            emit_debug_trace(self, &payload, &response, &usage);
+            Ok((message, ProviderUsage::new(model, usage)))
+        }
     }
 }
