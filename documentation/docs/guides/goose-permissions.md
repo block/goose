@@ -37,7 +37,6 @@ Here's how to configure your chosen goose permissions:
     2. Select `Goose Settings` from the menu and press Enter.
 
     ```sh
-
     ┌ goose-configure
     │
     ◆ What would you like to configure?
@@ -49,7 +48,6 @@ Here's how to configure your chosen goose permissions:
     | ● Goose Settings (Set the Goose Mode, Tool Output, Experiment and more)
     // highlight-end
     └
-
     ```
 
     3. Choose `Goose Mode` from the menu and press Enter.
@@ -118,9 +116,6 @@ goose configure
 2. Select `Goose Settings` from the menu and press Enter.
 
 ```sh
-
-```
-
 ┌ goose-configure
 │
 ◆ What would you like to configure?
@@ -128,12 +123,12 @@ goose configure
 | ○ Add Extension
 | ○ Toggle Extensions
 | ○ Remove Extension
-// highlight-start  
+// highlight-start
  | ● Goose Settings (Set the Goose Mode, Tool Output, Experiment and more)
 // highlight-end
 └
+```
 
-````
 3. Choose `Toggle Experiment` from the menu and press Enter.
 
 ```sh
@@ -149,7 +144,7 @@ goose configure
 │  ● Toggle Experiment (Enable or disable an experiment feature)
 // highlight-end
 └
-````
+```
 
 4.  Toggle `GOOSE_SMART_APPROVE` and press Enter.
 
