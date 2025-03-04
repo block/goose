@@ -96,9 +96,8 @@ Here's how to configure your chosen goose permissions:
   </TabItem>
 </Tabs>
 
-## Advanced Goose Permissions Control
 
-# Smart Approve in Goose Mode
+## Smart Approve in Goose Mode
 
 Goose introduces the **Smart Approve** feature when the Goose mode is set to `Approve`. With Smart Approve enabled, Goose evaluates the risk level of a tool call before execution.
 
