@@ -2143,7 +2143,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.10"
+version = "1.0.11"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2195,7 +2195,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.10"
+version = "1.0.11"
 dependencies = [
  "anyhow",
  "bat",
@@ -2230,7 +2230,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.10"
+version = "1.0.11"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2269,7 +2269,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.10"
+version = "1.0.11"
 dependencies = [
  "anyhow",
  "async-trait",
