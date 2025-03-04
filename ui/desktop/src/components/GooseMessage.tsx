@@ -9,7 +9,7 @@ import {
   getTextContent,
   getToolRequests,
   getToolResponses,
-  getToolConfirmationRequestId,
+  getToolConfirmationContent,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 
@@ -36,7 +36,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(textContent, previousUrls) : [];
 
-  const [toolConfirmationId, hasToolConfirmation] = getToolConfirmationRequestId(message);
+  const toolConfirmationContent = getToolConfirmationContent(message);
+  const hasToolConfirmation = toolConfirmationContent !== undefined;
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -72,7 +73,12 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {hasToolConfirmation && <ToolCallConfirmation toolConfirmationId={toolConfirmationId} />}
+        {hasToolConfirmation && (
+          <ToolCallConfirmation
+            toolConfirmationId={toolConfirmationContent.id}
+            toolName={toolConfirmationContent.toolName}
+          />
+        )}
 
         {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">

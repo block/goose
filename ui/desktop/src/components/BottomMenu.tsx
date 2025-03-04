@@ -5,7 +5,7 @@ import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../ChatWindow';
-import { ConfigureGooseHints } from './ConfigureGooseHints';
+import { getApiUrl, getSecretKey } from '../config';
 
 export default function BottomMenu({
   hasMessages,
@@ -15,6 +15,7 @@ export default function BottomMenu({
   setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [gooseMode, setGooseMode] = useState('auto');
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -35,6 +36,31 @@ export default function BottomMenu({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isModelMenuOpen]);
+
+  useEffect(() => {
+    const fetchCurrentMode = async () => {
+      try {
+        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+        });
+
+        if (response.ok) {
+          const { value } = await response.json();
+          if (value) {
+            setGooseMode(value);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching current mode:', error);
+      }
+    };
+
+    fetchCurrentMode();
+  }, []);
 
   // Add effect to handle Escape key
   useEffect(() => {
@@ -77,8 +103,15 @@ export default function BottomMenu({
         <ChevronUp className="ml-1" />
       </span>
 
-      <div className="ml-4">
-        <ConfigureGooseHints directory={window.appConfig.get('GOOSE_WORKING_DIR')} />
+      <div className="relative flex items-center ml-6">
+        <div
+          className="flex items-center cursor-pointer"
+          onClick={() => {
+            setView('settings');
+          }}
+        >
+          <span>Goose Mode: {gooseMode}</span>
+        </div>
       </div>
 
       {/* Model Selector Dropdown - Only in development */}

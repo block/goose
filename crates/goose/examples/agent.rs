@@ -30,7 +30,7 @@ async fn main() {
     let messages = vec![Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?")];
 
-    let mut stream = agent.reply(&messages).await.unwrap();
+    let mut stream = agent.reply(&messages, None).await.unwrap();
     while let Some(message) = stream.next().await {
         println!(
             "{}",

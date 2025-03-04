@@ -29,7 +29,7 @@ static GLOBAL_ENV: Lazy<Arc<RwLock<Environment<'static>>>> = Lazy::new(|| {
         let static_source: &'static str = Box::leak(source.into_boxed_str());
 
         if let Err(e) = env.add_template(static_name, static_source) {
-            eprintln!("Failed to add template {}: {}", static_name, e);
+            tracing::error!("Failed to add template {}: {}", static_name, e);
         }
     }
 

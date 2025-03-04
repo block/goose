@@ -62,7 +62,7 @@ export default function SettingsView({
   setView: (view: View) => void;
   viewOptions: SettingsViewOptions;
 }) {
-  const [mode, setMode] = useState('approve');
+  const [mode, setMode] = useState('auto');
 
   const handleModeChange = async (newMode: string) => {
     const storeResponse = await fetch(getApiUrl('/configs/store'), {
@@ -99,7 +99,9 @@ export default function SettingsView({
 
         if (response.ok) {
           const { value } = await response.json();
-          setMode(value);
+          if (value) {
+            setMode(value);
+          }
         }
       } catch (error) {
         console.error('Error fetching current mode:', error);

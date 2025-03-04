@@ -4,14 +4,11 @@ import { GOOSE_PROVIDER } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
 
 export function getStoredProvider(config: any): string | null {
-  console.log('config goose provider', config.GOOSE_PROVIDER);
-  console.log('local storage goose provider', localStorage.getItem(GOOSE_PROVIDER));
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
 }
 
 export function getStoredModel(): string | null {
   const storedModel = localStorage.getItem('GOOSE_MODEL'); // Adjust key name if necessary
-  console.log('local storage goose model', storedModel);
 
   if (storedModel) {
     try {

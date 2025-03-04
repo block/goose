@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "make": "electron-forge make",
     "bundle:default": "npm run make && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
     "bundle:windows": "npm run make -- --platform=win32 --arch=x64 && node scripts/copy-windows-dlls.js",
+    "bundle:intel": "npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "electron-forge start > /tmp/out.txt & ELECTRON_PID=$! && sleep 12 && if grep -q 'renderer: ChatWindow loaded' /tmp/out.txt; then echo 'process is running'; pkill -f electron; else echo 'not starting correctly'; cat /tmp/out.txt; pkill -f electron; exit 1; fi",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
@@ -98,6 +99,8 @@
     "react-select": "^5.9.0",
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^8.0.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.0.0",

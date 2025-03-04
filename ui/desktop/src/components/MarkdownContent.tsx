@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
@@ -82,10 +84,15 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
-        rehypePlugins={[rehypeinlineCodeProperty]}
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeinlineCodeProperty, rehypeRaw]}
         className={`prose prose-xs dark:prose-invert w-full max-w-full break-words
           prose-pre:p-0 prose-pre:m-0 !p-0
           prose-code:break-all prose-code:whitespace-pre-wrap
+          prose-table:table prose-table:w-full
+          prose-td:border prose-td:border-borderSubtle prose-td:p-2
+          prose-th:border prose-th:border-borderSubtle prose-th:p-2
+          prose-thead:bg-bgSubtle
           ${className}`}
         components={{
           ...UrlTransform,

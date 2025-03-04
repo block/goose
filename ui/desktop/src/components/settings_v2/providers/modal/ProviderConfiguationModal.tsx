@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import ProviderSetupOverlay from './subcomponents/ProviderSetupOverlay';
+import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
-import ProviderConfiguationModalProps from './interfaces/ProviderConfigurationModalProps';
 import { useProviderModal } from './ProviderModalProvider';
 import { toast } from 'react-toastify';
 
@@ -61,7 +60,7 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <ProviderSetupOverlay>
+    <Modal>
       <div className="space-y-1">
         {/* Logo area - centered above title */}
         <ProviderLogo providerName={currentProvider.id} />
@@ -79,6 +78,6 @@ export default function ProviderConfigurationModal() {
       />
 
       <ProviderSetupActions onCancel={handleCancel} />
-    </ProviderSetupOverlay>
+    </Modal>
   );
 }

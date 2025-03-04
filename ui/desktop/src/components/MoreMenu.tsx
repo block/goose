@@ -2,13 +2,20 @@ import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-u
 import React, { useEffect, useState } from 'react';
 import { More } from './icons';
 import { View } from '../App';
+
 interface VersionInfo {
   current_version: string;
   available_versions: string[];
 }
 
 // Accept setView as a prop from the parent (e.g. Chat)
-export default function MoreMenu({ setView }: { setView: (view: View) => void }) {
+export default function MoreMenu({
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
+  setView: (view: View) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
@@ -220,6 +227,41 @@ export default function MoreMenu({ setView }: { setView: (view: View) => void })
               </>
             )}
 
+            <div
+              onClick={() => setIsGoosehintsModalOpen(true)}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors cursor-pointer"
+            >
+              Configure .goosehints
+            </div>
+
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.electron.directoryChooser();
+              }}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+            >
+              Open Directory (cmd+O)
+            </button>
+
+            <button
+              onClick={() => {
+                setOpen(false);
+                window.electron.createChatWindow();
+              }}
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+            >
+              New Session (cmd+N)
+            </button>
+
+            {/* View Previous Sessions */}
+            <button
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+              onClick={() => setView('sessions')}
+            >
+              <span>Previous Sessions</span>
+            </button>
+
             {/* Settings Menu */}
             <button
               onClick={() => {
@@ -231,24 +273,6 @@ export default function MoreMenu({ setView }: { setView: (view: View) => void })
               Settings (cmd+,)
             </button>
 
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.electron.directoryChooser();
-              }}
-              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
-            >
-              Open Directory (cmd+O)
-            </button>
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.electron.createChatWindow();
-              }}
-              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
-            >
-              New Session (cmd+N)
-            </button>
             <button
               onClick={() => {
                 localStorage.removeItem('GOOSE_PROVIDER');

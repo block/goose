@@ -1,0 +1,80 @@
+# This workflow is triggered by a comment on an issue or PR with the text ".bundle-windows"
+# It bundles the Windows Desktop App, then creates a PR comment with a link to download the app.
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: string
+
+# permissions needed for reacting to IssueOps commands on PRs
+permissions:
+  pull-requests: write
+  checks: read
+
+name: Bundle Windows Desktop App
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trigger-on-command:
+    name: Trigger on ".bundle-windows" PR comment
+    runs-on: ubuntu-latest
+    outputs:
+      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
+      # Cannot use github.event.pull_request.number since the trigger is 'issue_comment'
+      pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
+    steps:
+      - if: ${{ github.event_name == 'issue_comment' }}
+        uses: github/command@v1.3.0
+        id: command
+        with:
+          command: ".bundle-windows"
+          skip_reviews: true
+          reaction: "eyes"
+          allowed_contexts: pull_request
+
+  bundle-desktop-windows:
+    # Only run this if ".bundle-windows" command is detected.
+    needs: [trigger-on-command]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    with:
+      signing: false  # false for now as we don't have a cert yet
+    secrets:
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+
+  pr-comment-windows:
+    name: PR Comment with Windows App
+    runs-on: ubuntu-latest
+    needs: [trigger-on-command, bundle-desktop-windows]
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-dist
+          path: windows-dist
+
+      - name: Comment on PR with Windows download link
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
+          body: |
+            ### Windows Desktop App
+
+            [🪟 Download Windows Desktop App (x64, signed)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/desktop-windows-dist.zip)
+
+            **Instructions:**
+            After downloading, unzip the file and run Goose.exe. The app is signed for Windows.
+
+            This link is provided by nightly.link and will work even if you're not logged into GitHub.
