@@ -260,14 +260,14 @@ impl Provider for OpenRouterProvider {
 
             // Append tool information and format instruction to system prompt when using tool shim
             let modified_system = format!(
-                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}",
+                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. You can only use one tool at a time.",
                 system,
                 tool_info
             );
 
             // Create request without tools
             let payload =
-                create_request_based_on_model(&self.model, &modified_system, messages, &vec![])?;
+                create_request_based_on_model(&self.model, &modified_system, messages, &[])?;
             let response = self.post(payload.clone()).await?;
             let mut message = response_to_message(response.clone())?;
 
