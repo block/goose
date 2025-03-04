@@ -68,7 +68,7 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
           {/* Content Area */}
           <div className="max-w-5xl pt-4 px-8">
             <div className="relative z-10">
-              <ProviderGrid providers={fakeProviderState} isOnboarding={true} />
+              <ProviderGrid providers={fakeProviderState} isOnboarding={false} />
             </div>
           </div>
         </div>

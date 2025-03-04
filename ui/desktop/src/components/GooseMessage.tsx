@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
@@ -12,6 +12,7 @@ import {
   getToolConfirmationContent,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
+import MessageCopyLink from './MessageCopyLink';
 
 interface GooseMessageProps {
   message: Message;
@@ -21,6 +22,8 @@ interface GooseMessageProps {
 }
 
 export default function GooseMessage({ message, metadata, messages, append }: GooseMessageProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // Extract text content from the message
   let textContent = getTextContent(message);
 
@@ -66,10 +69,20 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
       <div className="flex flex-col w-full">
         {/* Always show the top content area if there are tool calls, even if textContent is empty */}
         {(textContent || toolRequests.length > 0) && (
-          <div
-            className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
-          >
-            {textContent ? <MarkdownContent content={textContent} /> : null}
+          <div className="flex flex-col group">
+            <div
+              className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
+            >
+              <div ref={contentRef}>
+                {textContent ? <MarkdownContent content={textContent} /> : null}
+              </div>
+            </div>
+            {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
+            {textContent && message.content.every((content) => content.type === 'text') && (
+              <div className="flex justify-end mr-2">
+                <MessageCopyLink text={textContent} contentRef={contentRef} />
+              </div>
+            )}
           </div>
         )}
 

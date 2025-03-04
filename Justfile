@@ -193,7 +193,7 @@ release version: ensure-main
 
     @cd ui/desktop && npm version {{ version }} --no-git-tag-version --allow-same-version
 
-    @git add Cargo.toml ui/desktop/package.json ui/desktop/package-lock.json
+    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json
     @git commit --message "chore(release): release version {{ version }}"
 
 # extract version from Cargo.toml

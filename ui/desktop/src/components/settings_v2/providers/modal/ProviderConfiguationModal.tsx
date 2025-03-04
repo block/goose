@@ -1,28 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import ProviderSetupOverlay from './subcomponents/ProviderSetupOverlay';
+import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
-import ProviderConfiguationModalProps from './interfaces/ProviderConfigurationModalProps';
 import { useProviderModal } from './ProviderModalProvider';
 import { toast } from 'react-toastify';
+import { PROVIDER_REGISTRY } from '../ProviderRegistry';
+import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
+import DefaultSubmitHandler from './subcomponents/handlers/DefaultSubmitHandler';
 
 export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
-  console.log('currentProvider', currentProvider);
   const [configValues, setConfigValues] = useState({});
 
-  // Reset form values when provider changes
   useEffect(() => {
     if (currentProvider) {
       // Initialize form with default values
       const initialValues = {};
-      if (currentProvider.parameters) {
-        currentProvider.parameters.forEach((param) => {
-          initialValues[param.name] = param.defaultValue || '';
-        });
-      }
+      // FIXME
+      // if (currentProvider.parameters) {
+      //   currentProvider.parameters.forEach((param) => {
+      //     initialValues[param.name] = param.default || '';
+      //   });
+      // }
       setConfigValues(initialValues);
     } else {
       setConfigValues({});
@@ -32,22 +33,31 @@ export default function ProviderConfigurationModal() {
   if (!isOpen || !currentProvider) return null;
 
   const headerText = `Configure ${currentProvider.name}`;
-  const descriptionText = `Add your generated api keys for this provider to integrate into Goose`;
+  const descriptionText = `Add your API key(s) for this provider to integrate into Goose`;
 
-  // Use custom form component if provider specifies one, otherwise use default
-  const FormComponent = currentProvider.CustomForm || DefaultProviderSetupForm;
+  // Find the provider in the registry to get the details with customForm
+  const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
+
+  // Get the custom submit handler from the provider details
+  const customSubmitHandler = providerEntry?.details?.customSubmit;
+
+  // Use custom submit handler otherwise use default
+  const SubmitHandler = customSubmitHandler || DefaultSubmitHandler;
+
+  // Get the custom form component from the provider details
+  const CustomForm = providerEntry?.details?.customForm;
+
+  // Use custom form component if available, otherwise use default
+  const FormComponent = CustomForm || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
+    console.log('Form submitted for:', currentProvider.name);
 
-    // Use custom submit handler if provided in modalProps
-    if (modalProps.onSubmit) {
-      modalProps.onSubmit(configValues);
-    } else {
-      // Default submit behavior
-      toast('Submitted configuration!');
-    }
+    SubmitHandler(configValues);
 
+    // Close the modal unless the custom handler explicitly returns false
+    // This gives custom handlers the ability to keep the modal open if needed
     closeModal();
   };
 
@@ -61,7 +71,7 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <ProviderSetupOverlay>
+    <Modal>
       <div className="space-y-1">
         {/* Logo area - centered above title */}
         <ProviderLogo providerName={currentProvider.id} />
@@ -73,12 +83,14 @@ export default function ProviderConfigurationModal() {
       <FormComponent
         configValues={configValues}
         setConfigValues={setConfigValues}
-        onSubmit={handleSubmitForm}
         provider={currentProvider}
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
 
-      <ProviderSetupActions onCancel={handleCancel} />
-    </ProviderSetupOverlay>
+      {providerEntry?.details?.parameters && providerEntry.details.parameters.length > 0 && (
+        <SecureStorageNotice />
+      )}
+      <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />
+    </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { default_key_value } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
+import { default_key_value, required_keys } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
 
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
@@ -17,30 +17,41 @@ export function isSecretKey(keyName: string): boolean {
   return !nonSecretKeys.includes(keyName);
 }
 
-// A small helper: returns true if key is *not* in default_key_value
-function isRequiredKey(key: string): boolean {
-  return !Object.prototype.hasOwnProperty.call(default_key_value, key);
-}
-
 export async function getActiveProviders(): Promise<string[]> {
   try {
     const configSettings = await getConfigSettings();
-
     const activeProviders = Object.values(configSettings)
       .filter((provider) => {
-        // 1. Get provider's config_status
+        const providerName = provider.name;
         const configStatus = provider.config_status ?? {};
 
-        // 2. Collect only the keys *not* in default_key_value
-        const requiredKeyEntries = Object.entries(configStatus).filter(([k]) => isRequiredKey(k));
+        // Skip if provider isn't in required_keys
+        if (!required_keys[providerName]) return false;
 
-        // 3. If there are *no* non-default keys, it is NOT active
-        if (requiredKeyEntries.length === 0) {
-          return false;
+        // Get all required keys for this provider
+        const providerRequiredKeys = required_keys[providerName];
+
+        // Special case: If a provider has exactly one required key and that key
+        // has a default value, check if it's explicitly set
+        if (providerRequiredKeys.length === 1 && providerRequiredKeys[0] in default_key_value) {
+          const key = providerRequiredKeys[0];
+          // Only consider active if the key is explicitly set
+          return configStatus[key]?.is_set === true;
         }
 
-        // 4. Otherwise, all non-default keys must be `is_set`
-        return requiredKeyEntries.every(([_, value]) => value?.is_set);
+        // For providers with multiple keys or keys without defaults:
+        // Check if all required keys without defaults are set
+        const requiredNonDefaultKeys = providerRequiredKeys.filter(
+          (key) => !(key in default_key_value)
+        );
+
+        // If there are no non-default keys, this provider needs at least one key explicitly set
+        if (requiredNonDefaultKeys.length === 0) {
+          return providerRequiredKeys.some((key) => configStatus[key]?.is_set === true);
+        }
+
+        // Otherwise, all non-default keys must be set
+        return requiredNonDefaultKeys.every((key) => configStatus[key]?.is_set === true);
       })
       .map((provider) => provider.name || 'Unknown Provider');
 
