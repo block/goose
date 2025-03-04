@@ -1,6 +1,6 @@
 import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { default_key_value } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
+import { required_keys } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
 
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
@@ -19,7 +19,8 @@ export function isSecretKey(keyName: string): boolean {
 
 // A small helper: returns true if key is *not* in default_key_value
 function isRequiredKey(key: string): boolean {
-  return !Object.prototype.hasOwnProperty.call(default_key_value, key);
+  const allRequiredKeys = Object.values(required_keys).flat();
+  return allRequiredKeys.includes(key);
 }
 
 export async function getActiveProviders(): Promise<string[]> {
@@ -43,8 +44,6 @@ export async function getActiveProviders(): Promise<string[]> {
         return requiredKeyEntries.every(([_, value]) => value?.is_set);
       })
       .map((provider) => provider.name || 'Unknown Provider');
-
-    console.log('[GET ACTIVE PROVIDERS]:', activeProviders);
     return activeProviders;
   } catch (error) {
     console.error('Failed to get active providers:', error);
