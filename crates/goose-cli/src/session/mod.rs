@@ -330,6 +330,7 @@ impl Session {
                     save_history(&mut editor);
 
                     let config = Config::global();
+                    let mode = mode.to_lowercase();
 
                     // Check if mode is valid
                     if !["auto", "approve", "chat"].contains(&mode.as_str()) {

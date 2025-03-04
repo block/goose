@@ -97,12 +97,12 @@ impl GooseCompleter {
 
         // If we're typing a mode name, show the flags for that mode
         if parts.len() == 2 {
-            let partial = parts[1];
+            let partial = parts[1].to_lowercase();
             return Ok((
                 line.len() - partial.len(),
                 modes
                     .iter()
-                    .filter(|mode| mode.starts_with(partial))
+                    .filter(|mode| mode.to_lowercase().starts_with(&partial.to_lowercase()))
                     .map(|mode| Pair {
                         display: mode.to_string(),
                         replacement: format!("{} ", mode),
