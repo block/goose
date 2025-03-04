@@ -42,12 +42,11 @@ use std::time::Duration;
 use uuid::Uuid;
 
 /// Default model to use for tool interpretation
-pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral";
+pub const DEFAULT_INTERPRETER_MODEL_OLLAMA: &str = "mistral-nemo";
 
 /// Environment variables that affect behavior:
 /// - GOOSE_TOOLSHIM: When set to "true" or "1", enables using the tool shim in the standard OllamaProvider (default: false)
 /// - GOOSE_TOOLSHIM_OLLAMA_MODEL: Ollama model to use as the tool interpreter (default: DEFAULT_INTERPRETER_MODEL)
-
 /// A trait for models that can interpret text into structured tool call JSON format
 #[async_trait::async_trait]
 pub trait ToolInterpreter {
@@ -119,9 +118,9 @@ impl OllamaInterpreter {
 
         let mut payload = create_request(
             &model_config,
-            &system_prompt,
+            system_prompt,
             &messages,
-            &vec![], // No tools
+            &[], // No tools
             &super::utils::ImageFormat::OpenAi,
         )?;
 
@@ -202,9 +201,9 @@ impl ToolInterpreter for OllamaInterpreter {
         }
 
         // Create the system prompt
-        let system_prompt = "Rewrite detectable attempts at JSON-formatted tool requests into proper JSON tool calls.
+        let system_prompt = "Rewrite JSON-formatted tool requests into valid JSON tool calls in the following format.
 
-Always use an object with a tool_calls array format:
+Always respond with the following tool_calls array format:
 {{
   \"tool_calls\": [
     {{
@@ -217,7 +216,7 @@ Always use an object with a tool_calls array format:
   ]
 }}
 
-If NO tools are asked for, return an object with an empty tool_calls array:
+If no tools are referenced, return an empty tool_calls array:
 {{
   \"tool_calls\": []
 }}
@@ -239,7 +238,7 @@ If NO tools are asked for, return an object with an empty tool_calls array:
         // Make a call to ollama with structured output
         let interpreter_response = self
             .post_structured(
-                &system_prompt,
+                system_prompt,
                 &format_instruction,
                 format_schema,
                 &interpreter_model,
