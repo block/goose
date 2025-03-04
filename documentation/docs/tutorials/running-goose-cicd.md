@@ -12,132 +12,10 @@ With the same way we use Goose to resolve issues on our local machine, we can al
 
 Here are some common ways to use Goose in your CI/CD pipeline:
 
-**Code Review Assistant**: Analyze pull request changes, provide suggestions for improvements, and check for common issues or anti-patterns.
-
-**Documentation Validator**: Ensure documentation is up-to-date, consistent, and follows best practices.
-
-**Test Coverage Analysis**: Review test coverage reports, suggest areas needing more tests, and ensure test quality and effectiveness.
-
-**Summary Generation**: Generate summaries of changes, issues, or other relevant information for pull requests.
-
-
-## Using Goose with GitHub CLI
-
-#### Install and Authenticate GitHub CLI (`gh`)
-
-Install the [GitHub CLI](https://cli.github.com/) `gh` to enable Goose to run the commands locally and access your CI details.  
-
-```bash
-brew install gh
-gh auth login
-```
-
-Follow the prompts to authenticate your account.
-
-:::info
-You can use either the Goose CLI or Desktop app to interact with the GitHub CLI.
-:::
-
-With the GitHub CLI, you can do the following:
-- Find and investigate specific failed tests and runs
-- Monitor multiple pull requests and active workflows
-- Access build logs, compare branches and review code changes.
-
-#### Example Request
-
-Navigate to the repository folder and run:
-
-```
-Using the local GitHub CLI `gh` command, can you tell me about the CI failures on PR #11111 in the organization/repo repository? The check run ID is 123456.
-```
-
-#### Example Response
-```
-I can help by using the shell command to run the GitHub CLI. Let me try that:
-
-Shell
-command
-gh run view 123456 --repo organization/repo
-
-Output
-Let me get the failed logs to see more details about what went wrong:
-
-Shell
-command
-gh run view 123456 --log-failed --repo organization/repo
-
-Output
-Based on the CI logs, I can see that the documentation site preview is failing during the build process. Here's what's happening:
-
-The job docs/goose-cicd Documentation Site Preview failed
-The failure occurred in the "Install dependencies and build docs" step
-The specific error is a parse error in the Docusaurus configuration file:
-
-[ERROR] Error: Docusaurus could not load module at path "/home/runner/work/goose/goose/documentation/docusaurus.config.ts"
-Cause: ParseError: Unexpected token  
-/home/runner/work/goose/goose/documentation/docusaurus.config.ts:98:8
-The main issues appear to be:
-
-There's a syntax error in the docusaurus.config.ts file at line 98, character 8
-There are also some dependency warnings about React version conflicts:
-The project is using React 19.0.0
-Some dependencies require React versions < 19.0.0:
-react-json-view-lite requires ^16.13.1 || ^17.0.0 || ^18.0.0
-@docsearch/react requires >= 16.8.0 < 19.0.0
-To fix this:
-
-The syntax error in docusaurus.config.ts needs to be corrected
-The React version conflicts should be addressed, possibly by downgrading to React 18.x
-Would you like me to help you examine the docusaurus.config.ts file to identify the specific syntax error?
-```
-
-#### Request Fixes from Goose
-With Goose providing the details of the CI failures, you can now ask Goose to help you fix the issues. For example, you can ask Goose to:
-
-```
-I'm in the current repo folder. Can you fix these issues and stage the changes so I can review them? Do not add unnecessary code comments.
-```
-
-**Example Response:**
-
-```
-I'll help fix the Docusaurus config file issue. First, let me check the current content:
-
-Text Editor
-
-/Users/example/documentation/docusaurus.config.ts
-
-I can see the syntax error now. There are two issues around line 98:
-
-- An invalid `as` type assertion without a type
-- A typo ],ds which appears to be a corrupted array closing
-
-Let me fix these issues:
-
-Text Editor
-str_replace
-...
-
-Now let me stage the changes:
-
-Shell
-
-git add documentation/docusaurus.config.ts
-
-I've fixed the issues in the Docusaurus config file and staged the changes. Here's what I did:
-
-...
-
-The changes have been staged and are ready for you to review. You can now:
-
-- Review the changes with git diff --cached
-- Commit the changes if they look good
-- Push the changes to update the PR
-
-Would you like me to show you the staged changes with git diff --cached to review them?
-
-```
-
+- Automating Build and Deployment Tasks
+- Infrastructure and Environment Management
+- Automating Rollbacks and Recovery
+- Intelligent Test Execution
 
 
 ## Using Goose with GitHub Actions
@@ -345,9 +223,9 @@ With this workflow, Goose will run on pull requests, analyze the changes, and po
 
 ## Using CI specific MCP servers as Goose extensions
 
-There might also be cases where you want to use Goose with other environment, custom setups etc. In such cases, you can use Goose extensions to interact with these environments. 
+There might also be cases where you want to use Goose with other environments, custom setups etc. In such cases, you can use Goose extensions to interact with these environments. 
 
-You can find related extensions as MCP Server on [PulseMCP](https://www.pulsemcp.com/servers) and interact with them using Goose.
+You can find related extensions as MCP Servers on [PulseMCP](https://www.pulsemcp.com/servers) and interact with them using Goose.
 
 Process Goose's output to ensure it's clean and useful:
 
