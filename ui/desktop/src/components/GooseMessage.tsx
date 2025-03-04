@@ -9,9 +9,10 @@ import {
   getTextContent,
   getToolRequests,
   getToolResponses,
-  getToolConfirmationRequestId,
+  getToolConfirmationContent,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
+import CopyButton from './ui/CopyButton';
 
 interface GooseMessageProps {
   message: Message;
@@ -36,7 +37,8 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
   const previousUrls = previousMessage ? extractUrls(getTextContent(previousMessage)) : [];
   const urls = toolRequests.length === 0 ? extractUrls(textContent, previousUrls) : [];
 
-  const [toolConfirmationId, hasToolConfirmation] = getToolConfirmationRequestId(message);
+  const toolConfirmationContent = getToolConfirmationContent(message);
+  const hasToolConfirmation = toolConfirmationContent !== undefined;
 
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
@@ -66,13 +68,26 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
         {/* Always show the top content area if there are tool calls, even if textContent is empty */}
         {(textContent || toolRequests.length > 0) && (
           <div
-            className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
+            className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''} relative group`}
           >
             {textContent ? <MarkdownContent content={textContent} /> : null}
+            {/* Only show CopyButton if there's text content and no tool requests/responses */}
+            {textContent && message.content.every((content) => content.type === 'text') && (
+              <CopyButton
+                text={textContent}
+                className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-white dark:bg-gray-800 shadow-md z-[1000] hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                iconClassName="h-4 w-4 text-gray-800 dark:text-white"
+              />
+            )}
           </div>
         )}
 
-        {hasToolConfirmation && <ToolCallConfirmation toolConfirmationId={toolConfirmationId} />}
+        {hasToolConfirmation && (
+          <ToolCallConfirmation
+            toolConfirmationId={toolConfirmationContent.id}
+            toolName={toolConfirmationContent.toolName}
+          />
+        )}
 
         {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">

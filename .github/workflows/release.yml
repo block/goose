@@ -79,7 +79,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop]
+    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel]
     permissions:
       contents: write
     steps:

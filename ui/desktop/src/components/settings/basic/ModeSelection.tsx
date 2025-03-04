@@ -22,22 +22,28 @@ const ModeSelection = ({ value, onChange }) => {
 
   return (
     <div>
-      <h4 className="font-medium mb-4">Mode Selection</h4>
+      <h4 className="font-medium mb-4 text-textStandard">Mode Selection</h4>
 
       <RadioGroup.Root className="flex flex-col space-y-2" value={value} onValueChange={onChange}>
         {modes.map((mode) => (
           <RadioGroup.Item
             key={mode.value}
             value={mode.value}
-            className="flex items-center justify-between p-2 hover:bg-gray-100 rounded transition-all cursor-pointer"
+            className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all cursor-pointer"
           >
             <div className="flex flex-col text-left">
-              <h3 className="text-sm font-semibold text-textStandard">{mode.label}</h3>
-              <p className="text-xs text-textSubtle mt-[2px]">{mode.description}</p>
+              <h3 className="text-sm font-semibold text-textStandard dark:text-gray-200">
+                {mode.label}
+              </h3>
+              <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
+                {mode.description}
+              </p>
             </div>
             <div className="flex-shrink-0">
-              <div className="w-4 h-4 flex items-center justify-center rounded-full border border-gray-500">
-                {value === mode.value && <div className="w-2 h-2 bg-black rounded-full" />}
+              <div className="w-4 h-4 flex items-center justify-center rounded-full border border-gray-500 dark:border-gray-400">
+                {value === mode.value && (
+                  <div className="w-2 h-2 bg-black dark:bg-white rounded-full" />
+                )}
               </div>
             </div>
           </RadioGroup.Item>
