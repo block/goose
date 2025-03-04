@@ -1,5 +1,6 @@
 import ProviderDetails from './interfaces/ProviderDetails';
 import OllamaForm from './modal/subcomponents/forms/OllamaForm';
+import OllamaSubmitHandler from './modal/subcomponents/handlers/OllamaSubmitHandler';
 
 export interface ProviderRegistry {
   name: string;
@@ -163,6 +164,7 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         },
       ],
       customForm: OllamaForm,
+      customSubmit: OllamaSubmitHandler,
     },
   },
   {

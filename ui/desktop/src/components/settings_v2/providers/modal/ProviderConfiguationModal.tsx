@@ -8,21 +8,22 @@ import { useProviderModal } from './ProviderModalProvider';
 import { toast } from 'react-toastify';
 import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
+import DefaultSubmitHandler from './subcomponents/handlers/DefaultSubmitHandler';
 
 export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
 
-  // Reset form values when provider changes
   useEffect(() => {
     if (currentProvider) {
       // Initialize form with default values
       const initialValues = {};
-      if (currentProvider.parameters) {
-        currentProvider.parameters.forEach((param) => {
-          initialValues[param.name] = param.defaultValue || '';
-        });
-      }
+      // FIXME
+      // if (currentProvider.parameters) {
+      //   currentProvider.parameters.forEach((param) => {
+      //     initialValues[param.name] = param.default || '';
+      //   });
+      // }
       setConfigValues(initialValues);
     } else {
       setConfigValues({});
@@ -37,11 +38,14 @@ export default function ProviderConfigurationModal() {
   // Find the provider in the registry to get the details with customForm
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
 
-  // Get the custom form component from the provider details
-  const CustomForm = providerEntry?.details?.customForm;
-
   // Get the custom submit handler from the provider details
   const customSubmitHandler = providerEntry?.details?.customSubmit;
+
+  // Use custom submit handler otherwise use default
+  const SubmitHandler = customSubmitHandler || DefaultSubmitHandler;
+
+  // Get the custom form component from the provider details
+  const CustomForm = providerEntry?.details?.customForm;
 
   // Use custom form component if available, otherwise use default
   const FormComponent = CustomForm || DefaultProviderSetupForm;
@@ -50,15 +54,7 @@ export default function ProviderConfigurationModal() {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 
-    // check if the provider has a custom submit handler
-    if (customSubmitHandler) {
-      toast('custom submit handler');
-    }
-    //  fall back to default behavior
-    else {
-      // Default submit behavior
-      toast('Submitted configuration!');
-    }
+    SubmitHandler(configValues);
 
     // Close the modal unless the custom handler explicitly returns false
     // This gives custom handlers the ability to keep the modal open if needed

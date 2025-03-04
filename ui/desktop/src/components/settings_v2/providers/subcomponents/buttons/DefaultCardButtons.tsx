@@ -1,6 +1,5 @@
 import React from 'react';
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
-import ButtonCallbacks from '../../interfaces/ButtonCallbacks';
 import ProviderState from '@/src/components/settings_v2/providers/interfaces/ProviderState';
 
 // can define other optional callbacks as needed
