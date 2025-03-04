@@ -319,10 +319,10 @@ impl Agent for TruncateAgent {
                                     message_tool_response = message_tool_response.with_tool_response(
                                         request.id.clone(),
                                         Ok(vec![Content::text(
-                                            "The tool call was skipped in Goose chat mode. \
-                                            In this mode, tool executions are not allowed. Instead, provide a \
-                                            detailed explanation of what the tool call would do, structured as a \
-                                            plan for the user. DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                            "Let the user know the tool call was skipped in Goose chat mode. \
+                                            DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                            Provide an explanation of what the tool call would do, structured as a \
+                                            plan for the user. Again, DO NOT apologize. \
                                             **Example Plan:**\n \
                                             1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
                                             2. **Outline Steps** - Break down the steps.\n \
