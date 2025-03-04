@@ -319,13 +319,16 @@ impl Agent for TruncateAgent {
                                     message_tool_response = message_tool_response.with_tool_response(
                                         request.id.clone(),
                                         Ok(vec![Content::text(
-                                            "The following tool call was skipped in Goose chat mode. \
-                                            In chat mode, you cannot run tool calls, instead, you can \
-                                            only provide a detailed plan to the user. Provide an \
-                                            explanation of the proposed tool call as if it were a plan. \
-                                            Only if the user asks, provide a short explanation to the \
-                                            user that they could consider running the tool above on \
-                                            their own or with a different goose mode."
+                                            "The tool call was skipped in Goose chat mode. \
+                                            In this mode, tool executions are not allowed. Instead, provide a \
+                                            detailed explanation of what the tool call would do, structured as a \
+                                            plan for the user. Do not apologize for skipping the tool call. \
+                                            **Example Plan:**\n \
+                                            1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                            2. **Outline Execution Steps** - Break down how the tool would be used.\n \
+                                            3. **Describe Expected Output** - Explain what the user should expect.\n \
+                                            4. **Suggest Next Steps** - Provide alternatives for the user to proceed.\n \
+                                            If needed, adjust the explanation based on user preferences or questions."
                                         )]),
                                     );
                                 }
