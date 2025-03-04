@@ -325,9 +325,7 @@ impl Agent for TruncateAgent {
                                             plan for the user. Do not apologize for skipping the tool call. \
                                             **Example Plan:**\n \
                                             1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                            2. **Outline Execution Steps** - Break down how the tool would be used.\n \
-                                            3. **Describe Expected Output** - Explain what the user should expect.\n \
-                                            4. **Suggest Next Steps** - Provide alternatives for the user to proceed.\n \
+                                            2. **Outline Steps** - Break down the steps.\n \
                                             If needed, adjust the explanation based on user preferences or questions."
                                         )]),
                                     );
