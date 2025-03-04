@@ -1,10 +1,12 @@
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
+use pdf::{file::FileOptions, primitive::PdfString};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
+    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc,
+    sync::Mutex,
 };
 use tokio::process::Command;
 
@@ -232,6 +234,31 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let pdf_tool = Tool::new(
+            "pdf_tool",
+            indoc! {r#"
+                Process PDF files to extract text, metadata, and other information.
+                Supports operations:
+                - extract_text: Extract all text content from the PDF
+                - get_metadata: Get PDF metadata (title, author, etc.)
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the PDF file"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["extract_text", "get_metadata"],
+                        "description": "Operation to perform on the PDF"
+                    }
+                }
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -359,6 +386,7 @@ impl ComputerControllerRouter {
                 quick_script_tool,
                 computer_control_tool,
                 cache_tool,
+                pdf_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -653,6 +681,71 @@ impl ComputerControllerRouter {
     }
 
     // Implement cache tool functionality
+    async fn pdf_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let operation = params
+            .get("operation")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
+
+        // Open and parse the PDF file
+        let pdf = FileOptions::cached()
+            .open(path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to open PDF file: {}", e)))?;
+
+        let result = match operation {
+            "extract_text" => {
+                let mut text = String::new();
+                for i in 0..pdf.num_pages() {
+                    if let Ok(page) = pdf.get_page(i) {
+                        if let Some(contents) = &page.contents {
+                            text.push_str(&format!("Page {}:\n", i + 1));
+                            text.push_str(&format!("{:?}\n", contents));
+                        }
+                    }
+                }
+                format!("Extracted text from PDF:\n\n{}", text)
+            }
+            "get_metadata" => {
+                let info = pdf.trailer.info_dict.as_ref().map(|dict| {
+                    let mut metadata = Vec::new();
+                    if let Some(title) = dict.title.as_ref() {
+                        metadata.push(format!("Title: {}", PdfString::to_string_lossy(title)));
+                    }
+                    if let Some(author) = dict.author.as_ref() {
+                        metadata.push(format!("Author: {}", PdfString::to_string_lossy(author)));
+                    }
+                    if let Some(subject) = dict.subject.as_ref() {
+                        metadata.push(format!("Subject: {}", PdfString::to_string_lossy(subject)));
+                    }
+                    if let Some(keywords) = dict.keywords.as_ref() {
+                        metadata.push(format!("Keywords: {}", PdfString::to_string_lossy(keywords)));
+                    }
+                    if let Some(creator) = dict.creator.as_ref() {
+                        metadata.push(format!("Creator: {}", PdfString::to_string_lossy(creator)));
+                    }
+                    if let Some(producer) = dict.producer.as_ref() {
+                        metadata.push(format!("Producer: {}", PdfString::to_string_lossy(producer)));
+                    }
+                    metadata.join("\n")
+                });
+                format!("PDF Metadata:\n\n{}", info.unwrap_or_else(|| "No metadata found".to_string()))
+            }
+            _ => {
+                return Err(ToolError::InvalidParameters(format!(
+                    "Invalid operation: {}. Valid operations are: 'extract_text', 'get_metadata'",
+                    operation
+                )))
+            }
+        };
+
+        Ok(vec![Content::text(result)])
+    }
+
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -764,6 +857,7 @@ impl Router for ComputerControllerRouter {
                 "automation_script" => this.quick_script(arguments).await,
                 "computer_control" => this.computer_control(arguments).await,
                 "cache" => this.cache(arguments).await,
+                "pdf_tool" => this.pdf_tool(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
