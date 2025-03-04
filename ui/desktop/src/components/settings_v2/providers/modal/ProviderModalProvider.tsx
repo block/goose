@@ -1,4 +1,13 @@
 import React, { createContext, useContext, useState } from 'react';
+import ProviderState from '../interfaces/ProviderState';
+
+interface ProviderModalContextType {
+  isOpen: boolean;
+  currentProvider: ProviderState | null;
+  modalProps: any;
+  openModal: (provider: ProviderState, additionalProps: any) => void;
+  closeModal: () => void;
+}
 
 const ProviderModalContext = createContext({
   isOpen: false,
@@ -8,7 +17,7 @@ const ProviderModalContext = createContext({
   closeModal: () => {},
 });
 
-export const useProviderModal = () => useContext(ProviderModalContext);
+export const useProviderModal = () => useContext<ProviderModalContextType>(ProviderModalContext);
 
 export const ProviderModalProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);

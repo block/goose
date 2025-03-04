@@ -1,13 +1,13 @@
 import React from 'react';
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
-import ButtonCallbacks from '../../interfaces/ButtonCallbacks';
 import ProviderState from '@/src/components/settings_v2/providers/interfaces/ProviderState';
 
 // can define other optional callbacks as needed
 interface CardButtonsProps {
   provider: ProviderState;
-  isOnboardingPage?: boolean;
-  callbacks: ButtonCallbacks; // things like onConfigure, onDelete
+  isOnboardingPage: boolean;
+  onConfigure: (provider: ProviderState) => void;
+  onLaunch: (provider: ProviderState) => void;
 }
 
 function getDefaultTooltipMessages(name: string, actionType: string) {
@@ -23,23 +23,11 @@ function getDefaultTooltipMessages(name: string, actionType: string) {
   }
 }
 
-/// This defines a group of buttons that will appear on the card
-/// Controlled by if a provider is configured and which version of the grid page we're on (onboarding vs settings page)
-/// This is the default button group
-///
-/// Settings page:
-///   - show configure button
-/// Onboarding page:
-///   - show configure button if NOT configured
-///   - show rocket launch button if configured
-///
-/// We inject what will happen if we click on a button via on<Function>
-///  - onConfigure: pop open a modal -- modal is configured dynamically
-///  - onLaunch: continue to chat window
 export default function DefaultCardButtons({
   provider,
   isOnboardingPage,
-  callbacks,
+  onLaunch,
+  onConfigure,
 }: CardButtonsProps) {
   return (
     <>
@@ -49,7 +37,7 @@ export default function DefaultCardButtons({
           tooltip={getDefaultTooltipMessages(provider.name, 'add')}
           onClick={(e) => {
             e.stopPropagation();
-            callbacks.onConfigure(provider);
+            onConfigure(provider);
           }}
         />
       )}
@@ -59,7 +47,7 @@ export default function DefaultCardButtons({
           tooltip={getDefaultTooltipMessages(provider.name, 'edit')}
           onClick={(e) => {
             e.stopPropagation();
-            callbacks.onConfigure(provider);
+            onConfigure(provider);
           }}
         />
       )}
@@ -68,7 +56,7 @@ export default function DefaultCardButtons({
         <RocketButton
           onClick={(e) => {
             e.stopPropagation();
-            callbacks.onLaunch(provider);
+            onLaunch(provider);
           }}
         />
       )}
