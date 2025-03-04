@@ -235,7 +235,7 @@ export default function ChatView({
         {messages.length === 0 ? (
           <Splash append={(text) => append(createUserMessage(text))} />
         ) : (
-          <ScrollArea ref={scrollRef} className="flex-1 pl-4" autoScroll>
+          <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
             {filteredMessages.map((message, index) => (
               <div key={message.id || index} className="mt-[16px]">
                 {isUserMessage(message) ? (
