@@ -5,7 +5,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::Config;
-use http::StatusCode;
+use http::{StatusCode, HeaderMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
@@ -13,6 +13,20 @@ use tokio::sync::Mutex;
 use utoipa::ToSchema;
 
 use crate::state::AppState;
+
+fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        Err(StatusCode::UNAUTHORIZED)
+    } else {
+        Ok(StatusCode::OK)
+    }
+}
 
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertConfigQuery {
@@ -47,9 +61,13 @@ pub struct ConfigResponse {
     )
 )]
 pub async fn upsert_config(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     let result = if query.is_secret.unwrap_or(false) {
@@ -75,9 +93,13 @@ pub async fn upsert_config(
     )
 )]
 pub async fn remove_config(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<String>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     match config.delete(&query.key) {
@@ -96,9 +118,13 @@ pub async fn remove_config(
     )
 )]
 pub async fn read_config(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<Value>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     match config.get::<Value>(&query.key) {
@@ -118,9 +144,13 @@ pub async fn read_config(
     )
 )]
 pub async fn add_extension(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(extension): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     // Get current extensions or initialize empty map
@@ -151,9 +181,13 @@ pub async fn add_extension(
     )
 )]
 pub async fn remove_extension(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<String>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     // Get current extensions
@@ -185,8 +219,12 @@ pub async fn remove_extension(
     )
 )]
 pub async fn read_all_config(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Json<ConfigResponse>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     // Load values from config file
@@ -206,9 +244,13 @@ pub async fn read_all_config(
     )
 )]
 pub async fn update_extension(
-    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
     Json(extension): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
+    // Use the helper function to verify the secret key
+    verify_secret_key(&headers, &state)?;
+
     let config = Config::global();
 
     // Get current extensions
@@ -244,5 +286,5 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extension", post(add_extension))
         .route("/config/extension", put(update_extension))
         .route("/config/extension", delete(remove_extension))
-        .with_state(state.config)
+        .with_state(state)
 }
