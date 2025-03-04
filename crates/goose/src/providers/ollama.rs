@@ -7,7 +7,6 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
 use async_trait::async_trait;
-use indoc::formatdoc;
 use mcp_core::tool::Tool;
 use reqwest::Client;
 use serde_json::Value;
@@ -155,75 +154,75 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Transform the system message to replace developer instructions
-        let modified_system = if let Some(dev_section) = system.split("## developer").nth(1) {
-            if let (Some(start_idx), Some(end_idx)) = (
-                dev_section.find("### Instructions"),
-                dev_section.find("operating system:"),
-            ) {
-                let new_instructions = formatdoc! {r#"
-        The Developer extension enables you to edit code files, execute shell commands, and capture screen/window content. These tools allow for various development and debugging workflows.
-        Available Tools:
-        1. Shell Execution (`developer__shell`)
-        Executes commands in the shell and returns the combined output and error messages.
-        Use cases:
-        - Running scripts: `python script.py`
-        - Installing dependencies: `pip install -r requirements.txt`
-        - Checking system information: `uname -a`, `df -h`
-        - Searching for files or text: **Use `rg` (ripgrep) instead of `find` or `ls -r`**
-          - Find a file: `rg --files | rg example.py`
-          - Search within files: `rg 'class Example'`
-        Best Practices:
-        - **Avoid commands with large output** (pipe them to a file if necessary).
-        - **Run background processes** if they take a long time (e.g., `uvicorn main:app &`).
-        - **git commands can be run on the shell, however if the git extension is installed, you should use the git tool instead.
-        - **If the shell command is a rm, mv, or cp, you should verify with the user before running the command.
-        2. Text Editor (`developer__text_editor`)
-        Performs file-based operations such as viewing, writing, replacing text, and undoing edits.
-        Commands:
-        - view: Read the content of a file.
-        - write: Create or overwrite a file. Caution: Overwrites the entire file!
-        - str_replace: Replace a specific string in a file.
-        - undo_edit: Revert the last edit.
-        Example Usage:
-        developer__text_editor(command="view", file_path="/absolute/path/to/file.py")
-        developer__text_editor(command="write", file_path="/absolute/path/to/file.py", file_text="print('hello world')")
-        developer__text_editor(command="str_replace", file_path="/absolute/path/to/file.py", old_str="hello world", new_str="goodbye world")
-        developer__text_editor(command="undo_edit", file_path="/absolute/path/to/file.py")
-        Protocol for Text Editor:
-        For edit and replace commands, please verify what you are editing with the user before running the command.
-        - User: "Please edit the file /absolute/path/to/file.py"
-        - Assistant: "Ok sounds good, I'll be editing the file /absolute/path/to/file.py and creating modifications xyz to the file. Let me know whether you'd like to proceed."
-        - User: "Yes, please proceed."
-        - Assistant: "I've created the modifications xyz to the file /absolute/path/to/file.py"
-        3. List Windows (`developer__list_windows`)
-        Lists all visible windows with their titles.
-        Use this to find window titles for screen capture.
-        4. Screen Capture (`developer__screen_capture`)
-        Takes a screenshot of a display or specific window.
-        Options:
-        - Capture display: `developer__screen_capture(display=0)`  # Main display
-        - Capture window: `developer__screen_capture(window_title="Window Title")`
-        To use tools, ask the user to execute the tools for you by requesting the tool use in the exact JSON format below. 
-```
-        Info: at the start of the session, the user's directory is:
-        "#};
+//         let modified_system = if let Some(dev_section) = system.split("## developer").nth(1) {
+//             if let (Some(start_idx), Some(end_idx)) = (
+//                 dev_section.find("### Instructions"),
+//                 dev_section.find("operating system:"),
+//             ) {
+//                 let new_instructions = formatdoc! {r#"
+//         The Developer extension enables you to edit code files, execute shell commands, and capture screen/window content. These tools allow for various development and debugging workflows.
+//         Available Tools:
+//         1. Shell Execution (`developer__shell`)
+//         Executes commands in the shell and returns the combined output and error messages.
+//         Use cases:
+//         - Running scripts: `python script.py`
+//         - Installing dependencies: `pip install -r requirements.txt`
+//         - Checking system information: `uname -a`, `df -h`
+//         - Searching for files or text: **Use `rg` (ripgrep) instead of `find` or `ls -r`**
+//           - Find a file: `rg --files | rg example.py`
+//           - Search within files: `rg 'class Example'`
+//         Best Practices:
+//         - **Avoid commands with large output** (pipe them to a file if necessary).
+//         - **Run background processes** if they take a long time (e.g., `uvicorn main:app &`).
+//         - **git commands can be run on the shell, however if the git extension is installed, you should use the git tool instead.
+//         - **If the shell command is a rm, mv, or cp, you should verify with the user before running the command.
+//         2. Text Editor (`developer__text_editor`)
+//         Performs file-based operations such as viewing, writing, replacing text, and undoing edits.
+//         Commands:
+//         - view: Read the content of a file.
+//         - write: Create or overwrite a file. Caution: Overwrites the entire file!
+//         - str_replace: Replace a specific string in a file.
+//         - undo_edit: Revert the last edit
+//         Example Usage:
+//         developer__text_editor(command="view", file_path="/absolute/path/to/file.py")
+//         developer__text_editor(command="write", file_path="/absolute/path/to/file.py", file_text="print('hello world')")
+//         developer__text_editor(command="str_replace", file_path="/absolute/path/to/file.py", old_str="hello world", new_str="goodbye world")
+//         developer__text_editor(command="undo_edit", file_path="/absolute/path/to/file.py")
+//         Protocol for Text Editor:
+//         For edit and replace commands, please verify what you are editing with the user before running the command.
+//         - User: "Please edit the file /absolute/path/to/file.py"
+//         - Assistant: "Ok sounds good, I'll be editing the file /absolute/path/to/file.py and creating modifications xyz to the file. Let me know whether you'd like to proceed."
+//         - User: "Yes, please proceed."
+//         - Assistant: "I've created the modifications xyz to the file /absolute/path/to/file.py"
+//         3. List Windows (`developer__list_windows`)
+//         Lists all visible windows with their titles.
+//         Use this to find window titles for screen capture.
+//         4. Screen Capture (`developer__screen_capture`)
+//         Takes a screenshot of a display or specific window.
+//         Options:
+//         - Capture display: `developer__screen_capture(display=0)`  # Main display
+//         - Capture window: `developer__screen_capture(window_title="Window Title")`
+//         To use tools, ask the user to execute the tools for you by requesting the tool use in the exact JSON format below. 
+// ```
+//         Info: at the start of the session, the user's directory is:
+//         "#};
 
-                let before_dev = system.split("## developer").next().unwrap_or("");
-                let after_marker = &dev_section[end_idx..];
+//                 let before_dev = system.split("## developer").next().unwrap_or("");
+//                 let after_marker = &dev_section[end_idx..];
 
-                format!(
-                    "{}## developer{}### Instructions\n{}{}",
-                    before_dev,
-                    &dev_section[..start_idx],
-                    new_instructions,
-                    after_marker
-                )
-            } else {
-                system.to_string()
-            }
-        } else {
-            system.to_string()
-        };
+//                 format!(
+//                     "{}## developer{}### Instructions\n{}{}",
+//                     before_dev,
+//                     &dev_section[..start_idx],
+//                     new_instructions,
+//                     after_marker
+//                 )
+//             } else {
+//                 system.to_string()
+//             }
+//         } else {
+//             system.to_string()
+//         };
 
         // Check if tool shim is enabled via environment variables
         let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
@@ -246,8 +245,8 @@ impl Provider for OllamaProvider {
 
             // Append tool information to the modified_system
             let modified_system_with_tools = format!(
-                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}",
-                modified_system,
+                "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
+                system,
                 tool_info
             );
 
@@ -256,8 +255,8 @@ impl Provider for OllamaProvider {
             let payload = create_request(
                 &self.model,
                 &modified_system_with_tools, // No system prompt, using modified_system as user message content instead
-                &messages,
-                &vec![], // No need to include tools since using tool shim
+                messages,
+                &[], // No need to include tools since using tool shim
                 &super::utils::ImageFormat::OpenAi,
             )?;
 
@@ -293,8 +292,8 @@ impl Provider for OllamaProvider {
         } else {
             let payload = create_request(
                 &self.model,
-                &modified_system,
-                &messages,
+                system,
+                messages,
                 tools,
                 &super::utils::ImageFormat::OpenAi,
             )?;
