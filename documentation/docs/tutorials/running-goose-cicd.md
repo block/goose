@@ -227,25 +227,7 @@ There might also be cases where you want to use Goose with other environments, c
 
 You can find related extensions as MCP Servers on [PulseMCP](https://www.pulsemcp.com/servers) and interact with them using Goose.
 
-Process Goose's output to ensure it's clean and useful:
-
-```yaml
-    - name: Run Goose and filter output
-      run: |
-          goose run --instructions instructions.txt | \
-            # Remove ANSI color codes
-            sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
-            # Remove session/logging lines
-            grep -v "logging to /home/runner/.config/goose/sessions/" | \
-            grep -v "^starting session" | \
-            grep -v "^Closing session" | \
-            # Trim trailing whitespace
-            sed 's/[[:space:]]*$//' \
-            > pr_comment.txt
-```
-
-
-## Security Considerations
+## Security considerations
 
 When running Goose in CI/CD, keep these security practices in mind:
 
