@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { Check, Copy } from './icons';
 import { visit } from 'unist-util-visit';
-import CopyButton from './ui/CopyButton';
 
 const UrlTransform = {
   a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
@@ -30,14 +31,28 @@ interface MarkdownContentProps {
 }
 
 const CodeBlock = ({ language, children }: { language: string; children: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(children);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset after 2 seconds
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
   return (
     <div className="relative group w-full">
-      <CopyButton
-        text={children}
+      <button
+        onClick={handleCopy}
         className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300
                  opacity-0 group-hover:opacity-100 transition-opacity duration-200
                  hover:bg-gray-600/50 hover:text-gray-100 z-10"
-      />
+        title="Copy code"
+      >
+        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+      </button>
       <div className="w-full overflow-x-auto">
         <SyntaxHighlighter
           style={oneDark}
@@ -64,6 +79,8 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
 };
 
 export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
+  // Determine whether dark mode is enabled
+  const isDarkMode = document.documentElement.classList.contains('dark');
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
