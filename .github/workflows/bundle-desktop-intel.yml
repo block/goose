@@ -190,7 +190,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:default && break
+            npm run bundle:intel && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
@@ -207,7 +207,7 @@ jobs:
           attempt=0
           max_attempts=2
           until [ $attempt -ge $max_attempts ]; do
-            npm run bundle:default && break
+            npm run bundle:intel && break
             attempt=$((attempt + 1))
             echo "Attempt $attempt failed. Retrying..."
             sleep 5
