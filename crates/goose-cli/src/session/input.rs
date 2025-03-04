@@ -2,8 +2,49 @@ use anyhow::Result;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::completion::GooseCompleter;
+use super::speech::SpeechRecognizer;
+
+static SPEECH_RECOGNIZER: once_cell::sync::Lazy<Arc<Mutex<Option<SpeechRecognizer>>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
+
+fn check_voice_input() -> Result<Option<String>> {
+    let recognizer = SPEECH_RECOGNIZER.lock().unwrap();
+    if let Some(recognizer) = recognizer.as_ref() {
+        if recognizer.is_listening() {
+            if let Some(text) = recognizer.get_text()? {
+                return Ok(Some(text));
+            }
+        }
+    }
+    Ok(None)
+}
+
+pub fn toggle_voice_input() -> Result<()> {
+    let mut recognizer = SPEECH_RECOGNIZER.lock().unwrap();
+    match *recognizer {
+        None => {
+            // Initialize speech recognition
+            let mut new_recognizer = SpeechRecognizer::new()?;
+            new_recognizer.start_listening()?;
+            *recognizer = Some(new_recognizer);
+            println!("Voice input enabled. Press Ctrl+V to start/stop recording.");
+        }
+        Some(ref mut r) => {
+            if r.is_listening() {
+                r.stop_listening();
+                println!("Voice recording stopped.");
+            } else {
+                r.start_listening()?;
+                println!("Voice recording started.");
+            }
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -12,6 +53,7 @@ pub enum InputResult {
     AddExtension(String),
     AddBuiltin(String),
     ToggleTheme,
+    ToggleSpeech,
     Retry,
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
@@ -27,10 +69,25 @@ pub struct PromptCommandOptions {
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
+    // Check if we have any voice input
+    if let Some(text) = check_voice_input()? {
+        return Ok(InputResult::Message(text));
+    }
     // Ensure Ctrl-J binding is set for newlines
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
+    );
+
+    // Add Ctrl-V binding for voice recording toggle
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Char('v'), rustyline::Modifiers::CTRL),
+        rustyline::EventHandler::Simple(rustyline::Cmd::Custom(Box::new(|editor| {
+            if let Err(e) = toggle_voice_input() {
+                println!("Error toggling voice input: {}", e);
+            }
+            Ok(())
+        }))),
     );
 
     let prompt = format!("{} ", console::style("( O)>").cyan().bold());
@@ -72,6 +129,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Retry)
         }
         "/t" => Some(InputResult::ToggleTheme),
+        "/voice" => Some(InputResult::ToggleSpeech),
         "/prompts" => Some(InputResult::ListPrompts(None)),
         s if s.starts_with("/prompts ") => {
             // Parse arguments for /prompts command
