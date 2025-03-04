@@ -3,10 +3,10 @@ sidebar_position: 1
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import Link from "@docusaurus/Link";
-import { IconDownload } from "@site/src/components/icons/download";
 import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
 import RateLimits from '@site/src/components/RateLimits';
+import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
+
 
 
 # Install Goose
@@ -40,18 +40,10 @@ import RateLimits from '@site/src/components/RateLimits';
         :::
       </TabItem>
       <TabItem value="ui" label="Goose Desktop">
-        To install Goose, click the **button** below:
-        <div className="pill-button">
-          <Link
-            className="button button--primary button--lg"
-            to="https://github.com/block/goose/releases/download/stable/Goose.zip"
-          >
-            <IconDownload />
-            download goose desktop for macOS
-          </Link>
-        </div>
+        <DesktopInstallButtons/>
+
         <div style={{ marginTop: '1rem' }}>
-          1. Unzip the downloaded `Goose.zip` file.
+          1. Unzip the downloaded zip file.
           2. Run the executable file to launch the Goose desktop application.
 
           :::tip Updating Goose
@@ -59,11 +51,11 @@ import RateLimits from '@site/src/components/RateLimits';
           :::
 
           :::note Permissions
-            If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
+          If you’re on an Apple Mac M3 and the Goose desktop app shows no window on launch, check and update the following:
 
-            Ensure the `~/.config` directory has read and write access.
+          Ensure the `~/.config` directory has read and write access.
 
-            Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues-m3-macs)
+          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues-m3-macs)
           :::
         </div>
       </TabItem>
