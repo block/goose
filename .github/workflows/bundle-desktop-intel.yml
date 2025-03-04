@@ -234,7 +234,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Goose-darwin-x64
-          path: ui/desktop/out/Goose-darwin-x64/Goose.zip
+          path: ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip
 
       - name: Quick launch test (macOS)
         if: ${{ inputs.quick_test }}
