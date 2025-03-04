@@ -18,7 +18,9 @@ use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
-const DEFAULT_SCOPES: &[&str] = &["all-apis"];
+// "offline_access" scope is used to request an OAuth 2.0 Refresh Token
+// https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
+const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
 // Databricks can passthrough to a wide range of models, we only provide the default
