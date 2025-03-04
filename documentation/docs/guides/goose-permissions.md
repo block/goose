@@ -6,9 +6,9 @@ title: Goose Permissions
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Managing Goose Permissions
+# Managing Goose Modes
 
-Goose’s **permissions** determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
+Goose’s permissions determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
 
 ## Permission Modes
 
@@ -19,12 +19,12 @@ Goose’s **permissions** determine how much autonomy it has when modifying file
 | **Chat Mode**    | Goose **only engages in chat**, with no extension use or file modifications.                            | Users who prefer a **conversational AI experience** without automation.                |
 
 :::warning
-`Auto Mode` is applied by default unless you specify otherwise.
+`Auto Mode` is applied by default.
 :::
 
-## Configuring Goose Permissions
+## Configuring Goose Mode
 
-Here's how to configure your chosen goose permissions:
+Here's how to configure:
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -89,9 +89,15 @@ Here's how to configure your chosen goose permissions:
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-    To enable goose mode with desktop, you can go to `Settings` page and scoll down to `Others` section, you can easily switch the goose mode in `Mode Selection`.
 
-    If you choose `Approve` mode, during tool call with write operation, you should expect to see "Allow tool" and "Deny" buttons in the chat window.
+    1. Click `...` in the upper right corner
+    2. Click `Settings`
+    3. Scroll down to `Others` section
+    4. Under `Mode Selection`, choose the mode you'd like
+
+    :::info
+    If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls with write operations.
+    :::
 
   </TabItem>
 </Tabs>
@@ -101,8 +107,8 @@ Here's how to configure your chosen goose permissions:
 
 Goose introduces the **Smart Approve** feature when the Goose mode is set to `Approve`. With Smart Approve enabled, Goose evaluates the risk level of a tool call before execution.
 
-- **If the tool call is deemed risky**: Goose will prompt you for confirmation before proceeding.
-- **If the tool call is considered safe**: Goose will execute it directly without any notification.
+- **If the tool call is deemed risky (e.g. tool requires Goose to write)**, Goose will prompt you for confirmation before proceeding.
+- **If the tool call is considered safe**, Goose will execute it directly without any notification.
 
 This feature is enabled by default. If you wish to disable Smart Approve, you can
 
