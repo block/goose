@@ -36,7 +36,7 @@ export async function getActiveProviders(): Promise<string[]> {
         if (providerRequiredKeys.length === 1 && providerRequiredKeys[0] in default_key_value) {
           const key = providerRequiredKeys[0];
           // Only consider active if the key is explicitly set
-          return configStatus[key]?.is_set;
+          return configStatus[key]?.is_set === true;
         }
 
         // For providers with multiple keys or keys without defaults:
@@ -47,11 +47,11 @@ export async function getActiveProviders(): Promise<string[]> {
 
         // If there are no non-default keys, this provider needs at least one key explicitly set
         if (requiredNonDefaultKeys.length === 0) {
-          return providerRequiredKeys.some((key) => configStatus[key]?.is_set);
+          return providerRequiredKeys.some((key) => configStatus[key]?.is_set === true);
         }
 
         // Otherwise, all non-default keys must be set
-        return requiredNonDefaultKeys.every((key) => configStatus[key]?.is_set);
+        return requiredNonDefaultKeys.every((key) => configStatus[key]?.is_set === true);
       })
       .map((provider) => provider.name || 'Unknown Provider');
 
