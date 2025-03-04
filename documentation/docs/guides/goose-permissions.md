@@ -103,7 +103,7 @@ Here's how to configure:
 </Tabs>
 
 
-## Smart Approve in Goose Mode
+## Smart Approve
 
 Goose introduces the **Smart Approve** feature when the Goose mode is set to `Approve`. With Smart Approve enabled, Goose evaluates the risk level of a tool call before execution.
 
