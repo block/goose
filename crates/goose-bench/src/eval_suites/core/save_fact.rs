@@ -70,6 +70,10 @@ impl Evaluation for MemoryRememberMemory {
     fn name(&self) -> &str {
         "memory_remember_memory"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["memory".to_string()]
+    }
 }
 
 register_evaluation!("memory", MemoryRememberMemory);

@@ -27,5 +27,11 @@ pub trait Evaluation: Send + Sync {
         agent: Box<dyn BenchAgent>,
         run_loc: &mut WorkDir,
     ) -> Result<Vec<(String, EvaluationMetric)>>;
+
     fn name(&self) -> &str;
+
+    // New method to declare required extensions
+    fn required_extensions(&self) -> Vec<String> {
+        Vec::new() // Default implementation returns empty vec
+    }
 }

@@ -90,6 +90,10 @@ impl Evaluation for DeveloperImage {
     fn name(&self) -> &str {
         "developer_image"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["developer".to_string()]
+    }
 }
 
 register_evaluation!("developer_image", DeveloperImage);

@@ -68,6 +68,10 @@ impl Evaluation for ComputerControllerScript {
     fn name(&self) -> &str {
         "computercontroller_script"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["computercontroller".to_string()]
+    }
 }
 
 register_evaluation!("computercontroller", ComputerControllerScript);

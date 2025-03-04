@@ -26,7 +26,12 @@ async fn run_eval(
     let mut result = EvaluationResult::new(evaluation.name().to_string());
 
     if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
-        let session = build_session(None, false, Vec::new(), Vec::new()).await;
+        // Get required extensions from the evaluation
+        let required_extensions = evaluation.required_extensions();
+
+        // Create session with required extensions
+        let session = build_session(None, false, Vec::new(), required_extensions).await;
+
         if let Ok(metrics) = evaluation.run(Box::new(session), work_dir).await {
             for (name, metric) in metrics {
                 result.add_metric(name, metric);

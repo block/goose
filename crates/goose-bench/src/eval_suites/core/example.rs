@@ -35,6 +35,10 @@ impl Evaluation for ExampleEval {
     fn name(&self) -> &str {
         "example_eval"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        Vec::new() // Example eval doesn't require any extensions
+    }
 }
 
 register_evaluation!("core", ExampleEval);

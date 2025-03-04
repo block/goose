@@ -72,6 +72,10 @@ impl Evaluation for DeveloperListFiles {
     fn name(&self) -> &str {
         "developer_list_files"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["developer".to_string()]
+    }
 }
 
 register_evaluation!("developer", DeveloperListFiles);

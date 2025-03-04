@@ -101,6 +101,10 @@ impl Evaluation for DeveloperSearchReplace {
     fn name(&self) -> &str {
         "developer_search_replace"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["developer".to_string()]
+    }
 }
 
 register_evaluation!("developer_search_replace", DeveloperSearchReplace);

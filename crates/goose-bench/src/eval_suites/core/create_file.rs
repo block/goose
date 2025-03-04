@@ -70,6 +70,10 @@ impl Evaluation for DeveloperCreateFile {
     fn name(&self) -> &str {
         "developer_create_read_file"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["developer".to_string()]
+    }
 }
 
 register_evaluation!("developer", DeveloperCreateFile);

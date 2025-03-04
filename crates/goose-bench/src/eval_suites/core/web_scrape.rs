@@ -70,6 +70,10 @@ impl Evaluation for ComputerControllerWebScrape {
     fn name(&self) -> &str {
         "computercontroller_web_scrape"
     }
+
+    fn required_extensions(&self) -> Vec<String> {
+        vec!["computercontroller".to_string()]
+    }
 }
 
 register_evaluation!("computercontroller", ComputerControllerWebScrape);
