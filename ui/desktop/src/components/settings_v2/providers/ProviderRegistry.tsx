@@ -1,29 +1,5 @@
-import React from 'react';
 import ProviderDetails from './interfaces/ProviderDetails';
-import DefaultCardButtons from './subcomponents/buttons/DefaultCardButtons';
-import ButtonCallbacks from './interfaces/ButtonCallbacks';
-import ProviderState from './interfaces/ProviderState';
 import OllamaForm from './modal/subcomponents/forms/OllamaForm';
-
-// Helper function to generate default actions for most providers
-const getDefaultButtons = (
-  provider: ProviderState,
-  callbacks: ButtonCallbacks,
-  isOnboardingPage
-) => {
-  return [
-    {
-      id: 'default-buttons',
-      renderButton: () => (
-        <DefaultCardButtons
-          provider={provider}
-          callbacks={callbacks}
-          isOnboardingPage={isOnboardingPage}
-        />
-      ),
-    },
-  ];
-};
 
 export interface ProviderRegistry {
   name: string;
@@ -48,13 +24,9 @@ export interface ProviderRegistry {
  *    - Optional custom form component
  *    - Action buttons that appear on provider cards
  *
- * 2. Two-Level Configuration:
- *    a) Provider Card UI - What buttons appear on each provider card
- *       - Controlled by the provider's getActions() function
- *       - Most providers use default buttons (configure/launch)
- *       - Can be customized for special providers
+ * 2. Configuration submission:
  *
- *    b) Modal Content - What form appears in the configuration modal
+ *    Modal Content - What form appears in the configuration modal
  *       - A single modal component exists in the app
  *       - Content changes dynamically based on the provider being configured
  *       - If provider has CustomForm property, that component is rendered
@@ -71,14 +43,12 @@ export interface ProviderRegistry {
  * ---------------------
  *
  * For a standard provider with simple configuration:
- * - Define parameters array with all required fields
- * - Use the default getActions function
+ * - Define parameters array with all required fields and any defaults that should be supplied
  * - No need to specify a CustomForm
  *
  * For a provider needing custom configuration:
- * - Define parameters array (even if just for documentation)
+ * - Define parameters array (if needed, otherwise leave as an empty list)
  * - Create a custom form component and assign to CustomForm property
- * - Use the default or custom getActions function
  *
  * This architecture centralizes provider definitions while allowing
  * flexibility for special cases, keeping the codebase maintainable.
@@ -107,8 +77,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           default: 'v1/chat/completions',
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -123,8 +91,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -139,8 +105,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -155,8 +119,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -171,8 +133,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -187,8 +147,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: true,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -205,8 +163,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         },
       ],
       customForm: OllamaForm,
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
   {
@@ -229,8 +185,6 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           is_secret: false,
         },
       ],
-      getActions: (provider, callbacks, isOnboardingPage) =>
-        getDefaultButtons(provider, callbacks, isOnboardingPage),
     },
   },
 ];
