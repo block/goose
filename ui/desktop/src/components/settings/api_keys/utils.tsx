@@ -32,15 +32,15 @@ export async function getActiveProviders(): Promise<string[]> {
         // 1. Get provider's config_status
         const configStatus = provider.config_status ?? {};
 
-        // 2. Collect only the keys *not* in default_key_value
+        // 2. Collect only the keys in required_keys
         const requiredKeyEntries = Object.entries(configStatus).filter(([k]) => isRequiredKey(k));
 
-        // 3. If there are *no* non-default keys, it is NOT active
+        // 3. If there are *no* required keys, it is NOT active
         if (requiredKeyEntries.length === 0) {
           return false;
         }
 
-        // 4. Otherwise, all non-default keys must be `is_set`
+        // 4. Otherwise, all required keys must be `is_set`
         return requiredKeyEntries.every(([_, value]) => value?.is_set);
       })
       .map((provider) => provider.name || 'Unknown Provider');
