@@ -145,6 +145,9 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ```  
 
+:::tip
+You may need to use absolute paths (rather than relying on shell exapansion for `~`) for the `GDRIVE_CREDENTIALS_PATH` and `GDRIVE_OAUTH_PATH`.
+:::
   5. Add your environment variables 
 
    ```sh
