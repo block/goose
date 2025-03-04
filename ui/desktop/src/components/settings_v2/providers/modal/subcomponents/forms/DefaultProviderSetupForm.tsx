@@ -1,6 +1,5 @@
 import React from 'react';
 import { Input } from '../../../../../ui/input';
-import { Lock } from 'lucide-react';
 import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 
 export default function DefaultProviderSetupForm({ configValues, setConfigValues, provider }) {
