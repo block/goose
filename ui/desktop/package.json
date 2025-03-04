@@ -99,6 +99,8 @@
     "react-select": "^5.9.0",
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^8.0.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "unist-util-visit": "^5.0.0",
