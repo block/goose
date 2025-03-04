@@ -41,7 +41,7 @@ import RateLimits from '@site/src/components/RateLimits';
       </TabItem>
       <TabItem value="ui" label="Goose Desktop">
         Install Goose directly from the browser or with [Homebrew](https://brew.sh/).
-        <h3 style={{ marginTop: '1rem' }}>(Option 1) Install via browser</h3>
+        <h3 style={{ marginTop: '1rem' }}>Option 1: Install via Download</h3>
         To install Goose, click the **button** below:
         <div className="pill-button">
           <Link
@@ -60,7 +60,7 @@ import RateLimits from '@site/src/components/RateLimits';
           It's best to keep Goose updated. To update, reperform installation steps.
           :::
         </div>
-        <h3>(Option 2) Install via Homebrew</h3>
+        <h3>Option 2: Install via Homebrew</h3>
         Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too. 
         ```bash
           brew install --cask block-goose
