@@ -1,9 +1,8 @@
+use super::completion::GooseCompleter;
 use anyhow::Result;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
-
-use super::completion::GooseCompleter;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -15,6 +14,7 @@ pub enum InputResult {
     Retry,
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
+    GooseMode(String),
 }
 
 #[derive(Debug)]
@@ -96,6 +96,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         }
         s if s.starts_with("/extension ") => Some(InputResult::AddExtension(s[11..].to_string())),
         s if s.starts_with("/builtin ") => Some(InputResult::AddBuiltin(s[9..].to_string())),
+        s if s.starts_with("/mode ") => Some(InputResult::GooseMode(s[6..].to_string())),
         _ => None,
     }
 }
