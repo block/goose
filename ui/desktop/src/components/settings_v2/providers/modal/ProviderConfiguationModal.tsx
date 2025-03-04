@@ -6,11 +6,13 @@ import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { useProviderModal } from './ProviderModalProvider';
 import { toast } from 'react-toastify';
+import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 
 export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
-  console.log('currentProvider', currentProvider);
   const [configValues, setConfigValues] = useState({});
+
+  console.log('Current provider:', currentProvider);
 
   // Reset form values when provider changes
   useEffect(() => {
@@ -33,12 +35,22 @@ export default function ProviderConfigurationModal() {
   const headerText = `Configure ${currentProvider.name}`;
   const descriptionText = `Add your generated api keys for this provider to integrate into Goose`;
 
-  // Use custom form component if provider specifies one, otherwise use default
-  const FormComponent = currentProvider.CustomForm || DefaultProviderSetupForm;
+  // Find the provider in the registry to get the details with customForm
+  const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
+
+  console.log('Provider entry:', providerEntry);
+
+  // Get the custom form component from the provider details
+  const CustomForm = providerEntry?.details?.customForm;
+  console.log('Custom form component:', CustomForm);
+
+  // Use custom form component if available, otherwise use default
+  const FormComponent = CustomForm || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
 
+    console.log('in handle submit');
     // Use custom submit handler if provided in modalProps
     if (modalProps.onSubmit) {
       modalProps.onSubmit(configValues);
@@ -72,12 +84,10 @@ export default function ProviderConfigurationModal() {
       <FormComponent
         configValues={configValues}
         setConfigValues={setConfigValues}
-        onSubmit={handleSubmitForm}
         provider={currentProvider}
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
-
-      <ProviderSetupActions onCancel={handleCancel} />
+      <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />
     </Modal>
   );
 }

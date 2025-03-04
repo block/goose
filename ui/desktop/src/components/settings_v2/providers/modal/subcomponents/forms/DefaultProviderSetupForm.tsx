@@ -8,14 +8,13 @@ import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 export default function DefaultProviderSetupForm({
   configValues,
   setConfigValues,
-  onSubmit,
   provider,
 }: ProviderSetupFormProps) {
   const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === provider.name);
   const parameters: ParameterSchema[] = providerEntry.details.parameters;
 
   return (
-    <form onSubmit={onSubmit}>
+    <form>
       <div className="mt-4 space-y-4">
         {parameters.map((parameter) => (
           <div key={parameter.name}>

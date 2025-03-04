@@ -67,7 +67,7 @@ export default function ProviderGrid({
     <GridLayout>
       <ProviderModalProvider>
         <ProviderCards providers={providers} isOnboarding={isOnboarding} />
-        <ProviderConfigurationModal /> {/* This is missing! */}
+        <ProviderConfigurationModal />
       </ProviderModalProvider>
     </GridLayout>
   );

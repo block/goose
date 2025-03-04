@@ -1,8 +1,9 @@
 import React from 'react';
 import ProviderDetails from './interfaces/ProviderDetails';
 import DefaultCardButtons from './subcomponents/buttons/DefaultCardButtons';
-import ButtonCallbacks from '@/src/components/settings_v2/providers/interfaces/ButtonCallbacks';
-import ProviderState from '@/src/components/settings_v2/providers/interfaces/ProviderState';
+import ButtonCallbacks from './interfaces/ButtonCallbacks';
+import ProviderState from './interfaces/ProviderState';
+import OllamaForm from './modal/subcomponents/forms/OllamaForm';
 
 // Helper function to generate default actions for most providers
 const getDefaultButtons = (
@@ -94,6 +95,16 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
         {
           name: 'OPENAI_API_KEY',
           is_secret: true,
+        },
+        {
+          name: 'OPENAI_HOST',
+          is_secret: false,
+          default: 'https://api.openai.com',
+        },
+        {
+          name: 'OPENAI_BASE_PATH',
+          is_secret: false,
+          default: 'v1/chat/completions',
         },
       ],
       getActions: (provider, callbacks, isOnboardingPage) =>
@@ -189,6 +200,32 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       parameters: [
         {
           name: 'OLLAMA_HOST',
+          is_secret: false,
+          default: 'localhost',
+        },
+      ],
+      customForm: OllamaForm,
+      getActions: (provider, callbacks, isOnboardingPage) =>
+        getDefaultButtons(provider, callbacks, isOnboardingPage),
+    },
+  },
+  {
+    name: 'Azure OpenAI',
+    details: {
+      id: 'azure_openai',
+      name: 'Azure OpenAI',
+      description: 'Access Azure OpenAI models',
+      parameters: [
+        {
+          name: 'AZURE_OPENAI_API_KEY',
+          is_secret: true,
+        },
+        {
+          name: 'AZURE_OPENAI_ENDPOINT',
+          is_secret: false,
+        },
+        {
+          name: 'AZURE_OPENAI_DEPLOYMENT_NAME',
           is_secret: false,
         },
       ],
