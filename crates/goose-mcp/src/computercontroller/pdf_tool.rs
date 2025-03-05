@@ -1,11 +1,11 @@
 use lopdf::{content::Content as PdfContent, Document, Object};
 use mcp_core::{Content, ToolError};
-use std::{fs, path::PathBuf};
+use std::{fs, path::Path};
 
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
-    cache_dir: &PathBuf,
+    cache_dir: &Path,
 ) -> Result<Vec<Content>, ToolError> {
     // Open and parse the PDF file
     let doc = Document::load(path)
@@ -51,7 +51,7 @@ pub async fn pdf_tool(
                                                     // "TJ" operator: show text with positioning
                                                     "TJ" => {
                                                         if let Some(Object::Array(ref arr)) =
-                                                            operation.operands.get(0)
+                                                            operation.operands.first()
                                                         {
                                                             let mut last_was_text = false;
                                                             for element in arr {
@@ -105,7 +105,7 @@ pub async fn pdf_tool(
             }
 
             if text.trim().is_empty() {
-                format!("No text found in PDF")
+                "No text found in PDF".to_string()
             } else {
                 format!("Extracted text from PDF:\n\n{}", text)
             }
@@ -147,13 +147,11 @@ pub async fn pdf_tool(
                         }
                         Object::Array(filters) => {
                             // If multiple filters, check the last one
-                            if let Some(last_filter) = filters.last() {
-                                if let Object::Name(name) = last_filter {
-                                    match name.as_slice() {
-                                        b"DCTDecode" => return ".jpg",
-                                        b"JPXDecode" => return ".jp2",
-                                        _ => {}
-                                    }
+                            if let Some(Object::Name(name)) = filters.last() {
+                                match name.as_slice() {
+                                    b"DCTDecode" => return ".jpg",
+                                    b"JPXDecode" => return ".jp2",
+                                    _ => {}
                                 }
                             }
                             ".raw"
@@ -307,7 +305,7 @@ pub async fn pdf_tool(
             }
 
             if images.is_empty() {
-                format!("No images found in PDF")
+                "No images found in PDF".to_string()
             } else {
                 format!("Found {} images:\n{}", image_count, images.join("\n"))
             }
