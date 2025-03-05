@@ -21,6 +21,7 @@ use mcp_server::Router;
 
 mod docx_tool;
 mod pdf_tool;
+mod xlsx_tool;
 
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
@@ -360,6 +361,67 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let xlsx_tool = Tool::new(
+            "xlsx_tool",
+            indoc! {r#"
+                Process Excel (XLSX) files to read and manipulate spreadsheet data.
+                Supports operations:
+                - list_worksheets: List all worksheets in the workbook
+                - get_columns: Get column names from a worksheet
+                - get_range: Get values and formulas from a cell range (e.g., "A1:C10")
+                - find_text: Search for text in a worksheet
+                - update_cell: Update a single cell's value
+                - get_cell: Get value and formula from a specific cell
+                - save: Save changes back to the file
+
+                Use this when working with Excel spreadsheets to analyze or modify data.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the XLSX file"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["list_worksheets", "get_columns", "get_range", "find_text", "update_cell", "get_cell", "save"],
+                        "description": "Operation to perform on the XLSX file"
+                    },
+                    "worksheet": {
+                        "type": "string",
+                        "description": "Worksheet name (if not provided, uses first worksheet)"
+                    },
+                    "range": {
+                        "type": "string",
+                        "description": "Cell range in A1 notation (e.g., 'A1:C10') for get_range operation"
+                    },
+                    "search_text": {
+                        "type": "string",
+                        "description": "Text to search for in find_text operation"
+                    },
+                    "case_sensitive": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether search should be case-sensitive"
+                    },
+                    "row": {
+                        "type": "integer",
+                        "description": "Row number for update_cell and get_cell operations"
+                    },
+                    "col": {
+                        "type": "integer",
+                        "description": "Column number for update_cell and get_cell operations"
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "New value for update_cell operation"
+                    }
+                }
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -489,6 +551,7 @@ impl ComputerControllerRouter {
                 cache_tool,
                 pdf_tool,
                 docx_tool,
+                xlsx_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -782,6 +845,166 @@ impl ComputerControllerRouter {
         Ok(vec![Content::text(result)])
     }
 
+    async fn xlsx_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let operation = params
+            .get("operation")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
+
+        match operation {
+            "list_worksheets" => {
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                let worksheets = xlsx
+                    .list_worksheets()
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!("{:#?}", worksheets))])
+            }
+            "get_columns" => {
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
+                {
+                    xlsx.get_worksheet_by_name(name)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                } else {
+                    xlsx.get_worksheet_by_index(0)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                };
+                let columns = xlsx
+                    .get_column_names(worksheet)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!("{:#?}", columns))])
+            }
+            "get_range" => {
+                let range = params
+                    .get("range")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'range' parameter".into())
+                    })?;
+
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
+                {
+                    xlsx.get_worksheet_by_name(name)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                } else {
+                    xlsx.get_worksheet_by_index(0)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                };
+                let range_data = xlsx
+                    .get_range(worksheet, range)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!("{:#?}", range_data))])
+            }
+            "find_text" => {
+                let search_text = params
+                    .get("search_text")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'search_text' parameter".into())
+                    })?;
+
+                let case_sensitive = params
+                    .get("case_sensitive")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
+                {
+                    xlsx.get_worksheet_by_name(name)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                } else {
+                    xlsx.get_worksheet_by_index(0)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                };
+                let matches = xlsx
+                    .find_in_worksheet(worksheet, search_text, case_sensitive)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!(
+                    "Found matches at: {:#?}",
+                    matches
+                ))])
+            }
+            "update_cell" => {
+                let row = params.get("row").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    ToolError::InvalidParameters("Missing 'row' parameter".into())
+                })?;
+
+                let col = params.get("col").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    ToolError::InvalidParameters("Missing 'col' parameter".into())
+                })?;
+
+                let value = params
+                    .get("value")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| {
+                        ToolError::InvalidParameters("Missing 'value' parameter".into())
+                    })?;
+
+                let worksheet_name = params
+                    .get("worksheet")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Sheet1");
+
+                let mut xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                xlsx.update_cell(worksheet_name, row as u32, col as u32, value)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                xlsx.save(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!(
+                    "Updated cell ({}, {}) to '{}' in worksheet '{}'",
+                    row, col, value, worksheet_name
+                ))])
+            }
+            "save" => {
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                xlsx.save(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text("File saved successfully.")])
+            }
+            "get_cell" => {
+                let row = params.get("row").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    ToolError::InvalidParameters("Missing 'row' parameter".into())
+                })?;
+
+                let col = params.get("col").and_then(|v| v.as_u64()).ok_or_else(|| {
+                    ToolError::InvalidParameters("Missing 'col' parameter".into())
+                })?;
+
+                let xlsx = xlsx_tool::XlsxTool::new(path)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                let worksheet = if let Some(name) = params.get("worksheet").and_then(|v| v.as_str())
+                {
+                    xlsx.get_worksheet_by_name(name)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                } else {
+                    xlsx.get_worksheet_by_index(0)
+                        .map_err(|e| ToolError::ExecutionError(e.to_string()))?
+                };
+                let cell_value = xlsx
+                    .get_cell_value(worksheet, row as u32, col as u32)
+                    .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
+                Ok(vec![Content::text(format!("{:#?}", cell_value))])
+            }
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid operation: {}",
+                operation
+            ))),
+        }
+    }
+
     // Implement cache tool functionality
     async fn docx_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let path = params
@@ -930,6 +1153,7 @@ impl Router for ComputerControllerRouter {
                 "cache" => this.cache(arguments).await,
                 "pdf_tool" => this.pdf_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
+                "xlsx_tool" => this.xlsx_tool(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })

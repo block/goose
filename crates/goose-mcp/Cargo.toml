@@ -41,6 +41,7 @@ ignore = "0.4"
 lopdf = "0.35.0"
 docx-rs = "0.4.7"
 image = "0.24.9"
+umya-spreadsheet = "2.2.3"
 
 [dev-dependencies]
 serial_test = "3.0.0"
