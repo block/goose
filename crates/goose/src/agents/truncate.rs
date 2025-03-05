@@ -214,7 +214,7 @@ impl Agent for TruncateAgent {
             );
         }
 
-        let system_prompt = capabilities.get_system_prompt(goose_mode.as_str()).await;
+        let system_prompt = capabilities.get_system_prompt().await;
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages

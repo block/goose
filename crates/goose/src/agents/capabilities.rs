@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
+use crate::config::Config;
 use crate::prompt_template;
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
@@ -322,9 +323,11 @@ impl Capabilities {
     }
 
     /// Get the extension prompt including client instructions
-    pub async fn get_system_prompt(&self, goose_mode: &str) -> String {
+    pub async fn get_system_prompt(&self) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
 
+        let config = Config::global();
+        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
         // In chat mode, we don't need to have the extensions to confuse LLM and it can help save cost as well.
         if goose_mode != "chat" {
             let extensions_info: Vec<ExtensionInfo> = self
