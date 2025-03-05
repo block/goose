@@ -1,7 +1,7 @@
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
-use lopdf::Document;
+use lopdf::{Document, Object, content::Content as PdfContent};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
@@ -698,19 +698,66 @@ impl ComputerControllerRouter {
 
         let result = match operation {
             "extract_text" => {
-                let pages = doc.get_pages();
                 let mut text = String::new();
 
-                for (page_num, page_id) in pages {
+                // Iterate over each page in the document
+                for (page_num, page_id) in doc.get_pages() {
                     text.push_str(&format!("Page {}:\n", page_num));
-                    match doc.extract_text(&[page_id.1 as u32]) {
-                        Ok(content) => text.push_str(&content),
-                        Err(_) => text.push_str("(No text found)\n"),
+
+                    // Try to get text from page contents
+                    if let Ok(page_obj) = doc.get_object(page_id) {
+                        if let Ok(page_dict) = page_obj.as_dict() {
+                            // Try to get text from Contents stream
+                            if let Ok(contents) = page_dict.get(b"Contents").and_then(|c| c.as_reference()) {
+                                if let Ok(content_obj) = doc.get_object(contents) {
+                                    if let Ok(stream) = content_obj.as_stream() {
+                                        if let Ok(content_data) = stream.get_plain_content() {
+                                            if let Ok(content) = PdfContent::decode(&content_data) {
+                                                // Process each operation in the content stream
+                                                for operation in content.operations {
+                                                    match operation.operator.as_ref() {
+                                                        // "Tj" operator: show text
+                                                        "Tj" => {
+                                                            for operand in operation.operands {
+                                                                if let Object::String(ref bytes, _) = operand {
+                                                                    if let Ok(s) = std::str::from_utf8(bytes) {
+                                                                        text.push_str(s);
+                                                                        text.push(' ');
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        // "TJ" operator: show text with positioning
+                                                        "TJ" => {
+                                                            if let Some(Object::Array(ref arr)) = operation.operands.get(0) {
+                                                                for element in arr {
+                                                                    if let Object::String(ref bytes, _) = element {
+                                                                        if let Ok(s) = std::str::from_utf8(bytes) {
+                                                                            text.push_str(s);
+                                                                        }
+                                                                    }
+                                                                }
+                                                                text.push(' ');
+                                                            }
+                                                        },
+                                                        _ => () // Ignore other operators
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     text.push('\n');
                 }
 
-                format!("Extracted text from PDF:\n\n{}", text)
+                if text.trim().is_empty() {
+                    format!("No text found in PDF")
+                } else {
+                    format!("Extracted text from PDF:\n\n{}", text)
+                }
             }
 
             "extract_images" => {
