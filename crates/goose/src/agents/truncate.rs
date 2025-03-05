@@ -206,6 +206,14 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
+        if goose_mode == "chat" {
+            tools.clear();
+            capabilities.add_system_prompt_extension(
+                "Right now you are in the chat only mode, no access to any tool use and system."
+                    .to_string(),
+            );
+        }
+
         let system_prompt = capabilities.get_system_prompt(goose_mode.as_str()).await;
 
         // Set the user_message field in the span instead of creating a new event
@@ -215,10 +223,6 @@ impl Agent for TruncateAgent {
             .and_then(|c| c.as_text())
         {
             debug!("user_message" = &content);
-        }
-
-        if goose_mode == "chat" {
-            tools.clear();
         }
 
         Ok(Box::pin(async_stream::try_stream! {
