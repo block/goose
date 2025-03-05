@@ -19,8 +19,8 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-mod pdf_tool;
 mod docx_tool;
+mod pdf_tool;
 
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
@@ -799,7 +799,8 @@ impl ComputerControllerRouter {
             operation,
             params.get("content").and_then(|v| v.as_str()),
             params.get("params"),
-        ).await
+        )
+        .await
     }
 
     async fn pdf_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
