@@ -216,7 +216,7 @@ Always respond with the following tool_calls array format:
   ]
 }}
 
-If no tools are referenced, return an empty tool_calls array:
+You should return an empty tool_calls array if no tools are explicitly referenced:
 {{
   \"tool_calls\": []
 }}
