@@ -409,7 +409,9 @@ pub(crate) async fn get_oauth_token_async(
                     // Try to refresh the token
                     match flow.refresh_token(&refresh_token).await {
                         Ok(new_token) => {
-                            // Cache and return the refreshed token
+                            // NOTE: Per OAuth 2.0 RFC 6749, the authorization server MAY issue
+                            // a new refresh_token. We save the entire token response so that we
+                            // capture all updated token data, even if no new refresh_token is returned.
                             if let Err(e) = token_cache.save_token(&new_token) {
                                 tracing::warn!("Failed to save refreshed token: {}", e);
                             }
