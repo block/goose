@@ -1,12 +1,12 @@
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
-use pdf::{file::FileOptions, primitive::PdfString, object::{Resolve, XObject}};
+use lopdf::Document;
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc,
-    sync::Mutex, io::Write,
+    collections::HashMap, fs, future::Future, io::Write, path::PathBuf, pin::Pin, sync::Arc,
+    sync::Mutex,
 };
 use tokio::process::Command;
 
@@ -237,10 +237,9 @@ impl ComputerControllerRouter {
         let pdf_tool = Tool::new(
             "pdf_tool",
             indoc! {r#"
-                Process PDF files to extract text, metadata, and images.
+                Process PDF files to extract text and images.
                 Supports operations:
                 - extract_text: Extract all text content from the PDF
-                - get_metadata: Get PDF metadata (title, author, etc.)
                 - extract_images: Extract and save embedded images to PNG files
             "#},
             json!({
@@ -253,7 +252,7 @@ impl ComputerControllerRouter {
                     },
                     "operation": {
                         "type": "string",
-                        "enum": ["extract_text", "get_metadata", "extract_images"],
+                        "enum": ["extract_text", "extract_images"],
                         "description": "Operation to perform on the PDF"
                     }
                 }
@@ -694,70 +693,84 @@ impl ComputerControllerRouter {
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
 
         // Open and parse the PDF file
-        let pdf = FileOptions::cached()
-            .open(path)
+        let doc = Document::load(path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to open PDF file: {}", e)))?;
 
         let result = match operation {
             "extract_text" => {
+                let pages = doc.get_pages();
                 let mut text = String::new();
-                for i in 0..pdf.num_pages() {
-                    if let Ok(page) = pdf.get_page(i) {
-                        text.push_str(&format!("Page {}:\n", i + 1));
-                        if let Some(contents) = &page.contents {
-                            text.push_str(&format!("{:?}\n", contents));
-                        }
-                        text.push('\n');
+
+                for (page_num, page_id) in pages {
+                    text.push_str(&format!("Page {}:\n", page_num));
+                    match doc.extract_text(&[page_id.1 as u32]) {
+                        Ok(content) => text.push_str(&content),
+                        Err(_) => text.push_str("(No text found)\n"),
                     }
+                    text.push('\n');
                 }
+
                 format!("Extracted text from PDF:\n\n{}", text)
             }
-            "get_metadata" => {
-                let info = pdf.trailer.info_dict.as_ref().map(|dict| {
-                    let mut metadata = Vec::new();
-                    if let Some(title) = dict.title.as_ref() {
-                        metadata.push(format!("Title: {}", PdfString::to_string_lossy(title)));
-                    }
-                    if let Some(author) = dict.author.as_ref() {
-                        metadata.push(format!("Author: {}", PdfString::to_string_lossy(author)));
-                    }
-                    if let Some(subject) = dict.subject.as_ref() {
-                        metadata.push(format!("Subject: {}", PdfString::to_string_lossy(subject)));
-                    }
-                    if let Some(keywords) = dict.keywords.as_ref() {
-                        metadata.push(format!("Keywords: {}", PdfString::to_string_lossy(keywords)));
-                    }
-                    if let Some(creator) = dict.creator.as_ref() {
-                        metadata.push(format!("Creator: {}", PdfString::to_string_lossy(creator)));
-                    }
-                    if let Some(producer) = dict.producer.as_ref() {
-                        metadata.push(format!("Producer: {}", PdfString::to_string_lossy(producer)));
-                    }
-                    metadata.join("\n")
-                });
-                format!("PDF Metadata:\n\n{}", info.unwrap_or_else(|| "No metadata found".to_string()))
-            }
+
             "extract_images" => {
-                let mut images = Vec::new();
                 let cache_dir = self.get_cache_path("pdf_images", "");
                 fs::create_dir_all(&cache_dir).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to create image cache directory: {}", e))
+                    ToolError::ExecutionError(format!(
+                        "Failed to create image cache directory: {}",
+                        e
+                    ))
                 })?;
 
-                for i in 0..pdf.num_pages() {
-                    if let Ok(page) = pdf.get_page(i) {
-                        if let Some(resources) = &page.resources {
-                            let xobjects = &resources.xobjects;
-                            for (_name, xobject) in xobjects.iter() {
-                                if let Ok(obj) = pdf.resolver().get(*xobject) {
-                                    if let XObject::Image(image) = &*obj {
-                                        let image_path = cache_dir.join(format!("image_{}.png", images.len()));
-                                        if let Ok(mut file) = std::fs::File::create(&image_path) {
-                                            // Write raw image data
-                                            let resolver = pdf.resolver();
-                                            if let Ok((data, _)) = image.raw_image_data(&resolver) {
-                                                if file.write_all(&data).is_ok() {
-                                                    images.push(format!("Saved image to: {}", image_path.display()));
+                let mut images = Vec::new();
+                let mut image_count = 0;
+
+                for (_, page_id) in doc.get_pages() {
+                    if let Ok(page_obj) = doc.get_object(page_id) {
+                        if let Ok(page_dict) = page_obj.as_dict() {
+                            if let Ok(resources) =
+                                page_dict.get(b"Resources").and_then(|r| r.as_dict())
+                            {
+                                if let Ok(xobjects) =
+                                    resources.get(b"XObject").and_then(|x| x.as_dict())
+                                {
+                                    for (_, xobject) in xobjects.iter() {
+                                        if let Ok(xobject_id) = xobject.as_reference() {
+                                            if let Ok(xobject) = doc.get_object(xobject_id) {
+                                                if let Ok(stream) = xobject.as_stream() {
+                                                    // Check if it's an image by looking at the Subtype
+                                                    if let Ok(subtype) = stream
+                                                        .dict
+                                                        .get(b"Subtype")
+                                                        .and_then(|s| s.as_name())
+                                                    {
+                                                        if subtype == b"Image" {
+                                                            // Get the raw image data
+                                                            if let Ok(data) =
+                                                                stream.get_plain_content()
+                                                            {
+                                                                let image_path =
+                                                                    cache_dir.join(format!(
+                                                                        "image_{}.jpg",
+                                                                        image_count
+                                                                    ));
+                                                                if let Ok(mut file) =
+                                                                    std::fs::File::create(
+                                                                        &image_path,
+                                                                    )
+                                                                {
+                                                                    if file.write_all(&data).is_ok()
+                                                                    {
+                                                                        images.push(format!(
+                                                                            "Saved image to: {}",
+                                                                            image_path.display()
+                                                                        ));
+                                                                        image_count += 1;
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -774,9 +787,10 @@ impl ComputerControllerRouter {
                     format!("Extracted images:\n{}", images.join("\n"))
                 }
             }
+
             _ => {
                 return Err(ToolError::InvalidParameters(format!(
-                    "Invalid operation: {}. Valid operations are: 'extract_text', 'get_metadata', 'extract_images'",
+                    "Invalid operation: {}. Valid operations are: 'extract_text', 'extract_images'",
                     operation
                 )))
             }
@@ -975,8 +989,8 @@ impl Router for ComputerControllerRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use serde_json::json;
+    use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_pdf_text_extraction() {
@@ -984,10 +998,12 @@ mod tests {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test.pdf");
 
-        let result = router.pdf_tool(json!({
-            "path": test_pdf_path.to_str().unwrap(),
-            "operation": "extract_text"
-        })).await;
+        let result = router
+            .pdf_tool(json!({
+                "path": test_pdf_path.to_str().unwrap(),
+                "operation": "extract_text"
+            }))
+            .await;
 
         assert!(result.is_ok(), "PDF text extraction should succeed");
         let content = result.unwrap();
@@ -998,53 +1014,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pdf_metadata() {
-        let router = ComputerControllerRouter::new();
-        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test.pdf");
-
-        let result = router.pdf_tool(json!({
-            "path": test_pdf_path.to_str().unwrap(),
-            "operation": "get_metadata"
-        })).await;
-
-        assert!(result.is_ok(), "PDF metadata extraction should succeed");
-        let content = result.unwrap();
-        assert!(!content.is_empty(), "Metadata should not be empty");
-        let text = content[0].as_text().unwrap();
-        println!("Metadata: {}", text);
-        assert!(text.contains("PDF Metadata"), "Should contain metadata header");
-    }
-
-    #[tokio::test]
     async fn test_pdf_image_extraction() {
         let router = ComputerControllerRouter::new();
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test_image.pdf");
 
-        let result = router.pdf_tool(json!({
-            "path": test_pdf_path.to_str().unwrap(),
-            "operation": "extract_images"
-        })).await;
+        // First try text extraction to see the content
+        let text_result = router
+            .pdf_tool(json!({
+                "path": test_pdf_path.to_str().unwrap(),
+                "operation": "extract_text"
+            }))
+            .await;
+
+        println!(
+            "Text content: {}",
+            text_result.unwrap()[0].as_text().unwrap()
+        );
+
+        // Now try image extraction
+        let result = router
+            .pdf_tool(json!({
+                "path": test_pdf_path.to_str().unwrap(),
+                "operation": "extract_images"
+            }))
+            .await;
 
         assert!(result.is_ok(), "PDF image extraction should succeed");
         let content = result.unwrap();
-        assert!(!content.is_empty(), "Image extraction result should not be empty");
+        assert!(
+            !content.is_empty(),
+            "Image extraction result should not be empty"
+        );
         let text = content[0].as_text().unwrap();
         println!("Image extraction result: {}", text);
-        
+
         // Should either find images or explicitly state none were found
-        assert!(text.contains("Saved image to:") || text.contains("No images found"),
-                "Should either save images or report none found");
+        assert!(
+            text.contains("Saved image to:") || text.contains("No images found"),
+            "Should either save images or report none found"
+        );
     }
 
     #[tokio::test]
     async fn test_pdf_invalid_path() {
         let router = ComputerControllerRouter::new();
-        let result = router.pdf_tool(json!({
-            "path": "nonexistent.pdf",
-            "operation": "extract_text"
-        })).await;
+        let result = router
+            .pdf_tool(json!({
+                "path": "nonexistent.pdf",
+                "operation": "extract_text"
+            }))
+            .await;
 
         assert!(result.is_err(), "Should fail with invalid path");
     }
@@ -1055,10 +1075,12 @@ mod tests {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/computercontroller/tests/data/test.pdf");
 
-        let result = router.pdf_tool(json!({
-            "path": test_pdf_path.to_str().unwrap(),
-            "operation": "invalid_operation"
-        })).await;
+        let result = router
+            .pdf_tool(json!({
+                "path": test_pdf_path.to_str().unwrap(),
+                "operation": "invalid_operation"
+            }))
+            .await;
 
         assert!(result.is_err(), "Should fail with invalid operation");
     }
