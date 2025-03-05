@@ -44,10 +44,7 @@ impl Evaluation for DeveloperImage {
                                 serde_json::from_value::<Value>(tool_call.arguments.clone())
                             {
                                 if tool_call.name == "developer__screen_capture"
-                                    && args
-                                        .get("display")
-                                        .and_then(Value::as_i64)
-                                        .map_or(false, |display| display == 0)
+                                    && (args.get("display").and_then(Value::as_i64) == Some(0))
                                 {
                                     valid_tool_call = true;
                                 }
