@@ -10,6 +10,7 @@ use tracing::{debug, instrument};
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::config::Config;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -125,7 +126,9 @@ impl Agent for ReferenceAgent {
             tools.push(list_resources_tool);
         }
 
-        let system_prompt = capabilities.get_system_prompt().await;
+        let config = Config::global();
+        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let system_prompt = capabilities.get_system_prompt(goose_mode.as_str()).await;
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages

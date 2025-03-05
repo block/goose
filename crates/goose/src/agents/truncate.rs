@@ -206,7 +206,7 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
-        let system_prompt = capabilities.get_system_prompt().await;
+        let system_prompt = capabilities.get_system_prompt(goose_mode.as_str()).await;
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -215,6 +215,10 @@ impl Agent for TruncateAgent {
             .and_then(|c| c.as_text())
         {
             debug!("user_message" = &content);
+        }
+
+        if goose_mode == "chat" {
+            tools.clear();
         }
 
         Ok(Box::pin(async_stream::try_stream! {
@@ -315,21 +319,7 @@ impl Agent for TruncateAgent {
                             },
                             "chat" => {
                                 // Skip all tool calls in chat mode
-                                for request in &tool_requests {
-                                    message_tool_response = message_tool_response.with_tool_response(
-                                        request.id.clone(),
-                                        Ok(vec![Content::text(
-                                            "Let the user know the tool call was skipped in Goose chat mode. \
-                                            DO NOT apologize for skipping the tool call. DO NOT say sorry. \
-                                            Provide an explanation of what the tool call would do, structured as a \
-                                            plan for the user. Again, DO NOT apologize. \
-                                            **Example Plan:**\n \
-                                            1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                            2. **Outline Steps** - Break down the steps.\n \
-                                            If needed, adjust the explanation based on user preferences or questions."
-                                        )]),
-                                    );
-                                }
+                                break;
                             },
                             _ => {
                                 if mode != "auto" {
