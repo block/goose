@@ -20,7 +20,7 @@ enum UpdateMode {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct DocxStyle {
     bold: bool,
     italic: bool,
@@ -28,19 +28,6 @@ struct DocxStyle {
     size: Option<usize>,
     color: Option<String>,
     alignment: Option<AlignmentType>,
-}
-
-impl Default for DocxStyle {
-    fn default() -> Self {
-        Self {
-            bold: false,
-            italic: false,
-            underline: false,
-            size: None,
-            color: None,
-            alignment: None,
-        }
-    }
 }
 
 impl DocxStyle {
@@ -155,8 +142,10 @@ pub async fn docx_tool(
                         .join("");
 
                     if !para_text.trim().is_empty() {
-                        if let Some(_) = current_level {
-                            structure.last_mut().map(|s| s.push_str(&para_text));
+                        if current_level.is_some() {
+                            if let Some(s) = structure.last_mut() {
+                                s.push_str(&para_text);
+                            }
                             current_level = None;
                         }
                         text.push_str(&para_text);
@@ -191,7 +180,7 @@ pub async fn docx_tool(
                     .get("mode")
                     .and_then(|v| v.as_str())
                     .unwrap_or("append");
-                let style = params.get("style").map(DocxStyle::from_json).flatten();
+                let style = params.get("style").and_then(DocxStyle::from_json);
 
                 let mode = match mode {
                     "append" => UpdateMode::Append,
