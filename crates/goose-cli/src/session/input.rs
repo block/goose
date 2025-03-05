@@ -177,6 +177,7 @@ fn print_help() {
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
+/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat')
 /? or /help - Display this help message
 
 Navigation:
