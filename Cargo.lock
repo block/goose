@@ -2239,6 +2239,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "utoipa",
  "uuid",
  "webbrowser",
  "winapi",

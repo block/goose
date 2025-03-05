@@ -5,11 +5,12 @@ use axum::{
     Json, Router,
 };
 use goose::config::Config;
+use goose::providers::providers as get_providers;
+use goose::providers::base::ProviderMetadata;
 use http::{StatusCode, HeaderMap};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::{collections::HashMap};
 use utoipa::ToSchema;
 
 use crate::state::AppState;
@@ -49,6 +50,11 @@ pub struct ExtensionQuery {
 #[derive(Serialize, ToSchema)]
 pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct ProvidersResponse {
+    pub providers: Vec<ProviderMetadata>,
 }
 
 #[utoipa::path(
@@ -277,6 +283,22 @@ pub async fn update_extension(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/config/providers",
+    responses(
+        (status = 200, description = "All configuration values retrieved successfully", body = ConfigResponse)
+    )
+)]
+pub async fn providers(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ProvidersResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+    let providers = get_providers();
+    Ok(Json(ProvidersResponse { providers }))
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -286,5 +308,6 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extension", post(add_extension))
         .route("/config/extension", put(update_extension))
         .route("/config/extension", delete(remove_extension))
+        .route("/config/providers", get(providers))
         .with_state(state)
 }

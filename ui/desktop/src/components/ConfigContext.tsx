@@ -7,6 +7,7 @@ import {
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
   updateExtension as apiUpdateExtension,
+  providers,
 } from '../api';
 import { client } from '../api/client.gen';
 
@@ -66,6 +67,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     return await readConfig({
       body: { key },
     });
+  };
+
+  const get_providers = async () => {
+    return await providers();
   };
 
   const remove = async (key: string) => {
