@@ -3,6 +3,7 @@ mod capabilities;
 pub mod extension;
 mod factory;
 mod permission_judge;
+mod permission_store;
 mod reference;
 mod truncate;
 
@@ -11,3 +12,4 @@ pub use capabilities::Capabilities;
 pub use extension::ExtensionConfig;
 pub use factory::{register_agent, AgentFactory};
 pub use permission_judge::detect_read_only_tools;
+pub use permission_store::ToolPermissionStore;

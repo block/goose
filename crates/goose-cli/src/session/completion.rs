@@ -550,4 +550,38 @@ mod tests {
             .unwrap();
         assert_eq!(candidates.len(), 0);
     }
+
+    #[test]
+    fn test_complete_slash_commands_partial() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test partial command
+        let (pos, candidates) = completer.complete_slash_commands("/p").unwrap();
+        assert_eq!(pos, 0);
+        assert!(candidates.iter().any(|c| c.display == "/prompt"));
+        assert!(candidates.iter().any(|c| c.display == "/prompts"));
+    }
+
+    #[test]
+    fn test_complete_prompt_flags_info() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test --info flag completion
+        let (pos, candidates) = completer.complete_prompt_flags("/prompt test_prompt1 --").unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "--info");
+    }
+
+    #[test]
+    fn test_complete_argument_keys_required() {
+        let cache = create_test_cache();
+        let completer = GooseCompleter::new(cache);
+
+        // Test required argument completion
+        let (_, candidates) = completer.complete_argument_keys("/prompt test_prompt1 ").unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].display, "required_arg=");
+    }
 }

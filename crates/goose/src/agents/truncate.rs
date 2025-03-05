@@ -12,6 +12,7 @@ use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::agents::ToolPermissionStore;
 use crate::config::Config;
 use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
@@ -265,19 +266,43 @@ impl Agent for TruncateAgent {
                         match mode.as_str() {
                             "approve" => {
                                 let mut read_only_tools = Vec::new();
-                                // Process each tool request sequentially with confirmation
-                                if ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
-                                    read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
-                                }
+                                let mut needs_confirmation = Vec::new();
+
+                                // First check permissions for all tools
+                                let store = ToolPermissionStore::load()?;
                                 for request in &tool_requests {
+                                    if let Ok(tool_call) = request.tool_call.clone() {
+                                        if let Some(allowed) = store.check_permission(request) {
+                                            if allowed {
+                                                let output = capabilities.dispatch_tool_call(tool_call).await;
+                                                message_tool_response = message_tool_response.with_tool_response(
+                                                    request.id.clone(),
+                                                    output,
+                                                );
+                                            } else {
+                                                needs_confirmation.push(request.clone());
+                                            }
+                                        } else {
+                                            needs_confirmation.push(request.clone());
+                                        }
+                                    }
+                                }
+
+                                // Only check read-only status for tools needing confirmation
+                                if !needs_confirmation.is_empty() && ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
+                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
+                                }
+
+                                // Process remaining tools that need confirmation
+                                for request in &needs_confirmation {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
                                         if read_only_tools.contains(&tool_call.name) {
                                             let output = capabilities.dispatch_tool_call(tool_call).await;
-                                                    message_tool_response = message_tool_response.with_tool_response(
-                                                        request.id.clone(),
-                                                        output,
-                                                    );
+                                            message_tool_response = message_tool_response.with_tool_response(
+                                                request.id.clone(),
+                                                output,
+                                            );
                                         } else {
                                             let confirmation = Message::user().with_tool_confirmation_request(
                                                 request.id.clone(),
@@ -289,9 +314,12 @@ impl Agent for TruncateAgent {
 
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
-                                            // Loop the recv until we have a matched req_id due to potential duplicate messages.
                                             while let Some((req_id, confirmed)) = rx.recv().await {
                                                 if req_id == request.id {
+                                                    // Store the user's response
+                                                    let mut store = ToolPermissionStore::load()?;
+                                                    store.record_permission(&request, confirmed, None)?;
+
                                                     if confirmed {
                                                         // User approved - dispatch the tool call
                                                         let output = capabilities.dispatch_tool_call(tool_call).await;
