@@ -18,6 +18,8 @@ type ElectronAPI = {
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
   getBinaryPath: (binaryName: string) => Promise<string>;
+  readFile: (directory: string) => Promise<{ file: string; filePath: string; error: string; found: boolean }>;
+  writeFile: (directory: string, content: string) => Promise<boolean>;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void
@@ -50,6 +52,8 @@ const electronAPI: ElectronAPI = {
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
+  readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
+  writeFile: (filePath: string, content: string) => ipcRenderer.invoke('write-file', filePath, content),
   on: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => {
     ipcRenderer.on(channel, callback);
   },

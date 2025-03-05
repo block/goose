@@ -2,6 +2,8 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
@@ -11,14 +13,19 @@ use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
+use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
+use crate::session;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
+use anyhow::{anyhow, Result};
 use indoc::indoc;
+use mcp_core::prompt::Prompt;
+use mcp_core::protocol::GetPromptResult;
 use mcp_core::{tool::Tool, Content};
 use serde_json::{json, Value};
 
@@ -138,10 +145,11 @@ impl Agent for TruncateAgent {
         }
     }
 
-    #[instrument(skip(self, messages), fields(user_message))]
+    #[instrument(skip(self, messages, session_id), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
+        session_id: Option<session::Identifier>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
@@ -218,7 +226,19 @@ impl Agent for TruncateAgent {
                     &tools,
                 ).await {
                     Ok((response, usage)) => {
-                        capabilities.record_usage(usage).await;
+                        capabilities.record_usage(usage.clone()).await;
+
+                        // record usage for the session in the session file
+                        if let Some(session_id) = session_id.clone() {
+                            // TODO: track session_id in langfuse tracing
+                            let session_file = session::get_path(session_id);
+                            let mut metadata = session::read_metadata(&session_file)?;
+                            metadata.total_tokens = usage.usage.total_tokens;
+                            // The message count is the number of messages in the session + 1 for the response
+                            // The message count does not include the tool response till next iteration
+                            metadata.message_count = messages.len() + 1;
+                            session::update_metadata(&session_file, &metadata).await?;
+                        }
 
                         // Reset truncation attempt
                         truncation_attempt = 0;
@@ -238,15 +258,17 @@ impl Agent for TruncateAgent {
                             break;
                         }
 
-                        let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
-
                         // Process tool requests depending on goose_mode
                         let mut message_tool_response = Message::user();
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
                         match mode.as_str() {
                             "approve" => {
+                                let mut read_only_tools = Vec::new();
                                 // Process each tool request sequentially with confirmation
+                                if ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
+                                    read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
+                                }
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
@@ -261,13 +283,14 @@ impl Agent for TruncateAgent {
                                                 request.id.clone(),
                                                 tool_call.name.clone(),
                                                 tool_call.arguments.clone(),
-                                                Some("Goose would like to call the tool: {}\nAllow? (y/n): ".to_string()),
+                                                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
                                             );
                                             yield confirmation;
 
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
-                                            if let Some((req_id, confirmed)) = rx.recv().await {
+                                            // Loop the recv until we have a matched req_id due to potential duplicate messages.
+                                            while let Some((req_id, confirmed)) = rx.recv().await {
                                                 if req_id == request.id {
                                                     if confirmed {
                                                         // User approved - dispatch the tool call
@@ -283,6 +306,7 @@ impl Agent for TruncateAgent {
                                                             Ok(vec![Content::text("User declined to run this tool.")]),
                                                         );
                                                     }
+                                                    break; // Exit the loop once the matching `req_id` is found
                                                 }
                                             }
                                         }
@@ -295,13 +319,14 @@ impl Agent for TruncateAgent {
                                     message_tool_response = message_tool_response.with_tool_response(
                                         request.id.clone(),
                                         Ok(vec![Content::text(
-                                            "The following tool call was skipped in Goose chat mode. \
-                                            In chat mode, you cannot run tool calls, instead, you can \
-                                            only provide a detailed plan to the user. Provide an \
-                                            explanation of the proposed tool call as if it were a plan. \
-                                            Only if the user asks, provide a short explanation to the \
-                                            user that they could consider running the tool above on \
-                                            their own or with a different goose mode."
+                                            "Let the user know the tool call was skipped in Goose chat mode. \
+                                            DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                            Provide an explanation of what the tool call would do, structured as a \
+                                            plan for the user. Again, DO NOT apologize. \
+                                            **Example Plan:**\n \
+                                            1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                            2. **Outline Steps** - Break down the steps.\n \
+                                            If needed, adjust the explanation based on user preferences or questions."
                                         )]),
                                     );
                                 }
@@ -394,6 +419,42 @@ impl Agent for TruncateAgent {
     async fn override_system_prompt(&mut self, template: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.set_system_prompt_override(template);
+    }
+
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
+            .list_prompts()
+            .await
+            .expect("Failed to list prompts")
+    }
+
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+        let capabilities = self.capabilities.lock().await;
+
+        // First find which extension has this prompt
+        let prompts = capabilities
+            .list_prompts()
+            .await
+            .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
+
+        if let Some(extension) = prompts
+            .iter()
+            .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
+            .map(|(extension, _)| extension)
+        {
+            return capabilities
+                .get_prompt(extension, name, arguments)
+                .await
+                .map_err(|e| anyhow!("Failed to get prompt: {}", e));
+        }
+
+        Err(anyhow!("Prompt '{}' not found", name))
+    }
+
+    async fn provider(&self) -> Arc<Box<dyn Provider>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities.provider()
     }
 }
 

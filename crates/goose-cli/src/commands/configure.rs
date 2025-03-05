@@ -38,6 +38,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                     enabled: true,
                     config: ExtensionConfig::Builtin {
                         name: "developer".to_string(),
+                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                     },
                 })?;
             }
@@ -437,10 +438,19 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .interact()?
                 .to_string();
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
+                })
+                .interact()?;
+
             ExtensionManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -469,6 +479,14 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     } else {
                         Ok(())
                     }
+                })
+                .interact()?;
+
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
                 })
                 .interact()?;
 
@@ -506,6 +524,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -539,6 +558,14 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valide timeout"),
+                })
+                .interact()?;
+
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
@@ -567,6 +594,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -622,24 +650,19 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
-    let mut setting_select_builder = cliclack::select("What setting would you like to configure?")
+    let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "Goose Mode", "Configure Goose mode")
         .item(
             "tool_output",
             "Tool Output",
             "Show more or less tool output",
-        );
-
-    // Conditionally add the "Toggle Experiment" option
-    if ExperimentManager::is_enabled("EXPERIMENT_CONFIG")? {
-        setting_select_builder = setting_select_builder.item(
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
-        );
-    }
-
-    let setting_type = setting_select_builder.interact()?;
+        )
+        .interact()?;
 
     match setting_type {
         "goose_mode" => {

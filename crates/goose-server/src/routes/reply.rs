@@ -9,10 +9,11 @@ use axum::{
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::message::{Message, MessageContent};
+use goose::session;
 
-use mcp_core::{content::Content, role::Role};
-use serde::Deserialize;
-use serde_json::{json, Value};
+use mcp_core::role::Role;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -23,33 +24,14 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 
-// Types matching the incoming JSON structure
+// Direct message serialization for the chat request
 #[derive(Debug, Deserialize)]
 struct ChatRequest {
-    messages: Vec<IncomingMessage>,
+    messages: Vec<Message>,
+    session_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct IncomingMessage {
-    role: String,
-    content: String,
-    #[serde(default)]
-    #[serde(rename = "toolInvocations")]
-    tool_invocations: Vec<ToolInvocation>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ToolInvocation {
-    state: String,
-    #[serde(rename = "toolCallId")]
-    tool_call_id: String,
-    #[serde(rename = "toolName")]
-    tool_name: String,
-    args: Value,
-    result: Option<Vec<Content>>,
-}
-
-// Custom SSE response type that implements the Vercel AI SDK protocol
+// Custom SSE response type for streaming messages
 pub struct SseResponse {
     rx: ReceiverStream<String>,
 }
@@ -79,188 +61,32 @@ impl IntoResponse for SseResponse {
             .header("Content-Type", "text/event-stream")
             .header("Cache-Control", "no-cache")
             .header("Connection", "keep-alive")
-            .header("x-vercel-ai-data-stream", "v1")
             .body(body)
             .unwrap()
     }
 }
 
-// Convert incoming messages to our internal Message type
-fn convert_messages(incoming: Vec<IncomingMessage>) -> Vec<Message> {
-    let mut messages = Vec::new();
-
-    for msg in incoming {
-        match msg.role.as_str() {
-            "user" => {
-                messages.push(Message::user().with_text(msg.content));
-            }
-            "assistant" => {
-                // First handle any tool invocations - each represents a complete request/response cycle
-                for tool in msg.tool_invocations {
-                    if tool.state == "result" {
-                        // Add the original tool request from assistant
-                        let tool_call = mcp_core::tool::ToolCall {
-                            name: tool.tool_name,
-                            arguments: tool.args,
-                        };
-                        messages.push(
-                            Message::assistant()
-                                .with_tool_request(tool.tool_call_id.clone(), Ok(tool_call)),
-                        );
-
-                        // Add the tool response from user
-                        if let Some(result) = &tool.result {
-                            messages.push(
-                                Message::user()
-                                    .with_tool_response(tool.tool_call_id, Ok(result.clone())),
-                            );
-                        }
-                    }
-                }
-
-                // Then add the assistant's text response after tool interactions
-                if !msg.content.is_empty() {
-                    messages.push(Message::assistant().with_text(msg.content));
-                }
-            }
-            _ => {
-                tracing::warn!("Unknown role: {}", msg.role);
-            }
-        }
-    }
-
-    messages
+// Message event types for SSE streaming
+#[derive(Debug, Serialize)]
+#[serde(tag = "type")]
+enum MessageEvent {
+    Message { message: Message },
+    Error { error: String },
+    Finish { reason: String },
 }
 
-// Protocol-specific message formatting
-struct ProtocolFormatter;
-
-impl ProtocolFormatter {
-    fn format_text(text: &str) -> String {
-        let encoded_text = serde_json::to_string(text).unwrap_or_else(|_| String::new());
-        format!("0:{}\n", encoded_text)
-    }
-
-    fn format_tool_call(id: &str, name: &str, args: &Value) -> String {
-        // Tool calls start with "9:"
-        let tool_call = json!({
-            "toolCallId": id,
-            "toolName": name,
-            "args": args
-        });
-        format!("9:{}\n", tool_call)
-    }
-
-    fn format_tool_response(id: &str, result: &Vec<Content>) -> String {
-        // Tool responses start with "a:"
-        let response = json!({
-            "toolCallId": id,
-            "result": result,
-        });
-        format!("a:{}\n", response)
-    }
-
-    fn format_error(error: &str) -> String {
-        // Error messages start with "3:" in the new protocol.
-        let encoded_error = serde_json::to_string(error).unwrap_or_else(|_| String::new());
-        format!("3:{}\n", encoded_error)
-    }
-
-    fn format_finish(reason: &str) -> String {
-        // Finish messages start with "d:"
-        let finish = json!({
-            "finishReason": reason,
-            "usage": {
-                "promptTokens": 0,
-                "completionTokens": 0
-            }
-        });
-        format!("d:{}\n", finish)
-    }
-}
-
-async fn stream_message(
-    message: Message,
+// Stream a message as an SSE event
+async fn stream_event(
+    event: MessageEvent,
     tx: &mpsc::Sender<String>,
 ) -> Result<(), mpsc::error::SendError<String>> {
-    match message.role {
-        Role::User => {
-            // Handle tool responses
-            for content in message.content {
-                // I believe with the protocol we aren't intended to pass back user messages, so we only deal with
-                // the tool responses here
-                if let MessageContent::ToolResponse(response) = content {
-                    // We should return a result for either an error or a success
-                    match response.tool_result {
-                        Ok(result) => {
-                            tx.send(ProtocolFormatter::format_tool_response(
-                                &response.id,
-                                &result,
-                            ))
-                            .await?;
-                        }
-                        Err(err) => {
-                            // Send an error message first
-                            tx.send(ProtocolFormatter::format_error(&err.to_string()))
-                                .await?;
-                            // Then send an empty tool response to maintain the protocol
-                            let result =
-                                vec![Content::text(format!("Error: {}", err)).with_priority(0.0)];
-                            tx.send(ProtocolFormatter::format_tool_response(
-                                &response.id,
-                                &result,
-                            ))
-                            .await?;
-                        }
-                    }
-                }
-            }
-        }
-        Role::Assistant => {
-            for content in message.content {
-                match content {
-                    MessageContent::ToolRequest(request) => {
-                        match request.tool_call {
-                            Ok(tool_call) => {
-                                tx.send(ProtocolFormatter::format_tool_call(
-                                    &request.id,
-                                    &tool_call.name,
-                                    &tool_call.arguments,
-                                ))
-                                .await?;
-                            }
-                            Err(err) => {
-                                // Send a placeholder tool call to maintain protocol
-                                tx.send(ProtocolFormatter::format_tool_call(
-                                    &request.id,
-                                    "invalid_tool",
-                                    &json!({"error": err.to_string()}),
-                                ))
-                                .await?;
-                            }
-                        }
-                    }
-                    MessageContent::Text(text) => {
-                        for line in text.text.lines() {
-                            let modified_line = format!("{}\n", line);
-                            tx.send(ProtocolFormatter::format_text(&modified_line))
-                                .await?;
-                        }
-                    }
-                    MessageContent::ToolConfirmationRequest(_) => {
-                        // skip tool confirmation requests
-                    }
-                    MessageContent::Image(_) => {
-                        // skip images
-                    }
-                    MessageContent::ToolResponse(_) => {
-                        // skip tool responses
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
+    let json = serde_json::to_string(&event).unwrap_or_else(|e| {
+        format!(
+            r#"{{"type":"Error","error":"Failed to serialize event: {}"}}"#,
+            e
+        )
+    });
+    tx.send(format!("data: {}\n\n", json)).await
 }
 
 async fn handler(
@@ -278,73 +104,122 @@ async fn handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // Check protocol header (optional in our case)
-    if let Some(protocol) = headers.get("x-protocol") {
-        if protocol.to_str().map(|p| p != "data").unwrap_or(true) {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-    }
-
     // Create channel for streaming
     let (tx, rx) = mpsc::channel(100);
     let stream = ReceiverStream::new(rx);
 
-    // Convert incoming messages
-    let messages = convert_messages(request.messages);
+    // Get messages directly from the request
+    let messages = request.messages;
+
+    // Generate a new session ID if not provided in the request
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
 
     // Get a lock on the shared agent
     let agent = state.agent.clone();
 
     // Spawn task to handle streaming
     tokio::spawn(async move {
-        let agent = agent.lock().await;
+        let agent = agent.read().await;
         let agent = match agent.as_ref() {
             Some(agent) => agent,
             None => {
-                let _ = tx
-                    .send(ProtocolFormatter::format_error("No agent configured"))
-                    .await;
-                let _ = tx.send(ProtocolFormatter::format_finish("error")).await;
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: "No agent configured".to_string(),
+                    },
+                    &tx,
+                )
+                .await;
+                let _ = stream_event(
+                    MessageEvent::Finish {
+                        reason: "error".to_string(),
+                    },
+                    &tx,
+                )
+                .await;
                 return;
             }
         };
 
-        let mut stream = match agent.reply(&messages).await {
+        // Get the provider first, before starting the reply stream
+        let provider = agent.provider().await;
+
+        let mut stream = match agent
+            .reply(
+                &messages,
+                Some(session::Identifier::Name(session_id.clone())),
+            )
+            .await
+        {
             Ok(stream) => stream,
             Err(e) => {
                 tracing::error!("Failed to start reply stream: {:?}", e);
-                let _ = tx
-                    .send(ProtocolFormatter::format_error(&e.to_string()))
-                    .await;
-                let _ = tx.send(ProtocolFormatter::format_finish("error")).await;
+                let _ = stream_event(
+                    MessageEvent::Error {
+                        error: e.to_string(),
+                    },
+                    &tx,
+                )
+                .await;
+                let _ = stream_event(
+                    MessageEvent::Finish {
+                        reason: "error".to_string(),
+                    },
+                    &tx,
+                )
+                .await;
                 return;
             }
         };
+
+        // Collect all messages for storage
+        let mut all_messages = messages.clone();
+        let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
         loop {
             tokio::select! {
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(message))) => {
-                            if let Err(e) = stream_message(message, &tx).await {
+                            all_messages.push(message.clone());
+                            if let Err(e) = stream_event(MessageEvent::Message { message }, &tx).await {
                                 tracing::error!("Error sending message through channel: {}", e);
-                                let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
+                                let _ = stream_event(
+                                    MessageEvent::Error {
+                                        error: e.to_string(),
+                                    },
+                                    &tx,
+                                ).await;
                                 break;
                             }
+
+                            // Store messages and generate description in background
+                            let session_path = session_path.clone();
+                            let messages = all_messages.clone();
+                            let provider = provider.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
+                                    tracing::error!("Failed to store session history: {:?}", e);
+                                }
+                            });
                         }
                         Ok(Some(Err(e))) => {
                             tracing::error!("Error processing message: {}", e);
-                            let _ = tx.send(ProtocolFormatter::format_error(&e.to_string())).await;
+                            let _ = stream_event(
+                                MessageEvent::Error {
+                                    error: e.to_string(),
+                                },
+                                &tx,
+                            ).await;
                             break;
                         }
                         Ok(None) => {
                             break;
                         }
-                        Err(_) => { // Heartbeat, used to detect disconnected clients and then end running tools.
+                        Err(_) => { // Heartbeat, used to detect disconnected clients
                             if tx.is_closed() {
-                                // Kill any running processes when the client disconnects
-                                // TODO is this used? I suspect post MCP this is on the server instead
-                                // goose::process_store::kill_processes();
                                 break;
                             }
                             continue;
@@ -354,24 +229,31 @@ async fn handler(
             }
         }
 
-        // Send finish message
-        let _ = tx.send(ProtocolFormatter::format_finish("stop")).await;
+        // Send finish event
+        let _ = stream_event(
+            MessageEvent::Finish {
+                reason: "stop".to_string(),
+            },
+            &tx,
+        )
+        .await;
     });
 
     Ok(SseResponse::new(stream))
 }
 
-#[derive(Debug, Deserialize, serde::Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct AskRequest {
     prompt: String,
+    session_id: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Serialize)]
 struct AskResponse {
     response: String,
 }
 
-// simple ask an AI for a response, non streaming
+// Simple ask an AI for a response, non streaming
 async fn ask_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -387,16 +269,30 @@ async fn ask_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Generate a new session ID if not provided in the request
+    let session_id = request
+        .session_id
+        .unwrap_or_else(session::generate_session_id);
+
     let agent = state.agent.clone();
-    let agent = agent.lock().await;
+    let agent = agent.write().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+
+    // Get the provider first, before starting the reply stream
+    let provider = agent.provider().await;
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
 
     // Get response from agent
     let mut response_text = String::new();
-    let mut stream = match agent.reply(&messages).await {
+    let mut stream = match agent
+        .reply(
+            &messages,
+            Some(session::Identifier::Name(session_id.clone())),
+        )
+        .await
+    {
         Ok(stream) => stream,
         Err(e) => {
             tracing::error!("Failed to start reply stream: {:?}", e);
@@ -404,15 +300,20 @@ async fn ask_handler(
         }
     };
 
+    // Collect all messages for storage
+    let mut all_messages = messages.clone();
+    let mut response_message = Message::assistant();
+
     while let Some(response) = stream.next().await {
         match response {
             Ok(message) => {
                 if message.role == Role::Assistant {
-                    for content in message.content {
+                    for content in &message.content {
                         if let MessageContent::Text(text) = content {
                             response_text.push_str(&text.text);
                             response_text.push('\n');
                         }
+                        response_message.content.push(content.clone());
                     }
                 }
             }
@@ -423,9 +324,57 @@ async fn ask_handler(
         }
     }
 
+    // Add the complete response message to the conversation history
+    if !response_message.content.is_empty() {
+        all_messages.push(response_message);
+    }
+
+    // Get the session path - file will be created when needed
+    let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
+
+    // Store messages and generate description in background
+    let session_path = session_path.clone();
+    let messages = all_messages.clone();
+    let provider = provider.clone();
+    tokio::spawn(async move {
+        if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
+            tracing::error!("Failed to store session history: {:?}", e);
+        }
+    });
+
     Ok(Json(AskResponse {
         response: response_text.trim().to_string(),
     }))
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolConfirmationRequest {
+    id: String,
+    confirmed: bool,
+}
+
+async fn confirm_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<ToolConfirmationRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let agent = state.agent.clone();
+    let agent = agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    agent
+        .handle_confirmation(request.id.clone(), request.confirmed)
+        .await;
+    Ok(Json(Value::Object(serde_json::Map::new())))
 }
 
 // Configure routes for this module
@@ -433,6 +382,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
+        .route("/confirm", post(confirm_handler))
         .with_state(state)
 }
 
@@ -478,91 +428,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_convert_messages_user_only() {
-        let incoming = vec![IncomingMessage {
-            role: "user".to_string(),
-            content: "Hello".to_string(),
-            tool_invocations: vec![],
-        }];
-
-        let messages = convert_messages(incoming);
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].role, Role::User);
-        assert!(
-            matches!(&messages[0].content[0], MessageContent::Text(text) if text.text == "Hello")
-        );
-    }
-
-    #[test]
-    fn test_convert_messages_with_tool_invocation() {
-        let tool_result = vec![Content::text("tool response").with_priority(0.0)];
-        let incoming = vec![IncomingMessage {
-            role: "assistant".to_string(),
-            content: "".to_string(),
-            tool_invocations: vec![ToolInvocation {
-                state: "result".to_string(),
-                tool_call_id: "123".to_string(),
-                tool_name: "test_tool".to_string(),
-                args: json!({"key": "value"}),
-                result: Some(tool_result.clone()),
-            }],
-        }];
-
-        let messages = convert_messages(incoming);
-        assert_eq!(messages.len(), 2); // Tool request and response
-
-        // Check tool request
-        assert_eq!(messages[0].role, Role::Assistant);
-        assert!(
-            matches!(&messages[0].content[0], MessageContent::ToolRequest(req) if req.id == "123")
-        );
-
-        // Check tool response
-        assert_eq!(messages[1].role, Role::User);
-        assert!(
-            matches!(&messages[1].content[0], MessageContent::ToolResponse(resp) if resp.id == "123")
-        );
-    }
-
-    #[test]
-    fn test_protocol_formatter() {
-        // Test text formatting
-        let text = "Hello world";
-        let formatted = ProtocolFormatter::format_text(text);
-        assert_eq!(formatted, "0:\"Hello world\"\n");
-
-        // Test tool call formatting
-        let formatted =
-            ProtocolFormatter::format_tool_call("123", "test_tool", &json!({"key": "value"}));
-        assert!(formatted.starts_with("9:"));
-        assert!(formatted.contains("\"toolCallId\":\"123\""));
-        assert!(formatted.contains("\"toolName\":\"test_tool\""));
-
-        // Test tool response formatting
-        let result = vec![Content::text("response").with_priority(0.0)];
-        let formatted = ProtocolFormatter::format_tool_response("123", &result);
-        assert!(formatted.starts_with("a:"));
-        assert!(formatted.contains("\"toolCallId\":\"123\""));
-
-        // Test error formatting
-        let formatted = ProtocolFormatter::format_error("Test error");
-        println!("Formatted error: {}", formatted);
-        assert!(formatted.starts_with("3:"));
-        assert!(formatted.contains("Test error"));
-
-        // Test finish formatting
-        let formatted = ProtocolFormatter::format_finish("stop");
-        assert!(formatted.starts_with("d:"));
-        assert!(formatted.contains("\"finishReason\":\"stop\""));
-    }
-
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
         use std::collections::HashMap;
         use std::sync::Arc;
-        use tokio::sync::Mutex;
+        use tokio::sync::{Mutex, RwLock};
         use tower::ServiceExt;
 
         // This test requires tokio runtime
@@ -575,8 +446,8 @@ mod tests {
             });
             let agent = AgentFactory::create("reference", mock_provider).unwrap();
             let state = AppState {
-                config: Arc::new(Mutex::new(HashMap::new())), // Add this line
-                agent: Arc::new(Mutex::new(Some(agent))),
+                config: Arc::new(Mutex::new(HashMap::new())),
+                agent: Arc::new(RwLock::new(Some(agent))),
                 secret_key: "test-secret".to_string(),
             };
 
@@ -592,6 +463,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&AskRequest {
                         prompt: "test prompt".to_string(),
+                        session_id: Some("test-session".to_string()),
                     })
                     .unwrap(),
                 ))

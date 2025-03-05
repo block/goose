@@ -84,9 +84,10 @@ goose configure
 ---
 
 ### info [options]
-Shows Goose information, where goose will load `config.yaml`, store data and logs.
 
-- **`-v, --verbose`**: Show verbose information including config.yaml
+Shows Goose information, including the version, configuration file location, session storage, and logs.
+
+- **`-v, --verbose`**: (Optional) Show detailed configuration settings, including environment variables and enabled extensions.
 
 **Usage:**
 ```bash
@@ -102,6 +103,30 @@ Used to check the current Goose version you have installed
 **Usage:**
 ```bash
 goose --version
+```
+
+---
+
+### update [options]
+
+Update the Goose CLI to a newer version.
+
+**Options:**
+
+- **`--canary, -c`**: Update to the canary (development) version instead of the stable version
+- **`--reconfigure, -r`**: Forces Goose to reset configuration settings during the update process
+
+**Usage:**
+
+```bash
+# Update to latest stable version
+goose update
+
+# Update to latest canary version
+goose update --canary
+
+# Update and reconfigure settings
+goose update --reconfigure
 ```
 
 ---
@@ -145,3 +170,18 @@ Used to show the available implementations of the agent loop itself
 ```bash
 goose agents
 ```
+
+---
+## Keyboard Shortcuts
+
+Goose CLI supports several shortcuts and built-in commands for easier navigation.
+
+### **Slash Commands**
+- **`/exit` or `/quit`** - Exit the session
+- **`/t`** - Toggle between Light/Dark modes
+- **`/?` or `/help`** - Display the help menu
+
+### **Keyboard Navigation**
+- **`Ctrl+C`** - Interrupt the current request
+- **`Ctrl+J`** - Add a newline
+- **Up/Down arrows** - Navigate through command history

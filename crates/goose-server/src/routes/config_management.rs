@@ -1,3 +1,4 @@
+use axum::routing::put;
 use axum::{
     extract::State,
     routing::{delete, get, post},
@@ -194,6 +195,46 @@ pub async fn read_all_config(
     Ok(Json(ConfigResponse { config: values }))
 }
 
+#[utoipa::path(
+    put,
+    path = "/config/extension",
+    request_body = ExtensionQuery,
+    responses(
+        (status = 200, description = "Extension configuration updated successfully", body = String),
+        (status = 404, description = "Extension not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn update_extension(
+    State(_state): State<Arc<Mutex<HashMap<String, Value>>>>,
+    Json(extension): Json<ExtensionQuery>,
+) -> Result<Json<String>, StatusCode> {
+    let config = Config::global();
+
+    // Get current extensions
+    let mut extensions: HashMap<String, Value> = match config.get("extensions") {
+        Ok(exts) => exts,
+        Err(_) => return Err(StatusCode::NOT_FOUND),
+    };
+
+    // Check if extension exists
+    if !extensions.contains_key(&extension.name) {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    // Update extension configuration
+    extensions.insert(extension.name.clone(), extension.config);
+
+    // Save updated extensions
+    match config.set(
+        "extensions",
+        Value::Object(extensions.into_iter().collect()),
+    ) {
+        Ok(_) => Ok(Json(format!("Updated extension {}", extension.name))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -201,6 +242,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/remove", post(remove_config))
         .route("/config/read", post(read_config))
         .route("/config/extension", post(add_extension))
+        .route("/config/extension", put(update_extension))
         .route("/config/extension", delete(remove_extension))
         .with_state(state.config)
 }

@@ -19,6 +19,13 @@ export const goose_models: Model[] = [
   { id: 17, name: 'qwen2.5', provider: 'Ollama' },
   { id: 18, name: 'anthropic/claude-3.5-sonnet', provider: 'OpenRouter' },
   { id: 19, name: 'gpt-4o', provider: 'Azure OpenAI' },
+  { id: 20, name: 'claude-3-7-sonnet@20250219', provider: 'GCP Vertex AI' },
+  { id: 21, name: 'claude-3-5-sonnet-v2@20241022', provider: 'GCP Vertex AI' },
+  { id: 22, name: 'claude-3-5-sonnet@20240620', provider: 'GCP Vertex AI' },
+  { id: 23, name: 'claude-3-5-haiku@20241022', provider: 'GCP Vertex AI' },
+  { id: 24, name: 'gemini-2.0-pro-exp-02-05', provider: 'GCP Vertex AI' },
+  { id: 25, name: 'gemini-2.0-flash-001', provider: 'GCP Vertex AI' },
+  { id: 26, name: 'gemini-1.5-pro-002', provider: 'GCP Vertex AI' },
 ];
 
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
@@ -47,6 +54,16 @@ export const openrouter_models = ['anthropic/claude-3.5-sonnet'];
 
 export const azure_openai_models = ['gpt-4o'];
 
+export const gcp_vertex_ai_models = [
+  'claude-3-7-sonnet@20250219',
+  'claude-3-5-sonnet-v2@20241022',
+  'claude-3-5-sonnet@20240620',
+  'claude-3-5-haiku@20241022',
+  'gemini-1.5-pro-002',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-pro-exp-02-05',
+];
+
 export const default_models = {
   openai: 'gpt-4o',
   anthropic: 'claude-3-5-sonnet-latest',
@@ -56,6 +73,7 @@ export const default_models = {
   openrouter: 'anthropic/claude-3.5-sonnet',
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
+  gcp_vertex_ai: 'gemini-2.0-flash-001',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -73,12 +91,14 @@ export const required_keys = {
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
+  'GCP Vertex AI': ['GCP_PROJECT_ID', 'GCP_LOCATION'],
 };
 
 export const default_key_value = {
   OPENAI_HOST: 'https://api.openai.com',
   OPENAI_BASE_PATH: 'v1/chat/completions',
   OLLAMA_HOST: 'localhost',
+  GCP_LOCATION: 'us-central1',
 };
 
 export const supported_providers = [
@@ -90,6 +110,7 @@ export const supported_providers = [
   'Ollama',
   'OpenRouter',
   'Azure OpenAI',
+  'GCP Vertex AI',
 ];
 
 export const model_docs_link = [
@@ -103,6 +124,7 @@ export const model_docs_link = [
   },
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
+  { name: 'GCP Vertex AI', href: 'https://cloud.google.com/vertex-ai' },
 ];
 
 export const provider_aliases = [
@@ -114,4 +136,5 @@ export const provider_aliases = [
   { provider: 'OpenRouter', alias: 'openrouter' },
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
+  { provider: 'GCP Vertex AI', alias: 'gcp_vertex_ai' },
 ];

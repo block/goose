@@ -3,13 +3,20 @@ import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
+import builtInExtensionsData from './built-in-extensions.json';
+
+// Hardcoded default extension timeout in seconds
+export const DEFAULT_EXTENSION_TIMEOUT = 300;
+
 // ExtensionConfig type matching the Rust version
+// TODO: refactor this
 export type ExtensionConfig =
   | {
       type: 'sse';
       name: string;
       uri: string;
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'stdio';
@@ -17,11 +24,13 @@ export type ExtensionConfig =
       cmd: string;
       args: string[];
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'builtin';
       name: string;
       env_keys?: string[];
+      timeout?: number;
     };
 
 // FullExtensionConfig type matching all the fields that come in deep links and are stored in local storage
@@ -38,55 +47,10 @@ export interface ExtensionPayload {
   args?: string[];
   uri?: string;
   env_keys?: string[];
+  timeout?: number;
 }
 
-export const BUILT_IN_EXTENSIONS = [
-  {
-    id: 'developer',
-    name: 'Developer',
-    description: 'General development tools useful for software engineering.',
-    enabled: true,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'computercontroller',
-    name: 'Computer Controller',
-    description:
-      "General computer control tools that don't require you to be a developer or engineer.",
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'memory',
-    name: 'Memory',
-    description: 'Teach goose your preferences as you go.',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'jetbrains',
-    name: 'Jetbrains',
-    description: 'Integration with any Jetbrains IDE',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  /* TODO re-enable when we have a smoother auth flow {
-    id: 'google_drive',
-    name: 'Google Drive',
-    description: 'Built-in Google Drive integration for file management and access',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [
-      'GOOGLE_DRIVE_OAUTH_PATH',
-      'GOOGLE_DRIVE_CREDENTIALS_PATH',
-      'GOOGLE_DRIVE_OAUTH_CONFIG',
-    ],
-  },*/
-];
+export const BUILT_IN_EXTENSIONS = builtInExtensionsData as FullExtensionConfig[];
 
 function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
@@ -113,6 +77,7 @@ export async function addExtension(
         name: sanitizeName(extension.name),
       }),
       env_keys: extension.env_keys,
+      timeout: extension.timeout,
     };
 
     const response = await fetch(getApiUrl('/extensions/add'), {
@@ -319,6 +284,7 @@ export async function addExtensionFromDeepLink(
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
   const description = parsedUrl.searchParams.get('description');
+  const timeout = parsedUrl.searchParams.get('timeout');
 
   // split env based on delimiter to a map
   const envs = envList.reduce(
@@ -331,6 +297,9 @@ export async function addExtensionFromDeepLink(
   );
 
   // Create a ExtensionConfig from the URL parameters
+  // Parse timeout if provided, otherwise use default
+  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
+
   const config: FullExtensionConfig = {
     id,
     name,
@@ -340,6 +309,10 @@ export async function addExtensionFromDeepLink(
     description,
     enabled: true,
     env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : [],
+    timeout:
+      parsedTimeout !== null && !isNaN(parsedTimeout) && Number.isInteger(parsedTimeout)
+        ? parsedTimeout
+        : DEFAULT_EXTENSION_TIMEOUT,
   };
 
   // Store the extension config regardless of env vars status

@@ -60,6 +60,19 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::Thinking(thinking) => {
+                    content.push(json!({
+                        "type": "thinking",
+                        "thinking": thinking.thinking,
+                        "signature": thinking.signature
+                    }));
+                }
+                MessageContent::RedactedThinking(redacted) => {
+                    content.push(json!({
+                        "type": "redacted_thinking",
+                        "data": redacted.data
+                    }));
+                }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
             }
         }
@@ -179,6 +192,24 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 let tool_call = ToolCall::new(name, input.clone());
                 message = message.with_tool_request(id, Ok(tool_call));
             }
+            Some("thinking") => {
+                let thinking = block
+                    .get("thinking")
+                    .and_then(|t| t.as_str())
+                    .ok_or_else(|| anyhow!("Missing thinking content"))?;
+                let signature = block
+                    .get("signature")
+                    .and_then(|s| s.as_str())
+                    .ok_or_else(|| anyhow!("Missing thinking signature"))?;
+                message = message.with_thinking(thinking, signature);
+            }
+            Some("redacted_thinking") => {
+                let data = block
+                    .get("data")
+                    .and_then(|d| d.as_str())
+                    .ok_or_else(|| anyhow!("Missing redacted_thinking data"))?;
+                message = message.with_redacted_thinking(data);
+            }
             _ => continue,
         }
     }
@@ -243,10 +274,13 @@ pub fn create_request(
         return Err(anyhow!("No valid messages to send to Anthropic API"));
     }
 
+    // https://docs.anthropic.com/en/docs/about-claude/models/all-models#model-comparison-table
+    // Claude 3.7 supports max output tokens up to 8192
+    let max_tokens = model_config.max_tokens.unwrap_or(8192);
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": anthropic_messages,
-        "max_tokens": model_config.max_tokens.unwrap_or(4096)
+        "max_tokens": max_tokens,
     });
 
     // Add system message if present
@@ -265,12 +299,38 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tool_specs));
     }
 
-    // Add temperature if specified
+    // Add temperature if specified and not using extended thinking model
     if let Some(temp) = model_config.temperature {
+        // Claude 3.7 models with thinking enabled don't support temperature
+        if !model_config.model_name.starts_with("claude-3-7-sonnet-") {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temp));
+        }
+    }
+
+    // Add thinking parameters for claude-3-7-sonnet model
+    let is_thinking_enabled = std::env::var("ANTHROPIC_THINKING_ENABLED").is_ok();
+    if model_config.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
+        // Minimum budget_tokens is 1024
+        let budget_tokens = std::env::var("ANTHROPIC_THINKING_BUDGET")
+            .unwrap_or_else(|_| "16000".to_string())
+            .parse()
+            .unwrap_or(16000);
+
         payload
             .as_object_mut()
             .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+            .insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
+
+        payload.as_object_mut().unwrap().insert(
+            "thinking".to_string(),
+            json!({
+                "type": "enabled",
+                "budget_tokens": budget_tokens
+            }),
+        );
     }
 
     Ok(payload)
@@ -362,6 +422,80 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_thinking_response() -> Result<()> {
+        let response = json!({
+            "id": "msg_456",
+            "type": "message",
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "thinking",
+                    "thinking": "This is a step-by-step thought process...",
+                    "signature": "EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8gZzu16i7Se4EiEbmlKqNH1GtwcX1BMK6iLu8bxWn5wPVIFBIMnptdlVal7ZX5iNPFGgwWjX+BntcEOHky4HciMFVef7FpQeqnuiL1Xt7J4OLHZSyu4tcr809AxAbclcJ5dm1xE5gZrUO+/v60cnJM2ipQp4B8/3eHI03KSV6bZR/vMrBSYCV+aa/f5KHX2cRtLGp/Ba+3Tk/efbsg01WSduwAIbR4coVrZLnGJXNyVTFW/Be2kLy/ECZnx8cqvU3oQOg="
+                },
+                {
+                    "type": "redacted_thinking",
+                    "data": "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpP"
+                },
+                {
+                    "type": "text",
+                    "text": "I've analyzed the problem and here's the solution."
+                }
+            ],
+            "model": "claude-3-7-sonnet-20250219",
+            "stop_reason": "end_turn",
+            "stop_sequence": null,
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 45,
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 0,
+            }
+        });
+
+        let message = response_to_message(response.clone())?;
+        let usage = get_usage(&response)?;
+
+        assert_eq!(message.content.len(), 3);
+
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(
+                thinking.thinking,
+                "This is a step-by-step thought process..."
+            );
+            assert!(thinking
+                .signature
+                .starts_with("EuYBCkQYAiJAVbJNBoH7HQiDcMwwAMhWqNyoe4G2xHRprK8ICM8g"));
+        } else {
+            panic!("Expected Thinking content at index 0");
+        }
+
+        if let MessageContent::RedactedThinking(redacted) = &message.content[1] {
+            assert_eq!(
+                redacted.data,
+                "EmwKAhgBEgy3va3pzix/LafPsn4aDFIT2Xlxh0L5L8rLVyIwxtE3rAFBa8cr3qpP"
+            );
+        } else {
+            panic!("Expected RedactedThinking content at index 1");
+        }
+
+        if let MessageContent::Text(text) = &message.content[2] {
+            assert_eq!(
+                text.text,
+                "I've analyzed the problem and here's the solution."
+            );
+        } else {
+            panic!("Expected Text content at index 2");
+        }
+
+        assert_eq!(usage.input_tokens, Some(10));
+        assert_eq!(usage.output_tokens, Some(45));
+        assert_eq!(usage.total_tokens, Some(55));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_message_to_anthropic_spec() {
         let messages = vec![
             Message::user().with_text("Hello"),
@@ -435,5 +569,48 @@ mod tests {
         assert_eq!(spec_array[0]["type"], "text");
         assert_eq!(spec_array[0]["text"], system);
         assert!(spec_array[0].get("cache_control").is_some());
+    }
+
+    #[test]
+    fn test_create_request_with_thinking() -> Result<()> {
+        // Save the original env var value if it exists
+        let original_value = std::env::var("ANTHROPIC_THINKING_ENABLED").ok();
+
+        // Set the env var for this test
+        std::env::set_var("ANTHROPIC_THINKING_ENABLED", "true");
+
+        // Execute the test
+        let result = (|| {
+            let model_config = ModelConfig::new("claude-3-7-sonnet-20250219".to_string());
+            let system = "You are a helpful assistant.";
+            let messages = vec![Message::user().with_text("Hello")];
+            let tools = vec![];
+
+            let payload = create_request(&model_config, system, &messages, &tools)?;
+
+            // Verify basic structure
+            assert_eq!(payload["model"], "claude-3-7-sonnet-20250219");
+            assert_eq!(payload["messages"][0]["role"], "user");
+            assert_eq!(payload["messages"][0]["content"][0]["text"], "Hello");
+
+            // Verify thinking parameters
+            assert!(payload.get("thinking").is_some());
+            assert_eq!(payload["thinking"]["type"], "enabled");
+            assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
+
+            // Temperature should not be present for 3.7 models with thinking
+            assert!(payload.get("temperature").is_none());
+
+            Ok(())
+        })();
+
+        // Restore the original env var state
+        match original_value {
+            Some(val) => std::env::set_var("ANTHROPIC_THINKING_ENABLED", val),
+            None => std::env::remove_var("ANTHROPIC_THINKING_ENABLED"),
+        }
+
+        // Return the test result
+        result
     }
 }

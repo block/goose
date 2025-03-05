@@ -37,7 +37,7 @@ const noWindowLocationHref = {
 module.exports = [
   js.configs.recommended,
   {
-    ignores: ['src/api/generated/**'],
+    ignores: ['src/api/**'],
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,

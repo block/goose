@@ -59,6 +59,9 @@ impl ModelConfig {
             // OpenAI models, https://platform.openai.com/docs/models#models-overview
             name if name.contains("gpt-4o") => Some(128_000),
             name if name.contains("gpt-4-turbo") => Some(128_000),
+            name if name.contains("o1-mini") || name.contains("o1-preview") => Some(128_000),
+            name if name.contains("o1") => Some(200_000),
+            name if name.contains("o3-mini") => Some(200_000),
 
             // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
             name if name.contains("claude-3") => Some(200_000),

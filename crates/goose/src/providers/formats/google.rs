@@ -63,6 +63,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     .map(|content| content.unannotated())
                                     .collect();
 
+                                let mut tool_content = Vec::new();
                                 for content in abridged {
                                     match content {
                                         Content::Image(image) => {
@@ -74,14 +75,28 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                             }));
                                         }
                                         _ => {
-                                            parts.push(json!({
-                                                "functionResponse": {
-                                                    "name": response.id,
-                                                    "response": {"content": content},
-                                                }}
-                                            ));
+                                            tool_content.push(content);
                                         }
                                     }
+                                }
+                                let mut text = tool_content
+                                    .iter()
+                                    .filter_map(|c| match c {
+                                        Content::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n");
+                                if !tool_content.is_empty() {
+                                    if text.is_empty() {
+                                        text = "Tool call is done.".to_string();
+                                    }
+                                    parts.push(json!({
+                                        "functionResponse": {
+                                            "name": response.id,
+                                            "response": {"content": {"text": text}},
+                                        }}
+                                    ));
                                 }
                             }
                             Err(e) => {
@@ -398,6 +413,36 @@ mod tests {
             payload[0]["parts"][0]["functionResponse"]["response"]["content"]["text"],
             "Hello"
         );
+    }
+
+    #[test]
+    fn test_message_to_google_spec_tool_result_multiple_texts() {
+        let tool_result: Vec<Content> = vec![
+            Content::text("Hello"),
+            Content::text("World"),
+            Content::text("This is a test."),
+        ];
+
+        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let payload = format_messages(&messages);
+
+        let expected_payload = vec![json!({
+            "role": "model",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "response_id",
+                        "response": {
+                            "content": {
+                                "text": "Hello\nWorld\nThis is a test."
+                            }
+                        }
+                    }
+                }
+            ]
+        })];
+
+        assert_eq!(payload, expected_payload);
     }
 
     #[test]

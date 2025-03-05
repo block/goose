@@ -379,6 +379,23 @@ app.whenReady().then(async () => {
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
+  // App menu
+  const appMenu = menu.items.find((item) => item.label === 'Goose');
+  // add Settings to app menu after About
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  appMenu.submenu.insert(
+    1,
+    new MenuItem({
+      label: 'Settings',
+      accelerator: 'CmdOrCtrl+,',
+      click() {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+      },
+    })
+  );
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+
   // Add Environment menu items to View menu
   const viewMenu = menu.items.find((item) => item.label === 'View');
   if (viewMenu) {
@@ -433,92 +450,6 @@ app.whenReady().then(async () => {
         },
       })
     );
-
-    // Register global shortcut for Install MCP Extension
-    globalShortcut.register('Shift+Command+Y', () => {
-      const defaultUrl =
-        'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
-
-      const result = dialog.showMessageBoxSync({
-        type: 'question',
-        buttons: ['Install', 'Edit URL', 'Cancel'],
-        defaultId: 0,
-        cancelId: 2,
-        title: 'Install MCP Extension',
-        message: 'Install MCP Extension',
-        detail: `Current extension URL:\n\n${defaultUrl}`,
-      });
-
-      if (result === 0) {
-        // User clicked Install
-        const mockEvent = {
-          preventDefault: () => {
-            console.log('Default handling prevented.');
-          },
-        };
-        app.emit('open-url', mockEvent, defaultUrl);
-      } else if (result === 1) {
-        // User clicked Edit URL
-        // Create a simple input dialog
-        const win = new BrowserWindow({
-          width: 800,
-          height: 120,
-          frame: false,
-          transparent: false,
-          resizable: false,
-          minimizable: false,
-          maximizable: false,
-          parent: BrowserWindow.getFocusedWindow(),
-          modal: true,
-          show: false,
-          webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-          },
-        });
-
-        win.loadURL(`data:text/html,
-        <html>
-          <body style="margin: 20px; font-family: system-ui;">
-            <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
-            <div style="text-align: right;">
-              <button onclick="window.close()" style="margin-right: 10px;">Cancel</button>
-              <button onclick="submit()" style="min-width: 80px;">Install</button>
-            </div>
-            <script>
-              function submit() {
-                require('electron').ipcRenderer.send('install-extension-url', document.getElementById('url').value);
-              }
-              // Handle Enter key
-              document.getElementById('url').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') submit();
-              });
-              // Focus the input
-              document.getElementById('url').focus();
-              document.getElementById('url').select();
-            </script>
-          </body>
-        </html>
-      `);
-
-        win.once('ready-to-show', () => {
-          win.show();
-        });
-
-        // Handle the URL submission
-        ipcMain.once('install-extension-url', (event, url) => {
-          win.close();
-          const mockEvent = {
-            preventDefault: () => {
-              console.log('Default handling prevented.');
-            },
-          };
-          if (url && url.trim()) {
-            app.emit('open-url', mockEvent, url);
-          }
-        });
-      }
-    });
   }
 
   Menu.setApplicationMenu(menu);
@@ -530,6 +461,10 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.on('create-chat-window', (_, query, dir, version) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : null;
+    }
     createChat(app, query, dir, version);
   });
 
@@ -610,6 +545,41 @@ app.whenReady().then(async () => {
       // On Linux, use xdg-open with chrome
       spawn('xdg-open', [url]);
     }
+  });
+
+  ipcMain.handle('read-file', (event, filePath) => {
+    return new Promise((resolve) => {
+      exec(`cat ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+          // File not found
+          resolve({ file: '', filePath, error: null, found: false });
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve({ file: '', filePath, error, found: false });
+        }
+        resolve({ file: stdout, filePath, error: null, found: true });
+      });
+    });
+  });
+
+  ipcMain.handle('write-file', (event, filePath, content) => {
+    return new Promise((resolve) => {
+      const command = `cat << 'EOT' > ${filePath}
+${content}
+EOT`;
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error writing to file:', error);
+          resolve(false);
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve(false);
+        }
+        resolve(true);
+      });
+    });
   });
 });
 

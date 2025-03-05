@@ -15,6 +15,8 @@ import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
 import type { View } from '../../App';
+import ModeSelection from './basic/ModeSelection';
+import { getApiUrl, getSecretKey } from '../../config';
 
 const EXTENSIONS_DESCRIPTION =
   'The Model Context Protocol (MCP) is a system that allows AI models to securely connect with local or remote resources using standard server setups. It works like a client-server setup and expands AI capabilities using three main components: Prompts, Resources, and Tools.';
@@ -60,6 +62,55 @@ export default function SettingsView({
   setView: (view: View) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  const [mode, setMode] = useState('auto');
+
+  const handleModeChange = async (newMode: string) => {
+    const storeResponse = await fetch(getApiUrl('/configs/store'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify({
+        key: 'GOOSE_MODE',
+        value: newMode,
+        isSecret: false,
+      }),
+    });
+
+    if (!storeResponse.ok) {
+      const errorText = await storeResponse.text();
+      console.error('Store response error:', errorText);
+      throw new Error(`Failed to store new goose mode: ${newMode}`);
+    }
+    setMode(newMode);
+  };
+
+  useEffect(() => {
+    const fetchCurrentMode = async () => {
+      try {
+        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+        });
+
+        if (response.ok) {
+          const { value } = await response.json();
+          if (value) {
+            setMode(value);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching current mode:', error);
+      }
+    };
+
+    fetchCurrentMode();
+  }, []);
+
   const [settings, setSettings] = React.useState<SettingsType>(() => {
     const saved = localStorage.getItem('user_settings');
     window.electron.logInfo('Settings: ' + saved);
@@ -84,7 +135,7 @@ export default function SettingsView({
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
 
   // Persist settings changes
-  React.useEffect(() => {
+  useEffect(() => {
     localStorage.setItem('user_settings', JSON.stringify(settings));
   }, [settings]);
 
@@ -216,24 +267,14 @@ export default function SettingsView({
               <section id="extensions">
                 <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
                   <h2 className="text-xl font-semibold text-textStandard">Extensions</h2>
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => setIsManualModalOpen(true)}
-                      className="text-indigo-500 hover:text-indigo-600 text-sm"
-                      title="Add Manually"
-                    >
-                      Add
-                    </button>
-
-                    <a
-                      href={EXTENSIONS_SITE_LINK}
-                      target="_blank"
-                      className="text-indigo-500 hover:text-indigo-600 text-sm"
-                      rel="noreferrer"
-                    >
-                      Browse
-                    </a>
-                  </div>
+                  <a
+                    href={EXTENSIONS_SITE_LINK}
+                    target="_blank"
+                    className="text-indigo-500 hover:text-indigo-600 text-sm"
+                    rel="noreferrer"
+                  >
+                    Browse
+                  </a>
                 </div>
 
                 <div className="px-8">
@@ -242,16 +283,41 @@ export default function SettingsView({
                   {settings.extensions.length === 0 ? (
                     <p className="text-textSubtle text-center py-4">No Extensions Added</p>
                   ) : (
-                    settings.extensions.map((ext) => (
-                      <ExtensionItem
-                        key={ext.id}
-                        {...ext}
-                        canConfigure={true}
-                        onToggle={handleExtensionToggle}
-                        onConfigure={(extension) => setExtensionBeingConfigured(extension)}
-                      />
-                    ))
+                    <div className="grid grid-cols-2 gap-2">
+                      {settings.extensions.map((ext) => (
+                        <ExtensionItem
+                          key={ext.id}
+                          {...ext}
+                          canConfigure={true}
+                          onToggle={handleExtensionToggle}
+                          onConfigure={(extension) => setExtensionBeingConfigured(extension)}
+                        />
+                      ))}
+                      <button
+                        onClick={() => setIsManualModalOpen(true)}
+                        className="text-indigo-500 hover:text-indigo-600 text-sm"
+                        title="Add Manually"
+                      >
+                        <div className="rounded-lg border border-dashed border-borderSubtle hover:border-borderStandard p-4 transition-colors">
+                          Add custom extension
+                        </div>
+                      </button>
+                    </div>
                   )}
+                </div>
+              </section>
+
+              <section id="others">
+                <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
+                  <h2 className="text-xl font-semibold text-textStandard">Others</h2>
+                </div>
+
+                <div className="px-8">
+                  <p className="text-sm text-textStandard mb-4">
+                    Others setting like Goose Mode, Tool Output, Experiment and more
+                  </p>
+
+                  <ModeSelection value={mode} onChange={handleModeChange} />
                 </div>
               </section>
             </div>

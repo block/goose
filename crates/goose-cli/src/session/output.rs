@@ -1,10 +1,12 @@
 use bat::WrappingMode;
 use console::style;
 use goose::config::Config;
-use goose::message::{Message, MessageContent, ToolConfirmationRequest, ToolRequest, ToolResponse};
+use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
 
 // Re-export theme for use in main
@@ -73,6 +75,14 @@ impl ThinkingIndicator {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PromptInfo {
+    pub name: String,
+    pub description: Option<String>,
+    pub arguments: Option<Vec<PromptArgument>>,
+    pub extension: Option<String>,
+}
+
 // Global thinking indicator
 thread_local! {
     static THINKING: RefCell<ThinkingIndicator> = RefCell::new(ThinkingIndicator::default());
@@ -94,11 +104,22 @@ pub fn render_message(message: &Message) {
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, theme),
-            MessageContent::ToolConfirmationRequest(req) => {
-                render_tool_confirmation_request(req, theme)
-            }
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+            }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                // For redacted thinking, print thinking was redacted
+                println!("\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
+            _ => {
+                println!("WARNING: Message content type could not be rendered");
             }
         }
     }
@@ -150,19 +171,53 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
     }
 }
 
-fn render_tool_confirmation_request(req: &ToolConfirmationRequest, theme: Theme) {
-    match &req.prompt {
-        Some(prompt) => {
-            let colored_prompt =
-                prompt.replace("Allow? (y/n)", &format!("{}", style("Allow? (y/n)").cyan()));
-            println!("{}", colored_prompt);
-        }
-        None => print_markdown("No prompt provided", theme),
-    }
-}
-
 pub fn render_error(message: &str) {
     println!("\n  {} {}\n", style("error:").red().bold(), message);
+}
+
+pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
+    println!();
+    for (extension, prompts) in prompts {
+        println!(" {}", style(extension).green());
+        for prompt in prompts {
+            println!("  - {}", style(prompt).cyan());
+        }
+    }
+    println!();
+}
+
+pub fn render_prompt_info(info: &PromptInfo) {
+    println!();
+
+    if let Some(ext) = &info.extension {
+        println!(" {}: {}", style("Extension").green(), ext);
+    }
+
+    println!(" Prompt: {}", style(&info.name).cyan().bold());
+
+    if let Some(desc) = &info.description {
+        println!("\n {}", desc);
+    }
+
+    if let Some(args) = &info.arguments {
+        println!("\n Arguments:");
+        for arg in args {
+            let required = arg.required.unwrap_or(false);
+            let req_str = if required {
+                style("(required)").red()
+            } else {
+                style("(optional)").dim()
+            };
+
+            println!(
+                "  {} {} {}",
+                style(&arg.name).yellow(),
+                req_str,
+                arg.description.as_deref().unwrap_or("")
+            );
+        }
+    }
+    println!();
 }
 
 pub fn render_extension_success(name: &str) {
@@ -279,7 +334,7 @@ fn print_markdown(content: &str, theme: Theme) {
         .input(bat::Input::from_bytes(content.as_bytes()))
         .theme(theme.as_str())
         .language("Markdown")
-        .wrapping_mode(WrappingMode::Character)
+        .wrapping_mode(WrappingMode::NoWrapping(true))
         .print()
         .unwrap();
 }

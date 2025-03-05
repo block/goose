@@ -9,7 +9,8 @@ use std::{
 use tokio::process::Command;
 
 use mcp_core::{
-    handler::{ResourceError, ToolError},
+    handler::{PromptError, ResourceError, ToolError},
+    prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
@@ -501,7 +502,12 @@ impl ComputerControllerRouter {
                     })?;
                     (bytes.to_vec(), "bin")
                 }
-                _ => unreachable!(), // Prevented by enum in tool definition
+                _ => {
+                    return Err(ToolError::InvalidParameters(format!(
+                    "Invalid 'save_as' parameter: {}. Valid options are: 'text', 'json', 'binary'",
+                    save_as
+                )));
+                }
             };
 
         // Save to cache
@@ -571,7 +577,11 @@ impl ComputerControllerRouter {
                     script_path.display()
                 )
             }
-            _ => unreachable!(), // Prevented by enum in tool definition
+            _ => {
+                return Err( ToolError::InvalidParameters(
+                    format!("Invalid 'language' parameter: {}. Valid options are: 'shell', 'batch', 'ruby', 'powershell", language)
+                ));
+            }
         };
 
         // Run the script
@@ -712,7 +722,10 @@ impl ComputerControllerRouter {
 
                 Ok(vec![Content::text("Cache cleared successfully.")])
             }
-            _ => unreachable!(), // Prevented by enum in tool definition
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid 'command' parameter: {}. Valid options are: 'list', 'view', 'delete', 'clear'",
+                command
+            )))
         }
     }
 }
@@ -805,6 +818,23 @@ impl Router for ComputerControllerRouter {
                     mime_type
                 ))),
             }
+        })
+    }
+
+    fn list_prompts(&self) -> Vec<Prompt> {
+        vec![]
+    }
+
+    fn get_prompt(
+        &self,
+        prompt_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
+        let prompt_name = prompt_name.to_string();
+        Box::pin(async move {
+            Err(PromptError::NotFound(format!(
+                "Prompt {} not found",
+                prompt_name
+            )))
         })
     }
 }

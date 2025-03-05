@@ -37,7 +37,7 @@ uuid = { version = "1.0", features = ["v4"] }
 regex = "1.11.1"
 async-trait = "0.1"
 async-stream = "0.3"
-tera = "1.20.0"
+minijinja = "2.8.0"
 tokenizers = "0.20.3"
 include_dir = "0.7.4"
 chrono = { version = "0.4.38", features = ["serde"] }
@@ -66,6 +66,9 @@ aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
 aws-smithy-types = "1.2.12"
 aws-sdk-bedrockruntime = "1.72.0"
 
+# For GCP Vertex AI provider auth
+jsonwebtoken = "9.3.1"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 
@@ -73,6 +76,9 @@ winapi = { version = "0.3", features = ["wincred"] }
 criterion = "0.5"
 tempfile = "3.15.0"
 serial_test = "3.2.0"
+mockall = "0.13.1"
+wiremock = "0.6.0"
+tokio = { version = "1.0", features = ["full"] }
 
 [[example]]
 name = "agent"

@@ -10,6 +10,7 @@ import ErrorScreen from './components/ErrorScreen';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
+import { GoosehintsModal } from './components/GoosehintsModal';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -17,7 +18,8 @@ import SettingsView, { type SettingsViewOptions } from './components/settings/Se
 import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
-import ProviderSettings from './components/settings/providers/providers/NewProviderSettingsPage';
+import SessionsView from './components/sessions/SessionsView';
+import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -30,7 +32,8 @@ export type View =
   | 'configureProviders'
   | 'configPage'
   | 'alphaConfigureProviders'
-  | 'settingsV2';
+  | 'settingsV2'
+  | 'sessions';
 
 export type ViewConfig = {
   view: View;
@@ -47,6 +50,7 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
+  const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
 
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
@@ -150,6 +154,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleSetView = (_, view) => setView(view);
+    window.electron.on('set-view', handleSetView);
+    return () => window.electron.off('set-view', handleSetView);
+  }, []);
+
   const handleConfirm = async () => {
     if (pendingLink && !isInstalling) {
       setIsInstalling(true);
@@ -240,9 +250,22 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && <ChatView setView={setView} />}
+          {view === 'chat' && (
+            <ChatView
+              setView={setView}
+              viewOptions={viewOptions}
+              setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+            />
+          )}
+          {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
       </div>
+      {isGoosehintsModalOpen && (
+        <GoosehintsModal
+          directory={window.appConfig.get('GOOSE_WORKING_DIR')}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+        />
+      )}
     </>
   );
 }

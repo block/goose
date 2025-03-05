@@ -56,6 +56,10 @@ which hermit >> "$LOG_FILE"
 log "Initializing hermit."
 hermit init >> "$LOG_FILE"
 
+# Initialize python >= 3.10
+log "hermit install python 3.10"
+hermit install python3@3.10 >> "$LOG_FILE"
+
 # Install UV for python using hermit
 log "Installing UV with hermit."
 hermit install uv >> "$LOG_FILE"

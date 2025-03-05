@@ -10,23 +10,32 @@ use std::collections::HashSet;
 use chrono::Utc;
 use mcp_core::content::{Content, ImageContent, TextContent};
 use mcp_core::handler::ToolResult;
+use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
+use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 
+mod tool_result_serde;
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolRequest {
     pub id: String,
+    #[serde(with = "tool_result_serde")]
     pub tool_call: ToolResult<ToolCall>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolResponse {
     pub id: String,
+    #[serde(with = "tool_result_serde")]
     pub tool_result: ToolResult<Vec<Content>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
@@ -35,13 +44,27 @@ pub struct ToolConfirmationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ThinkingContent {
+    pub thinking: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct RedactedThinkingContent {
+    pub data: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
     Text(TextContent),
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    Thinking(ThinkingContent),
+    RedactedThinking(RedactedThinkingContent),
 }
 
 impl MessageContent {
@@ -86,6 +109,17 @@ impl MessageContent {
             arguments,
             prompt,
         })
+    }
+
+    pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
+        MessageContent::Thinking(ThinkingContent {
+            thinking: thinking.into(),
+            signature: signature.into(),
+        })
+    }
+
+    pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
+        MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
     }
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
@@ -133,6 +167,22 @@ impl MessageContent {
             _ => None,
         }
     }
+
+    /// Get the thinking content if this is a ThinkingContent variant
+    pub fn as_thinking(&self) -> Option<&ThinkingContent> {
+        match self {
+            MessageContent::Thinking(thinking) => Some(thinking),
+            _ => None,
+        }
+    }
+
+    /// Get the redacted thinking content if this is a RedactedThinkingContent variant
+    pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
+        match self {
+            MessageContent::RedactedThinking(redacted) => Some(redacted),
+            _ => None,
+        }
+    }
 }
 
 impl From<Content> for MessageContent {
@@ -148,8 +198,40 @@ impl From<Content> for MessageContent {
     }
 }
 
+impl From<PromptMessage> for Message {
+    fn from(prompt_message: PromptMessage) -> Self {
+        // Create a new message with the appropriate role
+        let message = match prompt_message.role {
+            PromptMessageRole::User => Message::user(),
+            PromptMessageRole::Assistant => Message::assistant(),
+        };
+
+        // Convert and add the content
+        let content = match prompt_message.content {
+            PromptMessageContent::Text { text } => MessageContent::text(text),
+            PromptMessageContent::Image { image } => {
+                MessageContent::image(image.data, image.mime_type)
+            }
+            PromptMessageContent::Resource { resource } => {
+                // For resources, convert to text content with the resource text
+                match resource.resource {
+                    ResourceContents::TextResourceContents { text, .. } => {
+                        MessageContent::text(text)
+                    }
+                    ResourceContents::BlobResourceContents { blob, .. } => {
+                        MessageContent::text(format!("[Binary content: {}]", blob))
+                    }
+                }
+            }
+        };
+
+        message.with_content(content)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// A message to or from an LLM
+#[serde(rename_all = "camelCase")]
 pub struct Message {
     pub role: Role,
     pub created: i64,
@@ -222,6 +304,20 @@ impl Message {
         ))
     }
 
+    /// Add thinking content to the message
+    pub fn with_thinking<S1: Into<String>, S2: Into<String>>(
+        self,
+        thinking: S1,
+        signature: S2,
+    ) -> Self {
+        self.with_content(MessageContent::thinking(thinking, signature))
+    }
+
+    /// Add redacted thinking content to the message
+    pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
+        self.with_content(MessageContent::redacted_thinking(data))
+    }
+
     /// Get the concatenated text content of the message, separated by newlines
     pub fn as_concat_text(&self) -> String {
         self.content
@@ -290,5 +386,282 @@ impl Message {
         self.content
             .iter()
             .all(|c| matches!(c, MessageContent::Text(_)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mcp_core::content::EmbeddedResource;
+    use mcp_core::handler::ToolError;
+    use mcp_core::prompt::PromptMessageContent;
+    use mcp_core::resource::ResourceContents;
+    use serde_json::{json, Value};
+
+    #[test]
+    fn test_message_serialization() {
+        let message = Message::assistant()
+            .with_text("Hello, I'll help you with that.")
+            .with_tool_request(
+                "tool123",
+                Ok(ToolCall::new("test_tool", json!({"param": "value"}))),
+            );
+
+        let json_str = serde_json::to_string_pretty(&message).unwrap();
+        println!("Serialized message: {}", json_str);
+
+        // Parse back to Value to check structure
+        let value: Value = serde_json::from_str(&json_str).unwrap();
+
+        // Check top-level fields
+        assert_eq!(value["role"], "assistant");
+        assert!(value["created"].is_i64());
+        assert!(value["content"].is_array());
+
+        // Check content items
+        let content = &value["content"];
+
+        // First item should be text
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "Hello, I'll help you with that.");
+
+        // Second item should be toolRequest
+        assert_eq!(content[1]["type"], "toolRequest");
+        assert_eq!(content[1]["id"], "tool123");
+
+        // Check tool_call serialization
+        assert_eq!(content[1]["toolCall"]["status"], "success");
+        assert_eq!(content[1]["toolCall"]["value"]["name"], "test_tool");
+        assert_eq!(
+            content[1]["toolCall"]["value"]["arguments"]["param"],
+            "value"
+        );
+    }
+
+    #[test]
+    fn test_error_serialization() {
+        let message = Message::assistant().with_tool_request(
+            "tool123",
+            Err(ToolError::ExecutionError(
+                "Something went wrong".to_string(),
+            )),
+        );
+
+        let json_str = serde_json::to_string_pretty(&message).unwrap();
+        println!("Serialized error: {}", json_str);
+
+        // Parse back to Value to check structure
+        let value: Value = serde_json::from_str(&json_str).unwrap();
+
+        // Check tool_call serialization with error
+        let tool_call = &value["content"][0]["toolCall"];
+        assert_eq!(tool_call["status"], "error");
+        assert_eq!(tool_call["error"], "Execution failed: Something went wrong");
+    }
+
+    #[test]
+    fn test_deserialization() {
+        // Create a JSON string with our new format
+        let json_str = r#"{
+            "role": "assistant",
+            "created": 1740171566,
+            "content": [
+                {
+                    "type": "text",
+                    "text": "I'll help you with that."
+                },
+                {
+                    "type": "toolRequest",
+                    "id": "tool123",
+                    "toolCall": {
+                        "status": "success",
+                        "value": {
+                            "name": "test_tool",
+                            "arguments": {"param": "value"}
+                        }
+                    }
+                }
+            ]
+        }"#;
+
+        let message: Message = serde_json::from_str(json_str).unwrap();
+
+        assert_eq!(message.role, Role::Assistant);
+        assert_eq!(message.created, 1740171566);
+        assert_eq!(message.content.len(), 2);
+
+        // Check first content item
+        if let MessageContent::Text(text) = &message.content[0] {
+            assert_eq!(text.text, "I'll help you with that.");
+        } else {
+            panic!("Expected Text content");
+        }
+
+        // Check second content item
+        if let MessageContent::ToolRequest(req) = &message.content[1] {
+            assert_eq!(req.id, "tool123");
+            if let Ok(tool_call) = &req.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                assert_eq!(tool_call.arguments, json!({"param": "value"}));
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
+
+    #[test]
+    fn test_from_prompt_message_text() {
+        let prompt_content = PromptMessageContent::Text {
+            text: "Hello, world!".to_string(),
+        };
+
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::User,
+            content: prompt_content,
+        };
+
+        let message = Message::from(prompt_message);
+
+        if let MessageContent::Text(text_content) = &message.content[0] {
+            assert_eq!(text_content.text, "Hello, world!");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_from_prompt_message_image() {
+        let prompt_content = PromptMessageContent::Image {
+            image: ImageContent {
+                data: "base64data".to_string(),
+                mime_type: "image/jpeg".to_string(),
+                annotations: None,
+            },
+        };
+
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::User,
+            content: prompt_content,
+        };
+
+        let message = Message::from(prompt_message);
+
+        if let MessageContent::Image(image_content) = &message.content[0] {
+            assert_eq!(image_content.data, "base64data");
+            assert_eq!(image_content.mime_type, "image/jpeg");
+        } else {
+            panic!("Expected MessageContent::Image");
+        }
+    }
+
+    #[test]
+    fn test_from_prompt_message_text_resource() {
+        let resource = ResourceContents::TextResourceContents {
+            uri: "file:///test.txt".to_string(),
+            mime_type: Some("text/plain".to_string()),
+            text: "Resource content".to_string(),
+        };
+
+        let prompt_content = PromptMessageContent::Resource {
+            resource: EmbeddedResource {
+                resource,
+                annotations: None,
+            },
+        };
+
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::User,
+            content: prompt_content,
+        };
+
+        let message = Message::from(prompt_message);
+
+        if let MessageContent::Text(text_content) = &message.content[0] {
+            assert_eq!(text_content.text, "Resource content");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_from_prompt_message_blob_resource() {
+        let resource = ResourceContents::BlobResourceContents {
+            uri: "file:///test.bin".to_string(),
+            mime_type: Some("application/octet-stream".to_string()),
+            blob: "binary_data".to_string(),
+        };
+
+        let prompt_content = PromptMessageContent::Resource {
+            resource: EmbeddedResource {
+                resource,
+                annotations: None,
+            },
+        };
+
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::User,
+            content: prompt_content,
+        };
+
+        let message = Message::from(prompt_message);
+
+        if let MessageContent::Text(text_content) = &message.content[0] {
+            assert_eq!(text_content.text, "[Binary content: binary_data]");
+        } else {
+            panic!("Expected MessageContent::Text");
+        }
+    }
+
+    #[test]
+    fn test_from_prompt_message() {
+        // Test user message conversion
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::User,
+            content: PromptMessageContent::Text {
+                text: "Hello, world!".to_string(),
+            },
+        };
+
+        let message = Message::from(prompt_message);
+        assert_eq!(message.role, Role::User);
+        assert_eq!(message.content.len(), 1);
+        assert_eq!(message.as_concat_text(), "Hello, world!");
+
+        // Test assistant message conversion
+        let prompt_message = PromptMessage {
+            role: PromptMessageRole::Assistant,
+            content: PromptMessageContent::Text {
+                text: "I can help with that.".to_string(),
+            },
+        };
+
+        let message = Message::from(prompt_message);
+        assert_eq!(message.role, Role::Assistant);
+        assert_eq!(message.content.len(), 1);
+        assert_eq!(message.as_concat_text(), "I can help with that.");
+    }
+
+    #[test]
+    fn test_message_with_text() {
+        let message = Message::user().with_text("Hello");
+        assert_eq!(message.as_concat_text(), "Hello");
+    }
+
+    #[test]
+    fn test_message_with_tool_request() {
+        let tool_call = Ok(ToolCall {
+            name: "test_tool".to_string(),
+            arguments: serde_json::json!({}),
+        });
+
+        let message = Message::assistant().with_tool_request("req1", tool_call);
+        assert!(message.is_tool_call());
+        assert!(!message.is_tool_response());
+
+        let ids = message.get_tool_ids();
+        assert_eq!(ids.len(), 1);
+        assert!(ids.contains("req1"));
     }
 }

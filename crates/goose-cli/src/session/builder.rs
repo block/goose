@@ -2,16 +2,16 @@ use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::AgentFactory;
 use goose::config::{Config, ExtensionManager};
+use goose::session;
+use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
-use std::path::PathBuf;
 use std::process;
 
 use super::output;
-use super::storage;
 use super::Session;
 
 pub async fn build_session(
-    name: Option<String>,
+    identifier: Option<Identifier>,
     resume: bool,
     extensions: Vec<String>,
     builtins: Vec<String>,
@@ -22,7 +22,6 @@ pub async fn build_session(
     let provider_name: String = config
         .get("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
-    let session_dir = storage::ensure_session_dir().expect("Failed to create session directory");
 
     let model: String = config
         .get("GOOSE_MODEL")
@@ -65,20 +64,19 @@ pub async fn build_session(
 
     // Handle session file resolution and resuming
     let session_file = if resume {
-        if let Some(ref session_name) = name {
-            // Try to resume specific named session
-            let session_file = session_dir.join(format!("{}.jsonl", session_name));
+        if let Some(identifier) = identifier {
+            let session_file = session::get_path(identifier);
             if !session_file.exists() {
                 output::render_error(&format!(
                     "Cannot resume session {} - no such session exists",
-                    style(session_name).cyan()
+                    style(session_file.display()).cyan()
                 ));
                 process::exit(1);
             }
             session_file
         } else {
             // Try to resume most recent session
-            match storage::get_most_recent_session() {
+            match session::get_most_recent_session() {
                 Ok(file) => file,
                 Err(_) => {
                     output::render_error("Cannot resume - no previous sessions found");
@@ -87,9 +85,14 @@ pub async fn build_session(
             }
         }
     } else {
-        // Create new session with provided or generated name
-        let session_name = name.unwrap_or_else(generate_session_name);
-        create_new_session_file(&session_dir, &session_name)
+        // Create new session with provided name/path or generated name
+        let id = match identifier {
+            Some(identifier) => identifier,
+            None => Identifier::Name(session::generate_session_id()),
+        };
+
+        // Just get the path - file will be created when needed
+        session::get_path(id)
     };
 
     // Create new session
@@ -127,22 +130,4 @@ pub async fn build_session(
 
     output::display_session_info(resume, &provider_name, &model, &session_file);
     session
-}
-
-fn generate_session_name() -> String {
-    use rand::{distributions::Alphanumeric, Rng};
-    rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect()
-}
-
-fn create_new_session_file(session_dir: &std::path::Path, name: &str) -> PathBuf {
-    let session_file = session_dir.join(format!("{}.jsonl", name));
-    if session_file.exists() {
-        eprintln!("Session '{}' already exists", name);
-        process::exit(1);
-    }
-    session_file
 }
