@@ -19,6 +19,8 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+mod pdf_tool;
+
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
 
@@ -232,6 +234,33 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let pdf_tool = Tool::new(
+            "pdf_tool",
+            indoc! {r#"
+                Process PDF files to extract text and images.
+                Supports operations:
+                - extract_text: Extract all text content from the PDF
+                - extract_images: Extract and save embedded images to PNG files
+
+                Use this when there is a .pdf file or files that need to be processed.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the PDF file"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["extract_text", "extract_images"],
+                        "description": "Operation to perform on the PDF"
+                    }
+                }
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -359,6 +388,7 @@ impl ComputerControllerRouter {
                 quick_script_tool,
                 computer_control_tool,
                 cache_tool,
+                pdf_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -653,6 +683,20 @@ impl ComputerControllerRouter {
     }
 
     // Implement cache tool functionality
+    async fn pdf_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let operation = params
+            .get("operation")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
+
+        crate::computercontroller::pdf_tool::pdf_tool(path, operation, &self.cache_dir).await
+    }
+
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -764,6 +808,7 @@ impl Router for ComputerControllerRouter {
                 "automation_script" => this.quick_script(arguments).await,
                 "computer_control" => this.computer_control(arguments).await,
                 "cache" => this.cache(arguments).await,
+                "pdf_tool" => this.pdf_tool(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
