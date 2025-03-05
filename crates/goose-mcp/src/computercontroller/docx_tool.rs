@@ -220,7 +220,15 @@ pub async fn docx_tool(
 
             match mode {
                 UpdateMode::Append => {
-                    let mut doc = Docx::new();
+                    // Read existing document if it exists, or create new one
+                    let mut doc = if std::path::Path::new(path).exists() {
+                        let file = fs::read(path)
+                            .map_err(|e| ToolError::ExecutionError(format!("Failed to read DOCX file: {}", e)))?;
+                        read_docx(&file)
+                            .map_err(|e| ToolError::ExecutionError(format!("Failed to parse DOCX file: {}", e)))?
+                    } else {
+                        Docx::new()
+                    };
                     
                     // Split content into paragraphs and add them
                     for para in content.split('\n') {
@@ -679,5 +687,58 @@ mod tests {
         .await;
 
         assert!(result.is_err(), "Should fail without content");
+    }
+
+    #[tokio::test]
+    async fn test_docx_update_preserve_content() {
+        let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test_preserve.docx");
+        
+        // First create a document with initial content
+        let initial_content = "Initial content\nThis is the first paragraph.\nThis should stay in the document.";
+        let result = docx_tool(
+            test_output_path.to_str().unwrap(),
+            "update_doc",
+            Some(initial_content),
+            None,
+        )
+        .await;
+        assert!(result.is_ok(), "Initial document creation should succeed");
+
+        // Now append new content
+        let new_content = "New content\nThis is an additional paragraph.";
+        let params = json!({
+            "mode": "append",
+            "style": {
+                "bold": true
+            }
+        });
+
+        let result = docx_tool(
+            test_output_path.to_str().unwrap(),
+            "update_doc",
+            Some(new_content),
+            Some(&params),
+        )
+        .await;
+        assert!(result.is_ok(), "Content append should succeed");
+
+        // Verify both old and new content exists
+        let result = docx_tool(test_output_path.to_str().unwrap(), "extract_text", None, None).await;
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        let text = content[0].as_text().unwrap();
+        
+        // Check for initial content
+        assert!(text.contains("Initial content"), "Should contain initial content");
+        assert!(text.contains("first paragraph"), "Should contain first paragraph");
+        assert!(text.contains("should stay in the document"), "Should preserve existing content");
+        
+        // Check for new content
+        assert!(text.contains("New content"), "Should contain new content");
+        assert!(text.contains("additional paragraph"), "Should contain appended paragraph");
+
+        // Clean up
+        fs::remove_file(test_output_path).unwrap();
     }
 }
