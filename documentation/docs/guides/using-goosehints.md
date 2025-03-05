@@ -3,6 +3,10 @@ title: Using Goosehints
 sidebar_position: 3
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
 # Providing Hints to Goose
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with Goose. The use of `goosehints` ensures that Goose understands your requirements better and can execute tasks more effectively.
@@ -17,12 +21,41 @@ This guide will walk you through creating and using your `.goosehints` file to s
 ## Creating your hints file
 
 Goose supports two types of hint files:
-- **Global hints file** - Create a `.goosehints` file in `~/.config/goose`. These hints will apply to all your sessions with Goose, regardless of directory.
-- **Local hints file** -  Create a `.goosehints` file at the root of your project directory. These hints will only apply when working in that specific directory.
+- **Global hints file** - These hints will apply to all your sessions with Goose, regardless of directory.
+- **Local hints file** -  These hints will only apply when working in a specific directory.
 
 :::tip
 You can use both global and local hints at the same time. When both exist, Goose will consider both your global preferences and project-specific requirements. If the instructions in your local hints file conflict with your global preferences, Goose will prioritize the local hints.
 :::
+
+<Tabs>
+    <TabItem value="manual" label="Manual" default>
+    
+    - **Global hints file** - Create a `.goosehints` file in `~/.config/goose`.
+    - **Local hints file** -  Create a `.goosehints` file at the root of the directory you'd like it applied to.
+
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+
+    #### Global hints file
+    1. Create a `.goosehints` file in `~/.config/goose`.
+
+     #### Local hints file
+
+    1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path in the lower left bottom of the screen
+    2. Click `...` in the upper right corner
+    3. Click `Configure .goosehints`
+    4. Enter your local tips into the textarea
+    5. Click `Save`
+
+    :::tip
+    You may have to adjust the screen size to fully see the Save and Cancel buttons.
+    :::
+
+    </TabItem>
+</Tabs>
+
+
 
 The `.goosehints` file can include any instructions or contextual details relevant to your projects.
 
