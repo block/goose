@@ -1,31 +1,31 @@
 ---
-title: Running Goose in CI/CD Environments
-description: Learn how to set up Goose in your CI/CD pipeline. Automate Goose interactions for tasks like code review, documentation checks, and other automated workflows.
+title: CI/CD Environments
+description: Set up Goose in your CI/CD pipeline to automate tasks
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-With the same way we use Goose to resolve issues on our local machine, we can also use Goose in CI/CD environments to automate tasks like code review, documentation checks, and other automated workflows. This tutorial will guide you through setting up Goose in your CI/CD pipeline.
+Goose isn’t just useful on your local machine, it can also streamline tasks in CI/CD environments. By integrating Goose into your pipeline, you can automate tasks such as:
 
-## Common Use Cases
+- Code reviews
+- Documentation checks
+- Build and deployment workflows
+- Infrastructure and environment management
+- Rollbacks and recovery processes
+- Intelligent test execution
 
-Here are some common ways to use Goose in your CI/CD pipeline:
-
-- Automating Build and Deployment Tasks
-- Infrastructure and Environment Management
-- Automating Rollbacks and Recovery
-- Intelligent Test Execution
+This guide walks you through setting up Goose in your CI/CD pipeline, with a focus on using GitHub Actions for code reviews.
 
 
 ## Using Goose with GitHub Actions
-
-You can also use Goose directly in your GitHub Actions workflow, follow these steps:
+You can run Goose directly within GitHub Actions. Follow these steps to set up your workflow.
 
 :::info TLDR
 <details>
    <summary>Copy the GitHub Workflow</summary>
-   ```yaml
+   
+   ```yaml title="goose.yml"
 
    name: Goose
 
@@ -116,13 +116,17 @@ You can also use Goose directly in your GitHub Actions workflow, follow these st
 
 :::
 
-#### Create the Workflow File
+### 1. Create the Workflow File
 
-Create a new file in your repository at `.github/workflows/goose.yml`. This will contain your GitHub Actions workflow configuration.
+Create a new file in your repository at `.github/workflows/goose.yml`. This will contain your GitHub Actions workflow.
 
-#### Configure Basic Workflow Structure
+### 2. Define the Workflow Triggers and Permissions
 
-Here's a basic workflow structure that triggers Goose on pull requests:
+Configure the action such that it:
+
+- Triggers the workflow when a pull request is opened, updated, reopened, or labeled
+- Grants the necessary permissions for Goose to interact with the repository
+- Configures environment variables for your chosen LLM provider
 
 ```yaml
 name: Goose
@@ -141,14 +145,10 @@ env:
    PR_NUMBER: ${{ github.event.pull_request.number }}
 ```
 
-This configuration:
-- Triggers the workflow on pull request events
-- Sets necessary permissions for GitHub Actions
-- Configures environment variables for your chosen Goose provider
 
-#### Install and Configure Goose
+### 3. Install and Configure Goose
 
-The workflow needs to install and configure Goose in the CI environment. Here's how to do it:
+To install and set up Goose in your workflow, add the following steps:
 
 ```yaml
 steps:
@@ -169,11 +169,13 @@ steps:
           EOF
 ```
 
-Replace `REPLACE_WITH_PROVIDER` and `REPLACE_WITH_MODEL` with your Goose provider and model names and add any other necessary configuration required.
+:::info Replacements
+Replace `REPLACE_WITH_PROVIDER` and `REPLACE_WITH_MODEL` with your LLM provider and model names and add any other necessary configuration required.
+:::
 
-#### Prepare Instructions for Goose
+### 4. Gather PR Changes and Prepare Instructions
 
-Create instructions for Goose to follow based on the PR changes:
+This step extracts pull request details and formats them into structured instructions for Goose.
 
 ```yaml
     - name: Create instructions for Goose
@@ -189,9 +191,9 @@ Create instructions for Goose to follow based on the PR changes:
           EOF
 ```
 
-#### Run Goose and Filter Output
+### 5. Run Goose and Clean Output
 
-Run Goose with the prepared instructions and filter the output for clean results:
+Now, run Goose with the formatted instructions and clean the output by removing ANSI color codes and unnecessary log messages.
 
 ```yaml
     - name: Run Goose and filter output
@@ -208,7 +210,7 @@ Run Goose with the prepared instructions and filter the output for clean results
             > pr_comment.txt
 ```
 
-#### Post Comment to PR
+### 6. Post Comment to PR
 
 Finally, post the Goose output as a comment on the pull request:
 
@@ -221,18 +223,26 @@ Finally, post the Goose output as a comment on the pull request:
 
 With this workflow, Goose will run on pull requests, analyze the changes, and post a summary as a comment on the PR.
 
-## Using CI specific MCP servers as Goose extensions
+This is just one example of what's possible. Feel free to modify your GitHub Action to meet your needs.
 
-There might also be cases where you want to use Goose with other environments, custom setups etc. In such cases, you can use Goose extensions to interact with these environments. 
+---
 
-You can find related extensions as MCP Servers on [PulseMCP](https://www.pulsemcp.com/servers) and interact with them using Goose.
+## Using Goose with CI-Specific MCP Servers
 
-## Security considerations
+If your workflow involves custom environments or tools, you can extend Goose by integrating it with MCP servers.
 
-When running Goose in CI/CD, keep these security practices in mind:
+You can explore related extensions at [PulseMCP](https://www.pulsemcp.com/servers) and configure Goose to interact with them.
 
-1. **Secret Management**: Store your sensitive credentials (like API tokens) as 'Secrets' that you can pass to GOose as environment variables. Never expose these credentials in logs or PR comments
+## Security Considerations
 
-2. **Permissions**: When using a script or workflow, ensure you follow the principle of least privilege. Only grant necessary permissions in the workflow and regularly audit workflow permissions.
+When running Goose in a CI/CD enviroment, keep these security practices in mind:
 
-3. **Input Validation**: Validate and sanitize inputs before passing to Goose. Consider using action inputs with specific types and implement appropriate error handling.
+1. **Secret Management**
+      - Store your sensitive credentials (like API keys) as GitHub Secrets. 
+      - Never expose these credentials in logs or PR comments.
+
+2. **Principle of Least Privilege**
+      - Grant only the necessary permissions in your workflow and regularly audit them.
+
+3. **Input Validation**
+      - Ensure any inputs passed to Goose are sanitized and validated to prevent unexpected behavior.
