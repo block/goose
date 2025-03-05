@@ -2,7 +2,7 @@ use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
-use std::fs;
+// use std::fs;
 
 pub struct ExampleEval {}
 
@@ -17,18 +17,27 @@ impl Evaluation for ExampleEval {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut WorkDir,
-    ) -> anyhow::Result<Vec<EvaluationMetric>> {
+        _work_dir: &mut WorkDir,
+    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("ExampleEval - run");
-        let f = work_dir.fs_get(String::from("./arbitrary_dir/arbitrary_file.txt"))?;
-        let _contents = fs::read_to_string(f)?;
-        let metrics = Vec::new();
-        let _output = agent.prompt("What can you do?".to_string()).await?;
+        // let f = work_dir.fs_get(String::from("./arbitrary_dir/arbitrary_file.txt"))?;
+        // let _contents = fs::read_to_string(f)?;
+        let mut metrics = Vec::new();
+        let _ = agent.prompt("What can you do?".to_string()).await;
+        metrics.push((
+            "example_metric".to_string(),
+            EvaluationMetric::Boolean(true),
+        ));
+        metrics.push(("example_count".to_string(), EvaluationMetric::Integer(42)));
         Ok(metrics)
     }
 
     fn name(&self) -> &str {
         "example_eval"
+    }
+
+    fn required_extensions(&self) -> Vec<String> {
+        Vec::new() // Example eval doesn't require any extensions
     }
 }
 

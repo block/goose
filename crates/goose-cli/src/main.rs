@@ -2,13 +2,15 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 use goose::config::Config;
-use goose_cli::commands::bench::run_benchmark;
+
+use goose_cli::commands::agent_version::AgentCommand;
+use goose_cli::commands::bench::{list_suites, run_benchmark};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
 use goose_cli::logging::setup_logging;
+use goose_cli::session;
 use goose_cli::session::build_session;
-use goose_cli::{commands::agent_version::AgentCommand, session};
 use std::io::{self, Read};
 use std::path::PathBuf;
 
@@ -224,6 +226,36 @@ enum Command {
             default_value = "1"
         )]
         repeat: usize,
+
+        #[arg(
+            long = "list",
+            value_name = "LIST",
+            help = "List all available bench suites."
+        )]
+        list: bool,
+
+        #[arg(
+            long = "output",
+            short = 'o',
+            value_name = "FILE",
+            help = "Save benchmark results to a file"
+        )]
+        output: Option<PathBuf>,
+
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        #[arg(
+            long = "summary",
+            help = "Show only summary results",
+            action = clap::ArgAction::SetTrue
+        )]
+        summary: bool,
     },
 }
 
@@ -326,15 +358,49 @@ async fn main() -> Result<()> {
             suites,
             include_dirs,
             repeat,
+            list,
+            output,
+            format,
+            summary,
         }) => {
+            if list {
+                let suites = list_suites().await?;
+                for suite in suites.keys() {
+                    println!("{}: {}", suite, suites.get(suite).unwrap());
+                }
+                return Ok(());
+            }
             let suites = if suites.is_empty() {
                 vec!["core".to_string()]
             } else {
                 suites
             };
+            let current_dir = std::env::current_dir()?;
 
-            for _ in 0..repeat {
-                let _ = run_benchmark(suites.clone(), include_dirs.clone()).await;
+            for i in 0..repeat {
+                if repeat > 1 {
+                    println!("\nRun {} of {}:", i + 1, repeat);
+                }
+                let results = run_benchmark(suites.clone(), include_dirs.clone()).await?;
+
+                // Handle output based on format
+                let output_str = match format.as_str() {
+                    "json" => serde_json::to_string_pretty(&results)?,
+                    _ => results.to_string(), // Uses Display impl
+                };
+
+                // Save to file if specified
+                if let Some(path) = &output {
+                    std::fs::write(current_dir.join(path), &output_str)?;
+                    println!("Results saved to: {}", path.display());
+                } else {
+                    // Print to console
+                    if summary {
+                        println!("{}", results.summary());
+                    } else {
+                        println!("{}", output_str);
+                    }
+                }
             }
             return Ok(());
         }

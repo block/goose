@@ -1,0 +1,76 @@
+name: Run Goose Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider_models:
+        description: 'Comma-separated list of provider:model pairs (e.g., "openai:gpt-4o,anthropic:claude-3-5-sonnet")'
+        required: true
+        default: 'openai:gpt-4o,anthropic:claude-3-5-sonnet'
+        type: string
+      suites:
+        description: 'Comma-separated list of benchmark suites to run'
+        required: true
+        default: 'core,small_models'
+        type: string
+      debug_mode:
+        description: 'Use debug build instead of release build'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  run-benchmarks:
+    name: Run Goose Benchmarks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Build Goose
+        run: |
+          if [ "${{ github.event.inputs.debug_mode }}" == "true" ]; then
+            cargo build
+          else
+            cargo build --release
+          fi
+      
+      - name: Run benchmarks
+        id: run-benchmarks
+        run: |
+          DEBUG_FLAG=""
+          if [ "${{ github.event.inputs.debug_mode }}" == "true" ]; then
+            DEBUG_FLAG="--debug"
+          fi
+          
+          ./scripts/run-benchmarks.sh \
+            --provider-models "${{ github.event.inputs.provider_models }}" \
+            --suites "${{ github.event.inputs.suites }}" \
+            --output-dir "./benchmark-results" \
+            $DEBUG_FLAG
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: benchmark-results/
+          retention-days: 14
+          
+      - name: Create summary report
+        if: always()
+        run: |
+          if [ -f "./benchmark-results/summary.md" ]; then
+            cat ./benchmark-results/summary.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No summary file found" >> $GITHUB_STEP_SUMMARY
+          fi
