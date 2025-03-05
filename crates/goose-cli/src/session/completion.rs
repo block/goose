@@ -550,3 +550,4 @@ mod tests {
             .unwrap();
         assert_eq!(candidates.len(), 0);
     }
+}
