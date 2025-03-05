@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
+use crate::config::Config;
 use crate::prompt_template;
 use crate::providers::base::{Provider, ProviderUsage};
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
@@ -325,19 +326,23 @@ impl Capabilities {
     pub async fn get_system_prompt(&self) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
 
-        let extensions_info: Vec<ExtensionInfo> = self
-            .clients
-            .keys()
-            .map(|name| {
-                let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                let has_resources = self.resource_capable_extensions.contains(name);
-                ExtensionInfo::new(name, &instructions, has_resources)
-            })
-            .collect();
+        let config = Config::global();
+        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        // In chat mode, we don't need to have the extensions to confuse LLM and it can help save cost as well.
+        if goose_mode != "chat" {
+            let extensions_info: Vec<ExtensionInfo> = self
+                .clients
+                .keys()
+                .map(|name| {
+                    let instructions = self.instructions.get(name).cloned().unwrap_or_default();
+                    let has_resources = self.resource_capable_extensions.contains(name);
+                    ExtensionInfo::new(name, &instructions, has_resources)
+                })
+                .collect();
+            context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
+        }
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-
-        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
         context.insert("current_date_time", Value::String(current_date_time));
 
         // Conditionally load the override prompt or the global system prompt
