@@ -19,12 +19,10 @@ active extensions are below. Each of these extensions provides tools that are
 in your tool specification.
 
 {% for extension in extensions %}
-
 ## {{extension.name}}
-
 {% if extension.has_resources %}
-{{extension.name}} supports resources, you can use platform**read_resource,
-and platform**list_resources on this extension.
+{{extension.name}} supports resources, you can use platform__read_resource,
+and platform__list_resources on this extension.
 {% endif %}
 {% if extension.instructions %}### Instructions
 {{extension.instructions}}{% endif %}
