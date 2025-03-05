@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
-import CopyButton from './ui/CopyButton';
+import MessageCopyLink from './MessageCopyLink';
 
 interface UserMessageProps {
   message: Message;
 }
 
 export default function UserMessage({ message }: UserMessageProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // Extract text content from the message
   const textContent = getTextContent(message);
 
@@ -19,13 +21,15 @@ export default function UserMessage({ message }: UserMessageProps) {
   return (
     <div className="flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex-col max-w-[85%]">
-        <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3 mr-4 relative group">
-          <MarkdownContent content={textContent} className="text-white" />
-          <CopyButton
-            text={textContent}
-            className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-white dark:bg-gray-800 shadow-md z-[1000] hover:bg-gray-100 dark:hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-            iconClassName="h-4 w-4 text-gray-800 dark:text-white"
-          />
+        <div className="flex flex-col group">
+          <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
+            <div ref={contentRef}>
+              <MarkdownContent content={textContent} className="text-white" />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <MessageCopyLink text={textContent} contentRef={contentRef} />
+          </div>
         </div>
 
         {/* TODO(alexhancock): Re-enable link previews once styled well again */}

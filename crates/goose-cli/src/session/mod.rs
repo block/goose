@@ -14,6 +14,7 @@ use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::Agent;
+use goose::config::Config;
 use goose::message::{Message, MessageContent};
 use goose::session;
 use mcp_core::handler::ToolError;
@@ -324,6 +325,27 @@ impl Session {
                         Ok(prompts) => output::render_prompts(&prompts),
                         Err(e) => output::render_error(&e.to_string()),
                     }
+                }
+                input::InputResult::GooseMode(mode) => {
+                    save_history(&mut editor);
+
+                    let config = Config::global();
+                    let mode = mode.to_lowercase();
+
+                    // Check if mode is valid
+                    if !["auto", "approve", "chat"].contains(&mode.as_str()) {
+                        output::render_error(&format!(
+                            "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
+                            mode
+                        ));
+                        continue;
+                    }
+
+                    config
+                        .set("GOOSE_MODE", Value::String(mode.to_string()))
+                        .unwrap();
+                    println!("Goose mode set to '{}'", mode);
+                    continue;
                 }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
