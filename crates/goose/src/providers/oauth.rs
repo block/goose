@@ -555,14 +555,6 @@ mod tests {
         );
         assert!(token_data.expires_at.is_some());
 
-        let token_data = flow.extract_token_data(&token_response, None)?;
-        assert_eq!(token_data.access_token, "databricks-access-token");
-        assert_eq!(
-            token_data.refresh_token,
-            Some("databricks-refresh-token".to_string())
-        );
-        assert!(token_data.expires_at.is_some());
-
         // Test with invalid expires_at format
         let token_response = serde_json::json!({
             "access_token": "invalid-format-token",
