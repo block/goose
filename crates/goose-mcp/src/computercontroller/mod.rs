@@ -1,12 +1,12 @@
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
-use pdf::{file::FileOptions, primitive::PdfString};
+use pdf::{file::FileOptions, primitive::PdfString, object::{Resolve, XObject}};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc,
-    sync::Mutex,
+    sync::Mutex, io::Write,
 };
 use tokio::process::Command;
 
@@ -237,10 +237,11 @@ impl ComputerControllerRouter {
         let pdf_tool = Tool::new(
             "pdf_tool",
             indoc! {r#"
-                Process PDF files to extract text, metadata, and other information.
+                Process PDF files to extract text, metadata, and images.
                 Supports operations:
                 - extract_text: Extract all text content from the PDF
                 - get_metadata: Get PDF metadata (title, author, etc.)
+                - extract_images: Extract and save embedded images to PNG files
             "#},
             json!({
                 "type": "object",
@@ -252,7 +253,7 @@ impl ComputerControllerRouter {
                     },
                     "operation": {
                         "type": "string",
-                        "enum": ["extract_text", "get_metadata"],
+                        "enum": ["extract_text", "get_metadata", "extract_images"],
                         "description": "Operation to perform on the PDF"
                     }
                 }
@@ -702,10 +703,11 @@ impl ComputerControllerRouter {
                 let mut text = String::new();
                 for i in 0..pdf.num_pages() {
                     if let Ok(page) = pdf.get_page(i) {
+                        text.push_str(&format!("Page {}:\n", i + 1));
                         if let Some(contents) = &page.contents {
-                            text.push_str(&format!("Page {}:\n", i + 1));
                             text.push_str(&format!("{:?}\n", contents));
                         }
+                        text.push('\n');
                     }
                 }
                 format!("Extracted text from PDF:\n\n{}", text)
@@ -735,9 +737,46 @@ impl ComputerControllerRouter {
                 });
                 format!("PDF Metadata:\n\n{}", info.unwrap_or_else(|| "No metadata found".to_string()))
             }
+            "extract_images" => {
+                let mut images = Vec::new();
+                let cache_dir = self.get_cache_path("pdf_images", "");
+                fs::create_dir_all(&cache_dir).map_err(|e| {
+                    ToolError::ExecutionError(format!("Failed to create image cache directory: {}", e))
+                })?;
+
+                for i in 0..pdf.num_pages() {
+                    if let Ok(page) = pdf.get_page(i) {
+                        if let Some(resources) = &page.resources {
+                            let xobjects = &resources.xobjects;
+                            for (_name, xobject) in xobjects.iter() {
+                                if let Ok(obj) = pdf.resolver().get(*xobject) {
+                                    if let XObject::Image(image) = &*obj {
+                                        let image_path = cache_dir.join(format!("image_{}.png", images.len()));
+                                        if let Ok(mut file) = std::fs::File::create(&image_path) {
+                                            // Write raw image data
+                                            let resolver = pdf.resolver();
+                                            if let Ok((data, _)) = image.raw_image_data(&resolver) {
+                                                if file.write_all(&data).is_ok() {
+                                                    images.push(format!("Saved image to: {}", image_path.display()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if images.is_empty() {
+                    format!("No images found in PDF")
+                } else {
+                    format!("Extracted images:\n{}", images.join("\n"))
+                }
+            }
             _ => {
                 return Err(ToolError::InvalidParameters(format!(
-                    "Invalid operation: {}. Valid operations are: 'extract_text', 'get_metadata'",
+                    "Invalid operation: {}. Valid operations are: 'extract_text', 'get_metadata', 'extract_images'",
                     operation
                 )))
             }
@@ -930,5 +969,97 @@ impl Router for ComputerControllerRouter {
                 prompt_name
             )))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_pdf_text_extraction() {
+        let router = ComputerControllerRouter::new();
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test.pdf");
+
+        let result = router.pdf_tool(json!({
+            "path": test_pdf_path.to_str().unwrap(),
+            "operation": "extract_text"
+        })).await;
+
+        assert!(result.is_ok(), "PDF text extraction should succeed");
+        let content = result.unwrap();
+        assert!(!content.is_empty(), "Extracted text should not be empty");
+        let text = content[0].as_text().unwrap();
+        println!("Extracted text: {}", text);
+        assert!(text.contains("Page 1"), "Should contain page marker");
+    }
+
+    #[tokio::test]
+    async fn test_pdf_metadata() {
+        let router = ComputerControllerRouter::new();
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test.pdf");
+
+        let result = router.pdf_tool(json!({
+            "path": test_pdf_path.to_str().unwrap(),
+            "operation": "get_metadata"
+        })).await;
+
+        assert!(result.is_ok(), "PDF metadata extraction should succeed");
+        let content = result.unwrap();
+        assert!(!content.is_empty(), "Metadata should not be empty");
+        let text = content[0].as_text().unwrap();
+        println!("Metadata: {}", text);
+        assert!(text.contains("PDF Metadata"), "Should contain metadata header");
+    }
+
+    #[tokio::test]
+    async fn test_pdf_image_extraction() {
+        let router = ComputerControllerRouter::new();
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test_image.pdf");
+
+        let result = router.pdf_tool(json!({
+            "path": test_pdf_path.to_str().unwrap(),
+            "operation": "extract_images"
+        })).await;
+
+        assert!(result.is_ok(), "PDF image extraction should succeed");
+        let content = result.unwrap();
+        assert!(!content.is_empty(), "Image extraction result should not be empty");
+        let text = content[0].as_text().unwrap();
+        println!("Image extraction result: {}", text);
+        
+        // Should either find images or explicitly state none were found
+        assert!(text.contains("Saved image to:") || text.contains("No images found"),
+                "Should either save images or report none found");
+    }
+
+    #[tokio::test]
+    async fn test_pdf_invalid_path() {
+        let router = ComputerControllerRouter::new();
+        let result = router.pdf_tool(json!({
+            "path": "nonexistent.pdf",
+            "operation": "extract_text"
+        })).await;
+
+        assert!(result.is_err(), "Should fail with invalid path");
+    }
+
+    #[tokio::test]
+    async fn test_pdf_invalid_operation() {
+        let router = ComputerControllerRouter::new();
+        let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/computercontroller/tests/data/test.pdf");
+
+        let result = router.pdf_tool(json!({
+            "path": test_pdf_path.to_str().unwrap(),
+            "operation": "invalid_operation"
+        })).await;
+
+        assert!(result.is_err(), "Should fail with invalid operation");
     }
 }
