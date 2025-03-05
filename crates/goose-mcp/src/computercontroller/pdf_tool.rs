@@ -1,4 +1,4 @@
-use std::{fs, io::Write, path::PathBuf};
+use std::{fs, path::PathBuf};
 use lopdf::{Document, Object, content::Content as PdfContent};
 use mcp_core::{ToolError, Content};
 
@@ -104,52 +104,127 @@ pub async fn pdf_tool(path: &str, operation: &str, cache_dir: &PathBuf) -> Resul
             let mut images = Vec::new();
             let mut image_count = 0;
 
-            for (_, page_id) in doc.get_pages() {
-                if let Ok(page_obj) = doc.get_object(page_id) {
-                    if let Ok(page_dict) = page_obj.as_dict() {
-                        if let Ok(resources) =
-                            page_dict.get(b"Resources").and_then(|r| r.as_dict())
-                        {
-                            if let Ok(xobjects) =
-                                resources.get(b"XObject").and_then(|x| x.as_dict())
-                            {
-                                for (_, xobject) in xobjects.iter() {
-                                    if let Ok(xobject_id) = xobject.as_reference() {
-                                        if let Ok(xobject) = doc.get_object(xobject_id) {
-                                            if let Ok(stream) = xobject.as_stream() {
-                                                // Check if it's an image by looking at the Subtype
-                                                if let Ok(subtype) = stream
-                                                    .dict
-                                                    .get(b"Subtype")
-                                                    .and_then(|s| s.as_name())
-                                                {
-                                                    if subtype == b"Image" {
-                                                        // Get the raw image data
-                                                        if let Ok(data) = stream.get_plain_content() {
-                                                            let image_path =
-                                                                cache_dir.join(format!(
-                                                                    "image_{}.jpg",
-                                                                    image_count
-                                                                ));
-                                                            if let Ok(mut file) =
-                                                                std::fs::File::create(
-                                                                    &image_path,
-                                                                )
-                                                            {
-                                                                if file.write_all(&data).is_ok()
-                                                                {
-                                                                    images.push(format!(
-                                                                        "Saved image to: {}",
-                                                                        image_path.display()
-                                                                    ));
-                                                                    image_count += 1;
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
+            // Helper function to determine file extension based on stream dict
+            fn get_image_extension(dict: &lopdf::Dictionary) -> &'static str {
+                if let Ok(filter) = dict.get(b"Filter") {
+                    match filter {
+                        Object::Name(name) => {
+                            match name.as_slice() {
+                                b"DCTDecode" => ".jpg",
+                                b"JBIG2Decode" => ".jbig2",
+                                b"JPXDecode" => ".jp2",
+                                b"CCITTFaxDecode" => ".tiff",
+                                b"FlateDecode" => {
+                                    // PNG-like images often use FlateDecode
+                                    // Check color space to confirm
+                                    if let Ok(cs) = dict.get(b"ColorSpace") {
+                                        if let Ok(name) = cs.as_name() {
+                                            if name == b"DeviceRGB" || name == b"DeviceGray" {
+                                                return ".png"
                                             }
                                         }
+                                    }
+                                    ".raw"
+                                },
+                                _ => ".raw"
+                            }
+                        },
+                        Object::Array(filters) => {
+                            // If multiple filters, check the last one
+                            if let Some(last_filter) = filters.last() {
+                                if let Object::Name(name) = last_filter {
+                                    match name.as_slice() {
+                                        b"DCTDecode" => return ".jpg",
+                                        b"JPXDecode" => return ".jp2",
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            ".raw"
+                        },
+                        _ => ".raw"
+                    }
+                } else {
+                    ".raw"
+                }
+            }
+
+            // Process each page
+            for (page_num, page_id) in doc.get_pages() {
+                let page = doc.get_object(page_id)
+                    .map_err(|e| ToolError::ExecutionError(format!("Failed to get page {}: {}", page_num, e)))?;
+                
+                let page_dict = page.as_dict()
+                    .map_err(|e| ToolError::ExecutionError(format!("Failed to get page dict {}: {}", page_num, e)))?;
+
+                // Get page resources - handle both direct dict and reference
+                let resources = match page_dict.get(b"Resources") {
+                    Ok(res) => match res {
+                        Object::Dictionary(dict) => Ok(dict),
+                        Object::Reference(id) => doc.get_object(*id)
+                            .map_err(|e| ToolError::ExecutionError(format!("Failed to get resource reference: {}", e)))
+                            .and_then(|obj| obj.as_dict()
+                                .map_err(|e| ToolError::ExecutionError(format!("Resource reference is not a dictionary: {}", e)))),
+                        _ => Err(ToolError::ExecutionError("Resources is neither dictionary nor reference".to_string()))
+                    },
+                    Err(e) => Err(ToolError::ExecutionError(format!("Failed to get Resources: {}", e)))
+                }?;
+                
+                // Look for XObject dictionary - handle both direct dict and reference
+                let xobjects = match resources.get(b"XObject") {
+                    Ok(xobj) => match xobj {
+                        Object::Dictionary(dict) => Ok(dict),
+                        Object::Reference(id) => doc.get_object(*id)
+                            .map_err(|e| ToolError::ExecutionError(format!("Failed to get XObject reference: {}", e)))
+                            .and_then(|obj| obj.as_dict()
+                                .map_err(|e| ToolError::ExecutionError(format!("XObject reference is not a dictionary: {}", e)))),
+                        _ => Err(ToolError::ExecutionError("XObject is neither dictionary nor reference".to_string()))
+                    },
+                    Err(e) => Err(ToolError::ExecutionError(format!("Failed to get XObject: {}", e)))
+                };
+
+                if let Ok(xobjects) = xobjects {
+                    for (name, xobject) in xobjects.iter() {
+                        let xobject_id = xobject.as_reference()
+                            .map_err(|_| ToolError::ExecutionError("Failed to get XObject reference".to_string()))?;
+                        
+                        let xobject = doc.get_object(xobject_id)
+                            .map_err(|e| ToolError::ExecutionError(format!("Failed to get XObject: {}", e)))?;
+
+                        if let Ok(stream) = xobject.as_stream() {
+                            // Check if it's an image
+                            if let Ok(subtype) = stream.dict.get(b"Subtype").and_then(|s| s.as_name()) {
+                                if subtype == b"Image" {
+                                    let extension = get_image_extension(&stream.dict);
+                                    
+                                    // Get image metadata
+                                    let width = stream.dict.get(b"Width").and_then(|w| w.as_i64()).unwrap_or(0);
+                                    let height = stream.dict.get(b"Height").and_then(|h| h.as_i64()).unwrap_or(0);
+                                    let bpc = stream.dict.get(b"BitsPerComponent").and_then(|b| b.as_i64()).unwrap_or(0);
+
+                                    // Get the image data
+                                    if let Ok(data) = stream.get_plain_content() {
+                                        let image_path = cache_dir.join(format!(
+                                            "page{}_obj{}_{}{}", 
+                                            page_num,
+                                            xobject_id.0,
+                                            String::from_utf8_lossy(name),
+                                            extension
+                                        ));
+
+                                        fs::write(&image_path, &data)
+                                            .map_err(|e| ToolError::ExecutionError(
+                                                format!("Failed to write image: {}", e)
+                                            ))?;
+
+                                        images.push(format!(
+                                            "Saved image to: {} ({}x{}, {} bits per component)",
+                                            image_path.display(),
+                                            width,
+                                            height,
+                                            bpc
+                                        ));
+                                        image_count += 1;
                                     }
                                 }
                             }
@@ -161,7 +236,7 @@ pub async fn pdf_tool(path: &str, operation: &str, cache_dir: &PathBuf) -> Resul
             if images.is_empty() {
                 format!("No images found in PDF")
             } else {
-                format!("Extracted images:\n{}", images.join("\n"))
+                format!("Found {} images:\n{}", image_count, images.join("\n"))
             }
         }
 
@@ -187,6 +262,8 @@ mod tests {
             .join("src/computercontroller/tests/data/test.pdf");
         let cache_dir = tempfile::tempdir().unwrap().into_path();
 
+        println!("Testing text extraction from: {}", test_pdf_path.display());
+
         let result = pdf_tool(
             test_pdf_path.to_str().unwrap(),
             "extract_text",
@@ -197,8 +274,9 @@ mod tests {
         let content = result.unwrap();
         assert!(!content.is_empty(), "Extracted text should not be empty");
         let text = content[0].as_text().unwrap();
-        println!("Extracted text: {}", text);
+        println!("Extracted text:\n{}", text);
         assert!(text.contains("Page 1"), "Should contain page marker");
+        assert!(text.contains("This is a test PDF"), "Should contain expected test content");
     }
 
     #[tokio::test]
@@ -207,6 +285,8 @@ mod tests {
             .join("src/computercontroller/tests/data/test_image.pdf");
         let cache_dir = tempfile::tempdir().unwrap().into_path();
 
+        println!("Testing image extraction from: {}", test_pdf_path.display());
+
         // Now try image extraction
         let result = pdf_tool(
             test_pdf_path.to_str().unwrap(),
@@ -214,6 +294,7 @@ mod tests {
             &cache_dir,
         ).await;
 
+        println!("Image extraction result: {:?}", result);
         assert!(result.is_ok(), "PDF image extraction should succeed");
         let content = result.unwrap();
         assert!(
@@ -221,13 +302,26 @@ mod tests {
             "Image extraction result should not be empty"
         );
         let text = content[0].as_text().unwrap();
-        println!("Image extraction result: {}", text);
+        println!("Extracted content: {}", text);
 
         // Should either find images or explicitly state none were found
         assert!(
             text.contains("Saved image to:") || text.contains("No images found"),
             "Should either save images or report none found"
         );
+
+        // If we found images, verify they exist
+        if text.contains("Saved image to:") {
+            // Extract the file path from the output
+            let file_path = text.lines()
+                .find(|line| line.contains("Saved image to:"))
+                .and_then(|line| line.split(": ").nth(1))
+                .and_then(|path| path.split(" (").next())
+                .expect("Should have a valid file path");
+            
+            println!("Verifying image file exists: {}", file_path);
+            assert!(PathBuf::from(file_path).exists(), "Image file should exist");
+        }
     }
 
     #[tokio::test]
