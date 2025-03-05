@@ -722,19 +722,40 @@ impl ComputerControllerRouter {
                                                                 if let Object::String(ref bytes, _) = operand {
                                                                     if let Ok(s) = std::str::from_utf8(bytes) {
                                                                         text.push_str(s);
-                                                                        text.push(' ');
                                                                     }
                                                                 }
                                                             }
+                                                            text.push(' ');
                                                         },
                                                         // "TJ" operator: show text with positioning
                                                         "TJ" => {
                                                             if let Some(Object::Array(ref arr)) = operation.operands.get(0) {
+                                                                let mut last_was_text = false;
                                                                 for element in arr {
-                                                                    if let Object::String(ref bytes, _) = element {
-                                                                        if let Ok(s) = std::str::from_utf8(bytes) {
-                                                                            text.push_str(s);
-                                                                        }
+                                                                    match element {
+                                                                        Object::String(ref bytes, _) => {
+                                                                            if let Ok(s) = std::str::from_utf8(bytes) {
+                                                                                if last_was_text {
+                                                                                    text.push(' ');
+                                                                                }
+                                                                                text.push_str(s);
+                                                                                last_was_text = true;
+                                                                            }
+                                                                        },
+                                                                        Object::Integer(offset) => {
+                                                                            // Large negative offsets often indicate word spacing
+                                                                            if *offset < -100 {
+                                                                                text.push(' ');
+                                                                                last_was_text = false;
+                                                                            }
+                                                                        },
+                                                                        Object::Real(offset) => {
+                                                                            if *offset < -100.0 {
+                                                                                text.push(' ');
+                                                                                last_was_text = false;
+                                                                            }
+                                                                        },
+                                                                        _ => {}
                                                                     }
                                                                 }
                                                                 text.push(' ');
