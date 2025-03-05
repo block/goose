@@ -27,7 +27,7 @@ impl Evaluation for ComputerControllerScript {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
-        let messages = agent.prompt("Make a ding sound".to_string());
+        let messages = agent.prompt("Make a beep sound".to_string());
         let messages = messages.await?;
 
         let valid_tool_call = messages.iter().any(|msg| {
