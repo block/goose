@@ -199,6 +199,14 @@ fn create_request_based_on_model(
     {
         payload = update_request_for_anthropic(&payload);
     }
+    
+    // Set provider to Together and disable fallbacks
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert("provider".to_string(), json!({
+            "order": ["Together"],
+            "allow_fallbacks": false
+        }));
+    }
 
     Ok(payload)
 }
@@ -260,7 +268,7 @@ impl Provider for OpenRouterProvider {
 
             // Append tool information and format instruction to system prompt when using tool shim
             let modified_system = format!(
-                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. You can only use one tool at a time.",
+                "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
                 system,
                 tool_info
             );
