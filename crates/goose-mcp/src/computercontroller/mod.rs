@@ -4,8 +4,7 @@ use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc,
-    sync::Mutex,
+    collections::HashMap, fs, future::Future, path::PathBuf, pin::Pin, sync::Arc, sync::Mutex,
 };
 use tokio::process::Command;
 
@@ -242,6 +241,8 @@ impl ComputerControllerRouter {
                 Supports operations:
                 - extract_text: Extract all text content from the PDF
                 - extract_images: Extract and save embedded images to PNG files
+
+                Use this when there is a .pdf file or files that need to be processed.
             "#},
             json!({
                 "type": "object",
@@ -882,5 +883,3 @@ impl Router for ComputerControllerRouter {
         })
     }
 }
-
-
