@@ -20,6 +20,7 @@ use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
 mod pdf_tool;
+mod docx_tool;
 
 mod platform;
 use platform::{create_system_automation, SystemAutomation};
@@ -261,6 +262,37 @@ impl ComputerControllerRouter {
             }),
         );
 
+        let docx_tool = Tool::new(
+            "docx_tool",
+            indoc! {r#"
+                Process DOCX files to extract text and create/update documents.
+                Supports operations:
+                - extract_text: Extract all text content and structure (headings, TOC) from the DOCX
+                - update_doc: Create a new DOCX or update existing one with provided content
+
+                Use this when there is a .docx file that needs to be processed or created.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the DOCX file"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["extract_text", "update_doc"],
+                        "description": "Operation to perform on the DOCX"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write (required for update_doc operation)"
+                    }
+                }
+            }),
+        );
+
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/computer_controller/
         // - Windows:     ~\AppData\Local\Block\goose\cache\computer_controller\
@@ -389,6 +421,7 @@ impl ComputerControllerRouter {
                 computer_control_tool,
                 cache_tool,
                 pdf_tool,
+                docx_tool,
             ],
             cache_dir,
             active_resources: Arc::new(Mutex::new(HashMap::new())),
@@ -683,6 +716,20 @@ impl ComputerControllerRouter {
     }
 
     // Implement cache tool functionality
+    async fn docx_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let operation = params
+            .get("operation")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
+
+        crate::computercontroller::docx_tool::docx_tool(path, operation, params.get("content").and_then(|v| v.as_str())).await
+    }
+
     async fn pdf_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let path = params
             .get("path")
@@ -809,6 +856,7 @@ impl Router for ComputerControllerRouter {
                 "computer_control" => this.computer_control(arguments).await,
                 "cache" => this.cache(arguments).await,
                 "pdf_tool" => this.pdf_tool(arguments).await,
+                "docx_tool" => this.docx_tool(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
