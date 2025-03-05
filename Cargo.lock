@@ -3246,7 +3246,7 @@ dependencies = [
  "nom_locate",
  "rangemap",
  "rayon",
- "thiserror 2.0.11",
+ "thiserror 2.0.12",
  "time",
  "weezl",
 ]
