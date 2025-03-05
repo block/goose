@@ -269,6 +269,11 @@ impl ComputerControllerRouter {
                 Supports operations:
                 - extract_text: Extract all text content and structure (headings, TOC) from the DOCX
                 - update_doc: Create a new DOCX or update existing one with provided content
+                  Modes:
+                  - append: Add content to end of document (default)
+                  - replace: Replace specific text with new content
+                  - structured: Add content with specific heading level and styling
+                  - add_image: Add an image to the document (with optional caption)
 
                 Use this when there is a .docx file that needs to be processed or created.
             "#},
@@ -288,6 +293,68 @@ impl ComputerControllerRouter {
                     "content": {
                         "type": "string",
                         "description": "Content to write (required for update_doc operation)"
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Additional parameters for update_doc operation",
+                        "properties": {
+                            "mode": {
+                                "type": "string",
+                                "enum": ["append", "replace", "structured", "add_image"],
+                                "description": "Update mode (default: append)"
+                            },
+                            "old_text": {
+                                "type": "string",
+                                "description": "Text to replace (required for replace mode)"
+                            },
+                            "level": {
+                                "type": "string",
+                                "description": "Heading level for structured mode (e.g., 'Heading1', 'Heading2')"
+                            },
+                            "image_path": {
+                                "type": "string",
+                                "description": "Path to the image file (required for add_image mode)"
+                            },
+                            "width": {
+                                "type": "integer",
+                                "description": "Image width in pixels (optional)"
+                            },
+                            "height": {
+                                "type": "integer",
+                                "description": "Image height in pixels (optional)"
+                            },
+                            "style": {
+                                "type": "object",
+                                "description": "Styling options for the text",
+                                "properties": {
+                                    "bold": {
+                                        "type": "boolean",
+                                        "description": "Make text bold"
+                                    },
+                                    "italic": {
+                                        "type": "boolean",
+                                        "description": "Make text italic"
+                                    },
+                                    "underline": {
+                                        "type": "boolean",
+                                        "description": "Make text underlined"
+                                    },
+                                    "size": {
+                                        "type": "integer",
+                                        "description": "Font size in points"
+                                    },
+                                    "color": {
+                                        "type": "string",
+                                        "description": "Text color in hex format (e.g., 'FF0000' for red)"
+                                    },
+                                    "alignment": {
+                                        "type": "string",
+                                        "enum": ["left", "center", "right", "justified"],
+                                        "description": "Text alignment"
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }),
@@ -727,7 +794,12 @@ impl ComputerControllerRouter {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
 
-        crate::computercontroller::docx_tool::docx_tool(path, operation, params.get("content").and_then(|v| v.as_str())).await
+        crate::computercontroller::docx_tool::docx_tool(
+            path,
+            operation,
+            params.get("content").and_then(|v| v.as_str()),
+            params.get("params"),
+        ).await
     }
 
     async fn pdf_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {

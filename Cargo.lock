@@ -2262,6 +2262,7 @@ dependencies = [
  "google-drive3",
  "http-body-util",
  "ignore",
+ "image 0.24.9",
  "include_dir",
  "indoc",
  "kill_tree",
@@ -2831,10 +2832,12 @@ dependencies = [
  "bytemuck",
  "byteorder",
  "color_quant",
+ "exr",
  "gif",
  "jpeg-decoder",
  "num-traits",
  "png",
+ "qoi",
  "tiff",
 ]
 
@@ -3059,6 +3062,9 @@ name = "jpeg-decoder"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5d4a7da358eff58addd2877a45865158f0d78c911d43a5784ceb7bbf52833b0"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "js-sys"
