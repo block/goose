@@ -1,4 +1,4 @@
-use crate::eval_suites::{EvaluationMetric, BenchAgentError};
+use crate::eval_suites::{BenchAgentError, EvaluationMetric};
 use chrono::Local;
 use serde::Serialize;
 use std::fmt;
@@ -127,8 +127,8 @@ impl fmt::Display for BenchmarkResults {
                     writeln!(f, "    Errors:")?;
                     for error in &eval.errors {
                         writeln!(
-                            f, 
-                            "      [{}] {}: {}", 
+                            f,
+                            "      [{}] {}: {}",
                             error.timestamp.format("%H:%M:%S"),
                             error.level,
                             error.message

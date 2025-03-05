@@ -1,10 +1,10 @@
+use crate::eval_suites::BenchAgentError;
+use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{Event, Subscriber};
-use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
-use crate::eval_suites::BenchAgentError;
-use chrono::Utc;
+use tracing_subscriber::Layer;
 
 pub struct ErrorCaptureLayer {
     errors: Arc<Mutex<Vec<BenchAgentError>>>,
@@ -25,14 +25,14 @@ where
         if *event.metadata().level() <= tracing::Level::WARN {
             let mut visitor = JsonVisitor::new();
             event.record(&mut visitor);
-            
+
             if let Some(message) = visitor.recorded_fields.get("message") {
                 let error = BenchAgentError {
                     message: message.to_string(),
                     level: event.metadata().level().to_string(),
                     timestamp: Utc::now(),
                 };
-                
+
                 let errors = self.errors.clone();
                 tokio::spawn(async move {
                     let mut errors = errors.lock().await;
@@ -57,7 +57,10 @@ impl JsonVisitor {
 
 impl tracing::field::Visit for JsonVisitor {
     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-        self.recorded_fields.insert(field.name().to_string(), serde_json::Value::String(value.to_string()));
+        self.recorded_fields.insert(
+            field.name().to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     }
 
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {

@@ -4,16 +4,16 @@ use async_trait::async_trait;
 use chrono::Local;
 use goose::config::Config;
 use goose::message::Message;
-use goose_bench::eval_suites::{BenchAgent, Evaluation, EvaluationSuiteFactory, BenchAgentError};
+use goose_bench::error_capture::ErrorCaptureLayer;
+use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
 use goose_bench::work_dir::WorkDir;
-use goose_bench::error_capture::ErrorCaptureLayer;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Once;
 use tokio::sync::Mutex;
 use tracing_subscriber::layer::SubscriberExt;
-use std::sync::Once;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
@@ -26,21 +26,17 @@ pub struct BenchSession {
 impl BenchSession {
     pub fn new(session: Session) -> Self {
         let errors = Arc::new(Mutex::new(Vec::new()));
-        
+
         // Create and register the error capture layer only once
         INIT.call_once(|| {
             let error_layer = ErrorCaptureLayer::new(errors.clone());
-            let subscriber = tracing_subscriber::Registry::default()
-                .with(error_layer);
-            
+            let subscriber = tracing_subscriber::Registry::default().with(error_layer);
+
             tracing::subscriber::set_global_default(subscriber)
                 .expect("Failed to set tracing subscriber");
         });
-        
-        Self {
-            session,
-            errors,
-        }
+
+        Self { session, errors }
     }
 }
 
@@ -52,11 +48,11 @@ impl BenchAgent for BenchSession {
             let mut errors = self.errors.lock().await;
             errors.clear();
         }
-        
+
         self.session.headless(p).await?;
         Ok(self.session.message_history())
     }
-    
+
     async fn get_errors(&self) -> Vec<BenchAgentError> {
         let errors = self.errors.lock().await;
         errors.clone()
@@ -72,7 +68,7 @@ impl BenchAgent for BenchAgentWrapper {
         let mut session = self.0.lock().await;
         session.prompt(p).await
     }
-    
+
     async fn get_errors(&self) -> Vec<BenchAgentError> {
         let session = self.0.lock().await;
         session.get_errors().await
@@ -87,26 +83,21 @@ async fn run_eval(
 
     if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
         let required_extensions = evaluation.required_extensions();
-        
+
         // Create session with error capture
-        let base_session = build_session(
-            None,
-            false,
-            Vec::new(),
-            required_extensions
-        ).await;
-        
+        let base_session = build_session(None, false, Vec::new(), required_extensions).await;
+
         let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
         let bench_session_clone = bench_session.clone();
-        
-        if let Ok(metrics) = evaluation.run(
-            Box::new(BenchAgentWrapper(bench_session)), 
-            work_dir
-        ).await {
+
+        if let Ok(metrics) = evaluation
+            .run(Box::new(BenchAgentWrapper(bench_session)), work_dir)
+            .await
+        {
             for (name, metric) in metrics {
                 result.add_metric(name, metric);
             }
-            
+
             // Add any errors that occurred
             let agent = BenchAgentWrapper(bench_session_clone);
             for error in agent.get_errors().await {
