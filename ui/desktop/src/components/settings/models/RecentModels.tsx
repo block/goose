@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { Model } from './ModelContext';
-import { ModelRadioList, SeeMoreModelsButtons } from './ModelRadioList_special';
+import { ModelRadioList, SeeMoreModelsButtons } from './ModelRadioList';
 import { useModel } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 import type { View } from '../../../App';

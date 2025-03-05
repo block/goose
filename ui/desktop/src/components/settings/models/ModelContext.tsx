@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { GOOSE_MODEL, GOOSE_PROVIDER } from '../../../env_vars';
-import { goose_models } from './hardcoded_stuff'; // Assuming hardcoded models are here
+import { goose_models } from './goose_models'; // Assuming hardcoded models are here
 
 // TODO: API keys
 export interface Model {

@@ -1,7 +1,7 @@
 import { useModel } from './ModelContext'; // Import the useModel hook
 import { Model } from './ModelContext';
 import { useMemo } from 'react';
-import { goose_models } from './hardcoded_stuff';
+import { goose_models } from './goose_models';
 import { ToastFailureGeneral, ToastSuccessModelSwitch } from './toasts';
 import { initializeSystem } from '../../../utils/providerUtils';
 import { useRecentModels } from './RecentModels';

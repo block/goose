@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { Switch } from '../../ui/switch';
-import { goose_models } from './hardcoded_stuff';
+import { goose_models } from './goose_models';
 import { useModel } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';

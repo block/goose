@@ -5,7 +5,7 @@ import Select from 'react-select';
 import { Plus } from 'lucide-react';
 import { createSelectedModel, useHandleModelSelection } from './utils';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
-import { goose_models } from './hardcoded_stuff';
+import { goose_models } from './goose_models';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 
 export function AddModelInline() {
