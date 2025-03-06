@@ -113,7 +113,7 @@ async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Resu
     if let Some(evals) = EvaluationSuiteFactory::create(suite) {
         for eval in evals {
             let _unused = eval_lock.lock().await;
-            work_dir.set_eval(&eval.name());
+            work_dir.set_eval(eval.name());
             let eval_result = run_eval(eval, work_dir).await?;
             suite_result.add_evaluation(eval_result);
         }
