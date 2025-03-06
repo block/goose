@@ -11,6 +11,7 @@ import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { fetchSessionDetails } from './sessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -141,6 +142,32 @@ export default function App() {
     };
 
     setupStoredProvider();
+  }, []);
+
+  // Check for resumeSessionId in URL parameters
+  useEffect(() => {
+    const checkForResumeSession = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const resumeSessionId = urlParams.get('resumeSessionId');
+
+      if (resumeSessionId) {
+        console.log('Found resumeSessionId in URL:', resumeSessionId);
+        try {
+          // Fetch the session details
+          const sessionDetails = await fetchSessionDetails(resumeSessionId);
+          console.log('Fetched session details:', sessionDetails);
+
+          // Switch to chat view with the resumed session
+          setView('chat', {
+            resumedSession: sessionDetails,
+          });
+        } catch (error) {
+          console.error('Failed to fetch session details:', error);
+        }
+      }
+    };
+
+    checkForResumeSession();
   }, []);
 
   useEffect(() => {

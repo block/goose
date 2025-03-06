@@ -44,11 +44,16 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       const workingDir = selectedSession.metadata.working_dir;
 
       if (workingDir) {
-        // Create a new chat window with the working directory
-        window.electron.createChatWindow(undefined, workingDir);
+        console.log('Resuming session with ID:', selectedSession.session_id);
+        console.log('Working directory:', workingDir);
 
-        // Store the session ID in localStorage to be picked up by the new window
-        localStorage.setItem('resume_session_id', selectedSession.session_id);
+        // Create a new chat window with the working directory and session ID
+        window.electron.createChatWindow(
+          undefined,
+          workingDir,
+          undefined,
+          selectedSession.session_id
+        );
       } else {
         // Fallback if no working directory is found
         console.error('No working directory found in session metadata');
