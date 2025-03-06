@@ -29,7 +29,7 @@ import {
 export interface ChatType {
   id: number;
   title: string;
-  resumedMessageLength: number;
+  historyMessageLength: number;
   messages: Message[];
 }
 
@@ -77,7 +77,7 @@ export default function ChatView({
         return {
           id: Date.now(),
           title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
-          resumedMessageLength: convertedMessages.length,
+          historyMessageLength: convertedMessages.length,
           messages: convertedMessages,
         };
       } catch (e) {
@@ -100,7 +100,7 @@ export default function ChatView({
       id: Date.now(),
       title: 'Chat 1',
       messages: [],
-      resumedMessageLength: 0,
+      historyMessageLength: 0,
     };
   });
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
@@ -322,7 +322,7 @@ export default function ChatView({
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage
-                    resumedMessageLength={chat?.resumedMessageLength}
+                    historyMessageLength={chat?.historyMessageLength}
                     message={message}
                     messages={messages}
                     metadata={messageMetadata[message.id || '']}
