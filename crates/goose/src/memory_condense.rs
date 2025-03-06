@@ -34,19 +34,33 @@ async fn memory_condense(
     let mut message_stack = messages.iter().cloned().rev().collect::<Vec<_>>();
     let mut count_stack = token_counts.iter().copied().rev().collect::<Vec<_>>();
 
+    // Tracks the number of remaining tokens in the stack
     let mut total_tokens = count_stack.iter().sum::<usize>();
 
+    // Tracks the change of total_tokens in the previous loop.
+    // If diff <= 0, then the model cannot summarize any further. We set it to 1 before the process
+    // to ensure that the process starts.
     let mut diff = 1;
+
     while total_tokens > context_limit && diff > 0 {
         let mut batch = Vec::new();
         let mut current_tokens = 0;
+
+        // Extracts the beginning messages (which appears in the front of the message stack) to
+        // summarize.
         while total_tokens > current_tokens + context_limit
             && current_tokens + system_prompt_tokens <= context_limit
         {
             batch.push(message_stack.pop().unwrap());
             current_tokens += count_stack.pop().unwrap();
         }
-        if !batch.is_empty() && current_tokens + system_prompt_tokens <= context_limit {
+
+        // It could happen that the extracted messages are always the previous summary when the
+        // context limit is very small. We should force it to consume more messages.
+        if !batch.is_empty()
+            && !message_stack.is_empty()
+            && current_tokens + system_prompt_tokens <= context_limit
+        {
             batch.push(message_stack.pop().unwrap());
             current_tokens += count_stack.pop().unwrap();
         }
@@ -67,6 +81,8 @@ async fn memory_condense(
         diff += curr_tokens as isize;
         count_stack.push(curr_tokens);
         message_stack.extend(curr_messages);
+
+        // Update the counter
         total_tokens = total_tokens.checked_add_signed(diff).unwrap();
     }
 
