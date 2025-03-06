@@ -2,6 +2,9 @@ use anyhow::{Context, Result};
 use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Once;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
@@ -9,6 +12,11 @@ use tracing_subscriber::{
 };
 
 use goose::tracing::langfuse_layer;
+use goose_bench::error_capture::ErrorCaptureLayer;
+use goose_bench::eval_suites::BenchAgentError;
+
+// Used to ensure we only set up tracing once
+static INIT: Once = Once::new();
 
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
@@ -39,74 +47,95 @@ fn get_log_directory() -> Result<PathBuf> {
 /// - File-based logging with JSON formatting (DEBUG level)
 /// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
-pub fn setup_logging(name: Option<&str>) -> Result<()> {
-    // Set up file appender for goose module logs
-    let log_dir = get_log_directory()?;
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+/// - Optional error capture layer for benchmarking
+pub fn setup_logging(
+    name: Option<&str>,
+    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
+) -> Result<()> {
+    let mut result = Ok(());
+    
+    // Register the error vector if provided
+    if let Some(errors) = error_capture {
+        ErrorCaptureLayer::register_error_vector(errors);
+    }
+    
+    INIT.call_once(|| {
+        result = (|| {
+            // Set up file appender for goose module logs
+            let log_dir = get_log_directory()?;
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
 
-    // Create log file name by prefixing with timestamp
-    let log_filename = if name.is_some() {
-        format!("{}-{}.log", timestamp, name.unwrap())
-    } else {
-        format!("{}.log", timestamp)
-    };
+            // Create log file name by prefixing with timestamp
+            let log_filename = if name.is_some() {
+                format!("{}-{}.log", timestamp, name.unwrap())
+            } else {
+                format!("{}.log", timestamp)
+            };
 
-    // Create non-rolling file appender for detailed logs
-    let file_appender =
-        tracing_appender::rolling::RollingFileAppender::new(Rotation::NEVER, log_dir, log_filename);
+            // Create non-rolling file appender for detailed logs
+            let file_appender = tracing_appender::rolling::RollingFileAppender::new(
+                Rotation::NEVER,
+                log_dir,
+                log_filename,
+            );
 
-    // Create JSON file logging layer with all logs (DEBUG and above)
-    let file_layer = fmt::layer()
-        .with_target(true)
-        .with_level(true)
-        .with_writer(file_appender)
-        .with_ansi(false)
-        .with_file(true)
-        .pretty();
+            // Create JSON file logging layer with all logs (DEBUG and above)
+            let file_layer = fmt::layer()
+                .with_target(true)
+                .with_level(true)
+                .with_writer(file_appender)
+                .with_ansi(false)
+                .with_file(true)
+                .pretty();
 
-    // Create console logging layer for development - INFO and above only
-    let console_layer = fmt::layer()
-        .with_target(true)
-        .with_level(true)
-        .with_ansi(true)
-        .with_file(true)
-        .with_line_number(true)
-        .pretty();
+            // Create console logging layer for development - INFO and above only
+            let console_layer = fmt::layer()
+                .with_target(true)
+                .with_level(true)
+                .with_ansi(true)
+                .with_file(true)
+                .with_line_number(true)
+                .pretty();
 
-    // Base filter
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        // Set default levels for different modules
-        EnvFilter::new("")
-            // Set mcp-server module to DEBUG
-            .add_directive("mcp_server=debug".parse().unwrap())
-            // Set mcp-client to DEBUG
-            .add_directive("mcp_client=debug".parse().unwrap())
-            // Set goose module to DEBUG
-            .add_directive("goose=debug".parse().unwrap())
-            // Set goose-cli to INFO
-            .add_directive("goose_cli=info".parse().unwrap())
-            // Set everything else to WARN
-            .add_directive(LevelFilter::WARN.into())
+            // Base filter
+            let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                // Set default levels for different modules
+                EnvFilter::new("")
+                    // Set mcp-server module to DEBUG
+                    .add_directive("mcp_server=debug".parse().unwrap())
+                    // Set mcp-client to DEBUG
+                    .add_directive("mcp_client=debug".parse().unwrap())
+                    // Set goose module to DEBUG
+                    .add_directive("goose=debug".parse().unwrap())
+                    // Set goose-cli to INFO
+                    .add_directive("goose_cli=info".parse().unwrap())
+                    // Set everything else to WARN
+                    .add_directive(LevelFilter::WARN.into())
+            });
+
+            // Start building the subscriber
+            let mut layers = vec![
+                file_layer.with_filter(env_filter).boxed(),
+                console_layer.with_filter(LevelFilter::WARN).boxed(),
+                ErrorCaptureLayer::new().boxed(),
+            ];
+
+            // Add Langfuse layer if available
+            if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
+                layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
+            }
+
+            // Build and initialize the subscriber
+            Registry::default()
+                .with(layers)
+                .try_init()
+                .context("Failed to set global subscriber")?;
+
+            Ok(())
+        })();
     });
 
-    // Build the subscriber with required layers
-    let subscriber = Registry::default()
-        .with(file_layer.with_filter(env_filter)) // Gets all logs
-        .with(console_layer.with_filter(LevelFilter::WARN)); // Controls log levels
-
-    // Initialize with Langfuse if available
-    if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
-        subscriber
-            .with(langfuse.with_filter(LevelFilter::DEBUG))
-            .try_init()
-            .context("Failed to set global subscriber")?;
-    } else {
-        subscriber
-            .try_init()
-            .context("Failed to set global subscriber")?;
-    }
-
-    Ok(())
+    result
 }
 
 #[cfg(test)]
@@ -141,11 +170,22 @@ mod tests {
         assert!(path_components.iter().any(|c| c.as_os_str() == "cli"));
     }
 
-    #[test_case(Some("test_session") ; "with session name")]
-    #[test_case(None ; "without session name")]
-    fn test_log_file_name(session_name: Option<&str>) {
+    #[test_case(Some("test_session"), true ; "with session name and error capture")]
+    #[test_case(Some("test_session"), false ; "with session name without error capture")]
+    #[test_case(None, false ; "without session name")]
+    fn test_log_file_name(session_name: Option<&str>, with_error_capture: bool) {
         let _rt = Runtime::new().unwrap();
         let _temp_dir = setup_temp_home();
+
+        // Create error capture if needed
+        let error_capture = if with_error_capture {
+            Some(Arc::new(Mutex::new(Vec::new())))
+        } else {
+            None
+        };
+
+        // Set up logging
+        setup_logging(session_name, error_capture).unwrap();
 
         // Create a test-specific log directory and file
         let log_dir = get_log_directory().unwrap();

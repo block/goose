@@ -5,14 +5,24 @@ use tokio::sync::Mutex;
 use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use std::sync::RwLock;
+use once_cell::sync::Lazy;
 
-pub struct ErrorCaptureLayer {
-    errors: Arc<Mutex<Vec<BenchAgentError>>>,
-}
+// Global registry for error vectors
+static ERROR_REGISTRY: Lazy<RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>> = 
+    Lazy::new(|| RwLock::new(None));
+
+pub struct ErrorCaptureLayer;
 
 impl ErrorCaptureLayer {
-    pub fn new(errors: Arc<Mutex<Vec<BenchAgentError>>>) -> Self {
-        Self { errors }
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn register_error_vector(errors: Arc<Mutex<Vec<BenchAgentError>>>) {
+        if let Ok(mut registry) = ERROR_REGISTRY.write() {
+            *registry = Some(errors);
+        }
     }
 }
 
@@ -33,11 +43,15 @@ where
                     timestamp: Utc::now(),
                 };
 
-                let errors = self.errors.clone();
-                tokio::spawn(async move {
-                    let mut errors = errors.lock().await;
-                    errors.push(error);
-                });
+                // Get the current error vector from the registry
+                if let Ok(registry) = ERROR_REGISTRY.read() {
+                    if let Some(errors) = registry.clone() {
+                        tokio::spawn(async move {
+                            let mut errors = errors.lock().await;
+                            errors.push(error);
+                        });
+                    }
+                }
             }
         }
     }
