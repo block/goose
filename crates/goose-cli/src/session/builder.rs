@@ -50,21 +50,6 @@ pub async fn build_session(
                 process::exit(1);
             }
 
-            // Read the session metadata
-            let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read session metadata: {}", e));
-                process::exit(1);
-            });
-
-            // Ask user if they want to change the working directory
-            let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
-                    .initial_value(true)
-                    .interact().expect("Failed to get user input");
-
-            if change_workdir {
-                std::env::set_current_dir(metadata.working_dir).unwrap();
-            }
-
             session_file
         } else {
             // Try to resume most recent session
@@ -86,6 +71,23 @@ pub async fn build_session(
         // Just get the path - file will be created when needed
         session::get_path(id)
     };
+
+    if resume {
+        // Read the session metadata
+        let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to read session metadata: {}", e));
+            process::exit(1);
+        });
+
+        // Ask user if they want to change the working directory
+        let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+                .initial_value(true)
+                .interact().expect("Failed to get user input");
+
+        if change_workdir {
+            std::env::set_current_dir(metadata.working_dir).unwrap();
+        }
+    }
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
