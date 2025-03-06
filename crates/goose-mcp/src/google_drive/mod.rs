@@ -2,6 +2,7 @@ use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
 
+use std::io::Cursor;
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
 use mcp_core::{
@@ -185,6 +186,37 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let create_tool = Tool::new(
+            "create".to_string(),
+            indoc! {r#"
+                Create a new file in Google Drive.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "name": {
+                      "type": "string",
+                      "description": "Name of the file to create",
+                  },
+                  "mimeType": {
+                      "type": "string",
+                      "enum": ["text/plain", "text/csv","image/jpeg", "image/png", "application/pdf"],
+                      "description": "Current MIME type of the file to create. Must be one of the following: text/plain, text/csv, image/jpeg, image/png, application/pdf. If you provide a google-apps type, an attempt will be made to convert the body to the appropriate format Google Doc, Sheet, or Slides format. ",
+                  },
+                  "convert": {
+                      "type": "boolean",
+                      "description": "Whether to convert the file to the appropriate Google Docs, Sheets, or Slides format if the mimeType is supported. 'text/plain' will be to a Google Doc, 'text/csv' will be to a Google Sheet, and 'image/jpeg' or 'image/png' will be to a Google Slide.",
+                  },
+                  "body": {
+                      "type": "string",
+                      "description": "Body of the file to create. Binary data must be base64 encoded.",
+                  }
+              },
+              "required": ["name", "mimeType", "convert", "body"],
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -240,7 +272,7 @@ impl GoogleDriveRouter {
         "#};
 
         Self {
-            tools: vec![search_tool, read_tool],
+            tools: vec![search_tool, read_tool, create_tool],
             instructions,
             drive,
         }
@@ -566,6 +598,80 @@ impl GoogleDriveRouter {
             }
         }
     }
+
+    async fn create(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let filename =
+            params
+                .get("name")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The name param is required".to_string(),
+                ))?;
+        let mime_type =
+            params
+                .get("mimeType")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The mimeType param is required".to_string(),
+                ))?;
+        let convert =
+            params
+                .get("convert")
+                .and_then(|q| q.as_bool())
+                .ok_or(ToolError::InvalidParameters(
+                    "The convert param is required".to_string(),
+                ))?;
+        let body =
+            params
+                .get("body")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The body param is required".to_string(),
+                ))?;
+        let mut req = File::default();
+        // TODO: There IS a mime type for markdown!
+        req.name = Some(filename.to_string());
+        if convert {
+            match mime_type {
+                "text/plain" => {
+                    req.mime_type = Some("application/vnd.google-apps.document".to_string());
+                }
+                "text/csv" => {
+                    req.mime_type = Some("application/vnd.google-apps.spreadsheet".to_string());
+                }
+                "image/jpeg" | "image/png" => {
+                    req.mime_type = Some("application/vnd.google-apps.presentation".to_string());
+                }
+                _ => {
+                    req.mime_type = Some(mime_type.to_string());
+                }
+            };
+        } else {
+            req.mime_type = Some(mime_type.to_string());
+        }
+        let cursor = Cursor::new(body.as_bytes());
+        let result = self
+            .drive
+            .files()
+            .create(req)
+            .use_content_as_indexable_text(true)
+            .supports_team_drives(true)
+            .supports_all_drives(true)
+            .upload(cursor, mime_type.parse().unwrap())
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to create google drive file {}, {}.",
+                filename, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "{} ({}) (uri: {})",
+                r.1.name.unwrap_or_default(),
+                r.1.mime_type.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
+    }
 }
 
 impl Router for GoogleDriveRouter {
@@ -599,6 +705,7 @@ impl Router for GoogleDriveRouter {
             match tool_name.as_str() {
                 "search" => this.search(arguments).await,
                 "read" => this.read(arguments).await,
+                "create" => this.create(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
