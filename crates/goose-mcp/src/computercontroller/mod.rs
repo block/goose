@@ -370,8 +370,7 @@ impl ComputerControllerRouter {
                 - create: Create new presentation with template
                 - add_slide: Add a new slide with content
 
-                After any operation, open with:
-                open <path>
+                Open in a browser (using a command) to show the user: open <path> 
 
                 For advanced edits, use developer tools to modify the HTML directly.
                 A template slide is included in comments for reference.

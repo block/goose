@@ -10,7 +10,7 @@ const TEMPLATE: &str = r#"<html>
             font-family: Helvetica, sans-serif;
             padding: 5%;
             text-align: center;
-            font-size: 16px;  /* Changed from 50 to more reasonable base size */
+            font-size: 16px;
         }
 
         /* Styling the area of the slides */
@@ -50,28 +50,40 @@ const TEMPLATE: &str = r#"<html>
         /* Style slide content */
         .slide h1 {
             color: white;
-            font-size: 3em;
+            font-size: 2.5em;
             margin-bottom: 0.5em;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         .slide p {
             color: white;
-            font-size: 2em;
+            font-size: 1.5em;
             line-height: 1.4;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+            margin: 0.5em auto;
         }
 
         .slide ul, .slide ol {
             color: white;
-            font-size: 1.8em;
+            font-size: 1.2em;
             text-align: left;
             margin: 1em auto;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+        }
+
+        .slide li {
+            margin-bottom: 0.5em;
+        }
+
+        .slide ul ul, .slide ol ol {
+            font-size: 0.9em;
+            margin: 0.5em 0 0.5em 1em;
         }
 
         .slide pre {
-            font-size: 1.6em;
+            font-size: 1.1em;
             text-align: left;
             background: rgba(255, 255, 255, 0.9);
             padding: 1em;
@@ -97,14 +109,6 @@ const TEMPLATE: &str = r#"<html>
         .nav-hint.fade {
             opacity: 0;
         }
-
-        .slide-number {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
-        }
     </style>
 </head>
 <body>
@@ -115,7 +119,6 @@ const TEMPLATE: &str = r#"<html>
             <div class="slide">
                 <h1>Your Presentation</h1>
                 <p>Use arrow keys to navigate</p>
-                <div class="slide-number">1/2</div>
             </div>
 
             <!-- SLIDE_TEMPLATE (do not remove this comment)
@@ -138,7 +141,6 @@ const TEMPLATE: &str = r#"<html>
                         </ul>
                     </li>
                 </ul>
-                <div class="slide-number"></div>
             </div>            
 
             END_SLIDE_TEMPLATE -->
@@ -180,14 +182,6 @@ const TEMPLATE: &str = r#"<html>
         function updateSlide() {
             slideWrapper.style.marginLeft = `-${currentSlide * slideWidth}px`;
         }
-
-        // Update slide numbers
-        document.querySelectorAll('.slide').forEach((slide, index) => {
-            const number = slide.querySelector('.slide-number');
-            if (number) {
-                number.textContent = `${index + 1}/${totalSlides}`;
-            }
-        });
     </script>
 </body>
 </html>"#;
@@ -214,7 +208,7 @@ pub async fn make_presentation(
             })?;
 
             Ok(vec![Content::text(format!(
-                "Created new presentation with title '{}' at: {}\nYou can open it with: open {}",
+                "Created new presentation with title '{}' at: {}\nYou can open it with the command: `open {}` to show user. You should look at the html and consider if you want to ask user if they need to adjust it, colours, typeface and so on.",
                 title, path, path
             ))])
         }
@@ -251,7 +245,6 @@ pub async fn make_presentation(
             let slide_html = format!(
                 r#"            <div class="slide">
                 <h1>{}</h1>
-                <div class="slide-number"></div>
             </div>
 
             {}"#,
@@ -267,7 +260,7 @@ pub async fn make_presentation(
             })?;
 
             Ok(vec![Content::text(format!(
-                "Added new slide to presentation. You can view it with: open {}",
+                "Added new slide to presentation. You can view it with: open {}\nNote: when creating, or adding a slide, if the content for a slide is long, edit it so that it uses appropriate size, formatting, lists etc (and can even split it to other slides if needed).",
                 path
             ))])
         }
