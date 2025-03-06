@@ -6,6 +6,7 @@ import GroqLogo from './icons/groq@3x.png';
 import OllamaLogo from './icons/ollama@3x.png';
 import DatabricksLogo from './icons/databricks@3x.png';
 import OpenRouterLogo from './icons/openrouter@3x.png';
+import DefaultLogo from './icons/default@3x.png';
 
 // Map provider names to their logos
 const providerLogos = {
@@ -16,12 +17,13 @@ const providerLogos = {
   ollama: OllamaLogo,
   databricks: DatabricksLogo,
   openrouter: OpenRouterLogo,
+  default: DefaultLogo,
 };
 
 export default function ProviderLogo({ providerName }) {
   // Convert provider name to lowercase and fetch the logo
   const logoKey = providerName.toLowerCase();
-  const logo = providerLogos[logoKey] || OpenAILogo; // TODO: need default icon
+  const logo = providerLogos[logoKey] || DefaultLogo;
 
   return (
     <div className="flex justify-center mb-2">
