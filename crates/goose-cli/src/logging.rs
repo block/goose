@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Once;
 use std::sync::Arc;
+use std::sync::Once;
 use tokio::sync::Mutex;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
@@ -53,12 +53,12 @@ pub fn setup_logging(
     error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
 ) -> Result<()> {
     let mut result = Ok(());
-    
+
     // Register the error vector if provided
     if let Some(errors) = error_capture {
         ErrorCaptureLayer::register_error_vector(errors);
     }
-    
+
     INIT.call_once(|| {
         result = (|| {
             // Set up file appender for goose module logs

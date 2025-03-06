@@ -1,15 +1,15 @@
 use crate::eval_suites::BenchAgentError;
 use chrono::Utc;
+use once_cell::sync::Lazy;
 use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::sync::Mutex;
 use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
-use std::sync::RwLock;
-use once_cell::sync::Lazy;
 
 // Global registry for error vectors
-static ERROR_REGISTRY: Lazy<RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>> = 
+static ERROR_REGISTRY: Lazy<RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>> =
     Lazy::new(|| RwLock::new(None));
 
 pub struct ErrorCaptureLayer;

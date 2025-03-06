@@ -1,6 +1,6 @@
+use crate::logging;
 use crate::session::build_session;
 use crate::Session;
-use crate::logging;
 use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
@@ -21,7 +21,7 @@ pub struct BenchSession {
 impl BenchSession {
     pub fn new(session: Session) -> Self {
         let errors = Arc::new(Mutex::new(Vec::new()));
-        
+
         // Initialize logging with error capture
         logging::setup_logging(Some("bench"), Some(errors.clone()))
             .expect("Failed to initialize logging");
