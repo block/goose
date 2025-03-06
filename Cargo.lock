@@ -2200,10 +2200,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-bench"
+version = "1.0.10"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "ctor",
+ "goose",
+ "mcp-core",
+ "paste",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "winapi",
+]
+
+[[package]]
 name = "goose-cli"
 version = "1.0.12"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bat",
  "chrono",
  "clap",
@@ -2212,6 +2232,7 @@ dependencies = [
  "etcetera",
  "futures",
  "goose",
+ "goose-bench",
  "goose-mcp",
  "mcp-client",
  "mcp-core",

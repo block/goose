@@ -622,4 +622,8 @@ impl Session {
         cache.prompt_info.clear();
         cache.last_updated = Instant::now();
     }
+
+    pub fn message_history(&self) -> Vec<Message> {
+        self.messages.clone()
+    }
 }
