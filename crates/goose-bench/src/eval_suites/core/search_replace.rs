@@ -1,6 +1,6 @@
+use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
-use crate::bench_work_dir::BenchmarkWorkDir;
 use async_trait::async_trait;
 use std::fs;
 
@@ -28,7 +28,10 @@ impl Evaluation for DeveloperSearchReplace {
 
         // Get the kubernetes_swagger.json file from the assets directory and copy it to the working directory for eval
         // so the agent can modify it
-        let source_file = work_dir.base_path.join("assets").join("kubernetes_swagger.json");
+        let source_file = work_dir
+            .base_path
+            .join("assets")
+            .join("kubernetes_swagger.json");
         let target_file = std::env::current_dir()
             .unwrap_or_default()
             .join("kubernetes_swagger.json");

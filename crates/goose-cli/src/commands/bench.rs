@@ -142,7 +142,7 @@ pub async fn run_benchmark(
     let suite_lock = Mutex::new(0);
     for suite in suites {
         let _unused = suite_lock.lock().await;
-        work_dir.set_suite(&suite);
+        work_dir.set_suite(suite);
         let suite_result = run_suite(suite, &mut work_dir).await?;
         results.add_suite(suite_result);
     }

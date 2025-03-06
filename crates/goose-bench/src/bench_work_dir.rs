@@ -64,8 +64,9 @@ impl BenchmarkWorkDir {
         suite_dir.push(self.run_name.clone());
         suite_dir.push(suite);
 
-        self.cd(suite_dir.clone())
-            .expect(format!("Failed to execute cd into {}", suite_dir.clone().display()).as_str());
+        self.cd(suite_dir.clone()).unwrap_or_else(|_| {
+            panic!("Failed to execute cd into {}", suite_dir.clone().display())
+        });
     }
     pub fn set_eval(&mut self, eval: &str) {
         self.eval = Some(eval.to_string());
@@ -76,7 +77,7 @@ impl BenchmarkWorkDir {
         eval_dir.push(eval);
 
         self.cd(eval_dir.clone())
-            .expect(format!("Failed to execute cd into {}", eval_dir.clone().display()).as_str());
+            .unwrap_or_else(|_| panic!("Failed to execute cd into {}", eval_dir.clone().display()));
     }
 
     pub fn fs_get(&mut self, path: String) -> anyhow::Result<PathBuf> {

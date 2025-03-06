@@ -1,6 +1,6 @@
+use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
-use crate::bench_work_dir::BenchmarkWorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
