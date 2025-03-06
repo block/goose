@@ -40,10 +40,20 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleResumeSession = () => {
     if (selectedSession) {
-      // Pass the session to ChatView for resuming
-      setView('chat', {
-        resumedSession: selectedSession,
-      });
+      // Get the working directory from the session metadata
+      const workingDir = selectedSession.metadata.working_dir;
+
+      if (workingDir) {
+        // Create a new chat window with the working directory
+        window.electron.createChatWindow(undefined, workingDir);
+
+        // Store the session ID in localStorage to be picked up by the new window
+        localStorage.setItem('resume_session_id', selectedSession.session_id);
+      } else {
+        // Fallback if no working directory is found
+        console.error('No working directory found in session metadata');
+        // We could show a toast or alert here
+      }
     }
   };
 

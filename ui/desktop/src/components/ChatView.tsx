@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '../config';
-import { generateSessionId, updateSessionMetadata, ensureWorkingDir } from '../sessions';
+import {
+  generateSessionId,
+  updateSessionMetadata,
+  ensureWorkingDir,
+  fetchSessionDetails,
+} from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -34,6 +39,16 @@ export default function ChatView({
 }) {
   // Check if we're resuming a session
   const resumedSession = viewOptions?.resumedSession;
+  const [resumeSessionId] = useState(() => {
+    // Check if there's a session ID stored in localStorage to resume
+    const storedSessionId = localStorage.getItem('resume_session_id');
+    if (storedSessionId) {
+      // Clear it immediately to prevent it from being used again
+      localStorage.removeItem('resume_session_id');
+      return storedSessionId;
+    }
+    return null;
+  });
 
   // Generate or retrieve session ID
   const [sessionId] = useState(() => {
@@ -41,12 +56,13 @@ export default function ChatView({
     if (resumedSession?.session_id) {
       // Store the resumed session ID in sessionStorage
       window.sessionStorage.setItem('goose-session-id', resumedSession.session_id);
-
-      // Set working directory from metadata, ensuring it has a value
-      const workingDir = ensureWorkingDir(resumedSession.metadata).working_dir;
-      window.appConfig.set('GOOSE_WORKING_DIR', workingDir);
-
       return resumedSession.session_id;
+    }
+
+    // If we have a session ID to resume from localStorage
+    if (resumeSessionId) {
+      window.sessionStorage.setItem('goose-session-id', resumeSessionId);
+      return resumeSessionId;
     }
 
     // For a new chat, generate a new session ID
@@ -96,6 +112,47 @@ export default function ChatView({
       messages: [],
     };
   });
+
+  // For loading session details when resumeSessionId is present
+  const [isLoadingResumedSession, setIsLoadingResumedSession] = useState(false);
+
+  // Effect to load session details when resumeSessionId is present
+  useEffect(() => {
+    const loadResumedSession = async () => {
+      if (resumeSessionId && !resumedSession) {
+        setIsLoadingResumedSession(true);
+        try {
+          const sessionDetails = await fetchSessionDetails(resumeSessionId);
+
+          // Convert the session messages to the expected format
+          const convertedMessages = sessionDetails.messages.map((msg): Message => {
+            return {
+              id: `${msg.role}-${msg.created}`,
+              role: msg.role,
+              created: msg.created,
+              content: msg.content,
+            };
+          });
+
+          // Update the chat state with the loaded session
+          setChat({
+            id: Date.now(),
+            title: sessionDetails.metadata?.description || `ID: ${sessionDetails.session_id}`,
+            messages: convertedMessages,
+          });
+
+          // Update the messages in the message stream
+          setMessages(convertedMessages);
+        } catch (e) {
+          console.error('Failed to load resumed session:', e);
+        } finally {
+          setIsLoadingResumedSession(false);
+        }
+      }
+    };
+
+    loadResumedSession();
+  }, [resumeSessionId]);
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
