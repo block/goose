@@ -82,7 +82,7 @@ pub async fn build_session(
 
             // Warn the user that the working directory of this session doesn't match the current working directory & if they want to proceed
             // Note that changing working directory does not work because developer extension & other extensions are not aware of the change
-            let answer = cliclack::select(format!("WARNING: The working directory of this session was set to {}. It does not match the current working directory. This may cause issues with some extensions. Would you like to proceed?", style(metadata.working_dir.display()).cyan()))
+            let answer = cliclack::select(format!("{} The working directory of this session was set to {}. It does not match the current working directory. This may cause issues with some extensions. Would you still like to proceed?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
                 .item("yes", "Yes", "Proceed")
                 .item("no", "No", "Exit")
                 .interact();
