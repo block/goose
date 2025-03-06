@@ -41,14 +41,17 @@ impl Evaluation for RestaurantResearch {
 
 Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants.".to_string()).await?;
 
-        let response_text = response.to_string();
-        let has_markdown_bullets = self.check_markdown_bullets(&response_text);
-        let bullet_count = self.count_bullet_points(&response_text);
+        // Get text content from the last message
+        if let Some(last_msg) = response.last() {
+            let text_content = last_msg.as_concat_text();
+            let has_markdown_bullets = self.check_markdown_bullets(&text_content);
+            let bullet_count = self.count_bullet_points(&text_content);
 
-        metrics.push(("valid_markdown_format".to_string(), 
-            EvaluationMetric::Boolean(has_markdown_bullets)));
-        metrics.push(("bullet_point_count".to_string(), 
-            EvaluationMetric::Integer(bullet_count)));
+            metrics.push(("valid_markdown_format".to_string(), 
+                EvaluationMetric::Boolean(has_markdown_bullets)));
+            metrics.push(("bullet_point_count".to_string(), 
+                EvaluationMetric::Integer(bullet_count)));
+        }
 
         Ok(metrics)
     }
@@ -58,7 +61,7 @@ Present the information in order of significance or quality. Focus specifically 
     }
 
     fn required_extensions(&self) -> Vec<String> {
-        vec!["fetch".to_string()]
+        vec!["developer".to_string(), "fetch".to_string()]
     }
 }
 

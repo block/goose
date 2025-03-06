@@ -108,8 +108,8 @@ After writing the script, run it using python3 and show the results. Do not ask 
 
         // Check the last message for correct results
         let correct_results = if let Some(last_msg) = messages.last() {
-            let msg_text = last_msg.to_string();
-            let (has_central_manhattan, has_tompkins, has_gray) = self.check_analysis_results(&msg_text);
+            let text_content = last_msg.as_concat_text();
+            let (has_central_manhattan, has_tompkins, has_gray) = self.check_analysis_results(&text_content);
             has_central_manhattan && has_tompkins && has_gray
         } else {
             false
