@@ -73,6 +73,25 @@ pub async fn build_session(
                 ));
                 process::exit(1);
             }
+
+            // Read the session metadata
+            let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to read session metadata: {}", e));
+                process::exit(1);
+            });
+
+            // Warn the user that the working directory of this session doesn't match the current working directory & if they want to proceed
+            // Note that changing working directory does not work because developer extension & other extensions are not aware of the change
+            let answer = cliclack::select(format!("WARNING: The working directory of this session was set to {}. It does not match the current working directory. This may cause issues with some extensions. Would you like to proceed?", style(metadata.working_dir.display()).cyan()))
+                .item("yes", "Yes", "Proceed")
+                .item("no", "No", "Exit")
+                .interact();
+
+            // If the user doesn't want to proceed, gracefully exit
+            if let Ok("no") = answer {
+                process::exit(1);
+            }
+
             session_file
         } else {
             // Try to resume most recent session
