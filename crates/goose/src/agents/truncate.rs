@@ -206,14 +206,6 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
-        if goose_mode == "chat" {
-            tools.clear();
-            capabilities.add_system_prompt_extension(
-                "Right now you are in the chat only mode, no access to any tool use and system."
-                    .to_string(),
-            );
-        }
-
         let system_prompt = capabilities.get_system_prompt().await;
 
         // Set the user_message field in the span instead of creating a new event
@@ -323,7 +315,21 @@ impl Agent for TruncateAgent {
                             },
                             "chat" => {
                                 // Skip all tool calls in chat mode
-                                break;
+                                for request in &tool_requests {
+                                    message_tool_response = message_tool_response.with_tool_response(
+                                        request.id.clone(),
+                                        Ok(vec![Content::text(
+                                            "Let the user know the tool call was skipped in Goose chat mode. \
+                                            DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                            Provide an explanation of what the tool call would do, structured as a \
+                                            plan for the user. Again, DO NOT apologize. \
+                                            **Example Plan:**\n \
+                                            1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                            2. **Outline Steps** - Break down the steps.\n \
+                                            If needed, adjust the explanation based on user preferences or questions."
+                                        )]),
+                                    );
+                                }
                             },
                             _ => {
                                 if mode != "auto" {

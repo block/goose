@@ -326,21 +326,16 @@ impl Capabilities {
     pub async fn get_system_prompt(&self) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
 
-        let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
-        // In chat mode, we don't need to have the extensions to confuse LLM and it can help save cost as well.
-        if goose_mode != "chat" {
-            let extensions_info: Vec<ExtensionInfo> = self
-                .clients
-                .keys()
-                .map(|name| {
-                    let instructions = self.instructions.get(name).cloned().unwrap_or_default();
-                    let has_resources = self.resource_capable_extensions.contains(name);
-                    ExtensionInfo::new(name, &instructions, has_resources)
-                })
-                .collect();
-            context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
-        }
+        let extensions_info: Vec<ExtensionInfo> = self
+            .clients
+            .keys()
+            .map(|name| {
+                let instructions = self.instructions.get(name).cloned().unwrap_or_default();
+                let has_resources = self.resource_capable_extensions.contains(name);
+                ExtensionInfo::new(name, &instructions, has_resources)
+            })
+            .collect();
+        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         context.insert("current_date_time", Value::String(current_date_time));
@@ -354,13 +349,26 @@ impl Capabilities {
                 .expect("Prompt should render")
         };
 
-        if self.system_prompt_extensions.is_empty() {
+        let mut system_prompt_extensions = self.system_prompt_extensions.clone();
+        let config = Config::global();
+        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        if goose_mode == "chat" {
+            system_prompt_extensions.push(
+                "Right now you are in the chat only mode, no access to any tool use and system."
+                    .to_string(),
+            );
+        } else {
+            system_prompt_extensions
+                .push("Right now you are *NOT* in the chat only mode and have access to tool use and system.".to_string());
+        }
+
+        if system_prompt_extensions.is_empty() {
             base_prompt
         } else {
             format!(
                 "{}\n\n# Additional Instructions:\n\n{}",
                 base_prompt,
-                self.system_prompt_extensions.join("\n\n")
+                system_prompt_extensions.join("\n\n")
             )
         }
     }
