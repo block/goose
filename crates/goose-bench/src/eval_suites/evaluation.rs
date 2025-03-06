@@ -23,6 +23,12 @@ pub enum EvaluationMetric {
     Boolean(bool),
 }
 
+#[derive(Debug, Default)]
+pub struct ExtensionRequirements {
+    pub builtin: Vec<String>,
+    pub external: Vec<String>,
+}
+
 #[async_trait]
 pub trait BenchAgent: Send + Sync {
     async fn prompt(&mut self, p: String) -> Result<Vec<Message>>;
@@ -41,7 +47,10 @@ pub trait Evaluation: Send + Sync {
 
     fn name(&self) -> &str;
 
-    fn required_extensions(&self) -> Vec<String> {
-        Vec::new() // Default implementation returns empty vec
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: Vec::new(),
+            external: Vec::new(),
+        }
     }
 }

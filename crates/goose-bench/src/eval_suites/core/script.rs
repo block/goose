@@ -1,6 +1,6 @@
 // Create a new file called test.txt with the content 'Hello, World!
 
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
@@ -69,8 +69,11 @@ impl Evaluation for ComputerControllerScript {
         "computercontroller_script"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["computercontroller".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["computercontroller".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 
