@@ -167,7 +167,9 @@ export default function BottomMenu({
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>{envModelProvider || currentModel?.name || 'Select Model'}</span>
+          <span>
+            {envModelProvider || (currentModel?.alias ?? currentModel?.name) || 'Select Model'}
+          </span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (
@@ -182,7 +184,7 @@ export default function BottomMenu({
               <ModelRadioList
                 className="divide-y divide-borderSubtle"
                 renderItem={({ model, isSelected, onSelect }) => (
-                  <label key={model.name} className="block cursor-pointer">
+                  <label key={model.alias ?? model.name} className="block cursor-pointer">
                     <div
                       className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
                       onClick={onSelect}
