@@ -172,6 +172,9 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/:session_id", get(get_session_history))
-        .route("/sessions/:session_id/metadata", patch(update_session_metadata))
+        .route(
+            "/sessions/:session_id/metadata",
+            patch(update_session_metadata),
+        )
         .with_state(state)
 }

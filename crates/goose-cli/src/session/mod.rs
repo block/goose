@@ -197,12 +197,21 @@ impl Session {
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
+        let is_first_message = self.messages.len() == 1;
 
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await;
 
         // Persist messages with provider for automatic description generation
+        // This creates the session file if it doesn't exist
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
+
+        // For the first message, set the working directory to the current directory
+        if is_first_message {
+            let mut metadata = session::read_metadata(&self.session_file)?;
+            metadata.working_dir = std::env::current_dir().unwrap();
+            session::update_metadata(&self.session_file, &metadata).await?;
+        }
 
         self.process_agent_response(false).await?;
         Ok(())
