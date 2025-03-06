@@ -56,7 +56,7 @@ pub async fn build_session(
                 process::exit(1);
             });
 
-            // Warn the user that the working directory of this session doesn't match the current working directory & if they want to proceed
+            // Ask user if they want to change the working directory
             let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
                     .initial_value(true)
                     .interact().expect("Failed to get user input");
@@ -88,7 +88,7 @@ pub async fn build_session(
     };
 
     // Setup extensions for the agent
-    // This needs to be done after the session (because we change directory when resuming a session)
+    // Extensions need to be added after the session is created because we change directory when resuming a session
     for extension in ExtensionManager::get_all().expect("should load extensions") {
         if extension.enabled {
             let config = extension.config.clone();

@@ -203,10 +203,9 @@ impl Session {
         let provider = self.agent.provider().await;
 
         // Persist messages with provider for automatic description generation
-        // This creates the session file if it doesn't exist
+        // The first message creates the session file if it doesn't exist
+        // So we check that here and update the working directory after the first message
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
-
-        // For the first message, set the working directory to the current directory
         if is_first_message {
             let mut metadata = session::read_metadata(&self.session_file)?;
             metadata.working_dir = std::env::current_dir().unwrap();

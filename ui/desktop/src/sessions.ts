@@ -13,7 +13,7 @@ export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMet
     description: metadata.description || '',
     message_count: metadata.message_count || 0,
     total_tokens: metadata.total_tokens || null,
-    working_dir: metadata.working_dir || window.appConfig.get('HOME_DIR') || process.env.HOME || '',
+    working_dir: metadata.working_dir || process.env.HOME || '',
   };
 }
 
