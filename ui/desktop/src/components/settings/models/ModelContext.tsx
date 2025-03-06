@@ -8,6 +8,8 @@ export interface Model {
   name: string;
   provider: string;
   lastUsed?: string;
+  alias?: string; // optional model display name
+  subtext?: string; // goes below model name if not the provider
 }
 
 interface ModelContextValue {

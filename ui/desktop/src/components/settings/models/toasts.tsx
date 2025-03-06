@@ -6,7 +6,7 @@ export function ToastSuccessModelSwitch(model: Model) {
   return toast.success(
     <div>
       <strong>Model Changed</strong>
-      <div>Switched to {model.name}</div>
+      <div>Switched to {model.alias ?? model.name}</div>
     </div>,
     {
       position: 'top-right',

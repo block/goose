@@ -188,8 +188,8 @@ export default function BottomMenu({
                       onClick={onSelect}
                     >
                       <div>
-                        <p className="text-sm ">{model.name}</p>
-                        <p className="text-xs text-textSubtle">{model.provider}</p>
+                        <p className="text-sm ">{model.alias ?? model.name}</p>
+                        <p className="text-xs text-textSubtle">{model.subtext ?? model.provider}</p>
                       </div>
                       <div className="relative">
                         <input

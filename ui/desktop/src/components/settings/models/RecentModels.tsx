@@ -157,8 +157,8 @@ export function RecentModelsRadio({ setView }: { setView: (view: View) => void }
                 </div>
 
                 <div className="">
-                  <p className="text-sm text-textStandard">{model.name}</p>
-                  <p className="text-xs text-textSubtle">{model.provider}</p>
+                  <p className="text-sm text-textStandard">{model.alias ?? model.name}</p>
+                  <p className="text-xs text-textSubtle">{model.subtext ?? model.provider}</p>
                 </div>
               </label>
             )}
