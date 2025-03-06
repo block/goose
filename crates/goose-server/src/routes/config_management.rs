@@ -310,7 +310,7 @@ pub async fn providers(
     headers: HeaderMap,
 ) -> Result<Json<ProvidersResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
-    
+
     let providers = get_providers();
     Ok(Json(ProvidersResponse { providers }))
 }
