@@ -193,6 +193,9 @@ release version: ensure-main
 
     @cd ui/desktop && npm version {{ version }} --no-git-tag-version --allow-same-version
 
+    # see --workspace flag https://doc.rust-lang.org/cargo/commands/cargo-update.html
+    # used to update Cargo.lock after we've bumped versions in Cargo.toml
+    @cargo update --workspace
     @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json
     @git commit --message "chore(release): release version {{ version }}"
 
