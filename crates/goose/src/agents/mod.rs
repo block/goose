@@ -4,6 +4,7 @@ pub mod extension;
 mod factory;
 mod permission_judge;
 mod reference;
+mod summarize;
 mod truncate;
 
 pub use agent::Agent;
