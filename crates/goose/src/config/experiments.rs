@@ -18,7 +18,7 @@ impl ExperimentManager {
     /// - Removes experiments not in `ALL_EXPERIMENTS`.
     pub fn get_all() -> Result<Vec<(String, bool)>> {
         let config = Config::global();
-        let mut experiments: HashMap<String, bool> = config.get("experiments").unwrap_or_default();
+        let mut experiments: HashMap<String, bool> = config.get_param("experiments").unwrap_or_default();
         Self::refresh_experiments(&mut experiments);
 
         Ok(experiments.into_iter().collect())
@@ -28,11 +28,11 @@ impl ExperimentManager {
     pub fn set_enabled(name: &str, enabled: bool) -> Result<()> {
         let config = Config::global();
         let mut experiments: HashMap<String, bool> =
-            config.get("experiments").unwrap_or_else(|_| HashMap::new());
+            config.get_param("experiments").unwrap_or_else(|_| HashMap::new());
         Self::refresh_experiments(&mut experiments);
         experiments.insert(name.to_string(), enabled);
 
-        config.set("experiments", serde_json::to_value(experiments)?)?;
+        config.set_param("experiments", serde_json::to_value(experiments)?)?;
         Ok(())
     }
 

@@ -40,10 +40,10 @@ impl AzureProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("AZURE_OPENAI_API_KEY")?;
-        let endpoint: String = config.get("AZURE_OPENAI_ENDPOINT")?;
-        let deployment_name: String = config.get("AZURE_OPENAI_DEPLOYMENT_NAME")?;
+        let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
+        let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
         let api_version: String = config
-            .get("AZURE_OPENAI_API_VERSION")
+            .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
         let client = Client::builder()

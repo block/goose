@@ -33,12 +33,13 @@ fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode
 pub struct UpsertConfigQuery {
     pub key: String,
     pub value: Value,
-    pub is_secret: Option<bool>,
+    pub is_secret: bool,
 }
 
 #[derive(Deserialize, ToSchema)]
 pub struct ConfigKeyQuery {
     pub key: String,
+    pub is_secret: bool,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -55,6 +56,18 @@ pub struct ConfigResponse {
 #[derive(Serialize, ToSchema)]
 pub struct ProvidersResponse {
     pub providers: Vec<ProviderMetadata>,
+}
+
+fn check_key_status(config: &Config, key: &str) -> (bool, Option<String>) {
+    if let Ok(_value) = std::env::var(key) {
+        (true, Some("env".to_string()))
+    } else if config.get_param::<String>(key).is_ok() {
+        (true, Some("yaml".to_string()))
+    } else if config.get_secret::<String>(key).is_ok() {
+        (true, Some("keyring".to_string()))
+    } else {
+        (false, None)
+    }
 }
 
 #[utoipa::path(
@@ -75,12 +88,7 @@ pub async fn upsert_config(
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
-
-    let result = if query.is_secret.unwrap_or(false) {
-        config.set_secret(&query.key, query.value)
-    } else {
-        config.set(&query.key, query.value)
-    };
+    let result = config.set(&query.key, query.value, query.is_secret);
 
     match result {
         Ok(_) => Ok(Json(Value::String(format!("Upserted key {}", query.key)))),
@@ -128,13 +136,20 @@ pub async fn read_config(
     headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
     let config = Config::global();
 
-    match config.get::<Value>(&query.key) {
-        Ok(value) => Ok(Json(value)),
+    match config.get(&query.key, query.is_secret) {  // Always get the actual value
+        Ok(value) => {
+            if query.is_secret {
+                // If it's marked as secret, return a boolean indicating presence
+                Ok(Json(Value::Bool(true)))
+            } else {
+                // Return the actual value if not secret
+                Ok(Json(value))
+            }
+        },
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
@@ -161,13 +176,13 @@ pub async fn add_extension(
 
     // Get current extensions or initialize empty map
     let mut extensions: HashMap<String, Value> =
-        config.get("extensions").unwrap_or_else(|_| HashMap::new());
+        config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
 
     // Add new extension
     extensions.insert(extension.name.clone(), extension.config);
 
     // Save updated extensions
-    match config.set(
+    match config.set_param(
         "extensions",
         Value::Object(extensions.into_iter().collect()),
     ) {
@@ -197,7 +212,7 @@ pub async fn remove_extension(
     let config = Config::global();
 
     // Get current extensions
-    let mut extensions: HashMap<String, Value> = match config.get("extensions") {
+    let mut extensions: HashMap<String, Value> = match config.get_param("extensions") {
         Ok(exts) => exts,
         Err(_) => return Err(StatusCode::NOT_FOUND),
     };
@@ -205,7 +220,7 @@ pub async fn remove_extension(
     // Remove extension if it exists
     if extensions.remove(&query.key).is_some() {
         // Save updated extensions
-        match config.set(
+        match config.set_param(
             "extensions",
             Value::Object(extensions.into_iter().collect()),
         ) {
@@ -260,7 +275,7 @@ pub async fn update_extension(
     let config = Config::global();
 
     // Get current extensions
-    let mut extensions: HashMap<String, Value> = match config.get("extensions") {
+    let mut extensions: HashMap<String, Value> = match config.get_param("extensions") {
         Ok(exts) => exts,
         Err(_) => return Err(StatusCode::NOT_FOUND),
     };
@@ -274,7 +289,7 @@ pub async fn update_extension(
     extensions.insert(extension.name.clone(), extension.config);
 
     // Save updated extensions
-    match config.set(
+    match config.set_param(
         "extensions",
         Value::Object(extensions.into_iter().collect()),
     ) {

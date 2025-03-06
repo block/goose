@@ -286,9 +286,13 @@
       "ConfigKeyQuery": {
         "type": "object",
         "required": [
-          "key"
+          "key",
+          "is_secret"
         ],
         "properties": {
+          "is_secret": {
+            "type": "boolean"
+          },
           "key": {
             "type": "string"
           }
@@ -386,12 +390,12 @@
         "type": "object",
         "required": [
           "key",
-          "value"
+          "value",
+          "is_secret"
         ],
         "properties": {
           "is_secret": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "key": {
             "type": "string"

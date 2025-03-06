@@ -23,7 +23,7 @@ impl ExtensionManager {
         let config = Config::global();
 
         // Try to get the extension entry
-        let extensions: HashMap<String, ExtensionEntry> = match config.get("extensions") {
+        let extensions: HashMap<String, ExtensionEntry> = match config.get_param("extensions") {
             Ok(exts) => exts,
             Err(super::ConfigError::NotFound(_)) => {
                 // Initialize with default developer extension
@@ -37,7 +37,7 @@ impl ExtensionManager {
                         },
                     },
                 )]);
-                config.set("extensions", serde_json::to_value(&defaults)?)?;
+                config.set_param("extensions", serde_json::to_value(&defaults)?)?;
                 defaults
             }
             Err(e) => return Err(e.into()),
@@ -57,10 +57,10 @@ impl ExtensionManager {
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or_else(|_| HashMap::new());
+            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
 
         extensions.insert(entry.config.name().parse()?, entry);
-        config.set("extensions", serde_json::to_value(extensions)?)?;
+        config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
     }
 
@@ -69,10 +69,10 @@ impl ExtensionManager {
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or_else(|_| HashMap::new());
+            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
 
         extensions.remove(name);
-        config.set("extensions", serde_json::to_value(extensions)?)?;
+        config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
     }
 
@@ -81,11 +81,11 @@ impl ExtensionManager {
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or_else(|_| HashMap::new());
+            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
 
         if let Some(entry) = extensions.get_mut(name) {
             entry.enabled = enabled;
-            config.set("extensions", serde_json::to_value(extensions)?)?;
+            config.set_param("extensions", serde_json::to_value(extensions)?)?;
         }
         Ok(())
     }
@@ -94,7 +94,7 @@ impl ExtensionManager {
     pub fn get_all() -> Result<Vec<ExtensionEntry>> {
         let config = Config::global();
         let extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or_default();
+            config.get_param("extensions").unwrap_or_default();
         Ok(Vec::from_iter(extensions.values().cloned()))
     }
 
@@ -102,7 +102,7 @@ impl ExtensionManager {
     pub fn get_all_names() -> Result<Vec<String>> {
         let config = Config::global();
         Ok(config
-            .get("extensions")
+            .get_param("extensions")
             .unwrap_or_else(|_| get_keys(Default::default())))
     }
 
@@ -110,7 +110,7 @@ impl ExtensionManager {
     pub fn is_enabled(name: &str) -> Result<bool> {
         let config = Config::global();
         let extensions: HashMap<String, ExtensionEntry> =
-            config.get("extensions").unwrap_or_else(|_| HashMap::new());
+            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
 
         Ok(extensions.get(name).map(|e| e.enabled).unwrap_or(false))
     }

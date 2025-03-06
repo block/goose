@@ -8,6 +8,7 @@ export type ConfigKey = {
 };
 
 export type ConfigKeyQuery = {
+    is_secret: boolean;
     key: string;
 };
 
@@ -60,7 +61,7 @@ export type ProvidersResponse = {
 };
 
 export type UpsertConfigQuery = {
-    is_secret?: boolean | null;
+    is_secret: boolean;
     key: string;
     value: unknown;
 };

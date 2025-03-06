@@ -343,7 +343,7 @@ impl Session {
                     }
 
                     config
-                        .set("GOOSE_MODE", Value::String(mode.to_string()))
+                        .set_param("GOOSE_MODE", Value::String(mode.to_string()))
                         .unwrap();
                     println!("Goose mode set to '{}'", mode);
                     continue;

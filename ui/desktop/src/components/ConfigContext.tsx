@@ -10,6 +10,14 @@ import {
   providers,
 } from '../api';
 import { client } from '../api/client.gen';
+import type {
+  ConfigResponse,
+  UpsertConfigQuery,
+  ConfigKeyQuery,
+  ExtensionQuery,
+  ProviderMetadata,
+  ProvidersResponse,
+} from '../api/types.gen';
 
 // Initialize client configuration
 client.setConfig({
@@ -21,13 +29,14 @@ client.setConfig({
 });
 
 interface ConfigContextType {
-  config: Record<string, any>;
-  upsert: (key: string, value: any, isSecret?: boolean) => Promise<void>;
-  read: (key: string) => Promise<any>;
-  remove: (key: string) => Promise<void>;
-  addExtension: (name: string, config: any) => Promise<void>;
-  updateExtension: (name: string, config: any) => Promise<void>;
+  config: ConfigResponse['config'];
+  upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
+  read: (key: string, is_secret: boolean) => Promise<unknown>;
+  remove: (key: string, is_secret: boolean) => Promise<void>;
+  addExtension: (name: string, config: unknown) => Promise<void>;
+  updateExtension: (name: string, config: unknown) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
+  getProviders: () => Promise<ProviderMetadata[]>;
 }
 
 interface ConfigProviderProps {
@@ -37,7 +46,7 @@ interface ConfigProviderProps {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
-  const [config, setConfig] = useState<Record<string, any>>({});
+  const [config, setConfig] = useState<ConfigResponse['config']>({});
 
   useEffect(() => {
     // Load all configuration data on mount
@@ -52,58 +61,77 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     setConfig(response.data.config || {});
   };
 
-  const upsert = async (key: string, value: any, isSecret?: boolean) => {
+  const upsert = async (key: string, value: unknown, isSecret?: boolean) => {
+    const query: UpsertConfigQuery = {
+      key,
+      value,
+      is_secret: isSecret || null,
+    };
+
     await upsertConfig({
-      body: {
-        key,
-        value,
-        is_secret: isSecret,
-      },
+      body: query,
     });
     await reloadConfig();
   };
 
-  const read = async (key: string) => {
-    return await readConfig({
-      body: { key },
+  const read = async (key: string, is_secret: boolean = false) => {
+    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
+    const response = await readConfig({
+      body: query,
     });
+    return response.data;
   };
 
-  const get_providers = async () => {
-    return await providers();
-  };
-
-  const remove = async (key: string) => {
+  const remove = async (key: string, is_secret: boolean) => {
+    const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
     await removeConfig({
-      body: { key },
+      body: query,
     });
     await reloadConfig();
   };
 
-  const addExtension = async (name: string, config: any) => {
+  const addExtension = async (name: string, config: unknown) => {
+    const query: ExtensionQuery = { name, config };
     await apiAddExtension({
-      body: { name, config },
+      body: query,
     });
     await reloadConfig();
   };
 
   const removeExtension = async (name: string) => {
+    const query: ConfigKeyQuery = { key: name, is_secret: false };
     await apiRemoveExtension({
-      body: { key: name },
+      body: query,
     });
     await reloadConfig();
   };
 
-  const updateExtension = async (name: string, config: any) => {
+  const updateExtension = async (name: string, config: unknown) => {
+    const query: ExtensionQuery = { name, config };
     await apiUpdateExtension({
-      body: { name, config },
+      body: query,
     });
     await reloadConfig();
+  };
+
+  const getProviders = async (): Promise<ProviderMetadata[]> => {
+    const response = await providers();
+    // The API returns ProvidersResponse which has a providers array
+    return (response.data as ProvidersResponse).providers;
   };
 
   return (
     <ConfigContext.Provider
-      value={{ config, upsert, read, remove, addExtension, updateExtension, removeExtension }}
+      value={{
+        config,
+        upsert,
+        read,
+        remove,
+        addExtension,
+        updateExtension,
+        removeExtension,
+        getProviders,
+      }}
     >
       {children}
     </ConfigContext.Provider>

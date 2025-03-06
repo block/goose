@@ -47,13 +47,13 @@ impl OpenAiProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENAI_API_KEY")?;
         let host: String = config
-            .get("OPENAI_HOST")
+            .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
         let base_path: String = config
-            .get("OPENAI_BASE_PATH")
+            .get_param("OPENAI_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
-        let organization: Option<String> = config.get("OPENAI_ORGANIZATION").ok();
-        let project: Option<String> = config.get("OPENAI_PROJECT").ok();
+        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
+        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
