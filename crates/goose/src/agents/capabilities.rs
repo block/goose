@@ -357,6 +357,9 @@ impl Capabilities {
                 "Right now you are in the chat only mode, no access to any tool use and system."
                     .to_string(),
             );
+        } else {
+            system_prompt_extensions
+                .push("Right now you are *NOT* in the chat only mode and have access to tool use and system.".to_string());
         }
 
         if system_prompt_extensions.is_empty() {
