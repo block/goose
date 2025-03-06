@@ -166,6 +166,11 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                             <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                               {toolRequests.map((toolRequest) => (
                                 <ToolCallWithResponse
+                                  // In the session history page, if no tool response found for given request, it means the tool call
+                                  // is broken or cancelled.
+                                  isCancelledMessage={
+                                    toolResponsesMap.get(toolRequest.id) == undefined
+                                  }
                                   key={toolRequest.id}
                                   toolRequest={toolRequest}
                                   toolResponse={toolResponsesMap.get(toolRequest.id)}

@@ -2,9 +2,14 @@ import React, { useState } from 'react';
 import { ConfirmToolRequest } from '../utils/toolConfirm';
 import { snakeToTitleCase } from '../utils';
 
-export default function ToolConfirmation({ toolConfirmationId, toolName }) {
-  const [clicked, setClicked] = useState(false);
-  const [status, setStatus] = useState('');
+export default function ToolConfirmation({
+  isCancelledMessage,
+  isClicked,
+  toolConfirmationId,
+  toolName,
+}) {
+  const [clicked, setClicked] = useState(isClicked);
+  const [status, setStatus] = useState('unknown');
 
   const handleButtonClick = (confirmed) => {
     setClicked(true);
@@ -12,7 +17,11 @@ export default function ToolConfirmation({ toolConfirmationId, toolName }) {
     ConfirmToolRequest(toolConfirmationId, confirmed);
   };
 
-  return (
+  return isCancelledMessage ? (
+    <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 text-textStandard">
+      Tool call confirmation is cancelled.
+    </div>
+  ) : (
     <>
       <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
         Goose would like to call the above tool. Allow?
