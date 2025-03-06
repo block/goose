@@ -15,7 +15,15 @@ import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import { Message, createUserMessage, getTextContent } from '../types/message';
+import {
+  Message,
+  createUserMessage,
+  ToolCall,
+  ToolCallResult,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  getTextContent,
+} from '../types/message';
 
 export interface ChatType {
   id: number;
@@ -189,9 +197,45 @@ export default function ChatView({
       } else {
         setMessages([]);
       }
+    } else if (lastMessage.role === 'assistant') {
+      // check if we have any tool requests
+      const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
+        .filter((content): content is ToolRequestMessageContent => content.type === 'toolRequest')
+        .map(({ id, toolCall }) => [id, toolCall]);
+
+      if (toolRequests.length !== 0) {
+        // This means we were interrupted during a tool request
+        // Create tool responses for all interrupted tool requests
+
+        let responseMessage: Message = {
+          role: 'user',
+          created: Date.now(),
+          content: [],
+        };
+
+        // get the last tool's name or just "tool"
+        const lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
+        const notification = 'Interrupted by the user to make a correction';
+
+        // generate a response saying it was interrupted for each tool request
+        for (const [reqId, _] of toolRequests) {
+          const toolResponse: ToolResponseMessageContent = {
+            type: 'toolResponse',
+            id: reqId,
+            toolResult: {
+              status: 'error',
+              error: notification,
+            },
+          };
+
+          responseMessage.content.push(toolResponse);
+        }
+
+        // append the generated tool response to the message list
+        messages.push(responseMessage);
+        setMessages(messages);
+      }
     }
-    // Note: Tool call interruption handling would need to be implemented
-    // differently with the new message format
   };
 
   // Filter out standalone tool response messages for rendering
