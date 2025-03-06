@@ -9,11 +9,11 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-
 fn get_home_dir() -> PathBuf {
     choose_app_strategy(crate::config::APP_STRATEGY.clone())
         .expect("goose requires a home dir")
-        .home_dir().to_path_buf()
+        .home_dir()
+        .to_path_buf()
 }
 
 /// Metadata for a session, stored as the first line in the session file
@@ -49,7 +49,7 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
             total_tokens: helper.total_tokens,
-            working_dir: helper.working_dir.unwrap_or_else(|| get_home_dir()),
+            working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
         })
     }
 }
@@ -60,7 +60,7 @@ impl SessionMetadata {
             description: String::new(),
             message_count: 0,
             total_tokens: None,
-            working_dir: working_dir.unwrap_or_else(|| get_home_dir()),
+            working_dir: working_dir.unwrap_or_else(get_home_dir),
         }
     }
 }

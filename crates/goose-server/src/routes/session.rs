@@ -5,8 +5,8 @@ use axum::{
     routing::{get, patch},
     Json, Router,
 };
-use goose::message::Message;
 use goose::session;
+use goose::{message::Message, session::SessionMetadata};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
