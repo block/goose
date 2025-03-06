@@ -75,4 +75,4 @@ impl Evaluation for GooseWiki {
     }
 }
 
-register_evaluation!("small_models_fetch", GooseWiki);
+register_evaluation!("small_models", GooseWiki);

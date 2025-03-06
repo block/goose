@@ -65,4 +65,4 @@ Present the information in order of significance or quality. Focus specifically 
     }
 }
 
-register_evaluation!("small_models", RestaurantResearch);
+register_evaluation!("small_models_fetch", RestaurantResearch);
