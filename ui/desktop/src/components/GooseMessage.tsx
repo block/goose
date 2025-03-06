@@ -16,7 +16,7 @@ import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 
 interface GooseMessageProps {
-  historyMessageLength: number;
+  messageHistoryIndex: number;
   message: Message;
   messages: Message[];
   metadata?: string[];
@@ -25,7 +25,7 @@ interface GooseMessageProps {
 }
 
 export default function GooseMessage({
-  historyMessageLength,
+  messageHistoryIndex,
   message,
   metadata,
   messages,
@@ -77,7 +77,7 @@ export default function GooseMessage({
   useEffect(() => {
     // If the message is the last message in the resumed session and has tool confirmation, it means the tool confirmation
     // is broken or cancelled, to contonue use the session, we need to append a tool response to avoid mismatch tool result error.
-    if (messageIndex == historyMessageLength - 1 && hasToolConfirmation) {
+    if (messageIndex == messageHistoryIndex - 1 && hasToolConfirmation) {
       appendMessage(
         createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
       );
@@ -112,7 +112,7 @@ export default function GooseMessage({
               <ToolCallWithResponse
                 // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
                 isCancelledMessage={
-                  messageIndex < historyMessageLength &&
+                  messageIndex < messageHistoryIndex &&
                   toolResponsesMap.get(toolRequest.id) == undefined
                 }
                 key={toolRequest.id}
@@ -125,8 +125,8 @@ export default function GooseMessage({
 
         {hasToolConfirmation && (
           <ToolCallConfirmation
-            isCancelledMessage={messageIndex == historyMessageLength - 1}
-            isClicked={messageIndex < historyMessageLength - 1}
+            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex - 1}
             toolConfirmationId={toolConfirmationContent.id}
             toolName={toolConfirmationContent.toolName}
           />

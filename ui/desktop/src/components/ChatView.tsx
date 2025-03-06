@@ -29,7 +29,9 @@ import {
 export interface ChatType {
   id: number;
   title: string;
-  historyMessageLength: number;
+  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
+  // anything before this index should not render any buttons, but anything after should
+  messageHistoryIndex: number;
   messages: Message[];
 }
 
@@ -77,7 +79,7 @@ export default function ChatView({
         return {
           id: Date.now(),
           title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
-          historyMessageLength: convertedMessages.length,
+          messageHistoryIndex: convertedMessages.length,
           messages: convertedMessages,
         };
       } catch (e) {
@@ -100,7 +102,7 @@ export default function ChatView({
       id: Date.now(),
       title: 'Chat 1',
       messages: [],
-      historyMessageLength: 0,
+      messageHistoryIndex: 0,
     };
   });
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
@@ -322,7 +324,7 @@ export default function ChatView({
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage
-                    historyMessageLength={chat?.historyMessageLength}
+                    messageHistoryIndex={chat?.messageHistoryIndex}
                     message={message}
                     messages={messages}
                     metadata={messageMetadata[message.id || '']}
