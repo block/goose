@@ -22,6 +22,7 @@ import {
   ToolCallResult,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
+  ToolConfirmationRequestMessageContent,
   getTextContent,
 } from '../types/message';
 
@@ -190,18 +191,37 @@ export default function ChatView({
 
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'user') {
+
+    // isUserMessage also checks if the message is a toolConfirmationRequest
+    if (lastMessage && isUserMessage(lastMessage)) {
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
-    } else if (lastMessage.role === 'assistant') {
-      // check if we have any tool requests
+    } else if (!isUserMessage(lastMessage)) {
+      // check if we have any tool requests or tool confirmation requests
       const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
-        .filter((content): content is ToolRequestMessageContent => content.type === 'toolRequest')
-        .map(({ id, toolCall }) => [id, toolCall]);
+        .filter(
+          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
+            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+        )
+        .map((content) => {
+          if (content.type === 'toolRequest') {
+            return [content.id, content.toolCall];
+          } else {
+            // extract tool call from confirmation
+            const toolCall: ToolCallResult<ToolCall> = {
+              status: 'success',
+              value: {
+                name: content.toolName,
+                arguments: content.arguments,
+              },
+            };
+            return [content.id, toolCall];
+          }
+        });
 
       if (toolRequests.length !== 0) {
         // This means we were interrupted during a tool request
@@ -231,9 +251,8 @@ export default function ChatView({
           responseMessage.content.push(toolResponse);
         }
 
-        // append the generated tool response to the message list
-        messages.push(responseMessage);
-        setMessages(messages);
+        // Use an immutable update to add the response message to the messages array
+        setMessages([...messages, responseMessage]);
       }
     }
   };
