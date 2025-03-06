@@ -27,8 +27,12 @@ impl Evaluation for BlogSummary {
         let mut metrics = Vec::new();
         let response = agent.prompt("What are the top 5 most counterintuitive insights from this blog post? Format your response in Markdown with 5 numbered points (1. 2. 3. 4. 5.) https://huyenchip.com/2025/01/07/agents.html".to_string()).await?;
 
-        let response_text = response.to_string();
-        let has_markdown_list = self.check_markdown_numbered_list(&response_text);
+        // Get text content from the last message
+        let has_markdown_list = if let Some(last_msg) = response.last() {
+            self.check_markdown_numbered_list(&last_msg.as_concat_text())
+        } else {
+            false
+        };
 
         metrics.push(("valid_markdown_format".to_string(), 
             EvaluationMetric::Boolean(has_markdown_list)));
@@ -41,8 +45,8 @@ impl Evaluation for BlogSummary {
     }
 
     fn required_extensions(&self) -> Vec<String> {
-        vec!["fetch".to_string()]
+        vec!["developer".to_string(), "fetch".to_string()]
     }
 }
 
-register_evaluation!("small_models", BlogSummary);
+register_evaluation!("small_models_fetch", BlogSummary);
