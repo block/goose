@@ -18,21 +18,25 @@ pub struct SessionMetadata {
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
     pub total_tokens: Option<i32>,
+    /// Working directory for the session. Defaults to the home directory.
+    pub working_dir: PathBuf,
 }
 
 impl SessionMetadata {
-    pub fn new() -> Self {
+    pub fn new(working_dir: Option<PathBuf>) -> Self {
+        let working_dir = working_dir.unwrap_or(dirs::home_dir());
         Self {
             description: String::new(),
             message_count: 0,
             total_tokens: None,
+            working_dir: working_dir
         }
     }
 }
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new()
+        Self::new(None)
     }
 }
 
@@ -168,7 +172,7 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 /// Returns default empty metadata if the file doesn't exist or has no metadata.
 pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
     if !session_file.exists() {
-        return Ok(SessionMetadata::new());
+        return Ok(SessionMetadata::default());
     }
 
     let file = fs::File::open(session_file)?;
@@ -182,12 +186,12 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
             Ok(metadata) => Ok(metadata),
             Err(_) => {
                 // If the first line isn't metadata, return default
-                Ok(SessionMetadata::new())
+                Ok(SessionMetadata::default())
             }
         }
     } else {
         // Empty file, return default
-        Ok(SessionMetadata::new())
+        Ok(SessionMetadata::default())
     }
 }
 

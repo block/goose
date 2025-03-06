@@ -152,6 +152,7 @@ impl Agent for ReferenceAgent {
                     // TODO: track session_id in langfuse tracing
                     let session_file = session::get_path(session_id);
                     let mut metadata = session::read_metadata(&session_file)?;
+                    metadata.working_dir = todo!();
                     metadata.total_tokens = usage.usage.total_tokens;
                     // The message count is the number of messages in the session + 1 for the response
                     // The message count does not include the tool response till next iteration
