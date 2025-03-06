@@ -2201,7 +2201,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.10"
+version = "1.0.12"
 dependencies = [
  "anyhow",
  "async-trait",
