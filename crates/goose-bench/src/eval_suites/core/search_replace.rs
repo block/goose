@@ -1,6 +1,6 @@
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
+use crate::bench_work_dir::BenchmarkWorkDir;
 use async_trait::async_trait;
 use std::fs;
 
@@ -18,17 +18,17 @@ impl Evaluation for DeveloperSearchReplace {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut WorkDir,
+        work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
         // Try to find the assets directory
-        let assets_dir_path = work_dir.path.join("assets");
+        let assets_dir_path = work_dir.base_path.join("assets");
         let _assets_exists = assets_dir_path.exists();
 
         // Get the kubernetes_swagger.json file from the assets directory and copy it to the working directory for eval
         // so the agent can modify it
-        let source_file = work_dir.path.join("assets").join("kubernetes_swagger.json");
+        let source_file = work_dir.base_path.join("assets").join("kubernetes_swagger.json");
         let target_file = std::env::current_dir()
             .unwrap_or_default()
             .join("kubernetes_swagger.json");
@@ -53,7 +53,7 @@ impl Evaluation for DeveloperSearchReplace {
             .join("kubernetes_swagger.json");
 
         // Read the expected patch file from the assets directory
-        let patch_file_path = work_dir.path.join("assets").join("kubernetes.patch");
+        let patch_file_path = work_dir.base_path.join("assets").join("kubernetes.patch");
         if !patch_file_path.exists() {
             return Err(anyhow::anyhow!("Could not find patch file"));
         }

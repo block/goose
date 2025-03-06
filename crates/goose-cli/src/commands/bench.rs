@@ -1,13 +1,12 @@
 use crate::session::build_session;
 use crate::Session;
 use async_trait::async_trait;
-use chrono::Local;
 use goose::config::Config;
 use goose::message::Message;
+use goose_bench::bench_work_dir::BenchmarkWorkDir;
 use goose_bench::error_capture::ErrorCaptureLayer;
 use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
-use goose_bench::work_dir::WorkDir;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -77,47 +76,46 @@ impl BenchAgent for BenchAgentWrapper {
 
 async fn run_eval(
     evaluation: Box<dyn Evaluation>,
-    work_dir: &mut WorkDir,
+    work_dir: &mut BenchmarkWorkDir,
 ) -> anyhow::Result<EvaluationResult> {
     let mut result = EvaluationResult::new(evaluation.name().to_string());
 
-    if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
-        let required_extensions = evaluation.required_extensions();
+    let required_extensions = evaluation.required_extensions();
 
-        // Create session with error capture
-        let base_session = build_session(None, false, Vec::new(), required_extensions).await;
+    // Create session with error capture
+    let base_session = build_session(None, false, Vec::new(), required_extensions).await;
 
-        let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
-        let bench_session_clone = bench_session.clone();
+    let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
+    let bench_session_clone = bench_session.clone();
 
-        if let Ok(metrics) = evaluation
-            .run(Box::new(BenchAgentWrapper(bench_session)), work_dir)
-            .await
-        {
-            for (name, metric) in metrics {
-                result.add_metric(name, metric);
-            }
+    if let Ok(metrics) = evaluation
+        .run(Box::new(BenchAgentWrapper(bench_session)), work_dir)
+        .await
+    {
+        for (name, metric) in metrics {
+            result.add_metric(name, metric);
+        }
 
-            // Add any errors that occurred
-            let agent = BenchAgentWrapper(bench_session_clone);
-            for error in agent.get_errors().await {
-                result.add_error(error);
-            }
+        // Add any errors that occurred
+        let agent = BenchAgentWrapper(bench_session_clone);
+        for error in agent.get_errors().await {
+            result.add_error(error);
         }
     }
 
     Ok(result)
 }
 
-async fn run_suite(suite: &str, work_dir: &mut WorkDir) -> anyhow::Result<SuiteResult> {
+async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
     let mut suite_result = SuiteResult::new(suite.to_string());
+    let eval_lock = Mutex::new(0);
 
-    if let Ok(work_dir) = work_dir.move_to(format!("./{}", &suite)) {
-        if let Some(evals) = EvaluationSuiteFactory::create(suite) {
-            for eval in evals {
-                let eval_result = run_eval(eval, work_dir).await?;
-                suite_result.add_evaluation(eval_result);
-            }
+    if let Some(evals) = EvaluationSuiteFactory::create(suite) {
+        for eval in evals {
+            let _unused = eval_lock.lock().await;
+            work_dir.set_eval(&eval.name());
+            let eval_result = run_eval(eval, work_dir).await?;
+            suite_result.add_evaluation(eval_result);
         }
     }
 
@@ -140,18 +138,13 @@ pub async fn run_benchmark(
 
     let mut results = BenchmarkResults::new(provider_name.clone());
 
-    let current_time = Local::now().format("%H:%M:%S").to_string();
-    let current_date = Local::now().format("%Y-%m-%d").to_string();
-    if let Ok(mut work_dir) = WorkDir::at(
-        format!("./benchmark-{}", &provider_name),
-        include_dirs.clone(),
-    ) {
-        if let Ok(work_dir) = work_dir.move_to(format!("./{}-{}", &current_date, current_time)) {
-            for suite in suites {
-                let suite_result = run_suite(suite, work_dir).await?;
-                results.add_suite(suite_result);
-            }
-        }
+    let mut work_dir = BenchmarkWorkDir::new(provider_name, include_dirs.clone());
+    let suite_lock = Mutex::new(0);
+    for suite in suites {
+        let _unused = suite_lock.lock().await;
+        work_dir.set_suite(&suite);
+        let suite_result = run_suite(suite, &mut work_dir).await?;
+        results.add_suite(suite_result);
     }
 
     Ok(results)
