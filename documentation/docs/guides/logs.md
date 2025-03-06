@@ -7,7 +7,7 @@ sidebar_position: 5
 
 Goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in the following locations:
 
-| **Type**            | **Unix-like (macOS, Linux)**              | **Windows**                                  |
+| **Type**            | **Unix-like (macOS, Linux)**              | **Windows**                              |
 |---------------------|----------------------------------------|---------------------------------------------|
 | **Session Records** | `~/.local/share/goose/sessions/`      | `%APPDATA%\Block\goose\data\sessions\`     |
 | **System Logs**     | `~/.local/state/goose/logs/`          | `%APPDATA%\Block\goose\data\logs\`         |
