@@ -34,7 +34,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 ## Name Session
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
-        By default, Goose will provide a random string as the name of your session. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        By default, Goose name your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
 
         ```
         goose session -n react-migration
@@ -48,7 +48,7 @@ If this is your first session, Goose will prompt you for an API key to access an
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        Within the Desktop app, sessions are automatically named based on context.
+        Within the Desktop app, sessions are automatically named using the current timestamp in the format `YYYYMMDD_HHMMSS`. Goose also provides a description of the session based on context.
     </TabItem>
 </Tabs>
 
