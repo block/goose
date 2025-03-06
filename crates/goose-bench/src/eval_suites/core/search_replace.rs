@@ -24,8 +24,10 @@ impl Evaluation for DeveloperSearchReplace {
 
         let _target_file = match work_dir.fs_get("./assets/kubernetes_swagger.json".to_string()) {
             Ok(file) => file,
-            Err(e) => {
-                return Err(anyhow::anyhow!("Could not find kubernetes_swagger.json file"))
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "Could not find kubernetes_swagger.json file"
+                ))
             }
         };
         let mut source_file = work_dir.base_path.clone();

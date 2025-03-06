@@ -85,7 +85,6 @@ impl BenchmarkWorkDir {
             .unwrap_or_else(|_| panic!("Failed to execute cd into {}", eval_dir.clone().display()));
     }
 
-
     fn chop_relative_base<P: AsRef<Path>>(path: P) -> anyhow::Result<PathBuf> {
         let path = path.as_ref();
 
@@ -116,7 +115,6 @@ impl BenchmarkWorkDir {
             Ok(PathBuf::new())
         }
     }
-
 
     pub fn fs_get(&mut self, path: String) -> anyhow::Result<PathBuf> {
         let p = PathBuf::from(&path);
@@ -166,5 +164,4 @@ impl BenchmarkWorkDir {
             Err(io::Error::new(ErrorKind::Other, error_message))
         }
     }
-
 }
