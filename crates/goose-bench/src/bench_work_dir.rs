@@ -42,7 +42,7 @@ impl BenchmarkWorkDir {
         // deep copy each dir
         let _: Vec<_> = dirs
             .iter()
-            .map(|d| BenchmarkWorkDir::cp(d.as_path(), base_path.as_path(), true))
+            .map(|d| BenchmarkWorkDir::deep_copy(d.as_path(), base_path.as_path(), true))
             .collect();
 
         std::env::set_current_dir(&base_path).unwrap();
@@ -134,11 +134,11 @@ impl BenchmarkWorkDir {
         let here = PathBuf::from(".").canonicalize()?;
         let artifact_at_root = self.base_path.clone().join(asset_rel_path);
 
-        BenchmarkWorkDir::cp(artifact_at_root.as_path(), here.as_path(), true)?;
+        BenchmarkWorkDir::deep_copy(artifact_at_root.as_path(), here.as_path(), true)?;
         Ok(PathBuf::from(path))
     }
 
-    fn cp<P, Q>(src: P, dst: Q, recursive: bool) -> io::Result<()>
+    fn deep_copy<P, Q>(src: P, dst: Q, recursive: bool) -> io::Result<()>
     where
         P: AsRef<Path>,
         Q: AsRef<Path>,
