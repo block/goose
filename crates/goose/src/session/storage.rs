@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Metadata for a session, stored as the first line in the session file
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SessionMetadata {
     /// A short description of the session, typically 3 words or less
     pub description: String,
@@ -18,18 +18,41 @@ pub struct SessionMetadata {
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
     pub total_tokens: Option<i32>,
-    /// Working directory for the session. Defaults to the home directory.
+    /// Working directory for the session
     pub working_dir: PathBuf,
+}
+
+// Custom deserializer to handle old sessions without working_dir
+impl<'de> Deserialize<'de> for SessionMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Helper {
+            description: String,
+            message_count: usize,
+            total_tokens: Option<i32>,
+            working_dir: Option<PathBuf>,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+        Ok(SessionMetadata {
+            description: helper.description,
+            message_count: helper.message_count,
+            total_tokens: helper.total_tokens,
+            working_dir: helper.working_dir.unwrap_or_else(|| dirs::home_dir().unwrap_or_default()),
+        })
+    }
 }
 
 impl SessionMetadata {
     pub fn new(working_dir: Option<PathBuf>) -> Self {
-        let working_dir = working_dir.unwrap_or(dirs::home_dir());
         Self {
             description: String::new(),
             message_count: 0,
             total_tokens: None,
-            working_dir: working_dir
+            working_dir: working_dir.unwrap_or_else(|| dirs::home_dir().unwrap_or_default()),
         }
     }
 }

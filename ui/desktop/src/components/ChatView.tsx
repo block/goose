@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl } from '../config';
-import { generateSessionId } from '../sessions';
+import { generateSessionId, updateSessionMetadata, ensureWorkingDir } from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -41,6 +41,11 @@ export default function ChatView({
     if (resumedSession?.session_id) {
       // Store the resumed session ID in sessionStorage
       window.sessionStorage.setItem('goose-session-id', resumedSession.session_id);
+
+      // Set working directory from metadata, ensuring it has a value
+      const workingDir = ensureWorkingDir(resumedSession.metadata).working_dir;
+      window.appConfig.set('GOOSE_WORKING_DIR', workingDir);
+
       return resumedSession.session_id;
     }
 
@@ -149,7 +154,17 @@ export default function ChatView({
       }
       return updatedChat;
     });
-  }, [messages, sessionId]);
+
+    // If this is the first message in a new session, set the working directory
+    if (messages.length === 1 && !resumedSession) {
+      const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR');
+      if (currentWorkingDir) {
+        updateSessionMetadata(sessionId, {
+          working_dir: currentWorkingDir,
+        }).catch((e) => console.error('Failed to update session working directory:', e));
+      }
+    }
+  }, [messages, sessionId, resumedSession]);
 
   useEffect(() => {
     if (messages.length > 0) {
