@@ -24,7 +24,7 @@ impl BenchmarkWorkDir {
         let base_path = PathBuf::from(format!("./benchmark-{}", work_dir_name));
         fs::create_dir_all(&base_path).unwrap();
 
-        let current_time = Local::now().format("T%H_%M_%S").to_string();
+        let current_time = Local::now().format("%H:%M:%S").to_string();
         let current_date = Local::now().format("%Y-%m-%d").to_string();
         let run_name = format!("{}-{}", &current_date, current_time);
 

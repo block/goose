@@ -132,13 +132,19 @@ pub async fn run_benchmark(
         .collect::<Vec<_>>();
 
     let config = Config::global();
+    let goose_model: String = config
+        .get("GOOSE_MODEL")
+        .expect("No model configured. Run 'goose configure' first");
     let provider_name: String = config
         .get("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
 
     let mut results = BenchmarkResults::new(provider_name.clone());
 
-    let mut work_dir = BenchmarkWorkDir::new(provider_name, include_dirs.clone());
+    let mut work_dir = BenchmarkWorkDir::new(
+        format!("{}-{}", provider_name, goose_model),
+        include_dirs.clone(),
+    );
     let suite_lock = Mutex::new(0);
     for suite in suites {
         let _unused = suite_lock.lock().await;
