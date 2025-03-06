@@ -472,6 +472,7 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
         style("logging to").dim(),
         style(session_file.display()).dim().cyan(),
     );
+    println!("    {} {}", style("working directory:").dim(), style(std::env::current_dir().unwrap().display()).cyan().dim());
 }
 
 pub fn display_greeting() {

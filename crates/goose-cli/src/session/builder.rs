@@ -38,30 +38,6 @@ pub async fn build_session(
     }
     .expect("Failed to create agent");
 
-    // Setup extensions for the agent
-    for extension in ExtensionManager::get_all().expect("should load extensions") {
-        if extension.enabled {
-            let config = extension.config.clone();
-            agent
-                .add_extension(config.clone())
-                .await
-                .unwrap_or_else(|e| {
-                    let err = match e {
-                        ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => {
-                            inner
-                        }
-                        _ => e.to_string(),
-                    };
-                    println!("Failed to start extension: {}, {:?}", config.name(), err);
-                    println!(
-                        "Please check extension configuration for {}.",
-                        config.name()
-                    );
-                    process::exit(1);
-                });
-        }
-    }
-
     // Handle session file resolution and resuming
     let session_file = if resume {
         if let Some(identifier) = identifier {
@@ -81,15 +57,12 @@ pub async fn build_session(
             });
 
             // Warn the user that the working directory of this session doesn't match the current working directory & if they want to proceed
-            // Note that changing working directory does not work because developer extension & other extensions are not aware of the change
-            let answer = cliclack::select(format!("{} The working directory of this session was set to {}. It does not match the current working directory. This may cause issues with some extensions. Would you still like to proceed?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
-                .item("yes", "Yes", "Proceed")
-                .item("no", "No", "Exit")
-                .interact();
+            let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+                    .initial_value(true)
+                    .interact().expect("Failed to get user input");
 
-            // If the user doesn't want to proceed, gracefully exit
-            if let Ok("no") = answer {
-                process::exit(1);
+            if change_workdir {
+                std::env::set_current_dir(metadata.working_dir).unwrap();
             }
 
             session_file
@@ -113,6 +86,31 @@ pub async fn build_session(
         // Just get the path - file will be created when needed
         session::get_path(id)
     };
+
+    // Setup extensions for the agent
+    // This needs to be done after the session (because we change directory when resuming a session)
+    for extension in ExtensionManager::get_all().expect("should load extensions") {
+        if extension.enabled {
+            let config = extension.config.clone();
+            agent
+                .add_extension(config.clone())
+                .await
+                .unwrap_or_else(|e| {
+                    let err = match e {
+                        ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => {
+                            inner
+                        }
+                        _ => e.to_string(),
+                    };
+                    println!("Failed to start extension: {}, {:?}", config.name(), err);
+                    println!(
+                        "Please check extension configuration for {}.",
+                        config.name()
+                    );
+                    process::exit(1);
+                });
+        }
+    }
 
     // Create new session
     let mut session = Session::new(agent, session_file.clone());
