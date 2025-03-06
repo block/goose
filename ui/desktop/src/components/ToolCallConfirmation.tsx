@@ -54,7 +54,9 @@ export default function ToolConfirmation({
               </svg>
             )}
             <span className="ml-2 text-textStandard">
-              {snakeToTitleCase(toolName.substring(toolName.lastIndexOf('__') + 2))} is {status}
+              {isClicked
+                ? 'Tool confirmation is not available'
+                : `${snakeToTitleCase(toolName.substring(toolName.lastIndexOf('__') + 2))} is ${status}`}
             </span>
           </div>
         </div>
