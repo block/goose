@@ -143,6 +143,22 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
+    async fn structure_response(
+        &self,
+        message: Message,
+        tools: &[Tool],
+    ) -> Result<Message, ProviderError> {
+        let config = self.get_model_config();
+        if !config.interpret_chat_tool_calls {
+            return Ok(message);
+        }
+
+        let base_url = self.get_base_url()?;
+        let interpreter = OllamaInterpreter::new(base_url.to_string());
+
+        augment_message_with_tool_calls(&interpreter, message, tools).await
+    }
+
     #[tracing::instrument(
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -153,85 +169,16 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Transform the system message to replace developer instructions
-        //         let modified_system = if let Some(dev_section) = system.split("## developer").nth(1) {
-        //             if let (Some(start_idx), Some(end_idx)) = (
-        //                 dev_section.find("### Instructions"),
-        //                 dev_section.find("operating system:"),
-        //             ) {
-        //                 let new_instructions = formatdoc! {r#"
-        //         The Developer extension enables you to edit code files, execute shell commands, and capture screen/window content. These tools allow for various development and debugging workflows.
-        //         Available Tools:
-        //         1. Shell Execution (`developer__shell`)
-        //         Executes commands in the shell and returns the combined output and error messages.
-        //         Use cases:
-        //         - Running scripts: `python script.py`
-        //         - Installing dependencies: `pip install -r requirements.txt`
-        //         - Checking system information: `uname -a`, `df -h`
-        //         - Searching for files or text: **Use `rg` (ripgrep) instead of `find` or `ls -r`**
-        //           - Find a file: `rg --files | rg example.py`
-        //           - Search within files: `rg 'class Example'`
-        //         Best Practices:
-        //         - **Avoid commands with large output** (pipe them to a file if necessary).
-        //         - **Run background processes** if they take a long time (e.g., `uvicorn main:app &`).
-        //         - **git commands can be run on the shell, however if the git extension is installed, you should use the git tool instead.
-        //         - **If the shell command is a rm, mv, or cp, you should verify with the user before running the command.
-        //         2. Text Editor (`developer__text_editor`)
-        //         Performs file-based operations such as viewing, writing, replacing text, and undoing edits.
-        //         Commands:
-        //         - view: Read the content of a file.
-        //         - write: Create or overwrite a file. Caution: Overwrites the entire file!
-        //         - str_replace: Replace a specific string in a file.
-        //         - undo_edit: Revert the last edit
-        //         Example Usage:
-        //         developer__text_editor(command="view", file_path="/absolute/path/to/file.py")
-        //         developer__text_editor(command="write", file_path="/absolute/path/to/file.py", file_text="print('hello world')")
-        //         developer__text_editor(command="str_replace", file_path="/absolute/path/to/file.py", old_str="hello world", new_str="goodbye world")
-        //         developer__text_editor(command="undo_edit", file_path="/absolute/path/to/file.py")
-        //         Protocol for Text Editor:
-        //         For edit and replace commands, please verify what you are editing with the user before running the command.
-        //         - User: "Please edit the file /absolute/path/to/file.py"
-        //         - Assistant: "Ok sounds good, I'll be editing the file /absolute/path/to/file.py and creating modifications xyz to the file. Let me know whether you'd like to proceed."
-        //         - User: "Yes, please proceed."
-        //         - Assistant: "I've created the modifications xyz to the file /absolute/path/to/file.py"
-        //         3. List Windows (`developer__list_windows`)
-        //         Lists all visible windows with their titles.
-        //         Use this to find window titles for screen capture.
-        //         4. Screen Capture (`developer__screen_capture`)
-        //         Takes a screenshot of a display or specific window.
-        //         Options:
-        //         - Capture display: `developer__screen_capture(display=0)`  # Main display
-        //         - Capture window: `developer__screen_capture(window_title="Window Title")`
-        //         To use tools, ask the user to execute the tools for you by requesting the tool use in the exact JSON format below.
-        // ```
-        //         Info: at the start of the session, the user's directory is:
-        //         "#};
+        let config = self.get_model_config();
 
-        //                 let before_dev = system.split("## developer").next().unwrap_or("");
-        //                 let after_marker = &dev_section[end_idx..];
+        tracing::info!(
+            "Tool interpretation enabled: {}, tool count: {}",
+            config.interpret_chat_tool_calls,
+            tools.len()
+        );
 
-        //                 format!(
-        //                     "{}## developer{}### Instructions\n{}{}",
-        //                     before_dev,
-        //                     &dev_section[..start_idx],
-        //                     new_instructions,
-        //                     after_marker
-        //                 )
-        //             } else {
-        //                 system.to_string()
-        //             }
-        //         } else {
-        //             system.to_string()
-        //         };
-
-        // Check if tool shim is enabled via environment variables
-        let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
-            .map(|val| val == "1" || val.to_lowercase() == "true")
-            .unwrap_or(false);
-
-        if use_tool_shim {
-            tracing::info!("Using tool shim approach with Ollama");
-
+        // If tool interpretation is enabled, modify the system prompt to include tool info
+        let modified_system = if config.interpret_chat_tool_calls {
             // Create a string with tool information
             let mut tool_info = String::new();
             for tool in tools {
@@ -243,67 +190,102 @@ impl Provider for OllamaProvider {
                 ));
             }
 
-            // Append tool information to the modified_system
-            let modified_system_with_tools = format!(
+            // Append tool information to the system prompt
+            format!(
                 "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
                 system,
                 tool_info
-            );
-
-            // Create request without tools
-            tracing::info!("Creating request without tools for initial completion");
-            let payload = create_request(
-                &self.model,
-                &modified_system_with_tools, // No system prompt, using modified_system as user message content instead
-                messages,
-                &[], // No need to include tools since using tool shim
-                &super::utils::ImageFormat::OpenAi,
-            )?;
-
-            let response = self.post(payload.clone()).await?;
-            let mut message = response_to_message(response.clone())?;
-
-            let base_url = match self.get_base_url() {
-                Ok(url) => {
-                    let url_str = url.to_string();
-                    tracing::info!("Using interpreter base URL: {}", url_str);
-                    url_str
-                }
-                Err(e) => {
-                    tracing::error!("Failed to get base URL: {}", e);
-                    return Err(e);
-                }
-            };
-
-            let interpreter = OllamaInterpreter::new(base_url);
-            message = match augment_message_with_tool_calls(&interpreter, message, tools).await {
-                Ok(augmented) => {
-                    tracing::info!("Successfully augmented message with tool calls");
-                    augmented
-                }
-                Err(e) => {
-                    tracing::error!("Failed to augment message with tool calls: {}", e);
-                    return Err(e);
-                }
-            };
-
-            // Process the response and return the result
-            self.process_response(payload, response, message)
+            )
         } else {
-            let payload = create_request(
-                &self.model,
-                system,
-                messages,
-                tools,
-                &super::utils::ImageFormat::OpenAi,
-            )?;
+            system.to_string()
+        };
 
-            let response = self.post(payload.clone()).await?;
+        // Create request with or without tools based on config
+        let tools_for_request = if config.interpret_chat_tool_calls {
+            &[]
+        } else {
+            tools
+        };
+        tracing::info!("Sending request with {} tools", tools_for_request.len());
 
-            let message = response_to_message(response.clone())?;
+        let payload = create_request(
+            &self.model,
+            &modified_system,
+            messages,
+            tools_for_request,
+            &super::utils::ImageFormat::OpenAi,
+        )?;
 
-            // Process the response and return the result
-            self.process_response(payload, response, message)
+        let response = self.post(payload.clone()).await?;
+        let message = response_to_message(response.clone())?;
+
+        // Process the response and return the result
+        self.process_response(payload, response, message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::MessageContent;
+    use mcp_core::tool::Tool;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_structure_response() {
+        // Create a provider with tool interpretation enabled
+        std::env::set_var("GOOSE_TOOLSHIM", "1");
+        let model = ModelConfig::new("test-model".to_string());
+        let provider = OllamaProvider::from_env(model).unwrap();
+
+        // Create a message with potential tool call text
+        let message = Message::assistant().with_text(
+            r#"{
+                "name": "test_tool",
+                "arguments": {
+                    "param1": "value1"
+                }
+            }"#,
+        );
+
+        // Create a test tool
+        let tool = Tool::new(
+            "test_tool".to_string(),
+            "Test tool".to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "param1": {"type": "string"}
+                }
+            }),
+        );
+
+        // Test interpreting the response
+        let structured = provider.structure_response(message, &[tool]).await.unwrap();
+
+        // Verify the tool call was extracted
+        let tool_requests: Vec<&MessageContent> = structured
+            .content
+            .iter()
+            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .collect();
+
+        assert_eq!(tool_requests.len(), 1);
+        if let MessageContent::ToolRequest(request) = tool_requests[0] {
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                assert_eq!(
+                    tool_call.arguments.get("param1").and_then(|v| v.as_str()),
+                    Some("value1")
+                );
+            } else {
+                panic!("Tool call was not Ok");
+            }
+        } else {
+            panic!("Expected ToolRequest");
         }
+
+        // Clean up
+        std::env::remove_var("GOOSE_TOOLSHIM");
     }
 }
