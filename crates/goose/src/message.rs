@@ -26,6 +26,22 @@ pub struct ToolRequest {
     pub tool_call: ToolResult<ToolCall>,
 }
 
+impl ToolRequest {
+    pub fn to_readable_string(&self) -> String {
+        match &self.tool_call {
+            Ok(tool_call) => {
+                format!(
+                    "Tool: {}, Args: {}",
+                    tool_call.name,
+                    serde_json::to_string_pretty(&tool_call.arguments)
+                        .unwrap_or_else(|_| "<<invalid json>>".to_string())
+                )
+            }
+            Err(e) => format!("Invalid tool call: {}", e),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolResponse {
