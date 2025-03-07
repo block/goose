@@ -633,7 +633,7 @@ impl GoogleDriveRouter {
         req.name = Some(filename.to_string());
         if convert {
             match mime_type {
-                "text/plain" => {
+                "text/plain" | "text/markdown" => {
                     req.mime_type = Some("application/vnd.google-apps.document".to_string());
                 }
                 "text/csv" => {
