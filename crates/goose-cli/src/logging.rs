@@ -21,6 +21,11 @@ static INIT: Once = Once::new();
 /// Returns the directory where log files should be stored.
 /// Creates the directory structure if it doesn't exist.
 fn get_log_directory() -> Result<PathBuf> {
+    get_log_directory_with_date(None)
+}
+
+/// Internal function that allows specifying a custom date string for testing
+fn get_log_directory_with_date(test_date: Option<String>) -> Result<PathBuf> {
     // choose_app_strategy().state_dir()
     // - macOS/Linux: ~/.local/state/goose/logs/cli
     // - Windows:     ~\AppData\Roaming\Block\goose\data\logs\cli
@@ -33,8 +38,11 @@ fn get_log_directory() -> Result<PathBuf> {
         .unwrap_or_else(|| home_dir.in_data_dir("logs/cli"));
 
     // Create date-based subdirectory
-    let now = chrono::Local::now();
-    let date_dir = base_log_dir.join(now.format("%Y-%m-%d").to_string());
+    let date_str = test_date.unwrap_or_else(|| {
+        let now = chrono::Local::now();
+        now.format("%Y-%m-%d").to_string()
+    });
+    let date_dir = base_log_dir.join(date_str);
 
     // Ensure log directory exists
     fs::create_dir_all(&date_dir).context("Failed to create log directory")?;
@@ -167,6 +175,8 @@ mod tests {
     use tempfile::TempDir;
     use test_case::test_case;
     use tokio::runtime::Runtime;
+    use chrono::TimeZone;
+
 
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -197,7 +207,25 @@ mod tests {
     #[test_case(None, false ; "without session name")]
     fn test_log_file_name(session_name: Option<&str>, with_error_capture: bool) {
         let _rt = Runtime::new().unwrap();
-        let _temp_dir = setup_temp_home();
+
+        // Create a unique test directory for each test
+        let test_name = session_name.unwrap_or("no_session");
+        let random_suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        let test_dir = PathBuf::from(format!("/tmp/goose_test_home_{}_{}", test_name, random_suffix));
+        if test_dir.exists() {
+            fs::remove_dir_all(&test_dir).unwrap();
+        }
+        fs::create_dir_all(&test_dir).unwrap();
+
+        // Set up environment
+        if cfg!(windows) {
+            env::set_var("USERPROFILE", &test_dir);
+        } else {
+            env::set_var("HOME", &test_dir);
+        }
 
         // Create error capture if needed
         let error_capture = if with_error_capture {
@@ -210,13 +238,19 @@ mod tests {
         let before_timestamp = chrono::Local::now() - chrono::Duration::seconds(1);
         println!("Before timestamp: {}", before_timestamp);
 
-        // Get the log directory and clean it
-        let log_dir = get_log_directory().unwrap();
+        // Get the log directory and clean any existing log files
+        let log_dir = get_log_directory_with_date(Some(format!("test-{}", random_suffix))).unwrap();
         println!("Log directory: {}", log_dir.display());
         if log_dir.exists() {
-            fs::remove_dir_all(&log_dir).unwrap();
+            for entry in fs::read_dir(&log_dir).unwrap() {
+                let entry = entry.unwrap();
+                if entry.path().extension().map_or(false, |ext| ext == "log") {
+                    fs::remove_file(entry.path()).unwrap();
+                }
+            }
+        } else {
+            fs::create_dir_all(&log_dir).unwrap();
         }
-        fs::create_dir_all(&log_dir).unwrap();
         println!("Log directory created: {}", log_dir.exists());
 
         // Set up logging with force=true to bypass the Once check
@@ -230,22 +264,23 @@ mod tests {
 
         // List all files in log directory
         println!("Log directory exists: {}", log_dir.exists());
-        let entries = fs::read_dir(&log_dir).unwrap_or_else(|e| {
-            println!("Error reading log directory: {}", e);
-            panic!("Failed to read log directory: {}", e);
-        });
+        let entries = fs::read_dir(&log_dir)
+            .unwrap_or_else(|e| {
+                println!("Error reading log directory: {}", e);
+                panic!("Failed to read log directory: {}", e);
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
         // List all log files for debugging
         println!("All files in log directory:");
-        for entry in entries {
-            let entry = entry.unwrap();
+        for entry in &entries {
             println!("  {}", entry.file_name().to_string_lossy());
         }
 
         // Verify the file exists and has the correct name
-        let entries = fs::read_dir(log_dir).unwrap();
         let mut log_files: Vec<_> = entries
-            .filter_map(Result::ok)
+            .iter()
             .filter(|e| {
                 let path = e.path();
                 let matches = path.extension().map_or(false, |ext| ext == "log")
@@ -318,6 +353,14 @@ mod tests {
                 "Expected only digits and underscore"
             );
         }
+
+        // Wait a moment to ensure all files are written
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Clean up test directory
+        fs::remove_dir_all(&test_dir).unwrap_or_else(|e| {
+            println!("Warning: Failed to clean up test directory: {}", e);
+        });
     }
 
     #[tokio::test]
