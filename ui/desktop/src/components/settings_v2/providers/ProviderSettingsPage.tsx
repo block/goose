@@ -47,6 +47,12 @@ const fakeProviderState: ProviderState[] = [
     isConfigured: false,
     metadata: { location: null },
   },
+  {
+    id: 'gcp_vertex_ai',
+    name: 'GCP Vertex AI',
+    isConfigured: true,
+    metadata: { location: null },
+  },
 ];
 
 export default function ProviderSettings({ onClose }: { onClose: () => void }) {

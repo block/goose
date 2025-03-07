@@ -1,5 +1,6 @@
-/// A truncate agent that truncates the conversation history when it exceeds the model's context limit
-/// It makes no attempt to handle context limits, and cannot read resources
+/// A summarize agent that lets the model summarize the conversation when the history exceeds the
+/// model's context limit. If the model fails to summarize, then it falls back to the legacy
+/// truncation method. Still cannot read resources.
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use std::collections::HashMap;
@@ -14,6 +15,7 @@ use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
 use crate::config::ExperimentManager;
+use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -32,15 +34,15 @@ use serde_json::{json, Value};
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
-/// Truncate implementation of an Agent
-pub struct TruncateAgent {
+/// Summarize implementation of an Agent
+pub struct SummarizeAgent {
     capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
 }
 
-impl TruncateAgent {
+impl SummarizeAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         // Create channel with buffer size 32 (adjust if needed)
@@ -56,7 +58,7 @@ impl TruncateAgent {
 
     /// Truncates the messages to fit within the model's context window
     /// Ensures the last message is a user message and removes tool call-response pairs
-    async fn truncate_messages(
+    async fn summarize_messages(
         &self,
         messages: &mut Vec<Message>,
         estimate_factor: f32,
@@ -101,17 +103,32 @@ impl TruncateAgent {
             })
             .collect();
 
-        truncate_messages(
+        let capabilities_guard = self.capabilities.lock().await;
+        if condense_messages(
+            &capabilities_guard,
+            &self.token_counter,
             messages,
             &mut token_counts,
             context_limit,
-            &OldestFirstTruncation,
         )
+        .await
+        .is_err()
+        {
+            // Fallback to the legacy truncator if the model fails to condense the messages.
+            truncate_messages(
+                messages,
+                &mut token_counts,
+                context_limit,
+                &OldestFirstTruncation,
+            )
+        } else {
+            Ok(())
+        }
     }
 }
 
 #[async_trait]
-impl Agent for TruncateAgent {
+impl Agent for SummarizeAgent {
     async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.add_extension(extension).await
@@ -145,7 +162,7 @@ impl Agent for TruncateAgent {
         }
     }
 
-    #[instrument(skip(self, messages, session_id), fields(user_message))]
+    #[instrument(skip(self, messages), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
@@ -319,14 +336,13 @@ impl Agent for TruncateAgent {
                                     message_tool_response = message_tool_response.with_tool_response(
                                         request.id.clone(),
                                         Ok(vec![Content::text(
-                                            "Let the user know the tool call was skipped in Goose chat mode. \
-                                            DO NOT apologize for skipping the tool call. DO NOT say sorry. \
-                                            Provide an explanation of what the tool call would do, structured as a \
-                                            plan for the user. Again, DO NOT apologize. \
-                                            **Example Plan:**\n \
-                                            1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                            2. **Outline Steps** - Break down the steps.\n \
-                                            If needed, adjust the explanation based on user preferences or questions."
+                                            "The following tool call was skipped in Goose chat mode. \
+                                            In chat mode, you cannot run tool calls, instead, you can \
+                                            only provide a detailed plan to the user. Provide an \
+                                            explanation of the proposed tool call as if it were a plan. \
+                                            Only if the user asks, provide a short explanation to the \
+                                            user that they could consider running the tool above on \
+                                            their own or with a different goose mode."
                                         )]),
                                     );
                                 }
@@ -380,7 +396,7 @@ impl Agent for TruncateAgent {
                         // release the lock before truncation to prevent deadlock
                         drop(capabilities);
 
-                        if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
+                        if let Err(err) = self.summarize_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
                             break;
                         }
@@ -458,4 +474,4 @@ impl Agent for TruncateAgent {
     }
 }
 
-register_agent!("truncate", TruncateAgent);
+register_agent!("summarize", SummarizeAgent);

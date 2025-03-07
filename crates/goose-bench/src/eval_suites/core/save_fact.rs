@@ -1,7 +1,7 @@
 // Create a new file called test.txt with the content 'Hello, World!
 
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -71,8 +71,11 @@ impl Evaluation for MemoryRememberMemory {
         "memory_remember_memory"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["memory".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["memory".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 

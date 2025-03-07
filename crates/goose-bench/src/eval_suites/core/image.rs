@@ -1,5 +1,5 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -88,8 +88,11 @@ impl Evaluation for DeveloperImage {
         "developer_image"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 

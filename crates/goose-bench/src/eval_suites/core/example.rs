@@ -1,5 +1,5 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use async_trait::async_trait;
 // use std::fs;
@@ -36,8 +36,8 @@ impl Evaluation for ExampleEval {
         "example_eval"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        Vec::new() // Example eval doesn't require any extensions
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements::default() // Example eval doesn't require any extensions
     }
 }
 
