@@ -3,7 +3,7 @@ import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
 import { model_docs_link } from './hardcoded_stuff';
-import { goose_models } from './goose_models';
+import { gooseModels } from './GooseModels';
 import { useModel } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 
@@ -32,7 +32,7 @@ export function ProviderButtons() {
 
   // Filter models by provider
   const providerModels = selectedProvider
-    ? goose_models.filter((model) => model.provider === selectedProvider)
+    ? gooseModels.filter((model) => model.provider === selectedProvider)
     : [];
 
   return (

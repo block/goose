@@ -2,7 +2,7 @@ import { Model } from './ModelContext';
 
 // TODO: move into backends / fetch dynamically
 // this is used by ModelContext
-export const goose_models: Model[] = [
+export const gooseModels: Model[] = [
   { id: 1, name: 'gpt-4o-mini', provider: 'OpenAI' },
   { id: 2, name: 'gpt-4o', provider: 'OpenAI' },
   { id: 3, name: 'gpt-4-turbo', provider: 'OpenAI' },
