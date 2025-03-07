@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState } from 'react';
-import ProviderState from '../interfaces/ProviderState';
+import { ProviderDetails } from '../../../../api';
 
 interface ProviderModalContextType {
   isOpen: boolean;
-  currentProvider: ProviderState | null;
+  currentProvider: ProviderDetails | null;
   modalProps: any;
-  openModal: (provider: ProviderState, additionalProps: any) => void;
+  openModal: (provider: ProviderDetails, additionalProps: any) => void;
   closeModal: () => void;
 }
 

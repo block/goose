@@ -1,10 +1,6 @@
 import React from 'react';
-import { ExclamationButton, GreenCheckButton } from './buttons/CardButtons';
-import {
-  ConfiguredProviderTooltipMessage,
-  OllamaNotConfiguredTooltipMessage,
-  ProviderDescription,
-} from './utils/StringUtils';
+import { GreenCheckButton } from './buttons/CardButtons';
+import { ConfiguredProviderTooltipMessage, ProviderDescription } from './utils/StringUtils';
 
 interface CardHeaderProps {
   name: string;

@@ -36,7 +36,7 @@ interface ConfigContextType {
   addExtension: (name: string, config: unknown) => Promise<void>;
   updateExtension: (name: string, config: unknown) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
-  getProviders: () => Promise<ProviderDetails[]>;
+  getProviders: (b: boolean) => Promise<ProviderDetails[]>;
 }
 
 interface ConfigProviderProps {
@@ -124,10 +124,15 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     await reloadConfig();
   };
 
-  // Finally, update the getProviders function in your ConfigProvider
-  const getProviders = async (): Promise<ProviderDetails[]> => {
-    const response = await providers();
-    return response.data; // The API now directly returns an array of ProviderDetails
+  const getProviders = async (forceRefresh = false): Promise<ProviderDetails[]> => {
+    if (forceRefresh || providersList.length === 0) {
+      // If a refresh is forced or we don't have providers yet
+      const response = await providers();
+      setProvidersList(response.data);
+      return response.data;
+    }
+    // Otherwise return the cached providers
+    return providersList;
   };
 
   return (

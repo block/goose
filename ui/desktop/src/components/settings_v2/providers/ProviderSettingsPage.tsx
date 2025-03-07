@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import ProviderState from './interfaces/ProviderState';
+import { useConfig } from '../../ConfigContext';
 
 const fakeProviderState: ProviderState[] = [
   {
@@ -56,6 +57,24 @@ const fakeProviderState: ProviderState[] = [
 ];
 
 export default function ProviderSettings({ onClose }: { onClose: () => void }) {
+  const { providersList, getProviders } = useConfig();
+  const [loading, setLoading] = useState(false);
+  // Load providers when component mounts
+  useEffect(() => {
+    const loadProviders = async () => {
+      setLoading(true);
+      try {
+        // Force refresh to ensure we have the latest data
+        await getProviders(true);
+      } catch (error) {
+        console.error('Failed to load providers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProviders().then();
+  }, [getProviders]);
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -74,7 +93,7 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
           {/* Content Area */}
           <div className="max-w-5xl pt-4 px-8">
             <div className="relative z-10">
-              <ProviderGrid providers={fakeProviderState} isOnboarding={false} />
+              <ProviderGrid providers={providersList} isOnboarding={false} />
             </div>
           </div>
         </div>

@@ -1,9 +1,9 @@
 import React from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
-import ProviderState from './interfaces/ProviderState';
 import OnRefresh from './callbacks/RefreshActiveProviders';
 import { ProviderModalProvider, useProviderModal } from './modal/ProviderModalProvider';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
+import { ProviderDetails } from '../../../api';
 
 function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,12 +17,12 @@ function ProviderCards({
   providers,
   isOnboarding,
 }: {
-  providers: ProviderState[];
+  providers: ProviderDetails[];
   isOnboarding: boolean;
 }) {
   const { openModal } = useProviderModal();
 
-  const configureProviderViaModal = (provider: ProviderState) => {
+  const configureProviderViaModal = (provider: ProviderDetails) => {
     openModal(provider, {
       onSubmit: (values: any) => {
         console.log(`Configuring ${provider.name}:`, values);
@@ -55,7 +55,7 @@ export default function ProviderGrid({
   providers,
   isOnboarding,
 }: {
-  providers: ProviderState[];
+  providers: ProviderDetails[];
   isOnboarding: boolean;
 }) {
   console.log('(1) Provider Grid -- is  this the onboarding page?', isOnboarding);
