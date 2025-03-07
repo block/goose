@@ -140,7 +140,7 @@ pub async fn run_benchmark(
 
     let config = Config::global();
     let goose_model: String = config
-        .get("GOOSE_MODEL")
+        .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let provider_name: String = config
         .get_param("GOOSE_PROVIDER")
