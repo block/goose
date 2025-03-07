@@ -8,14 +8,21 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::{agents::SessionConfig, message::{Message, MessageContent}};
 use goose::session;
+use goose::{
+    agents::SessionConfig,
+    message::{Message, MessageContent},
+};
 
 use mcp_core::role::Role;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    convert::Infallible, path::PathBuf, pin::Pin, task::{Context, Poll}, time::Duration
+    convert::Infallible,
+    path::PathBuf,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
 };
 use tokio::sync::mpsc;
 use tokio::time::timeout;
@@ -277,7 +284,6 @@ async fn ask_handler(
     let session_id = request
         .session_id
         .unwrap_or_else(session::generate_session_id);
-
 
     let agent = state.agent.clone();
     let agent = agent.write().await;

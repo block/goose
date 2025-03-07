@@ -433,10 +433,17 @@ impl Session {
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
         let session_id = session::Identifier::Path(self.session_file.clone());
-        let mut stream = self.agent.reply(&self.messages, Some(SessionConfig {
-            id: session_id,
-            working_dir: std::env::current_dir().expect("failed to get current session working directory")
-        })).await?;
+        let mut stream = self
+            .agent
+            .reply(
+                &self.messages,
+                Some(SessionConfig {
+                    id: session_id,
+                    working_dir: std::env::current_dir()
+                        .expect("failed to get current session working directory"),
+                }),
+            )
+            .await?;
 
         use futures::StreamExt;
         loop {
