@@ -143,7 +143,7 @@ pub async fn run_benchmark(
         .get("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let provider_name: String = config
-        .get("GOOSE_PROVIDER")
+        .get_param("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
 
     let mut results = BenchmarkResults::new(provider_name.clone());
