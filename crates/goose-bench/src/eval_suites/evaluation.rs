@@ -1,4 +1,4 @@
-use crate::work_dir::WorkDir;
+use crate::bench_work_dir::BenchmarkWorkDir;
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -42,7 +42,7 @@ pub trait Evaluation: Send + Sync {
     async fn run(
         &self,
         agent: Box<dyn BenchAgent>,
-        run_loc: &mut WorkDir,
+        run_loc: &mut BenchmarkWorkDir,
     ) -> Result<Vec<(String, EvaluationMetric)>>;
 
     fn name(&self) -> &str;
