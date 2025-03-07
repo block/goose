@@ -49,7 +49,7 @@ impl Evaluation for BlogSummary {
     fn required_extensions(&self) -> ExtensionRequirements {
         ExtensionRequirements {
             builtin: vec!["developer".to_string()],
-            external: vec!["fetch".to_string()],
+            external: vec!["uvx mcp-server-fetch".to_string()],
         }
     }
 }
