@@ -1,4 +1,4 @@
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
@@ -102,8 +102,11 @@ impl Evaluation for DeveloperSearchReplace {
         "developer_search_replace"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 

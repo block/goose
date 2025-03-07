@@ -1,6 +1,6 @@
 // Create a new file called test.txt with the content 'Hello, World!
 
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
 use crate::work_dir::WorkDir;
 use async_trait::async_trait;
@@ -26,11 +26,11 @@ impl Evaluation for DeveloperCreateFile {
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
-        // Send the prompt to list files
+        // Send the prompt to create and read file
         let messages = agent.prompt("Create a new file called test.txt in the current directory with the content 'Hello, World!'. Then read the contents of the new file to confirm.".to_string()).await?;
-        // println!("asdhflkahjsdflkasdfl");
 
-        let valid_tool_call = messages.iter().any(|msg| {
+        // Check for write operation
+        let write_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
             msg.role == Role::Assistant &&
             // Check if any content item is a tool request for creating a file
@@ -60,9 +60,47 @@ impl Evaluation for DeveloperCreateFile {
             })
         });
 
+        // Check for read operation
+        let read_tool_call = messages.iter().any(|msg| {
+            // Check if it's an assistant message
+            msg.role == Role::Assistant &&
+            // Check if any content item is a tool request for reading a file
+            msg.content.iter().any(|content| {
+                if let MessageContent::ToolRequest(tool_req) = content {
+                    if let Ok(tool_call) = tool_req.tool_call.as_ref() {
+                        // Check tool name is correct
+                        if tool_call.name != "developer__text_editor" {
+                            return false;
+                        }
+
+                        // Parse the arguments as JSON
+                        if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
+                            // Check all required parameters match exactly
+                            args.get("command").and_then(Value::as_str) == Some("view") &&
+                            args.get("path").and_then(Value::as_str).is_some_and(|s| s.contains("test.txt"))
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            })
+        });
+
         metrics.push((
-            "Create files".to_string(),
-            EvaluationMetric::Boolean(valid_tool_call),
+            "Create file".to_string(),
+            EvaluationMetric::Boolean(write_tool_call),
+        ));
+        metrics.push((
+            "Read file".to_string(),
+            EvaluationMetric::Boolean(read_tool_call),
+        ));
+        metrics.push((
+            "Complete create and read".to_string(),
+            EvaluationMetric::Boolean(write_tool_call && read_tool_call),
         ));
         Ok(metrics)
     }
@@ -71,8 +109,11 @@ impl Evaluation for DeveloperCreateFile {
         "developer_create_read_file"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 
