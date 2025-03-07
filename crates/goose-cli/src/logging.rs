@@ -134,7 +134,7 @@ fn setup_logging_internal(
                 file_layer.with_filter(env_filter).boxed(),
                 console_layer.with_filter(LevelFilter::WARN).boxed(),
             ];
-            
+
             // Only add ErrorCaptureLayer if not in test mode
             if !force {
                 layers.push(ErrorCaptureLayer::new().boxed());
@@ -159,7 +159,9 @@ fn setup_logging_internal(
                 Ok(())
             } else {
                 // For normal operation, set the subscriber globally
-                subscriber.try_init().context("Failed to set global subscriber")?;
+                subscriber
+                    .try_init()
+                    .context("Failed to set global subscriber")?;
                 Ok(())
             }
         })();
@@ -177,12 +179,11 @@ fn setup_logging_internal(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use std::env;
     use tempfile::TempDir;
     use test_case::test_case;
     use tokio::runtime::Runtime;
-    use chrono::TimeZone;
-
 
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -220,7 +221,10 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .subsec_nanos();
-        let test_dir = PathBuf::from(format!("/tmp/goose_test_home_{}_{}", test_name, random_suffix));
+        let test_dir = PathBuf::from(format!(
+            "/tmp/goose_test_home_{}_{}",
+            test_name, random_suffix
+        ));
         if test_dir.exists() {
             fs::remove_dir_all(&test_dir).unwrap();
         }
@@ -264,17 +268,17 @@ mod tests {
 
         // Wait longer for the log file to be created and flushed
         std::thread::sleep(std::time::Duration::from_millis(500));
-        
+
         // Write another log entry to ensure it's flushed
         tracing::warn!("Another test log entry");
         println!("Wrote second test log entry");
-        
+
         // Wait again to ensure it's flushed
         std::thread::sleep(std::time::Duration::from_millis(500));
 
         // List all files in log directory
         println!("Log directory exists: {}", log_dir.exists());
-        
+
         // Check if there are any log files directly
         let all_files = fs::read_dir(&log_dir)
             .unwrap_or_else(|e| {
@@ -283,13 +287,14 @@ mod tests {
             })
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
-            
-        let log_count = all_files.iter()
+
+        let log_count = all_files
+            .iter()
             .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
             .count();
-            
+
         println!("Found {} log files in directory", log_count);
-        
+
         if log_count == 0 {
             // If no log files found, manually create one for testing
             println!("No log files found, manually creating one for testing");
@@ -303,7 +308,7 @@ mod tests {
             fs::write(&log_path, "Test log content").unwrap();
             println!("Created test log file: {}", log_path.display());
         }
-        
+
         // Read directory again after potential manual creation
         let entries = fs::read_dir(&log_dir)
             .unwrap_or_else(|e| {
@@ -316,9 +321,11 @@ mod tests {
         // List all log files for debugging
         println!("All files in log directory ({}):", log_dir.display());
         for entry in &entries {
-            println!("  {} (is_file: {})", 
-                entry.file_name().to_string_lossy(), 
-                entry.file_type().map(|ft| ft.is_file()).unwrap_or(false));
+            println!(
+                "  {} (is_file: {})",
+                entry.file_name().to_string_lossy(),
+                entry.file_type().map(|ft| ft.is_file()).unwrap_or(false)
+            );
         }
 
         // Verify the file exists and has the correct name
@@ -333,7 +340,8 @@ mod tests {
                             name.ends_with(&format!("{}.log", session))
                         } else {
                             // For non-session logs, verify it's a timestamp format and it's after our before_timestamp
-                            if name.len() != 19 { // YYYYMMDD_HHMMSS.log
+                            if name.len() != 19 {
+                                // YYYYMMDD_HHMMSS.log
                                 println!("  Rejecting {} - wrong length", name);
                                 return false;
                             }
@@ -342,18 +350,25 @@ mod tests {
                                 return false;
                             }
                             let timestamp_str = &name[..15]; // Get YYYYMMDD_HHMMSS part
-                            if !timestamp_str.chars().all(|c| c.is_ascii_digit() || c == '_') {
+                            if !timestamp_str
+                                .chars()
+                                .all(|c| c.is_ascii_digit() || c == '_')
+                            {
                                 println!("  Rejecting {} - invalid characters in timestamp", name);
                                 return false;
                             }
                             // Parse the timestamp
                             if let Ok(file_time) = chrono::NaiveDateTime::parse_from_str(
                                 timestamp_str,
-                                "%Y%m%d_%H%M%S"
+                                "%Y%m%d_%H%M%S",
                             ) {
                                 // Convert to DateTime<Local>
-                                let local_time = chrono::Local.from_local_datetime(&file_time).unwrap();
-                                println!("  File time: {} vs before time: {}", local_time, before_timestamp);
+                                let local_time =
+                                    chrono::Local.from_local_datetime(&file_time).unwrap();
+                                println!(
+                                    "  File time: {} vs before time: {}",
+                                    local_time, before_timestamp
+                                );
                                 // Check if file timestamp is after our before_timestamp
                                 local_time >= before_timestamp
                             } else {
@@ -362,7 +377,11 @@ mod tests {
                             }
                         }
                     });
-                println!("  File {} matches: {}", e.file_name().to_string_lossy(), matches);
+                println!(
+                    "  File {} matches: {}",
+                    e.file_name().to_string_lossy(),
+                    matches
+                );
                 matches
             })
             .collect();
@@ -374,8 +393,12 @@ mod tests {
         println!("Found log file name: {}", log_file_name);
 
         if let Some(name) = session_name {
-            assert!(log_file_name.ends_with(&format!("{}.log", name)), 
-                "Log file {} should end with {}.log", log_file_name, name);
+            assert!(
+                log_file_name.ends_with(&format!("{}.log", name)),
+                "Log file {} should end with {}.log",
+                log_file_name,
+                name
+            );
         } else {
             // Extract just the filename without extension for comparison
             let name_without_ext = log_file_name.trim_end_matches(".log");
