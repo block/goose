@@ -125,6 +125,27 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
+    async fn structure_response(
+        &self,
+        message: Message,
+        tools: &[Tool],
+    ) -> Result<Message, ProviderError> {
+        let config = self.get_model_config();
+        if !config.interpret_chat_tool_calls {
+            return Ok(message);
+        }
+
+        // Create interpreter for tool calls - use Ollama's default host and port
+        let base_url = format!(
+            "http://{}:{}",
+            super::ollama::OLLAMA_HOST,
+            super::ollama::OLLAMA_DEFAULT_PORT
+        );
+        let interpreter = OllamaInterpreter::new(base_url);
+
+        augment_message_with_tool_calls(&interpreter, message, tools).await
+    }
+
     #[tracing::instrument(
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -135,11 +156,10 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let use_tool_shim = std::env::var("GOOSE_TOOLSHIM")
-            .map(|val| val == "1" || val.to_lowercase() == "true")
-            .unwrap_or(false);
+        let config = self.get_model_config();
 
-        if use_tool_shim {
+        // If tool interpretation is enabled, modify the system prompt to include tool info
+        let modified_system = if config.interpret_chat_tool_calls {
             // Create a string with tool information
             let mut tool_info = String::new();
             for tool in tools {
@@ -151,68 +171,151 @@ impl Provider for OpenAiProvider {
                 ));
             }
 
-            // Append tool information and format instruction to system prompt when using tool shim
-            let modified_system = format!(
+            // Append tool information to the system prompt
+            format!(
                 "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. You can only use one tool at a time.",
                 system,
                 tool_info
-            );
-
-            // Create request without tools
-            let payload = create_request(&self.model, &modified_system, messages, &[], &ImageFormat::OpenAi)?;
-            let response = self.post(payload.clone()).await?;
-            let mut message = response_to_message(response.clone())?;
-
-            // Create interpreter for tool calls - use Ollama's default host and port
-            let base_url = format!(
-                "http://{}:{}",
-                super::ollama::OLLAMA_HOST,
-                super::ollama::OLLAMA_DEFAULT_PORT
-            );
-            let interpreter = OllamaInterpreter::new(base_url);
-
-            // Augment message with tool calls
-            message = match augment_message_with_tool_calls(&interpreter, message, tools).await {
-                Ok(augmented) => {
-                    tracing::info!("Successfully augmented message with tool calls");
-                    augmented
-                }
-                Err(e) => {
-                    tracing::error!("Failed to augment message with tool calls: {}", e);
-                    return Err(e);
-                }
-            };
-
-            let usage = match get_usage(&response) {
-                Ok(usage) => usage,
-                Err(ProviderError::UsageError(e)) => {
-                    tracing::debug!("Failed to get usage data: {}", e);
-                    Usage::default()
-                }
-                Err(e) => return Err(e),
-            };
-            let model = get_model(&response);
-            emit_debug_trace(self, &payload, &response, &usage);
-            Ok((message, ProviderUsage::new(model, usage)))
+            )
         } else {
-            let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
+            system.to_string()
+        };
 
-            // Make request
-            let response = self.post(payload.clone()).await?;
+        // Create request with or without tools based on config
+        let payload = create_request(
+            &self.model,
+            &modified_system,
+            messages,
+            if config.interpret_chat_tool_calls {
+                &[]
+            } else {
+                tools
+            },
+            &ImageFormat::OpenAi,
+        )?;
 
-            // Parse response
-            let message = response_to_message(response.clone())?;
-            let usage = match get_usage(&response) {
-                Ok(usage) => usage,
-                Err(ProviderError::UsageError(e)) => {
-                    tracing::debug!("Failed to get usage data: {}", e);
-                    Usage::default()
+        // Make request
+        let response = self.post(payload.clone()).await?;
+
+        // Parse response
+        let message = response_to_message(response.clone())?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+        emit_debug_trace(self, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(model, usage)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::MessageContent;
+    use mcp_core::tool::Tool;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn test_structure_response() {
+        // Create a provider with tool interpretation enabled
+        std::env::set_var("GOOSE_TOOLSHIM", "1");
+        let model = ModelConfig::new("test-model".to_string());
+        let provider = OpenAiProvider::from_env(model).unwrap();
+
+        // Create a message with potential tool call text
+        let message = Message::assistant().with_text(
+            r#"{
+                "name": "test_tool",
+                "arguments": {
+                    "param1": "value1"
                 }
-                Err(e) => return Err(e),
-            };
-            let model = get_model(&response);
-            emit_debug_trace(self, &payload, &response, &usage);
-            Ok((message, ProviderUsage::new(model, usage)))
+            }"#,
+        );
+
+        // Create a test tool
+        let tool = Tool::new(
+            "test_tool".to_string(),
+            "Test tool".to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "param1": {"type": "string"}
+                }
+            }),
+        );
+
+        // Test interpreting the response
+        let structured = provider.structure_response(message, &[tool]).await.unwrap();
+
+        // Verify the tool call was extracted
+        let tool_requests: Vec<&MessageContent> = structured
+            .content
+            .iter()
+            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .collect();
+
+        assert_eq!(tool_requests.len(), 1);
+        if let MessageContent::ToolRequest(request) = tool_requests[0] {
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                assert_eq!(
+                    tool_call.arguments.get("param1").and_then(|v| v.as_str()),
+                    Some("value1")
+                );
+            } else {
+                panic!("Tool call was not Ok");
+            }
+        } else {
+            panic!("Expected ToolRequest");
         }
+
+        // Clean up
+        std::env::remove_var("GOOSE_TOOLSHIM");
+    }
+
+    #[tokio::test]
+    async fn test_complete_with_tool_interpretation() {
+        // This test can't make actual API calls, but we can verify the request payload
+        std::env::set_var("GOOSE_TOOLSHIM", "1");
+        let model = ModelConfig::new("test-model".to_string());
+        let provider = OpenAiProvider::from_env(model).unwrap();
+
+        // Create a test tool
+        let tool = Tool::new(
+            "test_tool".to_string(),
+            "Test tool".to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "param1": {"type": "string"}
+                }
+            }),
+        );
+
+        // Verify that complete() doesn't include tools in the request when interpretation is enabled
+        let payload = create_request(
+            &provider.model,
+            "test system",
+            &[Message::user().with_text("test message")],
+            if provider.model.interpret_chat_tool_calls {
+                &[]
+            } else {
+                &[tool]
+            },
+            &ImageFormat::OpenAi,
+        )
+        .unwrap();
+
+        // When tool interpretation is enabled, tools should not be in the request
+        assert!(provider.model.interpret_chat_tool_calls);
+        assert!(payload.get("tools").is_none() || payload["tools"].as_array().unwrap().is_empty());
+
+        // Clean up
+        std::env::remove_var("GOOSE_TOOLSHIM");
     }
 }
