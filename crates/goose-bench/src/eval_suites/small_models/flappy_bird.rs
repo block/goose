@@ -1,6 +1,6 @@
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::bench_work_dir::BenchmarkWorkDir;
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
@@ -29,51 +29,60 @@ impl Evaluation for FlappyBird {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut WorkDir,
+        work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("FlappyBird - run");
         let mut metrics = Vec::new();
-        
+
         let messages = agent.prompt("Create a Flappy Bird game in Python. Structure the code with a main function and use the if __name__ == '__main__': idiom. You must use pygame. The background color should be a light blue color. Pressing SPACE multiple times will accelerate the bird. The bird's shape should be a red circle. Place on the bottom some land colored as dark yellow chosen. Make a score shown on the top right side. Increment if you pass pipes and don't hit them. Make randomly spaced dark green pipes with enough space. When you lose, show the best score. Make the text inside the screen. Pressing q or Esc will quit the game. Restarting is pressing SPACE again. The final game should be written to a file named flappy_bird.py.".to_string()).await?;
 
         // Check if the agent used the text editor tool correctly
         let valid_tool_call = messages.iter().any(|msg| {
-            msg.role == Role::Assistant &&
-            msg.content.iter().any(|content| {
-                if let MessageContent::ToolRequest(tool_req) = content {
-                    if let Ok(tool_call) = tool_req.tool_call.as_ref() {
-                        // Check tool name and basic parameters
-                        if tool_call.name != "developer__text_editor" {
-                            return false;
-                        }
+            msg.role == Role::Assistant
+                && msg.content.iter().any(|content| {
+                    if let MessageContent::ToolRequest(tool_req) = content {
+                        if let Ok(tool_call) = tool_req.tool_call.as_ref() {
+                            // Check tool name and basic parameters
+                            if tool_call.name != "developer__text_editor" {
+                                return false;
+                            }
 
-                        // Parse the arguments as JSON
-                        if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
-                            // Only check command is write and correct filename
-                            args.get("command").and_then(Value::as_str) == Some("write") &&
-                            args.get("path").and_then(Value::as_str).is_some_and(|s| s.contains("flappy_bird.py"))
+                            // Parse the arguments as JSON
+                            if let Ok(args) =
+                                serde_json::from_value::<Value>(tool_call.arguments.clone())
+                            {
+                                // Only check command is write and correct filename
+                                args.get("command").and_then(Value::as_str) == Some("write")
+                                    && args
+                                        .get("path")
+                                        .and_then(Value::as_str)
+                                        .is_some_and(|s| s.contains("flappy_bird.py"))
+                            } else {
+                                false
+                            }
                         } else {
                             false
                         }
                     } else {
                         false
                     }
-                } else {
-                    false
-                }
-            })
+                })
         });
 
-        metrics.push(("used_write_tool".to_string(), 
-            EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "used_write_tool".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
 
         // If tool was used correctly, check the actual file content
         if valid_tool_call {
             if let Ok(file_path) = work_dir.fs_get("flappy_bird.py".to_string()) {
                 if let Ok(content) = fs::read_to_string(file_path) {
                     let valid_implementation = self.check_python_implementation(&content);
-                    metrics.push(("valid_implementation".to_string(),
-                        EvaluationMetric::Boolean(valid_implementation)));
+                    metrics.push((
+                        "valid_implementation".to_string(),
+                        EvaluationMetric::Boolean(valid_implementation),
+                    ));
                 }
             }
         }
@@ -85,8 +94,11 @@ impl Evaluation for FlappyBird {
         "flappy_bird"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 

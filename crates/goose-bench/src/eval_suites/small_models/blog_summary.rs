@@ -1,6 +1,6 @@
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::bench_work_dir::BenchmarkWorkDir;
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 
 pub struct BlogSummary {}
@@ -21,7 +21,7 @@ impl Evaluation for BlogSummary {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        _: &mut WorkDir,
+        _: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("BlogSummary - run");
         let mut metrics = Vec::new();
@@ -34,8 +34,10 @@ impl Evaluation for BlogSummary {
             false
         };
 
-        metrics.push(("valid_markdown_format".to_string(), 
-            EvaluationMetric::Boolean(has_markdown_list)));
+        metrics.push((
+            "valid_markdown_format".to_string(),
+            EvaluationMetric::Boolean(has_markdown_list),
+        ));
 
         Ok(metrics)
     }
@@ -44,8 +46,11 @@ impl Evaluation for BlogSummary {
         "blog_summary"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string(), "fetch".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: vec!["fetch".to_string()],
+        }
     }
 }
 

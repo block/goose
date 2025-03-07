@@ -1,6 +1,6 @@
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::bench_work_dir::BenchmarkWorkDir;
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
@@ -19,11 +19,11 @@ impl Evaluation for GooseWiki {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        _: &mut WorkDir,
+        _: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("GooseWiki - run");
         let mut metrics = Vec::new();
-        
+
         let messages = agent.prompt("Create a Wikipedia-style web page about Goose (Block's AI agent) in a new index.html file. The page should be a complete, well-structured HTML document with proper head and body sections. Use heading tags (h1, h2, h3) to organize the content into clear sections. Include comprehensive information about Goose organized in a way similar to how Wikipedia presents technical topics.".to_string()).await?;
 
         // Check if the agent used the text editor tool to create index.html
@@ -60,8 +60,10 @@ impl Evaluation for GooseWiki {
             })
         });
 
-        metrics.push(("created_valid_html".to_string(), 
-            EvaluationMetric::Boolean(valid_tool_call)));
+        metrics.push((
+            "created_valid_html".to_string(),
+            EvaluationMetric::Boolean(valid_tool_call),
+        ));
 
         Ok(metrics)
     }
@@ -70,8 +72,11 @@ impl Evaluation for GooseWiki {
         "goose_wiki"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: Vec::new(),
+        }
     }
 }
 

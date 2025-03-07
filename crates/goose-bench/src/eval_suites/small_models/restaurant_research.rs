@@ -1,6 +1,6 @@
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric};
+use crate::bench_work_dir::BenchmarkWorkDir;
+use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 
 pub struct RestaurantResearch {}
@@ -28,7 +28,7 @@ impl Evaluation for RestaurantResearch {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        _: &mut WorkDir,
+        _: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("RestaurantResearch - run");
         let mut metrics = Vec::new();
@@ -47,10 +47,14 @@ Present the information in order of significance or quality. Focus specifically 
             let has_markdown_bullets = self.check_markdown_bullets(&text_content);
             let bullet_count = self.count_bullet_points(&text_content);
 
-            metrics.push(("valid_markdown_format".to_string(), 
-                EvaluationMetric::Boolean(has_markdown_bullets)));
-            metrics.push(("bullet_point_count".to_string(), 
-                EvaluationMetric::Integer(bullet_count)));
+            metrics.push((
+                "valid_markdown_format".to_string(),
+                EvaluationMetric::Boolean(has_markdown_bullets),
+            ));
+            metrics.push((
+                "bullet_point_count".to_string(),
+                EvaluationMetric::Integer(bullet_count),
+            ));
         }
 
         Ok(metrics)
@@ -60,8 +64,11 @@ Present the information in order of significance or quality. Focus specifically 
         "restaurant_research"
     }
 
-    fn required_extensions(&self) -> Vec<String> {
-        vec!["developer".to_string(), "fetch".to_string()]
+    fn required_extensions(&self) -> ExtensionRequirements {
+        ExtensionRequirements {
+            builtin: vec!["developer".to_string()],
+            external: vec!["fetch".to_string()],
+        }
     }
 }
 
