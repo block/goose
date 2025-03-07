@@ -52,6 +52,15 @@ pub fn setup_logging(
     name: Option<&str>,
     error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
 ) -> Result<()> {
+    setup_logging_internal(name, error_capture, false)
+}
+
+/// Internal function that allows bypassing the Once check for testing
+fn setup_logging_internal(
+    name: Option<&str>,
+    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
+    force: bool,
+) -> Result<()> {
     let mut result = Ok(());
 
     // Register the error vector if provided
@@ -59,7 +68,7 @@ pub fn setup_logging(
         ErrorCaptureLayer::register_error_vector(errors);
     }
 
-    INIT.call_once(|| {
+    let mut setup = || {
         result = (|| {
             // Set up file appender for goose module logs
             let log_dir = get_log_directory()?;
@@ -125,15 +134,28 @@ pub fn setup_logging(
                 layers.push(langfuse.with_filter(LevelFilter::DEBUG).boxed());
             }
 
-            // Build and initialize the subscriber
-            Registry::default()
-                .with(layers)
-                .try_init()
-                .context("Failed to set global subscriber")?;
+            // Build the subscriber
+            let subscriber = Registry::default().with(layers);
 
-            Ok(())
+            if force {
+                // For testing, just create and use the subscriber without setting it globally
+                // Write a test log to ensure the file is created
+                let _guard = subscriber.set_default();
+                tracing::info!("Test log entry");
+                Ok(())
+            } else {
+                // For normal operation, set the subscriber globally
+                subscriber.try_init().context("Failed to set global subscriber")?;
+                Ok(())
+            }
         })();
-    });
+    };
+
+    if force {
+        setup();
+    } else {
+        INIT.call_once(setup);
+    }
 
     result
 }
@@ -184,32 +206,98 @@ mod tests {
             None
         };
 
-        // Set up logging
-        setup_logging(session_name, error_capture).unwrap();
+        // Get current timestamp before setting up logging
+        let before_timestamp = chrono::Local::now() - chrono::Duration::seconds(1);
+        println!("Before timestamp: {}", before_timestamp);
 
-        // Create a test-specific log directory and file
+        // Get the log directory and clean it
         let log_dir = get_log_directory().unwrap();
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-        let file_name = format!("{}.log", session_name.unwrap_or(&timestamp));
+        println!("Log directory: {}", log_dir.display());
+        if log_dir.exists() {
+            fs::remove_dir_all(&log_dir).unwrap();
+        }
+        fs::create_dir_all(&log_dir).unwrap();
+        println!("Log directory created: {}", log_dir.exists());
 
-        // Create the log file
-        let file_path = log_dir.join(&file_name);
-        fs::write(&file_path, "test").unwrap();
+        // Set up logging with force=true to bypass the Once check
+        setup_logging_internal(session_name, error_capture, true).unwrap();
+
+        // Write a test log entry
+        tracing::info!("Test log entry");
+
+        // Wait a moment for the log file to be created
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // List all files in log directory
+        println!("Log directory exists: {}", log_dir.exists());
+        let entries = fs::read_dir(&log_dir).unwrap_or_else(|e| {
+            println!("Error reading log directory: {}", e);
+            panic!("Failed to read log directory: {}", e);
+        });
+
+        // List all log files for debugging
+        println!("All files in log directory:");
+        for entry in entries {
+            let entry = entry.unwrap();
+            println!("  {}", entry.file_name().to_string_lossy());
+        }
 
         // Verify the file exists and has the correct name
         let entries = fs::read_dir(log_dir).unwrap();
-        let log_files: Vec<_> = entries
+        let mut log_files: Vec<_> = entries
             .filter_map(Result::ok)
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+            .filter(|e| {
+                let path = e.path();
+                let matches = path.extension().map_or(false, |ext| ext == "log")
+                    && path.file_name().map_or(false, |name| {
+                        let name = name.to_string_lossy();
+                        if let Some(session) = session_name {
+                            name.ends_with(&format!("{}.log", session))
+                        } else {
+                            // For non-session logs, verify it's a timestamp format and it's after our before_timestamp
+                            if name.len() != 19 { // YYYYMMDD_HHMMSS.log
+                                println!("  Rejecting {} - wrong length", name);
+                                return false;
+                            }
+                            if name.as_bytes()[8] != b'_' {
+                                println!("  Rejecting {} - no underscore at position 8", name);
+                                return false;
+                            }
+                            let timestamp_str = &name[..15]; // Get YYYYMMDD_HHMMSS part
+                            if !timestamp_str.chars().all(|c| c.is_ascii_digit() || c == '_') {
+                                println!("  Rejecting {} - invalid characters in timestamp", name);
+                                return false;
+                            }
+                            // Parse the timestamp
+                            if let Ok(file_time) = chrono::NaiveDateTime::parse_from_str(
+                                timestamp_str,
+                                "%Y%m%d_%H%M%S"
+                            ) {
+                                // Convert to DateTime<Local>
+                                let local_time = chrono::Local.from_local_datetime(&file_time).unwrap();
+                                println!("  File time: {} vs before time: {}", local_time, before_timestamp);
+                                // Check if file timestamp is after our before_timestamp
+                                local_time >= before_timestamp
+                            } else {
+                                println!("  Rejecting {} - couldn't parse timestamp", name);
+                                false
+                            }
+                        }
+                    });
+                println!("  File {} matches: {}", e.file_name().to_string_lossy(), matches);
+                matches
+            })
             .collect();
 
-        assert_eq!(log_files.len(), 1, "Expected exactly one log file");
+        log_files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+        assert_eq!(log_files.len(), 1, "Expected exactly one matching log file");
 
         let log_file_name = log_files[0].file_name().to_string_lossy().into_owned();
-        println!("Log file name: {}", log_file_name);
+        println!("Found log file name: {}", log_file_name);
 
         if let Some(name) = session_name {
-            assert_eq!(log_file_name, format!("{}.log", name));
+            assert!(log_file_name.ends_with(&format!("{}.log", name)), 
+                "Log file {} should end with {}.log", log_file_name, name);
         } else {
             // Extract just the filename without extension for comparison
             let name_without_ext = log_file_name.trim_end_matches(".log");
