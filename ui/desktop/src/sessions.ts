@@ -139,13 +139,21 @@ export async function updateSessionMetadata(
   metadata: Partial<SessionMetadata>
 ): Promise<SessionMetadata> {
   try {
+    // Extract the working_dir & description (only if not empty) from the metadata if they're set
+    const { description, working_dir } = metadata;
+    const body: Partial<SessionMetadata> = {};
+    body.working_dir = working_dir;
+    if (description && description.trim() !== '') {
+      body.description = description;
+    }
+
     const response = await fetch(getApiUrl(`/sessions/${sessionId}/metadata`), {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': getSecretKey(),
       },
-      body: JSON.stringify(metadata),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

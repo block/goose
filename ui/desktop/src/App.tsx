@@ -11,7 +11,7 @@ import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
-import { fetchSessionDetails } from './sessions';
+import { SessionDetails, fetchSessionDetails } from './sessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -38,7 +38,12 @@ export type View =
 
 export type ViewConfig = {
   view: View;
-  viewOptions?: SettingsViewOptions | Record<any, any>;
+  viewOptions?:
+    | SettingsViewOptions
+    | {
+        resumedSession?: SessionDetails;
+      }
+    | Record<string, any>;
 };
 
 export default function App() {
@@ -137,6 +142,7 @@ export default function App() {
             addRecentModel(model);
           }
         } catch (error) {
+          // TODO: add sessionError state and show error screen with option to start fresh
           console.error('Failed to initialize with stored provider:', error);
         }
       }
@@ -151,21 +157,30 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       const resumeSessionId = urlParams.get('resumeSessionId');
 
-      if (resumeSessionId) {
+      if (!resumeSessionId) {
+        return;
+      }
+
+      setIsLoadingSession(true);
+      try {
         console.log('Found resumeSessionId in URL:', resumeSessionId);
-        setIsLoadingSession(true);
-        try {
-          const sessionDetails = await fetchSessionDetails(resumeSessionId);
-          console.log('Fetched session details:', sessionDetails);
+        const sessionDetails = await fetchSessionDetails(resumeSessionId);
+        console.log('Fetched session details:', sessionDetails);
+
+        // Only set view if we have valid session details
+        if (sessionDetails && sessionDetails.session_id) {
           setView('chat', {
             resumedSession: sessionDetails,
           });
-        } catch (error) {
-          console.error('Failed to fetch session details:', error);
+        } else {
+          console.error('Invalid session details received');
         }
+      } catch (error) {
+        console.error('Failed to fetch session details:', error);
+      } finally {
+        // Always clear the loading state
+        setIsLoadingSession(false);
       }
-
-      setIsLoadingSession(false);
     };
 
     checkForResumeSession();
@@ -187,6 +202,13 @@ export default function App() {
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
   }, []);
+
+  // Add cleanup for session states when view changes
+  useEffect(() => {
+    if (view !== 'chat') {
+      setIsLoadingSession(false);
+    }
+  }, [view]);
 
   const handleConfirm = async () => {
     if (pendingLink && !isInstalling) {

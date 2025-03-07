@@ -48,7 +48,7 @@ export default function ChatView({
   const resumedSession = viewOptions?.resumedSession;
 
   // Generate or retrieve session ID
-  const sessionId = resumedSession?.session_id ? resumedSession.session_id : generateSessionId();
+  const sessionId = resumedSession?.session_id || generateSessionId();
 
   const [chat, setChat] = useState<ChatType>(() => {
     // If resuming a session, convert the session messages to our format
@@ -123,6 +123,7 @@ export default function ChatView({
     });
 
     // If this is the first message in a new session, set the working directory
+    console.log('messages: ', messages);
     if (messages.length === 1 && !resumedSession) {
       const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR');
       if (currentWorkingDir) {
