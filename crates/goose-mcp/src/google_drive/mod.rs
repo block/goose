@@ -90,10 +90,6 @@ impl GoogleDriveRouter {
         );
 
         if !keyfile_path.exists() && oauth_config.is_ok() {
-            tracing::debug!(
-                oauth_config = ?oauth_config,
-                "Google Drive MCP server OAuth config"
-            );
             // attempt to create the path
             if let Some(parent_dir) = keyfile_path.parent() {
                 let _ = fs::create_dir_all(parent_dir);
@@ -101,6 +97,10 @@ impl GoogleDriveRouter {
 
             if let Ok(mut file) = fs::File::create(keyfile_path) {
                 let _ = file.write_all(oauth_config.unwrap().as_bytes());
+                tracing::debug!(
+                    "Wrote Google Drive MCP server OAuth config to {}",
+                    keyfile_path.display()
+                );
             }
         }
 
