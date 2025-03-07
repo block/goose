@@ -70,18 +70,6 @@ pub struct ProvidersResponse {
     pub providers: Vec<ProviderDetails>,
 }
 
-fn check_key_status(config: &Config, key: &str) -> (bool, Option<String>) {
-    if let Ok(_value) = std::env::var(key) {
-        (true, Some("env".to_string()))
-    } else if config.get_param::<String>(key).is_ok() {
-        (true, Some("yaml".to_string()))
-    } else if config.get_secret::<String>(key).is_ok() {
-        (true, Some("keyring".to_string()))
-    } else {
-        (false, None)
-    }
-}
-
 #[utoipa::path(
     post,
     path = "/config/upsert",
