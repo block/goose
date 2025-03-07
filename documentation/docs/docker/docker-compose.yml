@@ -1,20 +1,21 @@
 services:
   goose-cli:
     build:
-      context: .
+      context: ../../..
+      dockerfile: documentation/docs/docker/Dockerfile
       args:
         USER_ID: ${UID:-1000}
     volumes:
       # Mount user's directory with read-write access
-      - .:/home/goose/workspace
-      - goose-config:/home/goose/.goose
+      - ../../..:/root/workspace
+      - goose-config:/root/.goose
       # Mount git config
-      - ~/.gitconfig:/home/goose/.gitconfig:ro
+      - ~/.gitconfig:/root/.gitconfig:ro
       # Mount SSH keys
-      - ~/.ssh:/home/goose/.ssh:ro
-    working_dir: /home/goose/workspace
+      - ~/.ssh:/root/.ssh:ro
+    working_dir: /root/workspace
     environment:
-      - GOOSE_HOME=/home/goose/.goose
+      - OOSE_HOME=/root/.goose
       # Set default editor
       - EDITOR=vim
       # Preserve git author info

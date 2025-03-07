@@ -23,13 +23,13 @@ Among these, only the first change is mandatory. We need to set the API key, pro
 After setting the credentials, you can build the Docker image using the following command:
 
 ```bash
-docker-compose build
+docker-compose -f documentation/docs/docker/docker-compose.yml build
 ```
 
 Next, run the container and connect to it using the following command:
 
 ```bash
-docker-compose run --rm goose-cli
+docker-compose -f documentation/docs/docker/docker-compose.yml run --rm goose-cli
 ```
 Inside the container, first try to run the following command to configure Goose:
 
