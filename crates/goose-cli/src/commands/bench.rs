@@ -80,29 +80,27 @@ async fn run_eval(
 ) -> anyhow::Result<EvaluationResult> {
     let mut result = EvaluationResult::new(evaluation.name().to_string());
 
-    if let Ok(work_dir) = work_dir.move_to(format!("./{}", &evaluation.name())) {
-        let requirements = evaluation.required_extensions();
+    let requirements = evaluation.required_extensions();
 
-        // Create session with error capture
-        let base_session =
-            build_session(None, false, requirements.external, requirements.builtin).await;
+    // Create session with error capture
+    let base_session =
+        build_session(None, false, requirements.external, requirements.builtin).await;
 
-        let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
-        let bench_session_clone = bench_session.clone();
+    let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
+    let bench_session_clone = bench_session.clone();
 
-        if let Ok(metrics) = evaluation
-            .run(Box::new(BenchAgentWrapper(bench_session)), work_dir)
-            .await
-        {
-            for (name, metric) in metrics {
-                result.add_metric(name, metric);
-            }
+    if let Ok(metrics) = evaluation
+        .run(Box::new(BenchAgentWrapper(bench_session)), work_dir)
+        .await
+    {
+        for (name, metric) in metrics {
+            result.add_metric(name, metric);
+        }
 
-            // Add any errors that occurred
-            let agent = BenchAgentWrapper(bench_session_clone);
-            for error in agent.get_errors().await {
-                result.add_error(error);
-            }
+        // Add any errors that occurred
+        let agent = BenchAgentWrapper(bench_session_clone);
+        for error in agent.get_errors().await {
+            result.add_error(error);
         }
     }
 
