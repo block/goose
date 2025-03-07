@@ -136,7 +136,7 @@ impl ToolPermissionStore {
         let mut changed = false;
 
         self.permissions.retain(|_, records| {
-            records.retain(|record| record.expiry.map_or(true, |exp| exp > now));
+            records.retain(|record| record.expiry.is_none_or(|exp| exp > now));
             changed = changed || records.is_empty();
             !records.is_empty()
         });
