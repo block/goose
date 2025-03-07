@@ -83,8 +83,14 @@ async fn run_eval(
     let requirements = evaluation.required_extensions();
 
     // Create session with error capture
-    let base_session =
-        build_session(None, false, requirements.external, requirements.builtin).await;
+    let base_session = build_session(
+        None,
+        false,
+        requirements.external,
+        requirements.builtin,
+        false,
+    )
+    .await;
 
     let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
     let bench_session_clone = bench_session.clone();

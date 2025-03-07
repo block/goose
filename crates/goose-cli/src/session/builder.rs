@@ -15,6 +15,7 @@ pub async fn build_session(
     resume: bool,
     extensions: Vec<String>,
     builtins: Vec<String>,
+    debug: bool,
 ) -> Session {
     // Load config and get provider/model
     let config = Config::global();
@@ -92,7 +93,7 @@ pub async fn build_session(
     };
 
     // Create new session
-    let mut session = Session::new(agent, session_file.clone());
+    let mut session = Session::new(agent, session_file.clone(), debug);
 
     // Add extensions if provided
     for extension_str in extensions {

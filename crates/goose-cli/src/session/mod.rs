@@ -36,6 +36,7 @@ pub struct Session {
     session_file: PathBuf,
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+    debug: bool, // New field for debug mode
 }
 
 // Cache structure for completion data
@@ -56,7 +57,7 @@ impl CompletionCache {
 }
 
 impl Session {
-    pub fn new(agent: Box<dyn Agent>, session_file: PathBuf) -> Self {
+    pub fn new(agent: Box<dyn Agent>, session_file: PathBuf, debug: bool) -> Self {
         let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
@@ -70,6 +71,7 @@ impl Session {
             messages,
             session_file,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
+            debug,
         }
     }
 
@@ -393,7 +395,7 @@ impl Session {
                                     }
 
                                     if msg.role == mcp_core::Role::User {
-                                        output::render_message(&msg);
+                                        output::render_message(&msg, self.debug);
                                     }
                                     self.messages.push(msg);
                                 }
@@ -461,7 +463,7 @@ impl Session {
                                 session::persist_messages(&self.session_file, &self.messages, None).await?;
 
                                 if interactive {output::hide_thinking()};
-                                output::render_message(&message);
+                                output::render_message(&message, self.debug);
                                 if interactive {output::show_thinking()};
                             }
                         }
@@ -547,7 +549,7 @@ impl Session {
             // No need for description update here
             session::persist_messages(&self.session_file, &self.messages, None).await?;
 
-            output::render_message(&Message::assistant().with_text(&prompt));
+            output::render_message(&Message::assistant().with_text(&prompt), self.debug);
         } else {
             // An interruption occurred outside of a tool request-response.
             if let Some(last_msg) = self.messages.last() {
@@ -562,13 +564,19 @@ impl Session {
                             session::persist_messages(&self.session_file, &self.messages, None)
                                 .await?;
 
-                            output::render_message(&Message::assistant().with_text(prompt));
+                            output::render_message(
+                                &Message::assistant().with_text(prompt),
+                                self.debug,
+                            );
                         }
                         Some(_) => {
                             // A real users message
                             self.messages.pop();
                             let prompt = "Interrupted before the model replied and removed the last message.";
-                            output::render_message(&Message::assistant().with_text(prompt));
+                            output::render_message(
+                                &Message::assistant().with_text(prompt),
+                                self.debug,
+                            );
                         }
                         None => panic!("No content in last message"),
                     }

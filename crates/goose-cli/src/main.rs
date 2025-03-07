@@ -90,6 +90,14 @@ enum Command {
         )]
         resume: bool,
 
+        /// Enable debug output mode
+        #[arg(
+            long,
+            help = "Enable debug output mode with full content and no truncation",
+            long_help = "When enabled, shows complete tool responses without truncation and full paths."
+        )]
+        debug: bool,
+
         /// Add stdio extensions with environment variables and commands
         #[arg(
             long = "with-extension",
@@ -156,6 +164,14 @@ enum Command {
             long_help = "Continue from a previous run, maintaining the execution state and context."
         )]
         resume: bool,
+
+        /// Enable debug output mode
+        #[arg(
+            long,
+            help = "Enable debug output mode with full content and no truncation",
+            long_help = "When enabled, shows complete tool responses without truncation and full paths."
+        )]
+        debug: bool,
 
         /// Add stdio extensions with environment variables and commands
         #[arg(
@@ -285,6 +301,7 @@ async fn main() -> Result<()> {
         Some(Command::Session {
             identifier,
             resume,
+            debug,
             extension,
             builtin,
         }) => {
@@ -293,6 +310,7 @@ async fn main() -> Result<()> {
                 resume,
                 extension,
                 builtin,
+                debug,
             )
             .await;
 
@@ -306,6 +324,7 @@ async fn main() -> Result<()> {
             interactive,
             identifier,
             resume,
+            debug,
             extension,
             builtin,
         }) => {
@@ -332,6 +351,7 @@ async fn main() -> Result<()> {
                 resume,
                 extension,
                 builtin,
+                debug,
             )
             .await;
             setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
@@ -410,7 +430,7 @@ async fn main() -> Result<()> {
                 return Ok(());
             } else {
                 // Run session command by default
-                let mut session = build_session(None, false, vec![], vec![]).await;
+                let mut session = build_session(None, false, vec![], vec![], false).await;
                 setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
                 let _ = session.interactive(None).await;
                 return Ok(());
