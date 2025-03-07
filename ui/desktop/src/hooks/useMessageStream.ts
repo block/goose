@@ -270,6 +270,7 @@ export function useMessageStream({
 
         // Log the request messages for debugging
         console.log('Sending messages to server:', JSON.stringify(requestMessages, null, 2));
+        console.log('Body parameters:', JSON.stringify(extraMetadataRef.current.body, null, 2));
 
         // Send request to the server
         const response = await fetch(api, {

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
-import { generateSessionId, updateSessionMetadata } from '../sessions';
+import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -48,7 +48,11 @@ export default function ChatView({
   const resumedSession = viewOptions?.resumedSession;
 
   // Generate or retrieve session ID
-  const sessionId = resumedSession?.session_id || generateSessionId();
+  const sessionId = useMemo(
+    () => resumedSession?.session_id || generateSessionId(),
+    [resumedSession]
+  );
+  console.log(`ChatView: Using session ID: ${sessionId}`);
 
   const [chat, setChat] = useState<ChatType>(() => {
     // If resuming a session, convert the session messages to our format
@@ -89,7 +93,7 @@ export default function ChatView({
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: resumedSession ? resumedSession.messages : chat?.messages || [],
-    body: { session_id: sessionId },
+    body: { session_id: sessionId, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
@@ -121,17 +125,6 @@ export default function ChatView({
       const updatedChat = { ...prevChat, messages };
       return updatedChat;
     });
-
-    // If this is the first message in a new session, set the working directory
-    console.log('messages: ', messages);
-    if (messages.length === 1 && !resumedSession) {
-      const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR');
-      if (currentWorkingDir) {
-        updateSessionMetadata(sessionId, {
-          working_dir: currentWorkingDir,
-        }).catch((e) => console.error('Failed to update session working directory:', e));
-      }
-    }
   }, [messages, sessionId, resumedSession]);
 
   useEffect(() => {

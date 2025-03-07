@@ -13,7 +13,7 @@ use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::Agent;
+use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
 use goose::session;
@@ -201,14 +201,7 @@ impl Session {
         let provider = self.agent.provider().await;
 
         // Persist messages with provider for automatic description generation
-        // The first message creates the session file if it doesn't exist
-        // So we check that here and update the working directory after the first message
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
-        if self.messages.len() == 1 {
-            let mut metadata = session::read_metadata(&self.session_file)?;
-            metadata.working_dir = std::env::current_dir().unwrap();
-            session::update_metadata(&self.session_file, &metadata).await?;
-        }
 
         self.process_agent_response(false).await?;
         Ok(())
@@ -267,7 +260,6 @@ impl Session {
             };
 
         output::display_greeting();
-        let mut is_first_message = true;
         loop {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
@@ -279,16 +271,8 @@ impl Session {
                     let provider = self.agent.provider().await;
 
                     // Persist messages with provider for automatic description generation
-                    // The first message creates the session file if it doesn't exist
-                    // So we check that here and update the working directory after the first message
                     session::persist_messages(&self.session_file, &self.messages, Some(provider))
                         .await?;
-                    if is_first_message {
-                        let mut metadata = session::read_metadata(&self.session_file)?;
-                        metadata.working_dir = std::env::current_dir().unwrap();
-                        session::update_metadata(&self.session_file, &metadata).await?;
-                        is_first_message = false;
-                    }
 
                     output::show_thinking();
                     self.process_agent_response(true).await?;
@@ -449,7 +433,10 @@ impl Session {
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
         let session_id = session::Identifier::Path(self.session_file.clone());
-        let mut stream = self.agent.reply(&self.messages, Some(session_id)).await?;
+        let mut stream = self.agent.reply(&self.messages, Some(SessionConfig {
+            id: session_id,
+            working_dir: std::env::current_dir().expect("failed to get current session working directory")
+        })).await?;
 
         use futures::StreamExt;
         loop {

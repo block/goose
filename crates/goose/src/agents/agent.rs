@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -13,6 +15,15 @@ use crate::session;
 use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
 
+/// Session configuration for an agent
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionConfig {
+    /// Unique identifier for the session
+    pub id: session::Identifier,
+    /// Working directory for the session
+    pub working_dir: PathBuf,
+}
+
 /// Core trait defining the behavior of an Agent
 #[async_trait]
 pub trait Agent: Send + Sync {
@@ -20,7 +31,7 @@ pub trait Agent: Send + Sync {
     async fn reply(
         &self,
         messages: &[Message],
-        session_id: Option<session::Identifier>,
+        session: Option<SessionConfig>,
     ) -> Result<BoxStream<'_, Result<Message>>>;
 
     /// Add a new MCP client to the agent
