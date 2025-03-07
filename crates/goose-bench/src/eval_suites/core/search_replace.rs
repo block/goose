@@ -1,6 +1,6 @@
+use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use std::fs;
 
@@ -18,31 +18,20 @@ impl Evaluation for DeveloperSearchReplace {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut WorkDir,
+        work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
-        // Try to find the assets directory
-        let assets_dir_path = work_dir.path.join("assets");
-        let _assets_exists = assets_dir_path.exists();
-
-        // Get the kubernetes_swagger.json file from the assets directory and copy it to the working directory for eval
-        // so the agent can modify it
-        let source_file = work_dir.path.join("assets").join("kubernetes_swagger.json");
-        let target_file = std::env::current_dir()
-            .unwrap_or_default()
-            .join("kubernetes_swagger.json");
-
-        // Copy the file to the root of the working directory if it doesn't exist there yet
-        if !target_file.exists() && source_file.exists() {
-            println!("Copying file from {:?} to {:?}", source_file, target_file);
-            fs::copy(&source_file, &target_file)?;
-            println!("File copied successfully");
-        } else {
-            return Err(anyhow::anyhow!(
-                "Could not find kubernetes_swagger.json file"
-            ));
-        }
+        let _target_file = match work_dir.fs_get("./assets/kubernetes_swagger.json".to_string()) {
+            Ok(file) => file,
+            Err(_) => {
+                return Err(anyhow::anyhow!(
+                    "Could not find kubernetes_swagger.json file"
+                ))
+            }
+        };
+        let mut source_file = work_dir.base_path.clone();
+        source_file.push("assets/kubernetes_swagger.json");
 
         // Send the prompt to modify the file
         let _messages = agent.prompt("Remove the io.k8s.api.admissionregistration.v1.ServiceReference definition block and replace with a new definition for io.k8s.api.admissionregistration.v1.FakeServiceReference. Update the fields in the definition as well to be consistent. Don't change the property names. Don't update any references to the old definition. Only modify the definition and it's description to 'FakeServiceReference simulates a reference to a fake service for testing purposes.'.The file to modify is kubernetes_swagger.json.".to_string()).await?;
@@ -53,7 +42,7 @@ impl Evaluation for DeveloperSearchReplace {
             .join("kubernetes_swagger.json");
 
         // Read the expected patch file from the assets directory
-        let patch_file_path = work_dir.path.join("assets").join("kubernetes.patch");
+        let patch_file_path = work_dir.base_path.join("assets").join("kubernetes.patch");
         if !patch_file_path.exists() {
             return Err(anyhow::anyhow!("Could not find patch file"));
         }

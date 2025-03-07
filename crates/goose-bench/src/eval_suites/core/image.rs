@@ -1,6 +1,6 @@
+use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
 use crate::register_evaluation;
-use crate::work_dir::WorkDir;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::content::Content;
@@ -21,7 +21,7 @@ impl Evaluation for DeveloperImage {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        _work_dir: &mut WorkDir,
+        _work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         let mut metrics = Vec::new();
 
