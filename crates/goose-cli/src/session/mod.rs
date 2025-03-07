@@ -13,7 +13,7 @@ use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::Agent;
+use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
 use goose::session;
@@ -199,7 +199,6 @@ impl Session {
     /// Process a single message and get the response
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
-
         // Get the provider from the agent for description generation
         let provider = self.agent.provider().await;
 
@@ -436,7 +435,17 @@ impl Session {
 
     async fn process_agent_response(&mut self, interactive: bool) -> Result<()> {
         let session_id = session::Identifier::Path(self.session_file.clone());
-        let mut stream = self.agent.reply(&self.messages, Some(session_id)).await?;
+        let mut stream = self
+            .agent
+            .reply(
+                &self.messages,
+                Some(SessionConfig {
+                    id: session_id,
+                    working_dir: std::env::current_dir()
+                        .expect("failed to get current session working directory"),
+                }),
+            )
+            .await?;
 
         use futures::StreamExt;
         loop {

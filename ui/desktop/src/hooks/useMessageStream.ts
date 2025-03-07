@@ -268,8 +268,11 @@ export function useMessageStream({
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
-        // Log the request messages for debugging
-        console.log('Sending messages to server:', JSON.stringify(requestMessages, null, 2));
+        // Log request details for debugging
+        console.log('Request details:', {
+          messages: requestMessages,
+          body: extraMetadataRef.current.body,
+        });
 
         // Send request to the server
         const response = await fetch(api, {

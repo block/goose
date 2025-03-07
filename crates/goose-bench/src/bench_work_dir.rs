@@ -67,6 +67,7 @@ impl BenchmarkWorkDir {
             fs::create_dir_all(&assets_dest).unwrap();
         }
         BUILTIN_EVAL_ASSETS.extract(assets_dest).unwrap();
+
     }
     pub fn cd(&mut self, path: PathBuf) -> anyhow::Result<&mut Self> {
         fs::create_dir_all(&path)?;

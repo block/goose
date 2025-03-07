@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 import { Model } from './ModelContext';
-import { useHandleModelSelection } from './utils';
+import { ModelRadioList, SeeMoreModelsButtons } from './ModelRadioList';
 import { useModel } from './ModelContext';
-import { ModelRadioList } from './ModelRadioList';
+import { useHandleModelSelection } from './utils';
+import type { View } from '../../../App';
 
 const MAX_RECENT_MODELS = 3;
 
@@ -129,37 +130,41 @@ export function RecentModels() {
   );
 }
 
-export function RecentModelsRadio() {
+export function RecentModelsRadio({ setView }: { setView: (view: View) => void }) {
   return (
-    <div className="space-y-2">
-      <h2 className="text-md font-medium text-textStandard">Recently used</h2>
-      <ModelRadioList
-        renderItem={({ model, isSelected, onSelect }) => (
-          <label key={model.name} className="flex items-center py-2 cursor-pointer">
-            <div className="relative mr-4">
-              <input
-                type="radio"
-                name="recentModels"
-                value={model.name}
-                checked={isSelected}
-                onChange={onSelect}
-                className="peer sr-only"
-              />
-              <div
-                className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
+    <div>
+      <SeeMoreModelsButtons setView={setView} />
+      <div className="px-8">
+        <div className="space-y-2">
+          <ModelRadioList
+            renderItem={({ model, isSelected, onSelect }) => (
+              <label key={model.name} className="flex items-center py-2 cursor-pointer">
+                <div className="relative mr-4">
+                  <input
+                    type="radio"
+                    name="recentModels"
+                    value={model.name}
+                    checked={isSelected}
+                    onChange={onSelect}
+                    className="peer sr-only"
+                  />
+                  <div
+                    className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                                 peer-checked:bg-white dark:peer-checked:bg-black
                                 transition-all duration-200 ease-in-out"
-              ></div>
-            </div>
+                  ></div>
+                </div>
 
-            <div className="">
-              <p className="text-sm text-textStandard">{model.name}</p>
-              <p className="text-xs text-textSubtle">{model.provider}</p>
-            </div>
-          </label>
-        )}
-      />
+                <div className="">
+                  <p className="text-sm text-textStandard">{model.alias ?? model.name}</p>
+                  <p className="text-xs text-textSubtle">{model.subtext ?? model.provider}</p>
+                </div>
+              </label>
+            )}
+          />
+        </div>
+      </div>
     </div>
   );
 }

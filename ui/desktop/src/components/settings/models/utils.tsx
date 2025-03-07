@@ -1,7 +1,7 @@
 import { useModel } from './ModelContext'; // Import the useModel hook
 import { Model } from './ModelContext';
 import { useMemo } from 'react';
-import { goose_models } from './hardcoded_stuff';
+import { gooseModels } from './GooseModels';
 import { ToastFailureGeneral, ToastSuccessModelSwitch } from './toasts';
 import { initializeSystem } from '../../../utils/providerUtils';
 import { useRecentModels } from './RecentModels';
@@ -43,7 +43,7 @@ export function useHandleModelSelection() {
 }
 
 export function createSelectedModel(selectedProvider, modelName) {
-  let selectedModel = goose_models.find(
+  let selectedModel = gooseModels.find(
     (model) =>
       model.provider.toLowerCase() === selectedProvider &&
       model.name.toLowerCase() === modelName.toLowerCase()
@@ -52,7 +52,7 @@ export function createSelectedModel(selectedProvider, modelName) {
   if (!selectedModel) {
     // Normalize the casing for the provider using the first matching model
     const normalizedProvider =
-      goose_models.find((model) => model.provider.toLowerCase() === selectedProvider)?.provider ||
+      gooseModels.find((model) => model.provider.toLowerCase() === selectedProvider)?.provider ||
       selectedProvider;
 
     // Construct a model object
@@ -67,7 +67,7 @@ export function createSelectedModel(selectedProvider, modelName) {
 
 export function useFilteredModels(search: string, activeKeys: string[]) {
   const filteredModels = useMemo(() => {
-    const modelOptions = goose_models.filter((model) => activeKeys.includes(model.provider));
+    const modelOptions = gooseModels.filter((model) => activeKeys.includes(model.provider));
 
     if (!search) {
       return modelOptions; // Return all models if no search term

@@ -247,23 +247,10 @@ export default function SettingsView({
           {/* Content Area */}
           <div className="flex-1 py-8 pt-[20px]">
             <div className="space-y-8">
+              {/*Models Section*/}
               <section id="models">
-                <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
-                  <h2 className="text-xl font-medium text-textStandard">Models</h2>
-                  <button
-                    onClick={() => {
-                      setView('moreModels');
-                    }}
-                    className="text-indigo-500 hover:text-indigo-600 text-sm"
-                  >
-                    Browse
-                  </button>
-                </div>
-                <div className="px-8">
-                  <RecentModelsRadio />
-                </div>
+                <RecentModelsRadio setView={setView} />
               </section>
-
               <section id="extensions">
                 <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
                   <h2 className="text-xl font-semibold text-textStandard">Extensions</h2>

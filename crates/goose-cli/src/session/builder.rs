@@ -35,7 +35,59 @@ pub async fn build_session(
     let mut agent = AgentFactory::create(&AgentFactory::configured_version(), provider)
         .expect("Failed to create agent");
 
+    // Handle session file resolution and resuming
+    let session_file = if resume {
+        if let Some(identifier) = identifier {
+            let session_file = session::get_path(identifier);
+            if !session_file.exists() {
+                output::render_error(&format!(
+                    "Cannot resume session {} - no such session exists",
+                    style(session_file.display()).cyan()
+                ));
+                process::exit(1);
+            }
+
+            session_file
+        } else {
+            // Try to resume most recent session
+            match session::get_most_recent_session() {
+                Ok(file) => file,
+                Err(_) => {
+                    output::render_error("Cannot resume - no previous sessions found");
+                    process::exit(1);
+                }
+            }
+        }
+    } else {
+        // Create new session with provided name/path or generated name
+        let id = match identifier {
+            Some(identifier) => identifier,
+            None => Identifier::Name(session::generate_session_id()),
+        };
+
+        // Just get the path - file will be created when needed
+        session::get_path(id)
+    };
+
+    if resume {
+        // Read the session metadata
+        let metadata = session::read_metadata(&session_file).unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to read session metadata: {}", e));
+            process::exit(1);
+        });
+
+        // Ask user if they want to change the working directory
+        let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+                .initial_value(true)
+                .interact().expect("Failed to get user input");
+
+        if change_workdir {
+            std::env::set_current_dir(metadata.working_dir).unwrap();
+        }
+    }
+
     // Setup extensions for the agent
+    // Extensions need to be added after the session is created because we change directory when resuming a session
     for extension in ExtensionManager::get_all().expect("should load extensions") {
         if extension.enabled {
             let config = extension.config.clone();
@@ -58,39 +110,6 @@ pub async fn build_session(
                 });
         }
     }
-
-    // Handle session file resolution and resuming
-    let session_file = if resume {
-        if let Some(identifier) = identifier {
-            let session_file = session::get_path(identifier);
-            if !session_file.exists() {
-                output::render_error(&format!(
-                    "Cannot resume session {} - no such session exists",
-                    style(session_file.display()).cyan()
-                ));
-                process::exit(1);
-            }
-            session_file
-        } else {
-            // Try to resume most recent session
-            match session::get_most_recent_session() {
-                Ok(file) => file,
-                Err(_) => {
-                    output::render_error("Cannot resume - no previous sessions found");
-                    process::exit(1);
-                }
-            }
-        }
-    } else {
-        // Create new session with provided name/path or generated name
-        let id = match identifier {
-            Some(identifier) => identifier,
-            None => Identifier::Name(session::generate_session_id()),
-        };
-
-        // Just get the path - file will be created when needed
-        session::get_path(id)
-    };
 
     // Create new session
     let mut session = Session::new(agent, session_file.clone(), debug);
