@@ -21,7 +21,7 @@ services:
       - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Goose User}
       - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-goose@example.com}
       # Set GOOGLE_API_KEY to your own API key
-      - GOOGLE_API_KEY="AIzaSyBVZmQie_vCmIuZ5i_ImQqHBMgIoftSeao"
+      - GOOGLE_API_KEY="XXX"
       - GOOSE_PROVIDER=google
       - GOOSE_MODEL=gemini-2.0-flash-exp
       - DBUS_SESSION_BUS_ADDRESS
