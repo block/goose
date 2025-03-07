@@ -145,6 +145,11 @@ async fn update_session_metadata(
 
     let session_path = session::get_path(session::Identifier::Name(session_id));
 
+    // Check if the session exists
+    if !session_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
     // Read current metadata
     let mut metadata = session::read_metadata(&session_path).map_err(|_| StatusCode::NOT_FOUND)?;
 
