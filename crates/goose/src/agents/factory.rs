@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
 pub use super::Agent;
+use crate::config::Config;
 use crate::providers::base::Provider;
 
 type AgentConstructor = Box<dyn Fn(Box<dyn Provider>) -> Box<dyn Agent> + Send + Sync>;
@@ -44,6 +45,13 @@ impl AgentFactory {
             .read()
             .map(|map| map.keys().copied().collect())
             .unwrap_or_default()
+    }
+
+    pub fn configured_version() -> String {
+        let config = Config::global();
+        config
+            .get::<String>("GOOSE_AGENT")
+            .unwrap_or_else(|_| Self::default_version().to_string())
     }
 
     /// Get the default version name

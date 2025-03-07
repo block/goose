@@ -31,12 +31,8 @@ pub async fn build_session(
         goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let agent_version: Option<String> = config.get("GOOSE_AGENT").ok();
-    let mut agent = match agent_version {
-        Some(version) => AgentFactory::create(&version, provider),
-        None => AgentFactory::create(AgentFactory::default_version(), provider),
-    }
-    .expect("Failed to create agent");
+    let mut agent = AgentFactory::create(&AgentFactory::configured_version(), provider)
+        .expect("Failed to create agent");
 
     // Handle session file resolution and resuming
     let session_file = if resume {

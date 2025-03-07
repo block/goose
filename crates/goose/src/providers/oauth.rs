@@ -23,7 +23,15 @@ struct OidcEndpoints {
 
 #[derive(Serialize, Deserialize)]
 struct TokenData {
+    /// The access token used to authenticate API requests
     access_token: String,
+
+    /// Optional refresh token that can be used to obtain a new access token
+    /// when the current one expires, enabling offline access without user interaction
+    refresh_token: Option<String>,
+
+    /// When the access token expires (if known)
+    /// Used to determine when a token needs to be refreshed
     expires_at: Option<DateTime<Utc>>,
 }
 
@@ -57,13 +65,20 @@ impl TokenCache {
     fn load_token(&self) -> Option<TokenData> {
         if let Ok(contents) = fs::read_to_string(&self.cache_path) {
             if let Ok(token_data) = serde_json::from_str::<TokenData>(&contents) {
-                if let Some(expires_at) = token_data.expires_at {
-                    if expires_at > Utc::now() {
+                // Only return tokens that have a refresh token
+                if token_data.refresh_token.is_some() {
+                    // If token is not expired, return it for immediate use
+                    if let Some(expires_at) = token_data.expires_at {
+                        if expires_at > Utc::now() {
+                            return Some(token_data);
+                        }
+                        // If token is expired but has refresh token, return it so we can refresh
                         return Some(token_data);
                     }
-                } else {
+                    // No expiration time but has refresh token, return it
                     return Some(token_data);
                 }
+                // Token doesn't have a refresh token, ignore it to force a new OAuth flow
             }
         }
         None
@@ -141,6 +156,62 @@ impl OAuthFlow {
         }
     }
 
+    /// Extracts token data from an OAuth 2.0 token response.
+    ///
+    /// This helper method consolidates the common logic for processing token responses
+    /// from both initial token requests and refresh token requests.
+    ///
+    /// # Parameters
+    /// * `token_response` - The JSON response from the OAuth server's token endpoint
+    /// * `old_refresh_token` - Optional previous refresh token to use as fallback if the
+    ///   response doesn't contain a new refresh token. This handles token rotation where
+    ///   some providers don't return a new refresh token with every refresh operation.
+    ///
+    /// # Returns
+    /// A Result containing the TokenData with access_token, refresh_token (if available)
+    ///
+    /// # Error
+    /// Returns an error if the required access_token is missing from the response.
+    fn extract_token_data(
+        &self,
+        token_response: &Value,
+        old_refresh_token: Option<&str>,
+    ) -> Result<TokenData> {
+        // Extract access token (required)
+        let access_token = token_response
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("access_token not found in token response"))?
+            .to_string();
+
+        // Extract refresh token if available
+        let refresh_token = token_response
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| old_refresh_token.map(|s| s.to_string()));
+
+        // Handle token expiration
+        let expires_at =
+            if let Some(expires_in) = token_response.get("expires_in").and_then(|v| v.as_u64()) {
+                // Traditional OAuth flow with expires_in seconds
+                Some(Utc::now() + chrono::Duration::seconds(expires_in as i64))
+            } else {
+                // If the server doesn't provide any expiration info, log it but don't set an expiration
+                // This will make us rely on the refresh token for renewal rather than expiration time
+                tracing::debug!(
+                    "No expiration information provided by server, token expiration unknown."
+                );
+                None
+            };
+
+        Ok(TokenData {
+            access_token,
+            refresh_token,
+            expires_at,
+        })
+    }
+
     fn get_authorization_url(&self) -> String {
         let challenge = {
             let digest = sha2::Sha256::digest(self.verifier.as_bytes());
@@ -190,23 +261,33 @@ impl OAuthFlow {
         }
 
         let token_response: Value = resp.json().await?;
-        let access_token = token_response
-            .get("access_token")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow::anyhow!("access_token not found in token response"))?
-            .to_string();
+        self.extract_token_data(&token_response, None)
+    }
 
-        let expires_in = token_response
-            .get("expires_in")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3600);
+    async fn refresh_token(&self, refresh_token: &str) -> Result<TokenData> {
+        let params = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("client_id", &self.client_id),
+        ];
 
-        let expires_at = Utc::now() + chrono::Duration::seconds(expires_in as i64);
+        tracing::debug!("Refreshing token using refresh_token");
 
-        Ok(TokenData {
-            access_token,
-            expires_at: Some(expires_at),
-        })
+        let client = reqwest::Client::new();
+        let resp = client
+            .post(&self.endpoints.token_endpoint)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .form(&params)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let err_text = resp.text().await?;
+            return Err(anyhow::anyhow!("Failed to refresh token: {}", err_text));
+        }
+
+        let token_response: Value = resp.json().await?;
+        self.extract_token_data(&token_response, Some(refresh_token))
     }
 
     async fn execute(&self) -> Result<TokenData> {
@@ -298,10 +379,63 @@ pub(crate) async fn get_oauth_token_async(
 
     // Try cache first
     if let Some(token) = token_cache.load_token() {
-        return Ok(token.access_token);
+        // If token has an expiration time, check if it's expired
+        if let Some(expires_at) = token.expires_at {
+            if expires_at > Utc::now() {
+                return Ok(token.access_token);
+            }
+            // Token is expired, will try to refresh below
+            tracing::debug!("Token is expired, attempting to refresh");
+        } else {
+            // No expiration time was provided by the server
+            // We'll use the token without checking expiration
+            // This is safe because we'll fall back to refresh token if the server rejects it
+            tracing::debug!("Token has no expiration time, using it without expiration check");
+            return Ok(token.access_token);
+        }
+
+        // Token is expired or has no expiration, try to refresh if we have a refresh token
+        if let Some(refresh_token) = token.refresh_token {
+            // Get endpoints for token refresh
+            match get_workspace_endpoints(host).await {
+                Ok(endpoints) => {
+                    let flow = OAuthFlow::new(
+                        endpoints,
+                        client_id.to_string(),
+                        redirect_url.to_string(),
+                        scopes.to_vec(),
+                    );
+
+                    // Try to refresh the token
+                    match flow.refresh_token(&refresh_token).await {
+                        Ok(new_token) => {
+                            // NOTE: Per OAuth 2.0 RFC 6749, the authorization server MAY issue
+                            // a new refresh_token. We save the entire token response so that we
+                            // capture all updated token data, even if no new refresh_token is returned.
+                            if let Err(e) = token_cache.save_token(&new_token) {
+                                tracing::warn!("Failed to save refreshed token: {}", e);
+                            }
+                            tracing::info!("Successfully refreshed token");
+                            return Ok(new_token.access_token);
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to refresh token, will try new auth flow: {}",
+                                e
+                            );
+                            // Continue to new auth flow
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to get endpoints for token refresh: {}", e);
+                    // Continue to new auth flow
+                }
+            }
+        }
     }
 
-    // Get endpoints and execute flow
+    // Get endpoints and execute flow for a new token
     let endpoints = get_workspace_endpoints(host).await?;
     let flow = OAuthFlow::new(
         endpoints,
@@ -360,8 +494,10 @@ mod tests {
             &["scope1".to_string()],
         );
 
+        // Test with expiration time
         let token_data = TokenData {
             access_token: "test-token".to_string(),
+            refresh_token: Some("test-refresh-token".to_string()),
             expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
         };
 
@@ -369,6 +505,72 @@ mod tests {
 
         let loaded_token = cache.load_token().unwrap();
         assert_eq!(loaded_token.access_token, token_data.access_token);
+        assert_eq!(loaded_token.refresh_token, token_data.refresh_token);
+        assert!(loaded_token.expires_at.is_some());
+
+        // Test without expiration time
+        let token_data_no_expiry = TokenData {
+            access_token: "test-token-2".to_string(),
+            refresh_token: Some("test-refresh-token-2".to_string()),
+            expires_at: None,
+        };
+
+        cache.save_token(&token_data_no_expiry)?;
+
+        let loaded_token = cache.load_token().unwrap();
+        assert_eq!(loaded_token.access_token, token_data_no_expiry.access_token);
+        assert_eq!(
+            loaded_token.refresh_token,
+            token_data_no_expiry.refresh_token
+        );
+        assert!(loaded_token.expires_at.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_extract_token_data() -> Result<()> {
+        let endpoints = OidcEndpoints {
+            authorization_endpoint: "https://example.com/oauth2/authorize".to_string(),
+            token_endpoint: "https://example.com/oauth2/token".to_string(),
+        };
+
+        let flow = OAuthFlow::new(
+            endpoints,
+            "test-client".to_string(),
+            "http://localhost:8020".to_string(),
+            vec!["all-apis".to_string()],
+        );
+
+        // Test with expires_in (traditional OAuth)
+        let token_response = serde_json::json!({
+            "access_token": "test-access-token",
+            "refresh_token": "test-refresh-token",
+            "expires_in": 3600
+        });
+
+        let token_data = flow.extract_token_data(&token_response, None)?;
+        assert_eq!(token_data.access_token, "test-access-token");
+        assert_eq!(
+            token_data.refresh_token,
+            Some("test-refresh-token".to_string())
+        );
+        assert!(token_data.expires_at.is_some());
+
+        // Test with invalid expires_at format
+        let token_response = serde_json::json!({
+            "access_token": "invalid-format-token",
+            "refresh_token": "invalid-format-refresh",
+            "expires_at": "invalid-date-format"
+        });
+
+        let token_data = flow.extract_token_data(&token_response, None)?;
+        assert_eq!(token_data.access_token, "invalid-format-token");
+        assert_eq!(
+            token_data.refresh_token,
+            Some("invalid-format-refresh".to_string())
+        );
+        assert!(token_data.expires_at.is_none()); // Should be None due to parse error
 
         Ok(())
     }
