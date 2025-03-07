@@ -96,7 +96,7 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
-        window.electron.createChatWindow();
+        window.electron.createChatWindow(undefined, window.appConfig.get('GOOSE_WORKING_DIR'));
       }
     };
 
