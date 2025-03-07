@@ -266,11 +266,11 @@ impl Agent for TruncateAgent {
                         match mode.as_str() {
                             "approve" => {
                                 let mut read_only_tools = Vec::new();
-                                let mut needs_confirmation = Vec::new();
+                                let mut needs_confirmation = Vec::<&ToolRequest>::new();
 
                                 // First check permissions for all tools
                                 let store = ToolPermissionStore::load()?;
-                                for request in &tool_requests {
+                                for request in tool_requests.iter() {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         if let Some(allowed) = store.check_permission(request) {
                                             if allowed {
@@ -280,17 +280,17 @@ impl Agent for TruncateAgent {
                                                     output,
                                                 );
                                             } else {
-                                                needs_confirmation.push(request.clone());
+                                                needs_confirmation.push(request);
                                             }
                                         } else {
-                                            needs_confirmation.push(request.clone());
+                                            needs_confirmation.push(request);
                                         }
                                     }
                                 }
 
                                 // Only check read-only status for tools needing confirmation
                                 if !needs_confirmation.is_empty() && ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
-                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.iter().map(|r| &**r).collect()).await;
+                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
                                 }
 
                                 // Process remaining tools that need confirmation
