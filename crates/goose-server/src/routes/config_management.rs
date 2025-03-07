@@ -4,14 +4,14 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use std::env;
 use goose::config::Config;
-use goose::providers::providers as get_providers;
 use goose::providers::base::ProviderMetadata;
-use http::{StatusCode, HeaderMap};
+use goose::providers::providers as get_providers;
+use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap};
+use std::collections::HashMap;
+use std::env;
 use utoipa::ToSchema;
 
 use crate::state::AppState;
@@ -152,7 +152,8 @@ pub async fn read_config(
 
     let config = Config::global();
 
-    match config.get(&query.key, query.is_secret) {  // Always get the actual value
+    match config.get(&query.key, query.is_secret) {
+        // Always get the actual value
         Ok(value) => {
             if query.is_secret {
                 // If it's marked as secret, return a boolean indicating presence
@@ -161,7 +162,7 @@ pub async fn read_config(
                 // Return the actual value if not secret
                 Ok(Json(value))
             }
-        },
+        }
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
@@ -187,8 +188,9 @@ pub async fn add_extension(
     let config = Config::global();
 
     // Get current extensions or initialize empty map
-    let mut extensions: HashMap<String, Value> =
-        config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
+    let mut extensions: HashMap<String, Value> = config
+        .get_param("extensions")
+        .unwrap_or_else(|_| HashMap::new());
 
     // Add new extension
     extensions.insert(extension.name.clone(), extension.config);
@@ -328,16 +330,19 @@ pub async fn providers(
     let providers_metadata = get_providers();
 
     // Construct the response by checking configuration status for each provider
-    let providers_response: Vec<ProviderDetails> = providers_metadata.into_iter().map(|metadata| {
-        // Check if the provider is configured (this will depend on how you track configuration status)
-        let is_configured = check_provider_configured(&metadata);
+    let providers_response: Vec<ProviderDetails> = providers_metadata
+        .into_iter()
+        .map(|metadata| {
+            // Check if the provider is configured (this will depend on how you track configuration status)
+            let is_configured = check_provider_configured(&metadata);
 
-        ProviderDetails {
-            name: metadata.name.clone(),
-            metadata,
-            is_configured,
-        }
-    }).collect();
+            ProviderDetails {
+                name: metadata.name.clone(),
+                metadata,
+                is_configured,
+            }
+        })
+        .collect();
 
     Ok(Json(providers_response))
 }

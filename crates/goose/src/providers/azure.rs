@@ -109,18 +109,8 @@ impl Provider for AzureProvider {
             vec![
                 ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
-                ConfigKey::new(
-                    "AZURE_OPENAI_DEPLOYMENT_NAME",
-                    true,
-                    false,
-                    None
-                ),
-                ConfigKey::new(
-                    "AZURE_OPENAI_API_VERSION",
-                    false,
-                    false,
-                    Some("2024-10-21"),
-                ),
+                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
+                ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, Some("2024-10-21")),
             ],
         )
     }

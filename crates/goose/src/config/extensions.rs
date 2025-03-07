@@ -56,8 +56,9 @@ impl ExtensionManager {
     pub fn set(entry: ExtensionEntry) -> Result<()> {
         let config = Config::global();
 
-        let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
+        let mut extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
 
         extensions.insert(entry.config.name().parse()?, entry);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
@@ -68,8 +69,9 @@ impl ExtensionManager {
     pub fn remove(name: &str) -> Result<()> {
         let config = Config::global();
 
-        let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
+        let mut extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
 
         extensions.remove(name);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
@@ -80,8 +82,9 @@ impl ExtensionManager {
     pub fn set_enabled(name: &str, enabled: bool) -> Result<()> {
         let config = Config::global();
 
-        let mut extensions: HashMap<String, ExtensionEntry> =
-            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
+        let mut extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
 
         if let Some(entry) = extensions.get_mut(name) {
             entry.enabled = enabled;
@@ -109,8 +112,9 @@ impl ExtensionManager {
     /// Check if an extension is enabled
     pub fn is_enabled(name: &str) -> Result<bool> {
         let config = Config::global();
-        let extensions: HashMap<String, ExtensionEntry> =
-            config.get_param("extensions").unwrap_or_else(|_| HashMap::new());
+        let extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
 
         Ok(extensions.get(name).map(|e| e.enabled).unwrap_or(false))
     }
