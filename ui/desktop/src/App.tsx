@@ -52,6 +52,7 @@ export default function App() {
     viewOptions: {},
   });
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
@@ -152,12 +153,10 @@ export default function App() {
 
       if (resumeSessionId) {
         console.log('Found resumeSessionId in URL:', resumeSessionId);
+        setIsLoadingSession(true);
         try {
-          // Fetch the session details
           const sessionDetails = await fetchSessionDetails(resumeSessionId);
           console.log('Fetched session details:', sessionDetails);
-
-          // Switch to chat view with the resumed session
           setView('chat', {
             resumedSession: sessionDetails,
           });
@@ -165,6 +164,8 @@ export default function App() {
           console.error('Failed to fetch session details:', error);
         }
       }
+
+      setIsLoadingSession(false);
     };
 
     checkForResumeSession();
@@ -277,12 +278,17 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && (
+          {view === 'chat' && !isLoadingSession && (
             <ChatView
               setView={setView}
               viewOptions={viewOptions}
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
+          )}
+          {view === 'chat' && isLoadingSession && (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+            </div>
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
