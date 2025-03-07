@@ -61,6 +61,28 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
   // highlight-start
   │  ● JetBrains (Connect to jetbrains IDEs)
   // highlight-end
+  └
+  ```
+
+  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◇  Which built-in extension would you like to enable?
+  │  JetBrains
+  │
+  // highlight-start
+  ◆  Please set the timeout for this tool (in secs):
+  │  300
+  // highlight-end
+  │
   └  Enabled jetbrains extension
   ```
   </TabItem>

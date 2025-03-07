@@ -52,8 +52,28 @@ goose configure
 // highlight-end
 │  ○ Memory 
 |  ○ JetBrains
-└  Enabled Tutorials extension
+└ 
 ```
+
+4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+```sh
+   ┌   goose-configure 
+   │
+   ◇  What would you like to configure?
+   │  Add Extension 
+   │
+   ◇  What type of extension would you like to add?
+   │  Built-in Extension 
+   │
+   ◇  Which built-in extension would you like to enable?
+   │  Tutorial
+   │
+   // highlight-start
+   ◆  Please set the timeout for this tool (in secs):
+   │  300
+   // highlight-end
+   └  Enabled Tutorials extension
+``` 
 
 ## Available Tutorials
 

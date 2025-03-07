@@ -128,7 +128,7 @@ While you're able to manually navigate to your working directory and open the HT
         ```sh
         goose configure
         ```
-        3. Choose `Add extension` > `Built-in Extension` > `Computer Controller`. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
+        3. Choose `Add extension` > `Built-in Extension` > `Computer Controller`, and set timeout to 300s. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
         ```
         ┌   goose-configure
         │
@@ -138,13 +138,17 @@ While you're able to manually navigate to your working directory and open the HT
         ◇  What type of extension would you like to add?
         │  Built-in Extension
         │
-        ◆  Which built-in extension would you like to enable?
+        ◇  Which built-in extension would you like to enable?
         │  ○ Developer Tools
         │  ● Computer Controller (controls for webscraping, file caching, and automations)
         │  ○ Google Drive
         │  ○ Memory
         │  ○ JetBrains
-        └
+        │        
+        ◇  Please set the timeout for this tool (in secs):
+        │  300
+        │
+        └  Enabled Computer Controller extension
         ```
         4. Now that Goose has browser capabilities, let's resume your last session:
         ```sh

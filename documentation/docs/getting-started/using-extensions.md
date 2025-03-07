@@ -72,7 +72,11 @@ Here are the built-in extensions:
     │  ○ Google Drive 
     │  ○ Memory 
     │  ● JetBrains 
-    └  
+    │        
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │ 
+    └  Enabled jetbrains extension    
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
@@ -143,6 +147,9 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
  ◇  What command should be run?
  │  npx -y @modelcontextprotocol/server-memory
  │
+ ◇  Please set the timeout for this tool (in secs):
+ │  300
+ │
  ◆  Would you like to add environment variables?
  │  No 
  │
@@ -154,9 +161,11 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
  
   1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Settings` from the menu.
-  3. Under `Extensions`, click `Add` link.
-  4. On the `Add Extension Manually` modal, enter the necessary details and click `Add` button
-  5. Click `Add Extension` button
+  3. Under `Extensions`, click `Add custom extension`.
+  4. On the `Add custom extension` modal, enter the necessary details
+     - If adding an environment variable, click `Add` button to the right of the variable
+     - The `Timeout` field lets you set how long Goose should wait for a tool call from this extension to complete
+  5. Click `Add` button
   
   #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
     * **Type**: `Standard IO`
@@ -179,6 +188,7 @@ extensions:
     enabled: true
     envs: { "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>" }
     type: stdio
+    timeout: 300
 ```
     
 

@@ -145,10 +145,35 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ```  
 
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  google drive
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    └ 
+  ``` 
+
+
 :::tip
 You may need to use absolute paths (rather than relying on shell exapansion for `~`) for the `GDRIVE_CREDENTIALS_PATH` and `GDRIVE_OAUTH_PATH`.
 :::
-  5. Add your environment variables 
+
+  6. Add your environment variables 
 
    ```sh
     ┌   goose-configure 
@@ -164,6 +189,10 @@ You may need to use absolute paths (rather than relying on shell exapansion for 
     │
     ◇  What command should be run?
     │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │    
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
