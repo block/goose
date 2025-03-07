@@ -272,7 +272,7 @@ impl Agent for TruncateAgent {
                                 let store = ToolPermissionStore::load()?;
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        if let Some(allowed) = store.check_permission(*request) {
+                                        if let Some(allowed) = store.check_permission(request) {
                                             if allowed {
                                                 let output = capabilities.dispatch_tool_call(tool_call).await;
                                                 message_tool_response = message_tool_response.with_tool_response(
@@ -280,17 +280,17 @@ impl Agent for TruncateAgent {
                                                     output,
                                                 );
                                             } else {
-                                                needs_confirmation.push((*request).clone());
+                                                needs_confirmation.push(request.clone());
                                             }
                                         } else {
-                                            needs_confirmation.push((*request).clone());
+                                            needs_confirmation.push(request.clone());
                                         }
                                     }
                                 }
 
                                 // Only check read-only status for tools needing confirmation
                                 if !needs_confirmation.is_empty() && ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
-                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.iter().collect()).await;
+                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.iter().map(|r| &**r).collect()).await;
                                 }
 
                                 // Process remaining tools that need confirmation
@@ -318,7 +318,7 @@ impl Agent for TruncateAgent {
                                                 if req_id == request.id {
                                                     // Store the user's response
                                                     let mut store = ToolPermissionStore::load()?;
-                                                    store.record_permission(&request, confirmed, None)?;
+                                                    store.record_permission(request, confirmed, None)?;
 
                                                     if confirmed {
                                                         // User approved - dispatch the tool call

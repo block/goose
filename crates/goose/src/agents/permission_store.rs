@@ -27,6 +27,12 @@ pub struct ToolPermissionStore {
     permissions_dir: PathBuf,
 }
 
+impl Default for ToolPermissionStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolPermissionStore {
     pub fn new() -> Self {
         let permissions_dir = choose_app_strategy(crate::config::APP_STRATEGY.clone())
@@ -72,11 +78,7 @@ impl ToolPermissionStore {
         self.permissions.get(&key).and_then(|records| {
             records
                 .iter()
-                .filter(|record| {
-                    record
-                        .expiry
-                        .map_or(true, |exp| exp > Utc::now().timestamp())
-                })
+                .filter(|record| record.expiry.is_none_or(|exp| exp > Utc::now().timestamp()))
                 .last()
                 .map(|record| record.allowed)
         })
@@ -101,10 +103,7 @@ impl ToolPermissionStore {
             expiry: expiry_duration.map(|d| Utc::now().timestamp() + d.as_secs() as i64),
         };
 
-        self.permissions
-            .entry(key)
-            .or_insert_with(Vec::new)
-            .push(record);
+        self.permissions.entry(key).or_default().push(record);
 
         self.save()?;
         Ok(())
