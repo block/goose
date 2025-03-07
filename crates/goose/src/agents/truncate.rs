@@ -237,7 +237,10 @@ impl Agent for TruncateAgent {
                     &messages,
                     &tools,
                 ).await {
-                    Ok((response, usage)) => {
+                    Ok((mut response, usage)) => {
+                        // Structure the response if needed
+                        response = capabilities.provider().structure_response(response, &tools).await?;
+
                         capabilities.record_usage(usage.clone()).await;
 
                         // record usage for the session in the session file

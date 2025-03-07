@@ -141,11 +141,15 @@ impl Agent for ReferenceAgent {
             let _reply_guard = reply_span.enter();
             loop {
                 // Get completion from provider
-                let (response, usage) = capabilities.provider().complete(
+                let (mut response, usage) = capabilities.provider().complete(
                     &system_prompt,
                     &messages,
                     &tools,
                 ).await?;
+
+                // Structure the response if needed
+                response = capabilities.provider().structure_response(response, &tools).await?;
+
                 capabilities.record_usage(usage.clone()).await;
 
                 // record usage for the session in the session file
