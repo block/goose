@@ -7,9 +7,10 @@ services:
     volumes:
       # Mount user's directory with read-write access
       - .:/home/goose/workspace
-      # Mount git config (optional)
+      - goose-config:/home/goose/.goose
+      # Mount git config
       - ~/.gitconfig:/home/goose/.gitconfig:ro
-      # Mount SSH keys (optional)
+      # Mount SSH keys
       - ~/.ssh:/home/goose/.ssh:ro
     working_dir: /home/goose/workspace
     environment:
@@ -20,7 +21,7 @@ services:
       - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Goose User}
       - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-goose@example.com}
       # Set GOOGLE_API_KEY to your own API key
-      - GOOGLE_API_KEY="XXX"
+      - GOOGLE_API_KEY="AIzaSyBVZmQie_vCmIuZ5i_ImQqHBMgIoftSeao"
       - GOOSE_PROVIDER=google
       - GOOSE_MODEL=gemini-2.0-flash-exp
       - DBUS_SESSION_BUS_ADDRESS
@@ -29,3 +30,6 @@ services:
     stdin_open: true
     tty: true
     entrypoint: ["/bin/bash"]
+
+volumes:
+  goose-config:

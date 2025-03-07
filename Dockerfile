@@ -1,5 +1,7 @@
 # Build stage
-FROM rust:1.75-bullseye AS builder
+FROM rust:bullseye AS builder
+
+SHELL ["/bin/bash", "-c"]
 
 # Install Node.js and any missing dependencies
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
@@ -77,16 +79,8 @@ RUN apt-get update && apt-get install -y \
     tmux \
     && rm -rf /var/lib/apt/lists/*
 
-# Create goose user with sudo privileges
-ARG USER_ID=1000
-RUN useradd -u ${USER_ID} -m goose && \
-    echo "goose ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/goose
-
-# Create workspace directory with correct permissions
-RUN mkdir -p /home/goose/workspace && \
-    chown -R goose:goose /home/goose
-
-WORKDIR /home/goose/workspace
+# Install uv using curl
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Copy the built binaries
 COPY --from=builder /usr/src/goose/target/release/goose /usr/local/bin/
@@ -105,12 +99,8 @@ if [ -z "$GNOME_KEYRING_CONTROL" ]; then\n\
   export GNOME_KEYRING_CONTROL SSH_AUTH_SOCK\n\
 fi\n\
 \n\
-# Run the original command\n\
-exec goose "$@"\n\
-' > /usr/local/bin/goose-wrapper && \
-    chmod +x /usr/local/bin/goose-wrapper
-
-USER goose
+' > /usr/local/bin/entrypoint.sh && \
+chmod +x /usr/local/bin/entrypoint.sh
 
 # Set up some basic git config
 RUN git config --global init.defaultBranch main && \
@@ -119,5 +109,3 @@ RUN git config --global init.defaultBranch main && \
 # Add some helpful aliases
 RUN echo 'alias ll="ls -la"' >> ~/.bashrc && \
     echo 'alias fd=fdfind' >> ~/.bashrc
-
-ENTRYPOINT ["/usr/local/bin/goose-wrapper"]
