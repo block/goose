@@ -34,7 +34,7 @@ If this is your first session, Goose will prompt you for an API key to access an
 ## Name Session
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
-        By default, Goose will provide a random string as the name of your session. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        By default, Goose names your session using the current timestamp in the format `YYYYMMDD_HHMMSS`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
 
         ```
         goose session -n react-migration
@@ -48,15 +48,15 @@ If this is your first session, Goose will prompt you for an API key to access an
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
+        Within the Desktop app, sessions are automatically named using the current timestamp in the format `YYYYMMDD_HHMMSS`. Goose also provides a description of the session based on context.
     </TabItem>
 </Tabs>
 
 ## Exit Session
-
+Note that sessions are automatically saved when you exit.
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
-        To save and exit a session, hold down `Ctrl` + `C`. Alternatively, you can type `exit` to save and exit the session.
+        To exit a session, type `exit`. Alternatively, you exit the session by holding down `Ctrl+C`.
 
         Your session will be stored locally in `~/.local/share/goose/sessions`.
     </TabItem>
@@ -93,6 +93,70 @@ If this is your first session, Goose will prompt you for an API key to access an
 
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        Session management features, such as **naming** and **resuming** sessions, are **not** currently available in the Goose Desktop. If you'd like to see these features added, please [open an issue on GitHub](https://github.com/block/goose/issues/new?template=Blank+issue).
+    1. Click `...` in the upper right corner
+    2. Click `Previous Sessions`
+    3. Click a session
+    4. Click `Resume Session` in the upper right corner
+    </TabItem>
+</Tabs>
+
+### Resume Session Across Interfaces
+
+You can resume a CLI session in Desktop and vice versa.
+
+<Tabs>
+    <TabItem value="cli" label="Goose CLI" default>
+    To resume a Desktop session within CLI, get the name of the session from the Desktop app. Note that unless you specifically named the session, its default name is a timestamp in the format `YYYYMMDD_HHMMSS`.
+
+    1. Open Goose Desktop
+    2. Click `...` in the upper right corner
+    3. Click `Previous Sessions`
+    4. Find the session that you want to resume, and copy the basename (without the `.jsonl` extension). 
+    :::note Example
+
+    **Desktop Session**
+
+    | Session Description    | Session Filename             |
+    |------------------------|------------------------------|
+    | GitHub PR Access Issue | **20250305_113223**.jsonl    | 
+
+
+    **CLI Command**
+    ```sh
+    goose session -r --name 20250305_113223
+    ```
+    :::
+
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+    All saved sessions are listed in the Desktop app, even CLI sessions. To resume a CLI session within the Desktop:
+
+    1. Click `...` in the upper right corner
+    2. Click `Previous Sessions`
+    3. Click the session you'd like to resume
+
+    :::tip
+    If you named the session, you'll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
+    :::
+
+    4. Click `Resume Session` in the upper right corner
+
+    :::note Example
+
+    **CLI Command**
+
+    ```sh
+    goose session -n react-migration
+    ```
+
+    **Desktop Session**
+
+    | Session Description     | Session Filename             |
+    |-------------------------|------------------------------|
+    | Code Migration to React | **react-migration**.jsonl    | 
+
+
+
+    :::
     </TabItem>
 </Tabs>

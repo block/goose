@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
 import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
@@ -15,11 +15,23 @@ import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import { Message, createUserMessage, getTextContent } from '../types/message';
+import {
+  Message,
+  createUserMessage,
+  ToolCall,
+  ToolCallResult,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ToolConfirmationRequestMessageContent,
+  getTextContent,
+} from '../types/message';
 
 export interface ChatType {
   id: number;
   title: string;
+  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
+  // anything before this index should not render any buttons, but anything after should
+  messageHistoryIndex: number;
   messages: Message[];
 }
 
@@ -67,6 +79,7 @@ export default function ChatView({
         return {
           id: Date.now(),
           title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
+          messageHistoryIndex: convertedMessages.length,
           messages: convertedMessages,
         };
       } catch (e) {
@@ -89,6 +102,7 @@ export default function ChatView({
       id: Date.now(),
       title: 'Chat 1',
       messages: [],
+      messageHistoryIndex: 0,
     };
   });
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
@@ -182,16 +196,70 @@ export default function ChatView({
 
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'user') {
+
+    // isUserMessage also checks if the message is a toolConfirmationRequest
+    if (lastMessage && isUserMessage(lastMessage)) {
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
+    } else if (!isUserMessage(lastMessage)) {
+      // check if we have any tool requests or tool confirmation requests
+      const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
+        .filter(
+          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
+            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+        )
+        .map((content) => {
+          if (content.type === 'toolRequest') {
+            return [content.id, content.toolCall];
+          } else {
+            // extract tool call from confirmation
+            const toolCall: ToolCallResult<ToolCall> = {
+              status: 'success',
+              value: {
+                name: content.toolName,
+                arguments: content.arguments,
+              },
+            };
+            return [content.id, toolCall];
+          }
+        });
+
+      if (toolRequests.length !== 0) {
+        // This means we were interrupted during a tool request
+        // Create tool responses for all interrupted tool requests
+
+        let responseMessage: Message = {
+          role: 'user',
+          created: Date.now(),
+          content: [],
+        };
+
+        // get the last tool's name or just "tool"
+        const lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
+        const notification = 'Interrupted by the user to make a correction';
+
+        // generate a response saying it was interrupted for each tool request
+        for (const [reqId, _] of toolRequests) {
+          const toolResponse: ToolResponseMessageContent = {
+            type: 'toolResponse',
+            id: reqId,
+            toolResult: {
+              status: 'error',
+              error: notification,
+            },
+          };
+
+          responseMessage.content.push(toolResponse);
+        }
+
+        // Use an immutable update to add the response message to the messages array
+        setMessages([...messages, responseMessage]);
+      }
     }
-    // Note: Tool call interruption handling would need to be implemented
-    // differently with the new message format
   };
 
   // Filter out standalone tool response messages for rendering
@@ -226,6 +294,20 @@ export default function ChatView({
     return true;
   };
 
+  const commandHistory = useMemo(() => {
+    return filteredMessages
+      .reduce<string[]>((history, message) => {
+        if (isUserMessage(message)) {
+          const text = message.content.find((c) => c.type === 'text')?.text?.trim();
+          if (text) {
+            history.push(text);
+          }
+        }
+        return history;
+      }, [])
+      .reverse();
+  }, [filteredMessages, isUserMessage]);
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle border-b border-borderSubtle">
@@ -242,10 +324,15 @@ export default function ChatView({
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage
+                    messageHistoryIndex={chat?.messageHistoryIndex}
                     message={message}
                     messages={messages}
                     metadata={messageMetadata[message.id || '']}
                     append={(text) => append(createUserMessage(text))}
+                    appendMessage={(newMessage) => {
+                      const updatedMessages = [...messages, newMessage];
+                      setMessages(updatedMessages);
+                    }}
                   />
                 )}
               </div>
@@ -278,7 +365,12 @@ export default function ChatView({
 
         <div className="relative">
           {isLoading && <LoadingGoose />}
-          <Input handleSubmit={handleSubmit} isLoading={isLoading} onStop={onStopGoose} />
+          <Input
+            handleSubmit={handleSubmit}
+            isLoading={isLoading}
+            onStop={onStopGoose}
+            commandHistory={commandHistory}
+          />
           <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
       </Card>

@@ -7,12 +7,20 @@ interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
+  commandHistory?: string[];
 }
 
-export default function Input({ handleSubmit, isLoading = false, onStop }: InputProps) {
+export default function Input({
+  handleSubmit,
+  isLoading = false,
+  onStop,
+  commandHistory = [],
+}: InputProps) {
   const [value, setValue] = useState('');
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -50,7 +58,45 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
     setIsComposing(false);
   };
 
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    evt.preventDefault();
+
+    // Save current input if we're just starting to navigate history
+    if (historyIndex === -1) {
+      setSavedInput(value);
+    }
+
+    // Calculate new history index
+    let newIndex = historyIndex;
+    if (evt.key === 'ArrowUp') {
+      // Move backwards through history
+      if (historyIndex < commandHistory.length - 1) {
+        newIndex = historyIndex + 1;
+      }
+    } else {
+      // Move forwards through history
+      if (historyIndex > -1) {
+        newIndex = historyIndex - 1;
+      }
+    }
+
+    // Update index and value
+    setHistoryIndex(newIndex);
+    if (newIndex === -1) {
+      // Restore saved input when going past the end of history
+      setValue(savedInput);
+    } else {
+      setValue(commandHistory[newIndex] || '');
+    }
+  };
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle command history navigation
+    if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
+      handleHistoryNavigation(evt);
+      return;
+    }
+
     if (evt.key === 'Enter') {
       // should not trigger submit on Enter if it's composing (IME input in progress) or shift is pressed
       if (evt.shiftKey || isComposing) {
@@ -66,6 +112,8 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
       if (!isLoading && value.trim()) {
         handleSubmit(new CustomEvent('submit', { detail: { value } }));
         setValue('');
+        setHistoryIndex(-1);
+        setSavedInput('');
       }
     }
   };
@@ -75,6 +123,8 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
     if (value.trim() && !isLoading) {
       handleSubmit(new CustomEvent('submit', { detail: { value } }));
       setValue('');
+      setHistoryIndex(-1);
+      setSavedInput('');
     }
   };
 
@@ -94,7 +144,7 @@ export default function Input({ handleSubmit, isLoading = false, onStop }: Input
       <textarea
         autoFocus
         id="dynamic-textarea"
-        placeholder="What can goose help with?"
+        placeholder="What can goose help with? (Cmd/Ctrl + ↑/↓ for history)"
         value={value}
         onChange={handleChange}
         onCompositionStart={handleCompositionStart}
