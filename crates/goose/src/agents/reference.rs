@@ -7,7 +7,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
-use super::agent::SessionConfig;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
@@ -71,11 +70,11 @@ impl Agent for ReferenceAgent {
         // TODO implement
     }
 
-    #[instrument(skip(self, messages, session), fields(user_message))]
+    #[instrument(skip(self, messages), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
-        session: Option<SessionConfig>,
+        session_id: Option<session::Identifier>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
@@ -141,23 +140,18 @@ impl Agent for ReferenceAgent {
             let _reply_guard = reply_span.enter();
             loop {
                 // Get completion from provider
-                let (mut response, usage) = capabilities.provider().complete(
+                let (response, usage) = capabilities.provider().complete(
                     &system_prompt,
                     &messages,
                     &tools,
                 ).await?;
-
-                // Structure the response if needed
-                response = capabilities.provider().structure_response(response, &tools).await?;
-
                 capabilities.record_usage(usage.clone()).await;
 
                 // record usage for the session in the session file
-                if let Some(session) = session.clone() {
+                if let Some(session_id) = session_id.clone() {
                     // TODO: track session_id in langfuse tracing
-                    let session_file = session::get_path(session.id);
+                    let session_file = session::get_path(session_id);
                     let mut metadata = session::read_metadata(&session_file)?;
-                    metadata.working_dir = session.working_dir;
                     metadata.total_tokens = usage.usage.total_tokens;
                     // The message count is the number of messages in the session + 1 for the response
                     // The message count does not include the tool response till next iteration
