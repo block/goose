@@ -149,7 +149,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConfigResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderDetails"
+                  }
                 }
               }
             }
@@ -323,6 +326,27 @@
           }
         }
       },
+      "ProviderDetails": {
+        "type": "object",
+        "required": [
+          "name",
+          "metadata",
+          "is_configured"
+        ],
+        "properties": {
+          "is_configured": {
+            "type": "boolean",
+            "description": "Indicates whether the provider is fully configured"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ProviderMetadata"
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique identifier and name of the provider"
+          }
+        }
+      },
       "ProviderMetadata": {
         "type": "object",
         "description": "Metadata about a provider's configuration requirements and capabilities",
@@ -381,7 +405,7 @@
           "providers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProviderMetadata"
+              "$ref": "#/components/schemas/ProviderDetails"
             }
           }
         }

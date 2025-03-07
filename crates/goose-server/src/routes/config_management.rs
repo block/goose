@@ -4,6 +4,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use std::env;
 use goose::config::Config;
 use goose::providers::providers as get_providers;
 use goose::providers::base::ProviderMetadata;
@@ -53,9 +54,20 @@ pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
 }
 
+// Define a new structure to encapsulate the provider details along with configuration status
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ProviderDetails {
+    /// Unique identifier and name of the provider
+    pub name: String,
+    /// Metadata about the provider
+    pub metadata: ProviderMetadata,
+    /// Indicates whether the provider is fully configured
+    pub is_configured: bool,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct ProvidersResponse {
-    pub providers: Vec<ProviderMetadata>,
+    pub providers: Vec<ProviderDetails>,
 }
 
 fn check_key_status(config: &Config, key: &str) -> (bool, Option<String>) {
@@ -298,21 +310,61 @@ pub async fn update_extension(
     }
 }
 
+// Modified providers function using the new response type
 #[utoipa::path(
     get,
     path = "/config/providers",
     responses(
-        (status = 200, description = "All configuration values retrieved successfully", body = ConfigResponse)
+        (status = 200, description = "All configuration values retrieved successfully", body = [ProviderDetails])
     )
 )]
 pub async fn providers(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<ProvidersResponse>, StatusCode> {
+) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let providers = get_providers();
-    Ok(Json(ProvidersResponse { providers }))
+    // Fetch the list of providers, which are likely stored in the AppState or can be retrieved via a function call
+    let providers_metadata = get_providers();
+
+    // Construct the response by checking configuration status for each provider
+    let providers_response: Vec<ProviderDetails> = providers_metadata.into_iter().map(|metadata| {
+        // Check if the provider is configured (this will depend on how you track configuration status)
+        let is_configured = check_provider_configured(&metadata);
+
+        ProviderDetails {
+            name: metadata.name.clone(),
+            metadata,
+            is_configured,
+        }
+    }).collect();
+
+    Ok(Json(providers_response))
+}
+
+fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
+    let config = Config::global();
+
+    // Check all required keys for the provider
+    for key in &metadata.config_keys {
+        if key.required {
+            let key_name = &key.name;
+
+            // First, check if the key is set in the environment
+            let is_set_in_env = env::var(key_name).is_ok();
+
+            // If not set in environment, check the config file based on whether it's a secret or not
+            let is_set_in_config = config.get(key_name, key.secret).is_ok();
+
+            // If the key is neither in the environment nor in the config, the provider is not configured
+            if !is_set_in_env && !is_set_in_config {
+                return false;
+            }
+        }
+    }
+
+    // If all required keys are accounted for, the provider is considered configured
+    true
 }
 
 pub fn routes(state: AppState) -> Router {

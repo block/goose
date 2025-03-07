@@ -15,8 +15,7 @@ import type {
   UpsertConfigQuery,
   ConfigKeyQuery,
   ExtensionQuery,
-  ProviderMetadata,
-  ProvidersResponse,
+  ProviderDetails,
 } from '../api/types.gen';
 
 // Initialize client configuration
@@ -30,13 +29,14 @@ client.setConfig({
 
 interface ConfigContextType {
   config: ConfigResponse['config'];
+  providersList: ProviderDetails[];
   upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
   addExtension: (name: string, config: unknown) => Promise<void>;
   updateExtension: (name: string, config: unknown) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
-  getProviders: () => Promise<ProviderMetadata[]>;
+  getProviders: () => Promise<ProviderDetails[]>;
 }
 
 interface ConfigProviderProps {
@@ -47,12 +47,22 @@ const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<ConfigResponse['config']>({});
+  const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
 
   useEffect(() => {
-    // Load all configuration data on mount
+    // Load all configuration data and providers on mount
     (async () => {
-      const response = await readAllConfig();
-      setConfig(response.data.config || {});
+      // Load config
+      const configResponse = await readAllConfig();
+      setConfig(configResponse.data.config || {});
+
+      // Load providers
+      try {
+        const providersResponse = await providers();
+        setProvidersList(providersResponse.data);
+      } catch (error) {
+        console.error('Failed to load providers:', error);
+      }
     })();
   }, []);
 
@@ -114,16 +124,17 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     await reloadConfig();
   };
 
-  const getProviders = async (): Promise<ProviderMetadata[]> => {
+  // Finally, update the getProviders function in your ConfigProvider
+  const getProviders = async (): Promise<ProviderDetails[]> => {
     const response = await providers();
-    // The API returns ProvidersResponse which has a providers array
-    return (response.data as ProvidersResponse).providers;
+    return response.data; // The API now directly returns an array of ProviderDetails
   };
 
   return (
     <ConfigContext.Provider
       value={{
         config,
+        providersList,
         upsert,
         read,
         remove,

@@ -21,6 +21,18 @@ export type ExtensionQuery = {
     name: string;
 };
 
+export type ProviderDetails = {
+    /**
+     * Indicates whether the provider is fully configured
+     */
+    is_configured: boolean;
+    metadata: ProviderMetadata;
+    /**
+     * Unique identifier and name of the provider
+     */
+    name: string;
+};
+
 /**
  * Metadata about a provider's configuration requirements and capabilities
  */
@@ -57,7 +69,7 @@ export type ProviderMetadata = {
 };
 
 export type ProvidersResponse = {
-    providers: Array<ProviderMetadata>;
+    providers: Array<ProviderDetails>;
 };
 
 export type UpsertConfigQuery = {
@@ -174,7 +186,7 @@ export type ProvidersResponses = {
     /**
      * All configuration values retrieved successfully
      */
-    200: ConfigResponse;
+    200: Array<ProviderDetails>;
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
