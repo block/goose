@@ -92,7 +92,31 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  5. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  figma
+    │
+    ◇  What command should be run?
+    │  npx @hapins/figma-mcp
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    │
+    └ 
+  ```  
+
+  6. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
   :::info
   You can generate an access token from your Figma account settings under the Personal access tokens section.
   :::
@@ -111,6 +135,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◇  What command should be run?
     │  npx @hapins/figma-mcp
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
