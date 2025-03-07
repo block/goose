@@ -48,10 +48,8 @@ export default function ChatView({
   const resumedSession = viewOptions?.resumedSession;
 
   // Generate or retrieve session ID
-  const sessionId = useMemo(
-    () => resumedSession?.session_id || generateSessionId(),
-    [resumedSession]
-  );
+  // The session ID should not change for the duration of the chat
+  const sessionId = resumedSession?.session_id || generateSessionId();
 
   const [chat, setChat] = useState<ChatType>(() => {
     // If resuming a session, convert the session messages to our format
