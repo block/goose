@@ -243,6 +243,28 @@ impl DeveloperRouter {
             }),
         );
 
+        let image_processor_tool = Tool::new(
+            "image_processor",
+            indoc! {r#"
+                Process an image file from disk. The image will be:
+                1. Resized if larger than max width while maintaining aspect ratio
+                2. Converted to PNG format
+                3. Returned as base64 encoded data
+
+                This allows processing image files for use in the conversation.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the image file to process"
+                    }
+                }
+            }),
+        );
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
@@ -375,6 +397,7 @@ impl DeveloperRouter {
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
+                image_processor_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
@@ -782,6 +805,82 @@ impl DeveloperRouter {
         ])
     }
 
+    async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let path = self.resolve_path(path_str)?;
+
+        // Check if file is ignored before proceeding
+        if self.is_ignored(&path) {
+            return Err(ToolError::ExecutionError(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            )));
+        }
+
+        // Check if file exists
+        if !path.exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' does not exist",
+                path.display()
+            )));
+        }
+
+        // Check file size (10MB limit for image files)
+        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
+        let file_size = std::fs::metadata(&path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
+                path.display(),
+                file_size as f64 / (1024.0 * 1024.0)
+            )));
+        }
+
+        // Open and decode the image
+        let image = xcap::image::open(&path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
+
+        // Resize if necessary (same logic as screen_capture)
+        let mut processed_image = image;
+        let max_width = 768;
+        if processed_image.width() > max_width {
+            let scale = max_width as f32 / processed_image.width() as f32;
+            let new_height = (processed_image.height() as f32 * scale) as u32;
+            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &processed_image,
+                max_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        // Convert to PNG and encode as base64
+        let mut bytes: Vec<u8> = Vec::new();
+        processed_image
+            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write image buffer: {}", e))
+            })?;
+
+        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
+
+        Ok(vec![
+            Content::text(format!(
+                "Successfully processed image from {}",
+                path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::image(data, "image/png").with_priority(0.0),
+        ])
+    }
+
     async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let mut image = if let Some(window_title) =
             params.get("window_title").and_then(|v| v.as_str())
@@ -888,6 +987,7 @@ impl Router for DeveloperRouter {
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
+                "image_processor" => this.image_processor(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
