@@ -163,9 +163,7 @@ export default function App() {
 
       setIsLoadingSession(true);
       try {
-        console.log('Found resumeSessionId in URL:', resumeSessionId);
         const sessionDetails = await fetchSessionDetails(resumeSessionId);
-        console.log('Fetched session details:', sessionDetails);
 
         // Only set view if we have valid session details
         if (sessionDetails && sessionDetails.session_id) {

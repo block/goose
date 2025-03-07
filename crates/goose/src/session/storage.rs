@@ -19,14 +19,14 @@ fn get_home_dir() -> PathBuf {
 /// Metadata for a session, stored as the first line in the session file
 #[derive(Debug, Clone, Serialize)]
 pub struct SessionMetadata {
+    /// Working directory for the session
+    pub working_dir: PathBuf,
     /// A short description of the session, typically 3 words or less
     pub description: String,
     /// Number of messages in the session
     pub message_count: usize,
     /// The total number of tokens used in the session. Retrieved from the provider's last usage.
     pub total_tokens: Option<i32>,
-    /// Working directory for the session
-    pub working_dir: PathBuf,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -55,19 +55,19 @@ impl<'de> Deserialize<'de> for SessionMetadata {
 }
 
 impl SessionMetadata {
-    pub fn new(working_dir: Option<PathBuf>) -> Self {
+    pub fn new(working_dir: PathBuf) -> Self {
         Self {
+            working_dir,
             description: String::new(),
             message_count: 0,
             total_tokens: None,
-            working_dir: working_dir.unwrap_or_else(get_home_dir),
         }
     }
 }
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(get_home_dir())
     }
 }
 

@@ -44,8 +44,9 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       const workingDir = selectedSession.metadata.working_dir;
 
       if (workingDir) {
-        console.log('Resuming session with ID:', selectedSession.session_id);
-        console.log('Working directory:', workingDir);
+        console.log(
+          `Resuming session with ID: ${selectedSession.session_id}, in working dir: ${workingDir}`
+        );
 
         // Create a new chat window with the working directory and session ID
         window.electron.createChatWindow(

@@ -52,7 +52,6 @@ export default function ChatView({
     () => resumedSession?.session_id || generateSessionId(),
     [resumedSession]
   );
-  console.log(`ChatView: Using session ID: ${sessionId}`);
 
   const [chat, setChat] = useState<ChatType>(() => {
     // If resuming a session, convert the session messages to our format
