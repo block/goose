@@ -9,11 +9,13 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { snakeToTitleCase } from '../utils';
 
 interface ToolCallWithResponseProps {
+  isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
 }
 
 export default function ToolCallWithResponse({
+  isCancelledMessage,
   toolRequest,
   toolResponse,
 }: ToolCallWithResponseProps) {
@@ -27,17 +29,19 @@ export default function ToolCallWithResponse({
     <div className="w-full">
       <Card className="">
         <ToolCallView toolCall={toolCall} />
-        {toolResponse ? (
-          <ToolResultView
-            result={
-              toolResponse.toolResult.status === 'success'
-                ? toolResponse.toolResult.value
-                : undefined
-            }
-          />
-        ) : (
-          <LoadingPlaceholder />
-        )}
+        {!isCancelledMessage ? (
+          toolResponse ? (
+            <ToolResultView
+              result={
+                toolResponse.toolResult.status === 'success'
+                  ? toolResponse.toolResult.value
+                  : undefined
+              }
+            />
+          ) : (
+            <LoadingPlaceholder />
+          )
+        ) : undefined}
       </Card>
     </div>
   );

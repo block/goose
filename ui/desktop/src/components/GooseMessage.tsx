@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
@@ -10,18 +10,28 @@ import {
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
+  createToolErrorResponseMessage,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 
 interface GooseMessageProps {
+  messageHistoryIndex: number;
   message: Message;
   messages: Message[];
   metadata?: string[];
   append: (value: string) => void;
+  appendMessage: (message: Message) => void;
 }
 
-export default function GooseMessage({ message, metadata, messages, append }: GooseMessageProps) {
+export default function GooseMessage({
+  messageHistoryIndex,
+  message,
+  metadata,
+  messages,
+  append,
+  appendMessage,
+}: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -64,6 +74,16 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
+  useEffect(() => {
+    // If the message is the last message in the resumed session and has tool confirmation, it means the tool confirmation
+    // is broken or cancelled, to contonue use the session, we need to append a tool response to avoid mismatch tool result error.
+    if (messageIndex == messageHistoryIndex - 1 && hasToolConfirmation) {
+      appendMessage(
+        createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
+      );
+    }
+  }, []);
+
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col w-full">
@@ -86,23 +106,30 @@ export default function GooseMessage({ message, metadata, messages, append }: Go
           </div>
         )}
 
-        {hasToolConfirmation && (
-          <ToolCallConfirmation
-            toolConfirmationId={toolConfirmationContent.id}
-            toolName={toolConfirmationContent.toolName}
-          />
-        )}
-
         {toolRequests.length > 0 && (
           <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
             {toolRequests.map((toolRequest) => (
               <ToolCallWithResponse
+                // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
+                isCancelledMessage={
+                  messageIndex < messageHistoryIndex &&
+                  toolResponsesMap.get(toolRequest.id) == undefined
+                }
                 key={toolRequest.id}
                 toolRequest={toolRequest}
                 toolResponse={toolResponsesMap.get(toolRequest.id)}
               />
             ))}
           </div>
+        )}
+
+        {hasToolConfirmation && (
+          <ToolCallConfirmation
+            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex - 1}
+            toolConfirmationId={toolConfirmationContent.id}
+            toolName={toolConfirmationContent.toolName}
+          />
         )}
       </div>
 
