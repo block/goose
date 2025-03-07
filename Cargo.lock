@@ -2228,6 +2228,7 @@ dependencies = [
  "chrono",
  "ctor",
  "goose",
+ "include_dir",
  "mcp-core",
  "paste",
  "serde",
