@@ -7,7 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-pub static BUILTIN_EVAL_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src");
+pub static BUILTIN_EVAL_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/assets");
 
 pub struct BenchmarkWorkDir {
     pub base_path: PathBuf,
@@ -60,12 +60,13 @@ impl BenchmarkWorkDir {
             eval: None,
         }
     }
-    fn copy_auto_included_dirs(dest: &PathBuf) {
-        BUILTIN_EVAL_ASSETS
-            .get_dir("assets")
-            .unwrap()
-            .extract(dest)
-            .unwrap();
+    fn copy_auto_included_dirs(dest: &Path) {
+        let mut assets_dest = dest.to_path_buf();
+        assets_dest.push("assets");
+        if !assets_dest.exists() {
+            fs::create_dir_all(&assets_dest).unwrap();
+        }
+        BUILTIN_EVAL_ASSETS.extract(assets_dest).unwrap();
     }
     pub fn cd(&mut self, path: PathBuf) -> anyhow::Result<&mut Self> {
         fs::create_dir_all(&path)?;
