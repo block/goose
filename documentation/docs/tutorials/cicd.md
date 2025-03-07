@@ -227,12 +227,6 @@ This is just one example of what's possible. Feel free to modify your GitHub Act
 
 ---
 
-## Using Goose with CI-Specific MCP Servers
-
-If your workflow involves custom environments or tools, you can extend Goose by integrating it with MCP servers.
-
-You can explore related extensions at [PulseMCP](https://www.pulsemcp.com/servers) and configure Goose to interact with them.
-
 ## Security Considerations
 
 When running Goose in a CI/CD enviroment, keep these security practices in mind:
