@@ -247,7 +247,10 @@ export default function MoreMenu({
             <button
               onClick={() => {
                 setOpen(false);
-                window.electron.createChatWindow();
+                window.electron.createChatWindow(
+                  undefined,
+                  window.appConfig.get('GOOSE_WORKING_DIR')
+                );
               }}
               className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
             >
