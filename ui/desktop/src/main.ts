@@ -115,7 +115,13 @@ let appConfig = {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string, version?: string) => {
+const createChat = async (
+  app,
+  query?: string,
+  dir?: string,
+  version?: string,
+  resumeSessionId?: string
+) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
@@ -158,7 +164,18 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   });
 
   // Load the index.html of the app.
-  const queryParam = query ? `?initialQuery=${encodeURIComponent(query)}` : '';
+  let queryParams = '';
+  if (query) {
+    queryParams = `?initialQuery=${encodeURIComponent(query)}`;
+  }
+
+  // Add resumeSessionId to query params if provided
+  if (resumeSessionId) {
+    queryParams = queryParams
+      ? `${queryParams}&resumeSessionId=${encodeURIComponent(resumeSessionId)}`
+      : `?resumeSessionId=${encodeURIComponent(resumeSessionId)}`;
+  }
+
   const primaryDisplay = electron.screen.getPrimaryDisplay();
   const { width } = primaryDisplay.workAreaSize;
 
@@ -173,13 +190,13 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   mainWindow.setPosition(baseXPosition + xOffset, 100);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParam}`);
+    mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
   } else {
     // In production, we need to use a proper file protocol URL with correct base path
     const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     console.log('Loading production path:', indexPath);
     mainWindow.loadFile(indexPath, {
-      search: queryParam ? queryParam.slice(1) : undefined,
+      search: queryParams ? queryParams.slice(1) : undefined,
     });
   }
 
@@ -460,12 +477,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version) => {
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId) => {
     if (!dir?.trim()) {
       const recentDirs = loadRecentDirs();
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
-    createChat(app, query, dir, version);
+    createChat(app, query, dir, version, resumeSessionId);
   });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {

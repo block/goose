@@ -11,6 +11,7 @@ import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { SessionDetails, fetchSessionDetails } from './sessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -37,7 +38,12 @@ export type View =
 
 export type ViewConfig = {
   view: View;
-  viewOptions?: SettingsViewOptions | Record<any, any>;
+  viewOptions?:
+    | SettingsViewOptions
+    | {
+        resumedSession?: SessionDetails;
+      }
+    | Record<string, any>;
 };
 
 export default function App() {
@@ -51,6 +57,7 @@ export default function App() {
     viewOptions: {},
   });
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
@@ -135,12 +142,46 @@ export default function App() {
             addRecentModel(model);
           }
         } catch (error) {
+          // TODO: add sessionError state and show error screen with option to start fresh
           console.error('Failed to initialize with stored provider:', error);
         }
       }
     };
 
     setupStoredProvider();
+  }, []);
+
+  // Check for resumeSessionId in URL parameters
+  useEffect(() => {
+    const checkForResumeSession = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const resumeSessionId = urlParams.get('resumeSessionId');
+
+      if (!resumeSessionId) {
+        return;
+      }
+
+      setIsLoadingSession(true);
+      try {
+        const sessionDetails = await fetchSessionDetails(resumeSessionId);
+
+        // Only set view if we have valid session details
+        if (sessionDetails && sessionDetails.session_id) {
+          setView('chat', {
+            resumedSession: sessionDetails,
+          });
+        } else {
+          console.error('Invalid session details received');
+        }
+      } catch (error) {
+        console.error('Failed to fetch session details:', error);
+      } finally {
+        // Always clear the loading state
+        setIsLoadingSession(false);
+      }
+    };
+
+    checkForResumeSession();
   }, []);
 
   useEffect(() => {
@@ -159,6 +200,13 @@ export default function App() {
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
   }, []);
+
+  // Add cleanup for session states when view changes
+  useEffect(() => {
+    if (view !== 'chat') {
+      setIsLoadingSession(false);
+    }
+  }, [view]);
 
   const handleConfirm = async () => {
     if (pendingLink && !isInstalling) {
@@ -250,12 +298,17 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && (
+          {view === 'chat' && !isLoadingSession && (
             <ChatView
               setView={setView}
               viewOptions={viewOptions}
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
+          )}
+          {view === 'chat' && isLoadingSession && (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+            </div>
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
         </div>
