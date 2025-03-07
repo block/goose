@@ -46,7 +46,6 @@ export default function ChatView({
 }) {
   // Check if we're resuming a session
   const resumedSession = viewOptions?.resumedSession;
-  console.log('resumedSession', resumedSession);
 
   // Generate or retrieve session ID
   const sessionId = resumedSession?.session_id ? resumedSession.session_id : generateSessionId();
