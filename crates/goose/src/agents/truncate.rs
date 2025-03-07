@@ -29,6 +29,7 @@ use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
 use mcp_core::{tool::Tool, Content};
 use serde_json::{json, Value};
+use std::time::Duration;
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -316,9 +317,9 @@ impl Agent for TruncateAgent {
                                             let mut rx = self.confirmation_rx.lock().await;
                                             while let Some((req_id, confirmed)) = rx.recv().await {
                                                 if req_id == request.id {
-                                                    // Store the user's response
+                                                    // Store the user's response with 30-day expiration
                                                     let mut store = ToolPermissionStore::load()?;
-                                                    store.record_permission(request, confirmed, None)?;
+                                                    store.record_permission(request, confirmed, Some(Duration::from_secs(30 * 24 * 60 * 60)))?;
 
                                                     if confirmed {
                                                         // User approved - dispatch the tool call

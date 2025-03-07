@@ -57,16 +57,26 @@ impl ToolPermissionStore {
         let file = File::open(file_path)?;
         let mut permissions: ToolPermissionStore = serde_json::from_reader(file)?;
         permissions.permissions_dir = store.permissions_dir;
+
+        // Clean up expired entries on load
+        permissions.cleanup_expired()?;
+
         Ok(permissions)
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
-        let permissions_dir = self.permissions_dir.clone();
-        std::fs::create_dir_all(&permissions_dir)?;
+        std::fs::create_dir_all(&self.permissions_dir)?;
 
-        let path = permissions_dir.join("tool_permissions.json");
+        let path = self.permissions_dir.join("tool_permissions.json");
+        let temp_path = path.with_extension("tmp");
+
+        // Write complete content to temporary file
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, content)?;
+        std::fs::write(&temp_path, &content)?;
+
+        // Atomically rename temp file to target file
+        std::fs::rename(temp_path, path)?;
+
         Ok(())
     }
 
@@ -120,11 +130,27 @@ impl ToolPermissionStore {
         );
         hasher.finalize().to_hex().to_string()
     }
+
+    pub fn cleanup_expired(&mut self) -> anyhow::Result<()> {
+        let now = Utc::now().timestamp();
+        let mut changed = false;
+
+        self.permissions.retain(|_, records| {
+            records.retain(|record| record.expiry.map_or(true, |exp| exp > now));
+            changed = changed || records.is_empty();
+            !records.is_empty()
+        });
+
+        if changed {
+            self.save()?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::agents::permission_store::ToolPermissionStore;
+    use crate::agents::permission_store::{ToolPermissionRecord, ToolPermissionStore};
     use crate::message::ToolRequest;
     use chrono::Utc;
     use mcp_core::tool::ToolCall;
@@ -199,5 +225,71 @@ mod tests {
         // Should only find permission for first request
         assert_eq!(store.check_permission(&request1), Some(true));
         assert!(store.check_permission(&request2).is_none());
+    }
+
+    #[test]
+    fn test_cleanup_expired() {
+        let mut store = ToolPermissionStore::new();
+        let tool_request =
+            create_test_tool_request("test_tool", serde_json::json!({"arg1": "value1"}));
+
+        // Compute hash and key first
+        let context_hash = store.hash_tool_context(&tool_request);
+        let key = format!(
+            "{}:{}",
+            tool_request.tool_call.as_ref().unwrap().name,
+            context_hash
+        );
+
+        // Add an expired permission
+        store
+            .permissions
+            .entry(key.clone())
+            .or_default()
+            .push(ToolPermissionRecord {
+                tool_name: "test_tool".to_string(),
+                allowed: true,
+                context_hash: context_hash.clone(),
+                readable_context: None,
+                timestamp: Utc::now().timestamp(),
+                expiry: Some(Utc::now().timestamp() - 1000),
+            });
+
+        // Add a valid permission
+        store
+            .record_permission(&tool_request, true, Some(Duration::from_secs(3600)))
+            .unwrap();
+
+        // Before cleanup - should have 2 records
+        assert_eq!(
+            store
+                .permissions
+                .get(&format!(
+                    "{}:{}",
+                    tool_request.tool_call.as_ref().unwrap().name,
+                    store.hash_tool_context(&tool_request)
+                ))
+                .map(|records| records.len()),
+            Some(2)
+        );
+
+        // Run cleanup
+        store.cleanup_expired().unwrap();
+
+        // After cleanup - should have 1 record
+        assert_eq!(
+            store
+                .permissions
+                .get(&format!(
+                    "{}:{}",
+                    tool_request.tool_call.as_ref().unwrap().name,
+                    store.hash_tool_context(&tool_request)
+                ))
+                .map(|records| records.len()),
+            Some(1)
+        );
+
+        // The remaining record should be valid
+        assert_eq!(store.check_permission(&tool_request), Some(true));
     }
 }
