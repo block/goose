@@ -113,13 +113,13 @@ impl Provider for AzureProvider {
                     "AZURE_OPENAI_DEPLOYMENT_NAME",
                     true,
                     false,
-                    Some("Name of your Azure OpenAI deployment"),
+                    None
                 ),
                 ConfigKey::new(
                     "AZURE_OPENAI_API_VERSION",
                     false,
                     false,
-                    Some("Azure OpenAI API version, default: 2024-10-21"),
+                    Some("2024-10-21"),
                 ),
             ],
         )

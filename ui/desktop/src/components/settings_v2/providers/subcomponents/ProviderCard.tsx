@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { memo, useMemo } from 'react';
 import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
 import CardBody from './CardBody';
@@ -12,27 +12,30 @@ type ProviderCardProps = {
   isOnboarding: boolean;
 };
 
-export const ProviderCard = React.memo(function ProviderCard({
+export const ProviderCard = memo(function ProviderCard({
   provider,
   onConfigure,
   onLaunch,
   isOnboarding,
 }: ProviderCardProps) {
   // Safely access metadata with null checks
-  const providerMetadata: ProviderMetadata = provider?.metadata || {};
+  const providerMetadata: ProviderMetadata | null = provider?.metadata || null;
 
-  // Use useEffect for logging to avoid console spam
-  useEffect(() => {
-    console.log('Provider:', provider);
-    console.log('Provider Metadata:', providerMetadata);
-  }, [provider]);
+  // Instead of useEffect for logging, use useMemo to memoize the metadata
+  const metadata = useMemo(() => providerMetadata, [provider]);
+
+  // Remove the logging completely
+
+  if (!metadata) {
+    return <div>ProviderCard error: No metadata provided</div>;
+  }
 
   return (
     <CardContainer
       header={
         <CardHeader
-          name={providerMetadata.display_name || provider?.name || 'Unknown Provider'}
-          description={providerMetadata.description || ''}
+          name={metadata.display_name || provider?.name || 'Unknown Provider'}
+          description={metadata.description || ''}
           isConfigured={provider?.is_configured || false}
         />
       }

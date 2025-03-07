@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   readAllConfig,
   readConfig,
@@ -135,23 +135,22 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     return providersList;
   };
 
-  return (
-    <ConfigContext.Provider
-      value={{
-        config,
-        providersList,
-        upsert,
-        read,
-        remove,
-        addExtension,
-        updateExtension,
-        removeExtension,
-        getProviders,
-      }}
-    >
-      {children}
-    </ConfigContext.Provider>
-  );
+  const contextValue = useMemo(
+    () => ({
+      config,
+      providersList,
+      upsert,
+      read,
+      remove,
+      addExtension,
+      updateExtension,
+      removeExtension,
+      getProviders,
+    }),
+    [config, providersList]
+  ); // Functions don't need to be dependencies as they don't change
+
+  return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };
 
 export const useConfig = () => {
