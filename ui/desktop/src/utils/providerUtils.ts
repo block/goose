@@ -1,7 +1,8 @@
 import { getApiUrl, getSecretKey } from '../config';
 import { loadAndAddStoredExtensions } from '../extensions';
-import { GOOSE_PROVIDER } from '../env_vars';
+import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
+import { gooseModels } from '../components/settings/models/GooseModels';
 
 export function getStoredProvider(config: any): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
@@ -29,28 +30,6 @@ export interface Provider {
   description: string; // Description of the provider
   models: string[]; // List of supported models
   requiredKeys: string[]; // List of required keys
-}
-
-export async function getProvidersList(): Promise<Provider[]> {
-  const response = await fetch(getApiUrl('/agent/providers'), {
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch providers: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  console.log('Raw API Response:', data); // Log the raw response
-
-  // Format the response into an array of providers
-  return data.map((item: any) => ({
-    id: item.id, // Root-level ID
-    name: item.details?.name || 'Unknown Provider', // Nested name in details
-    description: item.details?.description || 'No description available.', // Nested description
-    models: item.details?.models || [], // Nested models array
-    requiredKeys: item.details?.required_keys || [], // Nested required keys array
-  }));
 }
 
 const addAgent = async (provider: string, model: string) => {
@@ -92,6 +71,10 @@ export const initializeSystem = async (provider: string, model: string) => {
     console.log('initializing agent with provider', provider, 'model', model);
     await addAgent(provider.toLowerCase().replace(/ /g, '_'), model);
 
+    // Sync the model state with React
+    const syncedModel = syncModelWithAgent(provider, model);
+    console.log('Model synced with React state:', syncedModel);
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -115,4 +98,44 @@ export const initializeSystem = async (provider: string, model: string) => {
     console.error('Failed to initialize agent:', error);
     throw error;
   }
+};
+
+// This function ensures the agent initialization values and React model state stay in sync
+const syncModelWithAgent = (provider: string, modelName: string): Model | null => {
+  console.log('Syncing model state with agent:', { provider, modelName });
+
+  // First, try to find a matching model in our predefined list
+  let matchingModel = gooseModels.find(
+    (m) => m.name === modelName && m.provider.toLowerCase() === provider.toLowerCase()
+  );
+
+  // If no match by exact name and provider, try just by provider
+  if (!matchingModel) {
+    matchingModel = gooseModels.find((m) => m.provider.toLowerCase() === provider.toLowerCase());
+
+    if (matchingModel) {
+      console.log('Found model by provider only:', matchingModel);
+    }
+  }
+
+  // If still no match, create a custom model
+  if (!matchingModel) {
+    console.log('No matching model found, creating custom model');
+    matchingModel = {
+      id: Date.now(),
+      name: modelName,
+      provider: provider,
+      alias: `${provider} - ${modelName}`,
+    };
+  }
+
+  // Update localStorage with the model
+  if (matchingModel) {
+    localStorage.setItem(GOOSE_PROVIDER, matchingModel.provider.toLowerCase());
+    localStorage.setItem(GOOSE_MODEL, JSON.stringify(matchingModel));
+
+    return matchingModel;
+  }
+
+  return null;
 };
