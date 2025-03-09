@@ -23,6 +23,7 @@ pub struct RangeData {
     end_row: u32,
     start_col: u32,
     end_col: u32,
+    // First dimension is rows, second dimension is columns: values[row_index][column_index]
     values: Vec<Vec<CellValue>>,
 }
 
@@ -65,6 +66,7 @@ impl XlsxTool {
     }
 
     fn get_worksheet_dimensions(&self, worksheet: &Worksheet) -> Result<(usize, usize)> {
+        // Returns (column_count, row_count) for the worksheet
         let mut max_col = 0;
         let mut max_row = 0;
 
@@ -98,6 +100,7 @@ impl XlsxTool {
         let (start_col, start_row, end_col, end_row) = parse_range(range)?;
         let mut values = Vec::new();
 
+        // Iterate through rows first, then columns
         for row_idx in start_row..=end_row {
             let mut row_values = Vec::new();
             for col_idx in start_col..=end_col {
@@ -160,6 +163,7 @@ impl XlsxTool {
         search_text: &str,
         case_sensitive: bool,
     ) -> Result<Vec<(u32, u32)>> {
+        // Returns a vector of (row, column) coordinates where matches are found
         let mut matches = Vec::new();
         let search_text = if !case_sensitive {
             search_text.to_lowercase()
@@ -215,6 +219,7 @@ fn parse_range(range: &str) -> Result<(u32, u32, u32, u32)> {
 }
 
 fn parse_cell_reference(reference: &str) -> Result<(u32, u32)> {
+    // Parse Excel cell reference (e.g., "A1") and return (column, row)
     let mut col_str = String::new();
     let mut row_str = String::new();
     let mut parsing_row = false;

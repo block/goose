@@ -407,13 +407,13 @@ impl ComputerControllerRouter {
             indoc! {r#"
                 Process Excel (XLSX) files to read and manipulate spreadsheet data.
                 Supports operations:
-                - list_worksheets: List all worksheets in the workbook
-                - get_columns: Get column names from a worksheet
-                - get_range: Get values and formulas from a cell range (e.g., "A1:C10")
-                - find_text: Search for text in a worksheet
-                - update_cell: Update a single cell's value
-                - get_cell: Get value and formula from a specific cell
-                - save: Save changes back to the file
+                - list_worksheets: List all worksheets in the workbook (returns name, index, column_count, row_count)
+                - get_columns: Get column names from a worksheet (returns values from the first row)
+                - get_range: Get values and formulas from a cell range (e.g., "A1:C10") (returns a 2D array organized as [row][column])
+                - find_text: Search for text in a worksheet (returns a list of (row, column) coordinates)
+                - update_cell: Update a single cell's value (returns confirmation message)
+                - get_cell: Get value and formula from a specific cell (returns both value and formula if present)
+                - save: Save changes back to the file (returns confirmation message)
 
                 Use this when working with Excel spreadsheets to analyze or modify data.
             "#},
