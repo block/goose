@@ -39,6 +39,7 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
     };
   }, []); // Empty dependency array ensures this only runs once
 
+  console.log(providers);
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
