@@ -1,10 +1,13 @@
 use chrono::Local;
+use include_dir::{include_dir, Dir};
 use std::fs;
 use std::io;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+
+pub static BUILTIN_EVAL_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src");
 
 pub struct BenchmarkWorkDir {
     pub base_path: PathBuf,
@@ -16,7 +19,7 @@ pub struct BenchmarkWorkDir {
 
 impl Default for BenchmarkWorkDir {
     fn default() -> Self {
-        BenchmarkWorkDir::new("work_dir".to_string(), Vec::new())
+        Self::new("work_dir".to_string(), Vec::new())
     }
 }
 impl BenchmarkWorkDir {
@@ -42,8 +45,10 @@ impl BenchmarkWorkDir {
         // deep copy each dir
         let _: Vec<_> = dirs
             .iter()
-            .map(|d| BenchmarkWorkDir::deep_copy(d.as_path(), base_path.as_path(), true))
+            .map(|d| Self::deep_copy(d.as_path(), base_path.as_path(), true))
             .collect();
+
+        Self::copy_auto_included_dirs(&base_path);
 
         std::env::set_current_dir(&base_path).unwrap();
 
@@ -54,6 +59,13 @@ impl BenchmarkWorkDir {
             suite: None,
             eval: None,
         }
+    }
+    fn copy_auto_included_dirs(dest: &PathBuf) {
+        BUILTIN_EVAL_ASSETS
+            .get_dir("assets")
+            .unwrap()
+            .extract(dest)
+            .unwrap();
     }
     pub fn cd(&mut self, path: PathBuf) -> anyhow::Result<&mut Self> {
         fs::create_dir_all(&path)?;
@@ -132,7 +144,7 @@ impl BenchmarkWorkDir {
         let here = PathBuf::from(".").canonicalize()?;
         let artifact_at_root = self.base_path.clone().join(asset_rel_path);
 
-        BenchmarkWorkDir::deep_copy(artifact_at_root.as_path(), here.as_path(), true)?;
+        Self::deep_copy(artifact_at_root.as_path(), here.as_path(), true)?;
         Ok(PathBuf::from(path))
     }
 

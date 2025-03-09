@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ViewConfig } from '../../App';
-import { MessageSquare, Loader, AlertCircle, Calendar, ChevronRight } from 'lucide-react';
+import { MessageSquare, Loader, AlertCircle, Calendar, ChevronRight, Folder } from 'lucide-react';
 import { fetchSessions, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -104,9 +104,15 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                         <h3 className="text-base font-medium text-textStandard truncate">
                           {session.metadata.description || session.id}
                         </h3>
-                        <div className="flex items-center mt-1 text-textSubtle text-sm">
-                          <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                          <span className="truncate">{formatDate(session.modified)}</span>
+                        <div className="flex gap-3">
+                          <div className="flex items-center text-textSubtle text-sm">
+                            <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">{formatDate(session.modified)}</span>
+                          </div>
+                          <div className="flex items-center text-textSubtle text-sm">
+                            <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">{session.metadata.working_dir}</span>
+                          </div>
                         </div>
                       </div>
 

@@ -71,7 +71,7 @@ impl OpenRouterProvider {
             .post(url)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("HTTP-Referer", "https://github.com/block/goose")
+            .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
             .json(&payload)
             .send()

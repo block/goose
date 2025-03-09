@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, MessageSquare, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Clock, MessageSquare, Folder, AlertCircle } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -68,6 +68,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             <span className="flex items-center">
               <Clock className="w-4 h-4 mr-1" />
               {new Date(session.messages[0]?.created * 1000).toLocaleString()}
+            </span>
+            <span className="flex items-center">
+              <Folder className="w-4 h-4 mr-1" />
+              {session.metadata.working_dir}
             </span>
             <span className="flex items-center">
               <MessageSquare className="w-4 h-4 mr-1" />

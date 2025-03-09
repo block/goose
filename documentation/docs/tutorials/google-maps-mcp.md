@@ -88,9 +88,33 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  npx -y @modelcontextprotocol/server-google-maps
     // highlight-end
     └ 
-  ```  
+  ``` 
 
-  5. Obtain a [Google Maps API Key](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in.
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  Google Maps
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-google-maps
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    └ 
+  ``` 
+   
+
+  6. Obtain a [Google Maps API Key](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in.
 
    ```sh
     ┌   goose-configure 
@@ -106,6 +130,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◇  What command should be run?
     │  npx -y @modelcontextprotocol/server-google-maps
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │   
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 

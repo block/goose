@@ -83,8 +83,14 @@ async fn run_eval(
     let requirements = evaluation.required_extensions();
 
     // Create session with error capture
-    let base_session =
-        build_session(None, false, requirements.external, requirements.builtin).await;
+    let base_session = build_session(
+        None,
+        false,
+        requirements.external,
+        requirements.builtin,
+        false,
+    )
+    .await;
 
     let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
     let bench_session_clone = bench_session.clone();
@@ -109,7 +115,7 @@ async fn run_eval(
 
 async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
     let mut suite_result = SuiteResult::new(suite.to_string());
-    let eval_lock = Mutex::new(0);
+    let eval_lock = Mutex::new(());
 
     if let Some(evals) = EvaluationSuiteFactory::create(suite) {
         for eval in evals {
@@ -146,7 +152,7 @@ pub async fn run_benchmark(
         format!("{}-{}", provider_name, goose_model),
         include_dirs.clone(),
     );
-    let suite_lock = Mutex::new(0);
+    let suite_lock = Mutex::new(());
     for suite in suites {
         let _unused = suite_lock.lock().await;
         work_dir.set_suite(suite);

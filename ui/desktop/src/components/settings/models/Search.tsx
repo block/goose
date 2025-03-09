@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { Switch } from '../../ui/switch';
-import { goose_models } from './hardcoded_stuff';
+import { gooseModels } from './GooseModels';
 import { useModel } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
@@ -22,7 +22,7 @@ export function SearchBar() {
   // results set will only include models that have a configured provider
   const { activeKeys } = useActiveKeys(); // Access active keys from context
 
-  const model_options = goose_models.filter((model) => activeKeys.includes(model.provider));
+  const model_options = gooseModels.filter((model) => activeKeys.includes(model.provider));
 
   const filteredModels = model_options
     .filter((model) => model.name.toLowerCase().includes(search.toLowerCase()))
