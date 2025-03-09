@@ -38,8 +38,10 @@ http-body-util = "0.1.2"
 regex = "1.11.1"
 once_cell = "1.20.2"
 ignore = "0.4"
-temp-env = "0.3"
 lopdf = "0.35.0"
+docx-rs = "0.4.7"
+image = "0.24.9"
+umya-spreadsheet = "2.2.3"
 
 [dev-dependencies]
 serial_test = "3.0.0"
