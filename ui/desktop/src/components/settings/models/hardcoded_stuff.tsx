@@ -46,6 +46,7 @@ export const default_models = {
   ollama: 'qwen2.5',
   azure_openai: 'gpt-4o',
   gcp_vertex_ai: 'gemini-2.0-flash-001',
+  aws_bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
 };
 
 export function getDefaultModel(key: string): string | undefined {
@@ -64,6 +65,7 @@ export const required_keys = {
   OpenRouter: ['OPENROUTER_API_KEY'],
   'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
   'GCP Vertex AI': ['GCP_PROJECT_ID', 'GCP_LOCATION'],
+  'AWS Bedrock': ['AWS_PROFILE', 'AWS_REGION'],
 };
 
 export const default_key_value = {
@@ -71,6 +73,7 @@ export const default_key_value = {
   OPENAI_BASE_PATH: 'v1/chat/completions',
   OLLAMA_HOST: 'localhost',
   GCP_LOCATION: 'us-central1',
+  AWS_REGION: 'us-west-2',
 };
 
 export const supported_providers = [
@@ -83,6 +86,7 @@ export const supported_providers = [
   'OpenRouter',
   'Azure OpenAI',
   'GCP Vertex AI',
+  'AWS Bedrock',
 ];
 
 export const model_docs_link = [
@@ -97,6 +101,8 @@ export const model_docs_link = [
   { name: 'OpenRouter', href: 'https://openrouter.ai/models' },
   { name: 'Ollama', href: 'https://ollama.com/library' },
   { name: 'GCP Vertex AI', href: 'https://cloud.google.com/vertex-ai' },
+  { name: 'Azure OpenAI', href: 'https://docs.microsoft.com/en-us/azure/openai/' },
+  { name: 'AWS Bedrock', href: 'https://console.aws.amazon.com/bedrock/home#/model-catalog' },
 ];
 
 export const provider_aliases = [
@@ -109,4 +115,5 @@ export const provider_aliases = [
   { provider: 'Google', alias: 'google' },
   { provider: 'Azure OpenAI', alias: 'azure_openai' },
   { provider: 'GCP Vertex AI', alias: 'gcp_vertex_ai' },
+  { provider: 'AWS Bedrock', alias: 'aws_bedrock' },
 ];
