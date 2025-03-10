@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { ChatType } from '../components/ChatView';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
 
-export const useChat = ({ setIsLoadingSession, setView }) => {
+type UseChatArgs = {
+  setIsLoadingSession: (isLoading: boolean) => void;
+  setView: (view: string) => void;
+};
+export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
   const [chat, setChat] = useState<ChatType>({
     id: generateSessionId(),
     title: 'New Chat',
@@ -45,7 +49,7 @@ export const useChat = ({ setIsLoadingSession, setView }) => {
     };
 
     checkForResumeSession();
-  }, [setIsLoadingSession, setView]);
+  }, []);
 
   return { chat, setChat };
 };
