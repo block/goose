@@ -7,9 +7,6 @@ use std::time::Duration;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
-};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -127,27 +124,6 @@ impl Provider for OpenAiProvider {
         self.model.clone()
     }
 
-    async fn structure_response(
-        &self,
-        message: Message,
-        tools: &[Tool],
-    ) -> Result<Message, ProviderError> {
-        let config = self.get_model_config();
-        if !config.interpret_chat_tool_calls {
-            return Ok(message);
-        }
-
-        // Create interpreter for tool calls - use Ollama's default host and port
-        let base_url = format!(
-            "http://{}:{}",
-            super::ollama::OLLAMA_HOST,
-            super::ollama::OLLAMA_DEFAULT_PORT
-        );
-        let interpreter = OllamaInterpreter::new(base_url);
-
-        augment_message_with_tool_calls(&interpreter, message, tools).await
-    }
-
     #[tracing::instrument(
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -158,27 +134,7 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = self.get_model_config();
-
-        // If tool interpretation is enabled, modify the system prompt
-        let system_prompt = if config.interpret_chat_tool_calls {
-            modify_system_prompt_for_tools(system, tools)
-        } else {
-            system.to_string()
-        };
-
-        // Create request with or without tools based on config
-        let payload = create_request(
-            &self.model,
-            &system_prompt,
-            messages,
-            if config.interpret_chat_tool_calls {
-                &[]
-            } else {
-                tools
-            },
-            &ImageFormat::OpenAi,
-        )?;
+        let payload = create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi)?;
 
         // Make request
         let response = self.post(payload.clone()).await?;

@@ -14,7 +14,6 @@ pub mod oauth;
 pub mod ollama;
 pub mod openai;
 pub mod openrouter;
-pub mod toolshim;
 pub mod utils;
 
 pub use factory::{create, providers};

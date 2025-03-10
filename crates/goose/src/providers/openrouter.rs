@@ -6,9 +6,6 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
-};
 use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
@@ -85,26 +82,6 @@ impl OpenRouterProvider {
         } else {
             handle_response_openai_compat(response).await
         }
-    }
-
-    fn process_response(
-        &self,
-        payload: Value,
-        response: Value,
-        message: Message,
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Get usage information
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
-        let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
     }
 }
 
@@ -234,27 +211,6 @@ impl Provider for OpenRouterProvider {
         self.model.clone()
     }
 
-    async fn structure_response(
-        &self,
-        message: Message,
-        tools: &[Tool],
-    ) -> Result<Message, ProviderError> {
-        let config = self.get_model_config();
-        if !config.interpret_chat_tool_calls {
-            return Ok(message);
-        }
-
-        // Create interpreter for tool calls - use Ollama's default host and port
-        let base_url = format!(
-            "http://{}:{}",
-            super::ollama::OLLAMA_HOST,
-            super::ollama::OLLAMA_DEFAULT_PORT
-        );
-        let interpreter = OllamaInterpreter::new(base_url);
-
-        augment_message_with_tool_calls(&interpreter, message, tools).await
-    }
-
     #[tracing::instrument(
         skip(self, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -265,30 +221,24 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = self.get_model_config();
+        // Create the base payload
+        let payload = create_request_based_on_model(&self.model, system, messages, tools)?;
 
-        // If tool interpretation is enabled, modify the system prompt
-        let system_prompt = if config.interpret_chat_tool_calls {
-            modify_system_prompt_for_tools(system, tools)
-        } else {
-            system.to_string()
-        };
-
-        // Create request with or without tools based on config
-        let payload = create_request_based_on_model(
-            &self.model,
-            &system_prompt,
-            messages,
-            if config.interpret_chat_tool_calls {
-                &[]
-            } else {
-                tools
-            },
-        )?;
-
+        // Make request
         let response = self.post(payload.clone()).await?;
-        let message = response_to_message(response.clone())?;
 
-        self.process_response(payload, response, message)
+        // Parse response
+        let message = response_to_message(response.clone())?;
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+        emit_debug_trace(self, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(model, usage)))
     }
 }
