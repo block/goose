@@ -12,8 +12,10 @@ import {
   powerSaveBlocker,
   Tray,
 } from 'electron';
+import { isTextFile } from './utils/fileUtils';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import fs from 'node:fs';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -332,14 +334,35 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
-// Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile', 'openDirectory'],
+    title: 'Select a text file or directory',
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
+    const path = result.filePaths[0];
+    const stats = await fs.promises.stat(path);
+
+    // If it's a directory, allow it
+    if (stats.isDirectory()) {
+      return path;
+    }
+
+    // If it's a file, check if it's text
+    if (stats.isFile()) {
+      if (isTextFile(path)) {
+        return path;
+      } else {
+        dialog.showMessageBox({
+          type: 'error',
+          title: 'Unsupported File Type',
+          message: 'Only text files can be attached.',
+          detail: 'The selected file appears to be binary or non-text content.',
+        });
+        return null;
+      }
+    }
   }
   return null;
 });
