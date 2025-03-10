@@ -118,10 +118,7 @@ export default function BottomMenu({
     };
   }, [isGooseModeMenuOpen]);
 
-  let envModelProvider = null;
-  if (window.electron.getConfig().GOOSE_MODEL && window.electron.getConfig().GOOSE_PROVIDER) {
-    envModelProvider = `${window.electron.getConfig().GOOSE_MODEL}  - ${window.electron.getConfig().GOOSE_PROVIDER}`;
-  }
+  // Removed the envModelProvider code that was checking for environment variables
 
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
@@ -167,9 +164,7 @@ export default function BottomMenu({
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>
-            {envModelProvider || (currentModel?.alias ?? currentModel?.name) || 'Select Model'}
-          </span>
+          <span>{(currentModel?.alias ?? currentModel?.name) || 'Select Model'}</span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (
