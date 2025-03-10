@@ -4,7 +4,7 @@ use auth::{CredentialsManager, KeychainTokenStorage};
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
-use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin, sync::Arc};
+use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 
 use mcp_core::content::Content;
 use mcp_core::{
@@ -69,14 +69,14 @@ pub struct GoogleDriveRouter {
     instructions: String,
     drive: DriveHub<HttpsConnector<HttpConnector>>,
     sheets: Sheets<HttpsConnector<HttpConnector>>,
-    credentials_manager: CredentialsManager,
+    credentials_manager: Arc<CredentialsManager>,
 }
 
 impl GoogleDriveRouter {
     async fn google_auth() -> (
         DriveHub<HttpsConnector<HttpConnector>>,
         Sheets<HttpsConnector<HttpConnector>>,
-        CredentialsManager,
+        Arc<CredentialsManager>,
     ) {
         let keyfile_path_str = env::var("GOOGLE_DRIVE_OAUTH_PATH")
             .unwrap_or_else(|_| "./gcp-oauth.keys.json".to_string());
@@ -95,16 +95,34 @@ impl GoogleDriveRouter {
             "Google Drive MCP server authentication config paths"
         );
 
-        // Handle OAuth config from environment variable
         if let Ok(oauth_config) = env::var("GOOGLE_DRIVE_OAUTH_CONFIG") {
-            if !keyfile_path.exists() {
-                // attempt to create the path
-                if let Some(parent_dir) = keyfile_path.parent() {
-                    let _ = fs::create_dir_all(parent_dir);
+            // Ensure the parent directory exists (create_dir_all is idempotent)
+            if let Some(parent) = keyfile_path.parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    tracing::error!(
+                        "Failed to create parent directories for {}: {}",
+                        keyfile_path.display(),
+                        e
+                    );
                 }
+            }
 
-                if let Ok(mut file) = fs::File::create(keyfile_path) {
-                    let _ = file.write_all(oauth_config.as_bytes());
+            // Check if the file exists and whether its content matches
+            // in every other case we attempt to overwrite
+            let need_to_write = match fs::read_to_string(keyfile_path) {
+                Ok(existing) if existing == oauth_config => false,
+                Ok(_) | Err(_) => true,
+            };
+
+            // Overwrite the file if needed
+            if need_to_write {
+                if let Err(e) = fs::write(keyfile_path, &oauth_config) {
+                    tracing::error!(
+                        "Failed to write OAuth config to {}: {}",
+                        keyfile_path.display(),
+                        e
+                    );
+                } else {
                     tracing::debug!(
                         "Wrote Google Drive MCP server OAuth config to {}",
                         keyfile_path.display()
@@ -116,13 +134,20 @@ impl GoogleDriveRouter {
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
 
-        // Create custom token storage using our credentials manager
-        let token_storage = KeychainTokenStorage::new(credentials_manager.clone());
-
         // Read the application secret from the OAuth keyfile
         let secret = yup_oauth2::read_application_secret(keyfile_path)
             .await
             .expect("expected keyfile for google auth");
+
+        // Create custom token storage using our credentials manager
+        let token_storage = KeychainTokenStorage::new(
+            secret
+                .project_id
+                .clone()
+                .unwrap_or("unknown-project-id".to_string())
+                .to_string(),
+            credentials_manager.clone(),
+        );
 
         // Create the authenticator with the installed flow
         let auth = InstalledFlowAuthenticator::builder(
@@ -151,11 +176,7 @@ impl GoogleDriveRouter {
         let sheets_hub = Sheets::new(client, auth);
 
         // Create and return the DriveHub
-        (
-            drive_hub,
-            sheets_hub,
-            Arc::try_unwrap(credentials_manager).unwrap_or_else(|arc| arc.as_ref().clone()),
-        )
+        (drive_hub, sheets_hub, credentials_manager)
     }
 
     pub async fn new() -> Self {
