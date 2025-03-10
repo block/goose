@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
+use super::toolshim::{
+    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
+};
 use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
@@ -265,25 +267,9 @@ impl Provider for OpenRouterProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = self.get_model_config();
 
-        // If tool interpretation is enabled, modify the system prompt to include tool info
-        let modified_system = if config.interpret_chat_tool_calls {
-            // Create a string with tool information
-            let mut tool_info = String::new();
-            for tool in tools {
-                tool_info.push_str(&format!(
-                    "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
-                    tool.name,
-                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
-                    tool.description
-                ));
-            }
-
-            // Append tool information to the system prompt
-            format!(
-                "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
-                system,
-                tool_info
-            )
+        // If tool interpretation is enabled, modify the system prompt
+        let system_prompt = if config.interpret_chat_tool_calls {
+            modify_system_prompt_for_tools(system, tools)
         } else {
             system.to_string()
         };
@@ -291,7 +277,7 @@ impl Provider for OpenRouterProvider {
         // Create request with or without tools based on config
         let payload = create_request_based_on_model(
             &self.model,
-            &modified_system,
+            &system_prompt,
             messages,
             if config.interpret_chat_tool_calls {
                 &[]
