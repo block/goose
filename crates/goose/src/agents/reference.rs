@@ -71,6 +71,11 @@ impl Agent for ReferenceAgent {
         // TODO implement
     }
 
+    /// Create a response message from the planner model
+    async fn plan(&self, _plan_messages: &[Message]) -> anyhow::Result<Message> {
+        todo!()
+    }
+
     #[instrument(skip(self, messages, session), fields(user_message))]
     async fn reply(
         &self,

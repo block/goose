@@ -10,12 +10,14 @@ use tracing::{debug, error, instrument, warn};
 
 use super::agent::SessionConfig;
 use super::detect_read_only_tools;
+use super::extension::ToolInfo;
 use super::Agent;
-use crate::agents::capabilities::Capabilities;
+use crate::agents::capabilities::{get_parameter_names, Capabilities};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
 use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
+use crate::model::ModelConfig;
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
@@ -144,6 +146,37 @@ impl Agent for TruncateAgent {
         if let Err(e) = self.confirmation_tx.send((request_id, confirmed)).await {
             error!("Failed to send confirmation: {}", e);
         }
+    }
+
+    /// Create a response message from the planner model
+    async fn plan(&self, plan_messages: &[Message]) -> anyhow::Result<Message> {
+        let mut capabilities = self.capabilities.lock().await;
+        let tools = capabilities.get_prefixed_tools().await?;
+        let tools_info = tools
+            .into_iter()
+            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .collect();
+
+        let plan_prompt = capabilities.get_planning_prompt(tools_info).await;
+
+        // TODO: hacky to create a new provider for the planner each time plan is called
+        let planner_provider = std::env::var("PLANNER_PROVIDER").unwrap_or("openai".to_string());
+        let mut planner_model = std::env::var("PLANNER_MODEL");
+        if planner_model.is_err() && planner_provider == "openai" {
+            planner_model = Ok("o1-high".to_string());
+        } else if planner_model.is_err() && planner_provider == "anthropic" {
+            planner_model = Ok("claude-3-7-sonnet-latest".to_string());
+        } else {
+            return Err(anyhow::anyhow!("PLANNER_MODEL is not set for the provider"));
+        }
+        let planner_model = planner_model.unwrap();
+
+        let model = ModelConfig::new(planner_model);
+        let provider = crate::providers::create(&planner_provider, model)?;
+
+        let (response, _usage) = provider.complete(&plan_prompt, plan_messages, &[]).await?;
+
+        Ok(response)
     }
 
     #[instrument(skip(self, messages, session), fields(user_message))]
