@@ -283,6 +283,9 @@ mod tests {
             }),
         );
 
+        // Create a Vec to hold the tool
+        let tools = vec![tool];
+
         // Verify that complete() doesn't include tools in the request when interpretation is enabled
         let payload = create_request(
             &provider.model,
@@ -291,7 +294,7 @@ mod tests {
             if provider.model.interpret_chat_tool_calls {
                 &[]
             } else {
-                &[tool]
+                &tools
             },
             &ImageFormat::OpenAi,
         )
