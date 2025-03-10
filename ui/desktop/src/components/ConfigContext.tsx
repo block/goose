@@ -17,6 +17,7 @@ import type {
   ExtensionQuery,
   ProviderDetails,
 } from '../api/types.gen';
+import { getSecretKey } from '../config';
 
 // Initialize client configuration
 client.setConfig({
@@ -71,13 +72,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     setConfig(response.data.config || {});
   };
 
-  const upsert = async (key: string, value: unknown, isSecret?: boolean) => {
+  const upsert = async (key: string, value: unknown, isSecret: boolean = false) => {
+    console.log('trying to upsert', key, value, isSecret);
     const query: UpsertConfigQuery = {
-      key,
-      value,
-      is_secret: isSecret || null,
+      key: key,
+      value: value,
+      is_secret: isSecret,
     };
-
     await upsertConfig({
       body: query,
     });
