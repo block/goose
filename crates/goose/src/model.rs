@@ -21,6 +21,10 @@ pub struct ModelConfig {
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
     pub max_tokens: Option<i32>,
+    /// Whether to interpret tool calls - controlled by env var
+    pub interpret_chat_tool_calls: bool,
+    /// Model to use for interpreting tool calls (optional)
+    pub tool_call_interpreter_model: Option<String>,
 }
 
 impl ModelConfig {
@@ -34,12 +38,21 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
+        // Check environment variables
+        let interpret_chat_tool_calls = std::env::var("GOOSE_TOOLSHIM")
+            .map(|val| val == "1" || val.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        let tool_call_interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+
         Self {
             model_name,
             tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature: None,
             max_tokens: None,
+            interpret_chat_tool_calls,
+            tool_call_interpreter_model,
         }
     }
 
@@ -96,7 +109,19 @@ impl ModelConfig {
         self
     }
 
-    // Get the tokenizer name
+    /// Set whether to interpret tool calls
+    pub fn with_tool_interpretation(mut self, interpret: bool) -> Self {
+        self.interpret_chat_tool_calls = interpret;
+        self
+    }
+
+    /// Set the tool call interpreter model
+    pub fn with_tool_interpreter(mut self, model: Option<String>) -> Self {
+        self.tool_call_interpreter_model = model;
+        self
+    }
+
+    /// Get the tokenizer name
     pub fn tokenizer_name(&self) -> &str {
         &self.tokenizer_name
     }
@@ -141,5 +166,24 @@ mod tests {
         assert_eq!(config.temperature, Some(0.7));
         assert_eq!(config.max_tokens, Some(1000));
         assert_eq!(config.context_limit, Some(50_000));
+    }
+
+    #[test]
+    fn test_model_config_tool_interpretation() {
+        // Test without env vars - should be false
+        let config = ModelConfig::new("test-model".to_string());
+        assert!(!config.interpret_chat_tool_calls);
+
+        // Test with tool interpretation setting
+        let config = ModelConfig::new("test-model".to_string()).with_tool_interpretation(true);
+        assert!(config.interpret_chat_tool_calls);
+
+        // Test tool interpreter model
+        let config = ModelConfig::new("test-model".to_string())
+            .with_tool_interpreter(Some("mistral-nemo".to_string()));
+        assert_eq!(
+            config.tool_call_interpreter_model,
+            Some("mistral-nemo".to_string())
+        );
     }
 }
