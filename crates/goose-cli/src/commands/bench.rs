@@ -56,6 +56,20 @@ impl BenchAgent for BenchSession {
         let errors = self.errors.lock().await;
         errors.clone()
     }
+
+    async fn get_token_usage(&self) -> Option<i32> {
+        // Get token usage from the provider
+        if let Ok(usage) = self.session.get_usage().await {
+            // Sum up total tokens across all usage entries
+            let total_tokens = usage
+                .iter()
+                .map(|u| u.usage.total_tokens.unwrap_or(0))
+                .sum();
+            Some(total_tokens)
+        } else {
+            None
+        }
+    }
 }
 
 // Wrapper struct to implement BenchAgent for Arc<Mutex<BenchSession>>
@@ -71,6 +85,11 @@ impl BenchAgent for BenchAgentWrapper {
     async fn get_errors(&self) -> Vec<BenchAgentError> {
         let session = self.0.lock().await;
         session.get_errors().await
+    }
+
+    async fn get_token_usage(&self) -> Option<i32> {
+        let session = self.0.lock().await;
+        session.get_token_usage().await
     }
 }
 
