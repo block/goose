@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent,
-    Evaluation, EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -43,8 +43,8 @@ impl Evaluation for SquirrelCensus {
 
         println!("squirrel_data_path: {:?}", squirrel_data_path);
 
-        // Use our metrics utility to measure execution time and tool calls
-        let (messages, perf_metrics) = measure_prompt_execution_time(
+        // Collect baseline metrics (execution time, token usage, tool calls)
+        let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
             format!(
                 "Create a Python script called analyze_squirrels.py that analyzes the CSV file at {}. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.

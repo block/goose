@@ -16,6 +16,7 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
+use goose::providers::base::ProviderUsage;
 use goose::session;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
@@ -642,5 +643,10 @@ impl Session {
 
     pub fn message_history(&self) -> Vec<Message> {
         self.messages.clone()
+    }
+
+    /// Get the token usage from the agent
+    pub async fn get_usage(&self) -> Result<Vec<ProviderUsage>> {
+        Ok(self.agent.usage().await)
     }
 }
