@@ -7,15 +7,8 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
+use goose::session::info::{get_session_info, SessionInfo};
 use serde::Serialize;
-
-#[derive(Serialize)]
-struct SessionInfo {
-    id: String,
-    path: String,
-    modified: String,
-    metadata: session::SessionMetadata,
-}
 
 #[derive(Serialize)]
 struct SessionListResponse {
@@ -44,43 +37,9 @@ async fn list_sessions(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let sessions = match session::list_sessions() {
-        Ok(sessions) => sessions,
-        Err(e) => {
-            tracing::error!("Failed to list sessions: {:?}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
+    let sessions = get_session_info().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let session_infos = sessions
-        .into_iter()
-        .map(|(id, path)| {
-            // Get last modified time as string
-            let modified = path
-                .metadata()
-                .and_then(|m| m.modified())
-                .map(|time| {
-                    chrono::DateTime::<chrono::Utc>::from(time)
-                        .format("%Y-%m-%d %H:%M:%S UTC")
-                        .to_string()
-                })
-                .unwrap_or_else(|_| "Unknown".to_string());
-
-            // Get session description
-            let metadata = session::read_metadata(&path).expect("Failed to read session metadata");
-
-            SessionInfo {
-                id,
-                path: path.to_string_lossy().to_string(),
-                modified,
-                metadata,
-            }
-        })
-        .collect();
-
-    Ok(Json(SessionListResponse {
-        sessions: session_infos,
-    }))
+    Ok(Json(SessionListResponse { sessions }))
 }
 
 // Get a specific session's history

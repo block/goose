@@ -1,7 +1,8 @@
 use anyhow::Result;
+use goose::session::info::{get_session_info, SessionInfo};
 
-pub fn handle_session(verbose: bool, format: String) -> Result<()> {
-    let sessions = match goose::session::list_sessions() {
+pub fn handle_session_list(verbose: bool, format: String) -> Result<()> {
+    let sessions = match get_session_info() {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
@@ -19,11 +20,24 @@ pub fn handle_session(verbose: bool, format: String) -> Result<()> {
                 return Ok(());
             } else {
                 println!("Available sessions:");
-                for (id, path) in sessions {
-                    if verbose {
-                        println!("  {} ({})", id, path.display());
+                for SessionInfo {
+                    id,
+                    path,
+                    metadata,
+                    modified,
+                } in sessions
+                {
+                    let description = if metadata.description.is_empty() {
+                        "(none)"
                     } else {
-                        println!("  {}", id);
+                        &metadata.description
+                    };
+                    let output = format!("{} - {} - {}", id, description, modified);
+                    if verbose {
+                        println!("  {}", output);
+                        println!("    Path: {}", path);
+                    } else {
+                        println!("{}", output);
                     }
                 }
             }
