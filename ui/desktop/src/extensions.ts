@@ -82,6 +82,15 @@ export const BUILT_IN_EXTENSIONS = [
     type: 'builtin',
     env_keys: [],
   },
+  {
+    id: 'databricks',
+    name: 'Databricks',
+    description: 'Built-in integration to query databricks',
+    enabled: false,
+    type: 'builtin',
+    env_keys: ['DATABRICKS_HOST', 'DATABRICKS_SQL_WAREHOUSE_ID'],
+  },
+
   /* TODO re-enable when we have a smoother auth flow {
     id: 'google_drive',
     name: 'Google Drive',

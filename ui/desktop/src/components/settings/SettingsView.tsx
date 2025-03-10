@@ -65,7 +65,21 @@ export default function SettingsView({
     window.electron.logInfo('Settings: ' + saved);
     let currentSettings = saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
 
-    // Ensure built-in extensions are included if not already present
+    // Ensure built-in extensions are included and updated with latest properties
+    currentSettings.extensions = currentSettings.extensions.map((ext: FullExtensionConfig) => {
+      // Find the latest definition from BUILT_IN_EXTENSIONS
+      const latestDef = BUILT_IN_EXTENSIONS.find((builtIn) => builtIn.id === ext.id);
+      if (latestDef) {
+        // Merge the stored extension with the latest definition, preferring latestDef for env_keys
+        return {
+          ...ext,
+          env_keys: latestDef.env_keys || ext.env_keys,
+        };
+      }
+      return ext;
+    });
+
+    // Add any missing built-in extensions
     BUILT_IN_EXTENSIONS.forEach((builtIn) => {
       const exists = currentSettings.extensions.some(
         (ext: FullExtensionConfig) => ext.id === builtIn.id
@@ -259,7 +273,6 @@ export default function SettingsView({
           </div>
         </div>
       </ScrollArea>
-
       {extensionBeingConfigured && isBuiltIn(extensionBeingConfigured.id) ? (
         <ConfigureBuiltInExtensionModal
           isOpen={!!extensionBeingConfigured && isBuiltIn(extensionBeingConfigured.id)}

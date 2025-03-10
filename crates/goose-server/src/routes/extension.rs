@@ -43,6 +43,9 @@ enum ExtensionConfigRequest {
     Builtin {
         /// The name of the built-in extension.
         name: String,
+        /// List of environment variable keys. The server will fetch their values from the keyring.
+        #[serde(default)]
+        env_keys: Vec<String>,
     },
 }
 
@@ -148,7 +151,43 @@ async fn add_extension(
                 envs: Envs::new(env_map),
             }
         }
-        ExtensionConfigRequest::Builtin { name } => ExtensionConfig::Builtin { name },
+        ExtensionConfigRequest::Builtin { name, env_keys } => {
+            // For built-in extensions, we need to set environment variables directly
+            // since they access them via std::env::var
+            let mut env_map = HashMap::new();
+            for key in env_keys {
+                match config.get_secret::<String>(&key) {
+                    Ok(value) => {
+                        // Store for later logging
+                        env_map.insert(key.clone(), value.clone());
+                        
+                        // Set the actual environment variable
+                        std::env::set_var(&key, value);
+                    }
+                    Err(_) => {
+                        missing_keys.push(key);
+                    }
+                }
+            }
+
+            if !missing_keys.is_empty() {
+                return Ok(Json(ExtensionResponse {
+                    error: true,
+                    message: Some(format!(
+                        "Missing secrets for keys: {}",
+                        missing_keys.join(", ")
+                    )),
+                }));
+            }
+
+            // Log that we've set the environment variables
+            if !env_map.is_empty() {
+                println!("Set {} environment variables for built-in extension '{}'", 
+                    env_map.len(), name);
+            }
+
+            ExtensionConfig::Builtin { name }
+        },
     };
 
     // Acquire a lock on the agent and attempt to add the extension.
