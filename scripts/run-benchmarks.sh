@@ -12,6 +12,8 @@ function show_usage() {
   echo "  -s, --suites             Comma-separated list of benchmark suites to run (e.g., 'core,small_models')"
   echo "  -o, --output-dir         Directory to store benchmark results (default: './benchmark-results')"
   echo "  -d, --debug              Use debug build instead of release build"
+  echo "  -t, --toolshim           Enable toolshim mode by setting GOOSE_TOOLSHIM=1"
+  echo "  -m, --toolshim-model     Set the toolshim model (sets GOOSE_TOOLSHIM_MODEL)"
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Example:"
@@ -23,6 +25,8 @@ PROVIDER_MODELS=""
 SUITES=""
 OUTPUT_DIR="./benchmark-results"
 DEBUG_MODE=false
+TOOLSHIM=false
+TOOLSHIM_MODEL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +45,14 @@ while [[ $# -gt 0 ]]; do
     -d|--debug)
       DEBUG_MODE=true
       shift
+      ;;
+    -t|--toolshim)
+      TOOLSHIM=true
+      shift
+      ;;
+    -m|--toolshim-model)
+      TOOLSHIM_MODEL="$2"
+      shift 2
       ;;
     -h|--help)
       show_usage
@@ -79,6 +91,12 @@ if [ "$DEBUG_MODE" = true ]; then
   echo "Mode: Debug" >> "$SUMMARY_FILE"
 else
   echo "Mode: Release" >> "$SUMMARY_FILE"
+fi
+if [ "$TOOLSHIM" = true ]; then
+  echo "Toolshim: Enabled" >> "$SUMMARY_FILE"
+  if [[ -n "$TOOLSHIM_MODEL" ]]; then
+    echo "Toolshim Model: $TOOLSHIM_MODEL" >> "$SUMMARY_FILE"
+  fi
 fi
 echo "" >> "$SUMMARY_FILE"
 
@@ -140,6 +158,14 @@ for ((i=0; i<$COUNT; i++)); do
   export GOOSE_PROVIDER="$provider"
   export GOOSE_MODEL="$model"
   
+  # Set toolshim environment variables if enabled
+  if [ "$TOOLSHIM" = true ]; then
+    export GOOSE_TOOLSHIM=1
+    if [[ -n "$TOOLSHIM_MODEL" ]]; then
+      export GOOSE_TOOLSHIM_MODEL="$TOOLSHIM_MODEL"
+    fi
+  fi
+  
   # Run the benchmark and save results to JSON
   echo "Running benchmark for $provider/$model with suites: $SUITES"
   OUTPUT_FILE="$OUTPUT_DIR/${provider}-${model}.json"
@@ -174,6 +200,7 @@ for ((i=0; i<$COUNT; i++)); do
           TOTAL_METRICS=0
           FAILED_METRICS=0
           PASSED_METRICS=0
+          OTHER_METRICS=0
           TOTAL_ERRORS=0
           
           # Process each suite
@@ -194,14 +221,28 @@ for ((i=0; i<$COUNT; i++)); do
               ERROR_COUNT=$(jq ".suites[$j].evaluations[$k].errors | length" "$OUTPUT_FILE")
               TOTAL_ERRORS=$((TOTAL_ERRORS + ERROR_COUNT))
               
-              # Check for failures in metrics
+              # Count boolean metrics (passed and failed)
+              BOOLEAN_COUNT=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
+                select(.[1].Boolean != null) | .[0]" "$OUTPUT_FILE" | wc -l | tr -d ' ')
+              
+              # Count failed boolean metrics
               FAILURES=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
                 select(
                   .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
                 ) | .[0]" "$OUTPUT_FILE" | wc -l | tr -d ' ')
               
+              # Count passed boolean metrics
+              PASSES=$((BOOLEAN_COUNT - FAILURES))
+              
+              # Count non-boolean metrics
+              NON_BOOLEAN=$((METRIC_COUNT - BOOLEAN_COUNT))
+              
+              # Update global counters
+              FAILED_METRICS=$((FAILED_METRICS + FAILURES))
+              PASSED_METRICS=$((PASSED_METRICS + PASSES))
+              OTHER_METRICS=$((OTHER_METRICS + NON_BOOLEAN))
+              
               if [ "$FAILURES" -gt 0 ] || [ "$ERROR_COUNT" -gt 0 ]; then
-                FAILED_METRICS=$((FAILED_METRICS + FAILURES))
                 echo "  ❌ $EVAL_NAME:" >> "$ANALYSIS_FILE"
                 
                 if [ "$FAILURES" -gt 0 ]; then
@@ -221,7 +262,7 @@ for ((i=0; i<$COUNT; i++)); do
                   jq -r ".suites[$j].evaluations[$k].errors[] | \"      [\(.level)] \(.message)\"" "$OUTPUT_FILE" >> "$ANALYSIS_FILE"
                 fi
               else
-                PASSED_METRICS=$((PASSED_METRICS + METRIC_COUNT))
+                # This line is no longer needed since we count passes/fails/others individually
                 echo "  ✅ $EVAL_NAME: All metrics passed, no errors" >> "$ANALYSIS_FILE"
               fi
             done
@@ -235,7 +276,14 @@ for ((i=0; i<$COUNT; i++)); do
           echo "Total Metrics: $TOTAL_METRICS" >> "$ANALYSIS_FILE"
           echo "Passed Metrics: $PASSED_METRICS" >> "$ANALYSIS_FILE"
           echo "Failed Metrics: $FAILED_METRICS" >> "$ANALYSIS_FILE"
+          echo "Other Metrics: $OTHER_METRICS" >> "$ANALYSIS_FILE"
           echo "Total Errors: $TOTAL_ERRORS" >> "$ANALYSIS_FILE"
+          
+          # Verification of metrics counting
+          COUNTED_METRICS=$((PASSED_METRICS + FAILED_METRICS + OTHER_METRICS))
+          if [ "$COUNTED_METRICS" -ne "$TOTAL_METRICS" ]; then
+            echo "⚠️ Metrics counting discrepancy: $COUNTED_METRICS counted vs $TOTAL_METRICS total" >> "$ANALYSIS_FILE"
+          fi
           
           # Determine success/failure
           if [ "$FAILED_METRICS" -gt 0 ] || [ "$TOTAL_ERRORS" -gt 0 ]; then

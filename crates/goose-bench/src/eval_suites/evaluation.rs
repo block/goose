@@ -35,6 +35,9 @@ pub trait BenchAgent: Send + Sync {
 
     // Make get_errors async
     async fn get_errors(&self) -> Vec<BenchAgentError>;
+
+    // Get token usage information
+    async fn get_token_usage(&self) -> Option<i32>;
 }
 
 #[async_trait]
