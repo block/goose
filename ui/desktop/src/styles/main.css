@@ -95,6 +95,7 @@
     --dark-grey-90: #e1e1e1;
 
     --background-app: var(--constant-white);
+    --background-app-inverse: var(--constant-black);
     --background-prominent: var(--grey-80);
     --background-standard: var(--grey-90);
     --background-subtle: var(--grey-95);
@@ -116,9 +117,11 @@
     --text-prominent: var(--grey-10);
     --text-standard: var(--grey-20);
     --text-subtle: var(--grey-50);
+    --text-inverse: var(--constant-white);
 
     &.dark {
       --background-app: var(--constant-black);
+      --background-app-inverse: var(--constant-white);
       --background-prominent: var(--dark-grey-40);
       --background-standard: var(--dark-grey-25);
       --background-subtle: var(--dark-grey-15);
@@ -140,6 +143,7 @@
       --text-prominent: var(--constant-white);
       --text-standard: var(--dark-grey-90);
       --text-subtle: var(--dark-grey-60);
+      --text-inverse: var(--constant-black);
     }
     /* end arcade colors */
   }
