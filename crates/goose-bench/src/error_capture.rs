@@ -8,11 +8,19 @@ use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
+// Type alias to reduce complexity
+type ErrorRegistry = RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>;
+
 // Global registry for error vectors
-static ERROR_REGISTRY: Lazy<RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>> =
-    Lazy::new(|| RwLock::new(None));
+static ERROR_REGISTRY: Lazy<ErrorRegistry> = Lazy::new(|| RwLock::new(None));
 
 pub struct ErrorCaptureLayer;
+
+impl Default for ErrorCaptureLayer {
+    fn default() -> Self {
+        Self
+    }
+}
 
 impl ErrorCaptureLayer {
     pub fn new() -> Self {

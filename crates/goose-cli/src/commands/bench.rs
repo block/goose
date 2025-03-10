@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
 use goose_bench::bench_work_dir::BenchmarkWorkDir;
-use goose_bench::error_capture::ErrorCaptureLayer;
 use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
 use std::collections::HashMap;

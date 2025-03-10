@@ -212,7 +212,7 @@ mod tests {
     #[test_case(Some("test_session"), true ; "with session name and error capture")]
     #[test_case(Some("test_session"), false ; "with session name without error capture")]
     #[test_case(None, false ; "without session name")]
-    fn test_log_file_name(session_name: Option<&str>, with_error_capture: bool) {
+    fn test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
         let _rt = Runtime::new().unwrap();
 
         // Create a unique test directory for each test
