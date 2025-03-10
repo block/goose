@@ -1,10 +1,11 @@
+mod auth;
 mod token_storage;
 
+use auth::{CredentialsManager, KeychainTokenStorage};
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
-use token_storage::{CredentialsManager, KeychainTokenStorage};
 
 use mcp_core::content::Content;
 use mcp_core::{
@@ -134,22 +135,13 @@ impl GoogleDriveRouter {
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
 
-        // Read the application secret from the OAuth keyfile
+        // Create custom token storage using our credentials manager
+        let token_storage = KeychainTokenStorage::new(credentials_manager.clone());
+
         let secret = yup_oauth2::read_application_secret(keyfile_path)
             .await
             .expect("expected keyfile for google auth");
 
-        // Create custom token storage using our credentials manager
-        let token_storage = KeychainTokenStorage::new(
-            secret
-                .project_id
-                .clone()
-                .unwrap_or("unknown-project-id".to_string())
-                .to_string(),
-            credentials_manager.clone(),
-        );
-
-        // Create the authenticator with the installed flow
         let auth = InstalledFlowAuthenticator::builder(
             secret,
             yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
