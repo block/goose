@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    measure_prompt_execution_time, metrics_hashmap_to_vec, write_response_to_file, BenchAgent,
-    Evaluation, EvaluationMetric, ExtensionRequirements,
+    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec,
+    write_response_to_file, BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -45,7 +45,7 @@ impl Evaluation for RestaurantResearch {
 - Any relevant details about reservations or dining experience
 - What distinguishes them from others
 
-Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants.".to_string()
+Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants. If you encounter a page you cannot access, try another one. Do not ask me for confirmation just conduct the searches yourself until you find the needed information.".to_string()
         ).await;
 
         // Write response to file and get the text content
@@ -76,6 +76,13 @@ Present the information in order of significance or quality. Focus specifically 
             "bullet_point_count".to_string(),
             EvaluationMetric::Integer(bullet_count),
         ));
+
+        // Copy the session file to the current working directory
+        if let Err(e) = copy_session_to_cwd() {
+            println!("Warning: Failed to copy session file: {}", e);
+        } else {
+            println!("Successfully copied session file to current directory");
+        }
 
         Ok(metrics)
     }
