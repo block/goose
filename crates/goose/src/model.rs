@@ -38,14 +38,21 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
+        // Check environment variables
+        let interpret_chat_tool_calls = std::env::var("GOOSE_TOOLSHIM")
+            .map(|val| val == "1" || val.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        let tool_call_interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+
         Self {
             model_name,
             tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature: None,
             max_tokens: None,
-            interpret_chat_tool_calls: false,
-            tool_call_interpreter_model: None,
+            interpret_chat_tool_calls,
+            tool_call_interpreter_model,
         }
     }
 
