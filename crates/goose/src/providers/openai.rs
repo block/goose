@@ -7,7 +7,9 @@ use std::time::Duration;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
-use super::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
+use super::toolshim::{
+    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
+};
 use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat, ImageFormat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -158,25 +160,9 @@ impl Provider for OpenAiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = self.get_model_config();
 
-        // If tool interpretation is enabled, modify the system prompt to include tool info
-        let modified_system = if config.interpret_chat_tool_calls {
-            // Create a string with tool information
-            let mut tool_info = String::new();
-            for tool in tools {
-                tool_info.push_str(&format!(
-                    "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
-                    tool.name,
-                    serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
-                    tool.description
-                ));
-            }
-
-            // Append tool information to the system prompt
-            format!(
-                "{}\n\n{}\n\nTell the user what tool to use by specifying the tools in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n            }}\n}}. You can only use one tool at a time.",
-                system,
-                tool_info
-            )
+        // If tool interpretation is enabled, modify the system prompt
+        let system_prompt = if config.interpret_chat_tool_calls {
+            modify_system_prompt_for_tools(system, tools)
         } else {
             system.to_string()
         };
@@ -184,7 +170,7 @@ impl Provider for OpenAiProvider {
         // Create request with or without tools based on config
         let payload = create_request(
             &self.model,
-            &modified_system,
+            &system_prompt,
             messages,
             if config.interpret_chat_tool_calls {
                 &[]
