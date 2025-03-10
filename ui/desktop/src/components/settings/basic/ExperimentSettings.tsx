@@ -3,12 +3,12 @@ import { Switch } from '../../ui/switch';
 import { ChevronDown, ChevronUp } from '../../icons';
 import { getApiUrl, getSecretKey } from '../../../config';
 
-function formatString(input: string): string {
-  return input
-    .toLowerCase() // Convert to lowercase
-    .split('_') // Split by underscores
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
-    .join(' '); // Join with spaces
+function formatExperimentKey(key: string): string {
+  return key
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 export const ExperimentSettings = () => {
@@ -103,7 +103,7 @@ export const ExperimentSettings = () => {
             <div key={key} className="flex justify-between items-center mt-4">
               <div className="flex flex-col text-left">
                 <h3 className="text-sm font-semibold text-textStandard dark:text-gray-200">
-                  {formatString(key)}
+                  {formatExperimentKey(key)}
                 </h3>
                 <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
                   {descriptions[key] || 'No description available.'}
