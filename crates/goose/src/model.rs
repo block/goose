@@ -21,7 +21,7 @@ pub struct ModelConfig {
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
     pub max_tokens: Option<i32>,
-    /// Whether to interpret tool calls - controlled by both env var and config
+    /// Whether to interpret tool calls - controlled by env var
     pub interpret_chat_tool_calls: bool,
     /// Model to use for interpreting tool calls (optional)
     pub tool_call_interpreter_model: Option<String>,
@@ -38,17 +38,14 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
-        // Get interpreter model from env var if set
-        let tool_call_interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
-
         Self {
             model_name,
             tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature: None,
             max_tokens: None,
-            interpret_chat_tool_calls: false, // Default to false, will be set by env var or config
-            tool_call_interpreter_model,
+            interpret_chat_tool_calls: false,
+            tool_call_interpreter_model: None,
         }
     }
 
@@ -105,32 +102,19 @@ impl ModelConfig {
         self
     }
 
-    /// Update config from external settings while respecting env vars
-    pub fn update_from_config(
-        &mut self,
-        config: &serde_json::Value,
-    ) -> Result<(), serde_json::Error> {
-        // Check env var first - it overrides everything if set
-        if let Ok(val) = std::env::var("GOOSE_TOOLSHIM") {
-            self.interpret_chat_tool_calls = val == "1" || val.to_lowercase() == "true";
-        } else {
-            // If env var not set, use config value
-            if let Some(interpret_tools) = config.get("interpret_chat_tool_calls") {
-                self.interpret_chat_tool_calls = interpret_tools.as_bool().unwrap_or(false);
-            }
-        }
-
-        // Allow overriding interpreter model regardless
-        if let Some(interpreter) = config.get("tool_call_interpreter_model") {
-            if let Some(model) = interpreter.as_str() {
-                self.tool_call_interpreter_model = Some(model.to_string());
-            }
-        }
-
-        Ok(())
+    /// Set whether to interpret tool calls
+    pub fn with_tool_interpretation(mut self, interpret: bool) -> Self {
+        self.interpret_chat_tool_calls = interpret;
+        self
     }
 
-    // Get the tokenizer name
+    /// Set the tool call interpreter model
+    pub fn with_tool_interpreter(mut self, model: Option<String>) -> Self {
+        self.tool_call_interpreter_model = model;
+        self
+    }
+
+    /// Get the tokenizer name
     pub fn tokenizer_name(&self) -> &str {
         &self.tokenizer_name
     }
@@ -145,7 +129,6 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn test_model_config_context_limits() {
@@ -180,58 +163,20 @@ mod tests {
 
     #[test]
     fn test_model_config_tool_interpretation() {
-        // Test without env vars or config - should be false
-        let mut config = ModelConfig::new("test-model".to_string());
+        // Test without env vars - should be false
+        let config = ModelConfig::new("test-model".to_string());
         assert!(!config.interpret_chat_tool_calls);
 
-        // Test with just config - should use config value
-        config
-            .update_from_config(&json!({
-                "interpret_chat_tool_calls": true
-            }))
-            .unwrap();
+        // Test with tool interpretation setting
+        let config = ModelConfig::new("test-model".to_string()).with_tool_interpretation(true);
         assert!(config.interpret_chat_tool_calls);
 
-        // Test with env var false - should override config
-        std::env::set_var("GOOSE_TOOLSHIM", "0");
-        config
-            .update_from_config(&json!({
-                "interpret_chat_tool_calls": true
-            }))
-            .unwrap();
-        assert!(!config.interpret_chat_tool_calls);
-
-        // Test with env var true - should override config false
-        std::env::set_var("GOOSE_TOOLSHIM", "1");
-        config
-            .update_from_config(&json!({
-                "interpret_chat_tool_calls": false
-            }))
-            .unwrap();
-        assert!(config.interpret_chat_tool_calls);
-
-        // Test interpreter model setting
-        std::env::set_var("GOOSE_TOOLSHIM_OLLAMA_MODEL", "mistral-nemo");
-        config
-            .update_from_config(&json!({
-                "tool_call_interpreter_model": "other-model"
-            }))
-            .unwrap();
+        // Test tool interpreter model
+        let config = ModelConfig::new("test-model".to_string())
+            .with_tool_interpreter(Some("mistral-nemo".to_string()));
         assert_eq!(
             config.tool_call_interpreter_model,
-            Some("other-model".to_string())
+            Some("mistral-nemo".to_string())
         );
-
-        // Clean up env vars
-        std::env::remove_var("GOOSE_TOOLSHIM");
-        std::env::remove_var("GOOSE_TOOLSHIM_OLLAMA_MODEL");
-
-        // After env var removal, should use config value
-        config
-            .update_from_config(&json!({
-                "interpret_chat_tool_calls": true
-            }))
-            .unwrap();
-        assert!(config.interpret_chat_tool_calls);
     }
 }
