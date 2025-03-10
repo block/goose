@@ -146,7 +146,7 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
-    /// Structure a response into tool calls if needed
+    /// Post-process / structure a response before returning it
     /// Default implementation returns the message as-is
     async fn structure_response(
         &self,
