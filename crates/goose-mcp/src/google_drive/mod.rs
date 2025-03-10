@@ -29,6 +29,11 @@ use google_drive3::{
     DriveHub,
 };
 
+use google_sheets4::{
+    self,
+    Sheets,
+};
+
 use http_body_util::BodyExt;
 
 /// async function to be pinned by the `present_user_url` method of the trait
@@ -67,10 +72,11 @@ pub struct GoogleDriveRouter {
     tools: Vec<Tool>,
     instructions: String,
     drive: DriveHub<HttpsConnector<HttpConnector>>,
+    sheets: Sheets<HttpsConnector<HttpConnector>>,
 }
 
 impl GoogleDriveRouter {
-    async fn google_auth() -> DriveHub<HttpsConnector<HttpConnector>> {
+    async fn google_auth() -> (DriveHub<HttpsConnector<HttpConnector>>, Sheets<HttpsConnector<HttpConnector>>) {
         let oauth_config = env::var("GOOGLE_DRIVE_OAUTH_CONFIG");
         let keyfile_path_str = env::var("GOOGLE_DRIVE_OAUTH_PATH")
             .unwrap_or_else(|_| "./gcp-oauth.keys.json".to_string());
@@ -129,11 +135,14 @@ impl GoogleDriveRouter {
                         .build(),
                 );
 
-        DriveHub::new(client, auth)
+        let drive_hub = DriveHub::new(client.clone(), auth.clone());
+        let sheets_hub = Sheets::new(client, auth);
+
+        (drive_hub, sheets_hub)
     }
 
     pub async fn new() -> Self {
-        let drive = Self::google_auth().await;
+        let (drive, sheets) = Self::google_auth().await;
 
         // handle auth
         let search_tool = Tool::new(
@@ -185,13 +194,37 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let sheet_values_tool = Tool::new(
+            "sheet_values".to_string(),
+            indoc! {r#"
+                Get values from a Google Sheet using the spreadsheet ID and range.
+                Returns the values as a CSV string.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "spreadsheetId": {
+                      "type": "string",
+                      "description": "The ID of the spreadsheet to retrieve data from",
+                  },
+                  "range": {
+                      "type": "string",
+                      "description": "The A1 notation or R1C1 notation of the range to retrieve values from",
+                  }
+              },
+              "required": ["spreadsheetId", "range"],
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
             ## Overview
-            The Google Drive MCP server provides two main tools for interacting with Google Drive files:
+            The Google Drive MCP server provides tools for interacting with Google Drive files and Google Sheets:
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
+            3. sheet_values - Get values from a Google Sheet using spreadsheet ID and range
 
             ## Available Tools
 
@@ -210,6 +243,12 @@ impl GoogleDriveRouter {
             Limitations: Google Sheets exporting only supports reading the first sheet. This is an important limitation that should
             be communicated to the user whenever dealing with a Google Sheet (mimeType: application/vnd.google-apps.spreadsheet).
 
+            ### 3. Sheet Values Tool
+            Get values from a Google Sheet using the spreadsheet ID and range.
+            - spreadsheetId: The ID of the spreadsheet (can be obtained from search results)
+            - range: The A1 notation or R1C1 notation of the range (e.g., "Sheet1!A1:D10")
+            Returns the values as a CSV string.
+
             ## File Format Handling
             The server automatically handles different file types:
             - Google Docs → Markdown
@@ -222,6 +261,7 @@ impl GoogleDriveRouter {
 
             1. First, search for the file you want to read, searching by name.
             2. Then, use the file URI from the search results to read its contents.
+            3. For Google Sheets, you can use either the read tool or the sheet_values tool.
 
             ## Best Practices
             1. Always use search first to find the correct file URI
@@ -240,9 +280,10 @@ impl GoogleDriveRouter {
         "#};
 
         Self {
-            tools: vec![search_tool, read_tool],
+            tools: vec![search_tool, read_tool, sheet_values_tool],
             instructions,
             drive,
+            sheets,
         }
     }
 
@@ -506,6 +547,61 @@ impl GoogleDriveRouter {
         }
     }
 
+    // Implement Google Sheets functionality
+    async fn sheet_values(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let spreadsheet_id = params
+            .get("spreadsheetId")
+            .and_then(|q| q.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The spreadsheetId is required".to_string(),
+            ))?;
+
+        let range = params
+            .get("range")
+            .and_then(|q| q.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The range is required".to_string(),
+            ))?;
+
+        let result = self
+            .sheets
+            .spreadsheets()
+            .values_get(spreadsheet_id, range)
+            .clear_scopes()
+            .add_scope(Scope::Readonly)
+            .doit()
+            .await;
+
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to execute Google Sheets values_get query, {}.",
+                e
+            ))),
+            Ok(r) => {
+                let value_range = r.1;
+                
+                // Convert the values to a CSV string
+                let csv_content = match value_range.values {
+                    Some(values) => {
+                        let mut csv_string = String::new();
+                        for row in values {
+                            let row_values: Vec<String> = row
+                                .into_iter()
+                                .map(|cell| cell.as_str().unwrap_or_default().to_string())
+                                .collect();
+                            csv_string.push_str(&row_values.join(","));
+                            csv_string.push('\n');
+                        }
+                        csv_string
+                    }
+                    None => "No data found".to_string(),
+                };
+
+                Ok(vec![Content::text(csv_content).with_priority(0.1)])
+            }
+        }
+    }
+
     async fn read_google_resource(&self, uri: String) -> Result<String, ResourceError> {
         self.read(json!({"uri": uri}))
             .await
@@ -599,6 +695,7 @@ impl Router for GoogleDriveRouter {
             match tool_name.as_str() {
                 "search" => this.search(arguments).await,
                 "read" => this.read(arguments).await,
+                "sheet_values" => this.sheet_values(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
@@ -644,6 +741,7 @@ impl Clone for GoogleDriveRouter {
             tools: self.tools.clone(),
             instructions: self.instructions.clone(),
             drive: self.drive.clone(),
+            sheets: self.sheets.clone(),
         }
     }
 }
