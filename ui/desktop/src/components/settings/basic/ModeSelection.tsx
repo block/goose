@@ -12,7 +12,8 @@ export const ModeSelection = () => {
     {
       value: 'approve',
       label: 'Approval needed',
-      description: 'Editing, creating, and deleting files will require human approval.',
+      description:
+        'Intelligently determines which actions need human approval based on risk level.',
     },
     {
       value: 'chat',

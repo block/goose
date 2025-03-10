@@ -4,7 +4,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use goose::config::{Config, ExperimentManager};
+use goose::config::Config;
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
@@ -68,12 +68,6 @@ pub struct ProviderDetails {
 #[derive(Serialize, ToSchema)]
 pub struct ProvidersResponse {
     pub providers: Vec<ProviderDetails>,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct ExperimentQuery {
-    pub key: String,
-    pub value: bool,
 }
 
 #[utoipa::path(
@@ -366,36 +360,6 @@ fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
     true
 }
 
-#[utoipa::path(
-    put,
-    path = "/config/extension",
-    request_body = ExperimentQuery,
-    responses(
-        (status = 200, description = "Experiment configuration updated successfully", body = String),
-        (status = 404, description = "Experiment not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn update_experiment(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(experiment): Json<ExperimentQuery>,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let all_experiments = ExperimentManager::get_all();
-    if let Ok(experiments) = all_experiments {
-        if !experiments.iter().any(|(k, _)| k == &experiment.key) {
-            return Err(StatusCode::NOT_FOUND);
-        }
-    } else {
-        return Err(StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    let _ = ExperimentManager::set_enabled(&experiment.key, experiment.value);
-    Ok(Json(format!("Updated experiment {}", experiment.key)))
-}
-
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -406,6 +370,5 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extension", put(update_extension))
         .route("/config/extension", delete(remove_extension))
         .route("/config/providers", get(providers))
-        .route("/config/experiment", put(update_experiment))
         .with_state(state)
 }
