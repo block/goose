@@ -4,7 +4,7 @@ import { useRecentModels } from './settings/models/RecentModels'; // Hook for re
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View } from '../ChatWindow';
+import type { View } from '../App';
 import { getApiUrl, getSecretKey } from '../config';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 

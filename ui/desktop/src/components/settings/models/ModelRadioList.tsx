@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRecentModels } from './RecentModels';
-import { useModel } from './ModelContext';
+import { useModel, Model } from './ModelContext';
 import { useHandleModelSelection } from './utils';
 import type { View } from '@/src/App';
-import { SettingsViewOptions } from '@/src/components/settings/SettingsView';
-
-export interface Model {
-  id?: number; // Make `id` optional to allow user-defined models
-  name: string;
-  provider: string;
-  lastUsed?: string;
-}
 
 interface ModelRadioListProps {
   renderItem: (props: {
