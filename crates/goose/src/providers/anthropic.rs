@@ -45,7 +45,7 @@ impl AnthropicProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
-            .get("ANTHROPIC_HOST")
+            .get_param("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
         let client = Client::builder()
