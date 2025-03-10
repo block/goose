@@ -96,7 +96,7 @@ Here's how to configure:
     4. Under `Mode Selection`, choose the mode you'd like
 
     :::info
-    If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls with write operations.
+    If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls. Goose will only ask for permission before tool call for tools that it deems are 'write' tools, for example any 'text editor write', 'text editor edit', 'bash - rm, cp, mv' commands, as an example. Read write approval makes best effort attempt at classifying read or write tools- this is interpreted by your LLM provider. 
     :::
 
   </TabItem>

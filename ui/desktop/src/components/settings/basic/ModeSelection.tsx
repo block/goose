@@ -13,7 +13,7 @@ export const ModeSelection = () => {
       value: 'approve',
       label: 'Approval needed',
       description:
-        'Intelligently determines which actions need human approval based on risk level.',
+        'Classifies the tool as either a read-only tool or write tool. Write tools will ask for human approval.',
     },
     {
       value: 'chat',
