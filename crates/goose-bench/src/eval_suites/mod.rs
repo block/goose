@@ -2,8 +2,8 @@ mod core;
 mod evaluation;
 mod factory;
 mod metrics;
-mod vibes;
 mod utils;
+mod vibes;
 
 pub use evaluation::*;
 pub use factory::{register_evaluation, EvaluationSuiteFactory};
