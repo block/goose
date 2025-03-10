@@ -1,10 +1,10 @@
-mod auth;
+mod token_storage;
 
-use auth::{CredentialsManager, KeychainTokenStorage};
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
+use token_storage::{CredentialsManager, KeychainTokenStorage};
 
 use mcp_core::content::Content;
 use mcp_core::{

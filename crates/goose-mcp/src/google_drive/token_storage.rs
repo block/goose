@@ -1,6 +1,7 @@
 use anyhow::Result;
 use google_drive3::yup_oauth2::storage::{TokenInfo, TokenStorage};
 use keyring::Entry;
+use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -9,7 +10,9 @@ use tracing::{debug, error, warn};
 
 const KEYCHAIN_SERVICE: &str = "mcp_google_drive";
 const KEYCHAIN_USERNAME: &str = "oauth_credentials";
+const KEYCHAIN_DISK_FALLBACK_ENV: &str = "GOOGLE_DRIVE_DISK_FALLBACK";
 
+#[allow(dead_code)]
 #[derive(Error, Debug)]
 pub enum AuthError {
     #[error("Failed to access keychain: {0}")]
@@ -26,44 +29,43 @@ pub enum AuthError {
 
 /// CredentialsManager handles secure storage of OAuth credentials.
 /// It attempts to store credentials in the system keychain first,
-/// with fallback to file system storage if keychain access fails.
+/// with fallback to file system storage if keychain access fails and fallback is enabled.
 pub struct CredentialsManager {
     credentials_path: String,
+    fallback_to_disk: bool,
 }
 
 impl CredentialsManager {
     pub fn new(credentials_path: String) -> Self {
-        Self { credentials_path }
+        // Check if we should fall back to disk, must be explicitly enabled
+        let fallback_to_disk = match env::var(KEYCHAIN_DISK_FALLBACK_ENV) {
+            Ok(value) => value.to_lowercase() == "true",
+            Err(_) => false,
+        };
+
+        Self {
+            credentials_path,
+            fallback_to_disk,
+        }
     }
 
     pub fn read_credentials(&self) -> Result<String, AuthError> {
-        // First try to read from keychain
-        let entry = match Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME) {
-            Ok(entry) => entry,
-            Err(e) => {
-                warn!("Failed to create keychain entry: {}", e);
-                return self.read_from_file();
-            }
-        };
-
-        match entry.get_password() {
-            Ok(content) => {
+        Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME)
+            .and_then(|entry| entry.get_password())
+            .inspect(|_| {
                 debug!("Successfully read credentials from keychain");
-                Ok(content)
-            }
-            Err(keyring::Error::NoEntry) => {
-                debug!("No credentials found in keychain, falling back to file system");
-                self.read_from_file()
-            }
-            Err(e) => {
-                // Categorize errors - some might be critical and should not trigger fallback
-                warn!(
-                    "Non-critical keychain error: {}, falling back to file system",
-                    e
-                );
-                self.read_from_file()
-            }
-        }
+            })
+            .or_else(|e| {
+                if self.fallback_to_disk {
+                    debug!("Falling back to file system due to keyring error: {}", e);
+                    self.read_from_file()
+                } else {
+                    match e {
+                        keyring::Error::NoEntry => Err(AuthError::NotFound),
+                        _ => Err(AuthError::KeyringError(e)),
+                    }
+                }
+            })
     }
 
     fn read_from_file(&self) -> Result<String, AuthError> {
@@ -86,29 +88,19 @@ impl CredentialsManager {
     }
 
     pub fn write_credentials(&self, content: &str) -> Result<(), AuthError> {
-        // Try to write to keychain first
-        let entry = match Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME) {
-            Ok(entry) => entry,
-            Err(e) => {
-                warn!("Failed to create keychain entry: {}", e);
-                return self.write_to_file(content);
-            }
-        };
-
-        // Fallback to writing on disk if we can't write to the keychain
-        match entry.set_password(content) {
-            Ok(_) => {
+        Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME)
+            .and_then(|entry| entry.set_password(content))
+            .inspect(|_| {
                 debug!("Successfully wrote credentials to keychain");
-                Ok(())
-            }
-            Err(e) => {
-                warn!(
-                    "Non-critical keychain error: {}, falling back to file system",
-                    e
-                );
-                self.write_to_file(content)
-            }
-        }
+            })
+            .or_else(|e| {
+                if self.fallback_to_disk {
+                    warn!("Falling back to file system due to keyring error: {}", e);
+                    self.write_to_file(content)
+                } else {
+                    Err(AuthError::KeyringError(e))
+                }
+            })
     }
 
     fn write_to_file(&self, content: &str) -> Result<(), AuthError> {
@@ -138,7 +130,7 @@ impl CredentialsManager {
     }
 }
 
-/// Storage entry that includes both the token and the scopes it's valid for
+/// Storage entry that includes the token, scopes and project it's valid for
 #[derive(serde::Serialize, serde::Deserialize)]
 struct StorageEntry {
     token: TokenInfo,
@@ -164,9 +156,9 @@ impl KeychainTokenStorage {
 
     fn generate_scoped_key(&self, scopes: &[&str]) -> String {
         // Create a key based on the scopes and project_id
+        // Sort so we can be consistent using scopes as the key
         let mut sorted_scopes = scopes.to_vec();
         sorted_scopes.sort();
-
         sorted_scopes.join(" ")
     }
 }
@@ -176,7 +168,6 @@ impl TokenStorage for KeychainTokenStorage {
     /// Store a token in the keychain
     async fn set(&self, scopes: &[&str], token_info: TokenInfo) -> Result<()> {
         let key = self.generate_scoped_key(scopes);
-        debug!("Storing OAuth token in keychain for scopes: {:?}", key);
 
         // Create a storage entry that includes the scopes
         let storage_entry = StorageEntry {
@@ -197,23 +188,17 @@ impl TokenStorage for KeychainTokenStorage {
     /// Retrieve a token from the keychain
     async fn get(&self, scopes: &[&str]) -> Option<TokenInfo> {
         let key = self.generate_scoped_key(scopes);
-        debug!("Retrieving OAuth token from keychain for key: {:?}", key);
 
         match self.credentials_manager.read_credentials() {
             Ok(json) => {
                 debug!("Successfully read credentials from storage");
                 match serde_json::from_str::<StorageEntry>(&json) {
                     Ok(entry) => {
-                        // Check if the stored token has the requested scopes
-                        debug!("{} == {}", entry.project_id, self.project_id);
+                        // Check if token has the requested scopes and matches the project_id
                         if entry.project_id == self.project_id && entry.scopes == key {
                             debug!("Successfully retrieved OAuth token from storage");
                             Some(entry.token)
                         } else {
-                            debug!(
-                                "Found token but scopes don't match. Stored: {}, Requested: {}",
-                                entry.scopes, key
-                            );
                             None
                         }
                     }
@@ -239,6 +224,7 @@ impl Clone for CredentialsManager {
     fn clone(&self) -> Self {
         Self {
             credentials_path: self.credentials_path.clone(),
+            fallback_to_disk: self.fallback_to_disk,
         }
     }
 }
@@ -246,27 +232,15 @@ impl Clone for CredentialsManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_write_read_credentials() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let manager = CredentialsManager::new(temp_file.path().to_string_lossy().to_string());
-
-        // Write test credentials
-        let test_content = r#"{"access_token":"test_token","token_type":"Bearer"}"#;
-        manager.write_credentials(test_content).unwrap();
-
-        // Read back and verify
-        let read_content = manager.read_credentials().unwrap();
-        assert_eq!(read_content, test_content);
-    }
-
     #[tokio::test]
+    #[serial]
     async fn test_token_storage_set_get() {
         // Create a temporary file for testing
         let temp_file = NamedTempFile::new().unwrap();
-        let project_id = "test_project".to_string();
+        let project_id = "test_project_1".to_string();
         let credentials_manager = Arc::new(CredentialsManager::new(
             temp_file.path().to_string_lossy().to_string(),
         ));
@@ -295,10 +269,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_token_storage_scope_mismatch() {
         // Create a temporary file for testing
         let temp_file = NamedTempFile::new().unwrap();
-        let project_id = "test_project".to_string();
+        let project_id = "test_project_2".to_string();
         let credentials_manager = Arc::new(CredentialsManager::new(
             temp_file.path().to_string_lossy().to_string(),
         ));
