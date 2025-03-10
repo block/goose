@@ -78,7 +78,7 @@ impl From<keyring::Error> for ConfigError {
 ///
 /// // Get a string value
 /// let config = Config::global();
-/// let api_key: String = config.get("OPENAI_API_KEY").unwrap();
+/// let api_key: String = config.get_param("OPENAI_API_KEY").unwrap();
 ///
 /// // Get a complex type
 /// #[derive(Deserialize)]
@@ -87,7 +87,7 @@ impl From<keyring::Error> for ConfigError {
 ///     port: u16,
 /// }
 ///
-/// let server_config: ServerConfig = config.get("server").unwrap();
+/// let server_config: ServerConfig = config.get_param("server").unwrap();
 /// ```
 ///
 /// # Naming Convention
@@ -204,7 +204,25 @@ impl Config {
         }
     }
 
-    /// Get a configuration value.
+    // check all possible places for a parameter
+    pub fn get(&self, key: &str, is_secret: bool) -> Result<Value, ConfigError> {
+        if is_secret {
+            self.get_secret(key)
+        } else {
+            self.get_param(key)
+        }
+    }
+
+    // save a parameter in the appropriate location based on if it's secret or not
+    pub fn set(&self, key: &str, value: Value, is_secret: bool) -> Result<(), ConfigError> {
+        if is_secret {
+            self.set_secret(key, value)
+        } else {
+            self.set_param(key, value)
+        }
+    }
+
+    /// Get a configuration value (non-secret).
     ///
     /// This will attempt to get the value from:
     /// 1. Environment variable with the exact key name
@@ -220,7 +238,7 @@ impl Config {
     /// - The key doesn't exist in either environment or config file
     /// - The value cannot be deserialized into the requested type
     /// - There is an error reading the config file
-    pub fn get<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
+    pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
         // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
@@ -239,7 +257,7 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
-    /// Set a configuration value in the config file.
+    /// Set a configuration value in the config file (non-secret).
     ///
     /// This will immediately write the value to the config file. The value
     /// can be any type that can be serialized to JSON/YAML.
@@ -252,7 +270,7 @@ impl Config {
     /// Returns a ConfigError if:
     /// - There is an error reading or writing the config file
     /// - There is an error serializing the value
-    pub fn set(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+    pub fn set_param(&self, key: &str, value: Value) -> Result<(), ConfigError> {
         let mut values = self.load_values()?;
         values.insert(key.to_string(), value);
 
@@ -377,15 +395,15 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set a simple string value
-        config.set("test_key", Value::String("test_value".to_string()))?;
+        config.set_param("test_key", Value::String("test_value".to_string()))?;
 
         // Test simple string retrieval
-        let value: String = config.get("test_key")?;
+        let value: String = config.get_param("test_key")?;
         assert_eq!(value, "test_value");
 
         // Test with environment variable override
         std::env::set_var("TEST_KEY", "env_value");
-        let value: String = config.get("test_key")?;
+        let value: String = config.get_param("test_key")?;
         assert_eq!(value, "env_value");
 
         Ok(())
@@ -403,7 +421,7 @@ mod tests {
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
         // Set a complex value
-        config.set(
+        config.set_param(
             "complex_key",
             serde_json::json!({
                 "field1": "hello",
@@ -411,7 +429,7 @@ mod tests {
             }),
         )?;
 
-        let value: TestStruct = config.get("complex_key")?;
+        let value: TestStruct = config.get_param("complex_key")?;
         assert_eq!(value.field1, "hello");
         assert_eq!(value.field2, 42);
 
@@ -423,7 +441,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE).unwrap();
 
-        let result: Result<String, ConfigError> = config.get("nonexistent_key");
+        let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
     }
 
@@ -432,8 +450,8 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
-        config.set("key1", Value::String("value1".to_string()))?;
-        config.set("key2", Value::Number(42.into()))?;
+        config.set_param("key1", Value::String("value1".to_string()))?;
+        config.set_param("key2", Value::Number(42.into()))?;
 
         // Read the file directly to check YAML formatting
         let content = std::fs::read_to_string(temp_file.path())?;
@@ -448,14 +466,14 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
 
-        config.set("key", Value::String("value".to_string()))?;
+        config.set_param("key", Value::String("value".to_string()))?;
 
-        let value: String = config.get("key")?;
+        let value: String = config.get_param("key")?;
         assert_eq!(value, "value");
 
         config.delete("key")?;
 
-        let result: Result<String, ConfigError> = config.get("key");
+        let result: Result<String, ConfigError> = config.get_param("key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
         Ok(())

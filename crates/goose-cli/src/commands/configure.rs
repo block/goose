@@ -184,7 +184,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .collect();
 
     // Get current default provider if it exists
-    let current_provider: Option<String> = config.get("GOOSE_PROVIDER").ok();
+    let current_provider: Option<String> = config.get_param("GOOSE_PROVIDER").ok();
     let default_provider = current_provider.unwrap_or_default();
 
     // Select provider
@@ -219,7 +219,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     if key.secret {
                         config.set_secret(&key.name, Value::String(env_value))?;
                     } else {
-                        config.set(&key.name, Value::String(env_value))?;
+                        config.set_param(&key.name, Value::String(env_value))?;
                     }
                     let _ = cliclack::log::info(format!("Saved {} to config file", key.name));
                 }
@@ -229,7 +229,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
-                    config.get(&key.name)
+                    config.get_param(&key.name)
                 };
 
                 match existing {
@@ -252,7 +252,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             if key.secret {
                                 config.set_secret(&key.name, Value::String(new_value))?;
                             } else {
-                                config.set(&key.name, Value::String(new_value))?;
+                                config.set_param(&key.name, Value::String(new_value))?;
                             }
                         }
                     }
@@ -278,7 +278,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                         if key.secret {
                             config.set_secret(&key.name, Value::String(value))?;
                         } else {
-                            config.set(&key.name, Value::String(value))?;
+                            config.set_param(&key.name, Value::String(value))?;
                         }
                     }
                 }
@@ -325,8 +325,8 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     match result {
         Ok((_message, _usage)) => {
             // Update config with new values only if the test succeeds
-            config.set("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
-            config.set("GOOSE_MODEL", Value::String(model.clone()))?;
+            config.set_param("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
+            config.set_param("GOOSE_MODEL", Value::String(model.clone()))?;
             cliclack::outro("Configuration saved successfully")?;
             Ok(true)
         }
@@ -708,15 +708,15 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
 
     match mode {
         "auto" => {
-            config.set("GOOSE_MODE", Value::String("auto".to_string()))?;
+            config.set_param("GOOSE_MODE", Value::String("auto".to_string()))?;
             cliclack::outro("Set to Auto Mode - full file modification enabled")?;
         }
         "approve" => {
-            config.set("GOOSE_MODE", Value::String("approve".to_string()))?;
+            config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
             cliclack::outro("Set to Approve Mode - modifications require approval")?;
         }
         "chat" => {
-            config.set("GOOSE_MODE", Value::String("chat".to_string()))?;
+            config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
             cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
         }
         _ => unreachable!(),
@@ -738,15 +738,15 @@ pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
 
     match tool_log_level {
         "high" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
         "medium" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
         "all" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
             cliclack::outro("Showing all tool output.")?;
         }
         _ => unreachable!(),

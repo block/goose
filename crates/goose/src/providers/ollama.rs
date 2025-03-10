@@ -39,7 +39,7 @@ impl OllamaProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
-            .get("OLLAMA_HOST")
+            .get_param("OLLAMA_HOST")
             .unwrap_or_else(|_| OLLAMA_HOST.to_string());
 
         let client = Client::builder()

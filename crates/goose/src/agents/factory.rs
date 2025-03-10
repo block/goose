@@ -50,7 +50,7 @@ impl AgentFactory {
     pub fn configured_version() -> String {
         let config = Config::global();
         config
-            .get::<String>("GOOSE_AGENT")
+            .get_param::<String>("GOOSE_AGENT")
             .unwrap_or_else(|_| Self::default_version().to_string())
     }
 

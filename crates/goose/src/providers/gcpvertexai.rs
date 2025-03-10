@@ -146,7 +146,7 @@ impl GcpVertexAIProvider {
     /// * `model` - Configuration for the model to be used
     async fn new_async(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
-        let project_id = config.get("GCP_PROJECT_ID")?;
+        let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
         let host = format!("https://{}-aiplatform.googleapis.com", location);
 
@@ -173,25 +173,25 @@ impl GcpVertexAIProvider {
     /// Loads retry configuration from environment variables or uses defaults.
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         let max_retries = config
-            .get("GCP_MAX_RETRIES")
+            .get_param("GCP_MAX_RETRIES")
             .ok()
             .and_then(|v: String| v.parse::<usize>().ok())
             .unwrap_or(DEFAULT_MAX_RETRIES);
 
         let initial_interval_ms = config
-            .get("GCP_INITIAL_RETRY_INTERVAL_MS")
+            .get_param("GCP_INITIAL_RETRY_INTERVAL_MS")
             .ok()
             .and_then(|v: String| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
 
         let backoff_multiplier = config
-            .get("GCP_BACKOFF_MULTIPLIER")
+            .get_param("GCP_BACKOFF_MULTIPLIER")
             .ok()
             .and_then(|v: String| v.parse::<f64>().ok())
             .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
 
         let max_interval_ms = config
-            .get("GCP_MAX_RETRY_INTERVAL_MS")
+            .get_param("GCP_MAX_RETRY_INTERVAL_MS")
             .ok()
             .and_then(|v: String| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
@@ -211,7 +211,7 @@ impl GcpVertexAIProvider {
     /// 2. Global default location (Iowa)
     fn determine_location(config: &crate::config::Config) -> Result<String> {
         Ok(config
-            .get("GCP_LOCATION")
+            .get_param("GCP_LOCATION")
             .ok()
             .filter(|location: &String| !location.trim().is_empty())
             .unwrap_or_else(|| Iowa.to_string()))

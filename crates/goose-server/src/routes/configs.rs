@@ -43,7 +43,7 @@ async fn store_config(
     let result = if request.is_secret {
         config.set_secret(&request.key, Value::String(request.value))
     } else {
-        config.set(&request.key, Value::String(request.value))
+        config.set_param(&request.key, Value::String(request.value))
     };
     match result {
         Ok(_) => Ok(Json(ConfigResponse { error: false })),
@@ -87,7 +87,7 @@ static PROVIDER_ENV_REQUIREMENTS: Lazy<HashMap<String, ProviderConfig>> = Lazy::
 fn check_key_status(config: &Config, key: &str) -> (bool, Option<String>) {
     if let Ok(_value) = std::env::var(key) {
         (true, Some("env".to_string()))
-    } else if config.get::<String>(key).is_ok() {
+    } else if config.get_param::<String>(key).is_ok() {
         (true, Some("yaml".to_string()))
     } else if config.get_secret::<String>(key).is_ok() {
         (true, Some("keyring".to_string()))
@@ -171,7 +171,7 @@ pub async fn get_config(
 
     // Fetch the configuration value. Right now we don't allow get a secret.
     let config = Config::global();
-    let value = if let Ok(config_value) = config.get::<String>(&query.key) {
+    let value = if let Ok(config_value) = config.get_param::<String>(&query.key) {
         Some(config_value)
     } else if let Ok(env_value) = std::env::var(&query.key) {
         Some(env_value)

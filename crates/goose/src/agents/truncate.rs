@@ -171,7 +171,7 @@ impl Agent for TruncateAgent {
 
         // Load settings from config
         let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name

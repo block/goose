@@ -5,10 +5,18 @@ import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetup
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { useProviderModal } from './ProviderModalProvider';
-import { toast } from 'react-toastify';
-import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 import DefaultSubmitHandler from './subcomponents/handlers/DefaultSubmitHandler';
+import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
+import OllamaForm from './subcomponents/forms/OllamaForm';
+
+const customSubmitHandler = {
+  provider_name: OllamaSubmitHandler, // example
+};
+
+const customForms = {
+  provider_name: OllamaForm, // example
+};
 
 export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
@@ -32,23 +40,11 @@ export default function ProviderConfigurationModal() {
 
   if (!isOpen || !currentProvider) return null;
 
-  const headerText = `Configure ${currentProvider.name}`;
+  const headerText = `Configure ${currentProvider.metadata.display_name}`;
   const descriptionText = `Add your API key(s) for this provider to integrate into Goose`;
 
-  // Find the provider in the registry to get the details with customForm
-  const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
-
-  // Get the custom submit handler from the provider details
-  const customSubmitHandler = providerEntry?.details?.customSubmit;
-
-  // Use custom submit handler otherwise use default
-  const SubmitHandler = customSubmitHandler || DefaultSubmitHandler;
-
-  // Get the custom form component from the provider details
-  const CustomForm = providerEntry?.details?.customForm;
-
-  // Use custom form component if available, otherwise use default
-  const FormComponent = CustomForm || DefaultProviderSetupForm;
+  const SubmitHandler = customSubmitHandler[currentProvider.name] || DefaultSubmitHandler;
+  const FormComponent = customForms[currentProvider.name] || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
@@ -74,7 +70,7 @@ export default function ProviderConfigurationModal() {
     <Modal>
       <div className="space-y-1">
         {/* Logo area - centered above title */}
-        <ProviderLogo providerName={currentProvider.id} />
+        <ProviderLogo providerName={currentProvider.name} />
         {/* Title and some information - centered */}
         <ProviderSetupHeader title={headerText} body={descriptionText} />
       </div>
@@ -87,7 +83,7 @@ export default function ProviderConfigurationModal() {
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
 
-      {providerEntry?.details?.parameters && providerEntry.details.parameters.length > 0 && (
+      {currentProvider.metadata.config_keys && currentProvider.metadata.config_keys.length > 0 && (
         <SecureStorageNotice />
       )}
       <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />

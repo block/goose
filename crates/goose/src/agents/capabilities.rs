@@ -351,7 +351,7 @@ impl Capabilities {
 
         let mut system_prompt_extensions = self.system_prompt_extensions.clone();
         let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         if goose_mode == "chat" {
             system_prompt_extensions.push(
                 "Right now you are in the chat only mode, no access to any tool use and system."

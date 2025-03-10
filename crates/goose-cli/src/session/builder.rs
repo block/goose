@@ -21,11 +21,11 @@ pub async fn build_session(
     let config = Config::global();
 
     let provider_name: String = config
-        .get("GOOSE_PROVIDER")
+        .get_param("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
 
     let model: String = config
-        .get("GOOSE_MODEL")
+        .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let model_config = goose::model::ModelConfig::new(model.clone());
     let provider =
@@ -137,7 +137,7 @@ pub async fn build_session(
         .await;
 
     // Only override system prompt if a system override exists
-    let system_prompt_file: Option<String> = config.get("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
+    let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
     if let Some(ref path) = system_prompt_file {
         let override_prompt =
             std::fs::read_to_string(path).expect("Failed to read system prompt file");

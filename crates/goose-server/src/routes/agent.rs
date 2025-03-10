@@ -121,7 +121,7 @@ async fn create_agent(
     let config = Config::global();
     let model = payload.model.unwrap_or_else(|| {
         config
-            .get("GOOSE_MODEL")
+            .get_param("GOOSE_MODEL")
             .expect("Did not find a model on payload or in env")
     });
     let model_config = ModelConfig::new(model);

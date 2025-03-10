@@ -40,10 +40,10 @@ impl AzureProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("AZURE_OPENAI_API_KEY")?;
-        let endpoint: String = config.get("AZURE_OPENAI_ENDPOINT")?;
-        let deployment_name: String = config.get("AZURE_OPENAI_DEPLOYMENT_NAME")?;
+        let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
+        let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
         let api_version: String = config
-            .get("AZURE_OPENAI_API_VERSION")
+            .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
         let client = Client::builder()
@@ -109,18 +109,8 @@ impl Provider for AzureProvider {
             vec![
                 ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
-                ConfigKey::new(
-                    "AZURE_OPENAI_DEPLOYMENT_NAME",
-                    true,
-                    false,
-                    Some("Name of your Azure OpenAI deployment"),
-                ),
-                ConfigKey::new(
-                    "AZURE_OPENAI_API_VERSION",
-                    false,
-                    false,
-                    Some("Azure OpenAI API version, default: 2024-10-21"),
-                ),
+                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
+                ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, Some("2024-10-21")),
             ],
         )
     }

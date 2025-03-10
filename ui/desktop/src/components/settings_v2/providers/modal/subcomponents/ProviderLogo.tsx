@@ -20,7 +20,11 @@ const providerLogos = {
   default: DefaultLogo,
 };
 
-export default function ProviderLogo({ providerName }) {
+interface ProviderLogoProps {
+  providerName: string;
+}
+
+export default function ProviderLogo({ providerName }: ProviderLogoProps) {
   // Convert provider name to lowercase and fetch the logo
   const logoKey = providerName.toLowerCase();
   const logo = providerLogos[logoKey] || DefaultLogo;

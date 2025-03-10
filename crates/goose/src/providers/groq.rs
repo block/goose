@@ -39,7 +39,7 @@ impl GroqProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GROQ_API_KEY")?;
         let host: String = config
-            .get("GROQ_HOST")
+            .get_param("GROQ_HOST")
             .unwrap_or_else(|_| GROQ_API_HOST.to_string());
 
         let client = Client::builder()
