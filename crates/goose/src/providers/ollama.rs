@@ -124,7 +124,7 @@ impl Provider for OllamaProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(
             &self.model,
-            &system,
+            system,
             messages,
             tools,
             &super::utils::ImageFormat::OpenAi,
