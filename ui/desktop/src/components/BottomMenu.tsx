@@ -179,7 +179,7 @@ export default function BottomMenu({
               <ModelRadioList
                 className="divide-y divide-borderSubtle"
                 renderItem={({ model, isSelected, onSelect }) => (
-                  <label key={model.name} className="block cursor-pointer">
+                  <label key={model.alias ?? model.name} className="block cursor-pointer">
                     <div
                       className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
                       onClick={onSelect}
