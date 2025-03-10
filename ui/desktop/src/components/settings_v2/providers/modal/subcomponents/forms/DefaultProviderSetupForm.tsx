@@ -62,10 +62,7 @@ export default function DefaultProviderSetupForm({
       ) : (
         requiredParameters.map((parameter) => (
           <div key={parameter.name}>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {parameter.name}
-              <span className="text-red-500 ml-1">*</span>
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{parameter.name}</label>
             <Input
               type={parameter.secret ? 'password' : 'text'}
               value={configValues[parameter.name] || ''}

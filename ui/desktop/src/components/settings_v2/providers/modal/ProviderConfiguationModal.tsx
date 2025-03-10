@@ -6,51 +6,37 @@ import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { useProviderModal } from './ProviderModalProvider';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
-import DefaultSubmitHandler from './subcomponents/handlers/DefaultSubmitHandler';
+import { DefaultSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
 import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
 import OllamaForm from './subcomponents/forms/OllamaForm';
+import { useConfig } from '../../../ConfigContext';
 
-const customSubmitHandler = {
+const customSubmitHandlerMap = {
   provider_name: OllamaSubmitHandler, // example
 };
 
-const customForms = {
+const customFormsMap = {
   provider_name: OllamaForm, // example
 };
 
 export default function ProviderConfigurationModal() {
+  const { upsert } = useConfig();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
-
-  useEffect(() => {
-    if (currentProvider) {
-      // Initialize form with default values
-      const initialValues = {};
-      // FIXME
-      // if (currentProvider.parameters) {
-      //   currentProvider.parameters.forEach((param) => {
-      //     initialValues[param.name] = param.default || '';
-      //   });
-      // }
-      setConfigValues(initialValues);
-    } else {
-      setConfigValues({});
-    }
-  }, [currentProvider]);
 
   if (!isOpen || !currentProvider) return null;
 
   const headerText = `Configure ${currentProvider.metadata.display_name}`;
   const descriptionText = `Add your API key(s) for this provider to integrate into Goose`;
 
-  const SubmitHandler = customSubmitHandler[currentProvider.name] || DefaultSubmitHandler;
-  const FormComponent = customForms[currentProvider.name] || DefaultProviderSetupForm;
+  const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
+  const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 
-    SubmitHandler(configValues);
+    SubmitHandler(upsert, currentProvider, configValues);
 
     // Close the modal unless the custom handler explicitly returns false
     // This gives custom handlers the ability to keep the modal open if needed
