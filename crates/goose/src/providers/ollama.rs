@@ -1,6 +1,5 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::modify_system_prompt_for_tools;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -143,27 +142,11 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = self.get_model_config();
-
-        // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
-        let system_prompt = if config.interpret_chat_tool_calls {
-            modify_system_prompt_for_tools(system, tools)
-        } else {
-            system.to_string()
-        };
-
-        // Create request with or without tools based on config
-        let tools_for_request = if config.interpret_chat_tool_calls {
-            &[]
-        } else {
-            tools
-        };
-
         let payload = create_request(
             &self.model,
-            &system_prompt,
+            &system,
             messages,
-            tools_for_request,
+            tools,
             &super::utils::ImageFormat::OpenAi,
         )?;
 

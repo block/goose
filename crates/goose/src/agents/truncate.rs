@@ -20,7 +20,9 @@ use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
-use crate::providers::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
+use crate::providers::toolshim::{
+    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
+};
 use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
@@ -247,7 +249,17 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
-        let system_prompt = capabilities.get_system_prompt().await;
+        let config = capabilities.provider().get_model_config();
+        let mut system_prompt = capabilities.get_system_prompt().await;
+        let mut toolshim_tools = vec![];
+        if config.interpret_chat_tool_calls {
+            // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
+            system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
+            // make a copy of tools before empty
+            toolshim_tools = tools.clone();
+            // pass empty tools vector to provider completion since toolshim will handle tool calls instead
+            tools = vec![];
+        }
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -268,12 +280,11 @@ impl Agent for TruncateAgent {
                 ).await {
                     Ok((mut response, usage)) => {
                         // Post-process / structure the response only if tool interpretation is enabled
-                        let config = capabilities.provider().get_model_config();
                         if config.interpret_chat_tool_calls {
                             let base_url = get_ollama_base_url()?;
                             let interpreter = OllamaInterpreter::new(base_url);
 
-                            response = augment_message_with_tool_calls(&interpreter, response, &tools).await?;
+                            response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
                         }
 
                         capabilities.record_usage(usage.clone()).await;

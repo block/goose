@@ -2,7 +2,6 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
-use crate::agents::truncate;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;

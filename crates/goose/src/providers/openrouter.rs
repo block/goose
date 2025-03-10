@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::modify_system_prompt_for_tools;
 use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
@@ -242,26 +241,7 @@ impl Provider for OpenRouterProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = self.get_model_config();
-
-        // If tool interpretation is enabled, modify the system prompt
-        let system_prompt = if config.interpret_chat_tool_calls {
-            modify_system_prompt_for_tools(system, tools)
-        } else {
-            system.to_string()
-        };
-
-        // Create request with or without tools based on config
-        let payload = create_request_based_on_model(
-            &self.model,
-            &system_prompt,
-            messages,
-            if config.interpret_chat_tool_calls {
-                &[]
-            } else {
-                tools
-            },
-        )?;
+        let payload = create_request_based_on_model(&self.model, &system, messages, tools)?;
 
         let response = self.post(payload.clone()).await?;
         let message = response_to_message(response.clone())?;
