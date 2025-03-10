@@ -492,14 +492,11 @@ pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
-// New mode rendering functions
-pub fn render_enter_explore_mode() {
+pub fn render_enter_explore_plan_act_mode() {
     println!(
         "\n{} {}\n",
-        style("Entering explore mode (with read-only tools).")
-            .green()
-            .bold(),
-        style("To switch to a plan, you can run /plan <instructions>")
+        style("Entering explore-plan-act mode.").green().bold(),
+        style("You can chat and use read-only tools. Type /plan to create a detailed plan.")
             .green()
             .dim()
     );
@@ -533,30 +530,6 @@ pub fn render_enter_act_mode() {
         style("The agent will now execute the approved plan.")
             .green()
             .dim()
-    );
-}
-
-pub fn render_mock_explore_response() {
-    println!("\n{}\n", style("Mock explore response.").cyan().bold(),);
-}
-
-pub fn render_mock_plan_response(instructions: &str) {
-    println!(
-        "\n{}\n\n{}\n\n{}\n",
-        style("You are in plan mode.").cyan().bold(),
-        style(format!("Plan instructions: {}", instructions)).cyan(),
-        style("Choose: act, retry <instructions>, or back")
-            .cyan()
-            .dim()
-    );
-}
-
-pub fn render_mock_act_response() {
-    println!(
-        "\n{}\n",
-        style("You are in act mode. Executing the approved plan.")
-            .cyan()
-            .bold(),
     );
 }
 
