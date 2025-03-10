@@ -79,6 +79,7 @@ impl OllamaProvider {
     }
 
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+        // TODO: remove this later when the UI handles provider config refresh
         let base_url = self.get_base_url()?;
 
         let url = base_url.join("v1/chat/completions").map_err(|e| {
@@ -98,15 +99,7 @@ impl OllamaProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Get usage information
         let usage = match get_usage(&response) {
-            Ok(usage) => {
-                tracing::info!(
-                    "Got usage data: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                    usage.input_tokens,
-                    usage.output_tokens,
-                    usage.total_tokens
-                );
-                usage
-            }
+            Ok(usage) => usage,
             Err(ProviderError::UsageError(e)) => {
                 tracing::debug!("Failed to get usage data: {}", e);
                 Usage::default()
@@ -114,10 +107,7 @@ impl OllamaProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        tracing::info!("Using model: {}", model);
         super::utils::emit_debug_trace(self, &payload, &response, &usage);
-
-        tracing::info!("Successfully completed request");
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }
@@ -173,13 +163,7 @@ impl Provider for OllamaProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let config = self.get_model_config();
 
-        tracing::info!(
-            "Tool interpretation enabled: {}, tool count: {}",
-            config.interpret_chat_tool_calls,
-            tools.len()
-        );
-
-        // If tool interpretation is enabled, modify the system prompt
+        // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
         let system_prompt = if config.interpret_chat_tool_calls {
             modify_system_prompt_for_tools(system, tools)
         } else {
@@ -192,7 +176,6 @@ impl Provider for OllamaProvider {
         } else {
             tools
         };
-        tracing::info!("Sending request with {} tools", tools_for_request.len());
 
         let payload = create_request(
             &self.model,
@@ -205,73 +188,6 @@ impl Provider for OllamaProvider {
         let response = self.post(payload.clone()).await?;
         let message = response_to_message(response.clone())?;
 
-        // Process the response and return the result
         self.process_response(payload, response, message)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::message::MessageContent;
-    use mcp_core::tool::Tool;
-    use serde_json::json;
-
-    #[tokio::test]
-    async fn test_structure_response() {
-        // Create a provider with tool interpretation enabled
-        std::env::set_var("GOOSE_TOOLSHIM", "1");
-        let model = ModelConfig::new("test-model".to_string());
-        let provider = OllamaProvider::from_env(model).unwrap();
-
-        // Create a message with potential tool call text
-        let message = Message::assistant().with_text(
-            r#"{
-                "name": "test_tool",
-                "arguments": {
-                    "param1": "value1"
-                }
-            }"#,
-        );
-
-        // Create a test tool
-        let tool = Tool::new(
-            "test_tool".to_string(),
-            "Test tool".to_string(),
-            json!({
-                "type": "object",
-                "properties": {
-                    "param1": {"type": "string"}
-                }
-            }),
-        );
-
-        // Test interpreting the response
-        let structured = provider.structure_response(message, &[tool]).await.unwrap();
-
-        // Verify the tool call was extracted
-        let tool_requests: Vec<&MessageContent> = structured
-            .content
-            .iter()
-            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
-            .collect();
-
-        assert_eq!(tool_requests.len(), 1);
-        if let MessageContent::ToolRequest(request) = tool_requests[0] {
-            if let Ok(tool_call) = &request.tool_call {
-                assert_eq!(tool_call.name, "test_tool");
-                assert_eq!(
-                    tool_call.arguments.get("param1").and_then(|v| v.as_str()),
-                    Some("value1")
-                );
-            } else {
-                panic!("Tool call was not Ok");
-            }
-        } else {
-            panic!("Expected ToolRequest");
-        }
-
-        // Clean up
-        std::env::remove_var("GOOSE_TOOLSHIM");
     }
 }

@@ -21,7 +21,7 @@ pub struct ModelConfig {
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
     pub max_tokens: Option<i32>,
-    /// Whether to interpret tool calls - controlled by env var
+    /// Whether to interpret tool calls
     pub interpret_chat_tool_calls: bool,
     /// Model to use for interpreting tool calls (optional)
     pub tool_call_interpreter_model: Option<String>,
@@ -38,7 +38,6 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
-        // Check environment variables
         let interpret_chat_tool_calls = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
             .unwrap_or(false);

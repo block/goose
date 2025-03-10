@@ -238,7 +238,7 @@ impl Agent for TruncateAgent {
                     &tools,
                 ).await {
                     Ok((mut response, usage)) => {
-                        // Structure the response if needed
+                        // Post-process / structure the response
                         response = capabilities.provider().structure_response(response, &tools).await?;
 
                         capabilities.record_usage(usage.clone()).await;
