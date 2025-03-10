@@ -20,6 +20,7 @@ use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
+use crate::providers::toolshim::{augment_message_with_tool_calls, OllamaInterpreter};
 use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
@@ -34,6 +35,34 @@ use std::time::Duration;
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
+
+/// Get the Ollama base URL from existing config or use default values
+pub fn get_ollama_base_url() -> Result<String, ProviderError> {
+    let config = crate::config::Config::global();
+    let host: String = config
+        .get("OLLAMA_HOST")
+        .unwrap_or_else(|_| crate::providers::ollama::OLLAMA_HOST.to_string());
+
+    // Format the URL correctly with http:// prefix if needed
+    let base = if host.starts_with("http://") || host.starts_with("https://") {
+        host.clone()
+    } else {
+        format!("http://{}", host)
+    };
+
+    let mut base_url = url::Url::parse(&base)
+        .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+    // Set the default port if missing
+    let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
+    if base_url.port().is_none() && !explicit_default_port {
+        base_url.set_port(Some(crate::providers::ollama::OLLAMA_DEFAULT_PORT)).map_err(|_| {
+            ProviderError::RequestFailed("Failed to set default port".to_string())
+        })?;
+    }
+
+    Ok(base_url.to_string())
+}
 
 /// Truncate implementation of an Agent
 pub struct TruncateAgent {
@@ -241,7 +270,10 @@ impl Agent for TruncateAgent {
                         // Post-process / structure the response only if tool interpretation is enabled
                         let config = capabilities.provider().get_model_config();
                         if config.interpret_chat_tool_calls {
-                            response = capabilities.provider().structure_response(response, &tools).await?;
+                            let base_url = get_ollama_base_url()?;
+                            let interpreter = OllamaInterpreter::new(base_url);
+
+                            response = augment_message_with_tool_calls(&interpreter, response, &tools).await?;
                         }
 
                         capabilities.record_usage(usage.clone()).await;

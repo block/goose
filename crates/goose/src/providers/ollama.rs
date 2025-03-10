@@ -1,8 +1,6 @@
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
-};
+use super::toolshim::modify_system_prompt_for_tools;
 use super::utils::{get_model, handle_response_openai_compat};
 use crate::message::Message;
 use crate::model::ModelConfig;
@@ -133,17 +131,6 @@ impl Provider for OllamaProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
-    }
-
-    async fn structure_response(
-        &self,
-        message: Message,
-        tools: &[Tool],
-    ) -> Result<Message, ProviderError> {
-        let base_url = self.get_base_url()?;
-        let interpreter = OllamaInterpreter::new(base_url.to_string());
-
-        augment_message_with_tool_calls(&interpreter, message, tools).await
     }
 
     #[tracing::instrument(

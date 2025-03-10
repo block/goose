@@ -6,9 +6,7 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tools, OllamaInterpreter,
-};
+use super::toolshim::modify_system_prompt_for_tools;
 use super::utils::{
     emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
     is_google_model,
@@ -232,22 +230,6 @@ impl Provider for OpenRouterProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
-    }
-
-    async fn structure_response(
-        &self,
-        message: Message,
-        tools: &[Tool],
-    ) -> Result<Message, ProviderError> {
-        // Create interpreter for tool calls - use Ollama's default host and port
-        let base_url = format!(
-            "http://{}:{}",
-            super::ollama::OLLAMA_HOST,
-            super::ollama::OLLAMA_DEFAULT_PORT
-        );
-        let interpreter = OllamaInterpreter::new(base_url);
-
-        augment_message_with_tool_calls(&interpreter, message, tools).await
     }
 
     #[tracing::instrument(

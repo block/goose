@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use super::errors::ProviderError;
+use crate::agents::truncate;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
@@ -145,15 +146,7 @@ pub trait Provider: Send + Sync {
 
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
-
-    /// Post-process / structure a response before returning it
-    /// Default implementation returns the message as-is
-    async fn structure_response(
-        &self,
-        message: Message,
-        _tools: &[Tool],
-    ) -> Result<Message, ProviderError> {
-        Ok(message)
+    
     }
 }
 
