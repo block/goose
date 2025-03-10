@@ -348,6 +348,37 @@ impl Session {
                     println!("Goose mode set to '{}'", mode);
                     continue;
                 }
+                input::InputResult::ExploreMode => {
+                    save_history(&mut editor);
+
+                    // Render the explore mode entry message
+                    output::render_enter_explore_mode();
+
+                    // Mock response for now
+                    output::render_mock_explore_response();
+                    continue;
+                }
+                input::InputResult::PlanMode(instructions) => {
+                    save_history(&mut editor);
+
+                    // Render the plan mode entry message
+                    output::render_enter_plan_mode(&instructions);
+
+                    // Mock response for now
+                    output::render_mock_plan_response(&instructions);
+                    output::render_plan_options();
+                    continue;
+                }
+                input::InputResult::ActMode => {
+                    save_history(&mut editor);
+
+                    // Render the act mode entry message
+                    output::render_enter_act_mode();
+
+                    // Mock response for now
+                    output::render_mock_act_response();
+                    continue;
+                }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
 

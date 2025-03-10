@@ -492,6 +492,74 @@ pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
+// New mode rendering functions
+pub fn render_enter_explore_mode() {
+    println!(
+        "\n{} {}\n",
+        style("Entering explore mode (with read-only tools).")
+            .green()
+            .bold(),
+        style("To switch to a plan, you can run /plan <instructions>")
+            .green()
+            .dim()
+    );
+}
+
+pub fn render_enter_plan_mode(instructions: &str) {
+    println!(
+        "\n{} {}\n",
+        style("Creating plan:").green().bold(),
+        style("Review the plan and choose an option: act, retry <instructions>, or back")
+            .green()
+            .dim()
+    );
+    println!("{}", style(instructions).yellow());
+    println!();
+}
+
+pub fn render_plan_options() {
+    println!(
+        "\n{}\n{}\n{}\n",
+        style("Options:").dim(),
+        style("  act - Execute the plan").dim(),
+        style("  retry <instructions> - Create a new plan").dim(),
+    );
+}
+
+pub fn render_enter_act_mode() {
+    println!(
+        "\n{} {}\n",
+        style("Executing plan.").green().bold(),
+        style("The agent will now execute the approved plan.")
+            .green()
+            .dim()
+    );
+}
+
+pub fn render_mock_explore_response() {
+    println!("\n{}\n", style("Mock explore response.").cyan().bold(),);
+}
+
+pub fn render_mock_plan_response(instructions: &str) {
+    println!(
+        "\n{}\n\n{}\n\n{}\n",
+        style("You are in plan mode.").cyan().bold(),
+        style(format!("Plan instructions: {}", instructions)).cyan(),
+        style("Choose: act, retry <instructions>, or back")
+            .cyan()
+            .dim()
+    );
+}
+
+pub fn render_mock_act_response() {
+    println!(
+        "\n{}\n",
+        style("You are in act mode. Executing the approved plan.")
+            .cyan()
+            .bold(),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
