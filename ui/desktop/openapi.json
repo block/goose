@@ -137,6 +137,29 @@
         }
       }
     },
+    "/config/providers": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "providers",
+        "responses": {
+          "200": {
+            "description": "All configuration values retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderDetails"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/read": {
       "get": {
         "tags": [
@@ -240,12 +263,39 @@
   },
   "components": {
     "schemas": {
+      "ConfigKey": {
+        "type": "object",
+        "required": [
+          "name",
+          "required",
+          "secret"
+        ],
+        "properties": {
+          "default": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
+          }
+        }
+      },
       "ConfigKeyQuery": {
         "type": "object",
         "required": [
-          "key"
+          "key",
+          "is_secret"
         ],
         "properties": {
+          "is_secret": {
+            "type": "boolean"
+          },
           "key": {
             "type": "string"
           }
@@ -276,16 +326,100 @@
           }
         }
       },
+      "ProviderDetails": {
+        "type": "object",
+        "required": [
+          "name",
+          "metadata",
+          "is_configured"
+        ],
+        "properties": {
+          "is_configured": {
+            "type": "boolean",
+            "description": "Indicates whether the provider is fully configured"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ProviderMetadata"
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique identifier and name of the provider"
+          }
+        }
+      },
+      "ProviderMetadata": {
+        "type": "object",
+        "description": "Metadata about a provider's configuration requirements and capabilities",
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "default_model",
+          "known_models",
+          "model_doc_link",
+          "config_keys"
+        ],
+        "properties": {
+          "config_keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigKey"
+            },
+            "description": "Required configuration keys"
+          },
+          "default_model": {
+            "type": "string",
+            "description": "The default/recommended model for this provider"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the provider's capabilities"
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name for the provider in UIs"
+          },
+          "known_models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A list of currently known models\nTODO: eventually query the apis directly"
+          },
+          "model_doc_link": {
+            "type": "string",
+            "description": "Link to the docs where models can be found"
+          },
+          "name": {
+            "type": "string",
+            "description": "The unique identifier for this provider"
+          }
+        }
+      },
+      "ProvidersResponse": {
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderDetails"
+            }
+          }
+        }
+      },
       "UpsertConfigQuery": {
         "type": "object",
         "required": [
           "key",
-          "value"
+          "value",
+          "is_secret"
         ],
         "properties": {
           "is_secret": {
-            "type": "boolean",
-            "nullable": true
+            "type": "boolean"
           },
           "key": {
             "type": "string"
