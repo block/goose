@@ -3,6 +3,14 @@ import { Switch } from '../../ui/switch';
 import { ChevronDown, ChevronUp } from '../../icons';
 import { getApiUrl, getSecretKey } from '../../../config';
 
+function formatString(input: string): string {
+  return input
+    .toLowerCase() // Convert to lowercase
+    .split('_') // Split by underscores
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize each word
+    .join(' '); // Join with spaces
+}
+
 export const ExperimentSettings = () => {
   const [experiments, setExperiments] = useState([]);
   const [isExperimentsOpen, setIsExperimentsOpen] = useState(false);
@@ -13,7 +21,7 @@ export const ExperimentSettings = () => {
       'Smart approve helps your skip tool confirmation for read tool operation when Goose mode is approve.',
   };
 
-  const handleToggle = async (key, checked) => {
+  const handleToggle = async (key, enabled) => {
     try {
       const storeResponse = await fetch(getApiUrl('/config/experiment'), {
         method: 'PUT',
@@ -23,7 +31,7 @@ export const ExperimentSettings = () => {
         },
         body: JSON.stringify({
           key,
-          value: checked,
+          value: enabled,
         }),
       });
 
@@ -36,7 +44,7 @@ export const ExperimentSettings = () => {
       // Update the local state
       setExperiments((prevExperiments) =>
         prevExperiments.map(([experimentKey, value]) =>
-          experimentKey === key ? [experimentKey, checked] : [experimentKey, value]
+          experimentKey === key ? [experimentKey, enabled] : [experimentKey, value]
         )
       );
     } catch (error) {
@@ -91,22 +99,28 @@ export const ExperimentSettings = () => {
 
       {isExperimentsOpen && (
         <div>
-          {experiments.map(([key, value]) => (
+          {experiments.map(([key, enabled]) => (
             <div key={key} className="flex justify-between items-center mt-4">
               <div className="flex flex-col text-left">
                 <h3 className="text-sm font-semibold text-textStandard dark:text-gray-200">
-                  {key}
+                  {formatString(key)}
                 </h3>
                 <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
                   {descriptions[key] || 'No description available.'}
                 </p>
               </div>
-              <Switch
-                variant="mono"
-                checked={value}
-                onCheckedChange={(checked) => handleToggle(key, checked)}
-                className="ml-4"
-              />
+              <button
+                onClick={() => handleToggle(key, !enabled)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full ${
+                  enabled ? 'bg-indigo-500' : 'bg-bgProminent'
+                } transition-colors duration-200 ease-in-out focus:outline-none`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ${
+                    enabled ? 'translate-x-[22px]' : 'translate-x-[2px]'
+                  } transition-transform duration-200 ease-in-out`}
+                />
+              </button>
             </div>
           ))}
         </div>
