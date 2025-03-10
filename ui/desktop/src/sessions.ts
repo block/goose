@@ -1,4 +1,5 @@
 import { getApiUrl, getSecretKey } from './config';
+import { Message } from './types/message';
 
 export interface SessionMetadata {
   description: string;
@@ -28,19 +29,10 @@ export interface SessionsResponse {
   sessions: Session[];
 }
 
-export interface SessionMessage {
-  role: 'user' | 'assistant';
-  created: number;
-  content: {
-    type: string;
-    text: string;
-  }[];
-}
-
 export interface SessionDetails {
   session_id: string;
   metadata: SessionMetadata;
-  messages: SessionMessage[];
+  messages: Message[];
 }
 
 /**
