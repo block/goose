@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent,
-    Evaluation, EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -26,8 +26,8 @@ impl Evaluation for GooseWiki {
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("GooseWiki - run");
 
-        // Use our metrics utility to measure execution time and tool calls
-        let (messages, perf_metrics) = measure_prompt_execution_time(
+        // Collect baseline metrics (execution time, token usage, tool calls)
+        let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
             "Create a Wikipedia-style web page about Goose (Block's AI agent) in a new index.html file. The page should be a complete, well-structured HTML document with proper head and body sections. Use heading tags (h1, h2, h3) to organize the content into clear sections. Include comprehensive information about Goose organized in a way similar to how Wikipedia presents technical topics.".to_string()
         ).await;

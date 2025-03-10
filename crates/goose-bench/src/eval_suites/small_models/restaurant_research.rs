@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec,
-    write_response_to_file, BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, write_response_to_file,
+    BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -35,8 +35,8 @@ impl Evaluation for RestaurantResearch {
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("RestaurantResearch - run");
 
-        // Use our metrics utility to measure execution time and tool calls
-        let (response, perf_metrics) = measure_prompt_execution_time(
+        // Collect baseline metrics (execution time, token usage, tool calls)
+        let (response, perf_metrics) = collect_baseline_metrics(
             &mut agent,
             "Search the internet for and provide a current, detailed list of the best Sichuanese restaurants specifically in the East Village neighborhood of NYC. Format your response in Markdown using bullet points (either - or *) for each restaurant. For each restaurant include:
 - Restaurant name and what they're known for
@@ -75,6 +75,13 @@ Present the information in order of significance or quality. Focus specifically 
         metrics.push((
             "bullet_point_count".to_string(),
             EvaluationMetric::Integer(bullet_count),
+        ));
+
+        // Check if the fetch tool was used
+        let used_fetch_tool = crate::eval_suites::used_tool(&response, "fetch");
+        metrics.push((
+            "used_fetch_tool".to_string(),
+            EvaluationMetric::Boolean(used_fetch_tool),
         ));
 
         // Copy the session file to the current working directory

@@ -3,8 +3,8 @@ use goose::message::{Message, MessageContent};
 use std::collections::HashMap;
 use std::time::Instant;
 
-/// Helper function to measure execution time of agent.prompt()
-pub async fn measure_prompt_execution_time(
+/// Collect baseline metrics including execution time, tool usage, and token count
+pub async fn collect_baseline_metrics(
     agent: &mut Box<dyn BenchAgent>,
     prompt: String,
 ) -> (Vec<Message>, HashMap<String, EvaluationMetric>) {
@@ -48,6 +48,14 @@ pub async fn measure_prompt_execution_time(
         );
     }
 
+    // Get token usage information if available
+    if let Some(token_count) = agent.get_token_usage().await {
+        metrics.insert(
+            "total_tokens".to_string(),
+            EvaluationMetric::Integer(token_count as i64),
+        );
+    }
+
     (messages, metrics)
 }
 
@@ -77,4 +85,21 @@ pub fn metrics_hashmap_to_vec(
     metrics: HashMap<String, EvaluationMetric>,
 ) -> Vec<(String, EvaluationMetric)> {
     metrics.into_iter().collect()
+}
+
+/// Check if a specific tool was used in any of the messages
+pub fn used_tool(messages: &[Message], tool_name: &str) -> bool {
+    messages.iter().any(|msg| {
+        msg.content.iter().any(|content| {
+            if let MessageContent::ToolRequest(tool_req) = content {
+                if let Ok(tool_call) = tool_req.tool_call.as_ref() {
+                    tool_call.name.contains(tool_name)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        })
+    })
 }

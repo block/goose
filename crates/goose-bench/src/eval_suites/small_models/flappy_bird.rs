@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent,
-    Evaluation, EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -36,8 +36,8 @@ impl Evaluation for FlappyBird {
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("FlappyBird - run");
 
-        // Use our metrics utility to measure execution time and tool calls
-        let (messages, perf_metrics) = measure_prompt_execution_time(
+        // Collect baseline metrics (execution time, token usage, tool calls)
+        let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
             "Create a Flappy Bird game in Python. Structure the code with a main function and use the if __name__ == '__main__': idiom. You must use pygame. The background color should be a light blue color. Pressing SPACE multiple times will accelerate the bird. The bird's shape should be a red circle. Place on the bottom some land colored as dark yellow chosen. Make a score shown on the top right side. Increment if you pass pipes and don't hit them. Make randomly spaced dark green pipes with enough space. When you lose, show the best score. Make the text inside the screen. Pressing q or Esc will quit the game. Restarting is pressing SPACE again. The final game should be written to a file named flappy_bird.py.".to_string()
         ).await;
