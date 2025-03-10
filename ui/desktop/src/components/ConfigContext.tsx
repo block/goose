@@ -17,7 +17,6 @@ import type {
   ExtensionQuery,
   ProviderDetails,
 } from '../api/types.gen';
-import { getSecretKey } from '../config';
 
 // Initialize client configuration
 client.setConfig({
