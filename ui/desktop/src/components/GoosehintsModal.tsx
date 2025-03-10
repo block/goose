@@ -5,8 +5,10 @@ import { Check } from './icons';
 
 const Modal = ({ children }) => (
   <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] z-[1000]">
-    <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-bgApp rounded-xl overflow-hidden shadow-none px-8 pt-[24px] pb-0">
-      <div className="flex flex-col space-y-8 text-base text-textStandard h-full">{children}</div>
+    <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col min-w-[80%] min-h-[80%] bg-bgApp rounded-xl overflow-hidden shadow-none px-8 pt-[24px] pb-0">
+      <div className="flex flex-col flex-1 space-y-8 text-base text-textStandard h-full">
+        {children}
+      </div>
     </Card>
   </div>
 );
@@ -117,16 +119,16 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
     <Modal>
       <ModalHeader />
       <ModalHelpText />
-      <div className="flex-1">
+      <div className="flex flex-col flex-1">
         {goosehintsFileReadError ? (
           <ModalError error={goosehintsFileReadError} />
         ) : (
-          <div className="flex flex-col space-y-2 h-full">
+          <div className="flex flex-col flex-1 space-y-2 h-full">
             <ModalFileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />
             <textarea
               defaultValue={goosehintsFile}
               autoFocus
-              className="w-full flex-1 border rounded-md min-h-40 p-2 text-sm resize-none bg-bgApp text-textStandard border-borderStandard focus:outline-none"
+              className="w-full flex-1 border rounded-md min-h-20 p-2 text-sm resize-none bg-bgApp text-textStandard border-borderStandard focus:outline-none"
               onChange={(event) => setGoosehintsFile(event.target.value)}
             />
           </div>
