@@ -252,6 +252,30 @@ You should return an empty tool_calls array if no tools are explicitly reference
     }
 }
 
+/// Creates a string containing formatted tool information
+pub fn format_tool_info(tools: &[Tool]) -> String {
+    let mut tool_info = String::new();
+    for tool in tools {
+        tool_info.push_str(&format!(
+            "Tool Name: {}\nSchema: {}\nDescription: {}\n\n",
+            tool.name,
+            serde_json::to_string_pretty(&tool.input_schema).unwrap_or_default(),
+            tool.description
+        ));
+    }
+    tool_info
+}
+
+/// Modifies the system prompt to include tool usage instructions when tool interpretation is enabled
+pub fn modify_system_prompt_for_tools(system_prompt: &str, tools: &[Tool]) -> String {
+    let tool_info = format_tool_info(tools);
+    format!(
+        "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
+        system_prompt,
+        tool_info
+    )
+}
+
 /// Helper function to augment a message with tool calls if any are detected
 pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     interpreter: &T,
