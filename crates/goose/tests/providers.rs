@@ -468,6 +468,17 @@ async fn test_openrouter_provider() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_requesty_provider() -> Result<()> {
+    test_provider(
+        "Requesty",
+        &["REQUESTY_API_KEY"],
+        None,
+        openrouter::OpenRouterProvider::default,
+    )
+    .await
+}
+
+#[tokio::test]
 async fn test_google_provider() -> Result<()> {
     test_provider(
         "Google",
