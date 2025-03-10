@@ -21,6 +21,7 @@ import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import SessionsView from './components/sessions/SessionsView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -151,38 +152,7 @@ export default function App() {
     setupStoredProvider();
   }, []);
 
-  // Check for resumeSessionId in URL parameters
-  useEffect(() => {
-    const checkForResumeSession = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const resumeSessionId = urlParams.get('resumeSessionId');
-
-      if (!resumeSessionId) {
-        return;
-      }
-
-      setIsLoadingSession(true);
-      try {
-        const sessionDetails = await fetchSessionDetails(resumeSessionId);
-
-        // Only set view if we have valid session details
-        if (sessionDetails && sessionDetails.session_id) {
-          setView('chat', {
-            resumedSession: sessionDetails,
-          });
-        } else {
-          console.error('Invalid session details received');
-        }
-      } catch (error) {
-        console.error('Failed to fetch session details:', error);
-      } finally {
-        // Always clear the loading state
-        setIsLoadingSession(false);
-      }
-    };
-
-    checkForResumeSession();
-  }, []);
+  const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
     const handleFatalError = (_: any, errorMessage: string) => {
@@ -232,6 +202,13 @@ export default function App() {
   if (fatalError) {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
   }
+
+  if (isLoadingSession)
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+      </div>
+    );
 
   return (
     <>
@@ -300,15 +277,11 @@ export default function App() {
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView
+              chat={chat}
+              setChat={setChat}
               setView={setView}
-              viewOptions={viewOptions}
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
-          )}
-          {view === 'chat' && isLoadingSession && (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
-            </div>
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
         </div>

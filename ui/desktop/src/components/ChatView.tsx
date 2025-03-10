@@ -27,7 +27,7 @@ import {
 } from '../types/message';
 
 export interface ChatType {
-  id: number;
+  id: string;
   title: string;
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
   // anything before this index should not render any buttons, but anything after should
@@ -36,40 +36,16 @@ export interface ChatType {
 }
 
 export default function ChatView({
+  chat,
+  setChat,
   setView,
-  viewOptions,
   setIsGoosehintsModalOpen,
 }: {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: Record<any, any>) => void;
-  viewOptions?: Record<any, any>;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  // Check if we're resuming a session
-  const resumedSession = viewOptions?.resumedSession;
-
-  // Generate or retrieve session ID
-  // The session ID should not change for the duration of the chat
-  const sessionId = resumedSession?.session_id || generateSessionId();
-
-  const [chat, setChat] = useState<ChatType>(() => {
-    // If resuming a session, convert the session messages to our format
-    if (resumedSession) {
-      return {
-        id: resumedSession.session_id,
-        title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
-        messages: resumedSession.messages,
-        messageHistoryIndex: resumedSession.messages.length,
-      };
-    }
-
-    return {
-      id: sessionId,
-      title: 'New Chat',
-      messages: [],
-      messageHistoryIndex: 0,
-    };
-  });
-
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
@@ -89,8 +65,8 @@ export default function ChatView({
     handleSubmit: _submitMessage,
   } = useMessageStream({
     api: getApiUrl('/reply'),
-    initialMessages: resumedSession ? resumedSession.messages : chat?.messages || [],
-    body: { session_id: sessionId, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
+    initialMessages: chat.messages,
+    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
@@ -122,7 +98,7 @@ export default function ChatView({
       const updatedChat = { ...prevChat, messages };
       return updatedChat;
     });
-  }, [messages, sessionId, resumedSession]);
+  }, [messages]);
 
   useEffect(() => {
     if (messages.length > 0) {
