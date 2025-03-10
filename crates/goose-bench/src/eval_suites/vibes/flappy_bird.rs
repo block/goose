@@ -118,4 +118,4 @@ impl Evaluation for FlappyBird {
     }
 }
 
-register_evaluation!("small_models", FlappyBird);
+register_evaluation!("vibes", FlappyBird);

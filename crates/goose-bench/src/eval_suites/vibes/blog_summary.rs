@@ -86,4 +86,4 @@ impl Evaluation for BlogSummary {
     }
 }
 
-register_evaluation!("small_models_fetch", BlogSummary);
+register_evaluation!("vibes", BlogSummary);
