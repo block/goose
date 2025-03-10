@@ -38,34 +38,6 @@ use std::time::Duration;
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
-/// Get the Ollama base URL from existing config or use default values
-pub fn get_ollama_base_url() -> Result<String, ProviderError> {
-    let config = crate::config::Config::global();
-    let host: String = config
-        .get_param("OLLAMA_HOST")
-        .unwrap_or_else(|_| crate::providers::ollama::OLLAMA_HOST.to_string());
-
-    // Format the URL correctly with http:// prefix if needed
-    let base = if host.starts_with("http://") || host.starts_with("https://") {
-        host.clone()
-    } else {
-        format!("http://{}", host)
-    };
-
-    let mut base_url = url::Url::parse(&base)
-        .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-    // Set the default port if missing
-    let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
-    if base_url.port().is_none() && !explicit_default_port {
-        base_url
-            .set_port(Some(crate::providers::ollama::OLLAMA_DEFAULT_PORT))
-            .map_err(|_| ProviderError::RequestFailed("Failed to set default port".to_string()))?;
-    }
-
-    Ok(base_url.to_string())
-}
-
 /// Truncate implementation of an Agent
 pub struct TruncateAgent {
     capabilities: Mutex<Capabilities>,
@@ -281,8 +253,8 @@ impl Agent for TruncateAgent {
                     Ok((mut response, usage)) => {
                         // Post-process / structure the response only if tool interpretation is enabled
                         if config.interpret_chat_tool_calls {
-                            let base_url = get_ollama_base_url()?;
-                            let interpreter = OllamaInterpreter::new(base_url);
+                            let interpreter = OllamaInterpreter::new()
+                                .map_err(|e| anyhow::anyhow!("Failed to create OllamaInterpreter: {}", e))?;
 
                             response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
                         }

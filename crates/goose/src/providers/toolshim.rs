@@ -31,6 +31,8 @@
 //!
 
 use super::errors::ProviderError;
+use super::ollama::OLLAMA_DEFAULT_PORT;
+use super::ollama::OLLAMA_HOST;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
@@ -65,13 +67,43 @@ pub struct OllamaInterpreter {
 }
 
 impl OllamaInterpreter {
-    pub fn new(base_url: String) -> Self {
+    pub fn new() -> Result<Self, ProviderError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { client, base_url }
+        let base_url = Self::get_ollama_base_url()?;
+
+        Ok(Self { client, base_url })
+    }
+
+    /// Get the Ollama base URL from existing config or use default values
+    fn get_ollama_base_url() -> Result<String, ProviderError> {
+        let config = crate::config::Config::global();
+        let host: String = config
+            .get_param("OLLAMA_HOST")
+            .unwrap_or_else(|_| OLLAMA_HOST.to_string());
+
+        // Format the URL correctly with http:// prefix if needed
+        let base = if host.starts_with("http://") || host.starts_with("https://") {
+            host.clone()
+        } else {
+            format!("http://{}", host)
+        };
+
+        let mut base_url = url::Url::parse(&base)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+        // Set the default port if missing
+        let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
+        if base_url.port().is_none() && !explicit_default_port {
+            base_url.set_port(Some(OLLAMA_DEFAULT_PORT)).map_err(|_| {
+                ProviderError::RequestFailed("Failed to set default port".to_string())
+            })?;
+        }
+
+        Ok(base_url.to_string())
     }
 
     fn tool_structured_ouput_format_schema() -> Value {
