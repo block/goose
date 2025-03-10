@@ -1,21 +1,16 @@
+use crate::logging;
 use crate::session::build_session;
 use crate::Session;
 use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
 use goose_bench::bench_work_dir::BenchmarkWorkDir;
-use goose_bench::error_capture::ErrorCaptureLayer;
 use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Once;
 use tokio::sync::Mutex;
-use tracing_subscriber::layer::SubscriberExt;
-
-// Used to ensure we only set up tracing once
-static INIT: Once = Once::new();
 
 pub struct BenchSession {
     session: Session,
@@ -26,14 +21,9 @@ impl BenchSession {
     pub fn new(session: Session) -> Self {
         let errors = Arc::new(Mutex::new(Vec::new()));
 
-        // Create and register the error capture layer only once
-        INIT.call_once(|| {
-            let error_layer = ErrorCaptureLayer::new(errors.clone());
-            let subscriber = tracing_subscriber::Registry::default().with(error_layer);
-
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Failed to set tracing subscriber");
-        });
+        // Initialize logging with error capture
+        logging::setup_logging(Some("bench"), Some(errors.clone()))
+            .expect("Failed to initialize logging");
 
         Self { session, errors }
     }
