@@ -53,18 +53,16 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 }) => {
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <div className="relative flex items-center h-[36px] w-full bg-bgAppInverse"></div>
 
       {/* Top Row - back, info, reopen thread (fixed) */}
-      <Card className="px-8 pt-6 pb-4 bg-bgSecondary flex items-center">
-        <BackButton showText={false} onClick={onBack} className="text-textStandard" />
+      <div className="px-6 p-4 bg-bgAppInverse text-textInverse flex items-center">
+        <BackButton showText={false} onClick={onBack} className="!text-textInverse" />
 
         {/* Session info row */}
-        <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandard">
-            {session.metadata.description || session.session_id}
-          </h1>
-          <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
+        <div className="ml-4">
+          <span className="text-md">{session.metadata.description || session.session_id}</span>
+          {/* <div className="flex items-center text-sm space-x-4">
             <span className="flex items-center">
               <Clock className="w-4 h-4 mr-1" />
               {new Date(session.messages[0]?.created * 1000).toLocaleString()}
@@ -82,22 +80,22 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 {session.metadata.total_tokens.toLocaleString()} tokens
               </span>
             )}
-          </div>
+          </div> */}
         </div>
 
         <span
           onClick={onResume}
-          className="ml-auto text-md cursor-pointer text-textStandard hover:font-bold hover:scale-105 transition-all duration-150"
+          className="ml-auto text-sm cursor-pointer bg-bgApp text-textProminent hover:scale-105 px-4 py-2 rounded-full transition-all duration-150"
         >
-          Resume Session
+          Reopen session
         </span>
-      </Card>
+      </div>
 
       <ScrollArea className="h-[calc(100vh-120px)] w-full">
         {/* Content */}
         <div className="p-4">
-          <div className="flex flex-col space-y-4">
-            <div className="space-y-4 mb-6">
+          <div className="flex flex-col">
+            <div className="mb-6">
               {isLoading ? (
                 <div className="flex justify-center items-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
@@ -140,34 +138,25 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                     }
 
                     return (
-                      <Card
+                      <div
                         key={index}
-                        className={`p-4 ${
-                          message.role === 'user'
-                            ? 'bg-bgSecondary border border-borderSubtle'
-                            : 'bg-bgSubtle'
-                        }`}
+                        className={`mb-4 flex w-full ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium text-textStandard">
-                            {message.role === 'user' ? 'You' : 'Goose'}
-                          </span>
-                          <span className="text-xs text-textSubtle">
-                            {new Date(message.created * 1000).toLocaleTimeString()}
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col w-full">
+                        <div
+                          className={`flex flex-col max-w-[90%] ${message.role === 'user' ? 'max-w--[90%]' : 'w-[90%]'}`}
+                        >
                           {/* Text content */}
                           {textContent && (
-                            <div className={`${toolRequests.length > 0 ? 'mb-4' : ''}`}>
+                            <div
+                              className={`${toolRequests.length > 0 ? 'rounded-b-none' : ''} ${message.role === 'user' ? 'flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3' : 'goose-message-content bg-bgSubtle rounded-2xl px-4 py-2'}`}
+                            >
                               <MarkdownContent content={textContent} />
                             </div>
                           )}
 
                           {/* Tool requests and responses */}
                           {toolRequests.length > 0 && (
-                            <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                            <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2">
                               {toolRequests.map((toolRequest) => (
                                 <ToolCallWithResponse
                                   // In the session history page, if no tool response found for given request, it means the tool call
@@ -182,8 +171,17 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                               ))}
                             </div>
                           )}
+
+                          <span
+                            className={`text-xs text-textSubtle mt-1 ${message.role === 'user' ? 'text-right' : ''}`}
+                          >
+                            {new Date(message.created * 1000).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
                         </div>
-                      </Card>
+                      </div>
                     );
                   })
                   .filter(Boolean) // Filter out null entries

@@ -20,7 +20,7 @@ export default function UserMessage({ message }: UserMessageProps) {
 
   return (
     <div className="flex justify-end mt-[16px] w-full opacity-0 animate-[appear_150ms_ease-in_forwards]">
-      <div className="flex-col max-w-[85%]">
+      <div className="flex-col max-w-[90%]">
         <div className="flex flex-col group">
           <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
             <div ref={contentRef}>
