@@ -56,9 +56,9 @@ pub fn get_ollama_base_url() -> Result<String, ProviderError> {
     // Set the default port if missing
     let explicit_default_port = host.ends_with(":80") || host.ends_with(":443");
     if base_url.port().is_none() && !explicit_default_port {
-        base_url.set_port(Some(crate::providers::ollama::OLLAMA_DEFAULT_PORT)).map_err(|_| {
-            ProviderError::RequestFailed("Failed to set default port".to_string())
-        })?;
+        base_url
+            .set_port(Some(crate::providers::ollama::OLLAMA_DEFAULT_PORT))
+            .map_err(|_| ProviderError::RequestFailed("Failed to set default port".to_string()))?;
     }
 
     Ok(base_url.to_string())

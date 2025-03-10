@@ -146,8 +146,6 @@ pub trait Provider: Send + Sync {
 
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
-    
-    }
 }
 
 #[cfg(test)]
