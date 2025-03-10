@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -31,7 +34,6 @@ impl Evaluation for SquirrelCensus {
         work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("SquirrelCensus - run");
-        let mut metrics = Vec::new();
 
         // Get the path to the squirrel data file
         let squirrel_data_path = match work_dir.fs_get("./assets/squirrel-data.csv".to_string()) {
@@ -41,8 +43,11 @@ impl Evaluation for SquirrelCensus {
 
         println!("squirrel_data_path: {:?}", squirrel_data_path);
 
-        let messages = agent.prompt(format!(
-            "Create a Python script called analyze_squirrels.py that analyzes the CSV file at {}. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.
+        // Use our metrics utility to measure execution time and tool calls
+        let (messages, perf_metrics) = measure_prompt_execution_time(
+            &mut agent,
+            format!(
+                "Create a Python script called analyze_squirrels.py that analyzes the CSV file at {}. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.
 
 The script should use pandas to answer these specific questions:
 1. Which area (Area column) has the most squirrels spotted? For this area, what is the most common Primary Fur Color of squirrels?
@@ -57,8 +62,12 @@ The script should:
   [PARK_COLOR] Most common fur color: <color> (<color_count> squirrels)
 
 After writing the script, run it using python3 and show the results. Do not ask for confirmation or further instructions.", 
-            squirrel_data_path.display()
-        )).await?;
+                squirrel_data_path.display()
+            )
+        ).await;
+
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Check if agent wrote the Python script
         let wrote_script = messages.iter().any(|msg| {

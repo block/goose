@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -32,9 +35,15 @@ impl Evaluation for FlappyBird {
         work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("FlappyBird - run");
-        let mut metrics = Vec::new();
 
-        let messages = agent.prompt("Create a Flappy Bird game in Python. Structure the code with a main function and use the if __name__ == '__main__': idiom. You must use pygame. The background color should be a light blue color. Pressing SPACE multiple times will accelerate the bird. The bird's shape should be a red circle. Place on the bottom some land colored as dark yellow chosen. Make a score shown on the top right side. Increment if you pass pipes and don't hit them. Make randomly spaced dark green pipes with enough space. When you lose, show the best score. Make the text inside the screen. Pressing q or Esc will quit the game. Restarting is pressing SPACE again. The final game should be written to a file named flappy_bird.py.".to_string()).await?;
+        // Use our metrics utility to measure execution time and tool calls
+        let (messages, perf_metrics) = measure_prompt_execution_time(
+            &mut agent,
+            "Create a Flappy Bird game in Python. Structure the code with a main function and use the if __name__ == '__main__': idiom. You must use pygame. The background color should be a light blue color. Pressing SPACE multiple times will accelerate the bird. The bird's shape should be a red circle. Place on the bottom some land colored as dark yellow chosen. Make a score shown on the top right side. Increment if you pass pipes and don't hit them. Make randomly spaced dark green pipes with enough space. When you lose, show the best score. Make the text inside the screen. Pressing q or Esc will quit the game. Restarting is pressing SPACE again. The final game should be written to a file named flappy_bird.py.".to_string()
+        ).await;
+
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Check if the agent used the text editor tool correctly
         let valid_tool_call = messages.iter().any(|msg| {

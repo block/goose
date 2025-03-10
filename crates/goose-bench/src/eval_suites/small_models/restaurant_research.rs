@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    measure_prompt_execution_time, metrics_hashmap_to_vec, write_response_to_file, BenchAgent,
+    Evaluation, EvaluationMetric, ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 
@@ -28,34 +31,51 @@ impl Evaluation for RestaurantResearch {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
-        _: &mut BenchmarkWorkDir,
+        work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("RestaurantResearch - run");
-        let mut metrics = Vec::new();
-        let response = agent.prompt("Search for and provide a current, detailed list of the best Sichuanese restaurants specifically in the East Village neighborhood of NYC. Format your response in Markdown using bullet points (either - or *) for each restaurant. For each restaurant include:
+
+        // Use our metrics utility to measure execution time and tool calls
+        let (response, perf_metrics) = measure_prompt_execution_time(
+            &mut agent,
+            "Search the internet for and provide a current, detailed list of the best Sichuanese restaurants specifically in the East Village neighborhood of NYC. Format your response in Markdown using bullet points (either - or *) for each restaurant. For each restaurant include:
 - Restaurant name and what they're known for
 - Signature dishes
 - Atmosphere/setting
 - Any relevant details about reservations or dining experience
 - What distinguishes them from others
 
-Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants.".to_string()).await?;
+Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants.".to_string()
+        ).await;
 
-        // Get text content from the last message
-        if let Some(last_msg) = response.last() {
-            let text_content = last_msg.as_concat_text();
-            let has_markdown_bullets = self.check_markdown_bullets(&text_content);
-            let bullet_count = self.count_bullet_points(&text_content);
+        // Write response to file and get the text content
+        let response_text =
+            match write_response_to_file(&response, work_dir, "restaurant_research_output.txt") {
+                Ok(text) => text,
+                Err(e) => {
+                    println!("Warning: Failed to write restaurant research output: {}", e);
+                    // If file write fails, still continue with the evaluation
+                    response
+                        .last()
+                        .map_or_else(String::new, |msg| msg.as_concat_text())
+                }
+            };
 
-            metrics.push((
-                "valid_markdown_format".to_string(),
-                EvaluationMetric::Boolean(has_markdown_bullets),
-            ));
-            metrics.push((
-                "bullet_point_count".to_string(),
-                EvaluationMetric::Integer(bullet_count),
-            ));
-        }
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
+
+        // Check markdown formatting
+        let has_markdown_bullets = self.check_markdown_bullets(&response_text);
+        let bullet_count = self.count_bullet_points(&response_text);
+
+        metrics.push((
+            "valid_markdown_format".to_string(),
+            EvaluationMetric::Boolean(has_markdown_bullets),
+        ));
+        metrics.push((
+            "bullet_point_count".to_string(),
+            EvaluationMetric::Integer(bullet_count),
+        ));
 
         Ok(metrics)
     }
