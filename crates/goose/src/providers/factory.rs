@@ -29,10 +29,7 @@ pub fn providers() -> Vec<ProviderMetadata> {
     ]
 }
 
-pub fn create(name: &str, mut model: ModelConfig) -> Result<Box<dyn Provider + Send + Sync>> {
-    // Update config from environment variables
-    model.update_from_config(&serde_json::json!({}))?;
-
+pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send + Sync>> {
     match name {
         "openai" => Ok(Box::new(OpenAiProvider::from_env(model)?)),
         "anthropic" => Ok(Box::new(AnthropicProvider::from_env(model)?)),
