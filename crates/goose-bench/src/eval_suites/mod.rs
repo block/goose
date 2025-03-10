@@ -2,7 +2,7 @@ mod core;
 mod evaluation;
 mod factory;
 mod metrics;
-mod small_models;
+mod vibes;
 mod utils;
 
 pub use evaluation::*;
