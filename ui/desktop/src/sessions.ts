@@ -29,15 +29,6 @@ export interface SessionsResponse {
   sessions: Session[];
 }
 
-export interface SessionMessage {
-  role: 'user' | 'assistant';
-  created: number;
-  content: {
-    type: string;
-    text: string;
-  }[];
-}
-
 export interface SessionDetails {
   session_id: string;
   metadata: SessionMetadata;
