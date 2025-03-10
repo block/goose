@@ -1,7 +1,7 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    measure_prompt_execution_time, metrics_hashmap_to_vec, write_response_to_file, BenchAgent,
-    Evaluation, EvaluationMetric, ExtensionRequirements,
+    copy_session_to_cwd, measure_prompt_execution_time, metrics_hashmap_to_vec,
+    write_response_to_file, BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -56,6 +56,13 @@ impl Evaluation for BlogSummary {
             "valid_markdown_format".to_string(),
             EvaluationMetric::Boolean(has_markdown_list),
         ));
+
+        // Copy the session file to the current working directory
+        if let Err(e) = copy_session_to_cwd() {
+            println!("Warning: Failed to copy session file: {}", e);
+        } else {
+            println!("Successfully copied session file to current directory");
+        }
 
         Ok(metrics)
     }
