@@ -238,8 +238,11 @@ impl Agent for TruncateAgent {
                     &tools,
                 ).await {
                     Ok((mut response, usage)) => {
-                        // Post-process / structure the response
-                        response = capabilities.provider().structure_response(response, &tools).await?;
+                        // Post-process / structure the response only if tool interpretation is enabled
+                        let config = capabilities.provider().get_model_config();
+                        if config.interpret_chat_tool_calls {
+                            response = capabilities.provider().structure_response(response, &tools).await?;
+                        }
 
                         capabilities.record_usage(usage.clone()).await;
 

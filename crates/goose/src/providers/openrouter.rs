@@ -239,11 +239,6 @@ impl Provider for OpenRouterProvider {
         message: Message,
         tools: &[Tool],
     ) -> Result<Message, ProviderError> {
-        let config = self.get_model_config();
-        if !config.interpret_chat_tool_calls {
-            return Ok(message);
-        }
-
         // Create interpreter for tool calls - use Ollama's default host and port
         let base_url = format!(
             "http://{}:{}",

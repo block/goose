@@ -140,11 +140,6 @@ impl Provider for OllamaProvider {
         message: Message,
         tools: &[Tool],
     ) -> Result<Message, ProviderError> {
-        let config = self.get_model_config();
-        if !config.interpret_chat_tool_calls {
-            return Ok(message);
-        }
-
         let base_url = self.get_base_url()?;
         let interpreter = OllamaInterpreter::new(base_url.to_string());
 
