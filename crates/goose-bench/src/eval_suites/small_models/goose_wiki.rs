@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    measure_prompt_execution_time, metrics_hashmap_to_vec, BenchAgent, Evaluation,
+    EvaluationMetric, ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -22,9 +25,15 @@ impl Evaluation for GooseWiki {
         _: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("GooseWiki - run");
-        let mut metrics = Vec::new();
 
-        let messages = agent.prompt("Create a Wikipedia-style web page about Goose (Block's AI agent) in a new index.html file. The page should be a complete, well-structured HTML document with proper head and body sections. Use heading tags (h1, h2, h3) to organize the content into clear sections. Include comprehensive information about Goose organized in a way similar to how Wikipedia presents technical topics.".to_string()).await?;
+        // Use our metrics utility to measure execution time and tool calls
+        let (messages, perf_metrics) = measure_prompt_execution_time(
+            &mut agent,
+            "Create a Wikipedia-style web page about Goose (Block's AI agent) in a new index.html file. The page should be a complete, well-structured HTML document with proper head and body sections. Use heading tags (h1, h2, h3) to organize the content into clear sections. Include comprehensive information about Goose organized in a way similar to how Wikipedia presents technical topics.".to_string()
+        ).await;
+
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Check if the agent used the text editor tool to create index.html
         let valid_tool_call = messages.iter().any(|msg| {
