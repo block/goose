@@ -95,13 +95,13 @@ impl CredentialsManager {
             }
         };
 
+        // Fallback to writing on disk if we can't write to the keychain
         match entry.set_password(content) {
             Ok(_) => {
                 debug!("Successfully wrote credentials to keychain");
                 Ok(())
             }
             Err(e) => {
-                // Categorize errors - some might be critical and should not trigger fallback
                 warn!(
                     "Non-critical keychain error: {}, falling back to file system",
                     e
@@ -143,20 +143,31 @@ impl CredentialsManager {
 struct StorageEntry {
     token: TokenInfo,
     scopes: String,
+    project_id: String,
 }
 
 /// KeychainTokenStorage implements the TokenStorage trait from yup_oauth2
 /// to enable secure storage of OAuth tokens in the system keychain.
 pub struct KeychainTokenStorage {
+    project_id: String,
     credentials_manager: Arc<CredentialsManager>,
 }
 
 impl KeychainTokenStorage {
     /// Create a new KeychainTokenStorage with the given CredentialsManager
-    pub fn new(credentials_manager: Arc<CredentialsManager>) -> Self {
+    pub fn new(project_id: String, credentials_manager: Arc<CredentialsManager>) -> Self {
         Self {
+            project_id,
             credentials_manager,
         }
+    }
+
+    fn generate_scoped_key(&self, scopes: &[&str]) -> String {
+        // Create a key based on the scopes and project_id
+        let mut sorted_scopes = scopes.to_vec();
+        sorted_scopes.sort();
+
+        sorted_scopes.join(" ")
     }
 }
 
@@ -164,15 +175,14 @@ impl KeychainTokenStorage {
 impl TokenStorage for KeychainTokenStorage {
     /// Store a token in the keychain
     async fn set(&self, scopes: &[&str], token_info: TokenInfo) -> Result<()> {
-        debug!("Storing OAuth token in keychain for scopes: {:?}", scopes);
-
-        // Create a key based on the scopes
-        let scope_key = scopes.join(" ");
+        let key = self.generate_scoped_key(scopes);
+        debug!("Storing OAuth token in keychain for scopes: {:?}", key);
 
         // Create a storage entry that includes the scopes
         let storage_entry = StorageEntry {
             token: token_info,
-            scopes: scope_key.clone(),
+            scopes: key,
+            project_id: self.project_id.clone(),
         };
 
         let json = serde_json::to_string(&storage_entry)?;
@@ -186,11 +196,8 @@ impl TokenStorage for KeychainTokenStorage {
 
     /// Retrieve a token from the keychain
     async fn get(&self, scopes: &[&str]) -> Option<TokenInfo> {
-        let scope_key = scopes.join(" ");
-        debug!(
-            "Retrieving OAuth token from keychain for scopes: {:?}",
-            scopes
-        );
+        let key = self.generate_scoped_key(scopes);
+        debug!("Retrieving OAuth token from keychain for key: {:?}", key);
 
         match self.credentials_manager.read_credentials() {
             Ok(json) => {
@@ -198,13 +205,14 @@ impl TokenStorage for KeychainTokenStorage {
                 match serde_json::from_str::<StorageEntry>(&json) {
                     Ok(entry) => {
                         // Check if the stored token has the requested scopes
-                        if entry.scopes == scope_key {
+                        debug!("{} == {}", entry.project_id, self.project_id);
+                        if entry.project_id == self.project_id && entry.scopes == key {
                             debug!("Successfully retrieved OAuth token from storage");
                             Some(entry.token)
                         } else {
                             debug!(
                                 "Found token but scopes don't match. Stored: {}, Requested: {}",
-                                entry.scopes, scope_key
+                                entry.scopes, key
                             );
                             None
                         }
@@ -258,11 +266,12 @@ mod tests {
     async fn test_token_storage_set_get() {
         // Create a temporary file for testing
         let temp_file = NamedTempFile::new().unwrap();
+        let project_id = "test_project".to_string();
         let credentials_manager = Arc::new(CredentialsManager::new(
             temp_file.path().to_string_lossy().to_string(),
         ));
 
-        let storage = KeychainTokenStorage::new(credentials_manager);
+        let storage = KeychainTokenStorage::new(project_id, credentials_manager);
 
         // Create a test token
         let token_info = TokenInfo {
@@ -289,11 +298,12 @@ mod tests {
     async fn test_token_storage_scope_mismatch() {
         // Create a temporary file for testing
         let temp_file = NamedTempFile::new().unwrap();
+        let project_id = "test_project".to_string();
         let credentials_manager = Arc::new(CredentialsManager::new(
             temp_file.path().to_string_lossy().to_string(),
         ));
 
-        let storage = KeychainTokenStorage::new(credentials_manager);
+        let storage = KeychainTokenStorage::new(project_id, credentials_manager);
 
         // Create a test token
         let token_info = TokenInfo {
@@ -314,4 +324,3 @@ mod tests {
         assert!(result.is_none());
     }
 }
-

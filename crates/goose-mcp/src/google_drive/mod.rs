@@ -135,13 +135,20 @@ impl GoogleDriveRouter {
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
 
-        // Create custom token storage using our credentials manager
-        let token_storage = KeychainTokenStorage::new(credentials_manager.clone());
-
         let secret = yup_oauth2::read_application_secret(keyfile_path)
             .await
             .expect("expected keyfile for google auth");
 
+        let token_storage = KeychainTokenStorage::new(
+            secret
+                .project_id
+                .clone()
+                .unwrap_or("unknown-project-id".to_string())
+                .to_string(),
+            credentials_manager.clone(),
+        );
+
+        // Create the authenticator with the installed flow
         let auth = InstalledFlowAuthenticator::builder(
             secret,
             yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
