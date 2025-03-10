@@ -2330,6 +2330,7 @@ dependencies = [
  "goose",
  "include_dir",
  "mcp-core",
+ "once_cell",
  "paste",
  "serde",
  "serde_json",

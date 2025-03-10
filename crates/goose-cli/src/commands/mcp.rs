@@ -9,7 +9,7 @@ use tokio::io::{stdin, stdout};
 
 pub async fn run_server(name: &str) -> Result<()> {
     // Initialize logging
-    crate::logging::setup_logging(Some(&format!("mcp-{name}")))?;
+    crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
 
     tracing::info!("Starting MCP server");
 

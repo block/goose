@@ -1,18 +1,36 @@
 use crate::eval_suites::BenchAgentError;
 use chrono::Utc;
+use once_cell::sync::Lazy;
 use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::sync::Mutex;
 use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
-pub struct ErrorCaptureLayer {
-    errors: Arc<Mutex<Vec<BenchAgentError>>>,
+// Type alias to reduce complexity
+type ErrorRegistry = RwLock<Option<Arc<Mutex<Vec<BenchAgentError>>>>>;
+
+// Global registry for error vectors
+static ERROR_REGISTRY: Lazy<ErrorRegistry> = Lazy::new(|| RwLock::new(None));
+
+pub struct ErrorCaptureLayer;
+
+impl Default for ErrorCaptureLayer {
+    fn default() -> Self {
+        Self
+    }
 }
 
 impl ErrorCaptureLayer {
-    pub fn new(errors: Arc<Mutex<Vec<BenchAgentError>>>) -> Self {
-        Self { errors }
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn register_error_vector(errors: Arc<Mutex<Vec<BenchAgentError>>>) {
+        if let Ok(mut registry) = ERROR_REGISTRY.write() {
+            *registry = Some(errors);
+        }
     }
 }
 
@@ -33,11 +51,15 @@ where
                     timestamp: Utc::now(),
                 };
 
-                let errors = self.errors.clone();
-                tokio::spawn(async move {
-                    let mut errors = errors.lock().await;
-                    errors.push(error);
-                });
+                // Get the current error vector from the registry
+                if let Ok(registry) = ERROR_REGISTRY.read() {
+                    if let Some(errors) = registry.clone() {
+                        tokio::spawn(async move {
+                            let mut errors = errors.lock().await;
+                            errors.push(error);
+                        });
+                    }
+                }
             }
         }
     }
