@@ -42,7 +42,7 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 pub fn get_ollama_base_url() -> Result<String, ProviderError> {
     let config = crate::config::Config::global();
     let host: String = config
-        .get("OLLAMA_HOST")
+        .get_param("OLLAMA_HOST")
         .unwrap_or_else(|_| crate::providers::ollama::OLLAMA_HOST.to_string());
 
     // Format the URL correctly with http:// prefix if needed

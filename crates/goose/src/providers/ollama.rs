@@ -87,26 +87,6 @@ impl OllamaProvider {
 
         handle_response_openai_compat(response).await
     }
-
-    fn process_response(
-        &self,
-        payload: Value,
-        response: Value,
-        message: Message,
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Get usage information
-        let usage = match get_usage(&response) {
-            Ok(usage) => usage,
-            Err(ProviderError::UsageError(e)) => {
-                tracing::debug!("Failed to get usage data: {}", e);
-                Usage::default()
-            }
-            Err(e) => return Err(e),
-        };
-        let model = get_model(&response);
-        super::utils::emit_debug_trace(self, &payload, &response, &usage);
-        Ok((message, ProviderUsage::new(model, usage)))
-    }
 }
 
 #[async_trait]
@@ -153,6 +133,16 @@ impl Provider for OllamaProvider {
         let response = self.post(payload.clone()).await?;
         let message = response_to_message(response.clone())?;
 
-        self.process_response(payload, response, message)
+        let usage = match get_usage(&response) {
+            Ok(usage) => usage,
+            Err(ProviderError::UsageError(e)) => {
+                tracing::debug!("Failed to get usage data: {}", e);
+                Usage::default()
+            }
+            Err(e) => return Err(e),
+        };
+        let model = get_model(&response);
+        super::utils::emit_debug_trace(self, &payload, &response, &usage);
+        Ok((message, ProviderUsage::new(model, usage)))
     }
 }
