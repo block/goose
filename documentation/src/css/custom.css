@@ -260,3 +260,8 @@ html[data-theme="light"] .hide-in-light {
   --ifm-alert-foreground-color: var(--ifm-color-video-alert-contrast-foreground);
   --ifm-alert-border-color: var(--ifm-color-video-alert-border);
 }
+
+.aspect-ratio{
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
