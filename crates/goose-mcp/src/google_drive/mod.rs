@@ -1,9 +1,12 @@
+mod auth;
+
+use auth::{CredentialsManager, KeychainTokenStorage};
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
+use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin, sync::Arc};
 
-use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
-
+use mcp_core::content::Content;
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     prompt::Prompt,
@@ -13,8 +16,6 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-
-use mcp_core::content::Content;
 
 use google_drive3::{
     self,
@@ -28,9 +29,7 @@ use google_drive3::{
     },
     DriveHub,
 };
-
 use google_sheets4::{self, Sheets};
-
 use http_body_util::BodyExt;
 
 /// async function to be pinned by the `present_user_url` method of the trait
@@ -70,14 +69,15 @@ pub struct GoogleDriveRouter {
     instructions: String,
     drive: DriveHub<HttpsConnector<HttpConnector>>,
     sheets: Sheets<HttpsConnector<HttpConnector>>,
+    credentials_manager: CredentialsManager,
 }
 
 impl GoogleDriveRouter {
     async fn google_auth() -> (
         DriveHub<HttpsConnector<HttpConnector>>,
         Sheets<HttpsConnector<HttpConnector>>,
+        CredentialsManager,
     ) {
-        let oauth_config = env::var("GOOGLE_DRIVE_OAUTH_CONFIG");
         let keyfile_path_str = env::var("GOOGLE_DRIVE_OAUTH_PATH")
             .unwrap_or_else(|_| "./gcp-oauth.keys.json".to_string());
         let credentials_path_str = env::var("GOOGLE_DRIVE_CREDENTIALS_PATH")
@@ -87,7 +87,7 @@ impl GoogleDriveRouter {
         let keyfile_path = Path::new(expanded_keyfile.as_ref());
 
         let expanded_credentials = shellexpand::tilde(credentials_path_str.as_str());
-        let credentials_path = Path::new(expanded_credentials.as_ref());
+        let credentials_path = expanded_credentials.to_string();
 
         tracing::info!(
             credentials_path = credentials_path_str,
@@ -95,35 +95,47 @@ impl GoogleDriveRouter {
             "Google Drive MCP server authentication config paths"
         );
 
-        if !keyfile_path.exists() && oauth_config.is_ok() {
-            // attempt to create the path
-            if let Some(parent_dir) = keyfile_path.parent() {
-                let _ = fs::create_dir_all(parent_dir);
-            }
+        // Handle OAuth config from environment variable
+        if let Ok(oauth_config) = env::var("GOOGLE_DRIVE_OAUTH_CONFIG") {
+            if !keyfile_path.exists() {
+                // attempt to create the path
+                if let Some(parent_dir) = keyfile_path.parent() {
+                    let _ = fs::create_dir_all(parent_dir);
+                }
 
-            if let Ok(mut file) = fs::File::create(keyfile_path) {
-                let _ = file.write_all(oauth_config.unwrap().as_bytes());
-                tracing::debug!(
-                    "Wrote Google Drive MCP server OAuth config to {}",
-                    keyfile_path.display()
-                );
+                if let Ok(mut file) = fs::File::create(keyfile_path) {
+                    let _ = file.write_all(oauth_config.as_bytes());
+                    tracing::debug!(
+                        "Wrote Google Drive MCP server OAuth config to {}",
+                        keyfile_path.display()
+                    );
+                }
             }
         }
 
+        // Create a credentials manager for storing tokens securely
+        let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
+
+        // Create custom token storage using our credentials manager
+        let token_storage = KeychainTokenStorage::new(credentials_manager.clone());
+
+        // Read the application secret from the OAuth keyfile
         let secret = yup_oauth2::read_application_secret(keyfile_path)
             .await
             .expect("expected keyfile for google auth");
 
+        // Create the authenticator with the installed flow
         let auth = InstalledFlowAuthenticator::builder(
             secret,
             yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
         )
-        .persist_tokens_to_disk(credentials_path)
+        .with_storage(Box::new(token_storage)) // Use our custom storage
         .flow_delegate(Box::new(LocalhostBrowserDelegate))
         .build()
         .await
         .expect("expected successful authentication");
 
+        // Create the HTTP client
         let client =
             hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
                 .build(
@@ -138,11 +150,16 @@ impl GoogleDriveRouter {
         let drive_hub = DriveHub::new(client.clone(), auth.clone());
         let sheets_hub = Sheets::new(client, auth);
 
-        (drive_hub, sheets_hub)
+        // Create and return the DriveHub
+        (
+            drive_hub,
+            sheets_hub,
+            Arc::try_unwrap(credentials_manager).unwrap_or_else(|arc| arc.as_ref().clone()),
+        )
     }
 
     pub async fn new() -> Self {
-        let (drive, sheets) = Self::google_auth().await;
+        let (drive, sheets, credentials_manager) = Self::google_auth().await;
 
         // handle auth
         let search_tool = Tool::new(
@@ -302,6 +319,7 @@ impl GoogleDriveRouter {
             instructions,
             drive,
             sheets,
+            credentials_manager,
         }
     }
 
@@ -851,6 +869,7 @@ impl Clone for GoogleDriveRouter {
             instructions: self.instructions.clone(),
             drive: self.drive.clone(),
             sheets: self.sheets.clone(),
+            credentials_manager: self.credentials_manager.clone(),
         }
     }
 }
