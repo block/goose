@@ -12,6 +12,8 @@ function show_usage() {
   echo "  -s, --suites             Comma-separated list of benchmark suites to run (e.g., 'core,small_models')"
   echo "  -o, --output-dir         Directory to store benchmark results (default: './benchmark-results')"
   echo "  -d, --debug              Use debug build instead of release build"
+  echo "  -t, --toolshim           Enable toolshim mode by setting GOOSE_TOOLSHIM=1"
+  echo "  -m, --toolshim-model     Set the toolshim model (sets GOOSE_TOOLSHIM_MODEL)"
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Example:"
@@ -23,6 +25,8 @@ PROVIDER_MODELS=""
 SUITES=""
 OUTPUT_DIR="./benchmark-results"
 DEBUG_MODE=false
+TOOLSHIM=false
+TOOLSHIM_MODEL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +45,14 @@ while [[ $# -gt 0 ]]; do
     -d|--debug)
       DEBUG_MODE=true
       shift
+      ;;
+    -t|--toolshim)
+      TOOLSHIM=true
+      shift
+      ;;
+    -m|--toolshim-model)
+      TOOLSHIM_MODEL="$2"
+      shift 2
       ;;
     -h|--help)
       show_usage
@@ -79,6 +91,12 @@ if [ "$DEBUG_MODE" = true ]; then
   echo "Mode: Debug" >> "$SUMMARY_FILE"
 else
   echo "Mode: Release" >> "$SUMMARY_FILE"
+fi
+if [ "$TOOLSHIM" = true ]; then
+  echo "Toolshim: Enabled" >> "$SUMMARY_FILE"
+  if [[ -n "$TOOLSHIM_MODEL" ]]; then
+    echo "Toolshim Model: $TOOLSHIM_MODEL" >> "$SUMMARY_FILE"
+  fi
 fi
 echo "" >> "$SUMMARY_FILE"
 
@@ -139,6 +157,14 @@ for ((i=0; i<$COUNT; i++)); do
   # Set environment variables for this provider/model instead of using configure
   export GOOSE_PROVIDER="$provider"
   export GOOSE_MODEL="$model"
+  
+  # Set toolshim environment variables if enabled
+  if [ "$TOOLSHIM" = true ]; then
+    export GOOSE_TOOLSHIM=1
+    if [[ -n "$TOOLSHIM_MODEL" ]]; then
+      export GOOSE_TOOLSHIM_MODEL="$TOOLSHIM_MODEL"
+    fi
+  fi
   
   # Run the benchmark and save results to JSON
   echo "Running benchmark for $provider/$model with suites: $SUITES"

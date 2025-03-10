@@ -61,7 +61,7 @@ The script should:
   [PARK_RESULT] <park_name> - <count> squirrels spotted
   [PARK_COLOR] Most common fur color: <color> (<color_count> squirrels)
 
-After writing the script, run it using python3 and show the results. Do not ask for confirmation or further instructions.", 
+After writing the script, run it using python3 and show the results. Do not ask for confirmation or further instructions. Remember to use your tools if applicable.", 
                 squirrel_data_path.display()
             )
         ).await;

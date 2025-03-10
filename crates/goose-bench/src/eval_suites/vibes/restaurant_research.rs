@@ -45,7 +45,7 @@ impl Evaluation for RestaurantResearch {
 - Any relevant details about reservations or dining experience
 - What distinguishes them from others
 
-Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants. If you encounter a page you cannot access, try another one. Do not ask me for confirmation just conduct the searches yourself until you find the needed information.".to_string()
+Present the information in order of significance or quality. Focus specifically on Sichuanese establishments, not general Chinese restaurants. If you encounter a page you cannot access, try another one. Do not ask me for confirmation just conduct the searches yourself until you find the needed information. Remember to use your tools if applicable.".to_string()
         ).await;
 
         // Write response to file and get the text content
