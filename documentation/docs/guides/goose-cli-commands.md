@@ -176,12 +176,12 @@ goose agents
 
 Goose CLI supports several shortcuts and built-in commands for easier navigation.
 
-### **Slash Commands**
+### Slash Commands
 - **`/exit` or `/quit`** - Exit the session
 - **`/t`** - Toggle between Light/Dark modes
 - **`/?` or `/help`** - Display the help menu
 
-### **Keyboard Navigation**
+### Keyboard Navigation
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
 - **Up/Down arrows** - Navigate through command history
