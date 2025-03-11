@@ -85,15 +85,10 @@ impl PkceOAuth2Client {
 
         // Try to load a refresh token from storage
         let refresh_token = credentials_manager
-            .read_credentials()
+            .read_credentials::<TokenData>()
             .inspect_err(|e| debug!("No stored credentials found or error reading them: {}", e))
             .ok()
-            .and_then(|json| {
-                serde_json::from_str::<TokenData>(&json)
-                    .inspect_err(|e| error!("Failed to parse stored credentials: {}", e))
-                    .ok()
-                    .map(|token_data| token_data.refresh_token)
-            });
+            .map(|token_data| token_data.refresh_token);
 
         let http_client = reqwest::ClientBuilder::new()
             // Following redirects opens the client up to SSRF vulnerabilities.
@@ -178,9 +173,8 @@ impl PkceOAuth2Client {
                 })
                 .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
 
-            serde_json::to_string(&token_data)
-                .map_err(Into::into) // Convert serde_json::Error to AuthError
-                .and_then(|data| self.credentials_manager.write_credentials(&data))
+            self.credentials_manager
+                .write_credentials(&token_data)
                 .map(|_| debug!("Successfully stored refresh token"))
                 .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
         }
@@ -224,9 +218,8 @@ impl PkceOAuth2Client {
                 })
                 .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
 
-            serde_json::to_string(&token_data)
-                .map_err(Into::into) // Convert serde_json::Error to AuthError
-                .and_then(|data| self.credentials_manager.write_credentials(&data))
+            self.credentials_manager
+                .write_credentials(&token_data)
                 .map(|_| debug!("Successfully stored refresh token"))
                 .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
         }
@@ -311,9 +304,8 @@ impl GetToken for PkceOAuth2Client {
             // Attempt to read token from storage and update in-memory cache
             let token_from_storage = self
                 .credentials_manager
-                .read_credentials()
+                .read_credentials::<TokenData>()
                 .ok()
-                .and_then(|json| serde_json::from_str::<TokenData>(&json).ok())
                 .map(|token_data| {
                     if let Ok(mut token_guard) = self.refresh_token.lock() {
                         *token_guard = Some(token_data.refresh_token.clone());
@@ -344,3 +336,4 @@ impl GetToken for PkceOAuth2Client {
         })
     }
 }
+

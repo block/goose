@@ -1,10 +1,9 @@
 use anyhow::Result;
-use google_drive3::yup_oauth2::storage::{TokenInfo, TokenStorage};
 use keyring::Entry;
+use serde::{de::DeserializeOwned, Serialize};
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 
@@ -14,7 +13,7 @@ const KEYCHAIN_DISK_FALLBACK_ENV: &str = "GOOGLE_DRIVE_DISK_FALLBACK";
 
 #[allow(dead_code)]
 #[derive(Error, Debug)]
-pub enum AuthError {
+pub enum StorageError {
     #[error("Failed to access keychain: {0}")]
     KeyringError(#[from] keyring::Error),
     #[error("Failed to access file system: {0}")]
@@ -49,8 +48,44 @@ impl CredentialsManager {
         }
     }
 
-    pub fn read_credentials(&self) -> Result<String, AuthError> {
-        Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME)
+    /// Reads and deserializes credentials from secure storage.
+    ///
+    /// This method attempts to read credentials from the system keychain first.
+    /// If keychain access fails and fallback is enabled, it will try to read from the file system.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type to deserialize the credentials into. Must implement `serde::de::DeserializeOwned`.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(T)` - The deserialized credentials
+    /// * `Err(StorageError)` - If reading or deserialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use goose_mcp::google_drive::token_storage::CredentialsManager;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(Serialize, Deserialize)]
+    /// struct OAuthToken {
+    ///     access_token: String,
+    ///     refresh_token: String,
+    ///     expiry: u64,
+    /// }
+    ///
+    /// let manager = CredentialsManager::new(String::from("/path/to/credentials.json"));
+    /// match manager.read_credentials::<OAuthToken>() {
+    ///     Ok(token) => println!("Token expires at: {}", token.expiry),
+    ///     Err(e) => eprintln!("Failed to read token: {}", e),
+    /// }
+    /// ```
+    pub fn read_credentials<T>(&self) -> Result<T, StorageError>
+    where
+        T: DeserializeOwned,
+    {
+        let json_str = Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME)
             .and_then(|entry| entry.get_password())
             .inspect(|_| {
                 debug!("Successfully read credentials from keychain");
@@ -61,14 +96,16 @@ impl CredentialsManager {
                     self.read_from_file()
                 } else {
                     match e {
-                        keyring::Error::NoEntry => Err(AuthError::NotFound),
-                        _ => Err(AuthError::KeyringError(e)),
+                        keyring::Error::NoEntry => Err(StorageError::NotFound),
+                        _ => Err(StorageError::KeyringError(e)),
                     }
                 }
-            })
+            })?;
+
+        serde_json::from_str(&json_str).map_err(StorageError::SerializationError)
     }
 
-    fn read_from_file(&self) -> Result<String, AuthError> {
+    fn read_from_file(&self) -> Result<String, StorageError> {
         let path = Path::new(&self.credentials_path);
         if path.exists() {
             match fs::read_to_string(path) {
@@ -78,32 +115,79 @@ impl CredentialsManager {
                 }
                 Err(e) => {
                     error!("Failed to read credentials file: {}", e);
-                    Err(AuthError::FileSystemError(e))
+                    Err(StorageError::FileSystemError(e))
                 }
             }
         } else {
             debug!("No credentials found in file system");
-            Err(AuthError::NotFound)
+            Err(StorageError::NotFound)
         }
     }
 
-    pub fn write_credentials(&self, content: &str) -> Result<(), AuthError> {
+    /// Serializes and writes credentials to secure storage.
+    ///
+    /// This method attempts to write credentials to the system keychain first.
+    /// If keychain access fails and fallback is enabled, it will try to write to the file system.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type to serialize. Must implement `serde::Serialize`.
+    ///
+    /// # Parameters
+    ///
+    /// * `content` - The data to serialize and store
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If writing succeeds
+    /// * `Err(StorageError)` - If serialization or writing fails
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use goose_mcp::google_drive::token_storage::CredentialsManager;
+    /// use serde::{Serialize, Deserialize};
+    ///
+    /// #[derive(Serialize, Deserialize)]
+    /// struct OAuthToken {
+    ///     access_token: String,
+    ///     refresh_token: String,
+    ///     expiry: u64,
+    /// }
+    ///
+    /// let token = OAuthToken {
+    ///     access_token: String::from("access_token_value"),
+    ///     refresh_token: String::from("refresh_token_value"),
+    ///     expiry: 1672531200, // Unix timestamp
+    /// };
+    ///
+    /// let manager = CredentialsManager::new(String::from("/path/to/credentials.json"));
+    /// if let Err(e) = manager.write_credentials(&token) {
+    ///     eprintln!("Failed to write token: {}", e);
+    /// }
+    /// ```
+    pub fn write_credentials<T>(&self, content: &T) -> Result<(), StorageError>
+    where
+        T: Serialize,
+    {
+        let json_str = serde_json::to_string(content).map_err(StorageError::SerializationError)?;
+
         Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_USERNAME)
-            .and_then(|entry| entry.set_password(content))
+            .and_then(|entry| entry.set_password(&json_str))
             .inspect(|_| {
                 debug!("Successfully wrote credentials to keychain");
             })
             .or_else(|e| {
                 if self.fallback_to_disk {
                     warn!("Falling back to file system due to keyring error: {}", e);
-                    self.write_to_file(content)
+                    self.write_to_file(&json_str)
                 } else {
-                    Err(AuthError::KeyringError(e))
+                    Err(StorageError::KeyringError(e))
                 }
             })
     }
 
-    fn write_to_file(&self, content: &str) -> Result<(), AuthError> {
+    fn write_to_file(&self, content: &str) -> Result<(), StorageError> {
         let path = Path::new(&self.credentials_path);
         if let Some(parent) = path.parent() {
             if !parent.exists() {
@@ -111,7 +195,7 @@ impl CredentialsManager {
                     Ok(_) => debug!("Created parent directories for credentials file"),
                     Err(e) => {
                         error!("Failed to create directories for credentials file: {}", e);
-                        return Err(AuthError::FileSystemError(e));
+                        return Err(StorageError::FileSystemError(e));
                     }
                 }
             }
@@ -124,97 +208,7 @@ impl CredentialsManager {
             }
             Err(e) => {
                 error!("Failed to write credentials to file system: {}", e);
-                Err(AuthError::FileSystemError(e))
-            }
-        }
-    }
-}
-
-/// Storage entry that includes the token, scopes and project it's valid for
-#[derive(serde::Serialize, serde::Deserialize)]
-struct StorageEntry {
-    token: TokenInfo,
-    scopes: String,
-    project_id: String,
-}
-
-/// KeychainTokenStorage implements the TokenStorage trait from yup_oauth2
-/// to enable secure storage of OAuth tokens in the system keychain.
-pub struct KeychainTokenStorage {
-    project_id: String,
-    credentials_manager: Arc<CredentialsManager>,
-}
-
-impl KeychainTokenStorage {
-    /// Create a new KeychainTokenStorage with the given CredentialsManager
-    pub fn new(project_id: String, credentials_manager: Arc<CredentialsManager>) -> Self {
-        Self {
-            project_id,
-            credentials_manager,
-        }
-    }
-
-    fn generate_scoped_key(&self, scopes: &[&str]) -> String {
-        // Create a key based on the scopes and project_id
-        // Sort so we can be consistent using scopes as the key
-        let mut sorted_scopes = scopes.to_vec();
-        sorted_scopes.sort();
-        sorted_scopes.join(" ")
-    }
-}
-
-#[async_trait::async_trait]
-impl TokenStorage for KeychainTokenStorage {
-    /// Store a token in the keychain
-    async fn set(&self, scopes: &[&str], token_info: TokenInfo) -> Result<()> {
-        let key = self.generate_scoped_key(scopes);
-
-        // Create a storage entry that includes the scopes
-        let storage_entry = StorageEntry {
-            token: token_info,
-            scopes: key,
-            project_id: self.project_id.clone(),
-        };
-
-        let json = serde_json::to_string(&storage_entry)?;
-        self.credentials_manager
-            .write_credentials(&json)
-            .map_err(|e| {
-                error!("Failed to write token to keychain: {}", e);
-                anyhow::anyhow!("Failed to write token to keychain: {}", e)
-            })
-    }
-
-    /// Retrieve a token from the keychain
-    async fn get(&self, scopes: &[&str]) -> Option<TokenInfo> {
-        let key = self.generate_scoped_key(scopes);
-
-        match self.credentials_manager.read_credentials() {
-            Ok(json) => {
-                debug!("Successfully read credentials from storage");
-                match serde_json::from_str::<StorageEntry>(&json) {
-                    Ok(entry) => {
-                        // Check if token has the requested scopes and matches the project_id
-                        if entry.project_id == self.project_id && entry.scopes == key {
-                            debug!("Successfully retrieved OAuth token from storage");
-                            Some(entry.token)
-                        } else {
-                            None
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Failed to deserialize token from storage: {}", e);
-                        None
-                    }
-                }
-            }
-            Err(AuthError::NotFound) => {
-                debug!("No OAuth token found in storage");
-                None
-            }
-            Err(e) => {
-                warn!("Error reading OAuth token from storage: {}", e);
-                None
+                Err(StorageError::FileSystemError(e))
             }
         }
     }
@@ -226,76 +220,5 @@ impl Clone for CredentialsManager {
             credentials_path: self.credentials_path.clone(),
             fallback_to_disk: self.fallback_to_disk,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-    use tempfile::NamedTempFile;
-
-    #[tokio::test]
-    #[serial]
-    async fn test_token_storage_set_get() {
-        // Create a temporary file for testing
-        let temp_file = NamedTempFile::new().unwrap();
-        let project_id = "test_project_1".to_string();
-        let credentials_manager = Arc::new(CredentialsManager::new(
-            temp_file.path().to_string_lossy().to_string(),
-        ));
-
-        let storage = KeychainTokenStorage::new(project_id, credentials_manager);
-
-        // Create a test token
-        let token_info = TokenInfo {
-            access_token: Some("test_access_token".to_string()),
-            refresh_token: Some("test_refresh_token".to_string()),
-            expires_at: None,
-            id_token: None,
-        };
-
-        let scopes = &["https://www.googleapis.com/auth/drive.readonly"];
-
-        // Store the token
-        storage.set(scopes, token_info.clone()).await.unwrap();
-
-        // Retrieve the token
-        let retrieved = storage.get(scopes).await.unwrap();
-
-        // Verify the token matches
-        assert_eq!(retrieved.access_token, token_info.access_token);
-        assert_eq!(retrieved.refresh_token, token_info.refresh_token);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_token_storage_scope_mismatch() {
-        // Create a temporary file for testing
-        let temp_file = NamedTempFile::new().unwrap();
-        let project_id = "test_project_2".to_string();
-        let credentials_manager = Arc::new(CredentialsManager::new(
-            temp_file.path().to_string_lossy().to_string(),
-        ));
-
-        let storage = KeychainTokenStorage::new(project_id, credentials_manager);
-
-        // Create a test token
-        let token_info = TokenInfo {
-            access_token: Some("test_access_token".to_string()),
-            refresh_token: Some("test_refresh_token".to_string()),
-            expires_at: None,
-            id_token: None,
-        };
-
-        let scopes1 = &["https://www.googleapis.com/auth/drive.readonly"];
-        let scopes2 = &["https://www.googleapis.com/auth/drive.file"];
-
-        // Store the token with scopes1
-        storage.set(scopes1, token_info).await.unwrap();
-
-        // Try to retrieve with different scopes
-        let result = storage.get(scopes2).await;
-        assert!(result.is_none());
     }
 }
