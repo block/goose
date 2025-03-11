@@ -8,8 +8,8 @@ pub mod reply;
 pub mod session;
 pub mod utils;
 
-use axum::Router;
 use crate::routes::reply::routes;
+use axum::Router;
 
 // Function to configure all routes
 pub fn configure(state: crate::state::AppState) -> Router {

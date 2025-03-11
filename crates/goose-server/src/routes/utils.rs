@@ -1,15 +1,15 @@
-use std::env;
-use serde::{Deserialize, Serialize};
-use std::error::Error;
 use goose::config::Config;
 use goose::providers::base::{ConfigKey, ProviderMetadata};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::error::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KeyLocation {
     Environment,
     ConfigFile,
     Keychain,
-    NotFound
+    NotFound,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,10 +22,7 @@ pub struct KeyInfo {
 }
 
 /// Inspects a configuration key to determine if it's set, its location, and value (for non-secret keys)
-pub fn inspect_key(
-    key_name: &str,
-    is_secret: bool,
-) -> Result<KeyInfo, Box<dyn Error>> {
+pub fn inspect_key(key_name: &str, is_secret: bool) -> Result<KeyInfo, Box<dyn Error>> {
     let config = Config::global();
 
     // Check environment variable first
@@ -66,16 +63,14 @@ pub fn inspect_key(
                 // Only include value for non-secret keys
                 value: if !is_secret_actual { Some(value) } else { None },
             })
-        },
-        Err(_) => {
-            Ok(KeyInfo {
-                name: key_name.to_string(),
-                is_set: false,
-                location: KeyLocation::NotFound,
-                is_secret,
-                value: None,
-            })
         }
+        Err(_) => Ok(KeyInfo {
+            name: key_name.to_string(),
+            is_set: false,
+            location: KeyLocation::NotFound,
+            is_secret,
+            value: None,
+        }),
     }
 }
 

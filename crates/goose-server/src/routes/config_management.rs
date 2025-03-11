@@ -5,7 +5,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::Config;
-use goose::providers::base::{ProviderMetadata};
+use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
