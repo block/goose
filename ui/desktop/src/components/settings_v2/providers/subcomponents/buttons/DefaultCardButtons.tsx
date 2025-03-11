@@ -1,13 +1,13 @@
 import React from 'react';
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
-import ProviderState from '@/src/components/settings_v2/providers/interfaces/ProviderState';
+import { ProviderDetails } from '../../../../../api';
 
 // can define other optional callbacks as needed
 interface CardButtonsProps {
-  provider: ProviderState;
+  provider: ProviderDetails;
   isOnboardingPage: boolean;
-  onConfigure: (provider: ProviderState) => void;
-  onLaunch: (provider: ProviderState) => void;
+  onConfigure: (provider: ProviderDetails) => void;
+  onLaunch: (provider: ProviderDetails) => void;
 }
 
 function getDefaultTooltipMessages(name: string, actionType: string) {
@@ -32,7 +32,7 @@ export default function DefaultCardButtons({
   return (
     <>
       {/*Set up an unconfigured provider */}
-      {!provider.isConfigured && (
+      {!provider.is_configured && (
         <ConfigureSettingsButton
           tooltip={getDefaultTooltipMessages(provider.name, 'add')}
           onClick={(e) => {
@@ -42,7 +42,7 @@ export default function DefaultCardButtons({
         />
       )}
       {/*show edit tooltip instead when hovering over button for configured providers*/}
-      {provider.isConfigured && !isOnboardingPage && (
+      {provider.is_configured && !isOnboardingPage && (
         <ConfigureSettingsButton
           tooltip={getDefaultTooltipMessages(provider.name, 'edit')}
           onClick={(e) => {
@@ -52,7 +52,7 @@ export default function DefaultCardButtons({
         />
       )}
       {/*show Launch button for configured providers on onboarding page*/}
-      {provider.isConfigured && isOnboardingPage && (
+      {provider.is_configured && isOnboardingPage && (
         <RocketButton
           onClick={(e) => {
             e.stopPropagation();

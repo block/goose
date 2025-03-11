@@ -314,7 +314,10 @@ async fn main() -> Result<()> {
             )
             .await;
 
-            setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
+            setup_logging(
+                session.session_file().file_stem().and_then(|s| s.to_str()),
+                None,
+            )?;
             let _ = session.interactive(None).await;
             return Ok(());
         }
@@ -354,7 +357,10 @@ async fn main() -> Result<()> {
                 debug,
             )
             .await;
-            setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
+            setup_logging(
+                session.session_file().file_stem().and_then(|s| s.to_str()),
+                None,
+            )?;
 
             if interactive {
                 session.interactive(Some(contents)).await?;
@@ -431,7 +437,10 @@ async fn main() -> Result<()> {
             } else {
                 // Run session command by default
                 let mut session = build_session(None, false, vec![], vec![], false).await;
-                setup_logging(session.session_file().file_stem().and_then(|s| s.to_str()))?;
+                setup_logging(
+                    session.session_file().file_stem().and_then(|s| s.to_str()),
+                    None,
+                )?;
                 let _ = session.interactive(None).await;
                 return Ok(());
             }

@@ -150,7 +150,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 }
 
                 let min_priority = config
-                    .get::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                    .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
                     .unwrap_or(0.0);
 

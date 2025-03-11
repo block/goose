@@ -15,7 +15,6 @@ use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
-use crate::config::ExperimentManager;
 use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
@@ -177,7 +176,7 @@ impl Agent for SummarizeAgent {
 
         // Load settings from config
         let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
@@ -283,11 +282,7 @@ impl Agent for SummarizeAgent {
                         let mode = goose_mode.clone();
                         match mode.as_str() {
                             "approve" => {
-                                let mut read_only_tools = Vec::new();
-                                // Process each tool request sequentially with confirmation
-                                if ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
-                                    read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
-                                }
+                                let read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list

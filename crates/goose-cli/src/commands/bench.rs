@@ -1,21 +1,16 @@
+use crate::logging;
 use crate::session::build_session;
 use crate::Session;
 use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
 use goose_bench::bench_work_dir::BenchmarkWorkDir;
-use goose_bench::error_capture::ErrorCaptureLayer;
 use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Once;
 use tokio::sync::Mutex;
-use tracing_subscriber::layer::SubscriberExt;
-
-// Used to ensure we only set up tracing once
-static INIT: Once = Once::new();
 
 pub struct BenchSession {
     session: Session,
@@ -26,14 +21,9 @@ impl BenchSession {
     pub fn new(session: Session) -> Self {
         let errors = Arc::new(Mutex::new(Vec::new()));
 
-        // Create and register the error capture layer only once
-        INIT.call_once(|| {
-            let error_layer = ErrorCaptureLayer::new(errors.clone());
-            let subscriber = tracing_subscriber::Registry::default().with(error_layer);
-
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Failed to set tracing subscriber");
-        });
+        // Initialize logging with error capture
+        logging::setup_logging(Some("bench"), Some(errors.clone()))
+            .expect("Failed to initialize logging");
 
         Self { session, errors }
     }
@@ -56,6 +46,20 @@ impl BenchAgent for BenchSession {
         let errors = self.errors.lock().await;
         errors.clone()
     }
+
+    async fn get_token_usage(&self) -> Option<i32> {
+        // Get token usage from the provider
+        if let Ok(usage) = self.session.get_usage().await {
+            // Sum up total tokens across all usage entries
+            let total_tokens = usage
+                .iter()
+                .map(|u| u.usage.total_tokens.unwrap_or(0))
+                .sum();
+            Some(total_tokens)
+        } else {
+            None
+        }
+    }
 }
 
 // Wrapper struct to implement BenchAgent for Arc<Mutex<BenchSession>>
@@ -71,6 +75,11 @@ impl BenchAgent for BenchAgentWrapper {
     async fn get_errors(&self) -> Vec<BenchAgentError> {
         let session = self.0.lock().await;
         session.get_errors().await
+    }
+
+    async fn get_token_usage(&self) -> Option<i32> {
+        let session = self.0.lock().await;
+        session.get_token_usage().await
     }
 }
 
@@ -115,7 +124,7 @@ async fn run_eval(
 
 async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
     let mut suite_result = SuiteResult::new(suite.to_string());
-    let eval_lock = Mutex::new(0);
+    let eval_lock = Mutex::new(());
 
     if let Some(evals) = EvaluationSuiteFactory::create(suite) {
         for eval in evals {
@@ -140,10 +149,10 @@ pub async fn run_benchmark(
 
     let config = Config::global();
     let goose_model: String = config
-        .get("GOOSE_MODEL")
+        .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let provider_name: String = config
-        .get("GOOSE_PROVIDER")
+        .get_param("GOOSE_PROVIDER")
         .expect("No provider configured. Run 'goose configure' first");
 
     let mut results = BenchmarkResults::new(provider_name.clone());
@@ -152,7 +161,7 @@ pub async fn run_benchmark(
         format!("{}-{}", provider_name, goose_model),
         include_dirs.clone(),
     );
-    let suite_lock = Mutex::new(0);
+    let suite_lock = Mutex::new(());
     for suite in suites {
         let _unused = suite_lock.lock().await;
         work_dir.set_suite(suite);
