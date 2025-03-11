@@ -48,15 +48,12 @@ struct TokenData {
     project_id: String,
 }
 
-use std::sync::Mutex;
-
 /// PkceOAuth2Client implements the GetToken trait required by DriveHub
 /// It uses the oauth2 crate to implement a PKCE-enabled OAuth2 flow
 #[derive(Clone)]
 pub struct PkceOAuth2Client {
     client: BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>,
     credentials_manager: Arc<CredentialsManager>,
-    refresh_token: Arc<Mutex<Option<String>>>,
     http_client: reqwest::Client,
     project_id: String,
 }
@@ -85,29 +82,9 @@ impl PkceOAuth2Client {
             .set_auth_uri(auth_url)
             .set_token_uri(token_url)
             .set_redirect_uri(
-                RedirectUrl::new("http://localhost:8080".to_string())
+                RedirectUrl::new("http://localhost:18080".to_string())
                     .expect("Invalid redirect URL"),
             );
-
-        // Try to load a refresh token from storage
-        let refresh_token = match credentials_manager.read_credentials::<TokenData>() {
-            Ok(token_data) => {
-                // Verify the project_id matches
-                if token_data.project_id != project_id {
-                    debug!(
-                        "Project ID mismatch: stored={}, current={}. Discarding stored credentials.",
-                        token_data.project_id, project_id
-                    );
-                    None // Don't use these credentials if project_id doesn't match
-                } else {
-                    Some(token_data.refresh_token)
-                }
-            }
-            Err(e) => {
-                debug!("No stored credentials found or error reading them: {}", e);
-                None
-            }
-        };
 
         let http_client = reqwest::ClientBuilder::new()
             // Following redirects opens the client up to SSRF vulnerabilities.
@@ -118,10 +95,23 @@ impl PkceOAuth2Client {
         Ok(Self {
             client,
             credentials_manager,
-            refresh_token: Arc::new(Mutex::new(refresh_token)),
             http_client,
             project_id,
         })
+    }
+
+    /// Check if a token is expired or about to expire within the buffer period
+    fn is_token_expired(&self, expires_at: Option<u64>, buffer_seconds: u64) -> bool {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs();
+
+        // Consider the token expired if it's within buffer_seconds of expiring
+        // This gives us a safety margin to avoid using tokens right before expiration
+        expires_at
+            .map(|expiry_time| now + buffer_seconds >= expiry_time)
+            .unwrap_or(true) // If we don't know when it expires, assume it's expired to be safe
     }
 
     async fn perform_oauth_flow(
@@ -176,37 +166,34 @@ impl PkceOAuth2Client {
 
         let access_token = token_result.access_token().secret().clone();
 
-        // Update the stored refresh token if a new one was provided
-        // not all authorization servers return a new refresh token
-        if let Some(refresh_token) = token_result.refresh_token() {
-            // Calculate expires_at as a Unix timestamp by adding expires_in to current time
-            let expires_at = token_result.expires_in().map(|duration| {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs();
-                now + duration.as_secs()
-            });
+        // Calculate expires_at as a Unix timestamp by adding expires_in to current time
+        let expires_at = token_result.expires_in().map(|duration| {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_secs();
+            now + duration.as_secs()
+        });
 
+        // Get the refresh token if provided
+        if let Some(refresh_token) = token_result.refresh_token() {
+            let refresh_token_str = refresh_token.secret().clone();
+
+            // Store token data
             let token_data = TokenData {
                 access_token: access_token.clone(),
-                refresh_token: refresh_token.secret().clone(),
+                refresh_token: refresh_token_str.clone(),
                 expires_at,
                 project_id: self.project_id.clone(),
             };
 
-            self.refresh_token
-                .lock()
-                .map(|mut token_guard| {
-                    *token_guard = Some(refresh_token.secret().clone());
-                    debug!("Successfully updated in-memory refresh token");
-                })
-                .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
-
+            // Store updated token data
             self.credentials_manager
                 .write_credentials(&token_data)
-                .map(|_| debug!("Successfully stored refresh token"))
-                .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
+                .map(|_| debug!("Successfully stored token data"))
+                .unwrap_or_else(|e| error!("Failed to store token data: {}", e));
+        } else {
+            debug!("No refresh token provided in OAuth flow response");
         }
 
         Ok(access_token)
@@ -231,46 +218,42 @@ impl PkceOAuth2Client {
 
         let access_token = token_result.access_token().secret().clone();
 
-        // Update the stored refresh token if a new one was provided
-        // not all authorization servers return a new refresh token
-        if let Some(refresh_token) = token_result.refresh_token() {
-            // Calculate expires_at as a Unix timestamp by adding expires_in to current time
-            let expires_at = token_result.expires_in().map(|duration| {
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_secs();
-                now + duration.as_secs()
-            });
+        // Calculate expires_at as a Unix timestamp by adding expires_in to current time
+        let expires_at = token_result.expires_in().map(|duration| {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_secs();
+            now + duration.as_secs()
+        });
 
-            let token_data = TokenData {
-                access_token: access_token.clone(),
-                refresh_token: refresh_token.secret().clone(),
-                expires_at,
-                project_id: self.project_id.clone(),
-            };
+        // Get the refresh token - either the new one or reuse the existing one
+        let new_refresh_token = token_result
+            .refresh_token()
+            .map(|token| token.secret().clone())
+            .unwrap_or_else(|| refresh_token.secret().to_string());
 
-            self.refresh_token
-                .lock()
-                .map(|mut token_guard| {
-                    *token_guard = Some(refresh_token.secret().clone());
-                    debug!("Successfully updated in-memory refresh token");
-                })
-                .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
+        // Always update the token data with the new access token and expiration
+        let token_data = TokenData {
+            access_token: access_token.clone(),
+            refresh_token: new_refresh_token.clone(),
+            expires_at,
+            project_id: self.project_id.clone(),
+        };
 
-            self.credentials_manager
-                .write_credentials(&token_data)
-                .map(|_| debug!("Successfully stored refresh token"))
-                .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
-        }
+        // Store updated token data
+        self.credentials_manager
+            .write_credentials(&token_data)
+            .map(|_| debug!("Successfully stored token data"))
+            .unwrap_or_else(|e| error!("Failed to store token data: {}", e));
 
         Ok(access_token)
     }
 
     fn start_redirect_server(
     ) -> Result<(AuthorizationCode, CsrfToken), Box<dyn Error + Send + Sync>> {
-        let listener = TcpListener::bind("127.0.0.1:8080")?;
-        println!("Listening for the authorization code on http://localhost:8080");
+        let listener = TcpListener::bind("127.0.0.1:18080")?;
+        println!("Listening for the authorization code on http://localhost:18080");
 
         for stream in listener.incoming() {
             match stream {
@@ -318,6 +301,8 @@ impl PkceOAuth2Client {
     }
 }
 
+// impl GetToken for use with DriveHub directly
+// see google_drive3::common::GetToken
 impl GetToken for PkceOAuth2Client {
     fn get_token<'a>(
         &'a self,
@@ -326,51 +311,30 @@ impl GetToken for PkceOAuth2Client {
         Box<dyn Future<Output = Result<Option<String>, Box<dyn Error + Send + Sync>>> + Send + 'a>,
     > {
         Box::pin(async move {
-            // Attempt to get token from memory
-            let token_from_memory = self
-                .refresh_token
-                .lock()
-                .ok()
-                .and_then(|guard| guard.clone());
-
-            // In error cases we just fall through to checking storage
-            if let Some(ref token) = token_from_memory {
-                if let Ok(access_token) = self.refresh_token(token).await {
-                    debug!("Successfully refreshed access token from memory");
-                    return Ok(Some(access_token));
-                }
-            }
-
-            // Attempt to read token from storage and update in-memory cache
-            let token_from_storage = self
-                .credentials_manager
-                .read_credentials::<TokenData>()
-                .ok()
-                .and_then(|token_data| {
-                    // Verify the project_id matches
-                    if token_data.project_id != self.project_id {
-                        debug!(
-                            "Project ID mismatch: stored={}, current={}. Discarding stored credentials.",
-                            token_data.project_id, self.project_id
-                        );
-                        None // Don't use these credentials if project_id doesn't match
-                    } else {
-                        if let Ok(mut token_guard) = self.refresh_token.lock() {
-                            *token_guard = Some(token_data.refresh_token.clone());
-                            debug!("Updated in-memory refresh token from storage");
-                        }
-                        Some(token_data.refresh_token)
+            // Try to read token data from storage to check if we have a valid token
+            if let Ok(token_data) = self.credentials_manager.read_credentials::<TokenData>() {
+                // Verify the project_id matches
+                if token_data.project_id == self.project_id {
+                    // Check if the token is expired or expiring within a 5-min buffer
+                    if !self.is_token_expired(token_data.expires_at, 300) {
+                        return Ok(Some(token_data.access_token));
                     }
-                });
 
-            // If we fail to use the refresh token here, fall through to full OAuth flow
-            if let Some(ref token) = token_from_storage {
-                if let Ok(access_token) = self.refresh_token(token).await {
-                    debug!("Successfully refreshed access token from storage");
-                    return Ok(Some(access_token));
+                    // Token is expired or will expire soon, try to refresh it
+                    debug!("Token is expired or will expire soon, refreshing...");
+
+                    // Try to refresh the token
+                    if let Ok(access_token) = self.refresh_token(&token_data.refresh_token).await {
+                        debug!("Successfully refreshed access token");
+                        return Ok(Some(access_token));
+                    }
                 }
             }
 
+            // If we get here, either:
+            // 1. The project ID didn't match
+            // 2. Token refresh failed
+            // 3. There are no valid tokens yet
             // Fallback: perform interactive OAuth flow
             match self.perform_oauth_flow(scopes).await {
                 Ok(token) => {
