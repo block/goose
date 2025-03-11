@@ -133,7 +133,7 @@ impl Provider for GoogleProvider {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => self.model.model_name.clone(),
         };
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         let provider_usage = ProviderUsage::new(model, usage);
         Ok((message, provider_usage))
     }
