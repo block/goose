@@ -5,56 +5,38 @@ import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetup
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { useProviderModal } from './ProviderModalProvider';
-import { toast } from 'react-toastify';
-import { PROVIDER_REGISTRY } from '../ProviderRegistry';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
-import DefaultSubmitHandler from './subcomponents/handlers/DefaultSubmitHandler';
+import { DefaultSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
+import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
+import OllamaForm from './subcomponents/forms/OllamaForm';
+import { useConfig } from '../../../ConfigContext';
+
+const customSubmitHandlerMap = {
+  provider_name: OllamaSubmitHandler, // example
+};
+
+const customFormsMap = {
+  provider_name: OllamaForm, // example
+};
 
 export default function ProviderConfigurationModal() {
+  const { upsert } = useConfig();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
 
-  useEffect(() => {
-    if (currentProvider) {
-      // Initialize form with default values
-      const initialValues = {};
-      // FIXME
-      // if (currentProvider.parameters) {
-      //   currentProvider.parameters.forEach((param) => {
-      //     initialValues[param.name] = param.default || '';
-      //   });
-      // }
-      setConfigValues(initialValues);
-    } else {
-      setConfigValues({});
-    }
-  }, [currentProvider]);
-
   if (!isOpen || !currentProvider) return null;
 
-  const headerText = `Configure ${currentProvider.name}`;
+  const headerText = `Configure ${currentProvider.metadata.display_name}`;
   const descriptionText = `Add your API key(s) for this provider to integrate into Goose`;
 
-  // Find the provider in the registry to get the details with customForm
-  const providerEntry = PROVIDER_REGISTRY.find((p) => p.name === currentProvider.name);
-
-  // Get the custom submit handler from the provider details
-  const customSubmitHandler = providerEntry?.details?.customSubmit;
-
-  // Use custom submit handler otherwise use default
-  const SubmitHandler = customSubmitHandler || DefaultSubmitHandler;
-
-  // Get the custom form component from the provider details
-  const CustomForm = providerEntry?.details?.customForm;
-
-  // Use custom form component if available, otherwise use default
-  const FormComponent = CustomForm || DefaultProviderSetupForm;
+  const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
+  const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
 
   const handleSubmitForm = (e) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 
-    SubmitHandler(configValues);
+    SubmitHandler(upsert, currentProvider, configValues);
 
     // Close the modal unless the custom handler explicitly returns false
     // This gives custom handlers the ability to keep the modal open if needed
@@ -74,7 +56,7 @@ export default function ProviderConfigurationModal() {
     <Modal>
       <div className="space-y-1">
         {/* Logo area - centered above title */}
-        <ProviderLogo providerName={currentProvider.id} />
+        <ProviderLogo providerName={currentProvider.name} />
         {/* Title and some information - centered */}
         <ProviderSetupHeader title={headerText} body={descriptionText} />
       </div>
@@ -87,7 +69,7 @@ export default function ProviderConfigurationModal() {
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
 
-      {providerEntry?.details?.parameters && providerEntry.details.parameters.length > 0 && (
+      {currentProvider.metadata.config_keys && currentProvider.metadata.config_keys.length > 0 && (
         <SecureStorageNotice />
       )}
       <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />

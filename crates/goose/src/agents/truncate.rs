@@ -15,7 +15,6 @@ use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::agents::ToolPermissionStore;
 use crate::config::Config;
-use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -171,7 +170,7 @@ impl Agent for TruncateAgent {
 
         // Load settings from config
         let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
@@ -299,7 +298,7 @@ impl Agent for TruncateAgent {
                                 }
 
                                 // Only check read-only status for tools needing confirmation
-                                if !needs_confirmation.is_empty() && ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
+                                if !needs_confirmation.is_empty() {
                                     read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
                                 }
 

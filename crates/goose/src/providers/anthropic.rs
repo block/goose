@@ -45,7 +45,7 @@ impl AnthropicProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
-            .get("ANTHROPIC_HOST")
+            .get_param("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
         let client = Client::builder()
@@ -163,14 +163,18 @@ impl Provider for AnthropicProvider {
 
         let is_thinking_enabled = std::env::var("ANTHROPIC_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
+            // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
+            headers.insert("anthropic-beta", "output-128k-2025-02-19".parse().unwrap());
+        }
+
+        if self.model.model_name.starts_with("claude-3-7-sonnet-") {
             // https://docs.anthropic.com/en/docs/build-with-claude/tool-use/token-efficient-tool-use
             headers.insert(
                 "anthropic-beta",
                 "token-efficient-tools-2025-02-19".parse().unwrap(),
             );
-            // https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-output-capabilities-beta
-            headers.insert("anthropic-beta", "output-128k-2025-02-19".parse().unwrap());
         }
+
         // Make request
         let response = self.post(headers, payload.clone()).await?;
 
