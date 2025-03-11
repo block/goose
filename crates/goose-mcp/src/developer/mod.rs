@@ -805,6 +805,49 @@ impl DeveloperRouter {
         ])
     }
 
+    // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
+    fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
+        // Only process if the path has a filename
+        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+            // Check if this matches Mac screenshot pattern:
+            // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
+            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM)(?: \(\d+\))?\.png$")
+                .ok()
+                .and_then(|re| re.captures(filename))
+            {
+
+                // Get the AM/PM part
+                let meridian = captures.get(1).unwrap().as_str();
+
+                // Find the last space before AM/PM and replace it with U+202F
+                let space_pos = filename.rfind(meridian)
+                    .map(|pos| filename[..pos].trim_end().len())
+                    .unwrap_or(0);
+
+                if space_pos > 0 {
+                    let parent = path.parent().unwrap_or(Path::new(""));
+                    let new_filename = format!(
+                        "{}{}{}",
+                        &filename[..space_pos],
+                        '\u{202F}',
+                        &filename[space_pos+1..]
+                    );
+                    let new_path = parent.join(new_filename);
+
+                    // If the original file exists and paths are different, rename it
+                    if path.exists() && path != new_path {
+                        if let Err(e) = std::fs::rename(path, &new_path) {
+                            eprintln!("Warning: Failed to normalize Mac screenshot filename: {}", e);
+                            return path.to_path_buf();
+                        }
+                    }
+                    return new_path;
+                }
+            }
+        }
+        path.to_path_buf()
+    }
+
     async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let path_str = params
             .get("path")
@@ -812,39 +855,40 @@ impl DeveloperRouter {
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
 
         let path = self.resolve_path(path_str)?;
+        let normalized_path = self.normalize_mac_screenshot_path(&path);
 
         // Check if file is ignored before proceeding
-        if self.is_ignored(&path) {
+        if self.is_ignored(&normalized_path) {
             return Err(ToolError::ExecutionError(format!(
                 "Access to '{}' is restricted by .gooseignore",
-                path.display()
+                normalized_path.display()
             )));
         }
 
         // Check if file exists
-        if !path.exists() {
+        if !normalized_path.exists() {
             return Err(ToolError::ExecutionError(format!(
                 "File '{}' does not exist",
-                path.display()
+                normalized_path.display()
             )));
         }
 
         // Check file size (10MB limit for image files)
         const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
-        let file_size = std::fs::metadata(&path)
+        let file_size = std::fs::metadata(&normalized_path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
             .len();
 
         if file_size > MAX_FILE_SIZE {
             return Err(ToolError::ExecutionError(format!(
                 "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
-                path.display(),
+                normalized_path.display(),
                 file_size as f64 / (1024.0 * 1024.0)
             )));
         }
 
         // Open and decode the image
-        let image = xcap::image::open(&path)
+        let image = xcap::image::open(&normalized_path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
 
         // Resize if necessary (same logic as screen_capture)
