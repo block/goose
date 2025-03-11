@@ -119,6 +119,10 @@ async fn run_eval(
         }
     }
 
+    let current_dir = std::env::current_dir()?;
+    let output_str = serde_json::to_string_pretty(&result)?;
+    std::fs::write(current_dir.join("eval_result.json"), &output_str)?;
+
     Ok(result)
 }
 
