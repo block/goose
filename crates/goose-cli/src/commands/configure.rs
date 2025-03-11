@@ -697,6 +697,11 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "approve",
             "Approve Mode",
+            "All tools, extensions and file modificatio will require human approval"
+        )
+        .item(
+            "write_approve",
+            "Write Approve Mode",
             "Editing, creating, deleting files and using extensions will require human approval"
         )
         .item(
@@ -713,7 +718,11 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         }
         "approve" => {
             config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
-            cliclack::outro("Set to Approve Mode - modifications require approval")?;
+            cliclack::outro("Set to Approve Mode - all tools and modifications require approval")?;
+        }
+        "write_approve" => {
+            config.set_param("GOOSE_MODE", Value::String("write_approve".to_string()))?;
+            cliclack::outro("Set to Write Approve Mode - modifications require approval")?;
         }
         "chat" => {
             config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
