@@ -6,6 +6,7 @@ use std::net::TcpListener;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use google_drive3::common::GetToken;
 use oauth2::basic::BasicClient;
@@ -178,10 +179,19 @@ impl PkceOAuth2Client {
         // Update the stored refresh token if a new one was provided
         // not all authorization servers return a new refresh token
         if let Some(refresh_token) = token_result.refresh_token() {
+            // Calculate expires_at as a Unix timestamp by adding expires_in to current time
+            let expires_at = token_result.expires_in().map(|duration| {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_secs();
+                now + duration.as_secs()
+            });
+
             let token_data = TokenData {
                 access_token: access_token.clone(),
                 refresh_token: refresh_token.secret().clone(),
-                expires_at: token_result.expires_in().map(|d| d.as_secs()),
+                expires_at,
                 project_id: self.project_id.clone(),
             };
 
@@ -224,10 +234,19 @@ impl PkceOAuth2Client {
         // Update the stored refresh token if a new one was provided
         // not all authorization servers return a new refresh token
         if let Some(refresh_token) = token_result.refresh_token() {
+            // Calculate expires_at as a Unix timestamp by adding expires_in to current time
+            let expires_at = token_result.expires_in().map(|duration| {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_secs();
+                now + duration.as_secs()
+            });
+
             let token_data = TokenData {
                 access_token: access_token.clone(),
                 refresh_token: refresh_token.secret().clone(),
-                expires_at: token_result.expires_in().map(|d| d.as_secs()),
+                expires_at,
                 project_id: self.project_id.clone(),
             };
 
