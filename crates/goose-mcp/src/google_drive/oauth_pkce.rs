@@ -9,9 +9,10 @@ use std::sync::Arc;
 
 use google_drive3::common::GetToken;
 use oauth2::basic::BasicClient;
+use oauth2::reqwest;
 use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
-    RefreshToken, Scope, TokenResponse, TokenUrl,
+    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointNotSet, EndpointSet,
+    PkceCodeChallenge, RedirectUrl, RefreshToken, Scope, TokenResponse, TokenUrl,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
@@ -51,9 +52,10 @@ use std::sync::Mutex;
 /// It uses the oauth2 crate to implement a PKCE-enabled OAuth2 flow
 #[derive(Clone)]
 pub struct PkceOAuth2Client {
-    client: BasicClient,
+    client: BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>,
     credentials_manager: Arc<CredentialsManager>,
     refresh_token: Arc<Mutex<Option<String>>>,
+    http_client: reqwest::Client,
 }
 
 impl PkceOAuth2Client {
@@ -72,35 +74,38 @@ impl PkceOAuth2Client {
             TokenUrl::new(config.installed.token_uri).expect("Invalid token endpoint URL");
 
         // Set up the OAuth2 client
-        let client = BasicClient::new(
-            ClientId::new(config.installed.client_id),
-            Some(ClientSecret::new(config.installed.client_secret)),
-            auth_url,
-            Some(token_url),
-        )
-        .set_redirect_uri(
-            RedirectUrl::new("http://localhost:8080".to_string()).expect("Invalid redirect URL"),
-        );
+        let client = BasicClient::new(ClientId::new(config.installed.client_id))
+            .set_client_secret(ClientSecret::new(config.installed.client_secret))
+            .set_auth_uri(auth_url)
+            .set_token_uri(token_url)
+            .set_redirect_uri(
+                RedirectUrl::new("http://localhost:8080".to_string())
+                    .expect("Invalid redirect URL"),
+            );
 
         // Try to load a refresh token from storage
-        let refresh_token = match credentials_manager.read_credentials() {
-            Ok(json) => match serde_json::from_str::<TokenData>(&json) {
-                Ok(token_data) => Some(token_data.refresh_token),
-                Err(e) => {
-                    error!("Failed to parse stored credentials: {}", e);
-                    None
-                }
-            },
-            Err(e) => {
-                debug!("No stored credentials found or error reading them: {}", e);
-                None
-            }
-        };
+        let refresh_token = credentials_manager
+            .read_credentials()
+            .inspect_err(|e| debug!("No stored credentials found or error reading them: {}", e))
+            .ok()
+            .and_then(|json| {
+                serde_json::from_str::<TokenData>(&json)
+                    .inspect_err(|e| error!("Failed to parse stored credentials: {}", e))
+                    .ok()
+                    .map(|token_data| token_data.refresh_token)
+            });
+
+        let http_client = reqwest::ClientBuilder::new()
+            // Following redirects opens the client up to SSRF vulnerabilities.
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .expect("Oauth2 HTTP Client should build");
 
         Ok(Self {
             client,
             credentials_manager,
             refresh_token: Arc::new(Mutex::new(refresh_token)),
+            http_client,
         })
     }
 
@@ -123,11 +128,6 @@ impl PkceOAuth2Client {
         if let Err(e) = webbrowser::open(auth_url.as_str()) {
             error!("Failed to open browser: {}", e);
             println!("Please open this URL in your browser:\n{}\n", auth_url);
-        } else {
-            println!(
-                "A browser window should have opened. If not, please open this URL:\n{}\n",
-                auth_url
-            );
         }
 
         // Start a local server to receive the authorization code
@@ -155,13 +155,14 @@ impl PkceOAuth2Client {
             .client
             .exchange_code(code)
             .set_pkce_verifier(pkce_verifier)
-            .request_async(oauth2::reqwest::async_http_client)
+            .request_async(&self.http_client)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
         let access_token = token_result.access_token().secret().clone();
 
-        // Store the refresh token for future use if available
+        // Update the stored refresh token if a new one was provided
+        // not all authorization servers return a new refresh token
         if let Some(refresh_token) = token_result.refresh_token() {
             let token_data = TokenData {
                 access_token: access_token.clone(),
@@ -169,22 +170,19 @@ impl PkceOAuth2Client {
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
             };
 
-            // Update the in-memory refresh token using the Mutex
-            if let Ok(mut token_guard) = self.refresh_token.lock() {
-                *token_guard = Some(refresh_token.secret().clone());
-                debug!("Successfully updated in-memory refresh token");
-            } else {
-                error!("Failed to acquire lock on refresh token");
-            }
+            self.refresh_token
+                .lock()
+                .map(|mut token_guard| {
+                    *token_guard = Some(refresh_token.secret().clone());
+                    debug!("Successfully updated in-memory refresh token");
+                })
+                .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
 
-            if let Err(e) = self
-                .credentials_manager
-                .write_credentials(&serde_json::to_string(&token_data)?)
-            {
-                error!("Failed to store refresh token: {}", e);
-            } else {
-                debug!("Successfully stored refresh token");
-            }
+            serde_json::to_string(&token_data)
+                .map_err(Into::into) // Convert serde_json::Error to AuthError
+                .and_then(|data| self.credentials_manager.write_credentials(&data))
+                .map(|_| debug!("Successfully stored refresh token"))
+                .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
         }
 
         Ok(access_token)
@@ -203,36 +201,34 @@ impl PkceOAuth2Client {
         let token_result = self
             .client
             .exchange_refresh_token(&refresh_token)
-            .request_async(oauth2::reqwest::async_http_client)
+            .request_async(&self.http_client)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)?;
 
         let access_token = token_result.access_token().secret().clone();
 
         // Update the stored refresh token if a new one was provided
-        if let Some(new_refresh_token) = token_result.refresh_token() {
+        // not all authorization servers return a new refresh token
+        if let Some(refresh_token) = token_result.refresh_token() {
             let token_data = TokenData {
                 access_token: access_token.clone(),
-                refresh_token: new_refresh_token.secret().clone(),
+                refresh_token: refresh_token.secret().clone(),
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
             };
 
-            // Update the in-memory refresh token using the Mutex
-            if let Ok(mut token_guard) = self.refresh_token.lock() {
-                *token_guard = Some(new_refresh_token.secret().clone());
-                debug!("Successfully updated in-memory refresh token during refresh");
-            } else {
-                error!("Failed to acquire lock on refresh token during refresh");
-            }
+            self.refresh_token
+                .lock()
+                .map(|mut token_guard| {
+                    *token_guard = Some(refresh_token.secret().clone());
+                    debug!("Successfully updated in-memory refresh token");
+                })
+                .unwrap_or_else(|_| error!("Failed to acquire lock on refresh token"));
 
-            if let Err(e) = self
-                .credentials_manager
-                .write_credentials(&serde_json::to_string(&token_data)?)
-            {
-                error!("Failed to update refresh token: {}", e);
-            } else {
-                debug!("Successfully updated refresh token");
-            }
+            serde_json::to_string(&token_data)
+                .map_err(Into::into) // Convert serde_json::Error to AuthError
+                .and_then(|data| self.credentials_manager.write_credentials(&data))
+                .map(|_| debug!("Successfully stored refresh token"))
+                .unwrap_or_else(|e| error!("Failed to store refresh token: {}", e));
         }
 
         Ok(access_token)
@@ -297,70 +293,47 @@ impl GetToken for PkceOAuth2Client {
         Box<dyn Future<Output = Result<Option<String>, Box<dyn Error + Send + Sync>>> + Send + 'a>,
     > {
         Box::pin(async move {
-            // Try to use refresh token if available in memory
-            let refresh_token_option = if let Ok(token_guard) = self.refresh_token.lock() {
-                token_guard.clone()
-            } else {
-                error!("Failed to acquire lock on refresh token");
-                None
-            };
+            // Attempt to get token from memory
+            let token_from_memory = self
+                .refresh_token
+                .lock()
+                .ok()
+                .and_then(|guard| guard.clone());
 
-            if let Some(refresh_token) = refresh_token_option {
-                debug!("Found refresh token in memory, attempting to use it");
-                match self.refresh_token(&refresh_token).await {
-                    Ok(access_token) => {
-                        debug!("Successfully refreshed access token");
-                        return Ok(Some(access_token));
-                    }
-                    Err(e) => {
-                        error!("Failed to refresh token: {}", e);
-                        // Fall through to check storage
-                    }
-                }
-            } else {
-                debug!("No refresh token available in memory, checking storage");
-            }
-
-            // Try to load from storage as a fallback if in-memory token failed or wasn't available
-            match self.credentials_manager.read_credentials() {
-                Ok(json) => match serde_json::from_str::<TokenData>(&json) {
-                    Ok(token_data) => {
-                        debug!("Found token in storage, attempting to use it");
-
-                        // Update the in-memory refresh token
-                        if let Ok(mut token_guard) = self.refresh_token.lock() {
-                            *token_guard = Some(token_data.refresh_token.clone());
-                            debug!("Updated in-memory refresh token from storage");
-                        } else {
-                            error!("Failed to acquire lock to update refresh token from storage");
-                        }
-
-                        match self.refresh_token(&token_data.refresh_token).await {
-                            Ok(access_token) => {
-                                debug!("Successfully refreshed access token from storage");
-                                return Ok(Some(access_token));
-                            }
-                            Err(e) => {
-                                error!("Failed to refresh token from storage: {}", e);
-                                // Fall through to interactive flow
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to parse stored credentials: {}", e);
-                        // Fall through to interactive flow
-                    }
-                },
-                Err(e) => {
-                    debug!("No stored credentials found or error reading them: {}", e);
-                    // Fall through to interactive flow
+            // In error cases we just fall through to checking storage
+            if let Some(ref token) = token_from_memory {
+                if let Ok(access_token) = self.refresh_token(token).await {
+                    debug!("Successfully refreshed access token from memory");
+                    return Ok(Some(access_token));
                 }
             }
 
-            // If refresh failed or no refresh token, do interactive flow
+            // Attempt to read token from storage and update in-memory cache
+            let token_from_storage = self
+                .credentials_manager
+                .read_credentials()
+                .ok()
+                .and_then(|json| serde_json::from_str::<TokenData>(&json).ok())
+                .map(|token_data| {
+                    if let Ok(mut token_guard) = self.refresh_token.lock() {
+                        *token_guard = Some(token_data.refresh_token.clone());
+                        debug!("Updated in-memory refresh token from storage");
+                    }
+                    token_data.refresh_token
+                });
+
+            // If we fail to use the refresh token here, fall through to full OAuth flow
+            if let Some(ref token) = token_from_storage {
+                if let Ok(access_token) = self.refresh_token(token).await {
+                    debug!("Successfully refreshed access token from storage");
+                    return Ok(Some(access_token));
+                }
+            }
+
+            // Fallback: perform interactive OAuth flow
             match self.perform_oauth_flow(scopes).await {
                 Ok(token) => {
-                    debug!("Successfully obtained new access token");
+                    debug!("Successfully obtained new access token through OAuth flow");
                     Ok(Some(token))
                 }
                 Err(e) => {
