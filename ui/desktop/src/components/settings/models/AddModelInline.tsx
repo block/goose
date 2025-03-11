@@ -5,7 +5,7 @@ import Select from 'react-select';
 import { Plus } from 'lucide-react';
 import { createSelectedModel, useHandleModelSelection } from './utils';
 import { useActiveKeys } from '../api_keys/ActiveKeysContext';
-import { goose_models } from './hardcoded_stuff';
+import { gooseModels } from './GooseModels';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 
 export function AddModelInline() {
@@ -31,7 +31,7 @@ export function AddModelInline() {
       return;
     }
 
-    const filtered = goose_models
+    const filtered = gooseModels
       .filter(
         (model) =>
           model.provider.toLowerCase() === selectedProvider &&

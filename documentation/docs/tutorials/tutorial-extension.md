@@ -3,6 +3,9 @@ title: Tutorial Extension
 description: Learn how to use Goose's built-in Tutorial extension for guided learning
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 The Tutorial extension is a built-in feature of Goose that provides interactive, step-by-step guidance for learning various aspects of Goose and its capabilities. It's designed to help users get comfortable with Goose's features through hands-on practice.
 
 The Tutorial extension serves as an interactive learning tool that:
@@ -13,6 +16,9 @@ The Tutorial extension serves as an interactive learning tool that:
 ## Configuration
 
 1. Ensure the Tutorial extension is enabled:
+
+<Tabs groupId="interface">
+  <TabItem value="cli" label="Goose CLI" default>
 
 ```sh
 goose configure
@@ -52,8 +58,35 @@ goose configure
 // highlight-end
 │  ○ Memory 
 |  ○ JetBrains
-└  Enabled Tutorials extension
+└ 
 ```
+
+4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+```sh
+   ┌   goose-configure 
+   │
+   ◇  What would you like to configure?
+   │  Add Extension 
+   │
+   ◇  What type of extension would you like to add?
+   │  Built-in Extension 
+   │
+   ◇  Which built-in extension would you like to enable?
+   │  Tutorial
+   │
+   // highlight-start
+   ◆  Please set the timeout for this tool (in secs):
+   │  300
+   // highlight-end
+   └  Enabled Tutorials extension
+``` 
+</TabItem>
+  <TabItem value="ui" label="Goose Desktop">
+  1. Click `...` in the upper right corner
+  2. Click `Settings`
+  3. Under `Extensions`, toggle `Tutorial` to on.
+  </TabItem>
+</Tabs>
 
 ## Available Tutorials
 

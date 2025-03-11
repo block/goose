@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
 import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
@@ -15,82 +15,37 @@ import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import { Message, createUserMessage, getTextContent } from '../types/message';
+import {
+  Message,
+  createUserMessage,
+  ToolCall,
+  ToolCallResult,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  ToolConfirmationRequestMessageContent,
+  getTextContent,
+} from '../types/message';
 
 export interface ChatType {
-  id: number;
+  id: string;
   title: string;
+  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
+  // anything before this index should not render any buttons, but anything after should
+  messageHistoryIndex: number;
   messages: Message[];
 }
 
 export default function ChatView({
+  chat,
+  setChat,
   setView,
-  viewOptions,
   setIsGoosehintsModalOpen,
 }: {
+  chat: ChatType;
+  setChat: (chat: ChatType) => void;
   setView: (view: View, viewOptions?: Record<any, any>) => void;
-  viewOptions?: Record<any, any>;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  // Check if we're resuming a session
-  const resumedSession = viewOptions?.resumedSession;
-
-  // Generate or retrieve session ID
-  const [sessionId] = useState(() => {
-    // If resuming a session, use that session ID
-    if (resumedSession?.session_id) {
-      // Store the resumed session ID in sessionStorage
-      window.sessionStorage.setItem('goose-session-id', resumedSession.session_id);
-      return resumedSession.session_id;
-    }
-
-    // For a new chat, generate a new session ID
-    const newId = generateSessionId();
-    window.sessionStorage.setItem('goose-session-id', newId);
-    return newId;
-  });
-
-  const [chat, setChat] = useState<ChatType>(() => {
-    // If resuming a session, convert the session messages to our format
-    if (resumedSession) {
-      try {
-        // Convert the resumed session messages to the expected format
-        const convertedMessages = resumedSession.messages.map((msg): Message => {
-          return {
-            id: `${msg.role}-${msg.created}`,
-            role: msg.role,
-            created: msg.created,
-            content: msg.content,
-          };
-        });
-
-        return {
-          id: Date.now(),
-          title: resumedSession.metadata?.description || `ID: ${resumedSession.session_id}`,
-          messages: convertedMessages,
-        };
-      } catch (e) {
-        console.error('Failed to parse resumed session:', e);
-      }
-    }
-
-    // Try to load saved chat from sessionStorage
-    const savedChat = window.sessionStorage.getItem(`goose-chat-${sessionId}`);
-    if (savedChat) {
-      try {
-        return JSON.parse(savedChat);
-      } catch (e) {
-        console.error('Failed to parse saved chat:', e);
-      }
-    }
-
-    // Return default chat if no saved chat exists
-    return {
-      id: Date.now(),
-      title: 'Chat 1',
-      messages: [],
-    };
-  });
   const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
@@ -110,8 +65,8 @@ export default function ChatView({
     handleSubmit: _submitMessage,
   } = useMessageStream({
     api: getApiUrl('/reply'),
-    initialMessages: chat?.messages || [],
-    body: { session_id: sessionId },
+    initialMessages: chat.messages,
+    body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
@@ -141,15 +96,9 @@ export default function ChatView({
   useEffect(() => {
     setChat((prevChat) => {
       const updatedChat = { ...prevChat, messages };
-      // Save to sessionStorage
-      try {
-        window.sessionStorage.setItem(`goose-chat-${sessionId}`, JSON.stringify(updatedChat));
-      } catch (e) {
-        console.error('Failed to save chat to sessionStorage:', e);
-      }
       return updatedChat;
     });
-  }, [messages, sessionId]);
+  }, [messages]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -182,16 +131,70 @@ export default function ChatView({
 
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'user') {
+
+    // isUserMessage also checks if the message is a toolConfirmationRequest
+    if (lastMessage && isUserMessage(lastMessage)) {
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
+    } else if (!isUserMessage(lastMessage)) {
+      // check if we have any tool requests or tool confirmation requests
+      const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
+        .filter(
+          (content): content is ToolRequestMessageContent | ToolConfirmationRequestMessageContent =>
+            content.type === 'toolRequest' || content.type === 'toolConfirmationRequest'
+        )
+        .map((content) => {
+          if (content.type === 'toolRequest') {
+            return [content.id, content.toolCall];
+          } else {
+            // extract tool call from confirmation
+            const toolCall: ToolCallResult<ToolCall> = {
+              status: 'success',
+              value: {
+                name: content.toolName,
+                arguments: content.arguments,
+              },
+            };
+            return [content.id, toolCall];
+          }
+        });
+
+      if (toolRequests.length !== 0) {
+        // This means we were interrupted during a tool request
+        // Create tool responses for all interrupted tool requests
+
+        let responseMessage: Message = {
+          role: 'user',
+          created: Date.now(),
+          content: [],
+        };
+
+        // get the last tool's name or just "tool"
+        const lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
+        const notification = 'Interrupted by the user to make a correction';
+
+        // generate a response saying it was interrupted for each tool request
+        for (const [reqId, _] of toolRequests) {
+          const toolResponse: ToolResponseMessageContent = {
+            type: 'toolResponse',
+            id: reqId,
+            toolResult: {
+              status: 'error',
+              error: notification,
+            },
+          };
+
+          responseMessage.content.push(toolResponse);
+        }
+
+        // Use an immutable update to add the response message to the messages array
+        setMessages([...messages, responseMessage]);
+      }
     }
-    // Note: Tool call interruption handling would need to be implemented
-    // differently with the new message format
   };
 
   // Filter out standalone tool response messages for rendering
@@ -226,6 +229,20 @@ export default function ChatView({
     return true;
   };
 
+  const commandHistory = useMemo(() => {
+    return filteredMessages
+      .reduce<string[]>((history, message) => {
+        if (isUserMessage(message)) {
+          const text = message.content.find((c) => c.type === 'text')?.text?.trim();
+          if (text) {
+            history.push(text);
+          }
+        }
+        return history;
+      }, [])
+      .reverse();
+  }, [filteredMessages, isUserMessage]);
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle border-b border-borderSubtle">
@@ -242,10 +259,15 @@ export default function ChatView({
                   <UserMessage message={message} />
                 ) : (
                   <GooseMessage
+                    messageHistoryIndex={chat?.messageHistoryIndex}
                     message={message}
                     messages={messages}
                     metadata={messageMetadata[message.id || '']}
                     append={(text) => append(createUserMessage(text))}
+                    appendMessage={(newMessage) => {
+                      const updatedMessages = [...messages, newMessage];
+                      setMessages(updatedMessages);
+                    }}
                   />
                 )}
               </div>
@@ -278,7 +300,12 @@ export default function ChatView({
 
         <div className="relative">
           {isLoading && <LoadingGoose />}
-          <Input handleSubmit={handleSubmit} isLoading={isLoading} onStop={onStopGoose} />
+          <Input
+            handleSubmit={handleSubmit}
+            isLoading={isLoading}
+            onStop={onStopGoose}
+            commandHistory={commandHistory}
+          />
           <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
       </Card>

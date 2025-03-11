@@ -11,6 +11,7 @@ import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
+import { SessionDetails, fetchSessionDetails } from './sessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -20,6 +21,7 @@ import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import SessionsView from './components/sessions/SessionsView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -37,7 +39,12 @@ export type View =
 
 export type ViewConfig = {
   view: View;
-  viewOptions?: SettingsViewOptions | Record<any, any>;
+  viewOptions?:
+    | SettingsViewOptions
+    | {
+        resumedSession?: SessionDetails;
+      }
+    | Record<string, any>;
 };
 
 export default function App() {
@@ -51,6 +58,7 @@ export default function App() {
     viewOptions: {},
   });
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   const { switchModel } = useModel();
   const { addRecentModel } = useRecentModels();
@@ -89,7 +97,7 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
-        window.electron.createChatWindow();
+        window.electron.createChatWindow(undefined, window.appConfig.get('GOOSE_WORKING_DIR'));
       }
     };
 
@@ -135,6 +143,7 @@ export default function App() {
             addRecentModel(model);
           }
         } catch (error) {
+          // TODO: add sessionError state and show error screen with option to start fresh
           console.error('Failed to initialize with stored provider:', error);
         }
       }
@@ -142,6 +151,8 @@ export default function App() {
 
     setupStoredProvider();
   }, []);
+
+  const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => {
     const handleFatalError = (_: any, errorMessage: string) => {
@@ -159,6 +170,13 @@ export default function App() {
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
   }, []);
+
+  // Add cleanup for session states when view changes
+  useEffect(() => {
+    if (view !== 'chat') {
+      setIsLoadingSession(false);
+    }
+  }, [view]);
 
   const handleConfirm = async () => {
     if (pendingLink && !isInstalling) {
@@ -184,6 +202,13 @@ export default function App() {
   if (fatalError) {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
   }
+
+  if (isLoadingSession)
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+      </div>
+    );
 
   return (
     <>
@@ -250,10 +275,11 @@ export default function App() {
           {view === 'alphaConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} />
           )}
-          {view === 'chat' && (
+          {view === 'chat' && !isLoadingSession && (
             <ChatView
+              chat={chat}
+              setChat={setChat}
               setView={setView}
-              viewOptions={viewOptions}
               setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             />
           )}

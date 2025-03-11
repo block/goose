@@ -4,8 +4,9 @@ import { useRecentModels } from './settings/models/RecentModels'; // Hook for re
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View } from '../ChatWindow';
+import type { View } from '../App';
 import { getApiUrl, getSecretKey } from '../config';
+import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 
 export default function BottomMenu({
   hasMessages,
@@ -15,10 +16,13 @@ export default function BottomMenu({
   setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [gooseMode, setGooseMode] = useState('auto');
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
+  const [gooseMode, setGooseMode] = useState('auto');
+  const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside
   useEffect(() => {
@@ -79,10 +83,42 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
-  let envModelProvider = null;
-  if (window.electron.getConfig().GOOSE_MODEL && window.electron.getConfig().GOOSE_PROVIDER) {
-    envModelProvider = `${window.electron.getConfig().GOOSE_MODEL}  - ${window.electron.getConfig().GOOSE_PROVIDER}`;
-  }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        gooseModeDropdownRef.current &&
+        !gooseModeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsGooseModeMenuOpen(false);
+      }
+    };
+
+    if (isGooseModeMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isGooseModeMenuOpen]);
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsGooseModeMenuOpen(false);
+      }
+    };
+
+    if (isGooseModeMenuOpen) {
+      window.addEventListener('keydown', handleEsc);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isGooseModeMenuOpen]);
+
+  // Removed the envModelProvider code that was checking for environment variables
 
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
@@ -90,7 +126,6 @@ export default function BottomMenu({
       <span
         className="cursor-pointer flex items-center [&>svg]:size-4"
         onClick={async () => {
-          console.log('Opening directory chooser');
           if (hasMessages) {
             window.electron.directoryChooser();
           } else {
@@ -103,15 +138,24 @@ export default function BottomMenu({
         <ChevronUp className="ml-1" />
       </span>
 
-      <div className="relative flex items-center ml-6">
+      {/* Goose Mode Selector Dropdown */}
+      <div className="relative flex items-center ml-6" ref={gooseModeDropdownRef}>
         <div
           className="flex items-center cursor-pointer"
-          onClick={() => {
-            setView('settings');
-          }}
+          onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
         >
           <span>Goose Mode: {gooseMode}</span>
+          {isGooseModeMenuOpen ? (
+            <ChevronDown className="w-4 h-4 ml-1" />
+          ) : (
+            <ChevronUp className="w-4 h-4 ml-1" />
+          )}
         </div>
+
+        {/* Dropdown Menu */}
+        {isGooseModeMenuOpen && (
+          <BottomMenuModeSelection selectedMode={gooseMode} setSelectedMode={setGooseMode} />
+        )}
       </div>
 
       {/* Model Selector Dropdown - Only in development */}
@@ -120,7 +164,7 @@ export default function BottomMenu({
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>{envModelProvider || currentModel?.name || 'Select Model'}</span>
+          <span>{(currentModel?.alias ?? currentModel?.name) || 'Select Model'}</span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (
@@ -135,14 +179,14 @@ export default function BottomMenu({
               <ModelRadioList
                 className="divide-y divide-borderSubtle"
                 renderItem={({ model, isSelected, onSelect }) => (
-                  <label key={model.name} className="block cursor-pointer">
+                  <label key={model.alias ?? model.name} className="block cursor-pointer">
                     <div
                       className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
                       onClick={onSelect}
                     >
                       <div>
-                        <p className="text-sm ">{model.name}</p>
-                        <p className="text-xs text-textSubtle">{model.provider}</p>
+                        <p className="text-sm ">{model.alias ?? model.name}</p>
+                        <p className="text-xs text-textSubtle">{model.subtext ?? model.provider}</p>
                       </div>
                       <div className="relative">
                         <input

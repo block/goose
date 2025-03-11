@@ -5,9 +5,10 @@ use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
+use utoipa::ToSchema;
 
 /// Metadata about a provider's configuration requirements and capabilities
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {
     /// The unique identifier for this provider
     pub name: String,
@@ -60,7 +61,7 @@ impl ProviderMetadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigKey {
     pub name: String,
     pub required: bool,

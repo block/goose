@@ -94,8 +94,8 @@ const config: Config = {
           {
             from: '/docs',
             to: '/docs/category/getting-started'
-          }         
-        ],
+          }
+        ]
       },
     ],
   ],

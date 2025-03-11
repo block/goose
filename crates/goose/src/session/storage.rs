@@ -9,9 +9,18 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+fn get_home_dir() -> PathBuf {
+    choose_app_strategy(crate::config::APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .home_dir()
+        .to_path_buf()
+}
+
 /// Metadata for a session, stored as the first line in the session file
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SessionMetadata {
+    /// Working directory for the session
+    pub working_dir: PathBuf,
     /// A short description of the session, typically 3 words or less
     pub description: String,
     /// Number of messages in the session
@@ -20,9 +29,35 @@ pub struct SessionMetadata {
     pub total_tokens: Option<i32>,
 }
 
+// Custom deserializer to handle old sessions without working_dir
+impl<'de> Deserialize<'de> for SessionMetadata {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct Helper {
+            description: String,
+            message_count: usize,
+            total_tokens: Option<i32>,
+            working_dir: Option<PathBuf>,
+        }
+
+        let helper = Helper::deserialize(deserializer)?;
+
+        Ok(SessionMetadata {
+            description: helper.description,
+            message_count: helper.message_count,
+            total_tokens: helper.total_tokens,
+            working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
+        })
+    }
+}
+
 impl SessionMetadata {
-    pub fn new() -> Self {
+    pub fn new(working_dir: PathBuf) -> Self {
         Self {
+            working_dir,
             description: String::new(),
             message_count: 0,
             total_tokens: None,
@@ -32,7 +67,7 @@ impl SessionMetadata {
 
 impl Default for SessionMetadata {
     fn default() -> Self {
-        Self::new()
+        Self::new(get_home_dir())
     }
 }
 
@@ -168,7 +203,7 @@ pub fn read_messages(session_file: &Path) -> Result<Vec<Message>> {
 /// Returns default empty metadata if the file doesn't exist or has no metadata.
 pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
     if !session_file.exists() {
-        return Ok(SessionMetadata::new());
+        return Ok(SessionMetadata::default());
     }
 
     let file = fs::File::open(session_file)?;
@@ -182,12 +217,12 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
             Ok(metadata) => Ok(metadata),
             Err(_) => {
                 // If the first line isn't metadata, return default
-                Ok(SessionMetadata::new())
+                Ok(SessionMetadata::default())
             }
         }
     } else {
         // Empty file, return default
-        Ok(SessionMetadata::new())
+        Ok(SessionMetadata::default())
     }
 }
 

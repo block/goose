@@ -64,6 +64,26 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   |  ○ JetBrains
   └  Enabled Computer Controller extension
   ```
+
+  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◆  Which built-in extension would you like to enable?
+  │  Computer Controller 
+  │  
+  // highlight-start
+  ◆  Please set the timeout for this tool (in secs):
+  │  300
+  // highlight-end  
+  └  Enabled Computer Controller extension
+  ```  
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner

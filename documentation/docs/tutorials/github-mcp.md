@@ -91,7 +91,31 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  5. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in.
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  github
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-github
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    │
+    └ 
+  ``` 
+
+  6. Obtain a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) and paste it in.
   :::info
   When creating your access token, you can specify the repositories and granular permissions you'd like Goose to have access to.
   :::
@@ -110,6 +134,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◇  What command should be run?
     │  npx -y @modelcontextprotocol/server-github
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │        
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 

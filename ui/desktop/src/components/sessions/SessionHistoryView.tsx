@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, MessageSquare, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Clock, MessageSquare, Folder, AlertCircle } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -68,6 +68,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             <span className="flex items-center">
               <Clock className="w-4 h-4 mr-1" />
               {new Date(session.messages[0]?.created * 1000).toLocaleString()}
+            </span>
+            <span className="flex items-center">
+              <Folder className="w-4 h-4 mr-1" />
+              {session.metadata.working_dir}
             </span>
             <span className="flex items-center">
               <MessageSquare className="w-4 h-4 mr-1" />
@@ -166,6 +170,11 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                             <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                               {toolRequests.map((toolRequest) => (
                                 <ToolCallWithResponse
+                                  // In the session history page, if no tool response found for given request, it means the tool call
+                                  // is broken or cancelled.
+                                  isCancelledMessage={
+                                    toolResponsesMap.get(toolRequest.id) == undefined
+                                  }
                                   key={toolRequest.id}
                                   toolRequest={toolRequest}
                                   toolResponse={toolResponsesMap.get(toolRequest.id)}

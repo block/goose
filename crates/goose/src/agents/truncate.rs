@@ -8,12 +8,13 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
+use super::agent::SessionConfig;
 use super::detect_read_only_tools;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::agents::ToolPermissionStore;
 use crate::config::Config;
-use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -26,8 +27,9 @@ use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
-use mcp_core::{tool::Tool, Content};
+use mcp_core::{tool::Tool, Content, ToolError};
 use serde_json::{json, Value};
+use std::time::Duration;
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -108,6 +110,15 @@ impl TruncateAgent {
             &OldestFirstTruncation,
         )
     }
+
+    async fn create_tool_future(
+        capabilities: &Capabilities,
+        tool_call: mcp_core::tool::ToolCall,
+        request_id: String,
+    ) -> (String, Result<Vec<Content>, ToolError>) {
+        let output = capabilities.dispatch_tool_call(tool_call).await;
+        (request_id, output)
+    }
 }
 
 #[async_trait]
@@ -145,11 +156,11 @@ impl Agent for TruncateAgent {
         }
     }
 
-    #[instrument(skip(self, messages, session_id), fields(user_message))]
+    #[instrument(skip(self, messages, session), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
-        session_id: Option<session::Identifier>,
+        session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
@@ -159,7 +170,7 @@ impl Agent for TruncateAgent {
 
         // Load settings from config
         let config = Config::global();
-        let goose_mode = config.get("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
@@ -229,10 +240,11 @@ impl Agent for TruncateAgent {
                         capabilities.record_usage(usage.clone()).await;
 
                         // record usage for the session in the session file
-                        if let Some(session_id) = session_id.clone() {
+                        if let Some(session) = session.clone() {
                             // TODO: track session_id in langfuse tracing
-                            let session_file = session::get_path(session_id);
+                            let session_file = session::get_path(session.id);
                             let mut metadata = session::read_metadata(&session_file)?;
+                            metadata.working_dir = session.working_dir;
                             metadata.total_tokens = usage.usage.total_tokens;
                             // The message count is the number of messages in the session + 1 for the response
                             // The message count does not include the tool response till next iteration
@@ -265,19 +277,47 @@ impl Agent for TruncateAgent {
                         match mode.as_str() {
                             "approve" => {
                                 let mut read_only_tools = Vec::new();
-                                // Process each tool request sequentially with confirmation
-                                if ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
-                                    read_only_tools = detect_read_only_tools(&capabilities, tool_requests.clone()).await;
+                                let mut needs_confirmation = Vec::<&ToolRequest>::new();
+                                let mut approved_tools = Vec::new();
+
+                                // First check permissions for all tools
+                                let store = ToolPermissionStore::load()?;
+                                for request in tool_requests.iter() {
+                                    if let Ok(tool_call) = request.tool_call.clone() {
+                                        if let Some(allowed) = store.check_permission(request) {
+                                            if allowed {
+                                                // Instead of executing immediately, collect approved tools
+                                                approved_tools.push((request.id.clone(), tool_call));
+                                            } else {
+                                                needs_confirmation.push(request);
+                                            }
+                                        } else {
+                                            needs_confirmation.push(request);
+                                        }
+                                    }
                                 }
-                                for request in &tool_requests {
+
+                                // Only check read-only status for tools needing confirmation
+                                if !needs_confirmation.is_empty() {
+                                    read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
+                                }
+
+                                // Handle pre-approved and read-only tools in parallel
+                                let mut tool_futures = Vec::new();
+
+                                // Add pre-approved tools
+                                for (request_id, tool_call) in approved_tools {
+                                    let tool_future = Self::create_tool_future(&capabilities, tool_call, request_id.clone());
+                                    tool_futures.push(tool_future);
+                                }
+
+                                // Process read-only tools
+                                for request in &needs_confirmation {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
                                         if read_only_tools.contains(&tool_call.name) {
-                                            let output = capabilities.dispatch_tool_call(tool_call).await;
-                                                    message_tool_response = message_tool_response.with_tool_response(
-                                                        request.id.clone(),
-                                                        output,
-                                                    );
+                                            let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                            tool_futures.push(tool_future);
                                         } else {
                                             let confirmation = Message::user().with_tool_confirmation_request(
                                                 request.id.clone(),
@@ -289,16 +329,16 @@ impl Agent for TruncateAgent {
 
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
-                                            // Loop the recv until we have a matched req_id due to potential duplicate messages.
                                             while let Some((req_id, confirmed)) = rx.recv().await {
                                                 if req_id == request.id {
+                                                    // Store the user's response with 30-day expiration
+                                                    let mut store = ToolPermissionStore::load()?;
+                                                    store.record_permission(request, confirmed, Some(Duration::from_secs(30 * 24 * 60 * 60)))?;
+
                                                     if confirmed {
-                                                        // User approved - dispatch the tool call
-                                                        let output = capabilities.dispatch_tool_call(tool_call).await;
-                                                        message_tool_response = message_tool_response.with_tool_response(
-                                                            request.id.clone(),
-                                                            output,
-                                                        );
+                                                        // Add this tool call to the futures collection
+                                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                                        tool_futures.push(tool_future);
                                                     } else {
                                                         // User declined - add declined response
                                                         message_tool_response = message_tool_response.with_tool_response(
@@ -311,6 +351,14 @@ impl Agent for TruncateAgent {
                                             }
                                         }
                                     }
+                                }
+                                // Wait for all tool calls to complete
+                                let results = futures::future::join_all(tool_futures).await;
+                                for (request_id, output) in results {
+                                    message_tool_response = message_tool_response.with_tool_response(
+                                        request_id,
+                                        output,
+                                    );
                                 }
                             },
                             "chat" => {
@@ -339,10 +387,8 @@ impl Agent for TruncateAgent {
                                 let mut tool_futures = Vec::new();
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        tool_futures.push(async {
-                                            let output = capabilities.dispatch_tool_call(tool_call).await;
-                                            (request.id.clone(), output)
-                                        });
+                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                        tool_futures.push(tool_future);
                                     }
                                 }
                                 // Wait for all tool calls to complete

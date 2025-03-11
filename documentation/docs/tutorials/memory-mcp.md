@@ -58,8 +58,29 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   │  ● Memory 
   // highlight-end
   |  ○ JetBrains
-  └  Enabled Memory extension
+  └  
   ```
+
+  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◇  Which built-in extension would you like to enable?
+  │  Memory 
+  │
+  // highlight-start
+  ◆  Please set the timeout for this tool (in secs):
+  │  300
+  // highlight-end
+  └  Enabled Memory extension
+  ```  
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
