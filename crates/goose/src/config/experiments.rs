@@ -5,7 +5,7 @@ use std::collections::HashMap;
 /// It is the ground truth for init experiments. The experiment names in users' experiment list but not
 /// in the list will be remove from user list; The experiment names in the ground-truth list but not
 /// in users' experiment list will be added to user list with default value false;
-const ALL_EXPERIMENTS: &[(&str, bool)] = &[("GOOSE_SMART_APPROVE", true)];
+const ALL_EXPERIMENTS: &[(&str, bool)] = &[];
 
 /// Experiment configuration management
 pub struct ExperimentManager;

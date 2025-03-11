@@ -15,8 +15,7 @@ import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
 import type { View } from '../../App';
-import ModeSelection from './basic/ModeSelection';
-import { getApiUrl, getSecretKey } from '../../config';
+import { ModeSelection } from './basic/ModeSelection';
 
 const EXTENSIONS_DESCRIPTION =
   'The Model Context Protocol (MCP) is a system that allows AI models to securely connect with local or remote resources using standard server setups. It works like a client-server setup and expands AI capabilities using three main components: Prompts, Resources, and Tools.';
@@ -62,55 +61,6 @@ export default function SettingsView({
   setView: (view: View) => void;
   viewOptions: SettingsViewOptions;
 }) {
-  const [mode, setMode] = useState('auto');
-
-  const handleModeChange = async (newMode: string) => {
-    const storeResponse = await fetch(getApiUrl('/configs/store'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        key: 'GOOSE_MODE',
-        value: newMode,
-        isSecret: false,
-      }),
-    });
-
-    if (!storeResponse.ok) {
-      const errorText = await storeResponse.text();
-      console.error('Store response error:', errorText);
-      throw new Error(`Failed to store new goose mode: ${newMode}`);
-    }
-    setMode(newMode);
-  };
-
-  useEffect(() => {
-    const fetchCurrentMode = async () => {
-      try {
-        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
-          },
-        });
-
-        if (response.ok) {
-          const { value } = await response.json();
-          if (value) {
-            setMode(value);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching current mode:', error);
-      }
-    };
-
-    fetchCurrentMode();
-  }, []);
-
   const [settings, setSettings] = React.useState<SettingsType>(() => {
     const saved = localStorage.getItem('user_settings');
     window.electron.logInfo('Settings: ' + saved);
@@ -304,7 +254,7 @@ export default function SettingsView({
                     Others setting like Goose Mode, Tool Output, Experiment and more
                   </p>
 
-                  <ModeSelection value={mode} onChange={handleModeChange} />
+                  <ModeSelection />
                 </div>
               </section>
             </div>

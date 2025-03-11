@@ -15,7 +15,6 @@ use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::agents::ToolPermissionStore;
 use crate::config::Config;
-use crate::config::ExperimentManager;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
 use crate::providers::base::ProviderUsage;
@@ -299,7 +298,7 @@ impl Agent for TruncateAgent {
                                 }
 
                                 // Only check read-only status for tools needing confirmation
-                                if !needs_confirmation.is_empty() && ExperimentManager::is_enabled("GOOSE_SMART_APPROVE")? {
+                                if !needs_confirmation.is_empty() {
                                     read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
                                 }
 
