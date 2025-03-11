@@ -1,12 +1,12 @@
 mod oauth_pkce;
-mod token_storage;
+mod storage;
 
 use indoc::indoc;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
-use token_storage::CredentialsManager;
+use storage::CredentialsManager;
 
 use mcp_core::content::Content;
 use mcp_core::{

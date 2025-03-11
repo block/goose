@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
 use url::Url;
 
-use crate::google_drive::token_storage::CredentialsManager;
+use super::storage::CredentialsManager;
 
 /// Structure representing the OAuth2 configuration file format
 #[derive(Debug, Deserialize, Serialize)]
@@ -44,6 +44,7 @@ struct TokenData {
     refresh_token: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     expires_at: Option<u64>,
+    project_id: String,
 }
 
 use std::sync::Mutex;
@@ -56,6 +57,7 @@ pub struct PkceOAuth2Client {
     credentials_manager: Arc<CredentialsManager>,
     refresh_token: Arc<Mutex<Option<String>>>,
     http_client: reqwest::Client,
+    project_id: String,
 }
 
 impl PkceOAuth2Client {
@@ -66,6 +68,9 @@ impl PkceOAuth2Client {
         // Load and parse the config file
         let config_content = fs::read_to_string(config_path)?;
         let config: OAuth2Config = serde_json::from_str(&config_content)?;
+
+        // Extract the project_id from the config
+        let project_id = config.installed.project_id.clone();
 
         // Create OAuth URLs
         let auth_url =
@@ -84,11 +89,24 @@ impl PkceOAuth2Client {
             );
 
         // Try to load a refresh token from storage
-        let refresh_token = credentials_manager
-            .read_credentials::<TokenData>()
-            .inspect_err(|e| debug!("No stored credentials found or error reading them: {}", e))
-            .ok()
-            .map(|token_data| token_data.refresh_token);
+        let refresh_token = match credentials_manager.read_credentials::<TokenData>() {
+            Ok(token_data) => {
+                // Verify the project_id matches
+                if token_data.project_id != project_id {
+                    debug!(
+                        "Project ID mismatch: stored={}, current={}. Discarding stored credentials.",
+                        token_data.project_id, project_id
+                    );
+                    None // Don't use these credentials if project_id doesn't match
+                } else {
+                    Some(token_data.refresh_token)
+                }
+            }
+            Err(e) => {
+                debug!("No stored credentials found or error reading them: {}", e);
+                None
+            }
+        };
 
         let http_client = reqwest::ClientBuilder::new()
             // Following redirects opens the client up to SSRF vulnerabilities.
@@ -101,6 +119,7 @@ impl PkceOAuth2Client {
             credentials_manager,
             refresh_token: Arc::new(Mutex::new(refresh_token)),
             http_client,
+            project_id,
         })
     }
 
@@ -163,6 +182,7 @@ impl PkceOAuth2Client {
                 access_token: access_token.clone(),
                 refresh_token: refresh_token.secret().clone(),
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
+                project_id: self.project_id.clone(),
             };
 
             self.refresh_token
@@ -208,6 +228,7 @@ impl PkceOAuth2Client {
                 access_token: access_token.clone(),
                 refresh_token: refresh_token.secret().clone(),
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
+                project_id: self.project_id.clone(),
             };
 
             self.refresh_token
@@ -306,12 +327,21 @@ impl GetToken for PkceOAuth2Client {
                 .credentials_manager
                 .read_credentials::<TokenData>()
                 .ok()
-                .map(|token_data| {
-                    if let Ok(mut token_guard) = self.refresh_token.lock() {
-                        *token_guard = Some(token_data.refresh_token.clone());
-                        debug!("Updated in-memory refresh token from storage");
+                .and_then(|token_data| {
+                    // Verify the project_id matches
+                    if token_data.project_id != self.project_id {
+                        debug!(
+                            "Project ID mismatch: stored={}, current={}. Discarding stored credentials.",
+                            token_data.project_id, self.project_id
+                        );
+                        None // Don't use these credentials if project_id doesn't match
+                    } else {
+                        if let Ok(mut token_guard) = self.refresh_token.lock() {
+                            *token_guard = Some(token_data.refresh_token.clone());
+                            debug!("Updated in-memory refresh token from storage");
+                        }
+                        Some(token_data.refresh_token)
                     }
-                    token_data.refresh_token
                 });
 
             // If we fail to use the refresh token here, fall through to full OAuth flow
@@ -336,4 +366,3 @@ impl GetToken for PkceOAuth2Client {
         })
     }
 }
-
