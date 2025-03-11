@@ -834,13 +834,6 @@ impl DeveloperRouter {
                     );
                     let new_path = parent.join(new_filename);
 
-                    // If the original file exists and paths are different, rename it
-                    if path.exists() && path != new_path {
-                        if let Err(e) = std::fs::rename(path, &new_path) {
-                            eprintln!("Warning: Failed to normalize Mac screenshot filename: {}", e);
-                            return path.to_path_buf();
-                        }
-                    }
                     return new_path;
                 }
             }
@@ -854,41 +847,47 @@ impl DeveloperRouter {
             .and_then(|v| v.as_str())
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
 
-        let path = self.resolve_path(path_str)?;
-        let normalized_path = self.normalize_mac_screenshot_path(&path);
+        let path = {
+            let p = self.resolve_path(path_str)?;
+            if cfg!(target_os = "macos") {
+                self.normalize_mac_screenshot_path(&p)
+            } else {
+                p
+            }
+        };
 
         // Check if file is ignored before proceeding
-        if self.is_ignored(&normalized_path) {
+        if self.is_ignored(&path) {
             return Err(ToolError::ExecutionError(format!(
                 "Access to '{}' is restricted by .gooseignore",
-                normalized_path.display()
+                path.display()
             )));
         }
 
         // Check if file exists
-        if !normalized_path.exists() {
+        if !path.exists() {
             return Err(ToolError::ExecutionError(format!(
                 "File '{}' does not exist",
-                normalized_path.display()
+                path.display()
             )));
         }
 
         // Check file size (10MB limit for image files)
         const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
-        let file_size = std::fs::metadata(&normalized_path)
+        let file_size = std::fs::metadata(&path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
             .len();
 
         if file_size > MAX_FILE_SIZE {
             return Err(ToolError::ExecutionError(format!(
                 "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
-                normalized_path.display(),
+                path.display(),
                 file_size as f64 / (1024.0 * 1024.0)
             )));
         }
 
         // Open and decode the image
-        let image = xcap::image::open(&normalized_path)
+        let image = xcap::image::open(&path)
             .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
 
         // Resize if necessary (same logic as screen_capture)
