@@ -242,7 +242,6 @@ impl Config {
         // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
-            println!("{} = {}", &env_key, &val);
             // Parse the environment variable value into a serde_json::Value
             let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
             return Ok(serde_json::from_value(value)?);
@@ -318,7 +317,6 @@ impl Config {
         // First check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
-            println!("got from env");
             let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
             return Ok(serde_json::from_value(value)?);
         }
