@@ -124,13 +124,13 @@ async fn run_eval(
 
 async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
     let mut suite_result = SuiteResult::new(suite.to_string());
-    let eval_lock = Mutex::new(());
+    let eval_work_dir_guard = Mutex::new(work_dir);
 
     if let Some(evals) = EvaluationSuiteFactory::create(suite) {
         for eval in evals {
-            let _unused = eval_lock.lock().await;
-            work_dir.set_eval(eval.name());
-            let eval_result = run_eval(eval, work_dir).await?;
+            let mut eval_work_dir = eval_work_dir_guard.lock().await;
+            eval_work_dir.set_eval(eval.name());
+            let eval_result = run_eval(eval, &mut eval_work_dir).await?;
             suite_result.add_evaluation(eval_result);
         }
     }
@@ -157,13 +157,13 @@ pub async fn run_benchmark(
 
     let mut results = BenchmarkResults::new(provider_name.clone());
 
-    let mut work_dir = BenchmarkWorkDir::new(
+    let suite_work_dir = Mutex::new(BenchmarkWorkDir::new(
         format!("{}-{}", provider_name, goose_model),
         include_dirs.clone(),
-    );
-    let suite_lock = Mutex::new(());
+    ));
+
     for suite in suites {
-        let _unused = suite_lock.lock().await;
+        let mut work_dir = suite_work_dir.lock().await;
         work_dir.set_suite(suite);
         let suite_result = run_suite(suite, &mut work_dir).await?;
         results.add_suite(suite_result);
