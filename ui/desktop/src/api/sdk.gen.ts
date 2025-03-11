@@ -66,7 +66,7 @@ export const providers = <ThrowOnError extends boolean = false>(options?: Option
 };
 
 export const readConfig = <ThrowOnError extends boolean = false>(options: Options<ReadConfigData, ThrowOnError>) => {
-    return (options.client ?? _heyApiClient).get<unknown, unknown, ThrowOnError>({
+    return (options.client ?? _heyApiClient).post<unknown, unknown, ThrowOnError>({
         url: '/config/read',
         ...options,
         headers: {

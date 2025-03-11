@@ -72,7 +72,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const upsert = async (key: string, value: unknown, isSecret: boolean = false) => {
-    console.log('trying to upsert', key, value, isSecret);
     const query: UpsertConfigQuery = {
       key: key,
       value: value,

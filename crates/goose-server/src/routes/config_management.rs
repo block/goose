@@ -37,7 +37,7 @@ pub struct UpsertConfigQuery {
     pub is_secret: bool,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct ConfigKeyQuery {
     pub key: String,
     pub is_secret: bool,
@@ -123,9 +123,9 @@ pub async fn remove_config(
 }
 
 #[utoipa::path(
-    get,
+    post, // Change from get to post
     path = "/config/read",
-    request_body = ConfigKeyQuery,
+    request_body = ConfigKeyQuery, // Switch back to request_body
     responses(
         (status = 200, description = "Configuration value retrieved successfully", body = Value),
         (status = 404, description = "Configuration key not found")

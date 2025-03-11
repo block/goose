@@ -161,7 +161,7 @@
       }
     },
     "/config/read": {
-      "get": {
+      "post": {
         "tags": [
           "super::routes::config_management"
         ],

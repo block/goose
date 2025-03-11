@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Input } from '../../../../../ui/input';
+import { useConfig } from '../../../../../ConfigContext'; // Adjust this import path as needed
 
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, any>;
@@ -13,29 +14,59 @@ export default function DefaultProviderSetupForm({
   provider,
 }: DefaultProviderSetupFormProps) {
   const parameters = provider.metadata.config_keys || [];
+  const [isLoading, setIsLoading] = useState(true);
+  const { read } = useConfig();
 
-  // Initialize default values when the component mounts or provider changes
+  // Initialize values when the component mounts or provider changes
   useEffect(() => {
-    const defaultValues = {};
-    parameters.forEach((parameter) => {
-      if (
-        parameter.required &&
-        parameter.default !== undefined &&
-        parameter.default !== null &&
-        !configValues[parameter.name]
-      ) {
-        defaultValues[parameter.name] = parameter.default;
-      }
-    });
+    const loadConfigValues = async () => {
+      setIsLoading(true);
+      const newValues = { ...configValues };
 
-    // Only update if there are default values to add
-    if (Object.keys(defaultValues).length > 0) {
+      // Try to load actual values from config for each parameter that is not secret
+      for (const parameter of parameters) {
+        if (parameter.required && !parameter.secret) {
+          try {
+            // Check if there's a stored value in the config system
+            const configKey = `${parameter.name}`;
+            const configResponse = await read(configKey, parameter.secret || false);
+            console.log('configResponse', configResponse);
+
+            if (configResponse) {
+              // Use the value from the config provider
+              newValues[parameter.name] = configResponse;
+            } else if (
+              parameter.default !== undefined &&
+              parameter.default !== null &&
+              !configValues[parameter.name]
+            ) {
+              // Fall back to default value if no config value exists
+              newValues[parameter.name] = parameter.default;
+            }
+          } catch (error) {
+            console.error(`Failed to load config for ${parameter.name}:`, error);
+            // Fall back to default if read operation fails
+            if (
+              parameter.default !== undefined &&
+              parameter.default !== null &&
+              !configValues[parameter.name]
+            ) {
+              newValues[parameter.name] = parameter.default;
+            }
+          }
+        }
+      }
+
+      // Update state with loaded values
       setConfigValues((prev) => ({
         ...prev,
-        ...defaultValues,
+        ...newValues,
       }));
-    }
-  }, [provider.name, parameters, setConfigValues, configValues]);
+      setIsLoading(false);
+    };
+
+    loadConfigValues();
+  }, [provider.name, parameters, setConfigValues, read]);
 
   // Filter parameters to only show required ones
   const requiredParameters = useMemo(() => {
@@ -52,6 +83,10 @@ export default function DefaultProviderSetupForm({
     // Otherwise, use the parameter name as a hint
     return parameter.name.toUpperCase();
   };
+
+  if (isLoading) {
+    return <div className="text-center py-4">Loading configuration values...</div>;
+  }
 
   return (
     <div className="mt-4 space-y-4">
