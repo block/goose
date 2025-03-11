@@ -11,6 +11,7 @@ pub static BUILTIN_EVAL_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/asse
 
 pub struct BenchmarkWorkDir {
     pub base_path: PathBuf,
+    run_dir: PathBuf,
     cwd: PathBuf,
     run_name: String,
     suite: Option<String>,
@@ -24,6 +25,7 @@ impl Default for BenchmarkWorkDir {
 }
 impl BenchmarkWorkDir {
     pub fn new(work_dir_name: String, include_dirs: Vec<PathBuf>) -> Self {
+        let run_dir = std::env::current_dir().unwrap().canonicalize().unwrap();
         let base_path = PathBuf::from(format!("./benchmark-{}", work_dir_name));
         fs::create_dir_all(&base_path).unwrap();
 
@@ -54,6 +56,7 @@ impl BenchmarkWorkDir {
 
         BenchmarkWorkDir {
             base_path: base_path.clone(),
+            run_dir,
             cwd: base_path.clone(),
             run_name,
             suite: None,
@@ -176,5 +179,11 @@ impl BenchmarkWorkDir {
             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
             Err(io::Error::new(ErrorKind::Other, error_message))
         }
+    }
+}
+
+impl Drop for BenchmarkWorkDir {
+    fn drop(&mut self) {
+        std::env::set_current_dir(&self.run_dir).unwrap();
     }
 }
