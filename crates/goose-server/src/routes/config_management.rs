@@ -339,7 +339,8 @@ fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
     let config = Config::global();
 
     // Get all required keys
-    let required_keys: Vec<&ConfigKey> = metadata.config_keys
+    let required_keys: Vec<&ConfigKey> = metadata
+        .config_keys
         .iter()
         .filter(|key| key.required)
         .collect();
