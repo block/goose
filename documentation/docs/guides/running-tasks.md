@@ -1,0 +1,135 @@
+---
+sidebar_position: 7
+---
+# Running Tasks
+
+When working with the Goose CLI, you can pass files and instructions to the `goose run` command to execute tasks and workflows. This could be a simple one-liner command or a complex set of instructions stored in a file.
+
+## Basic Usage
+
+The `goose run` command starts a new session, begins executing using any arguments provided and exits the session automatically once the task is complete. 
+
+There are multiple ways to run tasks with Goose - see a list of `goose run` options [here](/docs/guides/goose-cli-commands.md#run-options):
+
+### Text in the command
+```bash
+goose run -t "your instructions here"
+```
+
+Using the `-t` flag, one is able to pass a text instruction directly to the command. This is great for quick, one-off commands. An example usage could be using in a CI/CD pipeline or running alongside other scripts.
+
+### Using an instruction file:
+If you have a complex set of instructions or a workflow that you want to automate, you can store them in a file and pass it to the `goose run` command:
+
+```bash
+goose run -i instructions.txt
+```
+
+Here's an example of an instruction file that runs a security audit on project dependencies:
+
+```text
+# Dependency Security Audit
+
+1. Analyze project dependencies:
+   - Check package.json and requirements.txt files
+   - List all dependencies with versions
+   - Identify outdated packages
+
+2. Security check:
+   - Run npm audit (for JavaScript packages)
+   - Check for known vulnerabilities in Python packages
+   - Identify dependencies with critical security issues
+
+3. Create an upgrade plan:
+   - List packages requiring immediate updates
+   - Note breaking changes in latest versions
+   - Estimate impact of required updates
+
+Save findings in 'security_audit.md' with severity levels highlighted.
+```
+
+## Key Features
+
+### Interactive Mode
+
+If you don't want Goose to exit at the end of the task, you can pass the `s` flag to start an interactive session after processing your initial commands:
+
+```bash
+goose run -i instructions.txt -s
+```
+
+This is useful when you want to continue working with Goose after your initial commands are processed.
+
+### Session Management
+
+You can name and manage your sessions:
+
+```bash
+# Start a new named session
+goose run -n my-project -t "initial instructions"
+
+# Resume a previous session
+goose run -n my-project -r
+```
+
+### Working with Extensions
+
+If you want to ensure specific extensions are available when running your task, you can pas this as arguments as well to the `goose run` command. This can be done using the `--with-extension` or `--with-builtin` flags:
+
+```bash
+# Use built-in extensions e.g developer and computercontroller extensions
+goose run --with-builtin "developer,computercontroller" -t "your instructions"
+
+# Use custom extensions
+goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
+```
+
+## Common Use Cases
+
+### Running Script Files
+
+Create an instruction file (e.g., `build-script.txt`):
+```text
+Check the current branch
+Run the test suite
+Build the documentation
+```
+
+Then run it:
+```bash
+goose run -i build-script.txt
+```
+
+### Quick Commands
+
+For one-off commands, use the text option:
+```bash
+goose run -t "Generate a test plan for the login feature"
+```
+
+### Development Workflows
+
+Start a development session with specific extensions:
+```bash
+goose run --with-builtin developer,git -n dev-session -s
+```
+
+### Combining Options
+
+You can combine multiple options to create powerful workflows:
+
+```bash
+# Complex example combining multiple options
+goose run \
+  --with-builtin developer,git \
+  --with-extension "API_KEY=xyz123 custom-tool" \
+  -n project-setup \
+  -t "Initialize project" 
+```
+
+This command:
+1. Loads the developer and git built-in extensions
+2. Adds a custom extension with an API key
+3. Names the session "project-setup"
+4. Starts with "Initialize project" instruction
+5. Exits automatically after processing the command.
