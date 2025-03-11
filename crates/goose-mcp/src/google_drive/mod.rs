@@ -595,7 +595,6 @@ impl GoogleDriveRouter {
                     Ok(r) => {
                         let spreadsheet = r.1;
                         let sheets = spreadsheet.sheets.unwrap_or_default();
-                        
                         let sheets_info = sheets
                             .into_iter()
                             .filter_map(|sheet| {
@@ -603,7 +602,6 @@ impl GoogleDriveRouter {
                                 let title = properties.title?;
                                 let sheet_id = properties.sheet_id?;
                                 let grid_properties = properties.grid_properties?;
-                                
                                 Some(format!(
                                     "Sheet: {} (ID: {}, Rows: {}, Columns: {})",
                                     title,
@@ -643,7 +641,6 @@ impl GoogleDriveRouter {
                     ))),
                     Ok(r) => {
                         let value_range = r.1;
-                        
                         // Extract just the headers (first row)
                         let headers = match value_range.values {
                             Some(mut values) if !values.is_empty() => {
@@ -686,7 +683,6 @@ impl GoogleDriveRouter {
                     ))),
                     Ok(r) => {
                         let value_range = r.1;
-                        
                         // Convert the values to a CSV string
                         let csv_content = match value_range.values {
                             Some(values) => {
