@@ -1,5 +1,6 @@
 use super::base::Usage;
 use super::errors::GoogleErrorCode;
+use crate::model::ModelConfig;
 use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
@@ -316,21 +317,15 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace<T: serde::Serialize>(
-    model_config: &T,
-    payload: &impl serde::Serialize,
+pub fn emit_debug_trace(
+    model_config: &ModelConfig,
+    payload: &Value,
     response: &Value,
     usage: &Usage,
 ) {
-    // Handle both Map<String, Value> and Value payload types
-    let payload_str = match serde_json::to_value(payload) {
-        Ok(value) => serde_json::to_string_pretty(&value).unwrap_or_default(),
-        Err(_) => serde_json::to_string_pretty(&payload).unwrap_or_default(),
-    };
-
     tracing::debug!(
         model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
-        input = %payload_str,
+        input = %serde_json::to_string_pretty(payload).unwrap_or_default(),
         output = %serde_json::to_string_pretty(response).unwrap_or_default(),
         input_tokens = ?usage.input_tokens.unwrap_or_default(),
         output_tokens = ?usage.output_tokens.unwrap_or_default(),

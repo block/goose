@@ -183,7 +183,7 @@ impl Provider for AnthropicProvider {
         let usage = get_usage(&response)?;
 
         let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }
