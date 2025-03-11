@@ -5,7 +5,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::Config;
-use goose::providers::base::ProviderMetadata;
+use goose::providers::base::{ConfigKey, ProviderMetadata};
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -123,7 +123,7 @@ pub async fn remove_config(
 }
 
 #[utoipa::path(
-    post, // Change from get to post
+    post,
     path = "/config/read",
     request_body = ConfigKeyQuery, // Switch back to request_body
     responses(
@@ -338,26 +338,49 @@ pub async fn providers(
 fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
     let config = Config::global();
 
-    // Check all required keys for the provider
-    for key in &metadata.config_keys {
-        if key.required {
-            let key_name = &key.name;
+    // Get all required keys
+    let required_keys: Vec<&ConfigKey> = metadata.config_keys
+        .iter()
+        .filter(|key| key.required)
+        .collect();
 
-            // First, check if the key is set in the environment
-            let is_set_in_env = env::var(key_name).is_ok();
+    // Special case: If a provider has exactly one required key and that key
+    // has a default value, check if it's explicitly set
+    if required_keys.len() == 1 && required_keys[0].default.is_some() {
+        let key = &required_keys[0];
 
-            // If not set in environment, check the config file based on whether it's a secret or not
-            let is_set_in_config = config.get(key_name, key.secret).is_ok();
+        // Check if the key is explicitly set (either in env or config)
+        let is_set_in_env = env::var(&key.name).is_ok();
+        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
 
-            // If the key is neither in the environment nor in the config, the provider is not configured
-            if !is_set_in_env && !is_set_in_config {
-                return false;
-            }
-        }
+        return is_set_in_env || is_set_in_config;
     }
 
-    // If all required keys are accounted for, the provider is considered configured
-    true
+    // For providers with multiple keys or keys without defaults:
+    // Find required keys that don't have default values
+    let required_non_default_keys: Vec<&ConfigKey> = required_keys
+        .iter()
+        .filter(|key| key.default.is_none())
+        .cloned()
+        .collect();
+
+    // If there are no non-default keys, this provider needs at least one key explicitly set
+    if required_non_default_keys.is_empty() {
+        return required_keys.iter().any(|key| {
+            let is_set_in_env = env::var(&key.name).is_ok();
+            let is_set_in_config = config.get(&key.name, key.secret).is_ok();
+
+            is_set_in_env || is_set_in_config
+        });
+    }
+
+    // Otherwise, all non-default keys must be set
+    required_non_default_keys.iter().all(|key| {
+        let is_set_in_env = env::var(&key.name).is_ok();
+        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
+
+        is_set_in_env || is_set_in_config
+    })
 }
 
 pub fn routes(state: AppState) -> Router {
