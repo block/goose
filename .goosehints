@@ -1,0 +1,4 @@
+crates contains the goose implementation in rust
+ui/desktop is an electron app. 
+
+When working on the rust side, always run "cargo check" as you go.

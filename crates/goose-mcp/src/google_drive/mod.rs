@@ -29,10 +29,7 @@ use google_drive3::{
     DriveHub,
 };
 
-use google_sheets4::{
-    self,
-    Sheets,
-};
+use google_sheets4::{self, Sheets};
 
 use http_body_util::BodyExt;
 
@@ -76,7 +73,10 @@ pub struct GoogleDriveRouter {
 }
 
 impl GoogleDriveRouter {
-    async fn google_auth() -> (DriveHub<HttpsConnector<HttpConnector>>, Sheets<HttpsConnector<HttpConnector>>) {
+    async fn google_auth() -> (
+        DriveHub<HttpsConnector<HttpConnector>>,
+        Sheets<HttpsConnector<HttpConnector>>,
+    ) {
         let oauth_config = env::var("GOOGLE_DRIVE_OAUTH_CONFIG");
         let keyfile_path_str = env::var("GOOGLE_DRIVE_OAUTH_PATH")
             .unwrap_or_else(|_| "./gcp-oauth.keys.json".to_string());
@@ -194,11 +194,14 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let sheet_values_tool = Tool::new(
-            "sheet_values".to_string(),
+        let sheets_tool = Tool::new(
+            "sheets_tool".to_string(),
             indoc! {r#"
-                Get values from a Google Sheet using the spreadsheet ID and range.
-                Returns the values as a CSV string.
+                Work with Google Sheets data using various operations.
+                Supports operations:
+                - list_sheets: List all sheets in a spreadsheet
+                - get_columns: Get column headers from a specific sheet
+                - get_values: Get values from a range
             "#}
             .to_string(),
             json!({
@@ -206,14 +209,23 @@ impl GoogleDriveRouter {
               "properties": {
                   "spreadsheetId": {
                       "type": "string",
-                      "description": "The ID of the spreadsheet to retrieve data from",
+                      "description": "The ID of the spreadsheet to work with",
+                  },
+                  "operation": {
+                      "type": "string",
+                      "enum": ["list_sheets", "get_columns", "get_values"],
+                      "description": "The operation to perform on the spreadsheet",
+                  },
+                  "sheetName": {
+                      "type": "string",
+                      "description": "The name of the sheet to work with (optional for some operations)",
                   },
                   "range": {
                       "type": "string",
-                      "description": "The A1 notation or R1C1 notation of the range to retrieve values from",
+                      "description": "The A1 notation of the range to retrieve values (e.g., 'Sheet1!A1:D10')",
                   }
               },
-              "required": ["spreadsheetId", "range"],
+              "required": ["spreadsheetId", "operation"],
             }),
         );
 
@@ -224,7 +236,7 @@ impl GoogleDriveRouter {
             The Google Drive MCP server provides tools for interacting with Google Drive files and Google Sheets:
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
-            3. sheet_values - Get values from a Google Sheet using spreadsheet ID and range
+            3. sheets_tool - Work with Google Sheets data using various operations
 
             ## Available Tools
 
@@ -243,11 +255,17 @@ impl GoogleDriveRouter {
             Limitations: Google Sheets exporting only supports reading the first sheet. This is an important limitation that should
             be communicated to the user whenever dealing with a Google Sheet (mimeType: application/vnd.google-apps.spreadsheet).
 
-            ### 3. Sheet Values Tool
-            Get values from a Google Sheet using the spreadsheet ID and range.
+            ### 3. Sheets Tool
+            Work with Google Sheets data using various operations:
+            - list_sheets: List all sheets in a spreadsheet
+            - get_columns: Get column headers from a specific sheet
+            - get_values: Get values from a range
+
+            Parameters:
             - spreadsheetId: The ID of the spreadsheet (can be obtained from search results)
-            - range: The A1 notation or R1C1 notation of the range (e.g., "Sheet1!A1:D10")
-            Returns the values as a CSV string.
+            - operation: The operation to perform (one of the operations listed above)
+            - sheetName: The name of the sheet to work with (optional for some operations)
+            - range: The A1 notation of the range to retrieve values (e.g., 'Sheet1!A1:D10')
 
             ## File Format Handling
             The server automatically handles different file types:
@@ -261,7 +279,7 @@ impl GoogleDriveRouter {
 
             1. First, search for the file you want to read, searching by name.
             2. Then, use the file URI from the search results to read its contents.
-            3. For Google Sheets, you can use either the read tool or the sheet_values tool.
+            3. For Google Sheets, use the sheets_tool with the appropriate operation.
 
             ## Best Practices
             1. Always use search first to find the correct file URI
@@ -280,7 +298,7 @@ impl GoogleDriveRouter {
         "#};
 
         Self {
-            tools: vec![search_tool, read_tool, sheet_values_tool],
+            tools: vec![search_tool, read_tool, sheets_tool],
             instructions,
             drive,
             sheets,
@@ -547,58 +565,153 @@ impl GoogleDriveRouter {
         }
     }
 
-    // Implement Google Sheets functionality
-    async fn sheet_values(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let spreadsheet_id = params
-            .get("spreadsheetId")
-            .and_then(|q| q.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The spreadsheetId is required".to_string(),
-            ))?;
+    // Implement sheets_tool functionality
+    async fn sheets_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let spreadsheet_id = params.get("spreadsheetId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The spreadsheetId is required".to_string()),
+        )?;
 
-        let range = params
-            .get("range")
-            .and_then(|q| q.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The range is required".to_string(),
-            ))?;
+        let operation = params.get("operation").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The operation is required".to_string()),
+        )?;
 
-        let result = self
-            .sheets
-            .spreadsheets()
-            .values_get(spreadsheet_id, range)
-            .clear_scopes()
-            .add_scope(Scope::Readonly)
-            .doit()
-            .await;
+        match operation {
+            "list_sheets" => {
+                // Get spreadsheet metadata to list all sheets
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .get(spreadsheet_id)
+                    .clear_scopes()
+                    .add_scope(Scope::Readonly)
+                    .doit()
+                    .await;
 
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute Google Sheets values_get query, {}.",
-                e
-            ))),
-            Ok(r) => {
-                let value_range = r.1;
-                
-                // Convert the values to a CSV string
-                let csv_content = match value_range.values {
-                    Some(values) => {
-                        let mut csv_string = String::new();
-                        for row in values {
-                            let row_values: Vec<String> = row
-                                .into_iter()
-                                .map(|cell| cell.as_str().unwrap_or_default().to_string())
-                                .collect();
-                            csv_string.push_str(&row_values.join(","));
-                            csv_string.push('\n');
-                        }
-                        csv_string
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets get query, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let spreadsheet = r.1;
+                        let sheets = spreadsheet.sheets.unwrap_or_default();
+                        
+                        let sheets_info = sheets
+                            .into_iter()
+                            .filter_map(|sheet| {
+                                let properties = sheet.properties?;
+                                let title = properties.title?;
+                                let sheet_id = properties.sheet_id?;
+                                let grid_properties = properties.grid_properties?;
+                                
+                                Some(format!(
+                                    "Sheet: {} (ID: {}, Rows: {}, Columns: {})",
+                                    title,
+                                    sheet_id,
+                                    grid_properties.row_count.unwrap_or(0),
+                                    grid_properties.column_count.unwrap_or(0)
+                                ))
+                            })
+                            .collect::<Vec<String>>()
+                            .join("\n");
+
+                        Ok(vec![Content::text(sheets_info).with_priority(0.1)])
                     }
-                    None => "No data found".to_string(),
-                };
+                }
+            },
+            "get_columns" => {
+                // Get the sheet name if provided, otherwise we'll use the first sheet
+                let sheet_name = params
+                    .get("sheetName")
+                    .and_then(|q| q.as_str())
+                    .map(|s| format!("{}!1:1", s))
+                    .unwrap_or_else(|| "1:1".to_string()); // Default to first row of first sheet
 
-                Ok(vec![Content::text(csv_content).with_priority(0.1)])
-            }
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .values_get(spreadsheet_id, &sheet_name)
+                    .clear_scopes()
+                    .add_scope(Scope::Readonly)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets get_columns query, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let value_range = r.1;
+                        
+                        // Extract just the headers (first row)
+                        let headers = match value_range.values {
+                            Some(mut values) if !values.is_empty() => {
+                                // Take the first row only
+                                let headers = values.remove(0);
+                                let header_values: Vec<String> = headers
+                                    .into_iter()
+                                    .map(|cell| cell.as_str().unwrap_or_default().to_string())
+                                    .collect();
+                                header_values.join(", ")
+                            }
+                            _ => "No headers found".to_string(),
+                        };
+
+                        Ok(vec![Content::text(headers).with_priority(0.1)])
+                    }
+                }
+            },
+            "get_values" => {
+                let range = params
+                    .get("range")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The range is required for get_values operation".to_string(),
+                    ))?;
+
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .values_get(spreadsheet_id, range)
+                    .clear_scopes()
+                    .add_scope(Scope::Readonly)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets values_get query, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let value_range = r.1;
+                        
+                        // Convert the values to a CSV string
+                        let csv_content = match value_range.values {
+                            Some(values) => {
+                                let mut csv_string = String::new();
+                                for row in values {
+                                    let row_values: Vec<String> = row
+                                        .into_iter()
+                                        .map(|cell| cell.as_str().unwrap_or_default().to_string())
+                                        .collect();
+                                    csv_string.push_str(&row_values.join(","));
+                                    csv_string.push('\n');
+                                }
+                                csv_string
+                            }
+                            None => "No data found".to_string(),
+                        };
+
+                        Ok(vec![Content::text(csv_content).with_priority(0.1)])
+                    }
+                }
+            },
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid operation: {}. Supported operations are: list_sheets, get_columns, get_values",
+                operation
+            ))),
         }
     }
 
@@ -695,7 +808,7 @@ impl Router for GoogleDriveRouter {
             match tool_name.as_str() {
                 "search" => this.search(arguments).await,
                 "read" => this.read(arguments).await,
-                "sheet_values" => this.sheet_values(arguments).await,
+                "sheets_tool" => this.sheets_tool(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
