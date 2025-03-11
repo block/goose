@@ -1,11 +1,12 @@
-mod auth;
+mod oauth_pkce;
 mod token_storage;
 
-use auth::{CredentialsManager, KeychainTokenStorage};
 use indoc::indoc;
+use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
 use serde_json::{json, Value};
 use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
+use token_storage::CredentialsManager;
 
 use mcp_core::content::Content;
 use mcp_core::{
@@ -23,47 +24,10 @@ use google_drive3::{
     api::{File, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
-    yup_oauth2::{
-        self,
-        authenticator_delegate::{DefaultInstalledFlowDelegate, InstalledFlowDelegate},
-        InstalledFlowAuthenticator,
-    },
     DriveHub,
 };
 use google_sheets4::{self, Sheets};
 use http_body_util::BodyExt;
-
-/// async function to be pinned by the `present_user_url` method of the trait
-/// we use the existing `DefaultInstalledFlowDelegate::present_user_url` method as a fallback for
-/// when the browser did not open for example, the user still see's the URL.
-async fn browser_user_url(url: &str, need_code: bool) -> Result<String, String> {
-    tracing::info!(oauth_url = url, "Attempting OAuth login flow");
-    if let Err(e) = webbrowser::open(url) {
-        tracing::debug!(oauth_url = url, error = ?e, "Failed to open OAuth flow");
-        println!("Please open this URL in your browser:\n{}", url);
-    }
-    let def_delegate = DefaultInstalledFlowDelegate;
-    def_delegate.present_user_url(url, need_code).await
-}
-
-/// our custom delegate struct we will implement a flow delegate trait for:
-/// in this case we will implement the `InstalledFlowDelegated` trait
-#[derive(Copy, Clone)]
-struct LocalhostBrowserDelegate;
-
-/// here we implement only the present_user_url method with the added webbrowser opening
-/// the other behaviour of the trait does not need to be changed.
-impl InstalledFlowDelegate for LocalhostBrowserDelegate {
-    /// the actual presenting of URL and browser opening happens in the function defined above here
-    /// we only pin it
-    fn present_user_url<'a>(
-        &'a self,
-        url: &'a str,
-        need_code: bool,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
-        Box::pin(browser_user_url(url, need_code))
-    }
-}
 
 pub struct GoogleDriveRouter {
     tools: Vec<Tool>,
@@ -135,33 +99,17 @@ impl GoogleDriveRouter {
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
 
-        let secret = yup_oauth2::read_application_secret(keyfile_path)
-            .await
-            .expect("expected keyfile for google auth");
+        // Read the OAuth credentials from the keyfile
+        match fs::read_to_string(keyfile_path) {
+            Ok(_) => {
+                // Create the PKCE OAuth2 client
+                let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
+                    .expect("Failed to create OAuth2 client");
 
-        let token_storage = KeychainTokenStorage::new(
-            secret
-                .project_id
-                .clone()
-                .unwrap_or("unknown-project-id".to_string())
-                .to_string(),
-            credentials_manager.clone(),
-        );
-
-        // Create the authenticator with the installed flow
-        let auth = InstalledFlowAuthenticator::builder(
-            secret,
-            yup_oauth2::InstalledFlowReturnMethod::HTTPRedirect,
-        )
-        .with_storage(Box::new(token_storage)) // Use our custom storage
-        .flow_delegate(Box::new(LocalhostBrowserDelegate))
-        .build()
-        .await
-        .expect("expected successful authentication");
-
-        // Create the HTTP client
-        let client =
-            hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+                // Create the HTTP client
+                let client = hyper_util::client::legacy::Client::builder(
+                    hyper_util::rt::TokioExecutor::new(),
+                )
                 .build(
                     hyper_rustls::HttpsConnectorBuilder::new()
                         .with_native_roots()
@@ -171,11 +119,21 @@ impl GoogleDriveRouter {
                         .build(),
                 );
 
-        let drive_hub = DriveHub::new(client.clone(), auth.clone());
-        let sheets_hub = Sheets::new(client, auth);
+                let drive_hub = DriveHub::new(client.clone(), auth.clone());
+                let sheets_hub = Sheets::new(client, auth);
 
-        // Create and return the DriveHub
-        (drive_hub, sheets_hub, credentials_manager)
+                // Create and return the DriveHub
+                (drive_hub, sheets_hub, credentials_manager)
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to read OAuth config from {}: {}",
+                    keyfile_path.display(),
+                    e
+                );
+                panic!("Failed to read OAuth config: {}", e);
+            }
+        }
     }
 
     pub async fn new() -> Self {
