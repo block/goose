@@ -22,6 +22,7 @@ pub struct KeyInfo {
 }
 
 /// Inspects a configuration key to determine if it's set, its location, and value (for non-secret keys)
+#[allow(dead_code)]
 pub fn inspect_key(key_name: &str, is_secret: bool) -> Result<KeyInfo, Box<dyn Error>> {
     let config = Config::global();
 
@@ -75,6 +76,7 @@ pub fn inspect_key(key_name: &str, is_secret: bool) -> Result<KeyInfo, Box<dyn E
 }
 
 /// Inspects multiple keys at once
+#[allow(dead_code)]
 pub fn inspect_keys(
     keys: &[(String, bool)], // (name, is_secret) pairs
 ) -> Result<Vec<KeyInfo>, Box<dyn Error>> {
