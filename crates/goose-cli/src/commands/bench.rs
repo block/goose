@@ -99,7 +99,7 @@ async fn run_eval(
         requirements.builtin,
         false,
     )
-    .await;
+        .await;
 
     let bench_session = Arc::new(Mutex::new(BenchSession::new(base_session)));
     let bench_session_clone = bench_session.clone();
@@ -118,6 +118,10 @@ async fn run_eval(
             result.add_error(error);
         }
     }
+
+    let current_dir = std::env::current_dir()?;
+    let output_str = serde_json::to_string_pretty(&result)?;
+    std::fs::write(current_dir.join("eval_result.json"), &output_str)?;
 
     Ok(result)
 }
