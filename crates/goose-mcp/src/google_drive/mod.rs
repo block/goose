@@ -202,7 +202,7 @@ impl GoogleDriveRouter {
                   "mimeType": {
                       "type": "string",
                       "enum": ["text/plain", "text/markdown", "text/csv","image/jpeg", "image/png", "application/pdf"],
-                      "description": "Current MIME type of the file to create. Must be one of the following: text/plain, text/markdown, text/csv, image/jpeg, image/png, application/pdf. If you provide a google-apps type, an attempt will be made to convert the body to the appropriate format Google Doc, Sheet, or Slides format. ",
+                      "description": "Current MIME type of the file to create. Must be one of the following: text/plain, text/markdown, text/csv, image/jpeg, image/png, application/pdf.",
                   },
                   "convert": {
                       "type": "boolean",
@@ -214,6 +214,37 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["name", "mimeType", "convert", "body"],
+            }),
+        );
+
+        let update_tool = Tool::new(
+            "update".to_string(),
+            indoc! {r#"
+                Update an existing file in Google Drive.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "fileId": {
+                      "type": "string",
+                      "description": "fileId of the file to update",
+                  },
+                  "mimeType": {
+                      "type": "string",
+                      "enum": ["text/plain", "text/markdown", "text/csv","image/jpeg", "image/png", "application/pdf"],
+                      "description": "Current MIME type of the body contents. Must be one of the following: text/plain, text/markdown, text/csv, image/jpeg, image/png, application/pdf.",
+                  },
+                  "convert": {
+                      "type": "boolean",
+                      "description": "Whether to convert the file to the appropriate Google Docs, Sheets, or Slides format if the mimeType is supported. text/plain and text/markdown will be converted to a Google Doc (use text/markdown for structured text), text/csv will be converted to a Google Sheet, and image/jpeg or image/png will be to a Google Slide.",
+                  },
+                  "body": {
+                      "type": "string",
+                      "description": "Entire body of the file to update, with changes included (This tool does not support line-editing or partial updates). Binary data must be base64 encoded.",
+                  }
+              },
+              "required": ["fileId", "mimeType", "convert", "body"],
             }),
         );
 
@@ -272,7 +303,7 @@ impl GoogleDriveRouter {
         "#};
 
         Self {
-            tools: vec![search_tool, read_tool, create_tool],
+            tools: vec![search_tool, read_tool, create_tool, update_tool],
             instructions,
             drive,
         }
@@ -629,7 +660,6 @@ impl GoogleDriveRouter {
                     "The body param is required".to_string(),
                 ))?;
         let mut req = File::default();
-        // TODO: There IS a mime type for markdown!
         req.name = Some(filename.to_string());
         if convert {
             match mime_type {
@@ -663,6 +693,79 @@ impl GoogleDriveRouter {
             Err(e) => Err(ToolError::ExecutionError(format!(
                 "Failed to create google drive file {}, {}.",
                 filename, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "{} ({}) (uri: {})",
+                r.1.name.unwrap_or_default(),
+                r.1.mime_type.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
+    }
+
+    async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let mime_type =
+            params
+                .get("mimeType")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The mimeType param is required".to_string(),
+                ))?;
+        let convert =
+            params
+                .get("convert")
+                .and_then(|q| q.as_bool())
+                .ok_or(ToolError::InvalidParameters(
+                    "The convert param is required".to_string(),
+                ))?;
+        let body =
+            params
+                .get("body")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The body param is required".to_string(),
+                ))?;
+        let mut req = File::default();
+        // req.name = Some(filename.to_string());
+        if convert {
+            match mime_type {
+                "text/plain" | "text/markdown" => {
+                    req.mime_type = Some("application/vnd.google-apps.document".to_string());
+                }
+                "text/csv" => {
+                    req.mime_type = Some("application/vnd.google-apps.spreadsheet".to_string());
+                }
+                "image/jpeg" | "image/png" => {
+                    req.mime_type = Some("application/vnd.google-apps.presentation".to_string());
+                }
+                _ => {
+                    req.mime_type = Some(mime_type.to_string());
+                }
+            };
+        } else {
+            req.mime_type = Some(mime_type.to_string());
+        }
+        let cursor = Cursor::new(body.as_bytes());
+        let result = self
+            .drive
+            .files()
+            .update(req, file_id)
+            .use_content_as_indexable_text(true)
+            .supports_team_drives(true)
+            .supports_all_drives(true)
+            .upload(cursor, mime_type.parse().unwrap())
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to update google drive file {}, {}.",
+                file_id, e
             ))),
             Ok(r) => Ok(vec![Content::text(format!(
                 "{} ({}) (uri: {})",
@@ -706,6 +809,7 @@ impl Router for GoogleDriveRouter {
                 "search" => this.search(arguments).await,
                 "read" => this.read(arguments).await,
                 "create" => this.create(arguments).await,
+                "update" => this.update(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
