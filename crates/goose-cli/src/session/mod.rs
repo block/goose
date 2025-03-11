@@ -378,6 +378,7 @@ impl Session {
 
                     let plan_messages = self.messages.clone();
                     let plan_prompt = self.agent.get_plan_prompt().await?;
+                    println!("Plan Prompt: {}\n", plan_prompt); // TODO: remove
                     let (plan_response, _usage) =
                         reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
 
@@ -387,15 +388,22 @@ impl Session {
                         cliclack::confirm("Do you want to clear history & act on this plan?")
                             .initial_value(true)
                             .interact()?;
+
                     if confirmed {
                         // clear the messages before the plan
                         self.messages.clear();
                         output::display_session_history_cleared();
-                        // add the plan response
-                        self.messages.push(plan_response);
+                        // add the plan response as a user message
+                        let plan_message =
+                            Message::user().with_text(plan_response.as_concat_text());
+                        self.messages.push(plan_message);
                         // act on the plan
+                        output::show_thinking();
                         self.process_agent_response(true).await?;
+                        output::hide_thinking();
                     } else {
+                        // add the plan response (assistant message) & carry the conversation forward
+                        // in the next round, the user might wanna slightly modify the plan
                         self.messages.push(plan_response);
                     }
                 }
