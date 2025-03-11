@@ -8,6 +8,9 @@ struct SessionLog {
 }
 
 pub fn log_usage(
+#[cfg(target_os = "windows")]
+    home_dir: etcetera::app_strategy::Windows,
+#[cfg(any(target_os = "macos", target_os = "linux" ))]
     home_dir: etcetera::app_strategy::Xdg,
     session_file: String,
     usage: Vec<ProviderUsage>,
