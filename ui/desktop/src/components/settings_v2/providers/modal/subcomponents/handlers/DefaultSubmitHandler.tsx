@@ -99,7 +99,6 @@ export const DefaultSubmitHandler = async (upsertFn, provider, configValues) => 
     }
 
     // Create the provider-specific config key
-    // Format: provider.{provider_name}.{parameter_name}
     const configKey = `${parameter.name}`;
 
     // Explicitly define is_secret as a boolean (true/false)
