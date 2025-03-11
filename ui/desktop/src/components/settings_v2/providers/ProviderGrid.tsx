@@ -56,30 +56,6 @@ const ProviderCards = memo(function ProviderCards({
   return <>{providerCards}</>;
 });
 
-// Fix the ProviderModalProvider
-export const OptimizedProviderModalProvider = memo(function OptimizedProviderModalProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const contextValue = useMemo(
-    () => ({
-      isOpen: false,
-      currentProvider: null,
-      modalProps: {},
-      openModal: (provider, additionalProps = {}) => {
-        // Implementation
-      },
-      closeModal: () => {
-        // Implementation
-      },
-    }),
-    []
-  );
-
-  return <ProviderModalProvider>{children}</ProviderModalProvider>;
-});
-
 export default memo(function ProviderGrid({
   providers,
   isOnboarding,
