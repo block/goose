@@ -45,13 +45,15 @@ struct TokenData {
     expires_at: Option<u64>,
 }
 
+use std::sync::Mutex;
+
 /// PkceOAuth2Client implements the GetToken trait required by DriveHub
 /// It uses the oauth2 crate to implement a PKCE-enabled OAuth2 flow
 #[derive(Clone)]
 pub struct PkceOAuth2Client {
     client: BasicClient,
     credentials_manager: Arc<CredentialsManager>,
-    refresh_token: Option<String>,
+    refresh_token: Arc<Mutex<Option<String>>>,
 }
 
 impl PkceOAuth2Client {
@@ -98,7 +100,7 @@ impl PkceOAuth2Client {
         Ok(Self {
             client,
             credentials_manager,
-            refresh_token,
+            refresh_token: Arc::new(Mutex::new(refresh_token)),
         })
     }
 
@@ -167,6 +169,14 @@ impl PkceOAuth2Client {
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
             };
 
+            // Update the in-memory refresh token using the Mutex
+            if let Ok(mut token_guard) = self.refresh_token.lock() {
+                *token_guard = Some(refresh_token.secret().clone());
+                debug!("Successfully updated in-memory refresh token");
+            } else {
+                error!("Failed to acquire lock on refresh token");
+            }
+
             if let Err(e) = self
                 .credentials_manager
                 .write_credentials(&serde_json::to_string(&token_data)?)
@@ -206,6 +216,14 @@ impl PkceOAuth2Client {
                 refresh_token: new_refresh_token.secret().clone(),
                 expires_at: token_result.expires_in().map(|d| d.as_secs()),
             };
+
+            // Update the in-memory refresh token using the Mutex
+            if let Ok(mut token_guard) = self.refresh_token.lock() {
+                *token_guard = Some(new_refresh_token.secret().clone());
+                debug!("Successfully updated in-memory refresh token during refresh");
+            } else {
+                error!("Failed to acquire lock on refresh token during refresh");
+            }
 
             if let Err(e) = self
                 .credentials_manager
@@ -279,17 +297,63 @@ impl GetToken for PkceOAuth2Client {
         Box<dyn Future<Output = Result<Option<String>, Box<dyn Error + Send + Sync>>> + Send + 'a>,
     > {
         Box::pin(async move {
-            // Try to use refresh token if available
-            if let Some(refresh_token) = &self.refresh_token {
-                match self.refresh_token(refresh_token).await {
+            // Try to use refresh token if available in memory
+            let refresh_token_option = if let Ok(token_guard) = self.refresh_token.lock() {
+                token_guard.clone()
+            } else {
+                error!("Failed to acquire lock on refresh token");
+                None
+            };
+
+            if let Some(refresh_token) = refresh_token_option {
+                debug!("Found refresh token in memory, attempting to use it");
+                match self.refresh_token(&refresh_token).await {
                     Ok(access_token) => {
                         debug!("Successfully refreshed access token");
                         return Ok(Some(access_token));
                     }
                     Err(e) => {
                         error!("Failed to refresh token: {}", e);
+                        // Fall through to check storage
+                    }
+                }
+            } else {
+                debug!("No refresh token available in memory, checking storage");
+            }
+
+            // Try to load from storage as a fallback if in-memory token failed or wasn't available
+            match self.credentials_manager.read_credentials() {
+                Ok(json) => match serde_json::from_str::<TokenData>(&json) {
+                    Ok(token_data) => {
+                        debug!("Found token in storage, attempting to use it");
+
+                        // Update the in-memory refresh token
+                        if let Ok(mut token_guard) = self.refresh_token.lock() {
+                            *token_guard = Some(token_data.refresh_token.clone());
+                            debug!("Updated in-memory refresh token from storage");
+                        } else {
+                            error!("Failed to acquire lock to update refresh token from storage");
+                        }
+
+                        match self.refresh_token(&token_data.refresh_token).await {
+                            Ok(access_token) => {
+                                debug!("Successfully refreshed access token from storage");
+                                return Ok(Some(access_token));
+                            }
+                            Err(e) => {
+                                error!("Failed to refresh token from storage: {}", e);
+                                // Fall through to interactive flow
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to parse stored credentials: {}", e);
                         // Fall through to interactive flow
                     }
+                },
+                Err(e) => {
+                    debug!("No stored credentials found or error reading them: {}", e);
+                    // Fall through to interactive flow
                 }
             }
 
