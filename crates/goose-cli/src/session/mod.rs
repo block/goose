@@ -348,7 +348,10 @@ impl Session {
                     println!("Goose mode set to '{}'", mode);
                     continue;
                 }
-                input::InputResult::Plan(model) => {
+                input::InputResult::Plan(options) => {
+                    let model = options.model;
+                    let message_text = options.message_text;
+
                     // Copy the messages before the plan
                     // Run the plan -> prompting a reasoner model to create a plan
                     let reasoner_provider: String;
@@ -376,7 +379,9 @@ impl Session {
                     let model_config = ModelConfig::new(reasoner_model.to_string());
                     let reasoner = create(reasoner_provider.as_str(), model_config)?;
 
-                    let plan_messages = self.messages.clone();
+                    let mut plan_messages = self.messages.clone();
+                    plan_messages.push(Message::user().with_text(&message_text));
+
                     let plan_prompt = self.agent.get_plan_prompt().await?;
                     println!("Plan Prompt: {}\n", plan_prompt); // TODO: remove
                     let (plan_response, _usage) =
