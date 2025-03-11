@@ -492,45 +492,8 @@ pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
-pub fn render_enter_explore_plan_act_mode() {
-    println!(
-        "\n{} {}\n",
-        style("Entering explore-plan-act mode.").green().bold(),
-        style("You can chat and use read-only tools. Type /plan to create a detailed plan.")
-            .green()
-            .dim()
-    );
-}
-
-pub fn render_enter_plan_mode(instructions: &str) {
-    println!(
-        "\n{} {}\n",
-        style("Creating plan:").green().bold(),
-        style("Review the plan and choose an option: act, retry <instructions>, or back")
-            .green()
-            .dim()
-    );
-    println!("{}", style(instructions).yellow());
-    println!();
-}
-
-pub fn render_plan_options() {
-    println!(
-        "\n{}\n{}\n{}\n",
-        style("Options:").dim(),
-        style("  act - Execute the plan").dim(),
-        style("  retry <instructions> - Create a new plan").dim(),
-    );
-}
-
-pub fn render_enter_act_mode() {
-    println!(
-        "\n{} {}\n",
-        style("Executing plan.").green().bold(),
-        style("The agent will now execute the approved plan.")
-            .green()
-            .dim()
-    );
+pub fn display_session_history_cleared() {
+    println!("\n{}\n", style("Session history cleared.").dim().cyan(),);
 }
 
 #[cfg(test)]

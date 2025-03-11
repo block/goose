@@ -15,10 +15,7 @@ pub enum InputResult {
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
     GooseMode(String),
-    // New mode for explore-plan-act (represents a separate mode)
-    Explore,      // Explore uses read-only tools
-    Plan(String), // String contains the plan instructions
-    Act,          // Execute the current plan
+    Plan(String), // String contains the planner model name
 }
 
 #[derive(Debug)]
@@ -76,9 +73,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_EXTENSION: &str = "/extension ";
     const CMD_BUILTIN: &str = "/builtin ";
     const CMD_MODE: &str = "/mode ";
-    const CMD_EXPLORE: &str = "/explore";
-    const CMD_PLAN: &str = "/plan ";
-    const CMD_ACT: &str = "/act";
+    const CMD_PLAN: &str = "/plan";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -118,19 +113,11 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with(CMD_MODE) => {
             Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
         }
-        s if s.starts_with(CMD_EXPLORE) => Some(InputResult::Explore),
         s if s.starts_with(CMD_PLAN) => {
-            // Extract plan instructions
-            let instructions = s[CMD_PLAN.len()..].trim().to_string();
-            if instructions.is_empty() {
-                // Error case - empty plan instructions
-                eprintln!("Error: Plan instructions cannot be empty");
-                Some(InputResult::Retry)
-            } else {
-                Some(InputResult::Plan(instructions))
-            }
+            // Extract planner model name
+            let model = s[CMD_PLAN.len()..].trim().to_string();
+            Some(InputResult::Plan(model))
         }
-        s if s == CMD_ACT => Some(InputResult::Act),
         _ => None,
     }
 }
@@ -198,9 +185,7 @@ fn print_help() {
 /prompts [--extension <n>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
 /mode <n> - Set the goose mode to use ('auto', 'approve', 'chat')
-/explore - Start an exploratory chat session, with read-only* tools (*read-only is determined by an LLM call)
-/plan <instructions> - Create a plan based on instructions (requires approval)
-/act - Execute the current approved plan
+/plan <model> - Create a plan based on the current messages. Model options: o1, o3-mini-high, o3-mini, claude-3-7
 /? or /help - Display this help message
 
 Navigation:
@@ -394,36 +379,13 @@ mod tests {
         }
     }
 
-    // Test new mode commands
-    #[test]
-    fn test_explore_mode() {
-        // Test explore mode
-        if let Some(InputResult::Explore) = handle_slash_command("/explore") {
-            // This is expected
-        } else {
-            panic!("Expected ExploreMode");
-        }
-    }
-
     #[test]
     fn test_plan_mode() {
         // Test plan mode with instructions
-        if let Some(InputResult::Plan(instructions)) =
-            handle_slash_command("/plan create a hello world app")
-        {
-            assert_eq!(instructions, "create a hello world app");
+        if let Some(InputResult::Plan(model)) = handle_slash_command("/plan claude-3-7") {
+            assert_eq!(model, "claude-3-7");
         } else {
             panic!("Expected PlanMode");
-        }
-    }
-
-    #[test]
-    fn test_act_mode() {
-        // Test act mode
-        if let Some(InputResult::Act) = handle_slash_command("/act") {
-            // This is expected
-        } else {
-            panic!("Expected ActMode");
         }
     }
 }

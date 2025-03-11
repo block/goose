@@ -71,11 +71,6 @@ impl Agent for ReferenceAgent {
         // TODO implement
     }
 
-    /// Create a response message from the planner model
-    async fn plan(&self, _plan_messages: &[Message]) -> anyhow::Result<Message> {
-        todo!()
-    }
-
     #[instrument(skip(self, messages, session), fields(user_message))]
     async fn reply(
         &self,
@@ -253,6 +248,10 @@ impl Agent for ReferenceAgent {
         }
 
         Err(anyhow!("Prompt '{}' not found", name))
+    }
+
+    async fn get_plan_prompt(&self) -> anyhow::Result<String> {
+        todo!()
     }
 
     async fn provider(&self) -> Arc<Box<dyn Provider>> {

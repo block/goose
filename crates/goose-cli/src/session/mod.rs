@@ -37,8 +37,6 @@ pub struct Session {
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode
-    in_explore_plan_mode: bool,
-    plan_messages: Vec<Message>,
 }
 
 // Cache structure for completion data
@@ -74,8 +72,6 @@ impl Session {
             session_file,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
-            in_explore_plan_mode: false,
-            plan_messages: Vec::new(),
         }
     }
 
@@ -269,31 +265,20 @@ impl Session {
         loop {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
-                    if !self.in_explore_plan_mode {
-                        save_history(&mut editor);
+                    save_history(&mut editor);
 
-                        self.messages.push(Message::user().with_text(&content));
+                    self.messages.push(Message::user().with_text(&content));
 
-                        // Get the provider from the agent for description generation
-                        let provider = self.agent.provider().await;
+                    // Get the provider from the agent for description generation
+                    let provider = self.agent.provider().await;
 
-                        // Persist messages with provider for automatic description generation
-                        session::persist_messages(
-                            &self.session_file,
-                            &self.messages,
-                            Some(provider),
-                        )
+                    // Persist messages with provider for automatic description generation
+                    session::persist_messages(&self.session_file, &self.messages, Some(provider))
                         .await?;
 
-                        output::show_thinking();
-                        self.process_agent_response(true).await?;
-                        output::hide_thinking();
-                    } else {
-                        self.plan_messages.push(Message::user().with_text(&content));
-                        output::show_thinking();
-                        self.process_planner_response().await?;
-                        output::hide_thinking();
-                    }
+                    output::show_thinking();
+                    self.process_agent_response(true).await?;
+                    output::hide_thinking();
                 }
                 input::InputResult::Exit => break,
                 input::InputResult::AddExtension(cmd) => {
@@ -363,43 +348,56 @@ impl Session {
                     println!("Goose mode set to '{}'", mode);
                     continue;
                 }
-                input::InputResult::Explore => {
-                    if self.in_explore_plan_mode {
-                        println!("You're already in explore-plan-act mode.");
+                input::InputResult::Plan(model) => {
+                    // Copy the messages before the plan
+                    // Run the plan -> prompting a reasoner model to create a plan
+                    let reasoner_provider: String;
+                    let reasoner_model: String;
+                    if model.is_empty() {
+                        reasoner_provider = "openai".to_string();
+                        reasoner_model = "o1-high".to_string();
+                    } else if model.starts_with("o1") || model.starts_with("o3-mini") {
+                        reasoner_provider = "openai".to_string();
+                        reasoner_model = model;
+                    } else if model.starts_with("claude") {
+                        reasoner_provider = "anthropic".to_string();
+                        reasoner_model = "claude-3-7-sonnet-latest".to_string();
+                        // set env var "ANTHROPIC_THINKING_ENABLED" to "true"
+                        std::env::set_var("ANTHROPIC_THINKING_ENABLED", "true");
+                    } else {
+                        println!("Invalid planner model: {}", model);
                         continue;
                     }
 
-                    self.in_explore_plan_mode = true;
-                    output::render_enter_explore_plan_act_mode();
+                    use goose::model::ModelConfig;
+                    use goose::providers::create;
 
-                    continue;
-                }
-                input::InputResult::Plan(instructions) => {
-                    if !self.in_explore_plan_mode {
-                        println!("You need to run /explore first to enter explore-plan-act mode.");
-                        continue;
+                    // TODO: hacky to create a new provider for the planner each time plan is called
+                    let model_config = ModelConfig::new(reasoner_model.to_string());
+                    let reasoner = create(reasoner_provider.as_str(), model_config)?;
+
+                    let plan_messages = self.messages.clone();
+                    let plan_prompt = self.agent.get_plan_prompt().await?;
+                    let (plan_response, _usage) =
+                        reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+
+                    // Render the plan & ask if user wants to act on it
+                    output::render_message(&plan_response, self.debug);
+                    let confirmed =
+                        cliclack::confirm("Do you want to clear history & act on this plan?")
+                            .initial_value(true)
+                            .interact()?;
+                    if confirmed {
+                        // clear the messages before the plan
+                        self.messages.clear();
+                        output::display_session_history_cleared();
+                        // add the plan response
+                        self.messages.push(plan_response);
+                        // act on the plan
+                        self.process_agent_response(true).await?;
+                    } else {
+                        self.messages.push(plan_response);
                     }
-
-                    // Render the plan mode entry message
-                    output::render_enter_plan_mode(&instructions);
-
-                    output::render_plan_options();
-                    continue;
-                }
-                input::InputResult::Act => {
-                    if !self.in_explore_plan_mode {
-                        println!("You need to run /explore first to enter explore-plan-act mode.");
-                        continue;
-                    }
-
-                    self.in_explore_plan_mode = false;
-
-                    // Render the act mode entry message
-                    output::render_enter_act_mode();
-
-                    // Clear the plan messages
-                    self.plan_messages.clear();
-                    continue;
                 }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
@@ -555,13 +553,6 @@ impl Session {
                 }
             }
         }
-        Ok(())
-    }
-
-    async fn process_planner_response(&mut self) -> Result<()> {
-        let response_message = self.agent.plan(&self.plan_messages).await?;
-        self.plan_messages.push(response_message.clone());
-        output::render_message(&response_message, self.debug);
         Ok(())
     }
 

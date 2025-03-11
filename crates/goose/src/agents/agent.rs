@@ -50,9 +50,6 @@ pub trait Agent: Send + Sync {
     /// Get the total usage of the agent
     async fn usage(&self) -> Vec<ProviderUsage>;
 
-    /// Create a response message from the planner model
-    async fn plan(&self, plan_messages: &[Message]) -> Result<Message>;
-
     /// Add custom text to be included in the system prompt
     async fn extend_system_prompt(&mut self, extension: String);
 
@@ -68,6 +65,9 @@ pub trait Agent: Send + Sync {
     /// Get a prompt result with the given name and arguments
     /// Returns the prompt text that would be used as user input
     async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult>;
+
+    /// Get the plan prompt, which will be used with the planner (reasoner) model
+    async fn get_plan_prompt(&self) -> anyhow::Result<String>;
 
     /// Get a reference to the provider used by this agent
     async fn provider(&self) -> Arc<Box<dyn Provider>>;
