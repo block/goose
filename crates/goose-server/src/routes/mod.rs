@@ -7,8 +7,6 @@ pub mod health;
 pub mod reply;
 pub mod session;
 pub mod utils;
-
-use crate::routes::reply::routes;
 use axum::Router;
 
 // Function to configure all routes
