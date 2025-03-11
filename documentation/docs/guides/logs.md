@@ -9,15 +9,22 @@ Goose uses a unified storage system for conversations and interactions. All conv
 
 | **Type**            | **Unix-like (macOS, Linux)**              | **Windows**                              |
 |---------------------|----------------------------------------|---------------------------------------------|
-| **Session Records** | `~/.local/share/goose/sessions/`      | `%APPDATA%\Block\goose\data\sessions\`     |
-| **System Logs**     | `~/.local/state/goose/logs/`          | `%APPDATA%\Block\goose\data\logs\`         |
-
+| **Command History** | `~/.config/goose/history.txt`          | `%APPDATA%\Block\goose\data\history.txt`    |
+| **Session Records** | `~/.local/share/goose/sessions/`       | `%APPDATA%\Block\goose\data\sessions\`      |
+| **System Logs**     | `~/.local/state/goose/logs/`           | `%APPDATA%\Block\goose\data\logs\`          |
 
 :::info Privacy
 Goose is a local application and all log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all data remains private and under your control.
 :::
 
+## Command History
 
+Goose stores command history persistently across chat sessions, allowing Goose to recall previous commands.
+
+Command history logs are stored in:
+
+* Unix-like: ` ~/.config/goose/history.txt`
+* Windows: `%APPDATA%\Block\goose\data\history.txt`
 
 ## Session Records
 
@@ -26,7 +33,7 @@ Goose maintains session records in `~/.local/share/goose/sessions/` that track t
 Session files are named with the pattern `[session-id].jsonl` where the session ID matches the identifier used in the corresponding log files. For example, `ccK9OTmS.jsonl` corresponds to log files like `20250211_133920-ccK9OTmS.log`.
 
 Each session file contains a chronological record of:
-- User messages and commands
+- User messages and commands  (commands are also stored persistently in `history.txt`)
 - Assistant (Goose) responses
 - Tool requests and their results
 - Timestamps for all interactions
