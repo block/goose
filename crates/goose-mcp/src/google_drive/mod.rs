@@ -201,12 +201,12 @@ impl GoogleDriveRouter {
                   },
                   "mimeType": {
                       "type": "string",
-                      "enum": ["text/plain", "text/csv","image/jpeg", "image/png", "application/pdf"],
-                      "description": "Current MIME type of the file to create. Must be one of the following: text/plain, text/csv, image/jpeg, image/png, application/pdf. If you provide a google-apps type, an attempt will be made to convert the body to the appropriate format Google Doc, Sheet, or Slides format. ",
+                      "enum": ["text/plain", "text/markdown", "text/csv","image/jpeg", "image/png", "application/pdf"],
+                      "description": "Current MIME type of the file to create. Must be one of the following: text/plain, text/markdown, text/csv, image/jpeg, image/png, application/pdf. If you provide a google-apps type, an attempt will be made to convert the body to the appropriate format Google Doc, Sheet, or Slides format. ",
                   },
                   "convert": {
                       "type": "boolean",
-                      "description": "Whether to convert the file to the appropriate Google Docs, Sheets, or Slides format if the mimeType is supported. 'text/plain' will be to a Google Doc, 'text/csv' will be to a Google Sheet, and 'image/jpeg' or 'image/png' will be to a Google Slide.",
+                      "description": "Whether to convert the file to the appropriate Google Docs, Sheets, or Slides format if the mimeType is supported. text/plain and text/markdown will be converted to a Google Doc (use text/markdown for structured text), text/csv will be converted to a Google Sheet, and image/jpeg or image/png will be to a Google Slide.",
                   },
                   "body": {
                       "type": "string",
