@@ -5,15 +5,15 @@ use axum::{
     Json, Router,
 };
 use goose::config::Config;
-use goose::providers::base::{ConfigKey, ProviderMetadata};
+use goose::providers::base::{ProviderMetadata};
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
 use utoipa::ToSchema;
 
+use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 
 fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
@@ -333,55 +333,6 @@ pub async fn providers(
         .collect();
 
     Ok(Json(providers_response))
-}
-
-fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
-    let config = Config::global();
-
-    // Get all required keys
-    let required_keys: Vec<&ConfigKey> = metadata
-        .config_keys
-        .iter()
-        .filter(|key| key.required)
-        .collect();
-
-    // Special case: If a provider has exactly one required key and that key
-    // has a default value, check if it's explicitly set
-    if required_keys.len() == 1 && required_keys[0].default.is_some() {
-        let key = &required_keys[0];
-
-        // Check if the key is explicitly set (either in env or config)
-        let is_set_in_env = env::var(&key.name).is_ok();
-        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
-
-        return is_set_in_env || is_set_in_config;
-    }
-
-    // For providers with multiple keys or keys without defaults:
-    // Find required keys that don't have default values
-    let required_non_default_keys: Vec<&ConfigKey> = required_keys
-        .iter()
-        .filter(|key| key.default.is_none())
-        .cloned()
-        .collect();
-
-    // If there are no non-default keys, this provider needs at least one key explicitly set
-    if required_non_default_keys.is_empty() {
-        return required_keys.iter().any(|key| {
-            let is_set_in_env = env::var(&key.name).is_ok();
-            let is_set_in_config = config.get(&key.name, key.secret).is_ok();
-
-            is_set_in_env || is_set_in_config
-        });
-    }
-
-    // Otherwise, all non-default keys must be set
-    required_non_default_keys.iter().all(|key| {
-        let is_set_in_env = env::var(&key.name).is_ok();
-        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
-
-        is_set_in_env || is_set_in_config
-    })
 }
 
 pub fn routes(state: AppState) -> Router {

@@ -1,6 +1,8 @@
+use std::env;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use goose::config::Config;
+use goose::providers::base::{ConfigKey, ProviderMetadata};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KeyLocation {
@@ -44,7 +46,7 @@ pub fn inspect_key(
     let config_result = if is_secret {
         config.get_secret(key_name).map(|v| (v, true))
     } else {
-        config.get(key_name).map(|v| (v, false))
+        config.get_param(key_name).map(|v| (v, false))
     };
 
     match config_result {
@@ -89,4 +91,53 @@ pub fn inspect_keys(
     }
 
     Ok(results)
+}
+
+pub fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
+    let config = Config::global();
+
+    // Get all required keys
+    let required_keys: Vec<&ConfigKey> = metadata
+        .config_keys
+        .iter()
+        .filter(|key| key.required)
+        .collect();
+
+    // Special case: If a provider has exactly one required key and that key
+    // has a default value, check if it's explicitly set
+    if required_keys.len() == 1 && required_keys[0].default.is_some() {
+        let key = &required_keys[0];
+
+        // Check if the key is explicitly set (either in env or config)
+        let is_set_in_env = env::var(&key.name).is_ok();
+        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
+
+        return is_set_in_env || is_set_in_config;
+    }
+
+    // For providers with multiple keys or keys without defaults:
+    // Find required keys that don't have default values
+    let required_non_default_keys: Vec<&ConfigKey> = required_keys
+        .iter()
+        .filter(|key| key.default.is_none())
+        .cloned()
+        .collect();
+
+    // If there are no non-default keys, this provider needs at least one key explicitly set
+    if required_non_default_keys.is_empty() {
+        return required_keys.iter().any(|key| {
+            let is_set_in_env = env::var(&key.name).is_ok();
+            let is_set_in_config = config.get(&key.name, key.secret).is_ok();
+
+            is_set_in_env || is_set_in_config
+        });
+    }
+
+    // Otherwise, all non-default keys must be set
+    required_non_default_keys.iter().all(|key| {
+        let is_set_in_env = env::var(&key.name).is_ok();
+        let is_set_in_config = config.get(&key.name, key.secret).is_ok();
+
+        is_set_in_env || is_set_in_config
+    })
 }
