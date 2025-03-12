@@ -29,7 +29,7 @@ Whether you're a designer wanting to rapidly turn concepts into working code or 
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/12/goose-figma-mcp" />
   <meta property="og:description" content="Give Goose the ability to turn Figma designs into code with the Figma extension." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/goosefigma.png" />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/goosefigma-e6f84a734bd56cb431bb02452331a5d5.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goose Flight School: Turn Figma Designs Into Code With Goose" />
