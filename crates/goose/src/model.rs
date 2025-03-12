@@ -21,10 +21,10 @@ pub struct ModelConfig {
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
     pub max_tokens: Option<i32>,
-    /// Whether to interpret tool calls
-    pub interpret_chat_tool_calls: bool,
-    /// Model to use for interpreting tool calls (optional)
-    pub tool_shim_model: Option<String>,
+    /// Whether to interpret tool calls with toolshim
+    pub toolshim: bool,
+    /// Model to use for toolshim (optional as a default exists)
+    pub toolshim_model: Option<String>,
 }
 
 impl ModelConfig {
@@ -38,11 +38,11 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
-        let interpret_chat_tool_calls = std::env::var("GOOSE_TOOLSHIM")
+        let toolshim = std::env::var("GOOSE_TOOLSHIM")
             .map(|val| val == "1" || val.to_lowercase() == "true")
             .unwrap_or(false);
 
-        let tool_shim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+        let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
         Self {
             model_name,
@@ -50,8 +50,8 @@ impl ModelConfig {
             context_limit,
             temperature: None,
             max_tokens: None,
-            interpret_chat_tool_calls,
-            tool_shim_model,
+            toolshim,
+            toolshim_model,
         }
     }
 
@@ -109,14 +109,14 @@ impl ModelConfig {
     }
 
     /// Set whether to interpret tool calls
-    pub fn with_tool_interpretation(mut self, interpret: bool) -> Self {
-        self.interpret_chat_tool_calls = interpret;
+    pub fn with_toolshim(mut self, toolshim: bool) -> Self {
+        self.toolshim = toolshim;
         self
     }
 
     /// Set the tool call interpreter model
-    pub fn with_tool_interpreter(mut self, model: Option<String>) -> Self {
-        self.tool_shim_model = model;
+    pub fn with_toolshim_model(mut self, model: Option<String>) -> Self {
+        self.toolshim_model = model;
         self
     }
 
@@ -171,15 +171,15 @@ mod tests {
     fn test_model_config_tool_interpretation() {
         // Test without env vars - should be false
         let config = ModelConfig::new("test-model".to_string());
-        assert!(!config.interpret_chat_tool_calls);
+        assert!(!config.toolshim);
 
         // Test with tool interpretation setting
-        let config = ModelConfig::new("test-model".to_string()).with_tool_interpretation(true);
-        assert!(config.interpret_chat_tool_calls);
+        let config = ModelConfig::new("test-model".to_string()).with_toolshim(true);
+        assert!(config.toolshim);
 
         // Test tool interpreter model
         let config = ModelConfig::new("test-model".to_string())
-            .with_tool_interpreter(Some("mistral-nemo".to_string()));
-        assert_eq!(config.tool_shim_model, Some("mistral-nemo".to_string()));
+            .with_toolshim_model(Some("mistral-nemo".to_string()));
+        assert_eq!(config.toolshim_model, Some("mistral-nemo".to_string()));
     }
 }
