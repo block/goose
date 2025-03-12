@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
-import { ConfigureApproveMode } from './ConfigureApproeMode';
+import { ConfigureApproveMode } from './ConfigureApproveMode';
 
 export interface GooseMode {
   key: string;
