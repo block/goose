@@ -144,7 +144,7 @@ export default function Input({
       <textarea
         autoFocus
         id="dynamic-textarea"
-        placeholder="What can goose help with? (Cmd/Ctrl + ↑/↓ for history)"
+        placeholder="What can goose help with?   ⌘↑/⌘↓"
         value={value}
         onChange={handleChange}
         onCompositionStart={handleCompositionStart}
