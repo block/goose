@@ -16,7 +16,7 @@ There are multiple ways to run tasks with Goose - see a list of `goose run` opti
 goose run -t "your instructions here"
 ```
 
-Using the `-t` flag, one is able to pass a text instruction directly to the command. This is great for quick, one-off commands. An example usage could be using in a CI/CD pipeline or running alongside other scripts.
+Using the `-t` flag, one is able to pass a text instruction directly to the command. This is great for quick, one-off commands where you do not need an interactive session with Goose. The instructions will be executed, and the session will end. An example usage could be using in a CI/CD pipeline or running alongside other scripts.
 
 ### Using an instruction file:
 If you have a complex set of instructions or a workflow that you want to automate, you can store them in a file and pass it to the `goose run` command:
