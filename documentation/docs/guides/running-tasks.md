@@ -22,7 +22,7 @@ Using the `-t` flag, one is able to pass a text instruction directly to the comm
 If you have a complex set of instructions or a workflow that you want to automate, you can store them in a file and pass it to the `goose run` command:
 
 ```bash
-goose run -i instructions.txt
+goose run -i instructions.md
 ```
 
 Here's an example of an instruction file that runs a security audit on project dependencies:
