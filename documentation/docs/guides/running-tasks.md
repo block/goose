@@ -74,7 +74,7 @@ goose run -n my-project -r
 
 ### Working with Extensions
 
-If you want to ensure specific extensions are available when running your task, you can pas this as arguments as well to the `goose run` command. This can be done using the `--with-extension` or `--with-builtin` flags:
+If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension` or `--with-builtin` flags:
 
 ```bash
 # Use built-in extensions e.g developer and computercontroller extensions
