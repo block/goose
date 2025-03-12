@@ -5,7 +5,6 @@ import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../App';
-import { getApiUrl, getSecretKey } from '../config';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 
 export default function BottomMenu({
@@ -19,10 +18,6 @@ export default function BottomMenu({
   const { currentModel } = useModel();
   const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
-  const [gooseMode, setGooseMode] = useState('auto');
-  const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside
   useEffect(() => {
@@ -41,31 +36,6 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
-  useEffect(() => {
-    const fetchCurrentMode = async () => {
-      try {
-        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
-          },
-        });
-
-        if (response.ok) {
-          const { value } = await response.json();
-          if (value) {
-            setGooseMode(value);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching current mode:', error);
-      }
-    };
-
-    fetchCurrentMode();
-  }, []);
-
   // Add effect to handle Escape key
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
@@ -82,41 +52,6 @@ export default function BottomMenu({
       window.removeEventListener('keydown', handleEsc);
     };
   }, [isModelMenuOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        gooseModeDropdownRef.current &&
-        !gooseModeDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsGooseModeMenuOpen(false);
-      }
-    };
-
-    if (isGooseModeMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isGooseModeMenuOpen]);
-
-  useEffect(() => {
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsGooseModeMenuOpen(false);
-      }
-    };
-
-    if (isGooseModeMenuOpen) {
-      window.addEventListener('keydown', handleEsc);
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleEsc);
-    };
-  }, [isGooseModeMenuOpen]);
 
   // Removed the envModelProvider code that was checking for environment variables
 
@@ -139,24 +74,7 @@ export default function BottomMenu({
       </span>
 
       {/* Goose Mode Selector Dropdown */}
-      <div className="relative flex items-center ml-6" ref={gooseModeDropdownRef}>
-        <div
-          className="flex items-center cursor-pointer"
-          onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
-        >
-          <span>Goose Mode: {gooseMode}</span>
-          {isGooseModeMenuOpen ? (
-            <ChevronDown className="w-4 h-4 ml-1" />
-          ) : (
-            <ChevronUp className="w-4 h-4 ml-1" />
-          )}
-        </div>
-
-        {/* Dropdown Menu */}
-        {isGooseModeMenuOpen && (
-          <BottomMenuModeSelection selectedMode={gooseMode} setSelectedMode={setGooseMode} />
-        )}
-      </div>
+      <BottomMenuModeSelection />
 
       {/* Model Selector Dropdown - Only in development */}
       <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
