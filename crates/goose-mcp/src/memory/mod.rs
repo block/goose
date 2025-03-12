@@ -130,6 +130,8 @@ impl MemoryRouter {
              - "remember"
              - "forget"
              - "memory"
+             - "save"
+             - "save memory"
              - "remove memory"
              - "clear memory"
              - "search memory"
