@@ -296,8 +296,16 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let spin = spinner();
     spin.start("Checking your configuration...");
 
-    // Use max tokens to speed up the provider test.
-    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(50));
+    // Create model config with env var settings
+    let model_config = goose::model::ModelConfig::new(model.clone())
+        .with_max_tokens(Some(50))
+        .with_toolshim(
+            std::env::var("GOOSE_TOOLSHIM")
+                .map(|val| val == "1" || val.to_lowercase() == "true")
+                .unwrap_or(false),
+        )
+        .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
+
     let provider = create(provider_name, model_config)?;
 
     let messages =
