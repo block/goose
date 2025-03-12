@@ -244,14 +244,14 @@ export default function SettingsView({
                 </div>
               </section>
 
-              <section id="others">
+              <section id="mode">
                 <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
-                  <h2 className="text-xl font-semibold text-textStandard">Others</h2>
+                  <h2 className="text-xl font-semibold text-textStandard">Mode Selection</h2>
                 </div>
 
                 <div className="px-8">
                   <p className="text-sm text-textStandard mb-4">
-                    Others setting like Goose Mode, Tool Output, Experiment and more
+                    Configure how Goose interacts with tools and extensions
                   </p>
 
                   <ModeSelection />

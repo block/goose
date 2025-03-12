@@ -106,11 +106,12 @@ export async function addExtension(
     console.error(errorMessage);
     if (toastId) toast.dismiss(toastId);
     toast.error(errorMessage);
+
     return response;
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -137,12 +138,12 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
 
     const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     return response;
   } catch (error) {
     const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -222,7 +223,7 @@ function envVarsRequired(config: ExtensionConfig) {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message);
+  toast.error(message, { autoClose: false });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);
