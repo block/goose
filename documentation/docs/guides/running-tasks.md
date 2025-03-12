@@ -109,7 +109,7 @@ goose run -t "Generate a test plan for the login feature"
 
 ### Development Workflows
 
-Start a development session with specific extensions:
+Start a session with specific extensions:
 ```bash
 goose run --with-builtin developer,git -n dev-session -s
 ```
