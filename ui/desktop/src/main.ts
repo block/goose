@@ -38,31 +38,25 @@ if (started) app.quit();
 app.setAsDefaultProtocolClient('goose');
 
 // Triggered when the user opens "goose://..." links
+let firstOpenWindow: BrowserWindow;
+let pendingDeepLink = null; // Store deep link if sent before React is ready
 app.on('open-url', async (event, url) => {
-  event.preventDefault();
+  pendingDeepLink = url;
 
   // Get existing window or create new one
-  let targetWindow: BrowserWindow;
   const existingWindows = BrowserWindow.getAllWindows();
 
   if (existingWindows.length > 0) {
-    targetWindow = existingWindows[0];
-    if (targetWindow.isMinimized()) targetWindow.restore();
-    targetWindow.focus();
+    firstOpenWindow = existingWindows[0];
+    if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+    firstOpenWindow.focus();
   } else {
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    targetWindow = await createChat(app, undefined, openDir);
+    firstOpenWindow = await createChat(app, undefined, openDir);
   }
 
-  // Wait for window to be ready before sending the extension URL
-  if (!targetWindow.webContents.isLoading()) {
-    targetWindow.webContents.send('add-extension', url);
-  } else {
-    targetWindow.webContents.once('did-finish-load', () => {
-      targetWindow.webContents.send('add-extension', url);
-    });
-  }
+  firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -330,6 +324,13 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (error) => {
   console.error('Unhandled Rejection:', error);
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
+});
+
+ipcMain.on('react-ready', (event) => {
+  if (pendingDeepLink) {
+    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    pendingDeepLink = null;
+  }
 });
 
 // Add file/directory selection handler

@@ -84,9 +84,6 @@ function ToolResultView({ result }: ToolResultViewProps) {
 
   // Find results where either audience is not set, or it's set to a list that includes user
   const filteredResults = result.filter((item) => {
-    if (!item.annotations) {
-      return false;
-    }
     // Check audience (which may not be in the type)
     const audience = item.annotations?.audience;
 
@@ -103,7 +100,9 @@ function ToolResultView({ result }: ToolResultViewProps) {
 
   const shouldShowExpanded = (item: Content, index: number) => {
     return (
-      (item.annotations.priority !== undefined && item.annotations.priority >= 0.5) ||
+      (item.annotations &&
+        item.annotations.priority !== undefined &&
+        item.annotations.priority >= 0.5) ||
       expandedItems.includes(index)
     );
   };
@@ -113,7 +112,9 @@ function ToolResultView({ result }: ToolResultViewProps) {
       {filteredResults.map((item, index) => {
         const isExpanded = shouldShowExpanded(item, index);
         const shouldMinimize =
-          item.annotations.priority === undefined || item.annotations.priority < 0.5;
+          !item.annotations ||
+          item.annotations.priority === undefined ||
+          item.annotations.priority < 0.5;
         return (
           <div key={index} className="relative">
             {shouldMinimize && (

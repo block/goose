@@ -101,8 +101,7 @@ export const DefaultSubmitHandler = async (upsertFn, provider, configValues) => 
     // Create the provider-specific config key
     const configKey = `${parameter.name}`;
 
-    // Explicitly define is_secret as a boolean (true/false) or null
-    // This is critical for Rust's Option<bool> type
+    // Explicitly define is_secret as a boolean (true/false)
     const isSecret = parameter.secret === true;
 
     // Pass the is_secret flag from the parameter definition

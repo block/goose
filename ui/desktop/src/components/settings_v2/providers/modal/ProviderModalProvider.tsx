@@ -1,60 +1,56 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { ProviderDetails } from '../../../../api';
+import React, { createContext, useContext, useState } from 'react';
+import { ProviderDetails } from '../../../../api/types.gen';
+
+interface ModalProps {
+  onSubmit?: (values: any) => void;
+  onCancel?: () => void;
+  formProps?: any;
+}
 
 interface ProviderModalContextType {
   isOpen: boolean;
   currentProvider: ProviderDetails | null;
-  modalProps: any;
-  openModal: (provider: ProviderDetails, additionalProps: any) => void;
+  modalProps: ModalProps;
+  openModal: (provider: ProviderDetails, additionalProps?: ModalProps) => void;
   closeModal: () => void;
 }
 
-const defaultContext: ProviderModalContextType = {
-  isOpen: false,
-  currentProvider: null,
-  modalProps: {},
-  openModal: () => {},
-  closeModal: () => {},
-};
-
-const ProviderModalContext = createContext<ProviderModalContextType>(defaultContext);
-
-export const useProviderModal = () => useContext<ProviderModalContextType>(ProviderModalContext);
+const ProviderModalContext = createContext<ProviderModalContextType | undefined>(undefined);
 
 export const ProviderModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<ProviderDetails | null>(null);
-  const [modalProps, setModalProps] = useState({});
+  const [modalProps, setModalProps] = useState<ModalProps>({});
 
-  // Use useCallback to prevent function recreation on each render
-  const openModal = useCallback((provider: ProviderDetails, additionalProps = {}) => {
+  const openModal = (provider: ProviderDetails, additionalProps: ModalProps = {}) => {
     setCurrentProvider(provider);
     setModalProps(additionalProps);
     setIsOpen(true);
-  }, []);
+  };
 
-  const closeModal = useCallback(() => {
+  const closeModal = () => {
     setIsOpen(false);
-    // Use a small timeout to prevent UI flicker
-    setTimeout(() => {
-      setCurrentProvider(null);
-      setModalProps({});
-    }, 200);
-  }, []);
-
-  // Memoize the context value to prevent unnecessary re-renders
-  const contextValue = useMemo(
-    () => ({
-      isOpen,
-      currentProvider,
-      modalProps,
-      openModal,
-      closeModal,
-    }),
-    [isOpen, currentProvider, modalProps, openModal, closeModal]
-  );
+  };
 
   return (
-    <ProviderModalContext.Provider value={contextValue}>{children}</ProviderModalContext.Provider>
+    <ProviderModalContext.Provider
+      value={{
+        isOpen,
+        currentProvider,
+        modalProps,
+        openModal,
+        closeModal,
+      }}
+    >
+      {children}
+    </ProviderModalContext.Provider>
   );
+};
+
+export const useProviderModal = () => {
+  const context = useContext(ProviderModalContext);
+  if (context === undefined) {
+    throw new Error('useProviderModal must be used within a ProviderModalProvider');
+  }
+  return context;
 };

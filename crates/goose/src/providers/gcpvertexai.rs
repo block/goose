@@ -501,7 +501,7 @@ impl Provider for GcpVertexAIProvider {
         let response = self.post(request.clone(), &context).await?;
         let usage = get_usage(&response, &context)?;
 
-        emit_debug_trace(self, &request, &response, &usage);
+        emit_debug_trace(&self.model, &request, &response, &usage);
 
         // Convert response to message
         let message = response_to_message(response, context)?;

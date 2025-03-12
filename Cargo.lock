@@ -2266,8 +2266,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "google-sheets4"
+version = "6.0.0+20240621"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4f8ccfc6418e81d1e2ed66fad49d0487526281505b8a0ed8ee770dc7d6bb1e5"
+dependencies = [
+ "chrono",
+ "google-apis-common",
+ "hyper 1.6.0",
+ "hyper-rustls 0.27.5",
+ "hyper-util",
+ "mime",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tokio",
+ "url",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "goose"
-version = "1.0.12"
+version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2321,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.12"
+version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2342,7 +2362,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.12"
+version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2379,7 +2399,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.12"
+version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2389,11 +2409,13 @@ dependencies = [
  "etcetera",
  "google-apis-common",
  "google-drive3",
+ "google-sheets4",
  "http-body-util",
  "ignore",
  "image 0.24.9",
  "include_dir",
  "indoc",
+ "keyring",
  "kill_tree",
  "lazy_static",
  "lopdf",
@@ -2422,7 +2444,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.12"
+version = "1.0.13"
 dependencies = [
  "anyhow",
  "async-trait",
