@@ -827,7 +827,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
             interpret_chat_tool_calls: false,
-            tool_call_interpreter_model: None,
+            tool_shim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -859,7 +859,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
             interpret_chat_tool_calls: false,
-            tool_call_interpreter_model: None,
+            tool_shim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -892,7 +892,7 @@ mod tests {
             temperature: None,
             max_tokens: Some(1024),
             interpret_chat_tool_calls: false,
-            tool_call_interpreter_model: None,
+            tool_shim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();

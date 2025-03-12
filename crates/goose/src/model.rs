@@ -24,7 +24,7 @@ pub struct ModelConfig {
     /// Whether to interpret tool calls
     pub interpret_chat_tool_calls: bool,
     /// Model to use for interpreting tool calls (optional)
-    pub tool_call_interpreter_model: Option<String>,
+    pub tool_shim_model: Option<String>,
 }
 
 impl ModelConfig {
@@ -42,7 +42,7 @@ impl ModelConfig {
             .map(|val| val == "1" || val.to_lowercase() == "true")
             .unwrap_or(false);
 
-        let tool_call_interpreter_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+        let tool_shim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
         Self {
             model_name,
@@ -51,7 +51,7 @@ impl ModelConfig {
             temperature: None,
             max_tokens: None,
             interpret_chat_tool_calls,
-            tool_call_interpreter_model,
+            tool_shim_model,
         }
     }
 
@@ -116,7 +116,7 @@ impl ModelConfig {
 
     /// Set the tool call interpreter model
     pub fn with_tool_interpreter(mut self, model: Option<String>) -> Self {
-        self.tool_call_interpreter_model = model;
+        self.tool_shim_model = model;
         self
     }
 
@@ -180,9 +180,6 @@ mod tests {
         // Test tool interpreter model
         let config = ModelConfig::new("test-model".to_string())
             .with_tool_interpreter(Some("mistral-nemo".to_string()));
-        assert_eq!(
-            config.tool_call_interpreter_model,
-            Some("mistral-nemo".to_string())
-        );
+        assert_eq!(config.tool_shim_model, Some("mistral-nemo".to_string()));
     }
 }
