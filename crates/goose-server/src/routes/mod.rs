@@ -6,7 +6,7 @@ pub mod extension;
 pub mod health;
 pub mod reply;
 pub mod session;
-
+pub mod utils;
 use axum::Router;
 
 // Function to configure all routes

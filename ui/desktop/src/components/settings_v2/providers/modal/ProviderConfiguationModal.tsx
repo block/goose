@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
@@ -20,7 +20,7 @@ const customFormsMap = {
 };
 
 export default function ProviderConfigurationModal() {
-  const { upsert } = useConfig();
+  const { upsert, getProviders } = useConfig();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
 
@@ -32,15 +32,25 @@ export default function ProviderConfigurationModal() {
   const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
   const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
 
-  const handleSubmitForm = (e) => {
+  const handleSubmitForm = async (e) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 
-    SubmitHandler(upsert, currentProvider, configValues);
+    try {
+      // Wait for the submission to complete
+      await SubmitHandler(upsert, currentProvider, configValues);
 
-    // Close the modal unless the custom handler explicitly returns false
-    // This gives custom handlers the ability to keep the modal open if needed
-    closeModal();
+      // Close the modal before triggering refreshes to avoid UI issues
+      closeModal();
+
+      // Call onSubmit callback if provided (from modal props)
+      if (modalProps.onSubmit) {
+        modalProps.onSubmit(configValues);
+      }
+    } catch (error) {
+      console.error('Failed to save configuration:', error);
+      // Keep modal open if there's an error
+    }
   };
 
   const handleCancel = () => {
