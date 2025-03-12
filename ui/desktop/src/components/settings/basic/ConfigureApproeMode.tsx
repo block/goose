@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { GooseMode, ModeSelectionItem } from './ModeSelectionItem';
@@ -28,6 +28,27 @@ export function ConfigureApproveMode({
     },
   ];
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [approveMode, setApproveMode] = useState(currentMode);
+
+  useEffect(() => {
+    setApproveMode(currentMode);
+  }, [currentMode]);
+
+  const handleModeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    setIsSubmitting(true);
+    try {
+      handleModeChange(approveMode);
+      onClose();
+    } catch (error) {
+      console.error('Error configuring goose mode:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm">
       <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0">
@@ -50,9 +71,11 @@ export function ConfigureApproveMode({
                   key={mode.key}
                   mode={mode}
                   showDescription={true}
-                  currentMode={currentMode}
+                  currentMode={approveMode}
                   isApproveModeConfigure={true}
-                  handleModeChange={handleModeChange}
+                  handleModeChange={(newMode) => {
+                    setApproveMode(newMode);
+                  }}
                 />
               ))}
             </div>
@@ -61,8 +84,18 @@ export function ConfigureApproveMode({
           {/* Actions */}
           <div className="mt-[8px] ml-[-24px] mr-[-24px] pt-[16px]">
             <Button
+              type="submit"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={handleModeSubmit}
+              className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-lg hover:bg-gray-50 hover:dark:text-black dark:text-white dark:border-gray-600 font-regular"
+            >
+              {isSubmitting ? 'Saving...' : 'Save Mode'}
+            </Button>
+            <Button
               type="button"
               variant="ghost"
+              disabled={isSubmitting}
               onClick={onClose}
               className="w-full h-[60px] rounded-none border-t dark:border-gray-600 text-gray-400 hover:bg-gray-50 dark:border-gray-600 text-lg font-regular"
             >

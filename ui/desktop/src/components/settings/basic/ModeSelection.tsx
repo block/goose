@@ -4,6 +4,7 @@ import { all_goose_modes, filterGooseModes, ModeSelectionItem } from './ModeSele
 
 export const ModeSelection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
+  const [previousApproveModel, setPreviousApproveModel] = useState('');
 
   const handleModeChange = async (newMode: string) => {
     const storeResponse = await fetch(getApiUrl('/configs/store'), {
@@ -23,6 +24,10 @@ export const ModeSelection = () => {
       const errorText = await storeResponse.text();
       console.error('Store response error:', errorText);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
+    }
+    // Only track the previous approve if current mode is approve related but new mode is not.
+    if (currentMode.includes('approve') && !newMode.includes('approve')) {
+      setPreviousApproveModel(currentMode);
     }
     setCurrentMode(newMode);
   };
@@ -54,14 +59,14 @@ export const ModeSelection = () => {
 
   return (
     <div>
-      <h4 className="font-medium mb-2 text-textStandard">Autonomy</h4>
+      <h4 className="font-medium mb-2 text-textStandard">Mode Selection</h4>
       <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
         Change the access goose is given to modify, edit or delet files. This setting can be changed
         at anytime.
       </p>
 
       <div>
-        {filterGooseModes(currentMode, all_goose_modes).map((mode) => (
+        {filterGooseModes(currentMode, all_goose_modes, previousApproveModel).map((mode) => (
           <ModeSelectionItem
             key={mode.key}
             mode={mode}

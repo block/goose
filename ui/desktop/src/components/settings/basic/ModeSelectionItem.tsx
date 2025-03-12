@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproeMode';
 
@@ -32,18 +32,38 @@ export const all_goose_modes: GooseMode[] = [
   },
 ];
 
-export function filterGooseModes(currentMode: string, modes: GooseMode[]) {
+export function filterGooseModes(
+  currentMode: string,
+  modes: GooseMode[],
+  previousApproveMode: string
+) {
   return modes.filter((mode) => {
-    if (['auto', 'chat'].includes(mode.key)) {
-      return true; // Always keep 'auto' and 'chat'
+    const approveList = ['approve', 'write_approve'];
+    const nonApproveList = ['auto', 'chat'];
+    // Always keep 'auto' and 'chat'
+    if (nonApproveList.includes(mode.key)) {
+      return true;
     }
-    if (currentMode === 'approve' && mode.key === 'approve') {
-      return true; // Keep 'approve' if currentMode is 'approve'
+    // If current mode is non approve mode, we display write approve by default.
+    if (nonApproveList.includes(currentMode) && !previousApproveMode) {
+      return mode.key === 'write_approve';
     }
-    if (currentMode !== 'approve' && mode.key === 'write_approve') {
-      return true; // Keep 'write_approve' if currentMode is not 'approve'
+
+    // Always include the current and previou approve mode
+    if (mode.key === currentMode) {
+      return true;
     }
-    return false; // Exclude other modes
+
+    // Current mode and previous approve mode cannot exist at the same time.
+    if (approveList.includes(currentMode) && approveList.includes(previousApproveMode)) {
+      return false;
+    }
+
+    if (mode.key === previousApproveMode) {
+      return true;
+    }
+
+    return false;
   });
 }
 
@@ -62,7 +82,12 @@ export function ModeSelectionItem({
   isApproveModeConfigure,
   handleModeChange,
 }: ModeSelectionItemProps) {
+  const [checked, setChecked] = useState(currentMode == mode.key);
   const [isDislogOpen, setIsDislogOpen] = useState(false);
+
+  useEffect(() => {
+    setChecked(currentMode === mode.key);
+  }, [currentMode, mode.key]);
 
   return (
     <div>
@@ -94,7 +119,7 @@ export function ModeSelectionItem({
             type="radio"
             name="modes"
             value={mode.key}
-            checked={currentMode === mode.key}
+            checked={checked}
             onChange={() => handleModeChange(mode.key)}
             className="peer sr-only"
           />

@@ -10,6 +10,7 @@ import {
 export const BottomMenuModeSelection = () => {
   const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
   const [gooseMode, setGooseMode] = useState('auto');
+  const [previousApproveModel, setPreviousApproveModel] = useState('');
   const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -91,6 +92,9 @@ export const BottomMenuModeSelection = () => {
       console.error('Store response error:', errorText);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
     }
+    if (gooseMode.includes('approve')) {
+      setPreviousApproveModel(gooseMode);
+    }
     setGooseMode(newMode);
   };
 
@@ -117,7 +121,7 @@ export const BottomMenuModeSelection = () => {
       {isGooseModeMenuOpen && (
         <div className="absolute bottom-[24px] right-0 w-[220px] bg-bgApp rounded-lg border border-borderSubtle">
           <div>
-            {filterGooseModes(gooseMode, all_goose_modes).map((mode) => (
+            {filterGooseModes(gooseMode, all_goose_modes, previousApproveModel).map((mode) => (
               <ModeSelectionItem
                 key={mode.key}
                 mode={mode}
