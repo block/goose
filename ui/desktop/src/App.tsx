@@ -74,6 +74,8 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
+  useEffect(() => window.electron.reactReady(), []);
+
   useEffect(() => {
     const handleAddExtension = (_: any, link: string) => {
       const command = extractCommand(link);
