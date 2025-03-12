@@ -126,6 +126,14 @@ impl MemoryRouter {
                   - Global storage (~/.config/goose/memory) for user-wide data.
                 - Use the remember_memory tool to store the information.
                   - `remember_memory(category, data, tags, is_global)`
+             Keywords that trigger memory tools:
+             - "remember"
+             - "forget"
+             - "memory"
+             - "remove memory"
+             - "clear memory"
+             - "search memory"
+             - "find memory"
              Example Interaction for Storing Information:
              User: "For this project, we use black for code formatting"
              Assistant: "You've mentioned a development preference. Would you like to remember this for future conversations?
@@ -136,6 +144,11 @@ impl MemoryRouter {
              Assistant: "Shall I store this locally for this project only, or globally for all projects?"
              User: "Locally, please."
              Assistant: *Stores the information under category="development", tags="formatting tools", scope="local"*
+             Another Example Interaction for Storing Information:
+             User: "Remember the gh command to view github comments"
+             Assistant: "Shall I store this locally for this project only, or globally for all projects?"
+             User: "Globally, please."
+             Assistant: *Stores the gh command under category="github", tags="comments", scope="global"*
              Retrieving Memories:
              To access stored information, utilize the memory retrieval protocols:
              - **Search by Category**:
