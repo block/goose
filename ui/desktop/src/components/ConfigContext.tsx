@@ -71,13 +71,12 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     setConfig(response.data.config || {});
   };
 
-  const upsert = async (key: string, value: unknown, isSecret?: boolean) => {
+  const upsert = async (key: string, value: unknown, isSecret: boolean = false) => {
     const query: UpsertConfigQuery = {
-      key,
-      value,
-      is_secret: isSecret || null,
+      key: key,
+      value: value,
+      is_secret: isSecret,
     };
-
     await upsertConfig({
       body: query,
     });

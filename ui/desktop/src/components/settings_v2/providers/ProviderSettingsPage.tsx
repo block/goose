@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
@@ -9,37 +9,40 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
   const { getProviders } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
+  const initialLoadDone = useRef(false);
+
+  // Create a function to load providers that can be called multiple times
+  const loadProviders = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Only force refresh when explicitly requested, not on initial load
+      const result = await getProviders(!initialLoadDone.current);
+      if (result) {
+        setProviders(result);
+        initialLoadDone.current = true;
+      }
+    } catch (error) {
+      console.error('Failed to load providers:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [getProviders]);
 
   // Load providers only once when component mounts
   useEffect(() => {
-    let isMounted = true;
-
-    const loadProviders = async () => {
-      try {
-        // Force refresh to ensure we have the latest data
-        const result = await getProviders(true);
-        // Only update state if component is still mounted
-        if (isMounted && result) {
-          setProviders(result);
-        }
-      } catch (error) {
-        console.error('Failed to load providers:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     loadProviders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally not including loadProviders in deps to prevent reloading
 
-    // Cleanup function to prevent state updates on unmounted component
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Empty dependency array ensures this only runs once
+  // This function will be passed to ProviderGrid for manual refreshes after config changes
+  const refreshProviders = useCallback(() => {
+    if (initialLoadDone.current) {
+      getProviders(true).then((result) => {
+        if (result) setProviders(result);
+      });
+    }
+  }, [getProviders]);
 
-  console.log(providers);
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -61,7 +64,11 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
               {loading ? (
                 <div>Loading providers...</div>
               ) : (
-                <ProviderGrid providers={providers} isOnboarding={false} />
+                <ProviderGrid
+                  providers={providers}
+                  isOnboarding={false}
+                  refreshProviders={refreshProviders}
+                />
               )}
             </div>
           </div>

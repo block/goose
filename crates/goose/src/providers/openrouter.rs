@@ -238,7 +238,7 @@ impl Provider for OpenRouterProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }

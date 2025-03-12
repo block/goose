@@ -17,9 +17,11 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
 const ProviderCards = memo(function ProviderCards({
   providers,
   isOnboarding,
+  refreshProviders,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
+  refreshProviders?: () => void;
 }) {
   const { openModal } = useProviderModal();
 
@@ -27,13 +29,16 @@ const ProviderCards = memo(function ProviderCards({
   const configureProviderViaModal = useCallback(
     (provider: ProviderDetails) => {
       openModal(provider, {
-        onSubmit: (values: any) => {
-          // Your logic to save the configuration
+        onSubmit: () => {
+          // Only refresh if the function is provided
+          if (refreshProviders) {
+            refreshProviders();
+          }
         },
         formProps: {},
       });
     },
-    [openModal]
+    [openModal, refreshProviders]
   );
 
   const handleLaunch = useCallback(() => {
@@ -56,48 +61,28 @@ const ProviderCards = memo(function ProviderCards({
   return <>{providerCards}</>;
 });
 
-// Fix the ProviderModalProvider
-export const OptimizedProviderModalProvider = memo(function OptimizedProviderModalProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const contextValue = useMemo(
-    () => ({
-      isOpen: false,
-      currentProvider: null,
-      modalProps: {},
-      openModal: (provider, additionalProps = {}) => {
-        // Implementation
-      },
-      closeModal: () => {
-        // Implementation
-      },
-    }),
-    []
-  );
-
-  return <ProviderModalProvider>{children}</ProviderModalProvider>;
-});
-
 export default memo(function ProviderGrid({
   providers,
   isOnboarding,
+  refreshProviders,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
+  refreshProviders?: () => void;
 }) {
-  // Remove the console.log
-  console.log('provider grid');
   // Memoize the modal provider and its children to avoid recreating on every render
   const modalProviderContent = useMemo(
     () => (
       <ProviderModalProvider>
-        <ProviderCards providers={providers} isOnboarding={isOnboarding} />
+        <ProviderCards
+          providers={providers}
+          isOnboarding={isOnboarding}
+          refreshProviders={refreshProviders}
+        />
         <ProviderConfigurationModal />
       </ProviderModalProvider>
     ),
-    [providers, isOnboarding]
+    [providers, isOnboarding, refreshProviders]
   );
 
   return <GridLayout>{modalProviderContent}</GridLayout>;

@@ -1,21 +1,16 @@
+use crate::logging;
 use crate::session::build_session;
 use crate::Session;
 use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
 use goose_bench::bench_work_dir::BenchmarkWorkDir;
-use goose_bench::error_capture::ErrorCaptureLayer;
 use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Once;
 use tokio::sync::Mutex;
-use tracing_subscriber::layer::SubscriberExt;
-
-// Used to ensure we only set up tracing once
-static INIT: Once = Once::new();
 
 pub struct BenchSession {
     session: Session,
@@ -26,14 +21,9 @@ impl BenchSession {
     pub fn new(session: Session) -> Self {
         let errors = Arc::new(Mutex::new(Vec::new()));
 
-        // Create and register the error capture layer only once
-        INIT.call_once(|| {
-            let error_layer = ErrorCaptureLayer::new(errors.clone());
-            let subscriber = tracing_subscriber::Registry::default().with(error_layer);
-
-            tracing::subscriber::set_global_default(subscriber)
-                .expect("Failed to set tracing subscriber");
-        });
+        // Initialize logging with error capture
+        logging::setup_logging(Some("bench"), Some(errors.clone()))
+            .expect("Failed to initialize logging");
 
         Self { session, errors }
     }
@@ -129,18 +119,22 @@ async fn run_eval(
         }
     }
 
+    let current_dir = std::env::current_dir()?;
+    let output_str = serde_json::to_string_pretty(&result)?;
+    std::fs::write(current_dir.join("eval_result.json"), &output_str)?;
+
     Ok(result)
 }
 
 async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
     let mut suite_result = SuiteResult::new(suite.to_string());
-    let eval_lock = Mutex::new(());
+    let eval_work_dir_guard = Mutex::new(work_dir);
 
     if let Some(evals) = EvaluationSuiteFactory::create(suite) {
         for eval in evals {
-            let _unused = eval_lock.lock().await;
-            work_dir.set_eval(eval.name());
-            let eval_result = run_eval(eval, work_dir).await?;
+            let mut eval_work_dir = eval_work_dir_guard.lock().await;
+            eval_work_dir.set_eval(eval.name());
+            let eval_result = run_eval(eval, &mut eval_work_dir).await?;
             suite_result.add_evaluation(eval_result);
         }
     }
@@ -167,13 +161,13 @@ pub async fn run_benchmark(
 
     let mut results = BenchmarkResults::new(provider_name.clone());
 
-    let mut work_dir = BenchmarkWorkDir::new(
+    let suite_work_dir = Mutex::new(BenchmarkWorkDir::new(
         format!("{}-{}", provider_name, goose_model),
         include_dirs.clone(),
-    );
-    let suite_lock = Mutex::new(());
+    ));
+
     for suite in suites {
-        let _unused = suite_lock.lock().await;
+        let mut work_dir = suite_work_dir.lock().await;
         work_dir.set_suite(suite);
         let suite_result = run_suite(suite, &mut work_dir).await?;
         results.add_suite(suite_result);

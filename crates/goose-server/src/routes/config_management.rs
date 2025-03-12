@@ -11,9 +11,9 @@ use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
 use utoipa::ToSchema;
 
+use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 
 fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
@@ -37,7 +37,7 @@ pub struct UpsertConfigQuery {
     pub is_secret: bool,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct ConfigKeyQuery {
     pub key: String,
     pub is_secret: bool,
@@ -123,9 +123,9 @@ pub async fn remove_config(
 }
 
 #[utoipa::path(
-    get,
+    post,
     path = "/config/read",
-    request_body = ConfigKeyQuery,
+    request_body = ConfigKeyQuery, // Switch back to request_body
     responses(
         (status = 200, description = "Configuration value retrieved successfully", body = Value),
         (status = 404, description = "Configuration key not found")
@@ -333,31 +333,6 @@ pub async fn providers(
         .collect();
 
     Ok(Json(providers_response))
-}
-
-fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
-    let config = Config::global();
-
-    // Check all required keys for the provider
-    for key in &metadata.config_keys {
-        if key.required {
-            let key_name = &key.name;
-
-            // First, check if the key is set in the environment
-            let is_set_in_env = env::var(key_name).is_ok();
-
-            // If not set in environment, check the config file based on whether it's a secret or not
-            let is_set_in_config = config.get(key_name, key.secret).is_ok();
-
-            // If the key is neither in the environment nor in the config, the provider is not configured
-            if !is_set_in_env && !is_set_in_config {
-                return false;
-            }
-        }
-    }
-
-    // If all required keys are accounted for, the provider is considered configured
-    true
 }
 
 pub fn routes(state: AppState) -> Router {
