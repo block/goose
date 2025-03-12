@@ -59,12 +59,6 @@ export const ModeSelection = () => {
 
   return (
     <div>
-      <h4 className="font-medium mb-2 text-textStandard">Mode Selection</h4>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-        Change the access goose is given to modify, edit or delet files. This setting can be changed
-        at anytime.
-      </p>
-
       <div>
         {filterGooseModes(currentMode, all_goose_modes, previousApproveModel).map((mode) => (
           <ModeSelectionItem
