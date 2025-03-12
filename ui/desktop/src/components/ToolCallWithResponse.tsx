@@ -130,10 +130,21 @@ function ToolResultView({ result }: ToolResultViewProps) {
             )}
             {(isExpanded || !shouldMinimize) && (
               <>
-                {item.text && (
+                {item.type === 'text' && item.text && (
                   <MarkdownContent
                     content={item.text}
                     className="whitespace-pre-wrap p-2 max-w-full overflow-x-auto"
+                  />
+                )}
+                {item.type === 'image' && (
+                  <img
+                    src={`data:${item.mimeType};base64,${item.data}`}
+                    alt="Tool result"
+                    className="max-w-full h-auto rounded-md my-2"
+                    onError={(e) => {
+                      console.error('Failed to load image: Invalid MIME-type encoded image data');
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 )}
               </>

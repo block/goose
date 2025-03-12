@@ -8,6 +8,7 @@ use goose_cli::commands::bench::{list_suites, run_benchmark};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
+use goose_cli::commands::session::handle_session_list;
 use goose_cli::logging::setup_logging;
 use goose_cli::session;
 use goose_cli::session::build_session;
@@ -54,6 +55,23 @@ fn extract_identifier(identifier: Identifier) -> session::Identifier {
 }
 
 #[derive(Subcommand)]
+enum SessionCommand {
+    #[command(about = "List all available sessions")]
+    List {
+        #[arg(short, long, help = "List all available sessions")]
+        verbose: bool,
+
+        #[arg(
+            short,
+            long,
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -77,6 +95,8 @@ enum Command {
         visible_alias = "s"
     )]
     Session {
+        #[command(subcommand)]
+        command: Option<SessionCommand>,
         /// Identifier for the chat session
         #[command(flatten)]
         identifier: Option<Identifier>,
@@ -299,27 +319,36 @@ async fn main() -> Result<()> {
             let _ = run_server(&name).await;
         }
         Some(Command::Session {
+            command,
             identifier,
             resume,
             debug,
             extension,
             builtin,
         }) => {
-            let mut session = build_session(
-                identifier.map(extract_identifier),
-                resume,
-                extension,
-                builtin,
-                debug,
-            )
-            .await;
-
-            setup_logging(
-                session.session_file().file_stem().and_then(|s| s.to_str()),
-                None,
-            )?;
-            let _ = session.interactive(None).await;
-            return Ok(());
+            match command {
+                Some(SessionCommand::List { verbose, format }) => {
+                    handle_session_list(verbose, format)?;
+                    return Ok(());
+                }
+                None => {
+                    // Run session command by default
+                    let mut session = build_session(
+                        identifier.map(extract_identifier),
+                        resume,
+                        extension,
+                        builtin,
+                        debug,
+                    )
+                    .await;
+                    setup_logging(
+                        session.session_file().file_stem().and_then(|s| s.to_str()),
+                        None,
+                    )?;
+                    let _ = session.interactive(None).await;
+                    return Ok(());
+                }
+            }
         }
         Some(Command::Run {
             instructions,
