@@ -12,7 +12,7 @@ In our previous episode of [Goose Flight School](https://www.youtube.com/playlis
 <!--truncate-->
 
 # How It Works
-[Extensions](https://block.github.io/goose/docs/getting-started/using-extensions) enhance Goose's functionality by connecting with your existing toolds and workflows. They add new features, access external data resources, and integrate with other systems. Learn how multiple extensions—including Figma and Developer—worked together seamlessly to dramatically accelerate development.
+[Extensions](https://block.github.io/goose/docs/getting-started/using-extensions) enhance Goose's functionality by connecting with your existing tools and workflows. They add new features, access external data resources, and integrate with other systems. Learn how multiple extensions, including Figma and Developer, worked together seamlessly to dramatically accelerate development.
 
 # Live Tutorial: Goose Builds Live
 During the livestream, Adewale demonstrated step-by-step how Goose handled each development phase, from creating the basic application structure to generating responsive layouts using Tailwind CSS. Adewale also highlighted how Goose addresses potential limitations as you go, showcasing the powerful balance between the Goose's automation and developer control.
