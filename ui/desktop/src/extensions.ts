@@ -80,6 +80,9 @@ export async function addExtension(
       timeout: extension.timeout,
     };
 
+    let toastId;
+    if (!silent) toastId = toast.loading(`Adding ${extension.name} extension...`);
+
     const response = await fetch(getApiUrl('/extensions/add'), {
       method: 'POST',
       headers: {
@@ -93,6 +96,7 @@ export async function addExtension(
 
     if (!data.error) {
       if (!silent) {
+        if (toastId) toast.dismiss(toastId);
         toast.success(`Successfully enabled ${extension.name} extension`);
       }
       return response;
@@ -100,7 +104,9 @@ export async function addExtension(
 
     const errorMessage = `Error adding ${extension.name} extension ${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
+    if (toastId) toast.dismiss(toastId);
+    toast.error(errorMessage);
+
     return response;
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
