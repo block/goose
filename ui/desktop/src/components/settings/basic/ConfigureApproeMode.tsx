@@ -22,9 +22,8 @@ export function ConfigureApproveMode({
     },
     {
       key: 'write_approve',
-      label: 'Write Approval',
-      description:
-        'Classifies the tool as either a read-only tool or write tool. Write tools will ask for human approval.',
+      label: 'Smart Approval',
+      description: 'Intelligently determime which actions need approval based on risk level ',
     },
   ];
 

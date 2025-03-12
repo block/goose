@@ -74,6 +74,9 @@ export const BottomMenuModeSelection = () => {
   }, [isGooseModeMenuOpen]);
 
   const handleModeChange = async (newMode: string) => {
+    if (gooseMode === newMode) {
+      return;
+    }
     const storeResponse = await fetch(getApiUrl('/configs/store'), {
       method: 'POST',
       headers: {
@@ -109,7 +112,7 @@ export const BottomMenuModeSelection = () => {
         className="flex items-center cursor-pointer"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
-        <span>Goose Mode: {getValueByKey(gooseMode)}</span>
+        <span className="truncate w-[180px]">Goose Mode: {getValueByKey(gooseMode)}</span>
         {isGooseModeMenuOpen ? (
           <ChevronDown className="w-4 h-4 ml-1" />
         ) : (
@@ -119,7 +122,7 @@ export const BottomMenuModeSelection = () => {
 
       {/* Dropdown Menu */}
       {isGooseModeMenuOpen && (
-        <div className="absolute bottom-[24px] right-0 w-[220px] bg-bgApp rounded-lg border border-borderSubtle">
+        <div className="absolute bottom-[24px] right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
           <div>
             {filterGooseModes(gooseMode, all_goose_modes, previousApproveModel).map((mode) => (
               <ModeSelectionItem
