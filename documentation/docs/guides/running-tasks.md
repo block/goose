@@ -27,7 +27,7 @@ goose run -i instructions.txt
 
 Here's an example of an instruction file that runs a security audit on project dependencies:
 
-```text
+```md
 # Dependency Security Audit
 
 1. Analyze project dependencies:
