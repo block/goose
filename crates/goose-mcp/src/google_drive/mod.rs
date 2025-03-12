@@ -3,9 +3,9 @@ mod token_storage;
 use indoc::indoc;
 use regex::Regex;
 use serde_json::{json, Value};
-use std::{env, fs, future::Future, path::Path, pin::Pin, sync::Arc};
 use token_storage::{CredentialsManager, KeychainTokenStorage};
 
+use std::sync::Arc;
 use std::io::Cursor;
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
@@ -19,8 +19,6 @@ use mcp_core::{
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
-
-use mcp_core::content::Content;
 
 use google_apis_common::ReadSeek;
 use google_drive3::{
