@@ -238,7 +238,6 @@ impl GoogleDriveRouter {
             }),
         );
 
-<<<<<<< HEAD
         let upload_tool = Tool::new(
             "upload".to_string(),
             indoc! {r#"
