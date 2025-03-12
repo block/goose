@@ -1,5 +1,5 @@
 mod oauth_pkce;
-mod storage;
+pub mod storage;
 
 use indoc::indoc;
 use oauth_pkce::PkceOAuth2Client;
@@ -28,6 +28,11 @@ use google_drive3::{
 };
 use google_sheets4::{self, Sheets};
 use http_body_util::BodyExt;
+
+// Constants for credential storage
+pub const KEYCHAIN_SERVICE: &str = "mcp_google_drive";
+pub const KEYCHAIN_USERNAME: &str = "oauth_credentials";
+pub const KEYCHAIN_DISK_FALLBACK_ENV: &str = "GOOGLE_DRIVE_DISK_FALLBACK";
 
 pub struct GoogleDriveRouter {
     tools: Vec<Tool>,
@@ -95,8 +100,20 @@ impl GoogleDriveRouter {
                 }
             }
         }
+
+        // Check if we should fall back to disk, must be explicitly enabled
+        let fallback_to_disk = match env::var(KEYCHAIN_DISK_FALLBACK_ENV) {
+            Ok(value) => value.to_lowercase() == "true",
+            Err(_) => false,
+        };
+
         // Create a credentials manager for storing tokens securely
-        let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
+        let credentials_manager = Arc::new(CredentialsManager::new(
+            credentials_path.clone(),
+            fallback_to_disk,
+            KEYCHAIN_SERVICE.to_string(),
+            KEYCHAIN_USERNAME.to_string(),
+        ));
 
         // Read the OAuth credentials from the keyfile
         match fs::read_to_string(keyfile_path) {
@@ -104,6 +121,7 @@ impl GoogleDriveRouter {
                 // Create the PKCE OAuth2 client
                 let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
                     .expect("Failed to create OAuth2 client");
+
                 // Create the HTTP client
                 let client = hyper_util::client::legacy::Client::builder(
                     hyper_util::rt::TokioExecutor::new(),
@@ -120,7 +138,7 @@ impl GoogleDriveRouter {
                 let drive_hub = DriveHub::new(client.clone(), auth.clone());
                 let sheets_hub = Sheets::new(client, auth);
 
-                // Create and return the DriveHub
+                // Create and return the DriveHub, Sheets and our PKCE OAuth2 client
                 (drive_hub, sheets_hub, credentials_manager)
             }
             Err(e) => {
