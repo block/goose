@@ -19,7 +19,12 @@ During the livestream, Adewale demonstrated step-by-step how Goose handled each 
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/_9t_N9zKwKM?si=r3e1MkrjS-f2AvkI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-Throughout the stream, Adewale shared valuable tips to prepare your design for Goose. His key recommendations include: starting with a well-structured Figma design, using Goose to make targeted improvements after the initial generation, fine-tuning specific elements as needed, and to make sure you thoroughly test for functionality and responsiveness.
+Throughout the stream, Adewale shared valuable tips to prepare your design for Goose. His key recommendations include: 
+
+* start with a well-structured Figma design
+* use Goose to make targeted improvements after the initial generation
+* fine-tune specific elements as needed
+* make sure you thoroughly test for functionality and responsiveness
 
 # Getting Started with Goose and Figma
 Whether you're a designer wanting to rapidly turn concepts into working code or a developer curious about streamlining design implementation, you can download Goose with its built-in Developer Extension [here](https://block.github.io/goose/docs/getting-started/installation), and the Figma and Git extensions can be installed from [here](https://block.github.io/goose/v1/extensions/).
