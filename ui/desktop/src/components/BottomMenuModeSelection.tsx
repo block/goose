@@ -112,7 +112,7 @@ export const BottomMenuModeSelection = () => {
         className="flex items-center cursor-pointer"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
-        <span className="truncate w-[180px]">Goose Mode: {getValueByKey(gooseMode)}</span>
+        <span className="truncate w-[170px]">Goose Mode: {getValueByKey(gooseMode)}</span>
         {isGooseModeMenuOpen ? (
           <ChevronDown className="w-4 h-4 ml-1" />
         ) : (

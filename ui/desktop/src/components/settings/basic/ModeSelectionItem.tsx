@@ -20,7 +20,7 @@ export const all_goose_modes: GooseMode[] = [
     description: 'All tools, extensions and file modificatio will require human approval',
   },
   {
-    key: 'write_approve',
+    key: 'smart_approve',
     label: 'Smart Approval',
     description: 'Intelligently determime which actions need approval based on risk level ',
   },
@@ -37,7 +37,7 @@ export function filterGooseModes(
   previousApproveMode: string
 ) {
   return modes.filter((mode) => {
-    const approveList = ['approve', 'write_approve'];
+    const approveList = ['approve', 'smart_approve'];
     const nonApproveList = ['auto', 'chat'];
     // Always keep 'auto' and 'chat'
     if (nonApproveList.includes(mode.key)) {
@@ -45,7 +45,7 @@ export function filterGooseModes(
     }
     // If current mode is non approve mode, we display write approve by default.
     if (nonApproveList.includes(currentMode) && !previousApproveMode) {
-      return mode.key === 'write_approve';
+      return mode.key === 'smart_approve';
     }
 
     // Always include the current and previou approve mode
@@ -105,7 +105,7 @@ export function ModeSelectionItem({
           )}
         </div>
         <div className="relative flex items-center gap-3">
-          {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'write_approve') && (
+          {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
                 setIsDislogOpen(true);
