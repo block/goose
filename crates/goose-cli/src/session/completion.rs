@@ -77,7 +77,7 @@ impl GooseCompleter {
 
     /// Complete flags for the /mode command
     fn complete_mode_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {
-        let modes = ["auto", "approve", "chat"];
+        let modes = ["auto", "approve", "write_approve", "chat"];
 
         let parts: Vec<&str> = line.split_whitespace().collect();
 
