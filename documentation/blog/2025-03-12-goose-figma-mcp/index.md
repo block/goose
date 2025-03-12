@@ -9,7 +9,7 @@ authors:
 
 </div>
 
-In our previous episode of [Goose Flight School](https://www.youtube.com/playlist?list=PLyMFt_U2IX4s1pMaidir5P4lSfjUK6Nzm), our host [Ace Abati](https://www.linkedin.com/in/acekyd/) showed us how to use Goose to take a Figma design and transform it into a functional Nox application. In this stream he covered the entire process, from initial setup to final implementation, highlighting how Goose can help developers bridge the gap between design and development.
+In our previous episode of [Goose Flight School](https://www.youtube.com/playlist?list=PLyMFt_U2IX4s1pMaidir5P4lSfjUK6Nzm), our host [Ace Abati](https://www.linkedin.com/in/acekyd/) showed us how to use Goose to take a Figma design and transform it into a functional Nuxt application. In this stream he covered the entire process, from initial setup to final implementation, highlighting how Goose can help developers bridge the gap between design and development.
 
 <!--truncate-->
 
