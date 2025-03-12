@@ -95,7 +95,6 @@ impl GoogleDriveRouter {
                 }
             }
         }
-
         // Create a credentials manager for storing tokens securely
         let credentials_manager = Arc::new(CredentialsManager::new(credentials_path.clone()));
 
@@ -105,7 +104,6 @@ impl GoogleDriveRouter {
                 // Create the PKCE OAuth2 client
                 let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
                     .expect("Failed to create OAuth2 client");
-
                 // Create the HTTP client
                 let client = hyper_util::client::legacy::Client::builder(
                     hyper_util::rt::TokioExecutor::new(),
