@@ -206,11 +206,11 @@ impl GoogleDriveRouter {
                   },
                   "body": {
                       "type": "string",
-                      "description": "Plain text body of the file to upload. Takes precedence over path.",
+                      "description": "Plain text body of the file to upload. Mutually exclusive with path.",
                   },
                   "path": {
                       "type": "string",
-                      "description": "Path to the file to upload.",
+                      "description": "Path to the file to upload. Mutually exclusive with body.",
                   }
               },
               "required": ["name", "mimeType"],
@@ -302,11 +302,11 @@ impl GoogleDriveRouter {
                   },
                   "body": {
                       "type": "string",
-                      "description": "Plain text body of the file to upload. Takes precedence over path.",
+                      "description": "Plain text body of the file to upload. Mutually exclusive with path.",
                   },
                   "path": {
                       "type": "string",
-                      "description": "Path to a local file to use to update the Google Drive file.",
+                      "description": "Path to a local file to use to update the Google Drive file. Mutually exclusive with body.",
                   }
               },
               "required": ["name", "mimeType"],
@@ -334,8 +334,6 @@ impl GoogleDriveRouter {
               "required": ["fileId", "body"],
             }),
         );
-
-        // TODO: Ensure precedence of body vs. path; ensure we enforce one of them
 
         let update_sheets_tool = Tool::new(
             "update_sheets".to_string(),
