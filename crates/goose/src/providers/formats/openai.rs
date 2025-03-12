@@ -826,7 +826,7 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
-            interpret_chat_tool_calls: false,
+            toolshim: false,
             toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -858,7 +858,7 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
-            interpret_chat_tool_calls: false,
+            toolshim: false,
             toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -891,7 +891,7 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
-            interpret_chat_tool_calls: false,
+            toolshim: false,
             toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
