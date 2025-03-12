@@ -381,7 +381,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
         ExtensionManager::set_enabled(
-            &name_to_key(&name),
+            &name_to_key(name),
             selected.iter().any(|s| s.as_str() == name),
         )?;
     }
@@ -653,7 +653,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(&name_to_key(&name))?;
+        ExtensionManager::remove(&name_to_key(name))?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
