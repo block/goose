@@ -14,11 +14,11 @@ You can build Goose from the source file within a Docker container. This approac
 
 To begin, you will need to modify the `Dockerfile` and `docker-compose.yml` files to suit your requirements. Some changes you might consider include:
 
-- **Required** Setting your API key, provider, and model in the `docker-compose.yml` file as environment variables because the keyring settings do not work on Ubuntu in Docker. This example uses the Google API key and its corresponding settings, but you can [find your own list of API keys](https://github.com/block/goose/blob/main/ui/desktop/src/components/settings/models/hardcoded_stuff.tsx) and the [corresponding settings](https://github.com/block/goose/blob/main/ui/desktop/src/components/settings/models/hardcoded_stuff.tsx).
+- **Required:** Setting your API key, provider, and model in the `docker-compose.yml` file as environment variables because the keyring settings do not work on Ubuntu in Docker. This example uses the Google API key and its corresponding settings, but you can [find your own list of API keys](https://github.com/block/goose/blob/main/ui/desktop/src/components/settings/models/hardcoded_stuff.tsx) and the [corresponding settings](https://github.com/block/goose/blob/main/ui/desktop/src/components/settings/models/hardcoded_stuff.tsx).
 
-- **Optional** Changing the base image to a different Linux distribution in the `Dockerfile`. This example uses Ubuntu, but you can switch to another distribution such as CentOS, Fedora, or Alpine.
+- **Optional:** Changing the base image to a different Linux distribution in the `Dockerfile`. This example uses Ubuntu, but you can switch to another distribution such as CentOS, Fedora, or Alpine.
 
-- **Optional** Mounting your personal Goose settings and hints files in the `docker-compose.yml` file. This allows you to use your personal settings and hints files within the Docker container.
+- **Optional:** Mounting your personal Goose settings and hints files in the `docker-compose.yml` file. This allows you to use your personal settings and hints files within the Docker container.
 
  
 
