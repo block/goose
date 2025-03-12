@@ -73,8 +73,6 @@ export const ModeSelection = () => {
 
   return (
     <div>
-      <h4 className="font-medium mb-4 text-textStandard">Mode Selection</h4>
-
       <RadioGroup.Root
         className="flex flex-col space-y-2"
         value={currentMode}
