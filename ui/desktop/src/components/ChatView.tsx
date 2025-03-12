@@ -148,13 +148,9 @@ export default function ChatView({
       } else {
         setMessages([]);
       }
-    } else if (lastMessage && isUserMessage(lastMessage) && isToolResponse) {
       // Interruption occured after a tool has completed, but no assistant reply
-      let responseMessage = createAssistantMessage(
-        'The tool calling loop was interrupted. How would you like to proceed?'
-      );
-
-      setMessages([...messages, responseMessage]);
+      // handle his if we want to popup a message too the user
+      // } else if (lastMessage && isUserMessage(lastMessage) && isToolResponse) {
     } else if (!isUserMessage(lastMessage)) {
       // the last message was an assistant message
       // check if we have any tool requests or tool confirmation requests
@@ -207,12 +203,8 @@ export default function ChatView({
           responseMessage.content.push(toolResponse);
         }
 
-        let assistantResponseMessage = createAssistantMessage(
-          `The existing call to \`${lastToolName}\`was interrupted. How would you like to proceed?`
-        );
-
         // Use an immutable update to add the response message to the messages array
-        setMessages([...messages, responseMessage, assistantResponseMessage]);
+        setMessages([...messages, responseMessage]);
       }
     }
   };
