@@ -52,7 +52,7 @@ Save findings in 'security_audit.md' with severity levels highlighted.
 
 ### Interactive Mode
 
-If you don't want Goose to exit at the end of the task, you can pass the `s` flag to start an interactive session after processing your initial commands:
+If you don't want Goose to exit at the end of the task, you can pass the `-s` or `--interactive` flag to start an interactive session after processing your initial commands:
 
 ```bash
 goose run -i instructions.txt -s
@@ -76,11 +76,15 @@ goose run -n my-project -r
 
 If you want to ensure specific extensions are available when running your task, you can indicate this with arguments. This can be done using the `--with-extension` or `--with-builtin` flags:
 
-```bash
-# Use built-in extensions e.g developer and computercontroller extensions
-goose run --with-builtin "developer,computercontroller" -t "your instructions"
+- Using built-in extensions e.g developer and computercontroller extensions
 
-# Use custom extensions
+```bash
+goose run --with-builtin "developer,computercontroller" -t "your instructions"
+```
+
+- Using custom extensions
+
+```bash
 goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
 ```
 
@@ -104,14 +108,14 @@ goose run -i build-script.txt
 
 For one-off commands, use the text option:
 ```bash
-goose run -t "Generate a test plan for the login feature"
+goose run -t "Create a CHANGELOG.md entry comparing current git branch with main"
 ```
 
 ### Development Workflows
 
 Start a session with specific extensions:
 ```bash
-goose run --with-builtin developer,git -n dev-session -s
+goose run --with-builtin "developer,git" -n dev-session -s
 ```
 
 ### Combining Options
@@ -121,7 +125,7 @@ You can combine multiple options to create powerful workflows:
 ```bash
 # Complex example combining multiple options
 goose run \
-  --with-builtin developer,git \
+  --with-builtin "developer,git" \
   --with-extension "API_KEY=xyz123 custom-tool" \
   -n project-setup \
   -t "Initialize project" 
