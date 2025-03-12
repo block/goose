@@ -21,9 +21,11 @@ import {
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
+  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
+  createAssistantMessage,
 } from '../types/message';
 
 export interface ChatType {
@@ -132,15 +134,29 @@ export default function ChatView({
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
 
+    // check if the last user message has any tool response(s)
+    const isToolResponse = lastMessage.content.some(
+      (content): content is ToolResponseMessageContent => content.type == 'toolResponse'
+    );
+
     // isUserMessage also checks if the message is a toolConfirmationRequest
-    if (lastMessage && isUserMessage(lastMessage)) {
+    // check if the last message is a real user's message
+    if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
+    } else if (lastMessage && isUserMessage(lastMessage) && isToolResponse) {
+      // Interruption occured after a tool has completed, but no assistant reply
+      let responseMessage = createAssistantMessage(
+        'The tool calling loop was interrupted. How would you like to proceed?'
+      );
+
+      setMessages([...messages, responseMessage]);
     } else if (!isUserMessage(lastMessage)) {
+      // the last message was an assistant message
       // check if we have any tool requests or tool confirmation requests
       const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
         .filter(
@@ -191,8 +207,12 @@ export default function ChatView({
           responseMessage.content.push(toolResponse);
         }
 
+        let assistantResponseMessage = createAssistantMessage(
+          `The existing call to \`${lastToolName}\`was interrupted. How would you like to proceed?`
+        );
+
         // Use an immutable update to add the response message to the messages array
-        setMessages([...messages, responseMessage]);
+        setMessages([...messages, responseMessage, assistantResponseMessage]);
       }
     }
   };
