@@ -296,7 +296,7 @@ impl Agent for TruncateAgent {
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
                         match mode.as_str() {
-                            "approve" | "write_approve" => {
+                            "approve" | "smart_approve" => {
                                 let mut read_only_tools = Vec::new();
                                 let mut needs_confirmation = Vec::<&ToolRequest>::new();
                                 let mut approved_tools = Vec::new();
@@ -319,7 +319,7 @@ impl Agent for TruncateAgent {
                                 }
 
                                 // Only check read-only status for tools needing confirmation
-                                if !needs_confirmation.is_empty() && mode == "write_approve" {
+                                if !needs_confirmation.is_empty() && mode == "smart_approve" {
                                     read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
                                 }
 

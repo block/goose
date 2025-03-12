@@ -335,7 +335,7 @@ impl Session {
                     let mode = mode.to_lowercase();
 
                     // Check if mode is valid
-                    if !["auto", "approve", "chat", "write_approve"].contains(&mode.as_str()) {
+                    if !["auto", "approve", "chat", "smart_approve"].contains(&mode.as_str()) {
                         output::render_error(&format!(
                             "Invalid mode '{}'. Mode must be one of: auto, approve, chat",
                             mode
