@@ -387,7 +387,7 @@ impl GoogleDriveRouter {
                         .collect::<Vec<_>>()
                         .join("\n");
 
-                Ok(vec![Content::text(content.to_string())])
+                Ok(vec![Content::text(content.to_string()).with_priority(0.3)])
             }
         }
     }
