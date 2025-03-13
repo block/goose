@@ -21,9 +21,11 @@ import {
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
+  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
+  createAssistantMessage,
 } from '../types/message';
 
 export interface ChatType {
@@ -132,15 +134,25 @@ export default function ChatView({
     // Handle stopping the message stream
     const lastMessage = messages[messages.length - 1];
 
+    // check if the last user message has any tool response(s)
+    const isToolResponse = lastMessage.content.some(
+      (content): content is ToolResponseMessageContent => content.type == 'toolResponse'
+    );
+
     // isUserMessage also checks if the message is a toolConfirmationRequest
-    if (lastMessage && isUserMessage(lastMessage)) {
+    // check if the last message is a real user's message
+    if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
       } else {
         setMessages([]);
       }
+      // Interruption occured after a tool has completed, but no assistant reply
+      // handle his if we want to popup a message too the user
+      // } else if (lastMessage && isUserMessage(lastMessage) && isToolResponse) {
     } else if (!isUserMessage(lastMessage)) {
+      // the last message was an assistant message
       // check if we have any tool requests or tool confirmation requests
       const toolRequests: [string, ToolCallResult<ToolCall>][] = lastMessage.content
         .filter(
