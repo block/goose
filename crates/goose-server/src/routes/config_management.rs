@@ -217,7 +217,7 @@ pub async fn add_extension(
             } else {
                 Ok(Json(format!("Added extension {}", extension_query.name)))
             }
-        },
+        }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
