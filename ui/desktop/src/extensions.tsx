@@ -1,3 +1,4 @@
+import React from 'react';
 import { getApiUrl, getSecretKey } from './config';
 import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
@@ -103,9 +104,26 @@ export async function addExtension(
     }
 
     const errorMessage = `Error adding ${extension.name} extension ${data.message ? `. ${data.message}` : ''}`;
+    const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
+      <div className="flex flex-col gap-1">
+        <div>Error adding {extension.name} extension</div>
+        <div>
+          <button
+            className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
+            onClick={() => {
+              navigator.clipboard.writeText(data.message);
+              closeToast();
+            }}
+          >
+            Copy error message
+          </button>
+        </div>
+      </div>
+    );
+
     console.error(errorMessage);
     if (toastId) toast.dismiss(toastId);
-    toast.error(errorMessage);
+    toast(ErrorMsg, { type: 'error', autoClose: false });
 
     return response;
   } catch (error) {
