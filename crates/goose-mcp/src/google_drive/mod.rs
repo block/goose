@@ -5,8 +5,8 @@ use regex::Regex;
 use serde_json::{json, Value};
 use token_storage::{CredentialsManager, KeychainTokenStorage};
 
-use std::sync::Arc;
 use std::io::Cursor;
+use std::sync::Arc;
 use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
 
 use mcp_core::content::Content;
@@ -66,6 +66,12 @@ impl InstalledFlowDelegate for LocalhostBrowserDelegate {
     ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>> {
         Box::pin(browser_user_url(url, need_code))
     }
+}
+
+#[derive(Debug)]
+pub enum FileOperation {
+    Create { name: String },
+    Update { file_id: String },
 }
 
 pub struct GoogleDriveRouter {
@@ -358,7 +364,7 @@ impl GoogleDriveRouter {
                       "description": "Path to a local file to use to update the Google Drive file. Mutually exclusive with body.",
                   }
               },
-              "required": ["name", "mimeType"],
+              "required": ["fileId", "mimeType"],
             }),
         );
 
@@ -1019,6 +1025,51 @@ impl GoogleDriveRouter {
         }
     }
 
+    async fn upload_to_drive(
+        &self,
+        operation: FileOperation,
+        content: Box<dyn ReadSeek>,
+        source_mime_type: &str,
+        target_mime_type: &str,
+    ) -> Result<Vec<Content>, ToolError> {
+        let mut req = File::default();
+        req.mime_type = Some(target_mime_type.to_string());
+        let builder = self.drive.files();
+        let result = match operation {
+            FileOperation::Create { ref name } => {
+                req.name = Some(name.to_string());
+                builder
+                    .create(req)
+                    .use_content_as_indexable_text(true)
+                    .supports_team_drives(true)
+                    .supports_all_drives(true)
+                    .upload(content, source_mime_type.parse().unwrap())
+                    .await
+            }
+            FileOperation::Update { ref file_id } => {
+                builder
+                    .update(req, &file_id)
+                    .use_content_as_indexable_text(true)
+                    .supports_team_drives(true)
+                    .supports_all_drives(true)
+                    .upload(content, source_mime_type.parse().unwrap())
+                    .await
+            }
+        };
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to upload google drive file {:?}, {}.",
+                operation, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "{} ({}) (uri: {})",
+                r.1.name.unwrap_or_default(),
+                r.1.mime_type.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
+    }
+
     async fn upload(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let filename =
             params
@@ -1042,38 +1093,22 @@ impl GoogleDriveRouter {
                     "Either the body or path param is required".to_string(),
                 ))
             }
-            (Some(b), None) => Box::new(Cursor::new(b.as_bytes())),
+            (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
             (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
                 ToolError::ExecutionError(
                     format!("Error opening {}: {}", p, e.to_string()).to_string(),
                 )
             })?),
         };
-
-        let mut req = File::default();
-        req.name = Some(filename.to_string());
-        req.mime_type = Some(mime_type.to_string());
-        let result = self
-            .drive
-            .files()
-            .create(req)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(reader, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to create google drive file {}, {}.",
-                filename, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        self.upload_to_drive(
+            FileOperation::Create {
+                name: filename.to_string(),
+            },
+            reader,
+            mime_type,
+            mime_type,
+        )
+        .await
     }
 
     async fn create_doc(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1091,34 +1126,18 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
-        let mime_type = "text/markdown";
-        let doc_mime_type = "application/vnd.google-apps.document".to_string();
-
-        let mut req = File::default();
-        req.name = Some(filename.to_string());
-        req.mime_type = Some(doc_mime_type);
-        let cursor = Cursor::new(body.as_bytes());
-        let result = self
-            .drive
-            .files()
-            .create(req)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(cursor, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to create google doc {}, {}.",
-                filename, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        let source_mime_type = "text/markdown";
+        let target_mime_type = "application/vnd.google-apps.document";
+        let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+        self.upload_to_drive(
+            FileOperation::Create {
+                name: filename.to_string(),
+            },
+            cursor,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
     }
 
     async fn create_sheets(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1136,34 +1155,18 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
-        let mime_type = "text/csv";
-        let doc_mime_type = "application/vnd.google-apps.spreadsheet".to_string();
-
-        let mut req = File::default();
-        req.name = Some(filename.to_string());
-        req.mime_type = Some(doc_mime_type);
-        let cursor = Cursor::new(body.as_bytes());
-        let result = self
-            .drive
-            .files()
-            .create(req)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(cursor, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to create google sheets {}, {}.",
-                filename, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        let source_mime_type = "text/csv";
+        let target_mime_type = "application/vnd.google-apps.spreadsheet";
+        let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+        self.upload_to_drive(
+            FileOperation::Create {
+                name: filename.to_string(),
+            },
+            cursor,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
     }
 
     async fn create_slides(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1181,38 +1184,23 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The path param is required".to_string(),
                 ))?;
-        let reader = std::fs::File::open(path).map_err(|e| {
+        let reader = Box::new(std::fs::File::open(path).map_err(|e| {
             ToolError::ExecutionError(
                 format!("Error opening {}: {}", path, e.to_string()).to_string(),
             )
-        })?;
-        let mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-        let doc_mime_type = "application/vnd.google-apps.presentation".to_string();
-
-        let mut req = File::default();
-        req.name = Some(filename.to_string());
-        req.mime_type = Some(doc_mime_type);
-        let result = self
-            .drive
-            .files()
-            .create(req)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(reader, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to create google slides {}, {}.",
-                filename, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        })?);
+        let source_mime_type =
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        let target_mime_type = "application/vnd.google-apps.presentation";
+        self.upload_to_drive(
+            FileOperation::Create {
+                name: filename.to_string(),
+            },
+            reader,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
     }
 
     async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1221,7 +1209,7 @@ impl GoogleDriveRouter {
                 .get("fileId")
                 .and_then(|q| q.as_str())
                 .ok_or(ToolError::InvalidParameters(
-                    "The fileIdparam is required".to_string(),
+                    "The fileId param is required".to_string(),
                 ))?;
         let mime_type =
             params
@@ -1238,37 +1226,22 @@ impl GoogleDriveRouter {
                     "Either the body or path param is required".to_string(),
                 ))
             }
-            (Some(b), None) => Box::new(Cursor::new(b.as_bytes())),
+            (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
             (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
                 ToolError::ExecutionError(
                     format!("Error opening {}: {}", p, e.to_string()).to_string(),
                 )
             })?),
         };
-
-        let mut req = File::default();
-        req.mime_type = Some(mime_type.to_string());
-        let result = self
-            .drive
-            .files()
-            .update(req, file_id)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(reader, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to update google drive file {}, {}.",
-                file_id, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        self.upload_to_drive(
+            FileOperation::Update {
+                file_id: file_id.to_string(),
+            },
+            reader,
+            mime_type,
+            mime_type,
+        )
+        .await
     }
 
     async fn update_doc(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1286,33 +1259,18 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
-        let mime_type = "text/markdown";
-        let doc_mime_type = "application/vnd.google-apps.document".to_string();
-
-        let mut req = File::default();
-        req.mime_type = Some(doc_mime_type);
-        let cursor = Cursor::new(body.as_bytes());
-        let result = self
-            .drive
-            .files()
-            .update(req, file_id)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(cursor, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to updategoogle doc {}, {}.",
-                file_id, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        let source_mime_type = "text/markdown";
+        let target_mime_type = "application/vnd.google-apps.document";
+        let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+        self.upload_to_drive(
+            FileOperation::Update {
+                file_id: file_id.to_string(),
+            },
+            cursor,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
     }
 
     async fn update_sheets(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1321,7 +1279,7 @@ impl GoogleDriveRouter {
                 .get("fileId")
                 .and_then(|q| q.as_str())
                 .ok_or(ToolError::InvalidParameters(
-                    "The fileIdparam is required".to_string(),
+                    "The fileId param is required".to_string(),
                 ))?;
         let body =
             params
@@ -1330,33 +1288,18 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
-        let mime_type = "text/csv";
-        let doc_mime_type = "application/vnd.google-apps.spreadsheet".to_string();
-
-        let mut req = File::default();
-        req.mime_type = Some(doc_mime_type);
-        let cursor = Cursor::new(body.as_bytes());
-        let result = self
-            .drive
-            .files()
-            .update(req, file_id)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(cursor, mime_type.parse().unwrap())
-            .await;
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to update google sheets {}, {}.",
-                file_id, e
-            ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
-        }
+        let source_mime_type = "text/csv";
+        let target_mime_type = "application/vnd.google-apps.spreadsheet";
+        let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+        self.upload_to_drive(
+            FileOperation::Update {
+                file_id: file_id.to_string(),
+            },
+            cursor,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
     }
 
     async fn update_slides(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1374,36 +1317,31 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The path param is required".to_string(),
                 ))?;
-        let reader = std::fs::File::open(path).map_err(|e| {
+        let reader = Box::new(std::fs::File::open(path).map_err(|e| {
             ToolError::ExecutionError(
                 format!("Error opening {}: {}", path, e.to_string()).to_string(),
             )
-        })?;
-        let mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-        let doc_mime_type = "application/vnd.google-apps.presentation".to_string();
+        })?);
+        let source_mime_type =
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        let target_mime_type = "application/vnd.google-apps.presentation";
+        self.upload_to_drive(
+            FileOperation::Update {
+                file_id: file_id.to_string(),
+            },
+            reader,
+            source_mime_type,
+            target_mime_type,
+        )
+        .await
+    }
 
-        let mut req = File::default();
-        req.mime_type = Some(doc_mime_type);
         let result = self
             .drive
-            .files()
-            .update(req, file_id)
-            .use_content_as_indexable_text(true)
-            .supports_team_drives(true)
-            .supports_all_drives(true)
-            .upload(reader, mime_type.parse().unwrap())
             .await;
         match result {
             Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to updategoogle slides {}, {}.",
-                file_id, e
             ))),
-            Ok(r) => Ok(vec![Content::text(format!(
-                "{} ({}) (uri: {})",
-                r.1.name.unwrap_or_default(),
-                r.1.mime_type.unwrap_or_default(),
-                r.1.id.unwrap_or_default()
-            ))]),
         }
     }
 }
