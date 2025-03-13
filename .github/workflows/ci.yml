@@ -70,76 +70,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
-      # Add disk space cleanup before linting
-      - name: Check disk space before build
-        run: df -h
-
-      - name: Aggressive pre-build cleanup
-        run: |
-          # Clean package manager caches
-          sudo apt-get clean
-          sudo apt-get autoremove -y
-
-          sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /opt/hostedtoolcache/
-          sudo rm -rf /usr/local/lib/android/sdk/ndk
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          rm -rf target/debug/deps
-          rm -rf target/debug/incremental                    
-          
-          # Clean up unused swap and memory
-          sudo swapoff -a
-          sudo swapon -a          
-          
-          echo "Disk space after aggressive cleanup:"
-          df -h
-
-        
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           cargo test
         working-directory: crates
 
-      - name: Lint
-        run: cargo clippy -- -D warnings
-
       # Add disk space cleanup before linting
       - name: Check disk space before cleanup
         run: df -h
 
-      - name: Clean up disk space after build
+      - name: Clean up disk space
         run: |
-          echo "Cleaning up disk space after build..."
+          echo "Cleaning up disk space..."
           # Remove debug artifacts that are no longer needed after tests
-          rm -rf target/debug/deps || true
-          rm -rf target/debug/build || true
-          rm -rf target/debug/incremental || true
-          
-          # Clean Cargo cache
-          rm -rf ~/.cargo/registry/src || true
-          rm -rf ~/.cargo/registry/index || true
-          rm -rf ~/.cargo/git/checkouts || true
-          rm -rf ~/.cargo/git/db || true
-          
-          # Clean package manager caches
+          rm -rf target/debug/deps
+          rm -rf target/debug/build
+          rm -rf target/debug/incremental
+          # Clean npm cache if it exists
           npm cache clean --force || true
+          # Clean apt cache
           sudo apt-get clean
-          sudo apt-get autoremove -y
-          
-          # Remove Docker images if any
+          # Remove unnecessary large directories
+          rm -rf ~/.cargo/registry/index || true
+          # Remove docker images if any
           docker system prune -af || true
-          
-          # Remove temp files
-          sudo rm -rf /tmp/* || true
-          
-          # Check disk space after all cleanup
-          echo "Final disk space:"
-          df -h
+          # Remove unused packages
+          sudo apt-get autoremove -y || true
 
+      - name: Check disk space after cleanup
+        run: df -h
+
+      - name: Lint
+        run: cargo clippy -- -D warnings
 
   desktop-lint:
     name: Lint Electron Desktop App
