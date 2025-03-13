@@ -1,124 +1,117 @@
-use extractous::Extractor;
-use lopdf::{Document, Object};
+use lopdf::{content::Content as PdfContent, Document, Object};
 use mcp_core::{Content, ToolError};
-use std::{
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-};
-
-// Threshold for large text files (0.22MB - about 1/18 of the 4,194,304 bytes limit)
-const LARGE_TEXT_THRESHOLD: usize = (2 * 1024 * 1024) / 9; // ~0.22MB in bytes
+use std::{fs, path::Path};
 
 pub async fn pdf_tool(
     path: &str,
     operation: &str,
     cache_dir: &Path,
 ) -> Result<Vec<Content>, ToolError> {
-    match operation {
+    // Open and parse the PDF file
+    let doc = Document::load(path)
+        .map_err(|e| ToolError::ExecutionError(format!("Failed to open PDF file: {}", e)))?;
+
+    let result = match operation {
         "extract_text" => {
-            // Use extractous library for text extraction
-            let extractor = Extractor::new();
+            let mut text = String::new();
 
-            // Check if the path is a URL or a file
-            let (text, metadata) = if path.starts_with("http://") || path.starts_with("https://") {
-                // Handle URL extraction
-                let (mut stream_reader, metadata) = extractor.extract_url(path).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to extract text from URL: {}", e))
-                })?;
+            // Iterate over each page in the document
+            for (page_num, page_id) in doc.get_pages() {
+                text.push_str(&format!("Page {}:\n", page_num));
 
-                // Convert StreamReader to String - assuming it has a read_to_string method
-                let mut text = String::new();
-                stream_reader.read_to_string(&mut text).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to read text from URL: {}", e))
-                })?;
+                // Try to get text from page contents
+                if let Ok(page_obj) = doc.get_object(page_id) {
+                    if let Ok(page_dict) = page_obj.as_dict() {
+                        // Try to get text from Contents stream
+                        if let Ok(contents) =
+                            page_dict.get(b"Contents").and_then(|c| c.as_reference())
+                        {
+                            if let Ok(content_obj) = doc.get_object(contents) {
+                                if let Ok(stream) = content_obj.as_stream() {
+                                    if let Ok(content_data) = stream.get_plain_content() {
+                                        if let Ok(content) = PdfContent::decode(&content_data) {
+                                            // Process each operation in the content stream
+                                            for operation in content.operations {
+                                                match operation.operator.as_ref() {
+                                                    // "Tj" operator: show text
+                                                    "Tj" => {
+                                                        for operand in operation.operands {
+                                                            if let Object::String(ref bytes, _) =
+                                                                operand
+                                                            {
+                                                                if let Ok(s) =
+                                                                    std::str::from_utf8(bytes)
+                                                                {
+                                                                    text.push_str(s);
+                                                                }
+                                                            }
+                                                        }
+                                                        text.push(' ');
+                                                    }
+                                                    // "TJ" operator: show text with positioning
+                                                    "TJ" => {
+                                                        if let Some(Object::Array(ref arr)) =
+                                                            operation.operands.first()
+                                                        {
+                                                            let mut last_was_text = false;
+                                                            for element in arr {
+                                                                match element {
+                                                                    Object::String(
+                                                                        ref bytes,
+                                                                        _,
+                                                                    ) => {
+                                                                        if let Ok(s) =
+                                                                            std::str::from_utf8(
+                                                                                bytes,
+                                                                            )
+                                                                        {
+                                                                            if last_was_text {
+                                                                                text.push(' ');
+                                                                            }
+                                                                            text.push_str(s);
+                                                                            last_was_text = true;
+                                                                        }
+                                                                    }
+                                                                    Object::Integer(offset) => {
+                                                                        // Large negative offsets often indicate word spacing
+                                                                        if *offset < -100 {
+                                                                            text.push(' ');
+                                                                            last_was_text = false;
+                                                                        }
+                                                                    }
+                                                                    Object::Real(offset) => {
+                                                                        if *offset < -100.0 {
+                                                                            text.push(' ');
+                                                                            last_was_text = false;
+                                                                        }
+                                                                    }
+                                                                    _ => {}
+                                                                }
+                                                            }
+                                                            text.push(' ');
+                                                        }
+                                                    }
+                                                    _ => (), // Ignore other operators
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                text.push('\n');
+            }
 
-                (text, metadata)
+            if text.trim().is_empty() {
+                "No text found in PDF".to_string()
             } else {
-                // Extract text from the file (PDF or other)
-                extractor.extract_file_to_string(path).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to extract text from file: {}", e))
-                })?
-            };
-
-            // Check if the extracted text is large
-            let text_size = text.len();
-            if text_size > LARGE_TEXT_THRESHOLD {
-                // Create a directory for large text files if it doesn't exist
-                let large_text_dir = cache_dir.join("large_pdf_texts");
-                fs::create_dir_all(&large_text_dir).map_err(|e| {
-                    ToolError::ExecutionError(format!(
-                        "Failed to create directory for large text: {}",
-                        e
-                    ))
-                })?;
-
-                // Create a filename based on the original PDF name
-                let pdf_path = PathBuf::from(path);
-                let pdf_filename = pdf_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("unnamed_pdf");
-
-                let text_file_path = large_text_dir.join(format!("{}.txt", pdf_filename));
-
-                // Write the text to a file
-                fs::write(&text_file_path, &text).map_err(|e| {
-                    ToolError::ExecutionError(format!("Failed to write large text to file: {}", e))
-                })?;
-
-                // Format size in human-readable form
-                let size_str = if text_size < 1024 * 1024 {
-                    format!("{:.2} KB", text_size as f64 / 1024.0)
-                } else {
-                    format!("{:.2} MB", text_size as f64 / (1024.0 * 1024.0))
-                };
-
-                Ok(vec![Content::text(format!(
-                    "Large text extracted from PDF ({})\n\n\
-                    The extracted text is too large to display directly.\n\
-                    Text has been written to: {}\n\n\
-                    You can search through this file using ripgrep:\n\
-                    rg 'search term' {}\n\n\
-                    Or view portions of it:\n\
-                    head -n 50 {}\n\
-                    tail -n 50 {}\n\
-                    less {}",
-                    size_str,
-                    text_file_path.display(),
-                    text_file_path.display(),
-                    text_file_path.display(),
-                    text_file_path.display(),
-                    text_file_path.display()
-                ))])
-            } else {
-                // Include metadata information in the output
-                let metadata_info = format!(
-                    "PDF Metadata:\n{}\n\n",
-                    serde_json::to_string_pretty(&metadata)
-                        .unwrap_or_else(|_| "Unable to format metadata".to_string())
-                );
-
-                Ok(vec![Content::text(format!(
-                    "{}Extracted text from PDF:\n\n{}",
-                    metadata_info, text
-                ))])
+                format!("Extracted text from PDF:\n\n{}", text)
             }
         }
 
         "extract_images" => {
-            // Check if the path is a URL (not supported for image extraction)
-            if path.starts_with("http://") || path.starts_with("https://") {
-                return Err(ToolError::InvalidParameters(
-                    "Image extraction is not supported for URLs. Please provide a local PDF file path.".to_string(),
-                ));
-            }
-
-            // Open and parse the PDF file for image extraction
-            let doc = Document::load(path).map_err(|e| {
-                ToolError::ExecutionError(format!("Failed to open PDF file: {}", e))
-            })?;
-
             let cache_dir = cache_dir.join("pdf_images");
             fs::create_dir_all(&cache_dir).map_err(|e| {
                 ToolError::ExecutionError(format!("Failed to create image cache directory: {}", e))
@@ -312,21 +305,21 @@ pub async fn pdf_tool(
             }
 
             if images.is_empty() {
-                Ok(vec![Content::text("No images found in PDF".to_string())])
+                "No images found in PDF".to_string()
             } else {
-                Ok(vec![Content::text(format!(
-                    "Found {} images:\n{}",
-                    image_count,
-                    images.join("\n")
-                ))])
+                format!("Found {} images:\n{}", image_count, images.join("\n"))
             }
         }
 
-        _ => Err(ToolError::InvalidParameters(format!(
-            "Invalid operation: {}. Valid operations are: 'extract_text', 'extract_images'",
-            operation
-        ))),
-    }
+        _ => {
+            return Err(ToolError::InvalidParameters(format!(
+                "Invalid operation: {}. Valid operations are: 'extract_text', 'extract_images'",
+                operation
+            )))
+        }
+    };
+
+    Ok(vec![Content::text(result)])
 }
 
 #[cfg(test)]
@@ -349,39 +342,10 @@ mod tests {
         assert!(!content.is_empty(), "Extracted text should not be empty");
         let text = content[0].as_text().unwrap();
         println!("Extracted text:\n{}", text);
+        assert!(text.contains("Page 1"), "Should contain page marker");
         assert!(
-            text.contains("This is a test PDF") || text.contains("PDF Metadata"),
-            "Should contain expected test content or metadata"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_url_text_extraction() {
-        // Skip this test if we're not online
-        // This is a simple test URL that should be stable
-        let test_url = "https://example.com";
-        let cache_dir = tempfile::tempdir().unwrap().into_path();
-
-        println!("Testing text extraction from URL: {}", test_url);
-
-        let result = pdf_tool(test_url, "extract_text", &cache_dir).await;
-
-        // If the test fails due to network issues, just skip it
-        if let Err(err) = &result {
-            if err.to_string().contains("network") || err.to_string().contains("connection") {
-                println!("Skipping URL extraction test due to network issues");
-                return;
-            }
-        }
-
-        assert!(result.is_ok(), "URL text extraction should succeed");
-        let content = result.unwrap();
-        assert!(!content.is_empty(), "Extracted text should not be empty");
-        let text = content[0].as_text().unwrap();
-        println!("Extracted text from URL:\n{}", text);
-        assert!(
-            text.contains("Example Domain"),
-            "Should contain expected content from example.com"
+            text.contains("This is a test PDF"),
+            "Should contain expected test content"
         );
     }
 
@@ -433,29 +397,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_url_image_extraction_fails() {
-        // Test that image extraction from URLs is properly rejected
-        let test_url = "https://example.com";
-        let cache_dir = tempfile::tempdir().unwrap().into_path();
-
-        println!(
-            "Testing image extraction from URL (should fail): {}",
-            test_url
-        );
-
-        let result = pdf_tool(test_url, "extract_images", &cache_dir).await;
-        assert!(result.is_err(), "URL image extraction should fail");
-
-        let error = result.unwrap_err();
-        assert!(
-            error
-                .to_string()
-                .contains("Image extraction is not supported for URLs"),
-            "Should return the correct error message for URL image extraction"
-        );
-    }
-
-    #[tokio::test]
     async fn test_pdf_invalid_path() {
         let cache_dir = tempfile::tempdir().unwrap().into_path();
         let result = pdf_tool("nonexistent.pdf", "extract_text", &cache_dir).await;
@@ -477,66 +418,5 @@ mod tests {
         .await;
 
         assert!(result.is_err(), "Should fail with invalid operation");
-    }
-
-    #[tokio::test]
-    async fn test_large_pdf_text_extraction() {
-        let large_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/visa-rules-public.pdf");
-
-        // Skip test if the large PDF file doesn't exist (may not be committed to git)
-        if !large_pdf_path.exists() {
-            println!(
-                "Skipping large PDF test as file doesn't exist: {}",
-                large_pdf_path.display()
-            );
-            return;
-        }
-
-        let cache_dir = tempfile::tempdir().unwrap().into_path();
-
-        println!(
-            "Testing large text extraction from: {}",
-            large_pdf_path.display()
-        );
-
-        let result = pdf_tool(large_pdf_path.to_str().unwrap(), "extract_text", &cache_dir).await;
-
-        assert!(result.is_ok(), "Large PDF text extraction should succeed");
-        let content = result.unwrap();
-        assert!(!content.is_empty(), "Extracted text should not be empty");
-        let text = content[0].as_text().unwrap();
-
-        // Check if the text is large enough to be written to a file
-        if text.contains("Large text extracted from PDF") {
-            // For large PDFs, we should get the message about writing to a file
-            assert!(
-                text.contains("Text has been written to:"),
-                "Should indicate where text was written"
-            );
-
-            // Extract the file path from the output and verify it exists
-            let file_path = text
-                .lines()
-                .find(|line| line.contains("Text has been written to:"))
-                .and_then(|line| line.split(": ").nth(1))
-                .expect("Should have a valid file path");
-
-            println!("Verifying text file exists: {}", file_path);
-            assert!(PathBuf::from(file_path).exists(), "Text file should exist");
-
-            // Verify file contains actual content
-            let file_content =
-                fs::read_to_string(file_path).expect("Should be able to read text file");
-            assert!(!file_content.is_empty(), "Text file should not be empty");
-        } else {
-            // If the text is not written to a file, it should contain PDF content directly
-            assert!(
-                text.contains("PDF Metadata:"),
-                "Should contain PDF metadata"
-            );
-            // The text should not be empty (beyond just metadata)
-            assert!(text.len() > 100, "Should contain substantial text content");
-        }
     }
 }

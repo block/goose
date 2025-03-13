@@ -42,7 +42,6 @@ ignore = "0.4"
 lopdf = "0.35.0"
 docx-rs = "0.4.7"
 image = "0.24.9"
-extractous = "0.3.0"
 umya-spreadsheet = "2.2.3"
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
