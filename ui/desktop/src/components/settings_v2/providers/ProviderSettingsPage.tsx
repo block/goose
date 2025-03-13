@@ -5,7 +5,12 @@ import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
 
-export default function ProviderSettings({ onClose }: { onClose: () => void }) {
+interface ProviderSettingsProps {
+  onClose: () => void;
+  isOnboarding: boolean;
+}
+
+export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
   const { getProviders } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
@@ -66,7 +71,7 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
               ) : (
                 <ProviderGrid
                   providers={providers}
-                  isOnboarding={false}
+                  isOnboarding={isOnboarding}
                   refreshProviders={refreshProviders}
                 />
               )}
