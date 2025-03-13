@@ -109,10 +109,10 @@ To try out Goose, you can download Goose [here](https://block.github.io/goose/).
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/goose-ollama-local" />
   <meta property="og:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooselocalollama.png" />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goosing Around: Goose, But Make It Local With Ollama" />
   <meta name="twitter:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooselocalollama.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
 </head>
