@@ -12,7 +12,7 @@ use goose_cli::commands::session::handle_session_list;
 use goose_cli::logging::setup_logging;
 use goose_cli::session;
 use goose_cli::session::build_session;
-use std::io::{self, Read};
+use std::io::Read;
 use std::path::PathBuf;
 
 #[derive(Parser)]
