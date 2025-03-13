@@ -17,11 +17,15 @@ import type {
   UpsertConfigQuery,
   ConfigKeyQuery,
   ExtensionResponse,
-  ExtensionEntry,
   ProviderDetails,
   ExtensionQuery,
   ExtensionConfig,
 } from '../api/types.gen';
+
+// Define a local version that matches the structure of the imported one
+export type FixedExtensionEntry = ExtensionConfig & {
+  enabled: boolean;
+};
 
 // Initialize client configuration
 client.setConfig({
@@ -35,6 +39,7 @@ client.setConfig({
 interface ConfigContextType {
   config: ConfigResponse['config'];
   providersList: ProviderDetails[];
+  extensionsList: FixedExtensionEntry[];
   upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
@@ -43,7 +48,7 @@ interface ConfigContextType {
   toggleExtension: (name: string) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
-  getExtensions: (b: boolean) => Promise<ExtensionEntry[]>;
+  getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
 }
 
 interface ConfigProviderProps {
@@ -55,7 +60,7 @@ const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<ConfigResponse['config']>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
-  const [extensionsList, setExtensionsList] = useState<ExtensionEntry[]>([]);
+  const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
 
   useEffect(() => {
     // Load all configuration data and providers on mount
@@ -153,7 +158,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     return providersList;
   };
 
-  const getExtensions = async (forceRefresh = false): Promise<ExtensionEntry[]> => {
+  const getExtensions = async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
     if (forceRefresh || extensionsList.length === 0) {
       // If a refresh is forced, or we don't have providers yet
       const response = await apiGetExtensions();
@@ -169,6 +174,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     () => ({
       config,
       providersList,
+      extensionsList,
       upsert,
       read,
       remove,
@@ -179,7 +185,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       getProviders,
       getExtensions,
     }),
-    [config, providersList]
+    [config, providersList, extensionsList]
   ); // Functions don't need to be dependencies as they don't change
 
   return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
