@@ -3,23 +3,28 @@ use crate::agents::ExtensionConfig;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 pub const DEFAULT_EXTENSION: &str = "developer";
 pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct ExtensionEntry {
     pub enabled: bool,
     #[serde(flatten)]
     pub config: ExtensionConfig,
 }
 
+pub fn name_to_key(name: &str) -> String {
+    name.to_string()
+}
+
 /// Extension configuration management
 pub struct ExtensionManager;
 
 impl ExtensionManager {
-    /// Get the extension configuration if enabled
-    pub fn get_config(name: &str) -> Result<Option<ExtensionConfig>> {
+    /// Get the extension configuration if enabled -- uses key
+    pub fn get_config(key: &str) -> Result<Option<ExtensionConfig>> {
         let config = Config::global();
 
         // Try to get the extension entry
@@ -28,7 +33,7 @@ impl ExtensionManager {
             Err(super::ConfigError::NotFound(_)) => {
                 // Initialize with default developer extension
                 let defaults = HashMap::from([(
-                    DEFAULT_EXTENSION.to_string(),
+                    name_to_key(DEFAULT_EXTENSION), // Use key format for top-level key in config
                     ExtensionEntry {
                         enabled: true,
                         config: ExtensionConfig::Builtin {
@@ -43,7 +48,7 @@ impl ExtensionManager {
             Err(e) => return Err(e.into()),
         };
 
-        Ok(extensions.get(name).and_then(|entry| {
+        Ok(extensions.get(key).and_then(|entry| {
             if entry.enabled {
                 Some(entry.config.clone())
             } else {
@@ -60,33 +65,35 @@ impl ExtensionManager {
             .get_param("extensions")
             .unwrap_or_else(|_| HashMap::new());
 
-        extensions.insert(entry.config.name().parse()?, entry);
+        let key = entry.config.key();
+
+        extensions.insert(key, entry);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
     }
 
-    /// Remove an extension configuration
-    pub fn remove(name: &str) -> Result<()> {
+    /// Remove an extension configuration -- uses the key
+    pub fn remove(key: &str) -> Result<()> {
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> = config
             .get_param("extensions")
             .unwrap_or_else(|_| HashMap::new());
 
-        extensions.remove(name);
+        extensions.remove(key);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
     }
 
-    /// Enable or disable an extension
-    pub fn set_enabled(name: &str, enabled: bool) -> Result<()> {
+    /// Enable or disable an extension -- uses key
+    pub fn set_enabled(key: &str, enabled: bool) -> Result<()> {
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> = config
             .get_param("extensions")
             .unwrap_or_else(|_| HashMap::new());
 
-        if let Some(entry) = extensions.get_mut(name) {
+        if let Some(entry) = extensions.get_mut(key) {
             entry.enabled = enabled;
             config.set_param("extensions", serde_json::to_value(extensions)?)?;
         }
@@ -109,16 +116,17 @@ impl ExtensionManager {
             .unwrap_or_else(|_| get_keys(Default::default())))
     }
 
-    /// Check if an extension is enabled
-    pub fn is_enabled(name: &str) -> Result<bool> {
+    /// Check if an extension is enabled - FIXED to use key
+    pub fn is_enabled(key: &str) -> Result<bool> {
         let config = Config::global();
         let extensions: HashMap<String, ExtensionEntry> = config
             .get_param("extensions")
             .unwrap_or_else(|_| HashMap::new());
 
-        Ok(extensions.get(name).map(|e| e.enabled).unwrap_or(false))
+        Ok(extensions.get(key).map(|e| e.enabled).unwrap_or(false))
     }
 }
+
 fn get_keys(entries: HashMap<String, ExtensionEntry>) -> Vec<String> {
     entries.into_keys().collect()
 }

@@ -1,6 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::config::extensions::name_to_key;
 use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
@@ -387,7 +388,10 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
-        ExtensionManager::set_enabled(name, selected.iter().any(|s| s.as_str() == name))?;
+        ExtensionManager::set_enabled(
+            &name_to_key(name),
+            selected.iter().any(|s| s.as_str() == name),
+        )?;
     }
 
     cliclack::outro("Extension settings updated successfully")?;
@@ -638,10 +642,17 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    // Filter out only disabled extensions
+    let disabled_extensions: Vec<_> = extensions
+        .iter()
+        .filter(|entry| !entry.enabled)
+        .map(|entry| (entry.config.name().to_string(), entry.enabled))
+        .collect();
+
     let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions - use \"space\" to toggle and \"enter\" to submit)")
         .required(false)
         .items(
-            &extension_status
+            &disabled_extensions
                 .iter()
                 .filter(|(_, enabled)| !enabled)
                 .map(|(name, _)| (name, name.as_str(), ""))
@@ -650,7 +661,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(name)?;
+        ExtensionManager::remove(&name_to_key(name))?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 

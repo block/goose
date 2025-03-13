@@ -6,7 +6,7 @@ import { useConfig } from '../ConfigContext';
 import { Button } from '../ui/button';
 import { Plus } from 'lucide-react';
 import { Gear } from '../icons/Gear';
-import ExtensionsSection from './ExtensionsSection';
+import ExtensionsSection from './extensions/ExtensionsSection';
 
 interface ModelOption {
   id: string;
