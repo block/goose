@@ -266,6 +266,14 @@ impl GoogleDriveRouter {
                   "path": {
                       "type": "string",
                       "description": "Path to the file to upload. Mutually exclusive with body.",
+                  },
+                  "parent_id": {
+                      "type": "string",
+                      "description": "ID of the parent folder in which to create the file. (default: creates files in the root of 'My Drive')",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "mimeType"],
@@ -288,6 +296,14 @@ impl GoogleDriveRouter {
                   "body": {
                       "type": "string",
                       "description": "Markdown text of the file to create.",
+                  },
+                  "parent_id": {
+                      "type": "string",
+                      "description": "ID of the parent folder in which to create the file. (default: creates files in the root of 'My Drive')",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "body"],
@@ -310,6 +326,14 @@ impl GoogleDriveRouter {
                   "body": {
                       "type": "string",
                       "description": "CSV text of the file to create.",
+                  },
+                  "parent_id": {
+                      "type": "string",
+                      "description": "ID of the parent folder in which to create the file. (default: creates files in the root of 'My Drive')",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "body"],
@@ -332,6 +356,14 @@ impl GoogleDriveRouter {
                   "path": {
                       "type": "string",
                       "description": "Path to a PowerPoint file to upload.",
+                  },
+                  "parent_id": {
+                      "type": "string",
+                      "description": "ID of the parent folder in which to create the file. (default: creates files in the root of 'My Drive')",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "path"],
@@ -362,6 +394,10 @@ impl GoogleDriveRouter {
                   "path": {
                       "type": "string",
                       "description": "Path to a local file to use to update the Google Drive file. Mutually exclusive with body.",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["fileId", "mimeType"],
@@ -384,6 +420,10 @@ impl GoogleDriveRouter {
                   "body": {
                       "type": "string",
                       "description": "Complete markdown text of the file to update.",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["fileId", "body"],
@@ -406,6 +446,10 @@ impl GoogleDriveRouter {
                   "body": {
                       "type": "string",
                       "description": "Complete CSV text of the updated file.",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["fileId", "body"],
@@ -428,6 +472,10 @@ impl GoogleDriveRouter {
                   "path": {
                       "type": "string",
                       "description": "Path to a PowerPoint file to upload to replace the existing file.",
+                  },
+                  "allow_shared_drives": {
+                      "type": "boolean",
+                      "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["fileId", "path"],
@@ -1031,9 +1079,15 @@ impl GoogleDriveRouter {
         content: Box<dyn ReadSeek>,
         source_mime_type: &str,
         target_mime_type: &str,
+        parent: Option<&str>,
+        support_all_drives: bool,
     ) -> Result<Vec<Content>, ToolError> {
         let mut req = File::default();
         req.mime_type = Some(target_mime_type.to_string());
+        if let Some(p) = parent {
+            req.parents = Some(vec![p.to_string()]);
+        }
+
         let builder = self.drive.files();
         let result = match operation {
             FileOperation::Create { ref name } => {
@@ -1041,8 +1095,7 @@ impl GoogleDriveRouter {
                 builder
                     .create(req)
                     .use_content_as_indexable_text(true)
-                    .supports_team_drives(true)
-                    .supports_all_drives(true)
+                    .supports_all_drives(support_all_drives)
                     .upload(content, source_mime_type.parse().unwrap())
                     .await
             }
@@ -1050,8 +1103,7 @@ impl GoogleDriveRouter {
                 builder
                     .update(req, &file_id)
                     .use_content_as_indexable_text(true)
-                    .supports_team_drives(true)
-                    .supports_all_drives(true)
+                    .supports_all_drives(support_all_drives)
                     .upload(content, source_mime_type.parse().unwrap())
                     .await
             }
@@ -1100,6 +1152,11 @@ impl GoogleDriveRouter {
                 )
             })?),
         };
+        let parent = params.get("parent").and_then(|q| q.as_str());
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1107,6 +1164,8 @@ impl GoogleDriveRouter {
             reader,
             mime_type,
             mime_type,
+            parent,
+            support_all_drives,
         )
         .await
     }
@@ -1128,6 +1187,11 @@ impl GoogleDriveRouter {
                 ))?;
         let source_mime_type = "text/markdown";
         let target_mime_type = "application/vnd.google-apps.document";
+        let parent = params.get("parent").and_then(|q| q.as_str());
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
         self.upload_to_drive(
             FileOperation::Create {
@@ -1136,6 +1200,8 @@ impl GoogleDriveRouter {
             cursor,
             source_mime_type,
             target_mime_type,
+            parent,
+            support_all_drives,
         )
         .await
     }
@@ -1157,6 +1223,11 @@ impl GoogleDriveRouter {
                 ))?;
         let source_mime_type = "text/csv";
         let target_mime_type = "application/vnd.google-apps.spreadsheet";
+        let parent = params.get("parent").and_then(|q| q.as_str());
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
         self.upload_to_drive(
             FileOperation::Create {
@@ -1165,6 +1236,8 @@ impl GoogleDriveRouter {
             cursor,
             source_mime_type,
             target_mime_type,
+            parent,
+            support_all_drives,
         )
         .await
     }
@@ -1192,6 +1265,11 @@ impl GoogleDriveRouter {
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         let target_mime_type = "application/vnd.google-apps.presentation";
+        let parent = params.get("parent").and_then(|q| q.as_str());
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1199,6 +1277,8 @@ impl GoogleDriveRouter {
             reader,
             source_mime_type,
             target_mime_type,
+            parent,
+            support_all_drives,
         )
         .await
     }
@@ -1233,6 +1313,11 @@ impl GoogleDriveRouter {
                 )
             })?),
         };
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
+
         self.upload_to_drive(
             FileOperation::Update {
                 file_id: file_id.to_string(),
@@ -1240,6 +1325,8 @@ impl GoogleDriveRouter {
             reader,
             mime_type,
             mime_type,
+            None,
+            support_all_drives,
         )
         .await
     }
@@ -1261,6 +1348,10 @@ impl GoogleDriveRouter {
                 ))?;
         let source_mime_type = "text/markdown";
         let target_mime_type = "application/vnd.google-apps.document";
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
         self.upload_to_drive(
             FileOperation::Update {
@@ -1269,6 +1360,8 @@ impl GoogleDriveRouter {
             cursor,
             source_mime_type,
             target_mime_type,
+            None,
+            support_all_drives,
         )
         .await
     }
@@ -1290,6 +1383,10 @@ impl GoogleDriveRouter {
                 ))?;
         let source_mime_type = "text/csv";
         let target_mime_type = "application/vnd.google-apps.spreadsheet";
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
         self.upload_to_drive(
             FileOperation::Update {
@@ -1298,6 +1395,8 @@ impl GoogleDriveRouter {
             cursor,
             source_mime_type,
             target_mime_type,
+            None,
+            support_all_drives,
         )
         .await
     }
@@ -1325,6 +1424,10 @@ impl GoogleDriveRouter {
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         let target_mime_type = "application/vnd.google-apps.presentation";
+        let support_all_drives = params
+            .get("supportAllDrives")
+            .and_then(|q| q.as_bool())
+            .unwrap_or_default();
         self.upload_to_drive(
             FileOperation::Update {
                 file_id: file_id.to_string(),
@@ -1332,6 +1435,8 @@ impl GoogleDriveRouter {
             reader,
             source_mime_type,
             target_mime_type,
+            None,
+            support_all_drives,
         )
         .await
     }
