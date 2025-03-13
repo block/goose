@@ -38,7 +38,7 @@ export type View =
   | 'moreModels'
   | 'configureProviders'
   | 'configPage'
-  | 'alphaConfigureProviders'
+  | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions';
 
@@ -281,6 +281,16 @@ export default function App() {
               }}
             />
           )}
+          {view === 'welcome' &&
+            (process.env.ALPHA ? (
+              <ProviderSettings onClose={() => setView('chat')} isOnboarding={false} />
+            ) : (
+              <WelcomeView
+                onSubmit={() => {
+                  setView('chat');
+                }}
+              />
+            ))}
           {view === 'settings' &&
             (process.env.ALPHA ? (
               <SettingsViewV2
@@ -314,7 +324,7 @@ export default function App() {
               }}
             />
           )}
-          {view === 'alphaConfigureProviders' && (
+          {view === 'ConfigureProviders' && (
             <ProviderSettings onClose={() => setView('chat')} isOnboarding={false} />
           )}
           {view === 'chat' && !isLoadingSession && (
