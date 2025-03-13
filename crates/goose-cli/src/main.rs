@@ -140,9 +140,7 @@ enum Command {
     },
 
     /// Execute commands from an instruction file
-    #[command(
-        about = "Execute commands from an instruction file or stdin. Use no arguments for stdin."
-    )]
+    #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
         /// Path to instruction file containing commands
         #[arg(
@@ -362,25 +360,26 @@ async fn main() -> Result<()> {
             extension,
             builtin,
         }) => {
-            fn read_stdin() -> String {
-                let mut buffer = String::new();
-                std::io::stdin()
-                    .read_to_string(&mut buffer)
-                    .expect("Failed to read from stdin");
-                buffer
-            }
-
             let contents = match (instructions, input_text) {
-                (Some(file), _) if file == "-" => read_stdin(),
+                (Some(file), _) if file == "-" => {
+                    let mut stdin = String::new();
+                    std::io::stdin()
+                        .read_to_string(&mut stdin)
+                        .expect("Failed to read from stdin");
+                    stdin
+                }
                 (Some(file), _) => std::fs::read_to_string(&file).unwrap_or_else(|err| {
                     eprintln!(
-                        "Instruction file not found — did you mean to use --text?\n{}",
+                        "Instruction file not found — did you mean to use goose run --text?\n{}",
                         err
                     );
                     std::process::exit(1);
                 }),
                 (None, Some(text)) => text,
-                (None, None) => read_stdin(),
+                (None, None) => {
+                    eprintln!("Error: Must provide either --instructions (-i) or --text (-t). Use -i - for stdin.");
+                    std::process::exit(1);
+                }
             };
 
             let mut session = build_session(
