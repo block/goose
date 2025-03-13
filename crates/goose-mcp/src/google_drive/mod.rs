@@ -69,7 +69,7 @@ impl InstalledFlowDelegate for LocalhostBrowserDelegate {
 }
 
 #[derive(Debug)]
-pub enum FileOperation {
+enum FileOperation {
     Create { name: String },
     Update { file_id: String },
 }
