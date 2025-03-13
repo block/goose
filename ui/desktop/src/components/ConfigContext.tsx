@@ -5,10 +5,8 @@ import {
   removeConfig,
   upsertConfig,
   getExtensions as apiGetExtensions,
-  toggleExtension as apiToggleExtension,
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
-  updateExtension as apiUpdateExtension,
   providers,
 } from '../api';
 import { client } from '../api/client.gen';
@@ -44,7 +42,6 @@ interface ConfigContextType {
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
   addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
-  updateExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
   toggleExtension: (name: string) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
@@ -133,18 +130,15 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     await reloadConfig();
   };
 
-  const updateExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
-    const query: ExtensionQuery = { name, config, enabled };
-    await apiUpdateExtension({
-      body: query,
-      path: { name: name },
-    });
-    await reloadConfig();
-  };
-
   const toggleExtension = async (name: string) => {
-    await apiToggleExtension({ path: { name: name } });
-    await reloadConfig();
+    // Get current extensions to find the one we need to toggle
+    const exts = await getExtensions(true);
+    const extension = exts.find((ext) => ext.name === name);
+
+    if (extension) {
+      // Toggle the enabled state and update using addExtension
+      await addExtension(name, extension, !extension.enabled);
+    }
   };
 
   const getProviders = async (forceRefresh = false): Promise<ProviderDetails[]> => {
@@ -179,7 +173,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       read,
       remove,
       addExtension,
-      updateExtension,
       removeExtension,
       toggleExtension,
       getProviders,

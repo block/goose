@@ -12,7 +12,7 @@ import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles'
 import { ExtensionConfig } from '../../../api/types.gen';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, updateExtension, addExtension } = useConfig();
+  const { toggleExtension, getExtensions, addExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
@@ -56,8 +56,9 @@ export default function ExtensionsSection() {
     if (config.type === 'sse') {
       return `SSE extension${config.uri ? ` (${config.uri})` : ''}`;
     }
-    return `${config.type.toUpperCase()} extension`;
+    return `Other extension`;
   };
+
   const fetchExtensions = async () => {
     setLoading(true);
     try {
@@ -241,7 +242,8 @@ export default function ExtensionsSection() {
     }
 
     try {
-      await updateExtension(selectedExtension.name, extensionConfig, formData.enabled);
+      // CHANGE: Use addExtension instead of updateExtension
+      await addExtension(formData.name, extensionConfig, formData.enabled);
       handleModalClose();
       fetchExtensions(); // Refresh the list after updating
     } catch (error) {

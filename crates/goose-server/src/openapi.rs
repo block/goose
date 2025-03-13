@@ -15,9 +15,7 @@ use goose::providers::base::ProviderMetadata;
         super::routes::config_management::read_config,
         super::routes::config_management::add_extension,
         super::routes::config_management::remove_extension,
-        super::routes::config_management::toggle_extension,
         super::routes::config_management::get_extensions,
-        super::routes::config_management::update_extension,
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers
     ),
