@@ -7,7 +7,7 @@ use token_storage::{CredentialsManager, KeychainTokenStorage};
 
 use std::io::Cursor;
 use std::sync::Arc;
-use std::{env, fs, future::Future, io::Write, path::Path, pin::Pin};
+use std::{env, fs, future::Future, path::Path, pin::Pin};
 
 use mcp_core::content::Content;
 use mcp_core::{
@@ -517,6 +517,28 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let comment_list_tool = Tool::new(
+            "comment_list".to_string(),
+            indoc! {r#"
+                List comments for a file in google drive by id, given an input file id.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file to list comments for.",
+                },
+                "pageSize": {
+                    "type": "number",
+                    "description": "How many items to return from the search query, default 10, max 100",
+                }
+              },
+              "required": ["fileId"],
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -598,6 +620,7 @@ impl GoogleDriveRouter {
                 update_sheets_tool,
                 update_slides_tool,
                 sheets_tool,
+                comment_list_tool,
             ],
             instructions,
             drive,
@@ -1441,12 +1464,71 @@ impl GoogleDriveRouter {
         .await
     }
 
+    async fn comment_list(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+
+        // extract pageSize, and convert it to an i32, default to 10
+        let page_size: i32 = params
+            .get("pageSize")
+            .map(|s| {
+                s.as_i64()
+                    .and_then(|n| i32::try_from(n).ok())
+                    .ok_or_else(|| ToolError::InvalidParameters(format!("Invalid pageSize: {}", s)))
+                    .and_then(|n| {
+                        if (0..=100).contains(&n) {
+                            Ok(n)
+                        } else {
+                            Err(ToolError::InvalidParameters(format!(
+                                "pageSize must be between 0 and 100, got {}",
+                                n
+                            )))
+                        }
+                    })
+            })
+            .unwrap_or(Ok(10))?;
+
         let result = self
             .drive
+            .comments()
+            .list(file_id)
+            .page_size(page_size)
+            .doit()
             .await;
+
         match result {
             Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to execute google drive comment list, {}.",
+                e
             ))),
+            Ok(r) => {
+                let content =
+                    r.1.comments
+                        .map(|comments| {
+                            comments.into_iter().map(|c| {
+                                format!(
+                                    "Author:{:?} Content: {} (created time: {}) (anchor: {}) (resolved: {}) (id: {})",
+                                    c.author.unwrap_or_default(),
+                                    c.content.unwrap_or_default(),
+                                    c.created_time.unwrap_or_default(),
+                                    c.anchor.unwrap_or_default(),
+                                    c.resolved.unwrap_or_default(),
+                                    c.id.unwrap_or_default()
+                                )
+                            })
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                Ok(vec![Content::text(content.to_string())])
+            }
         }
     }
 }
@@ -1491,6 +1573,7 @@ impl Router for GoogleDriveRouter {
                 "update_sheets" => this.update_sheets(arguments).await,
                 "update_slides" => this.update_slides(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
+                "comment_list" => this.comment_list(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
