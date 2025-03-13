@@ -276,10 +276,7 @@ export default function App() {
         <div>
           {view === 'welcome' &&
             (process.env.ALPHA ? (
-              <>
-                {console.log('showing alpha page')}
-                <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
-              </>
+              <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
             ) : (
               <WelcomeView
                 onSubmit={() => {

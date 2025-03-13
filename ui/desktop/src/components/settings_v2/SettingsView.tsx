@@ -108,7 +108,7 @@ export default function SettingsView({
                     <Button
                       className="flex items-center gap-2 flex-1 justify-center text-textSubtle border-standard bg-grey-60 hover:bg-subtle"
                       onClick={() => {
-                        setView('alphaConfigureProviders');
+                        setView('ConfigureProviders');
                       }}
                     >
                       <Sliders className="h-4 w-4 rotate-90" />
