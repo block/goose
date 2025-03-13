@@ -74,16 +74,13 @@ impl ExtensionManager {
 
     /// Remove an extension configuration -- uses the key
     pub fn remove(key: &str) -> Result<()> {
-        println!("removing extension {}", key);
         let config = Config::global();
 
         let mut extensions: HashMap<String, ExtensionEntry> = config
             .get_param("extensions")
             .unwrap_or_else(|_| HashMap::new());
 
-        println!("extensions before: {:?}", extensions);
         extensions.remove(key);
-        println!("extensions after: {:?}", extensions);
         config.set_param("extensions", serde_json::to_value(extensions)?)?;
         Ok(())
     }
