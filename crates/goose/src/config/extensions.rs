@@ -16,7 +16,7 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    format!("_{}", name)
+    format!("{}", name)
 }
 
 /// Extension configuration management
