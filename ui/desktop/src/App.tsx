@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { addExtensionFromDeepLink } from './extensions';
 import { getStoredModel } from './utils/providerUtils';
 import { getStoredProvider, initializeSystem } from './utils/providerUtils';
@@ -24,6 +24,11 @@ import ProviderSettings from './components/settings_v2/providers/ProviderSetting
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
+import { useConfig } from './components/ConfigContext';
+import {
+  initializeBuiltInExtensions,
+  syncBuiltInExtensions,
+} from './components/settings_v2/extensions/LoadBuiltins';
 
 // Views and their options
 export type View =
@@ -57,6 +62,41 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
+  const { extensionsList, addExtension } = useConfig();
+  const initAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    // Skip if feature flag is not enabled
+    if (!process.env.ALPHA) {
+      return;
+    }
+
+    const setupExtensions = async () => {
+      try {
+        // For first-time users (no extensions yet) or returning users
+        if (extensionsList.length === 0) {
+          // First-time user case
+          if (!initAttemptedRef.current) {
+            console.log('First-time setup: Adding all built-in extensions...');
+            await initializeBuiltInExtensions(addExtension);
+            initAttemptedRef.current = true;
+          }
+        } else {
+          // Returning user case
+          if (!initAttemptedRef.current) {
+            console.log('Checking for missing built-in extensions...');
+            await syncBuiltInExtensions(extensionsList, addExtension);
+            initAttemptedRef.current = true;
+          }
+        }
+      } catch (error) {
+        console.error('Error setting up extensions:', error);
+      }
+    };
+
+    setupExtensions();
+  }, [extensionsList, addExtension]);
+
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
 

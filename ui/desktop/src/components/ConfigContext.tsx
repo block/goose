@@ -118,6 +118,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const addExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
+    console.log('trying to add this exstension', name, config, enabled);
     const query: ExtensionQuery = { name, config, enabled };
     await apiAddExtension({
       body: query,

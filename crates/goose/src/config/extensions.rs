@@ -16,7 +16,7 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.to_string()
+    name.to_lowercase()
 }
 
 /// Extension configuration management
