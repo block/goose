@@ -72,7 +72,7 @@
         },
         "responses": {
           "200": {
-            "description": "Extension added successfully",
+            "description": "Extension added or updated successfully",
             "content": {
               "text/plain": {
                 "schema": {
@@ -91,50 +91,6 @@
       }
     },
     "/config/extensions/{name}": {
-      "put": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "update_extension",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExtensionQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extension updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Extension not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
       "delete": {
         "tags": [
           "super::routes::config_management"
@@ -286,42 +242,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/extensions/{name}/toggle": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "toggle_extension",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Extension toggled successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Extension not found"
           },
           "500": {
             "description": "Internal server error"
