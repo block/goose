@@ -144,7 +144,7 @@ goose mcp <name>
 
 ### run [options]
 
-Execute commands from an instruction file or stdin
+Execute commands from an instruction file or stdin. Check out the [full guide](/docs/guides/running-tasks) for more info.
 
 **Options:**
 

@@ -9,7 +9,7 @@ When working with the Goose CLI, you can pass files and instructions to the `goo
 
 The `goose run` command starts a new session, begins executing using any arguments provided and exits the session automatically once the task is complete. 
 
-There are multiple ways to run tasks with Goose - see a list of `goose run` options [here](/docs/guides/goose-cli-commands.md#run-options):
+There are multiple ways to run tasks with Goose; check out the [list of options](/docs/guides/goose-cli-commands.md#run-options).
 
 ### Text in the command
 ```bash
