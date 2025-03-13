@@ -1,6 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
+use goose::config::extensions::name_to_key;
 use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
@@ -387,7 +388,10 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
-        ExtensionManager::set_enabled(name, selected.iter().any(|s| s.as_str() == name))?;
+        ExtensionManager::set_enabled(
+            &name_to_key(name),
+            selected.iter().any(|s| s.as_str() == name),
+        )?;
     }
 
     cliclack::outro("Extension settings updated successfully")?;
@@ -638,10 +642,17 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    // Filter out only disabled extensions
+    let disabled_extensions: Vec<_> = extensions
+        .iter()
+        .filter(|entry| !entry.enabled)
+        .map(|entry| (entry.config.name().to_string(), entry.enabled))
+        .collect();
+
     let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions - use \"space\" to toggle and \"enter\" to submit)")
         .required(false)
         .items(
-            &extension_status
+            &disabled_extensions
                 .iter()
                 .filter(|(_, enabled)| !enabled)
                 .map(|(name, _)| (name, name.as_str(), ""))
@@ -650,7 +661,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(name)?;
+        ExtensionManager::remove(&name_to_key(name))?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
@@ -708,8 +719,8 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
             "All tools, extensions and file modificatio will require human approval"
         )
         .item(
-            "write_approve",
-            "Write Approve Mode",
+            "smart_approve",
+            "Smart Approve Mode",
             "Editing, creating, deleting files and using extensions will require human approval"
         )
         .item(
@@ -728,9 +739,9 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
             config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
             cliclack::outro("Set to Approve Mode - all tools and modifications require approval")?;
         }
-        "write_approve" => {
-            config.set_param("GOOSE_MODE", Value::String("write_approve".to_string()))?;
-            cliclack::outro("Set to Write Approve Mode - modifications require approval")?;
+        "smart_approve" => {
+            config.set_param("GOOSE_MODE", Value::String("smart_approve".to_string()))?;
+            cliclack::outro("Set to Smart Approve Mode - modifications require approval")?;
         }
         "chat" => {
             config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;

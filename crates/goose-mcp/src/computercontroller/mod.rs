@@ -19,6 +19,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+mod document_tool;
 mod docx_tool;
 mod pdf_tool;
 mod presentation_tool;
@@ -67,10 +68,10 @@ impl ComputerControllerRouter {
             }),
         );
 
-        let web_scrape_tool = Tool::new(
-            "web_scrape",
+        let web_fetch_tool = Tool::new(
+            "web_fetch",
             indoc! {r#"
-                Fetch and save content from a web page. The content can be saved as:
+                Fetch and save content from a web page using http(s). The content can be saved as:
                 - text (for HTML pages)
                 - json (for API responses)
                 - binary (for images and other files)
@@ -122,6 +123,7 @@ impl ComputerControllerRouter {
                 - File Operations: Organize files/folders
                 - Integration: Calendar, reminders, messages
                 - Data: Interact with spreadsheets and documents
+                - Text: extract content from many file formats
 
                 Can be combined with screenshot tool for visual task assistance.
             "#},
@@ -242,10 +244,10 @@ impl ComputerControllerRouter {
             indoc! {r#"
                 Process PDF files to extract text and images.
                 Supports operations:
-                - extract_text: Extract all text content from the PDF
+                - extract_text: Extract all text content from the PDF (file or url to file)
                 - extract_images: Extract and save embedded images to PNG files
 
-                Use this when there is a .pdf file or files that need to be processed.
+                Use this when there is a .pdf file or files that need to be processed.                
             "#},
             json!({
                 "type": "object",
@@ -253,12 +255,80 @@ impl ComputerControllerRouter {
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the PDF file"
+                        "description": "Path to the PDF file or URL to pdf"
                     },
                     "operation": {
                         "type": "string",
                         "enum": ["extract_text", "extract_images"],
                         "description": "Operation to perform on the PDF"
+                    }
+                }
+            }),
+        );
+
+        // Check if Tesseract OCR is installed
+        let has_tesseract = match std::env::consts::OS {
+            "macos" | "linux" => {
+                let output = std::process::Command::new("which")
+                    .arg("tesseract")
+                    .output()
+                    .map(|output| output.status.success())
+                    .unwrap_or(false);
+                output
+            }
+            "windows" => {
+                let output = std::process::Command::new("where")
+                    .arg("tesseract")
+                    .output()
+                    .map(|output| output.status.success())
+                    .unwrap_or(false);
+                output
+            }
+            _ => false,
+        };
+
+        // Conditionally include OCR information in the description
+        let image_formats_desc = if has_tesseract {
+            "This will also extract any embedded text via OCR for the following: png, jpeg, tiff, bmp, gif, ico, psd, svg and pdf (use this if there are embedded images in PDF)"
+        } else {
+            "metadata only: png, jpeg, tiff, bmp, gif, ico, psd, svg (metadata only, OCR not available as tesseract not installed)"
+        };
+
+        let document_tool = Tool::new(
+            "document_tool",
+            formatdoc! {r#"
+                Extract plain text from various file formats. Use this when you see a file extension of the following, 
+                OR a url to treat as a document to get text from.
+                Formats: 
+                    doc, docx, ppt, pptx, xls, xlsx, rtf, odt, ods, odp
+                        (consider using docx and xlsx tools for those first)
+                    csv, tsv
+                        (when not handled by other tools)
+                    html, xml,epub, txt
+
+                    {image_formats_desc}
+                    E-Mail: eml, msg, mbox, pst (extracts content, headers, attachments)                
+
+                Supports operations:
+                - get_text: Extract all text content from local document files
+                - get_text_url: Extract all text content from a document at a URL
+
+                Use this for general text extraction from misc document types.
+            "#,
+                image_formats_desc = image_formats_desc
+            },
+            json!({
+                "type": "object",
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the document file or URL to load content from"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "enum": ["get_text", "get_text_url"],
+                        "description": "Operation to perform on the document"
                     }
                 }
             }),
@@ -564,14 +634,13 @@ impl ComputerControllerRouter {
 
             {os_instructions}
 
-            web_search
-              - Search the web using DuckDuckGo's API for general topics or keywords
-            web_scrape
-              - Fetch content from html websites and APIs
-              - Save as text, JSON, or binary files
-              - Content is cached locally for later use
-              - This is not optimised for complex websites, so don't use this as the first tool.
-            cache
+            This extension has many tools to automate, for example:
+            
+            web_search, web_fetch, quick_script, computer_control for automation, 
+            pdf_tool (pdfs text), 
+            document_tool (many doc types and URLs), docx_tool, xlsx_tool, make_presentation
+
+            cache of content:
               - Manage your cached files
               - List, view, delete files
               - Clear all cached data
@@ -586,11 +655,12 @@ impl ComputerControllerRouter {
         Self {
             tools: vec![
                 web_search_tool,
-                web_scrape_tool,
+                web_fetch_tool,
                 quick_script_tool,
                 computer_control_tool,
                 cache_tool,
                 pdf_tool,
+                document_tool,
                 docx_tool,
                 xlsx_tool,
                 make_presentation_tool,
@@ -685,7 +755,7 @@ impl ComputerControllerRouter {
         ))])
     }
 
-    async fn web_scrape(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn web_fetch(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let url = params
             .get("url")
             .and_then(|v| v.as_str())
@@ -1082,6 +1152,21 @@ impl ComputerControllerRouter {
         crate::computercontroller::pdf_tool::pdf_tool(path, operation, &self.cache_dir).await
     }
 
+    async fn document_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let operation = params
+            .get("operation")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'operation' parameter".into()))?;
+
+        crate::computercontroller::document_tool::document_tool(path, operation, &self.cache_dir)
+            .await
+    }
+
     async fn cache(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let command = params
             .get("command")
@@ -1189,11 +1274,12 @@ impl Router for ComputerControllerRouter {
         Box::pin(async move {
             match tool_name.as_str() {
                 "web_search" => this.web_search(arguments).await,
-                "web_scrape" => this.web_scrape(arguments).await,
+                "web_fetch" => this.web_fetch(arguments).await,
                 "automation_script" => this.quick_script(arguments).await,
                 "computer_control" => this.computer_control(arguments).await,
                 "cache" => this.cache(arguments).await,
                 "pdf_tool" => this.pdf_tool(arguments).await,
+                "document_tool" => this.document_tool(arguments).await,
                 "docx_tool" => this.docx_tool(arguments).await,
                 "xlsx_tool" => this.xlsx_tool(arguments).await,
                 "make_presentation" => {

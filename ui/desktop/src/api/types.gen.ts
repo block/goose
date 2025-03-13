@@ -16,9 +16,55 @@ export type ConfigResponse = {
     config: {};
 };
 
-export type ExtensionQuery = {
-    config: unknown;
+export type Envs = {
+    [key: string]: string;
+};
+
+/**
+ * Represents the different types of MCP extensions that can be added to the manager
+ */
+export type ExtensionConfig = {
+    envs?: Envs;
+    /**
+     * The name used to identify this extension
+     */
     name: string;
+    timeout?: number | null;
+    type: 'sse';
+    uri: string;
+} | {
+    args: Array<string>;
+    cmd: string;
+    envs?: Envs;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    timeout?: number | null;
+    type: 'stdio';
+} | {
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    timeout?: number | null;
+    type: 'builtin';
+};
+
+export type ExtensionEntry = ExtensionConfig & {
+    type?: 'ExtensionEntry';
+} & {
+    enabled: boolean;
+};
+
+export type ExtensionQuery = {
+    config: ExtensionConfig;
+    enabled: boolean;
+    name: string;
+};
+
+export type ExtensionResponse = {
+    extensions: Array<ExtensionEntry>;
 };
 
 export type ProviderDetails = {
@@ -94,38 +140,34 @@ export type ReadAllConfigResponses = {
 
 export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
 
-export type RemoveExtensionData = {
-    body: ConfigKeyQuery;
+export type GetExtensionsData = {
+    body?: never;
     path?: never;
     query?: never;
-    url: '/config/extension';
+    url: '/config/extensions';
 };
 
-export type RemoveExtensionErrors = {
-    /**
-     * Extension not found
-     */
-    404: unknown;
+export type GetExtensionsErrors = {
     /**
      * Internal server error
      */
     500: unknown;
 };
 
-export type RemoveExtensionResponses = {
+export type GetExtensionsResponses = {
     /**
-     * Extension removed successfully
+     * All extensions retrieved successfully
      */
-    200: string;
+    200: ExtensionResponse;
 };
 
-export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
+export type GetExtensionsResponse = GetExtensionsResponses[keyof GetExtensionsResponses];
 
 export type AddExtensionData = {
     body: ExtensionQuery;
     path?: never;
     query?: never;
-    url: '/config/extension';
+    url: '/config/extensions';
 };
 
 export type AddExtensionErrors = {
@@ -148,11 +190,42 @@ export type AddExtensionResponses = {
 
 export type AddExtensionResponse = AddExtensionResponses[keyof AddExtensionResponses];
 
+export type RemoveExtensionData = {
+    body?: never;
+    path: {
+        name: string;
+    };
+    query?: never;
+    url: '/config/extensions/{name}';
+};
+
+export type RemoveExtensionErrors = {
+    /**
+     * Extension not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RemoveExtensionResponses = {
+    /**
+     * Extension removed successfully
+     */
+    200: string;
+};
+
+export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
+
 export type UpdateExtensionData = {
     body: ExtensionQuery;
-    path?: never;
+    path: {
+        name: string;
+    };
     query?: never;
-    url: '/config/extension';
+    url: '/config/extensions/{name}';
 };
 
 export type UpdateExtensionErrors = {
@@ -168,7 +241,7 @@ export type UpdateExtensionErrors = {
 
 export type UpdateExtensionResponses = {
     /**
-     * Extension configuration updated successfully
+     * Extension updated successfully
      */
     200: string;
 };
@@ -261,6 +334,35 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ToggleExtensionData = {
+    body?: never;
+    path: {
+        name: string;
+    };
+    query?: never;
+    url: '/extensions/{name}/toggle';
+};
+
+export type ToggleExtensionErrors = {
+    /**
+     * Extension not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ToggleExtensionResponses = {
+    /**
+     * Extension toggled successfully
+     */
+    200: string;
+};
+
+export type ToggleExtensionResponse = ToggleExtensionResponses[keyof ToggleExtensionResponses];
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

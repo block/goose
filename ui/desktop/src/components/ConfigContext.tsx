@@ -4,6 +4,8 @@ import {
   readConfig,
   removeConfig,
   upsertConfig,
+  getExtensions as apiGetExtensions,
+  toggleExtension as apiToggleExtension,
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
   updateExtension as apiUpdateExtension,
@@ -14,8 +16,11 @@ import type {
   ConfigResponse,
   UpsertConfigQuery,
   ConfigKeyQuery,
-  ExtensionQuery,
+  ExtensionResponse,
+  ExtensionEntry,
   ProviderDetails,
+  ExtensionQuery,
+  ExtensionConfig,
 } from '../api/types.gen';
 
 // Initialize client configuration
@@ -33,10 +38,12 @@ interface ConfigContextType {
   upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
-  addExtension: (name: string, config: unknown) => Promise<void>;
-  updateExtension: (name: string, config: unknown) => Promise<void>;
+  addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+  updateExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+  toggleExtension: (name: string) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
+  getExtensions: (b: boolean) => Promise<ExtensionEntry[]>
 }
 
 interface ConfigProviderProps {
@@ -48,6 +55,7 @@ const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<ConfigResponse['config']>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
+  const [extensionsList, setExtensionsList] = useState<ExtensionEntry[]>([]);
 
   useEffect(() => {
     // Load all configuration data and providers on mount
@@ -63,6 +71,15 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
+
+      // Load extensions
+      try {
+        const extensionsResponse = await apiGetExtensions()
+        setExtensionsList(extensionsResponse.data.extensions)
+      } catch (error) {
+        console.error('Failed to load extensions:', error)
+      }
+
     })();
   }, []);
 
@@ -99,8 +116,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     await reloadConfig();
   };
 
-  const addExtension = async (name: string, config: unknown) => {
-    const query: ExtensionQuery = { name, config };
+  const addExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
+    const query: ExtensionQuery = { name, config, enabled };
     await apiAddExtension({
       body: query,
     });
@@ -108,18 +125,21 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const removeExtension = async (name: string) => {
-    const query: ConfigKeyQuery = { key: name, is_secret: false };
-    await apiRemoveExtension({
+    await apiRemoveExtension({path: {name: name}});
+    await reloadConfig();
+  };
+
+  const updateExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
+    const query: ExtensionQuery = { name, config, enabled };
+    await apiUpdateExtension({
       body: query,
+      path: {name: name}
     });
     await reloadConfig();
   };
 
-  const updateExtension = async (name: string, config: unknown) => {
-    const query: ExtensionQuery = { name, config };
-    await apiUpdateExtension({
-      body: query,
-    });
+  const toggleExtension = async (name: string) => {
+    await apiToggleExtension({path: {name: name}});
     await reloadConfig();
   };
 
@@ -134,6 +154,18 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     return providersList;
   };
 
+  const getExtensions = async (forceRefresh = false): Promise<ExtensionEntry[]> => {
+    if (forceRefresh || extensionsList.length === 0) {
+      // If a refresh is forced, or we don't have providers yet
+      const response = await apiGetExtensions();
+      const extensionResponse: ExtensionResponse = response.data
+      setExtensionsList(extensionResponse.extensions);
+      return extensionResponse.extensions;
+    }
+    // Otherwise return the cached providers
+    return extensionsList;
+  };
+
   const contextValue = useMemo(
     () => ({
       config,
@@ -144,7 +176,9 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       addExtension,
       updateExtension,
       removeExtension,
+      toggleExtension,
       getProviders,
+      getExtensions,
     }),
     [config, providersList]
   ); // Functions don't need to be dependencies as they don't change
