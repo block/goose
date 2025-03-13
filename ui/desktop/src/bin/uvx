@@ -79,8 +79,7 @@ if [ -n "${GOOSE_UV_REGISTRY:-}" ] && curl -s --head --fail "$GOOSE_UV_REGISTRY"
     export UV_INDEX_URL="$GOOSE_UV_REGISTRY"
     export UV_NATIVE_TLS=true
 else
-    log "GOOSE_UV_REGISTRY is either not set or not accessible. Falling back to default pip registry."
-    export UV_INDEX_URL="https://pypi.org/simple"
+    log "Neither GOOSE_UV_REGISTRY nor UV_INDEX_URL is set. Falling back to default configuration."
 fi
 
 # Final step: Execute uvx with passed arguments
