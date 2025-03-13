@@ -1,6 +1,6 @@
 ---
-title: Filesystem and Developer Extensions
-description: Add Filesystem MCP Servers as Goose Extensions
+title: Filesystem Extension
+description: Add Filesystem MCP Server as Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
@@ -8,10 +8,9 @@ import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 
-This tutorial covers how to add the built-in [Developer extension](/docs/tutorials/developer-mcp) and the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) in Goose, enabling powerful code analysis and file management. With these extensions, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
+This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a Goose extension, enabling powerful code analysis and file management. With this extension, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 
 :::tip TLDR
-
 **Command**
 ```sh
 npx -y @modelcontextprotocol/server-filesystem </path/to/allowed/directory>
@@ -27,9 +26,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
-
-  <Tabs groupId="extension-cli">
-    <TabItem value="filesystem" label="Filesystem" default>
     1. Run the `configure` command:
     ```sh
     goose configure
@@ -87,7 +83,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         // highlight-end
         └ 
     ``` 
-    :::tip TLDR
+    :::tip Multiple Directories
     You can specify multiple allowed directories by separating them with a space.
     ::: 
 
@@ -140,60 +136,17 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
         // highlight-end
         └  Added filesystem extension
     ```  
-    </TabItem>
-
-    <TabItem value="developer" label="Developer">
-    :::info
-    The Developer extension is already enabled by default when Goose is installed.
-    :::
-
-     1. Run the `configure` command:
-    ```sh
-    goose configure
-    ```
-
-    2. Choose to `Toggle Extensions`
-    ```sh
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Toggle Extensions 
-    │
-    ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
-    // highlight-start    
-    │  ● developer
-    // highlight-end  
-    └  Extension settings updated successfully
-    ```
-   </TabItem>
-  </Tabs>
-
   </TabItem>
 
   <TabItem value="ui" label="Goose Desktop">
-  <Tabs groupId="extension-desktop">
-    <TabItem value="filesystem" label="Filesystem" default>
 
     1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-filesystem&id=filesystem&name=Filesystem&description=Filesystem%20access%20server&env=FILESYSTEM_ALLOWED_DIRS)
     2. Press `Yes` to confirm the installation
     3. Scroll to the top and click `Exit` from the upper left corner
 
-    :::tip TLDR
+    :::tip Multiple Directories
     You can specify multiple directories by separating them with a space.
     ::: 
-    
-  </TabItem>
-
-  <TabItem value="developer" label="Developer">
-    1. Click `...` in the upper right corner
-    2. Click `Settings`
-    3. Under `Extensions`, toggle `Developer` to on.
-
-    :::info
-    The Developer extension is already enabled by default when Goose is installed.
-    :::
-</TabItem>
-  </Tabs>
 
   </TabItem>
 </Tabs>
