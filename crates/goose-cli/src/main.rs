@@ -140,14 +140,16 @@ enum Command {
     },
 
     /// Execute commands from an instruction file
-    #[command(about = "Execute commands from an instruction file or stdin")]
+    #[command(
+        about = "Execute commands from an instruction file or stdin. Use no arguments for stdin."
+    )]
     Run {
         /// Path to instruction file containing commands
         #[arg(
             short,
             long,
             value_name = "FILE",
-            help = "Path to instruction file containing commands",
+            help = "Path to instruction file containing commands. Use - for stdin.",
             conflicts_with = "input_text"
         )]
         instructions: Option<String>,
@@ -360,24 +362,27 @@ async fn main() -> Result<()> {
             extension,
             builtin,
         }) => {
-            // Validate that we have some input source
-            if instructions.is_none() && input_text.is_none() {
-                eprintln!("Error: Must provide either --instructions or --text");
-                std::process::exit(1);
+            fn read_stdin() -> String {
+                let mut buffer = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut buffer)
+                    .expect("Failed to read from stdin");
+                buffer
             }
 
-            let contents = if let Some(file_name) = instructions {
-                let file_path = std::path::Path::new(&file_name);
-                std::fs::read_to_string(file_path).expect("Failed to read the instruction file")
-            } else if let Some(input_text) = input_text {
-                input_text
-            } else {
-                let mut stdin = String::new();
-                io::stdin()
-                    .read_to_string(&mut stdin)
-                    .expect("Failed to read from stdin");
-                stdin
+            let contents = match (instructions, input_text) {
+                (Some(file), _) if file == "-" => read_stdin(),
+                (Some(file), _) => std::fs::read_to_string(&file).unwrap_or_else(|err| {
+                    eprintln!(
+                        "Instruction file not found — did you mean to use --text?\n{}",
+                        err
+                    );
+                    std::process::exit(1);
+                }),
+                (None, Some(text)) => text,
+                (None, None) => read_stdin(),
             };
+
             let mut session = build_session(
                 identifier.map(extract_identifier),
                 resume,
@@ -386,6 +391,7 @@ async fn main() -> Result<()> {
                 debug,
             )
             .await;
+
             setup_logging(
                 session.session_file().file_stem().and_then(|s| s.to_str()),
                 None,
@@ -396,6 +402,7 @@ async fn main() -> Result<()> {
             } else {
                 session.headless(contents).await?;
             }
+
             return Ok(());
         }
         Some(Command::Agents(cmd)) => {
