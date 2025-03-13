@@ -27,7 +27,9 @@ Throughout the stream, Adewale shared valuable tips to prepare your design for G
 * make sure you thoroughly test for functionality and responsiveness
 
 # Getting Started with Goose and Figma
-Whether you're a designer wanting to rapidly turn concepts into working code or a developer curious about streamlining design implementation, you can download Goose with its built-in Developer Extension [here](https://block.github.io/goose/docs/getting-started/installation), and the Figma extension can be installed from [here](https://block.github.io/goose/v1/extensions/). You can also enjoy our Figma tutorial in our docs [here](https://block.github.io/goose/docs/tutorials/figma-mcp) and in our Plug & Play short [here](https://www.youtube.com/shorts/vHK9Xg_d6Sk?feature=share).
+Whether you're a designer wanting to rapidly turn concepts into working code or a developer curious about streamlining design implementation, you can download Goose with its built-in [Developer extension](https://block.github.io/goose/docs/getting-started/installation) and add the [Figma extension](https://block.github.io/goose/v1/extensions/). 
+
+For step-by-step instructions, check out the [Figma tutorial](https://block.github.io/goose/docs/tutorials/figma-mcp).
 
 <head>
   <meta property="og:title" content="Goose Flight School: Turn Figma Designs Into Code With Goose" />
