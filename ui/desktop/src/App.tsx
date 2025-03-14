@@ -73,11 +73,6 @@ export default function App() {
 
     const setupExtensions = async () => {
       try {
-        // Only run this effect once per component mount
-        if (initAttemptedRef.current) {
-          return;
-        }
-
         // Set the ref immediately to prevent duplicate runs
         initAttemptedRef.current = true;
 
