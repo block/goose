@@ -40,60 +40,7 @@ jobs:
   build-cli:
     needs: [trigger-on-command]
     if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
-    name: Build CLI
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest", "macos-latest"]
-        architecture: ["x86_64", "aarch64"]
-        include:
-          - os: ubuntu-latest
-            target-suffix: unknown-linux-gnu
-          - os: macos-latest
-            target-suffix: apple-darwin
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
-
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Build CLI
-        env:
-          CROSS_NO_WARNINGS: 0
-          RUST_LOG: debug
-          RUST_BACKTRACE: 1
-          CROSS_VERBOSE: 1
-        run: |
-          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
-          rustup target add "${TARGET}"
-          echo "Building for target: ${TARGET}"
-          echo "Rust toolchain info:"
-          rustup show
-          echo "Cross version:"
-          cross --version
-
-          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
-          cross build --release --target ${TARGET} -p goose-cli -vv
-
-          # tar the goose binary as goose-<TARGET>.tar.bz2
-          cd target/${TARGET}/release
-          tar -cjf goose-${TARGET}.tar.bz2 goose
-          echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
-
-      - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
-          path: ${{ env.ARTIFACT }}
+    uses: ./.github/workflows/build-cli.yml
 
   pr-comment-cli:
     name: PR Comment with CLI builds
