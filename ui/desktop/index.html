@@ -5,6 +5,20 @@
     <title>Goose</title>
     <link href="./src/styles/main.css" rel="stylesheet" />
   </head>
+
+  <script type="text/javascript">
+    (function() {
+      if (l.search[1] === '/') {
+        var decoded = l.search.slice(1).split('&').map(function(s) {
+          return s.replace(/~and~/g, '&')
+        }).join('?');
+        window.history.replaceState(null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+        );
+      }
+    }(window.location))
+  </script>
+  
   <script>
     // On page load or when changing themes, best to add inline in `head` to avoid FOUC
     const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
