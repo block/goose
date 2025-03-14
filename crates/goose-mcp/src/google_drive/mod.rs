@@ -1492,6 +1492,12 @@ impl GoogleDriveRouter {
             .comments()
             .list(file_id)
             .page_size(page_size)
+            .param(
+                "fields",
+                "comments(author, content, createdTime, modifiedTime, id, anchor, resolved)",
+            )
+            .clear_scopes()
+            .add_scope(Scope::Readonly)
             .doit()
             .await;
 
@@ -1506,10 +1512,11 @@ impl GoogleDriveRouter {
                         .map(|comments| {
                             comments.into_iter().map(|c| {
                                 format!(
-                                    "Author:{:?} Content: {} (created time: {}) (anchor: {}) (resolved: {}) (id: {})",
+                                    "Author:{:?} Content: {} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
                                     c.author.unwrap_or_default(),
                                     c.content.unwrap_or_default(),
                                     c.created_time.unwrap_or_default(),
+                                    c.modified_time.unwrap_or_default(),
                                     c.anchor.unwrap_or_default(),
                                     c.resolved.unwrap_or_default(),
                                     c.id.unwrap_or_default()
