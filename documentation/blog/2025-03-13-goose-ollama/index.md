@@ -7,7 +7,7 @@ authors:
 
 ![blog cover](gooseollama.png)
 
-On the [Goosing Around](https://youtube.com/playlist?list=PLyMFt_U2IX4uFFhd_2TD9-tlJkgHMMb6F&feature=shared) stream series, host [Rizel Scarlett](https://www.linkedin.com/in/rizel-bobb-semple/) [demonstrated how to use Goose locally with Ollama](https://youtube.com/watch?v=WG10r2N0IwM?feature=share) to interact with LLMs directly on your device. Her guest, [Parth Sareen](https://www.linkedin.com/in/parthsareen/), an experienced software engineer with a focus on building frameworks and systems for AI/ML, showed us the magic of structured outputs and how Goose and Ollama work together under the hood.
+On the [Goosing Around](https://youtube.com/playlist?list=PLyMFt_U2IX4uFFhd_2TD9-tlJkgHMMb6F&feature=shared) stream series, host [Rizel Scarlett](https://www.linkedin.com/in/rizel-bobb-semple/) [demonstrated how to use Goose locally with Ollama](https://youtube.com/watch?v=WG10r2N0IwM?feature=share) for a fully local experience on your device. Her guest, [Parth Sareen](https://www.linkedin.com/in/parthsareen/), an experienced software engineer with a focus on building frameworks and systems for AI/ML, showed us the magic of structured outputs and how Goose and Ollama work together under the hood.
 
 <!--truncate-->
 
