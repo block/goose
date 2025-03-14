@@ -422,7 +422,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
         "built-in" => {
             let extension = cliclack::select("Which built-in extension would you like to enable?")
                 .item(
-                    "Developer Tools",
+                    "developer",
                     "Developer Tools",
                     "Code editing and shell access",
                 )
