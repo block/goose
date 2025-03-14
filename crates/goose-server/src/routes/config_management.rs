@@ -1,6 +1,5 @@
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
-use axum::routing::put;
 use axum::{
     extract::State,
     routing::{delete, get, post},
@@ -188,7 +187,7 @@ pub async fn get_extensions(
     path = "/config/extensions",
     request_body = ExtensionQuery,
     responses(
-        (status = 200, description = "Extension added successfully", body = String),
+        (status = 200, description = "Extension added or updated successfully", body = String),
         (status = 400, description = "Invalid request"),
         (status = 500, description = "Internal server error")
     )
@@ -200,12 +199,24 @@ pub async fn add_extension(
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
+    // Get existing extensions to check if this is an update
+    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let key = name_to_key(&extension_query.name);
+
+    let is_update = extensions.iter().any(|e| e.config.key() == key);
+
     // Use ExtensionManager to set the extension
     match ExtensionManager::set(ExtensionEntry {
         enabled: extension_query.enabled,
         config: extension_query.config,
     }) {
-        Ok(_) => Ok(Json(format!("Added extension {}", extension_query.name))),
+        Ok(_) => {
+            if is_update {
+                Ok(Json(format!("Updated extension {}", extension_query.name)))
+            } else {
+                Ok(Json(format!("Added extension {}", extension_query.name)))
+            }
+        }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -231,89 +242,6 @@ pub async fn remove_extension(
     match ExtensionManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
         Err(_) => Err(StatusCode::NOT_FOUND),
-    }
-}
-
-#[utoipa::path(
-    put,
-    path = "/config/extensions/{name}",
-    request_body = ExtensionQuery,
-    responses(
-        (status = 200, description = "Extension updated successfully", body = String),
-        (status = 404, description = "Extension not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn update_extension(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    axum::extract::Path(name): axum::extract::Path<String>,
-    Json(extension_query): Json<ExtensionQuery>,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let key = name_to_key(&name);
-
-    // Check if extension exists
-    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if !extensions.iter().any(|entry| entry.config.key() == key) {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Use ExtensionManager to update the extension
-    match ExtensionManager::set(ExtensionEntry {
-        enabled: extension_query.enabled,
-        config: extension_query.config,
-    }) {
-        Ok(_) => Ok(Json(format!("Updated extension {}", extension_query.name))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-#[utoipa::path(
-    post,
-    path = "/extensions/{name}/toggle",
-    responses(
-        (status = 200, description = "Extension toggled successfully", body = String),
-        (status = 404, description = "Extension not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn toggle_extension(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Result<Json<String>, StatusCode> {
-    verify_secret_key(&headers, &state)?;
-
-    let key = name_to_key(&name);
-
-    // Get the extension
-    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let extension = extensions
-        .iter()
-        .find(|e| e.config.key() == key)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    // Create a new entry with toggled enabled state
-    let updated_entry = ExtensionEntry {
-        enabled: !extension.enabled,
-        config: extension.config.clone(),
-    };
-
-    // Update using ExtensionManager
-    match ExtensionManager::set(updated_entry) {
-        Ok(_) => {
-            let status = if !extension.enabled {
-                "enabled"
-            } else {
-                "disabled"
-            };
-            Ok(Json(format!("Extension {} {}", name, status)))
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
@@ -382,9 +310,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/read", post(read_config))
         .route("/config/extensions", get(get_extensions))
         .route("/config/extensions", post(add_extension))
-        .route("/config/extensions/:name", put(update_extension))
         .route("/config/extensions/:name", delete(remove_extension))
-        .route("/extensions/:name/toggle", post(toggle_extension))
         .route("/config/providers", get(providers))
         .with_state(state)
 }
