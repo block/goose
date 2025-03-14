@@ -38,7 +38,7 @@ export type View =
   | 'moreModels'
   | 'configureProviders'
   | 'configPage'
-  | 'alphaConfigureProviders'
+  | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions';
 
@@ -274,13 +274,16 @@ export default function App() {
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
         <div className="titlebar-drag-region" />
         <div>
-          {view === 'welcome' && (
-            <WelcomeView
-              onSubmit={() => {
-                setView('chat');
-              }}
-            />
-          )}
+          {view === 'welcome' &&
+            (process.env.ALPHA ? (
+              <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
+            ) : (
+              <WelcomeView
+                onSubmit={() => {
+                  setView('chat');
+                }}
+              />
+            ))}
           {view === 'settings' &&
             (process.env.ALPHA ? (
               <SettingsViewV2
@@ -314,8 +317,8 @@ export default function App() {
               }}
             />
           )}
-          {view === 'alphaConfigureProviders' && (
-            <ProviderSettings onClose={() => setView('chat')} />
+          {view === 'ConfigureProviders' && (
+            <ProviderSettings onClose={() => setView('chat')} isOnboarding={false} />
           )}
           {view === 'chat' && !isLoadingSession && (
             <ChatView

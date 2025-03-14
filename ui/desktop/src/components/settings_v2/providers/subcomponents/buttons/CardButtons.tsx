@@ -94,10 +94,6 @@ export function GreenCheckButton({
   );
 }
 
-export function ExclamationButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={CircleHelp} tooltip={tooltip} onClick={() => {}} {...props} />;
-}
-
 export function ConfigureSettingsButton({ tooltip, className, ...props }: ActionButtonProps) {
   return (
     <ActionButton
@@ -109,18 +105,6 @@ export function ConfigureSettingsButton({ tooltip, className, ...props }: Action
       {...props}
     />
   );
-}
-
-export function AddButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={Plus} tooltip={tooltip} className={className} {...props} />;
-}
-
-export function DeleteButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={X} tooltip={tooltip} className={className} {...props} />;
-}
-
-export function RefreshButton({ tooltip, className, ...props }: ActionButtonProps) {
-  return <ActionButton icon={RefreshCw} tooltip={tooltip} className={className} {...props} />;
 }
 
 export function RocketButton({ tooltip, className, ...props }: ActionButtonProps) {
