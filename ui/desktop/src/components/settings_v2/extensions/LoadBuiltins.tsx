@@ -13,6 +13,15 @@ type BuiltinExtension = {
   timeout?: number;
 };
 
+// TODO: need to keep this in sync better with `name_to_key` on the rust side
+function nameToKey(name: string): string {
+  return name
+    .split('')
+    .filter((char) => !char.match(/\s/))
+    .join('')
+    .toLowerCase();
+}
+
 /**
  * Synchronizes built-in extensions with the config system.
  * This function ensures all built-in extensions are added, which is especially
@@ -27,10 +36,11 @@ export async function syncBuiltInExtensions(
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
   try {
-    console.log('Setting up built-in extensions...');
+    console.log('Setting up built-in extensions... in syncBuiltinExtensions');
 
     // Create a set of existing extension IDs for quick lookup
-    const existingExtensionIds = new Set(existingExtensions.map((ext) => ext.name));
+    const existingExtensionKeys = new Set(existingExtensions.map((ext) => nameToKey(ext.name)));
+    console.log('existing extension ids', existingExtensionKeys);
 
     // Cast the imported JSON data to the expected type
     const builtinExtensions = builtInExtensionsData as BuiltinExtension[];
@@ -41,7 +51,7 @@ export async function syncBuiltInExtensions(
     // Check each built-in extension
     for (const builtinExt of builtinExtensions) {
       // Only add if the extension doesn't already exist
-      if (!existingExtensionIds.has(builtinExt.id)) {
+      if (!existingExtensionKeys.has(builtinExt.id)) {
         console.log(`Adding built-in extension: ${builtinExt.id}`);
 
         // Convert to the ExtensionConfig format
@@ -52,7 +62,7 @@ export async function syncBuiltInExtensions(
         };
 
         // Add the extension with its default enabled state
-        await addExtensionFn(builtinExt.name, extConfig, builtinExt.enabled);
+        await addExtensionFn(nameToKey(builtinExt.name), extConfig, builtinExt.enabled);
         addedCount++;
       }
     }

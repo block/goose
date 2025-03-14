@@ -62,7 +62,7 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
-  const { extensionsList, addExtension } = useConfig();
+  const { getExtensions, addExtension } = useConfig();
   const initAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -73,21 +73,26 @@ export default function App() {
 
     const setupExtensions = async () => {
       try {
-        // For first-time users (no extensions yet) or returning users
-        if (extensionsList.length === 0) {
-          // First-time user case
-          if (!initAttemptedRef.current) {
-            console.log('First-time setup: Adding all built-in extensions...');
-            await initializeBuiltInExtensions(addExtension);
-            initAttemptedRef.current = true;
-          }
+        // Only run this effect once per component mount
+        if (initAttemptedRef.current) {
+          return;
+        }
+
+        // Set the ref immediately to prevent duplicate runs
+        initAttemptedRef.current = true;
+
+        // Force refresh extensions from the backend to ensure we have the latest
+        const refreshedExtensions = await getExtensions(true);
+
+        if (refreshedExtensions.length === 0) {
+          // If we still have no extensions, this is truly a first-time setup
+          console.log('First-time setup: Adding all built-in extensions...');
+          await initializeBuiltInExtensions(addExtension);
         } else {
-          // Returning user case
-          if (!initAttemptedRef.current) {
-            console.log('Checking for missing built-in extensions...');
-            await syncBuiltInExtensions(extensionsList, addExtension);
-            initAttemptedRef.current = true;
-          }
+          // Extensions exist, check for any missing built-ins
+          console.log('Checking for missing built-in extensions...');
+          console.log(refreshedExtensions);
+          await syncBuiltInExtensions(refreshedExtensions, addExtension);
         }
       } catch (error) {
         console.error('Error setting up extensions:', error);
@@ -95,7 +100,7 @@ export default function App() {
     };
 
     setupExtensions();
-  }, [extensionsList, addExtension]);
+  }, []); // Empty dependency array since we're using initAttemptedRef
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);

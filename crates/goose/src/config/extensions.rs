@@ -16,7 +16,10 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.to_lowercase()
+    name.chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>()
+        .to_lowercase()
 }
 
 /// Extension configuration management
