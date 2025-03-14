@@ -1,5 +1,5 @@
 ---
-title: "Goose, But Make It Local With Ollama"
+title: "AI, But Make It Local With Goose and Ollama"
 description: Integrate Goose with Ollama and learn how they work together under the hood.
 authors: 
     - tania
@@ -15,28 +15,10 @@ Goose serves as an on-machine AI agent that can interact with your applications 
 
 Together, they create a self-contained AI agent workflow that puts advanced capabilities directly in the hands of developers.
 
-# Getting Started Is Easier Than You Think
-Before diving deep into the various capabilities of integrating Goose and Ollama, Parth walked us through how to set yourself up for success, and how straightforward it can be.
+# Getting Started
+Before diving deep into various capabilities, Rizel walked us through how to set yourself up for success by integrating Goose with Ollama. To follow along, you can download Goose [here](https://block.github.io/goose/) and follow a step-by-step walk through in the [Configure LLM Provider](https://block.github.io/goose/docs/getting-started/providers) guide.
 
-1. **Install and run Ollama** either through the command line or desktop application:
-   ```bash
-   ollama serve    # Or use the desktop app
-   ```
-
-2. **Pull your preferred model** (used Qwen 2.5 in this demonstration with 32B parameters):
-   ```bash
-   ollama pull qwen:2.5-32b
-   ```
-
-3. **Configure Goose to use Ollama**:
-   ```bash
-   goose configure
-   # Select Ollama as provider
-   # Set Ollama host to localhost:11434
-   # Specify model (e.g., qwen:2.5-32b)
-   ```
-
-And that's it—you now have a fully functional, locally running AI agent.
+If you have any questions or get stuck, feel free to chat with us on [Discord](https://discord.gg/block-opensource) or post an issue/discussion on [GitHub](https://github.com/block/goose/). Thanks for reading!
 
 # Why Go Local?
 Using cloud-based LLMs and providers make it so you don't need substantial computing resources, so why go local? Here's some benefits you may want to consider:
@@ -54,7 +36,7 @@ This question came up repeatedly, and the answer is more encouraging than you th
 - **For MacBooks, RAM is your primary concern** given the unified memory architecture.
 - **For Windows/Linux, GPU memory is more important** for acceleration
 
-Many use cases work perfectly fine with smaller, more efficient models that run on modest hardware. Models optimized for efficiency can deliver impressive performance even on standard laptops! Just start with a smaller model to test your workflow, then scale up as you need. This way you can figure out if you need the beefy hardware or not.
+Many use cases can work with smaller, more efficient models that run on modest hardware. Models optimized for efficiency can deliver impressive performance even on standard laptops! Just start with a smaller model to test your workflow, then scale up as you need. This way you can figure out if you need the beefy hardware or not.
 
 # The Magic of Structured Outputs
 Ollama supports [structured outputs](https://ollama.com/blog/structured-outputs), making it possible to constrain a model’s output to a specific format—essentially teaching models to respond in specific formats like JSON. Parth explained the concept with an elegant analogy: "It's like teaching someone math operations. You show them how to add, subtract, multiply, and then they can solve different problems following those patterns."
@@ -105,14 +87,14 @@ The benefits of owning your AI experience can be compelling for a variety of use
 To try out Goose, you can download Goose [here](https://block.github.io/goose/). You can also get a walkthrough on configuring Ollama with Goose in our [docs](https://block.github.io/goose/docs/getting-started/providers). If you have any questions or get stuck, feel free to chat with us on [Discord](https://discord.gg/block-opensource) or post an issue/discussion on [GitHub](https://github.com/block/goose/). Thanks for reading!
 
 <head>
-  <meta property="og:title" content="Goosing Around: Goose, But Make It Local With Ollama" />
+  <meta property="og:title" content="Goosing Around: AI, But Make It Local With Goose and Ollama" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/goose-ollama-local" />
   <meta property="og:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Goosing Around: Goose, But Make It Local With Ollama" />
+  <meta name="twitter:title" content="Goosing Around: AI, But Make It Local With Goose and Ollama" />
   <meta name="twitter:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
 </head>
