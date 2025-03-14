@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.13"
+    "version": "1.0.14"
   },
   "paths": {
     "/config": {
