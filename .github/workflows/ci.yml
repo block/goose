@@ -70,39 +70,107 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      # Add disk space cleanup before linting
+      - name: Check disk space before build
+        run: df -h
+
+      - name: Aggressive pre-build cleanup
+        run: |
+          # Clean package manager caches
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /opt/hostedtoolcache/
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          rm -rf target/debug/deps
+          rm -rf target/debug/incremental                    
+          
+          # Clean up unused swap and memory
+          sudo swapoff -a
+          sudo swapon -a          
+          
+          echo "Disk space after aggressive cleanup:"
+          df -h
+
+      - name: Set up Gradle user home
+        run: echo "GRADLE_USER_HOME=$HOME/.gradle" >> $GITHUB_ENV
+
+      - name: Verify Gradle setup
+        run: |
+          echo "GRADLE_USER_HOME is set to: $GRADLE_USER_HOME"
+          mkdir -p $GRADLE_USER_HOME
+          chmod -R 777 $GRADLE_USER_HOME
+          ls -la $GRADLE_USER_HOME
+
+
+      - name: temp build cli  
+        env:
+          CROSS_NO_WARNINGS: 0
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          CROSS_VERBOSE: 1        
+        run: |   
+          cargo install cross --git https://github.com/cross-rs/cross               
+          export TARGET="aarch64-unknown-linux-gnu"
+          rustup target add "${TARGET}"
+          echo "Building for target: ${TARGET}"
+          echo "Rust toolchain info:"
+          rustup show
+          echo "Cross version:"
+          cross --version
+
+          # 'cross' is used to cross-compile for different architectures (see Cross.toml)
+          cross build --release --target ${TARGET} -p goose-cli -vv
+        
+
+        
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
           cargo test
         working-directory: crates
 
+      - name: Lint
+        run: cargo clippy -- -D warnings
+
       # Add disk space cleanup before linting
       - name: Check disk space before cleanup
         run: df -h
 
-      - name: Clean up disk space
+      - name: Clean up disk space after build
         run: |
-          echo "Cleaning up disk space..."
+          echo "Cleaning up disk space after build..."
           # Remove debug artifacts that are no longer needed after tests
-          rm -rf target/debug/deps
-          rm -rf target/debug/build
-          rm -rf target/debug/incremental
-          # Clean npm cache if it exists
-          npm cache clean --force || true
-          # Clean apt cache
-          sudo apt-get clean
-          # Remove unnecessary large directories
+          rm -rf target/debug/deps || true
+          rm -rf target/debug/build || true
+          rm -rf target/debug/incremental || true
+          
+          # Clean Cargo cache
+          rm -rf ~/.cargo/registry/src || true
           rm -rf ~/.cargo/registry/index || true
-          # Remove docker images if any
+          rm -rf ~/.cargo/git/checkouts || true
+          rm -rf ~/.cargo/git/db || true
+          
+          # Clean package manager caches
+          npm cache clean --force || true
+          sudo apt-get clean
+          sudo apt-get autoremove -y
+          
+          # Remove Docker images if any
           docker system prune -af || true
-          # Remove unused packages
-          sudo apt-get autoremove -y || true
+          
+          # Remove temp files
+          sudo rm -rf /tmp/* || true
+          
+          # Check disk space after all cleanup
+          echo "Final disk space:"
+          df -h
 
-      - name: Check disk space after cleanup
-        run: df -h
-
-      - name: Lint
-        run: cargo clippy -- -D warnings
 
   desktop-lint:
     name: Lint Electron Desktop App
