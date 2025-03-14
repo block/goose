@@ -4,7 +4,7 @@ title: CLI Commands
 sidebar_label: CLI Commands
 ---
 
-Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their  descriptions:
+Goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. Below is a list of the available commands and their descriptions:
 
 ## Commands
 
@@ -13,6 +13,7 @@ Goose provides a command-line interface (CLI) with several commands for managing
 Used to display the help menu
 
 **Usage:**
+
 ```bash
 goose --help
 ```
@@ -24,6 +25,7 @@ goose --help
 Configure Goose settings - providers, extensions, etc.
 
 **Usage:**
+
 ```bash
 goose configure
 ```
@@ -34,101 +36,102 @@ goose configure
 
 - Start a session and give it a name
 
-    **Options:**
+  **Options:**
 
-    **`-n, --name <n>`**
+  **`-n, --name <n>`**
 
-    **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --name <n>
-    ```
+  ```bash
+  goose session --name <n>
+  ```
 
 - Resume a previous session
 
-    **Options:**
+  **Options:**
 
-    **`-r, --resume`**
+  **`-r, --resume`**
 
-    **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --resume --name <n>
-    ```
+  ```bash
+  goose session --resume --name <n>
+  ```
 
 - Start a session with the specified extension
 
-     **Options:**
+  **Options:**
 
-     **`--with-extension <command>`**
+  **`--with-extension <command>`**
 
-     **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --with-extension <command>
-    ```
+  ```bash
+  goose session --with-extension <command>
+  ```
 
-    **Examples:**
+  **Examples:**
 
-    ```bash
-    goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
-    ```
+  ```bash
+  goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
+  ```
 
-    With environment variable:
+  With environment variable:
 
-    ```bash
-    goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
-    ```
+  ```bash
+  goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
+  ```
 
 - Start a session with the specified remote extension over SSE
 
-     **Options:**
+  **Options:**
 
-     **`--with-remote-extension <url>`**
+  **`--with-remote-extension <url>`**
 
-     **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --with-remote-extension <url>
-    ```
+  ```bash
+  goose session --with-remote-extension <url>
+  ```
 
-    **Examples:**
+  **Examples:**
 
-    ```bash
-    goose session --with-remote-extension "http://localhost:8080/sse"
-    ```
+  ```bash
+  goose session --with-remote-extension "http://localhost:8080/sse"
+  ```
 
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
-    **Options:**
+  **Options:**
 
-    **`--with-builtin <id>`**
+  **`--with-builtin <id>`**
 
-     **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --with-builtin <id>
-    ```
+  ```bash
+  goose session --with-builtin <id>
+  ```
 
-    **Example:**
+  **Example:**
 
-    ```bash
-    goose session --with-builtin computercontroller
-    ```
+  ```bash
+  goose session --with-builtin computercontroller
+  ```
 
 - Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
 
-    **Options:**
+  **Options:**
 
-    **`--debug`**
+  **`--debug`**
 
-    **Usage:**
+  **Usage:**
 
-    ```bash
-    goose session --name my-session --debug
-    ```
+  ```bash
+  goose session --name my-session --debug
+  ```
 
 ---
+
 ### session list [options]
 
 List all saved sessions.
@@ -143,6 +146,7 @@ List all saved sessions.
 # List all sessions in text format (default)
 goose session list
 ```
+
 ```bash
 # List sessions with file paths
 goose session list --verbose
@@ -152,10 +156,12 @@ goose session list --verbose
 # List sessions in JSON format
 goose session list --format json
 ```
+
 ```bash
 # Sort sessions by date in ascending order.
 goose session list --ascending
 ```
+
 ---
 
 ### session remove [options]
@@ -163,6 +169,7 @@ goose session list --ascending
 Remove one or more saved sessions.
 
 **Options:**
+
 - **`-i, --id <id>`**: Remove a specific session by its ID
 - **`-r, --regex <pattern>`**: Remove sessions matching a regex pattern. For example:
 
@@ -181,7 +188,7 @@ goose session remove -r ".*migration.*"
 
 :::caution
 Session removal is permanent and cannot be undone. Goose will show which sessions will be removed and ask for confirmation before deleting.
-::: 
+:::
 
 ---
 
@@ -190,8 +197,9 @@ Session removal is permanent and cannot be undone. Goose will show which session
 Export a session to Markdown format for sharing, documentation, or archival purposes.
 
 **Options:**
+
 - **`-n, --name <name>`**: Export a specific session by name
-- **`-p, --path <path>`**: Export a specific session by file path  
+- **`-p, --path <path>`**: Export a specific session by file path
 - **`-o, --output <file>`**: Save exported content to a file (default: stdout)
 
 **Usage:**
@@ -219,6 +227,7 @@ Shows Goose information, including the version, configuration file location, ses
 - **`-v, --verbose`**: (Optional) Show detailed configuration settings, including environment variables and enabled extensions.
 
 **Usage:**
+
 ```bash
 goose info
 ```
@@ -230,6 +239,7 @@ goose info
 Used to check the current Goose version you have installed
 
 **Usage:**
+
 ```bash
 goose --version
 ```
@@ -265,6 +275,7 @@ goose update --reconfigure
 Run an enabled MCP server specified by `<n>` (e.g. `'Google Drive'`)
 
 **Usage:**
+
 ```bash
 goose mcp <n>
 ```
@@ -295,7 +306,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 ```bash
 goose run --instructions plan.md
 
-#Load a recipe with a prompt that Goose executes and then exits  
+#Load a recipe with a prompt that Goose executes and then exits
 goose run --recipe recipe.yaml
 
 #Load a recipe from this chat and then stays in an interactive session
@@ -330,21 +341,26 @@ goose bench ...etc.
 ```
 
 ### recipe
+
 Used to validate recipe files and manage recipe sharing.
 
 **Usage:**
+
 ```bash
 goose recipe <COMMAND>
 ```
 
 **Commands:**
+
 - `validate <FILE>`: Validate a recipe file
 - `deeplink <FILE>`: Generate a shareable link for a recipe file
 
 **Options:**
+
 - `--help, -h`: Print help information
 
 **Examples:**
+
 ```bash
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
@@ -357,15 +373,19 @@ goose recipe help
 ```
 
 ---
+
 ### schedule
+
 Automate recipes by running them on a schedule using a cron job.
 
 **Usage:**
+
 ```bash
 goose schedule <COMMAND>
 ```
 
 **Commands:**
+
 - `add <OPTIONS>`: Create a new scheduled job. Copies the current version of the recipe to `~/.local/share/goose/scheduled_recipes`
 - `list`: View all scheduled jobs
 - `remove`: Delete a scheduled job
@@ -373,12 +393,14 @@ goose schedule <COMMAND>
 - `run-now`: Run a scheduled recipe immediately
 
 **Options:**
+
 - `--id <NAME>`: A unique ID for the scheduled job (e.g. `daily-report`)
 - `--cron "* * * * * *"`: Specifies when a job should run using a 6-field [cron expression](https://en.wikipedia.org/wiki/Cron#Cron_expression) represented as a string in the format "seconds minutes hours day-of-month month day-of-week"
 - `--recipe-source <PATH>`: Path to the recipe YAML file
 - `--limit <NUMBER>`: (Optional) max number of sessions to display when using the `sessions` command
 
 **Examples:**
+
 ```bash
 # Add a new scheduled recipe which runs every day at 9 AM
 goose schedule add --id daily-report --cron "0 0 9 * * *" --recipe-source ./recipes/daily-report.yaml
@@ -397,6 +419,7 @@ goose schedule remove --id daily-report
 ```
 
 ---
+
 ### project
 
 Start working on your last project or create a new one.
@@ -406,11 +429,13 @@ A project is a record of a working directory and recent session metadata. Note t
 **Alias**: `p`
 
 **Usage:**
+
 ```bash
 goose project
 ```
 
 The command provides three options:
+
 1. **Resume project with session**: Continue the last session in the project
 2. **Resume project with fresh session**: Start a new session in the project
 3. **Start new project in current directory**: Create a new project in the current directory
@@ -420,6 +445,7 @@ Goose stores your project history in `~/.local/share/goose/projects.json`.
 :::
 
 ---
+
 ### projects
 
 Choose one of your projects to start working on.
@@ -427,11 +453,13 @@ Choose one of your projects to start working on.
 **Alias**: `ps`
 
 **Usage:**
+
 ```bash
 goose projects
 ```
 
 Example output:
+
 ```bash
 ┌  Goose Project Manager
 │
@@ -446,35 +474,41 @@ Example output:
 ```
 
 After selecting a project, you'll be asked to either:
+
 - **Resume previous session**: Continue the last session in the selected project
 - **Start new session**: Start a new session in the selected project
 
 ---
+
 ### web
 
 Start a new session in Goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
 
 Goose Web is particularly useful when:
+
 - You want to access Goose with a graphical interface without installing the desktop app
 - You need to use Goose from different devices, including mobile
 - You're working in an environment where installing desktop apps isn't practical
 
 **Usage:**
+
 ```bash
 goose web
 ```
 
 **Options:**
+
 - **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`.
 - **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`.
 - **`--open`**: Automatically open the browser when the server starts.
 
 **Examples:**
+
 ```bash
 # Start web interface at `http://127.0.0.1:3000` and open the browser
 goose web --open
 
-# Start web interface at `http://127.0.0.1:8080` 
+# Start web interface at `http://127.0.0.1:8080`
 goose web --port 8080
 
 # Start web interface accessible from local network at `http://192.168.1.7:8080`
@@ -484,6 +518,7 @@ goose web --host 192.168.1.7 --port 8080
 **Limitations:**
 
 While the web interface provides most core features, be aware of these limitations:
+
 - Some file system operations may require additional confirmation
 - Extension management must be done through the CLI
 - Certain tool interactions might need extra setup
@@ -504,6 +539,7 @@ Use `Ctrl-C` to stop the server.
 The CLI provides a set of slash commands that can be accessed during a session. These commands support tab completion for easier use.
 
 #### Available Commands
+
 - `/?` or `/help` - Display this help message
 - `/builtin <names>` - Add builtin extensions by name (comma-separated)
 - `/exit` or `/quit` - Exit the current session
@@ -516,9 +552,10 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/summarize` - Summarize the current session to reduce context length while preserving key information
 - `/t` - Toggle between Light/Dark/Ansi themes
 
-All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
+All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands.
 
 #### Examples
+
 ```bash
 # Create a plan for triaging test failures
 /plan let's create a plan for triaging test failures
@@ -530,11 +567,20 @@ All commands support tab completion. Press `<Tab>` after a slash (/) to cycle th
 /mode chat
 ```
 
-
 ---
+
 ## Keyboard Shortcuts
 
 Goose CLI supports several shortcuts and built-in commands for easier navigation.
+
+### Slash Commands
+
+- **`/exit` or `/quit`** - Exit the session
+- **`/t`** - Toggle between Light/Dark/Ansi themes
+- **`/t <theme>`** - Set theme directly (`/t light`, `/t dark`, or `/t ansi`)
+- **`/?` or `/help`** - Display the help menu
+
+### Keyboard Navigation
 
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
