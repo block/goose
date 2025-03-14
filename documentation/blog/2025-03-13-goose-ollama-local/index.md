@@ -1,6 +1,6 @@
 ---
 title: "Goose, But Make It Local With Ollama"
-description: Integrate Goose with Ollama and learn how they work together under the hood.
+description: Integrate Goose with Ollama for a fully local experience
 authors: 
     - tania
 ---
