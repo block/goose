@@ -1105,8 +1105,10 @@ impl GoogleDriveRouter {
         parent: Option<&str>,
         support_all_drives: bool,
     ) -> Result<Vec<Content>, ToolError> {
-        let mut req = File::default();
-        req.mime_type = Some(target_mime_type.to_string());
+        let mut req = File {
+            mime_type: Some(target_mime_type.to_string()),
+            ..Default::default()
+        };
         if let Some(p) = parent {
             req.parents = Some(vec![p.to_string()]);
         }
@@ -1124,7 +1126,7 @@ impl GoogleDriveRouter {
             }
             FileOperation::Update { ref file_id } => {
                 builder
-                    .update(req, &file_id)
+                    .update(req, file_id)
                     .use_content_as_indexable_text(true)
                     .supports_all_drives(support_all_drives)
                     .upload(content, source_mime_type.parse().unwrap())
@@ -1170,9 +1172,7 @@ impl GoogleDriveRouter {
             }
             (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
             (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
-                ToolError::ExecutionError(
-                    format!("Error opening {}: {}", p, e.to_string()).to_string(),
-                )
+                ToolError::ExecutionError(format!("Error opening {}: {}", p, e).to_string())
             })?),
         };
         let parent = params.get("parent").and_then(|q| q.as_str());
@@ -1281,9 +1281,7 @@ impl GoogleDriveRouter {
                     "The path param is required".to_string(),
                 ))?;
         let reader = Box::new(std::fs::File::open(path).map_err(|e| {
-            ToolError::ExecutionError(
-                format!("Error opening {}: {}", path, e.to_string()).to_string(),
-            )
+            ToolError::ExecutionError(format!("Error opening {}: {}", path, e).to_string())
         })?);
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -1331,9 +1329,7 @@ impl GoogleDriveRouter {
             }
             (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
             (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
-                ToolError::ExecutionError(
-                    format!("Error opening {}: {}", p, e.to_string()).to_string(),
-                )
+                ToolError::ExecutionError(format!("Error opening {}: {}", p, e).to_string())
             })?),
         };
         let support_all_drives = params
@@ -1440,9 +1436,7 @@ impl GoogleDriveRouter {
                     "The path param is required".to_string(),
                 ))?;
         let reader = Box::new(std::fs::File::open(path).map_err(|e| {
-            ToolError::ExecutionError(
-                format!("Error opening {}: {}", path, e.to_string()).to_string(),
-            )
+            ToolError::ExecutionError(format!("Error opening {}: {}", path, e).to_string())
         })?);
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
