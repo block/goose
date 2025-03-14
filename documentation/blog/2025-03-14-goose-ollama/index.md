@@ -16,6 +16,7 @@ Goose serves as an on-machine AI agent that can interact with your applications 
 Together, they create a self-contained AI agent workflow that puts advanced capabilities directly in the hands of developers.
 
 # Getting Started
+
 Before diving deep into various capabilities, Rizel walked us through how to set yourself up for success by integrating Goose with Ollama. To follow along, you can download Goose [here](https://block.github.io/goose/) and follow a step-by-step walk through in the [Configure LLM Provider](https://block.github.io/goose/docs/getting-started/providers) guide.
 
 If you have any questions or get stuck, feel free to chat with us on [Discord](https://discord.gg/block-opensource) or post an issue/discussion on [GitHub](https://github.com/block/goose/). Thanks for reading!
