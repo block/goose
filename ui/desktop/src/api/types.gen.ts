@@ -183,7 +183,7 @@ export type AddExtensionErrors = {
 
 export type AddExtensionResponses = {
     /**
-     * Extension added or updated successfully
+     * Extension added successfully
      */
     200: string;
 };

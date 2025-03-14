@@ -72,7 +72,7 @@
         },
         "responses": {
           "200": {
-            "description": "Extension added or updated successfully",
+            "description": "Extension added successfully",
             "content": {
               "text/plain": {
                 "schema": {
