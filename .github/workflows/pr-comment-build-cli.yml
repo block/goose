@@ -1,9 +1,4 @@
-# This is a **reuseable** workflow that bundles the Desktop App for macOS.
-# It doesn't get triggered on its own. It gets used in multiple workflows:
-#  - release.yml
-#  - canary.yml
-
-# This workflow is triggered by a comment on an issue or PR with the text ".bundle-cli"
+# This workflow is triggered by a comment on an issue or PR with the text ".build-cli"
 on:
   issue_comment:
     types: [created]
@@ -27,7 +22,7 @@ concurrency:
 
 jobs:
   trigger-on-command:
-    name: Trigger on ".bundle-cli" PR comment
+    name: Trigger on ".build-cli" PR comment
     runs-on: ubuntu-latest
     outputs:
       continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
@@ -37,7 +32,7 @@ jobs:
         uses: github/command@v1.3.0
         id: command
         with:
-          command: ".bundle-cli"
+          command: ".build-cli"
           skip_reviews: true
           reaction: "eyes"
           allowed_contexts: pull_request
