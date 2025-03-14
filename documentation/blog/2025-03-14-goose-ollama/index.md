@@ -89,10 +89,10 @@ The benefits of owning your AI experience can be compelling for a variety of use
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/goose-ollama-local" />
   <meta property="og:description" content="Integrate Goose with Ollama for a fully local experience." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooseollama.png" />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooseollama-fbb2cb67117c81eaa189a6b6174e6c6c.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goosing Around: AI, But Make It Local With Goose and Ollama" />
   <meta name="twitter:description" content="Integrate Goose with Ollama for a fully local experience." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooseollama.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooseollama-fbb2cb67117c81eaa189a6b6174e6c6c.png" />
 </head>
