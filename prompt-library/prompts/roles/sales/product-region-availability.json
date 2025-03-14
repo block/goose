@@ -1,0 +1,32 @@
+{
+  "id": "sales-product-region-lookup",
+  "title": "Check Product Availability in Regions",
+  "description": "Research which countries and regions a product is available in",
+  "category": "Business",
+  "function": "sales",
+  "prompt": "List ISO 3166-1 country codes where {product_name} is sold. Return JSON containing:\ncountry_codes: List of the ISO-3166-1 country codes that are valid for this device\ndevice_model: The model you have performed the lookup for\nis_north_america: Whether or not the specified device is expected to acquired easily in north america",
+  "example": "List ISO 3166-1 country codes where Symphony Innova30 is sold. Return JSON containing:\ncountry_codes: List of the ISO-3166-1 country codes that are valid for this device\ndevice_model: The model you have performed the lookup for\nis_north_america: Whether or not the specified device is expected to acquired easily in north america",
+  "tags": [
+    "sales",
+    "market-research",
+    "product",
+    "regional-availability",
+    "business-development",
+    "international"
+  ],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "extensions": ["computercontroller"],
+  "variables": [
+    {
+      "name": "product_name",
+      "description": "The name/model of the product to look up regional availability for",
+      "required": true,
+      "type": "string"
+    }
+  ]
+}

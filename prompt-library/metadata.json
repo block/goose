@@ -1,0 +1,10 @@
+{
+  "filterCategories": {
+    "functions": [
+      {
+        "id": "documentation",
+        "name": "Documentation"
+      }
+    ]
+  }
+}

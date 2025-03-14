@@ -1,0 +1,29 @@
+{
+  "id": "developer-security-patterns",
+  "title": "Learn Security Vulnerability Patterns",
+  "description": "Store and analyze security vulnerability patterns and their relationships",
+  "category": "Technical",
+  "function": "coding",
+  "extensions": ["knowledge_graph"],
+  "externalExtensions": [
+    {
+      "name": "knowledge_graph",
+      "link": "https://block.github.io/goose/v1/extensions/knowledge-graph"
+    }
+  ],
+  "prompt": "Goose, learn these security vulnerability patterns and their relationships:\n\n1. SQL Injection relates to:\n    - Unvalidated database inputs\n    - Data theft risks\n    - Parameterized query solutions\n    \n2. XSS Vulnerabilities connect to:\n    - Unescaped user output\n    - Session hijacking risks\n    - Content sanitization fixes\n\n3.Authentication Weaknesses link to:\n    - Session management\n    - Account compromise\n    - JWT-based solutions",
+  "example": "This will:\n- Create nodes for each vulnerability type\n- Establish relationships between vulnerabilities and their aspects\n- Store prevention techniques\n- Build a queryable knowledge graph",
+  "tags": ["security", "vulnerabilities", "knowledge-graph", "patterns"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "domain": {
+      "description": "Security domain to focus on (e.g., 'web', 'mobile', 'api')",
+      "required": false
+    }
+  }
+}
