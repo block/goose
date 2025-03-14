@@ -36,6 +36,8 @@ use google_drive3::{
 use google_sheets4::{self, Sheets};
 use http_body_util::BodyExt;
 
+const GOOGLE_DRIVE_SCOPES: Scope = Scope::Full;
+
 /// async function to be pinned by the `present_user_url` method of the trait
 /// we use the existing `DefaultInstalledFlowDelegate::present_user_url` method as a fallback for
 /// when the browser did not open for example, the user still see's the URL.
@@ -688,7 +690,7 @@ impl GoogleDriveRouter {
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(Scope::Readonly)
+            .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await;
 
@@ -727,7 +729,7 @@ impl GoogleDriveRouter {
             .param("fields", "mimeType")
             .supports_all_drives(true)
             .clear_scopes()
-            .add_scope(Scope::Readonly)
+            .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await
             .map_err(|e| {
@@ -765,7 +767,7 @@ impl GoogleDriveRouter {
             .export(uri, export_mime_type)
             .param("alt", "media")
             .clear_scopes()
-            .add_scope(Scope::Readonly)
+            .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await;
 
@@ -812,7 +814,7 @@ impl GoogleDriveRouter {
             .get(uri)
             .param("alt", "media")
             .clear_scopes()
-            .add_scope(Scope::Readonly)
+            .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await;
 
@@ -907,7 +909,7 @@ impl GoogleDriveRouter {
                     .spreadsheets()
                     .get(spreadsheet_id)
                     .clear_scopes()
-                    .add_scope(Scope::Readonly)
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
                     .doit()
                     .await;
 
@@ -954,7 +956,7 @@ impl GoogleDriveRouter {
                     .spreadsheets()
                     .values_get(spreadsheet_id, &sheet_name)
                     .clear_scopes()
-                    .add_scope(Scope::Readonly)
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
                     .doit()
                     .await;
 
@@ -996,7 +998,7 @@ impl GoogleDriveRouter {
                     .spreadsheets()
                     .values_get(spreadsheet_id, range)
                     .clear_scopes()
-                    .add_scope(Scope::Readonly)
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
                     .doit()
                     .await;
 
@@ -1061,7 +1063,7 @@ impl GoogleDriveRouter {
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(Scope::Readonly);
+            .add_scope(GOOGLE_DRIVE_SCOPES);
 
         // add a next token if we have one
         if let Some(token) = next_page_token {
@@ -1121,6 +1123,8 @@ impl GoogleDriveRouter {
                     .create(req)
                     .use_content_as_indexable_text(true)
                     .supports_all_drives(support_all_drives)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
                     .upload(content, source_mime_type.parse().unwrap())
                     .await
             }
@@ -1128,6 +1132,8 @@ impl GoogleDriveRouter {
                 builder
                     .update(req, file_id)
                     .use_content_as_indexable_text(true)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
                     .supports_all_drives(support_all_drives)
                     .upload(content, source_mime_type.parse().unwrap())
                     .await
@@ -1497,7 +1503,7 @@ impl GoogleDriveRouter {
                 "comments(author, content, createdTime, modifiedTime, id, anchor, resolved)",
             )
             .clear_scopes()
-            .add_scope(Scope::Readonly)
+            .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await;
 
