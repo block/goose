@@ -34,7 +34,7 @@ pub fn create(name: &str, model: ModelConfig) -> Result<Box<dyn Provider + Send 
         "openai" => Ok(Box::new(OpenAiProvider::from_env(model)?)),
         "anthropic" => Ok(Box::new(AnthropicProvider::from_env(model)?)),
         "azure_openai" => Ok(Box::new(AzureProvider::from_env(model)?)),
-        "bedrock" => Ok(Box::new(BedrockProvider::from_env(model)?)),
+        "aws_bedrock" => Ok(Box::new(BedrockProvider::from_env(model)?)),
         "databricks" => Ok(Box::new(DatabricksProvider::from_env(model)?)),
         "groq" => Ok(Box::new(GroqProvider::from_env(model)?)),
         "ollama" => Ok(Box::new(OllamaProvider::from_env(model)?)),
