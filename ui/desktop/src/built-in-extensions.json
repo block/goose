@@ -1,7 +1,7 @@
 [
   {
-    "id": "developertools",
-    "name": "Developer Tools",
+    "id": "developer",
+    "name": "Developer",
     "description": "General development tools useful for software engineering.",
     "enabled": true,
     "type": "builtin",
