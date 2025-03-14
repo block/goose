@@ -10,6 +10,7 @@ import { Input } from '../../ui/input';
 import Select from 'react-select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 import { ExtensionConfig } from '../../../api/types.gen';
+import builtInExtensionsData from '../../../built-in-extensions.json';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension } = useConfig();
@@ -46,8 +47,14 @@ export default function ExtensionsSection() {
   };
 
   // Helper function to get a subtitle based on extension type and configuration
+  // TODO: add optional description field to ExtensionConfig on rust side
   const getSubtitle = (config: ExtensionConfig): string => {
     if (config.type === 'builtin') {
+      // Find matching extension in the data
+      const extensionData = builtInExtensionsData.find((ext) => ext.name === config.name);
+      if (extensionData?.description) {
+        return extensionData.description;
+      }
       return 'Built-in extension';
     }
     if (config.type === 'stdio') {
@@ -58,6 +65,7 @@ export default function ExtensionsSection() {
     }
     return `Unknown type of extension`;
   };
+
   const fetchExtensions = async () => {
     setLoading(true);
     try {
