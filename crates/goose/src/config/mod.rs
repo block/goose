@@ -1,6 +1,6 @@
 mod base;
 mod experiments;
-mod extensions;
+pub mod extensions;
 
 pub use crate::agents::ExtensionConfig;
 pub use base::{Config, ConfigError, APP_STRATEGY};

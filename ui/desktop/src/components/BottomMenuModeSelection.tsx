@@ -1,20 +1,82 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl, getSecretKey } from '../config';
+import { ChevronDown, ChevronUp } from './icons';
+import {
+  all_goose_modes,
+  filterGooseModes,
+  ModeSelectionItem,
+} from './settings/basic/ModeSelectionItem';
 
-export const BottomMenuModeSelection = ({ selectedMode, setSelectedMode }) => {
-  const modes = [
-    {
-      value: 'auto',
-    },
-    {
-      value: 'approve',
-    },
-    {
-      value: 'chat',
-    },
-  ];
+export const BottomMenuModeSelection = () => {
+  const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
+  const [gooseMode, setGooseMode] = useState('auto');
+  const [previousApproveModel, setPreviousApproveModel] = useState('');
+  const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchCurrentMode = async () => {
+      try {
+        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+        });
+
+        if (response.ok) {
+          const { value } = await response.json();
+          if (value) {
+            setGooseMode(value);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching current mode:', error);
+      }
+    };
+
+    fetchCurrentMode();
+  }, []);
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsGooseModeMenuOpen(false);
+      }
+    };
+
+    if (isGooseModeMenuOpen) {
+      window.addEventListener('keydown', handleEsc);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isGooseModeMenuOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        gooseModeDropdownRef.current &&
+        !gooseModeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsGooseModeMenuOpen(false);
+      }
+    };
+
+    if (isGooseModeMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isGooseModeMenuOpen]);
 
   const handleModeChange = async (newMode: string) => {
+    if (gooseMode === newMode) {
+      return;
+    }
     const storeResponse = await fetch(getApiUrl('/configs/store'), {
       method: 'POST',
       headers: {
@@ -33,41 +95,48 @@ export const BottomMenuModeSelection = ({ selectedMode, setSelectedMode }) => {
       console.error('Store response error:', errorText);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
     }
-    setSelectedMode(newMode);
+    if (gooseMode.includes('approve')) {
+      setPreviousApproveModel(gooseMode);
+    }
+    setGooseMode(newMode);
   };
 
+  function getValueByKey(key) {
+    const mode = all_goose_modes.find((mode) => mode.key === key);
+    return mode ? mode.label : 'auto';
+  }
+
   return (
-    <div className="absolute bottom-[24px] right-0 w-[120px] bg-bgApp rounded-lg border border-borderSubtle">
-      <div>
-        {modes.map((mode) => (
-          <label key={mode.value} className="block cursor-pointer">
-            <div
-              className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
-              onClick={() => handleModeChange(mode.value)}
-            >
-              <div>
-                <p className="text-sm">{mode.value}</p>
-              </div>
-              <div className="relative">
-                <input
-                  type="radio"
-                  name="modes"
-                  value={mode.value}
-                  checked={selectedMode === mode.value}
-                  onChange={() => handleModeChange(mode.value)}
-                  className="peer sr-only"
-                />
-                <div
-                  className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
-                  peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
-                  peer-checked:bg-white dark:peer-checked:bg-black
-                  transition-all duration-200 ease-in-out"
-                ></div>
-              </div>
-            </div>
-          </label>
-        ))}
+    <div className="relative flex items-center ml-6" ref={gooseModeDropdownRef}>
+      <div
+        className="flex items-center cursor-pointer"
+        onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
+      >
+        <span className="truncate w-[170px]">Goose Mode: {getValueByKey(gooseMode)}</span>
+        {isGooseModeMenuOpen ? (
+          <ChevronDown className="w-4 h-4 ml-1" />
+        ) : (
+          <ChevronUp className="w-4 h-4 ml-1" />
+        )}
       </div>
+
+      {/* Dropdown Menu */}
+      {isGooseModeMenuOpen && (
+        <div className="absolute bottom-[24px] right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
+          <div>
+            {filterGooseModes(gooseMode, all_goose_modes, previousApproveModel).map((mode) => (
+              <ModeSelectionItem
+                key={mode.key}
+                mode={mode}
+                currentMode={gooseMode}
+                showDescription={false}
+                isApproveModeConfigure={false}
+                handleModeChange={handleModeChange}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

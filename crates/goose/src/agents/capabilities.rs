@@ -171,7 +171,7 @@ impl Capabilities {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
-        let sanitized_name = normalize(config.name().to_string());
+        let sanitized_name = normalize(config.key().to_string());
 
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {

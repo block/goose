@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useCallback } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
-import OnRefresh from './callbacks/RefreshActiveProviders';
 import { ProviderModalProvider, useProviderModal } from './modal/ProviderModalProvider';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 import { ProviderDetails } from '../../../api';
@@ -18,10 +17,12 @@ const ProviderCards = memo(function ProviderCards({
   providers,
   isOnboarding,
   refreshProviders,
+  onProviderLaunch,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
   refreshProviders?: () => void;
+  onProviderLaunch: (provider: ProviderDetails) => void;
 }) {
   const { openModal } = useProviderModal();
 
@@ -41,9 +42,8 @@ const ProviderCards = memo(function ProviderCards({
     [openModal, refreshProviders]
   );
 
-  const handleLaunch = useCallback(() => {
-    OnRefresh();
-  }, []);
+  // We don't need an intermediate function here
+  // Just pass the onProviderLaunch directly
 
   // Use useMemo to memoize the cards array
   const providerCards = useMemo(() => {
@@ -52,11 +52,11 @@ const ProviderCards = memo(function ProviderCards({
         key={provider.name}
         provider={provider}
         onConfigure={() => configureProviderViaModal(provider)}
-        onLaunch={handleLaunch}
+        onLaunch={() => onProviderLaunch(provider)}
         isOnboarding={isOnboarding}
       />
     ));
-  }, [providers, isOnboarding, configureProviderViaModal, handleLaunch]);
+  }, [providers, isOnboarding, configureProviderViaModal, onProviderLaunch]);
 
   return <>{providerCards}</>;
 });
@@ -65,10 +65,12 @@ export default memo(function ProviderGrid({
   providers,
   isOnboarding,
   refreshProviders,
+  onProviderLaunch,
 }: {
   providers: ProviderDetails[];
   isOnboarding: boolean;
   refreshProviders?: () => void;
+  onProviderLaunch?: (provider: ProviderDetails) => void;
 }) {
   // Memoize the modal provider and its children to avoid recreating on every render
   const modalProviderContent = useMemo(
@@ -78,11 +80,12 @@ export default memo(function ProviderGrid({
           providers={providers}
           isOnboarding={isOnboarding}
           refreshProviders={refreshProviders}
+          onProviderLaunch={onProviderLaunch}
         />
         <ProviderConfigurationModal />
       </ProviderModalProvider>
     ),
-    [providers, isOnboarding, refreshProviders]
+    [providers, isOnboarding, refreshProviders, onProviderLaunch]
   );
 
   return <GridLayout>{modalProviderContent}</GridLayout>;
