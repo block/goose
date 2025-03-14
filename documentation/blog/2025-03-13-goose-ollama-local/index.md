@@ -1,13 +1,13 @@
 ---
 title: "AI, But Make It Local With Goose and Ollama"
-description: Integrate Goose with Ollama and learn how they work together under the hood.
+description: Integrate Goose with Ollama for a fully local experience.
 authors: 
     - tania
 ---
 
-![blog cover](gooselocalollama.png)
+![blog cover](gooseollama.png)
 
-On the [Goosing Around](https://youtube.com/playlist?list=PLyMFt_U2IX4uFFhd_2TD9-tlJkgHMMb6F&feature=shared) stream series, host [Rizel Scarlett](https://www.linkedin.com/in/rizel-bobb-semple/) [demonstrated how to use Goose locally with Ollama](https://youtube.com/watch?v=WG10r2N0IwM?feature=share) to interact with LLMs directly on your device. Her guest, [Parth Sareen](https://www.linkedin.com/in/parthsareen/), an experienced software engineer with a focus on building frameworks and systems for AI/ML, showed us the magic of structured outputs and how Goose and Ollama work together under the hood.
+On the [Goosing Around](https://youtube.com/playlist?list=PLyMFt_U2IX4uFFhd_2TD9-tlJkgHMMb6F&feature=shared) stream series, host [Rizel Scarlett](https://www.linkedin.com/in/rizel-bobb-semple/) [demonstrated how to use Goose locally with Ollama](https://youtube.com/watch?v=WG10r2N0IwM?feature=share) for a fully local experience on your device. Her guest, [Parth Sareen](https://www.linkedin.com/in/parthsareen/), an experienced software engineer with a focus on building frameworks and systems for AI/ML, showed us the magic of structured outputs and how Goose and Ollama work together under the hood.
 
 <!--truncate-->
 
@@ -36,7 +36,7 @@ This question came up repeatedly, and the answer is more encouraging than you th
 - **For MacBooks, RAM is your primary concern** given the unified memory architecture.
 - **For Windows/Linux, GPU memory is more important** for acceleration
 
-Many use cases can work with smaller, more efficient models that run on modest hardware. Models optimized for efficiency can deliver impressive performance even on standard laptops! Just start with a smaller model to test your workflow, then scale up as you need. This way you can figure out if you need the beefy hardware or not.
+Use cases can start with smaller, more efficient models that run on modest hardware. Models optimized for efficiency can deliver impressive performance even on standard laptops! Just start with a smaller model to test your workflow, then scale up as you need. This way you can figure out if you need the beefy hardware or not.
 
 # The Magic of Structured Outputs
 Ollama supports [structured outputs](https://ollama.com/blog/structured-outputs), making it possible to constrain a model’s output to a specific format—essentially teaching models to respond in specific formats like JSON. Parth explained the concept with an elegant analogy: "It's like teaching someone math operations. You show them how to add, subtract, multiply, and then they can solve different problems following those patterns."
@@ -82,19 +82,17 @@ As Parth walked through these examples, he shared key practices to ensure you ge
 # It's About The Freedom To Choose
 While there are trade-offs in terms of raw processing power when you go local vs cloud, you don't have to choose one over the other. As Parth summarized during the livestream: "Local AI isn't about replacing cloud options—it's about having the freedom to choose the right approach for your specific needs."
 
-The benefits of owning your AI experience can be compelling for a variety of use cases. Whether you're a developer building tools, a writer working with confidential material, or simply someone who values privacy and control, I hope the Goose-Ollama integration offers a glimpse into how a local experience can benefit you, and explore a future where sophisticated AI is as personal and private as the data on your hard drive.
-
-To try out Goose, you can download Goose [here](https://block.github.io/goose/). You can also get a walkthrough on configuring Ollama with Goose in our [docs](https://block.github.io/goose/docs/getting-started/providers). If you have any questions or get stuck, feel free to chat with us on [Discord](https://discord.gg/block-opensource) or post an issue/discussion on [GitHub](https://github.com/block/goose/). Thanks for reading!
+The benefits of owning your AI experience can be compelling for a variety of use cases. Whether you're a developer building tools, a writer working with confidential material, or simply someone who values privacy and control, I hope the Goose-Ollama integration offers a glimpse into how a local experience can benefit you, and explore a future where sophisticated AI is as personal and private as the data on your hard drive. Thanks for reading!
 
 <head>
   <meta property="og:title" content="Goosing Around: AI, But Make It Local With Goose and Ollama" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/goose-ollama-local" />
-  <meta property="og:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
+  <meta property="og:description" content="Integrate Goose with Ollama for a fully local experience." />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/gooseollama.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goosing Around: AI, But Make It Local With Goose and Ollama" />
-  <meta name="twitter:description" content="Integrate Goose with Ollama and learn how they work together under the hood." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooselocalollama-2658db92d8e9d0fa947fb570d08fa7dc.png" />
+  <meta name="twitter:description" content="Integrate Goose with Ollama for a fully local experience." />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/gooseollama.png" />
 </head>
