@@ -2407,8 +2407,6 @@ dependencies = [
  "chrono",
  "docx-rs",
  "etcetera",
- "google-apis-common",
- "extractous",
  "google-drive3",
  "google-sheets4",
  "http-body-util",

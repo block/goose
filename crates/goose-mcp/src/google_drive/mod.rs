@@ -20,7 +20,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use google_apis_common::ReadSeek;
+use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
     api::{File, Scope},
