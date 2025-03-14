@@ -182,7 +182,6 @@ pub async fn get_extensions(
     }
 }
 
-// MODIFY THE add_extension FUNCTION TO HANDLE UPDATES AS WELL:
 #[utoipa::path(
     post,
     path = "/config/extensions",
