@@ -26,7 +26,6 @@ use goose::providers::base::ProviderMetadata;
         super::routes::config_management::ConfigKeyQuery,
         super::routes::config_management::ConfigResponse,
         super::routes::config_management::ProvidersResponse,
-        super::routes::config_management::ProvidersResponse,
         super::routes::config_management::ProviderDetails,
         super::routes::config_management::ExtensionResponse,
         super::routes::config_management::ExtensionQuery,

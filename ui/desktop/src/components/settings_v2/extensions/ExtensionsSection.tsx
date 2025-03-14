@@ -74,21 +74,19 @@ export default function ExtensionsSection() {
   });
 
   useEffect(() => {
-    const extensions = read('extensions', false)
+    const extensions = read('extensions', false);
     if (extensions) {
-      const extensionItems: ExtensionItem[] = Object.entries(extensions).map(
-        ([name, ext]) => {
-          const extensionConfig = ext as ExtensionConfig;
-          return {
-            id: name,
-            title: getFriendlyTitle(name),
-            subtitle: getSubtitle(extensionConfig),
-            enabled: extensionConfig.enabled,
-            canConfigure: extensionConfig.type === 'stdio' && !!extensionConfig.envs,
-            config: extensionConfig,
-          };
-        }
-      );
+      const extensionItems: ExtensionItem[] = Object.entries(extensions).map(([name, ext]) => {
+        const extensionConfig = ext as ExtensionConfig;
+        return {
+          id: name,
+          title: getFriendlyTitle(name),
+          subtitle: getSubtitle(extensionConfig),
+          enabled: extensionConfig.enabled,
+          canConfigure: extensionConfig.type === 'stdio' && !!extensionConfig.envs,
+          config: extensionConfig,
+        };
+      });
       setExtensions(extensionItems);
     }
   }, [read]);

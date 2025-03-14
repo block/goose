@@ -43,7 +43,7 @@ interface ConfigContextType {
   toggleExtension: (name: string) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
-  getExtensions: (b: boolean) => Promise<ExtensionEntry[]>
+  getExtensions: (b: boolean) => Promise<ExtensionEntry[]>;
 }
 
 interface ConfigProviderProps {
@@ -74,12 +74,11 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
       // Load extensions
       try {
-        const extensionsResponse = await apiGetExtensions()
-        setExtensionsList(extensionsResponse.data.extensions)
+        const extensionsResponse = await apiGetExtensions();
+        setExtensionsList(extensionsResponse.data.extensions);
       } catch (error) {
-        console.error('Failed to load extensions:', error)
+        console.error('Failed to load extensions:', error);
       }
-
     })();
   }, []);
 
@@ -125,7 +124,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const removeExtension = async (name: string) => {
-    await apiRemoveExtension({path: {name: name}});
+    await apiRemoveExtension({ path: { name: name } });
     await reloadConfig();
   };
 
@@ -133,13 +132,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     const query: ExtensionQuery = { name, config, enabled };
     await apiUpdateExtension({
       body: query,
-      path: {name: name}
+      path: { name: name },
     });
     await reloadConfig();
   };
 
   const toggleExtension = async (name: string) => {
-    await apiToggleExtension({path: {name: name}});
+    await apiToggleExtension({ path: { name: name } });
     await reloadConfig();
   };
 
@@ -158,7 +157,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     if (forceRefresh || extensionsList.length === 0) {
       // If a refresh is forced, or we don't have providers yet
       const response = await apiGetExtensions();
-      const extensionResponse: ExtensionResponse = response.data
+      const extensionResponse: ExtensionResponse = response.data;
       setExtensionsList(extensionResponse.extensions);
       return extensionResponse.extensions;
     }
