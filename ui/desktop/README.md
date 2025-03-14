@@ -6,7 +6,7 @@ Mac (and maybe windows?) app for Goose.
 git clone git@github.com:block/goose.git
 cd goose/ui/desktop
 npm install
-npm start
+npm start     
 ```
 
 # Building notes

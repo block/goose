@@ -130,3 +130,9 @@ jobs:
     if: github.event_name == 'pull_request'
     with:
       signing: false
+  # Faster Desktop App build for PRs only
+  bundle-desktop-windows-unsigned:
+    uses: ./.github/workflows/bundle-desktop-windows.yml
+    if: github.event_name == 'pull_request'
+    with:
+      signing: false

@@ -15,7 +15,7 @@ on:
       operating-systems:
         type: string
         required: false
-        default: '["ubuntu-latest","macos-latest"]'
+        default: '["ubuntu-latest","macos-latest","windows-latest"]'
       architectures:
         type: string
         required: false
@@ -37,6 +37,9 @@ jobs:
             target-suffix: unknown-linux-gnu
           - os: macos-latest
             target-suffix: apple-darwin
+          - os: windows-latest
+            target-suffix: pc-windows-gnu
+            architecture: x86_64
 
     steps:
       - name: Checkout code
@@ -55,9 +58,11 @@ jobs:
           target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
       - name: Install cross
+        if: runner.os != 'Windows'
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build CLI
+        if: runner.os != 'Windows'
         env:
           CROSS_NO_WARNINGS: 0
           RUST_LOG: debug
@@ -79,6 +84,53 @@ jobs:
           cd target/${TARGET}/release
           tar -cjf goose-${TARGET}.tar.bz2 goose
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build CLI (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          rustup target add $TARGET
+          echo "Building for target: $TARGET"
+          
+          # Build the CLI
+          cargo build --release --target $TARGET -p goose-cli
+          
+          # Install MinGW dependencies if needed
+          choco install mingw --version=8.1.0
+          
+          # Create directory for packaging
+          New-Item -ItemType Directory -Path "./target/$TARGET/release/package" -Force | Out-Null
+          
+          # Copy the CLI binary
+          Copy-Item ./target/$TARGET/release/goose.exe ./target/$TARGET/release/package/
+          
+          # Copy MinGW DLLs - try both possible locations
+          $mingwPaths = @(
+            "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin",
+            "C:\tools\mingw64\bin"
+          )
+          
+          foreach ($path in $mingwPaths) {
+            if (Test-Path "$path\libstdc++-6.dll") {
+              Write-Host "Found MinGW DLLs in $path"
+              Copy-Item "$path\libstdc++-6.dll" ./target/$TARGET/release/package/
+              Copy-Item "$path\libgcc_s_seh-1.dll" ./target/$TARGET/release/package/
+              Copy-Item "$path\libwinpthread-1.dll" ./target/$TARGET/release/package/
+              break
+            }
+          }
+          
+          # Copy any other DLLs from the release directory
+          Get-ChildItem ./target/$TARGET/release/*.dll | ForEach-Object {
+            Copy-Item $_ ./target/$TARGET/release/package/
+          }
+          
+          # Create ZIP archive
+          Compress-Archive -Path ./target/$TARGET/release/package/* -DestinationPath ./target/$TARGET/release/goose-$TARGET.zip
+          
+          echo "ARTIFACT=target/$TARGET/release/goose-$TARGET.zip" | Out-File -Append -FilePath $env:GITHUB_ENV
+        shell: pwsh
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
