@@ -19,8 +19,12 @@ export default function EnvVarsSection({
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
-        <label className="text-sm font-medium">Environment Variables</label>
-        <Button onClick={onAdd} variant="ghost" className="text-sm hover:bg-subtle">
+        <label className="text-sm font-medium text-textStandard">Environment Variables</label>
+        <Button
+          onClick={onAdd}
+          variant="ghost"
+          className="text-sm text-textStandard hover:bg-bgSubtle"
+        >
           Add Variable
         </Button>
       </div>
@@ -32,18 +36,18 @@ export default function EnvVarsSection({
               value={envVar.key}
               onChange={(e) => onChange(index, 'key', e.target.value)}
               placeholder="Key"
-              className="flex-1"
+              className="flex-1 bg-bgSubtle border-borderSubtle text-textStandard"
             />
             <Input
               value={envVar.value}
               onChange={(e) => onChange(index, 'value', e.target.value)}
               placeholder="Value"
-              className="flex-1"
+              className="flex-1 bg-bgSubtle border-borderSubtle text-textStandard"
             />
             <Button
               onClick={() => onRemove(index)}
               variant="ghost"
-              className="p-2 h-auto hover:bg-subtle"
+              className="p-2 h-auto text-iconSubtle hover:bg-bgSubtle"
             >
               <X className="h-4 w-4" />
             </Button>

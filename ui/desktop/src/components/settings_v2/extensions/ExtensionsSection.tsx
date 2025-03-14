@@ -123,6 +123,7 @@ export default function ExtensionsSection() {
           onClose={handleModalClose}
           onSubmit={handleUpdateExtension}
           submitLabel="Save Changes"
+          modalType={'edit'}
         />
       )}
 
@@ -134,6 +135,7 @@ export default function ExtensionsSection() {
           onClose={handleModalClose}
           onSubmit={handleAddExtension}
           submitLabel="Add Extension"
+          modalType={'add'}
         />
       )}
     </section>
