@@ -1,0 +1,1 @@
+{"messages": [{"content": "This is a test message that is repeated multiple times to test compression", "role": "user"}, {"content": "This is a test message that is repeated multiple times to test compression", "role": "assistant"}, {"content": "This is a different message to add some variety", "role": "user"}]}

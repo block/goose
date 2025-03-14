@@ -1,6 +1,6 @@
 # Contribution Guide
 
-Goose is open source! 
+Goose is open source!
 
 We welcome pull requests for general contributions! If you have a larger new feature or any questions on how to develop a fix, we recommend you open an issue before starting.
 
@@ -71,37 +71,37 @@ To ensure a smooth integration of your contributions, it's important that your f
 ### Syncing Your Fork with the Main Repository
 
 1. **Add the Main Repository as a Remote** (Skip if you have already set this up):
-    
+
     ```bash
     git remote add upstream https://github.com/block/goose.git
     ```
-    
+
 2. **Fetch the Latest Changes from the Main Repository**:
-    
+
     ```bash
     git fetch upstream
     ```
-    
+
 3. **Checkout Your Development Branch**:
-    
+
     ```bash
     git checkout your-branch-name
     ```
-    
+
 4. **Merge Changes from the Main Branch into Your Branch**:
-    
+
     ```bash
     git merge upstream/main
     ```
-    
+
     Resolve any conflicts that arise and commit the changes.
-    
+
 5. **Push the Merged Changes to Your Fork**:
-    
+
     ```bash
     git push origin your-branch-name
     ```
-    
+
 
 This process will help you keep your branch aligned with the ongoing changes in the main repository, minimizing integration issues when it comes time to merge!
 
