@@ -29,8 +29,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 
-use crate::log_usage::log_usage;
-
 pub struct Session {
     agent: Box<dyn Agent>,
     messages: Vec<Message>,
@@ -413,19 +411,10 @@ impl Session {
             }
         }
 
-        // Log usage and cleanup
-        if let Ok(home_dir) = choose_app_strategy(crate::APP_STRATEGY.clone()) {
-            let usage = self.agent.usage().await;
-            log_usage(
-                home_dir,
-                self.session_file.to_string_lossy().to_string(),
-                usage,
-            );
-            println!(
-                "\nClosing session. Recorded to {}",
-                self.session_file.display()
-            );
-        }
+        println!(
+            "\nClosing session. Recorded to {}",
+            self.session_file.display()
+        );
         Ok(())
     }
 
@@ -647,6 +636,7 @@ impl Session {
 
     /// Get the token usage from the agent
     pub async fn get_usage(&self) -> Result<Vec<ProviderUsage>> {
-        Ok(self.agent.usage().await)
+        // TODO: read the session file and parse the usage from the metadata in first line
+        todo!()
     }
 }
