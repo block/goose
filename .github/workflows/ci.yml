@@ -70,6 +70,24 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
 
+      # Add disk space cleanup before linting
+      - name: Check disk space before build
+        run: df -h
+
+      - name: Clean up disk space
+        run: |
+          echo "Cleaning up disk space..."
+          # Clean npm cache if it exists
+          npm cache clean --force || true
+          # Clean apt cache
+          sudo apt-get clean
+          # Remove unnecessary large directories
+          rm -rf ~/.cargo/registry/index || true
+          # Remove docker images if any
+          docker system prune -af || true
+          # Remove unused packages
+          sudo apt-get autoremove -y || true
+
       - name: Build and Test
         run: |
           gnome-keyring-daemon --components=secrets --daemonize --unlock <<< 'foobar'
