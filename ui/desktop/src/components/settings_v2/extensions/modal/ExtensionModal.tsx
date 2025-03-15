@@ -7,14 +7,14 @@ import { createDarkSelectStyles, darkSelectTheme } from '../../../ui/select-styl
 import { ExtensionFormData } from '../ExtensionsSection';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
-// Make sure we're using the same background color throughout
-import { PlusCircle, Edit } from 'lucide-react';
+import { PlusIcon, Edit, Trash2 } from 'lucide-react';
 
 interface ExtensionModalProps {
   title: string;
   initialData: ExtensionFormData;
   onClose: () => void;
   onSubmit: (formData: ExtensionFormData) => void;
+  onDelete?: (name: string) => void;
   submitLabel: string;
   modalType: 'add' | 'edit';
 }
@@ -24,6 +24,7 @@ export default function ExtensionModal({
   initialData,
   onClose,
   onSubmit,
+  onDelete,
   submitLabel,
   modalType,
 }: ExtensionModalProps) {
@@ -57,18 +58,20 @@ export default function ExtensionModal({
   // Function to determine which icon to display with proper styling
   const getModalIcon = () => {
     return modalType === 'add' ? (
-      <PlusCircle className="text-iconSubtle" size={24} />
+      <PlusIcon className="text-iconStandard" size={24} />
     ) : (
-      <Edit className="text-iconSubtle" size={24} />
+      <Edit className="text-iconStandard" size={24} />
     );
   };
 
   return (
     <Modal>
       {/* Title and Icon */}
-      <div className="relative mb-6">
-        <h2 className="text-2xl font-regular text-textStandard">{title}</h2>
-        <div className="absolute top-0 right-0">{getModalIcon()}</div>
+      <div className="flex flex-col mb-6">
+        <div>{getModalIcon()}</div>
+        <div className="mt-2">
+          <h2 className="text-2xl font-regular text-textStandard">{title}</h2>
+        </div>
       </div>
 
       {/* Form Fields */}
@@ -124,15 +127,27 @@ export default function ExtensionModal({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-borderSubtle">
-        <Button onClick={onClose} variant="ghost" className="hover:bg-bgSubtle text-textStandard">
-          Cancel
-        </Button>
+      <div className="absolute bottom-0 left-0 right-0 flex flex-col border-t border-borderSubtle">
+        {modalType === 'edit' && onDelete && (
+          <Button
+            onClick={() => onDelete(formData.name)}
+            className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md"
+          >
+            <Trash2 className="h-4 w-4 mr-2" /> Delete Extension
+          </Button>
+        )}
         <Button
           onClick={() => onSubmit(formData)}
-          className="bg-bgProminent hover:bg-bgProminent/90 text-textProminent rounded-full px-6"
+          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
         >
           {submitLabel}
+        </Button>
+        <Button
+          onClick={onClose}
+          variant="ghost"
+          className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
+        >
+          Cancel
         </Button>
       </div>
     </Modal>
