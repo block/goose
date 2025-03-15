@@ -492,6 +492,10 @@ pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
 }
 
+pub fn display_session_history_cleared() {
+    println!("\n{}\n", style("Session history cleared.").dim().cyan(),);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

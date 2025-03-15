@@ -15,6 +15,7 @@ pub enum InputResult {
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
     GooseMode(String),
+    Plan(PlanCommandOptions),
 }
 
 #[derive(Debug)]
@@ -22,6 +23,12 @@ pub struct PromptCommandOptions {
     pub name: String,
     pub info: bool,
     pub arguments: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct PlanCommandOptions {
+    pub model: String,
+    pub message_text: String,
 }
 
 pub fn get_input(
@@ -72,6 +79,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_EXTENSION: &str = "/extension ";
     const CMD_BUILTIN: &str = "/builtin ";
     const CMD_MODE: &str = "/mode ";
+    const CMD_PLAN: &str = "/plan";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -111,6 +119,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with(CMD_MODE) => {
             Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
         }
+        s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         _ => None,
     }
 }
@@ -168,6 +177,39 @@ fn parse_prompt_command(args: &str) -> Option<InputResult> {
     Some(InputResult::PromptCommand(options))
 }
 
+fn parse_plan_command(input: String) -> Option<InputResult> {
+    let mut options = PlanCommandOptions {
+        model: String::new(),
+        message_text: String::new(),
+    };
+
+    let parts: Vec<String> = shlex::split(&input).unwrap_or_default();
+
+    if parts.is_empty() {
+        println!("For the /plan command, you must provide message text but none was provided.");
+        println!("Usage: /plan --model=<model> <message_text>");
+        return None;
+    }
+
+    if parts[0].starts_with("--model=") {
+        options.model = parts[0]
+            .strip_prefix("--model=")
+            .unwrap_or_default()
+            .to_string();
+    }
+
+    // start at index 0 if no model is provided, else start at index 1 & join the rest
+    options.message_text = parts[if options.model.is_empty() { 0 } else { 1 }..].join(" ");
+
+    if options.message_text.is_empty() {
+        println!("For the /plan command, you must provide message text but none was provided.");
+        println!("Usage: /plan --model=<model> <message_text>");
+        return None;
+    }
+
+    Some(InputResult::Plan(options))
+}
+
 fn print_help() {
     println!(
         "Available commands:
@@ -175,9 +217,11 @@ fn print_help() {
 /t - Toggle Light/Dark/Ansi theme
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
-/prompts [--extension <name>] - List all available prompts, optionally filtered by extension
+/prompts [--extension <n>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
-/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat')
+/mode <n> - Set the goose mode to use ('auto', 'approve', 'chat')
+/plan --model=<model> <message_text> - Create a plan based on the current messages.
+                        Model options: o1, o3-mini-high, o3-mini, claude-3-7. Default model is o1-high.
 /? or /help - Display this help message
 
 Navigation:
@@ -368,6 +412,41 @@ mod tests {
             // Invalid arguments are ignored but logged
         } else {
             panic!("Expected PromptCommand");
+        }
+    }
+
+    #[test]
+    fn test_plan_mode() {
+        // Test plan mode with no model or text
+        let result = handle_slash_command("/plan");
+        assert!(result.is_none());
+
+        // Test plan mode with no text
+        let result = handle_slash_command("/plan --model=claude-3-7");
+        assert!(result.is_none());
+
+        // Test plan mode with model & text
+        let result = handle_slash_command("/plan --model=claude-3-7 hello world");
+        assert!(result.is_some());
+        let options = result.unwrap();
+        match options {
+            InputResult::Plan(options) => {
+                assert_eq!(options.model, "claude-3-7");
+                assert_eq!(options.message_text, "hello world");
+            }
+            _ => panic!("Expected Plan"),
+        }
+
+        // Test plan mode with only text
+        let result = handle_slash_command("/plan hello world");
+        assert!(result.is_some());
+        let options = result.unwrap();
+        match options {
+            InputResult::Plan(options) => {
+                assert_eq!(options.model, "");
+                assert_eq!(options.message_text, "hello world");
+            }
+            _ => panic!("Expected Plan"),
         }
     }
 }

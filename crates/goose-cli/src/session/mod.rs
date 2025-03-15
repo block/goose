@@ -349,6 +349,70 @@ impl Session {
                     println!("Goose mode set to '{}'", mode);
                     continue;
                 }
+                input::InputResult::Plan(options) => {
+                    let model = options.model;
+                    let message_text = options.message_text;
+
+                    // Copy the messages before the plan
+                    // Run the plan -> prompting a reasoner model to create a plan
+                    let reasoner_provider: String;
+                    let reasoner_model: String;
+                    if model.is_empty() {
+                        reasoner_provider = "openai".to_string();
+                        reasoner_model = "o1-high".to_string();
+                    } else if model.starts_with("o1") || model.starts_with("o3-mini") {
+                        reasoner_provider = "openai".to_string();
+                        reasoner_model = model;
+                    } else if model.starts_with("claude") {
+                        reasoner_provider = "anthropic".to_string();
+                        reasoner_model = "claude-3-7-sonnet-latest".to_string();
+                        // set env var "ANTHROPIC_THINKING_ENABLED" to "true"
+                        std::env::set_var("ANTHROPIC_THINKING_ENABLED", "true");
+                    } else {
+                        println!("Invalid planner model: {}", model);
+                        continue;
+                    }
+
+                    use goose::model::ModelConfig;
+                    use goose::providers::create;
+
+                    // TODO: hacky to create a new provider for the planner each time plan is called
+                    let model_config = ModelConfig::new(reasoner_model.to_string());
+                    let reasoner = create(reasoner_provider.as_str(), model_config)?;
+
+                    let mut plan_messages = self.messages.clone();
+                    plan_messages.push(Message::user().with_text(&message_text));
+
+                    let plan_prompt = self.agent.get_plan_prompt().await?;
+                    println!("Plan Prompt: {}\n", plan_prompt); // TODO: remove
+                    let (plan_response, _usage) =
+                        reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+
+                    // Render the plan & ask if user wants to act on it
+                    output::render_message(&plan_response, self.debug);
+                    let confirmed =
+                        cliclack::confirm("Do you want to clear history & act on this plan?")
+                            .initial_value(true)
+                            .interact()?;
+
+                    if confirmed {
+                        // clear the messages before the plan
+                        self.messages.clear();
+                        output::display_session_history_cleared();
+                        // add the plan response as a user message
+                        let plan_message =
+                            Message::user().with_text(plan_response.as_concat_text());
+                        self.messages.push(plan_message);
+                        // act on the plan
+                        output::show_thinking();
+                        self.process_agent_response(true).await?;
+                        output::hide_thinking();
+                    } else {
+                        // add the plan response (assistant message) & carry the conversation forward
+                        // in the next round, the user might wanna slightly modify the plan
+                        self.messages.push(plan_response);
+                    }
+                }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
 
