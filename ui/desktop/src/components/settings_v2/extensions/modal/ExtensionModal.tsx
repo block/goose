@@ -107,8 +107,7 @@ export default function ExtensionModal({
       <div className="mb-6">
         <ExtensionConfigFields
           type={formData.type}
-          cmd={formData.cmd || ''}
-          args={formData.args?.join(' ') || ''}
+          full_cmd={formData.cmd || ''}
           endpoint={formData.endpoint || ''}
           onChange={(key, value) => setFormData({ ...formData, [key]: value })}
         />

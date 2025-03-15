@@ -148,7 +148,6 @@ export interface ExtensionFormData {
   name: string;
   type: 'stdio' | 'sse' | 'builtin';
   cmd?: string;
-  args?: string[];
   endpoint?: string;
   enabled: boolean;
   envVars: { key: string; value: string }[];
@@ -159,7 +158,6 @@ function getDefaultFormData(): ExtensionFormData {
     name: '',
     type: 'stdio',
     cmd: '',
-    args: [],
     endpoint: '',
     enabled: true,
     envVars: [],
@@ -178,11 +176,12 @@ function extensionToFormData(extension: FixedExtensionEntry): ExtensionFormData 
         }))
       : [];
 
+  // TODO: we expect to recombine args and cmd and put into the cmd attr for stdio
+
   return {
     name: extension.name,
     type: extension.type,
-    cmd: extension.type === 'stdio' ? extension.cmd : undefined,
-    args: extension.type === 'stdio' ? extension.args : [],
+    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint: extension.type === 'sse' ? extension.uri : undefined,
     enabled: extension.enabled,
     envVars,
@@ -201,11 +200,14 @@ function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
   );
 
   if (formData.type === 'stdio') {
+    // we put the cmd + args all in the form cmd field but need to split out into cmd + args
+    const { cmd, args } = splitCmdAndArgs(formData.cmd);
+
     return {
       type: 'stdio',
       name: formData.name,
-      cmd: formData.cmd,
-      args: formData.args,
+      cmd: cmd,
+      args: args,
       ...(Object.keys(envs).length > 0 ? { envs } : {}),
     };
   } else if (formData.type === 'sse') {
@@ -222,4 +224,19 @@ function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
       name: formData.name,
     };
   }
+}
+
+function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
+  const words = str.trim().split(/\s+/);
+  const cmd = words[0] || '';
+  const args = words.slice(1);
+
+  return {
+    cmd,
+    args,
+  };
+}
+
+function combineCmdAndArgs(cmd: string, args: string[]): string {
+  return [cmd, ...args].join(' ');
 }
