@@ -18,7 +18,6 @@ use crate::config::Config;
 use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
-use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::session;
@@ -243,8 +242,6 @@ impl Agent for SummarizeAgent {
                     &tools,
                 ).await {
                     Ok((response, usage)) => {
-                        capabilities.record_usage(usage.clone()).await;
-
                         // record usage for the session in the session file
                         if let Some(session) = session.clone() {
                             // TODO: track session_id in langfuse tracing
@@ -417,11 +414,6 @@ impl Agent for SummarizeAgent {
                 tokio::task::yield_now().await;
             }
         }))
-    }
-
-    async fn usage(&self) -> Vec<ProviderUsage> {
-        let capabilities = self.capabilities.lock().await;
-        capabilities.get_usage().await
     }
 
     async fn extend_system_prompt(&mut self, extension: String) {

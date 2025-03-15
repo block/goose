@@ -17,7 +17,6 @@ use crate::agents::ToolPermissionStore;
 use crate::config::Config;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
-use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
@@ -258,8 +257,6 @@ impl Agent for TruncateAgent {
                             response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
                         }
 
-                        capabilities.record_usage(usage.clone()).await;
-
                         // record usage for the session in the session file
                         if let Some(session) = session.clone() {
                             // TODO: track session_id in langfuse tracing
@@ -471,11 +468,6 @@ impl Agent for TruncateAgent {
                 tokio::task::yield_now().await;
             }
         }))
-    }
-
-    async fn usage(&self) -> Vec<ProviderUsage> {
-        let capabilities = self.capabilities.lock().await;
-        capabilities.get_usage().await
     }
 
     async fn extend_system_prompt(&mut self, extension: String) {

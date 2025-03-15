@@ -1,7 +1,6 @@
 use etcetera::AppStrategyArgs;
 use once_cell::sync::Lazy;
 pub mod commands;
-pub mod log_usage;
 pub mod logging;
 pub mod session;
 

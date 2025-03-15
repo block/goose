@@ -16,7 +16,6 @@ use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
-use goose::providers::base::ProviderUsage;
 use goose::session;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
@@ -28,8 +27,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio;
-
-use crate::log_usage::log_usage;
 
 pub struct Session {
     agent: Box<dyn Agent>,
@@ -413,19 +410,10 @@ impl Session {
             }
         }
 
-        // Log usage and cleanup
-        if let Ok(home_dir) = choose_app_strategy(crate::APP_STRATEGY.clone()) {
-            let usage = self.agent.usage().await;
-            log_usage(
-                home_dir,
-                self.session_file.to_string_lossy().to_string(),
-                usage,
-            );
-            println!(
-                "\nClosing session. Recorded to {}",
-                self.session_file.display()
-            );
-        }
+        println!(
+            "\nClosing session. Recorded to {}",
+            self.session_file.display()
+        );
         Ok(())
     }
 
@@ -645,8 +633,18 @@ impl Session {
         self.messages.clone()
     }
 
-    /// Get the token usage from the agent
-    pub async fn get_usage(&self) -> Result<Vec<ProviderUsage>> {
-        Ok(self.agent.usage().await)
+    /// Get the session metadata
+    pub fn get_metadata(&self) -> Result<session::SessionMetadata> {
+        if !self.session_file.exists() {
+            return Err(anyhow::anyhow!("Session file does not exist"));
+        }
+
+        session::read_metadata(&self.session_file)
+    }
+
+    // Get the session's total token usage
+    pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
+        let metadata = self.get_metadata()?;
+        Ok(metadata.total_tokens)
     }
 }

@@ -13,7 +13,7 @@ use tracing::{debug, instrument};
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
 use crate::config::Config;
 use crate::prompt_template;
-use crate::providers::base::{Provider, ProviderUsage};
+use crate::providers::base::Provider;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
 use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
@@ -32,7 +32,6 @@ pub struct Capabilities {
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     provider: Arc<Box<dyn Provider>>,
-    provider_usage: Mutex<Vec<ProviderUsage>>,
     system_prompt_override: Option<String>,
     system_prompt_extensions: Vec<String>,
 }
@@ -92,7 +91,6 @@ impl Capabilities {
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
             provider: Arc::new(provider),
-            provider_usage: Mutex::new(Vec::new()),
             system_prompt_override: None,
             system_prompt_extensions: Vec::new(),
         }
@@ -207,12 +205,6 @@ impl Capabilities {
         Arc::clone(&self.provider)
     }
 
-    /// Record provider usage
-    // TODO consider moving this off to the provider or as a form of logging
-    pub async fn record_usage(&self, usage: ProviderUsage) {
-        self.provider_usage.lock().await.push(usage);
-    }
-
     /// Get aggregated usage statistics
     pub async fn remove_extension(&mut self, name: &str) -> ExtensionResult<()> {
         let sanitized_name = normalize(name.to_string());
@@ -225,29 +217,6 @@ impl Capabilities {
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.clients.keys().cloned().collect())
-    }
-
-    pub async fn get_usage(&self) -> Vec<ProviderUsage> {
-        let provider_usage = self.provider_usage.lock().await.clone();
-        let mut usage_map: HashMap<String, ProviderUsage> = HashMap::new();
-
-        provider_usage.iter().for_each(|usage| {
-            usage_map
-                .entry(usage.model.clone())
-                .and_modify(|e| {
-                    e.usage.input_tokens = Some(
-                        e.usage.input_tokens.unwrap_or(0) + usage.usage.input_tokens.unwrap_or(0),
-                    );
-                    e.usage.output_tokens = Some(
-                        e.usage.output_tokens.unwrap_or(0) + usage.usage.output_tokens.unwrap_or(0),
-                    );
-                    e.usage.total_tokens = Some(
-                        e.usage.total_tokens.unwrap_or(0) + usage.usage.total_tokens.unwrap_or(0),
-                    );
-                })
-                .or_insert_with(|| usage.clone());
-        });
-        usage_map.into_values().collect()
     }
 
     /// Get all tools from all clients with proper prefixing
