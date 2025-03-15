@@ -56,7 +56,16 @@ app.on('open-url', async (event, url) => {
     firstOpenWindow = await createChat(app, undefined, openDir);
   }
 
-  firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  // Handle different types of deep links
+  const parsedUrl = new URL(pendingDeepLink);
+
+  if (parsedUrl.pathname === '/extension') {
+    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  } else if (parsedUrl.pathname === '/bot') {
+    firstOpenWindow.webContents.send('configure-bot', pendingDeepLink);
+  } else {
+    console.log(`Unknown deep link type: ${parsedUrl.pathname}`);
+  }
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -328,7 +337,13 @@ process.on('unhandledRejection', (error) => {
 
 ipcMain.on('react-ready', (event) => {
   if (pendingDeepLink) {
-    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    const parsedUrl = new URL(pendingDeepLink);
+
+    if (parsedUrl.pathname === '/extension') {
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.pathname === '/bot') {
+      firstOpenWindow.webContents.send('configure-bot', pendingDeepLink);
+    }
     pendingDeepLink = null;
   }
 });

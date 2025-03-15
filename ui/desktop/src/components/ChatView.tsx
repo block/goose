@@ -15,6 +15,7 @@ import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
+import { useBotConfig } from '../hooks/useBotConfig';
 import {
   Message,
   createUserMessage,
@@ -53,6 +54,7 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const { botConfig } = useBotConfig();
 
   const {
     messages,
@@ -262,7 +264,10 @@ export default function ChatView({
       </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
-          <Splash append={(text) => append(createUserMessage(text))} />
+          <Splash
+            append={(text) => append(createUserMessage(text))}
+            activities={botConfig?.activities || null}
+          />
         ) : (
           <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
             {filteredMessages.map((message, index) => (

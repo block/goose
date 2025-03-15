@@ -14,14 +14,21 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
   );
 }
 
-export default function SplashPills({ append }) {
+export default function SplashPills({ append, activities = null }) {
+  // If custom activities are provided, use those instead of the default ones
+  const pills = activities || [
+    'What can you do?',
+    'Demo writing and reading files',
+    'Make a snake game in a new folder',
+    'List files in my current directory',
+    'Take a screenshot and summarize',
+  ];
+
   return (
     <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
-      <SplashPill content="What can you do?" append={append} />
-      <SplashPill content="Demo writing and reading files" append={append} />
-      <SplashPill content="Make a snake game in a new folder" append={append} />
-      <SplashPill content="List files in my current directory" append={append} />
-      <SplashPill content="Take a screenshot and summarize" append={append} />
+      {pills.map((content, index) => (
+        <SplashPill key={index} content={content} append={append} />
+      ))}
     </div>
   );
 }
