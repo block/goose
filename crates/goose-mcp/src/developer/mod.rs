@@ -116,18 +116,6 @@ impl DeveloperRouter {
                 of if the command succeeded or failed.
 
                 Avoid commands that produce a large amount of output, and consider piping those outputs to files.
-
-                **Important**: For searching files and code:
-
-                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
-                  - To locate a file by name: `rg --files | rg example.py`
-                  - To locate content inside files: `rg 'class Example'`
-
-                Alternative Windows commands (if ripgrep is not installed):
-                  - To locate a file by name: `dir /s /b example.py`
-                  - To locate content inside files: `findstr /s /i "class Example" *.py`
-
-                Note: Alternative commands may show ignored/hidden files that should be excluded.
             "#},
             _ => indoc! {r#"
                 Execute a command in the shell.
@@ -143,11 +131,6 @@ impl DeveloperRouter {
                 **Important**: Each shell command runs in its own process. Things like directory changes or
                 sourcing files do not persist between tool calls. So you may need to repeat them each time by
                 stringing together commands, e.g. `cd example && ls` or `source env/bin/activate && pip install numpy`
-
-                **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
-                may show ignored or hidden files. For example *do not* use `find` or `ls -r`
-                  - List files by name: `rg --files | rg <filename>`
-                  - List files that contain a regex: `rg '<regex>' -l`
             "#},
         };
 
@@ -282,6 +265,18 @@ impl DeveloperRouter {
                 Your windows/screen tools can be used for visual debugging. You should not use these tools unless
                 prompted to, but you can mention they are available if they are relevant.
 
+                **Important**: For searching files and code:
+
+                Preferred: Use ripgrep (`rg`) when available - it respects .gitignore and is fast:
+                  - To locate a file by name: `rg --files | rg example.py`
+                  - To locate content inside files: `rg 'class Example'`
+
+                Alternative Windows commands (if ripgrep is not installed):
+                  - To locate a file by name: `dir /s /b example.py`
+                  - To locate content inside files: `findstr /s /i "class Example" *.py`
+
+                Note: Alternative commands may show ignored/hidden files that should be excluded.
+
                 operating system: {os}
                 current directory: {cwd}
 
@@ -299,6 +294,11 @@ impl DeveloperRouter {
             Your windows/screen tools can be used for visual debugging. You should not use these tools unless
             prompted to, but you can mention they are available if they are relevant.
 
+            **Important**: Use ripgrep - `rg` - when you need to locate a file or a code reference, other solutions
+            may show ignored or hidden files. For example *do not* use `find` or `ls -r`
+              - List files by name: `rg --files | rg <filename>`
+              - List files that contain a regex: `rg '<regex>' -l`
+
             operating system: {os}
             current directory: {cwd}
 
@@ -306,6 +306,25 @@ impl DeveloperRouter {
                 os=os,
                 cwd=cwd.to_string_lossy(),
             },
+        };
+
+        // Store the essential tip base that we may add conditionally
+        let essential_tip_base = indoc! {r#"
+        ESSENTIAL: Before you begin, explore the directory and code you will work on, and think about the project.
+        File extensions, directory structure can help.
+        "#};
+
+        // Check if a .git directory exists in the current directory
+        let git_dir_exists = cwd.join(".git").is_dir();
+
+        // Create the full essential tip, conditionally including the git part
+        let essential_tip = if git_dir_exists {
+            format!(
+                "{}\nLook at recent git changes as they may indicate areas to work on.",
+                essential_tip_base
+            )
+        } else {
+            essential_tip_base.to_string()
         };
 
         // choose_app_strategy().config_dir()
@@ -323,6 +342,7 @@ impl DeveloperRouter {
 
         // Check for local hints in current directory
         let local_hints_path = cwd.join(".goosehints");
+        let local_hints_exist = local_hints_path.is_file();
 
         // Read global hints if they exist
         let mut hints = String::new();
@@ -334,7 +354,7 @@ impl DeveloperRouter {
         }
 
         // Read local hints if they exist
-        if local_hints_path.is_file() {
+        if local_hints_exist {
             if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
                 if !hints.is_empty() {
                     hints.push_str("\n\n");
@@ -344,12 +364,22 @@ impl DeveloperRouter {
             }
         }
 
-        // Return base instructions directly when no hints are found
-        let instructions = if hints.is_empty() {
-            base_instructions
-        } else {
-            format!("{base_instructions}\n{hints}")
-        };
+        // Conditionally add the essential tip:
+        // - If there's no local .goosehints file, add it
+        // - If there is a local .goosehints file, don't add it
+        let mut final_instructions = base_instructions.clone();
+
+        // Add essential tip if no local hints exist
+        if !local_hints_exist {
+            final_instructions.push_str(&essential_tip);
+        }
+
+        // Add any hints that were collected
+        if !hints.is_empty() {
+            final_instructions.push_str(&hints);
+        }
+
+        let instructions = final_instructions;
 
         let mut builder = GitignoreBuilder::new(cwd.clone());
         let mut has_ignore_file = false;
@@ -1150,6 +1180,55 @@ mod tests {
 
     #[test]
     #[serial]
+    fn test_essential_tip_with_git() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Create a .git directory to simulate a git repository
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        // The essential tip should include git-related information
+        assert!(instructions.contains("ESSENTIAL: Before you begin"));
+        assert!(instructions.contains("Look at recent git changes"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_essential_tip_without_git() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // No .git directory
+
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        // The essential tip should not include git-related information
+        assert!(instructions.contains("ESSENTIAL: Before you begin"));
+        assert!(!instructions.contains("Look at recent git changes"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_essential_tip_with_local_goosehints() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Create a local .goosehints file
+        fs::write(".goosehints", "Local hint content").unwrap();
+
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        // The essential tip should not be included when a local .goosehints exists
+        assert!(!instructions.contains("ESSENTIAL: Before you begin"));
+    }
+
+    #[test]
+    #[serial]
     fn test_goosehints_when_missing() {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
@@ -1326,12 +1405,14 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_text_editor_str_replace() {
+        // Create temp directory first so it stays in scope for the whole test
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
         let router = get_router().await;
 
-        let temp_dir = tempfile::tempdir().unwrap();
         let file_path = temp_dir.path().join("test.txt");
         let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
 
         // Create a new file
         router
