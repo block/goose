@@ -1,7 +1,10 @@
 // Create a new file called test.txt with the content 'Hello, World!
 
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -24,10 +27,14 @@ impl Evaluation for DeveloperCreateFile {
         mut agent: Box<dyn BenchAgent>,
         _work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
-        let mut metrics = Vec::new();
+        // Send the prompt to create and read
+        let (messages, perf_metrics) = collect_baseline_metrics(
+            &mut agent,
+            "Create a new file called test.txt in the current directory with the content 'Hello, World!'. Then read the contents of the new file to confirm.".to_string()
+        ).await;
 
-        // Send the prompt to create and read file
-        let messages = agent.prompt("Create a new file called test.txt in the current directory with the content 'Hello, World!'. Then read the contents of the new file to confirm.".to_string()).await?;
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Check for write operation
         let write_tool_call = messages.iter().any(|msg| {
