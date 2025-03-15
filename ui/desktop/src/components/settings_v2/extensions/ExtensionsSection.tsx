@@ -8,7 +8,7 @@ import ExtensionList from './subcomponents/ExtensionList';
 import ExtensionModal from './modal/ExtensionModal';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, addExtension } = useConfig();
+  const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
@@ -74,6 +74,16 @@ export default function ExtensionsSection() {
     }
   };
 
+  const handleDeleteExtension = async (name: string) => {
+    try {
+      await removeExtension(name);
+      handleModalClose();
+      fetchExtensions(); // Refresh the list after deleting
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
+    }
+  };
+
   const handleModalClose = () => {
     setIsModalOpen(false);
     setIsAddModalOpen(false);
@@ -122,6 +132,7 @@ export default function ExtensionsSection() {
           initialData={extensionToFormData(selectedExtension)}
           onClose={handleModalClose}
           onSubmit={handleUpdateExtension}
+          onDelete={handleDeleteExtension}
           submitLabel="Save Changes"
           modalType={'edit'}
         />
