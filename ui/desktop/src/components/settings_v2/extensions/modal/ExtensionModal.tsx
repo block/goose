@@ -64,8 +64,35 @@ export default function ExtensionModal({
     );
   };
 
+  // Create footer buttons
+  const footerContent = (
+    <>
+      {modalType === 'edit' && onDelete && (
+        <Button
+          onClick={() => onDelete(formData.name)}
+          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md"
+        >
+          <Trash2 className="h-4 w-4 mr-2" /> Delete Extension
+        </Button>
+      )}
+      <Button
+        onClick={() => onSubmit(formData)}
+        className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
+      >
+        {submitLabel}
+      </Button>
+      <Button
+        onClick={onClose}
+        variant="ghost"
+        className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
+      >
+        Cancel
+      </Button>
+    </>
+  );
+
   return (
-    <Modal>
+    <Modal footer={footerContent}>
       {/* Title and Icon */}
       <div className="flex flex-col mb-6">
         <div>{getModalIcon()}</div>
@@ -124,31 +151,6 @@ export default function ExtensionModal({
           onRemove={handleRemoveEnvVar}
           onChange={handleEnvVarChange}
         />
-      </div>
-
-      {/* Action Buttons */}
-      <div className="absolute bottom-0 left-0 right-0 flex flex-col border-t border-borderSubtle">
-        {modalType === 'edit' && onDelete && (
-          <Button
-            onClick={() => onDelete(formData.name)}
-            className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md"
-          >
-            <Trash2 className="h-4 w-4 mr-2" /> Delete Extension
-          </Button>
-        )}
-        <Button
-          onClick={() => onSubmit(formData)}
-          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
-        >
-          {submitLabel}
-        </Button>
-        <Button
-          onClick={onClose}
-          variant="ghost"
-          className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
-        >
-          Cancel
-        </Button>
       </div>
     </Modal>
   );
