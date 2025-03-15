@@ -11,4 +11,8 @@ export const router = createBrowserRouter([
     path: "/detail/:id",
     element: <DetailPage />,
   },
-]);
+],
+{
+  basename: "/goose/v1/extensions"
+}
+);
