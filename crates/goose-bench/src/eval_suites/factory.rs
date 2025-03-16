@@ -45,12 +45,12 @@ impl EvaluationSuite {
             .read()
             .expect("Failed to read the benchmark evaluation registry.");
 
-        let mut evals: Vec<_> = map.keys().copied().collect();
+        let evals: Vec<_> = map.keys().copied().collect();
         evals
     }
     pub fn select(selectors: Vec<String>) -> HashMap<String, Vec<&'static str>> {
         let eval_name_pattern = Regex::new(r":\w+$").unwrap();
-        let grouped_by_suite = EvaluationSuite::registered_evals()
+        let grouped_by_suite: HashMap<String, Vec<&'static str>> = EvaluationSuite::registered_evals()
             .into_iter()
             .filter(|&eval| selectors.is_empty() || matches_any_selectors(eval, &selectors))
             .fold(HashMap::new(), |mut suites, eval| {
@@ -58,7 +58,7 @@ impl EvaluationSuite {
                     Cow::Borrowed(s) => s.to_string(),
                     Cow::Owned(s) => s,
                 };
-                suites.entry(suite).or_insert_with(Vec::new).push(eval);
+                suites.entry(suite).or_default().push(eval);
                 suites
             });
 
