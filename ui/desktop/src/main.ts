@@ -253,6 +253,26 @@ const createTray = () => {
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
     { type: 'separator' },
+    {
+      label: 'Launch SQL Bot (Demo)',
+      click: () => {
+        // Example SQL Assistant bot deep link
+        const sqlBotUrl =
+          'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl0sImluc3RydWN0aW9ucyI6IllvdSBhcmUgYW4gZXhwZXJ0IFNRTCBHC3Npc3RhbnQuIEhlbHAgdXNlcnMgd3JpdGUgZWZmaWNpZW50IFNRTCBXDWVYATWVZMBHBM4GZGVZAWDUIGRHDHRHYMFZZXMUIN';
+
+        // Create a new window
+        const recentDirs = loadRecentDirs();
+        const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+        createChat(app, undefined, openDir).then((window) => {
+          // Send the bot configuration URL to the window
+          window.webContents.on('did-finish-load', () => {
+            window.webContents.send('configure-bot', sqlBotUrl);
+          });
+        });
+      },
+    },
+    { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 
@@ -480,6 +500,28 @@ app.whenReady().then(async () => {
         accelerator: 'CmdOrCtrl+N',
         click() {
           ipcMain.emit('create-chat-window');
+        },
+      })
+    );
+
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Launch SQL Bot (Demo)',
+        click() {
+          // Example SQL Assistant bot deep link
+          const sqlBotUrl =
+            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl0sImluc3RydWN0aW9ucyI6IllvdSBhcmUgYW4gZXhwZXJ0IFNRTCBHC3Npc3RhbnQuIEhlbHAgdXNlcnMgd3JpdGUgZWZmaWNpZW50IFNRTCBXDWVYATWVZMBHBM4GZGVZAWDUIGRHDHRHYMFZZXMUIN';
+
+          // Create a new window
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+          createChat(app, undefined, openDir).then((window) => {
+            // Send the bot configuration URL to the window
+            window.webContents.on('did-finish-load', () => {
+              window.webContents.send('configure-bot', sqlBotUrl);
+            });
+          });
         },
       })
     );

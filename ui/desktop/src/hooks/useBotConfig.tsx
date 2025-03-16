@@ -9,6 +9,7 @@ export function useBotConfig() {
     const handleConfigureBot = async (_: unknown, url: string) => {
       try {
         const config = parseBotConfigFromUrl(url);
+
         if (!config) {
           toast.error('Invalid bot configuration');
           return;
@@ -25,7 +26,6 @@ export function useBotConfig() {
         setBotConfig(config);
         toast.success(`${config.name} bot configured successfully`);
       } catch (error) {
-        console.error('Error configuring bot:', error);
         toast.error('Failed to configure bot');
       }
     };

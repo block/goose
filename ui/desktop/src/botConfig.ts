@@ -5,7 +5,7 @@ export interface BotConfig {
   name: string;
   description: string;
   instructions: string;
-  activities: string[];
+  activities: string[] | null;
   outputExample?: string;
 }
 
@@ -24,18 +24,12 @@ export function parseBotConfigFromUrl(url: string): BotConfig | null {
       return null;
     }
 
-    // Decode the base64 config parameter - using window.atob which is available in browser context
+    // Decode the base64 config parameter
     const decodedConfig = window.atob(configParam);
     const config: BotConfig = JSON.parse(decodedConfig);
 
     // Validate required fields
-    if (
-      !config.id ||
-      !config.name ||
-      !config.description ||
-      !config.instructions ||
-      !Array.isArray(config.activities)
-    ) {
+    if (!config.id || !config.name || !config.instructions) {
       console.error('Invalid bot configuration: missing required fields');
       return null;
     }
@@ -63,12 +57,7 @@ export async function setBotSystemPrompt(instructions: string): Promise<boolean>
       body: JSON.stringify({ prompt: instructions }),
     });
 
-    if (!response.ok) {
-      console.error(`Failed to set bot system prompt: ${response.statusText}`);
-      return false;
-    }
-
-    return true;
+    return response.ok;
   } catch (error) {
     console.error('Error setting bot system prompt:', error);
     return false;
