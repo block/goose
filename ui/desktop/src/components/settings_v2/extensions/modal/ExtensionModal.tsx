@@ -4,7 +4,7 @@ import Modal from '../../../Modal';
 import { Input } from '../../../ui/input';
 import Select from 'react-select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../../ui/select-styles';
-import { ExtensionFormData } from '../ExtensionsSection';
+import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
