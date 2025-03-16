@@ -174,4 +174,4 @@ After writing the script, run it using python3 and show the results. Do not ask 
     }
 }
 
-register_evaluation!("vibes", SquirrelCensus);
+register_evaluation!(SquirrelCensus);

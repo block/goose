@@ -38,7 +38,7 @@ impl Evaluation for ComputerControllerScript {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
-                        if tool_call.name != "computer_controller__computer_control" {
+                        if tool_call.name != "computercontroller__computer_control" {
                             return false;
                         }
 
@@ -66,12 +66,12 @@ impl Evaluation for ComputerControllerScript {
     }
 
     fn name(&self) -> &str {
-        "computer_controller_script"
+        "computercontroller_script"
     }
 
     fn required_extensions(&self) -> ExtensionRequirements {
         ExtensionRequirements {
-            builtin: vec!["computer_controller".to_string()],
+            builtin: vec!["computercontroller".to_string()],
             external: Vec::new(),
         }
     }

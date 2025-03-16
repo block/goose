@@ -96,4 +96,4 @@ impl Evaluation for GooseWiki {
     }
 }
 
-register_evaluation!("vibes", GooseWiki);
+register_evaluation!(GooseWiki);
