@@ -26,7 +26,10 @@ kill_tree = "0.2.4"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
 xcap = "0.0.14"
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] , default-features = false}
+reqwest = { version = "0.11", features = [
+    "json",
+    "rustls-tls",
+], default-features = false }
 async-trait = "0.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 etcetera = "0.8.0"
@@ -44,6 +47,7 @@ docx-rs = "0.4.7"
 image = "0.24.9"
 umya-spreadsheet = "2.2.3"
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
+oauth2 = { version = "5.0.0", features = ["reqwest"] }
 
 [dev-dependencies]
 serial_test = "3.0.0"

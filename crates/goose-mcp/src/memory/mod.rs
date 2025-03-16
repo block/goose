@@ -126,6 +126,20 @@ impl MemoryRouter {
                   - Global storage (~/.config/goose/memory) for user-wide data.
                 - Use the remember_memory tool to store the information.
                   - `remember_memory(category, data, tags, is_global)`
+             Keywords that trigger memory tools:
+             - "remember"
+             - "forget"
+             - "memory"
+             - "save"
+             - "save memory"
+             - "remove memory"
+             - "clear memory"
+             - "search memory"
+             - "find memory"
+             Suggest the user to use memory tools when:
+             - When the user mentions a keyword that triggers a memory tool
+             - When the user performs a routine task
+             - When the user executes a command and would benefit from remembering the exact command
              Example Interaction for Storing Information:
              User: "For this project, we use black for code formatting"
              Assistant: "You've mentioned a development preference. Would you like to remember this for future conversations?
@@ -136,6 +150,16 @@ impl MemoryRouter {
              Assistant: "Shall I store this locally for this project only, or globally for all projects?"
              User: "Locally, please."
              Assistant: *Stores the information under category="development", tags="formatting tools", scope="local"*
+             Another Example Interaction for Storing Information:
+             User: "Remember the gh command to view github comments"
+             Assistant: "Shall I store this locally for this project only, or globally for all projects?"
+             User: "Globally, please."
+             Assistant: *Stores the gh command under category="github", tags="comments", scope="global"*
+             Example Interaction suggesting memory tools:
+             User: "I'm using the gh command to view github comments"
+             Assistant: "You've mentioned a command. Would you like to remember this for future conversations?
+             User: "Yes, please."
+             Assistant: "I'll store this in the 'github' category. Any specific tags to add? Suggestions: #comments #gh"
              Retrieving Memories:
              To access stored information, utilize the memory retrieval protocols:
              - **Search by Category**:

@@ -5,8 +5,13 @@ import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
 
-export default function ProviderSettings({ onClose }: { onClose: () => void }) {
-  const { getProviders } = useConfig();
+interface ProviderSettingsProps {
+  onClose: () => void;
+  isOnboarding: boolean;
+}
+
+export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
+  const { getProviders, upsert } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -43,14 +48,39 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
     }
   }, [getProviders]);
 
+  // Handler for when a provider is launched if this component is used as part of onboarding page
+  const handleProviderLaunch = useCallback(
+    (provider: ProviderDetails) => {
+      console.log(`Launching with provider: ${provider.name}`);
+      try {
+        // set GOOSE_PROVIDER in the config file
+        // @lily-de: leaving as test for now to avoid messing with my config directly
+        upsert('GOOSE_PROVIDER_TEST', provider.name, false).then((_) =>
+          console.log('Setting GOOSE_PROVIDER to', provider.name)
+        );
+        // set GOOSE_MODEL in the config file
+        upsert('GOOSE_MODEL_TEST', provider.metadata.default_model, false).then((_) =>
+          console.log('Setting GOOSE_MODEL to', provider.metadata.default_model)
+        );
+      } catch (error) {
+        console.error(`Failed to initialize with provider ${provider.name}:`, error);
+      }
+      onClose();
+    },
+    [onClose, upsert]
+  );
+
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
 
       <ScrollArea className="h-full w-full">
         <div className="px-8 pt-6 pb-4">
-          <BackButton onClick={onClose} />
-          <h1 className="text-3xl font-medium text-textStandard mt-1">Configure</h1>
+          {/* Only show back button if not in onboarding mode */}
+          {!isOnboarding && <BackButton onClick={onClose} />}
+          <h1 className="text-3xl font-medium text-textStandard mt-1">
+            {isOnboarding ? 'Select a Provider' : 'Configure'}
+          </h1>
         </div>
 
         <div className="py-8 pt-[20px]">
@@ -66,7 +96,8 @@ export default function ProviderSettings({ onClose }: { onClose: () => void }) {
               ) : (
                 <ProviderGrid
                   providers={providers}
-                  isOnboarding={false}
+                  isOnboarding={isOnboarding}
+                  onProviderLaunch={handleProviderLaunch}
                   refreshProviders={refreshProviders}
                 />
               )}

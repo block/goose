@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use std::fs;
@@ -20,8 +23,6 @@ impl Evaluation for DeveloperSearchReplace {
         mut agent: Box<dyn BenchAgent>,
         work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
-        let mut metrics = Vec::new();
-
         let _target_file = match work_dir.fs_get("./assets/kubernetes_swagger.json".to_string()) {
             Ok(file) => file,
             Err(_) => {
@@ -34,7 +35,13 @@ impl Evaluation for DeveloperSearchReplace {
         source_file.push("assets/kubernetes_swagger.json");
 
         // Send the prompt to modify the file
-        let _messages = agent.prompt("Remove the io.k8s.api.admissionregistration.v1.ServiceReference definition block and replace with a new definition for io.k8s.api.admissionregistration.v1.FakeServiceReference. Update the fields in the definition as well to be consistent. Don't change the property names. Don't update any references to the old definition. Only modify the definition and it's description to 'FakeServiceReference simulates a reference to a fake service for testing purposes.'.The file to modify is kubernetes_swagger.json.".to_string()).await?;
+        let (_messages, perf_metrics) = collect_baseline_metrics(
+            &mut agent,
+            "Remove the io.k8s.api.admissionregistration.v1.ServiceReference definition block and replace with a new definition for io.k8s.api.admissionregistration.v1.FakeServiceReference. Update the fields in the definition as well to be consistent. Don't change the property names. Don't update any references to the old definition. Only modify the definition and it's description to 'FakeServiceReference simulates a reference to a fake service for testing purposes.'.The file to modify is kubernetes_swagger.json.".to_string()
+        ).await;
+
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Get the path to the modified file
         let modified_file_path = std::env::current_dir()

@@ -1,5 +1,8 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements};
+use crate::eval_suites::{
+    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
@@ -22,13 +25,15 @@ impl Evaluation for DeveloperListFiles {
         mut agent: Box<dyn BenchAgent>,
         _work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
-        let mut metrics = Vec::new();
-
         // Send the prompt to list files
-        let messages = agent
-            .prompt("list the files in the current directory".to_string())
-            .await?;
-        // println!("asdhflkahjsdflkasdfl");
+        let (messages, perf_metrics) = collect_baseline_metrics(
+            &mut agent,
+            "list the files in the current directory".to_string(),
+        )
+        .await;
+
+        // Convert HashMap to Vec for our metrics
+        let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
         // Check if the assistant makes appropriate tool calls
         let valid_tool_call = messages.iter().any(|msg| {
