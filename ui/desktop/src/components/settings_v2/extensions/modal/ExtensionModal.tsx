@@ -202,8 +202,8 @@ export default function ExtensionModal({
                   })
                 }
                 options={[
-                  { value: 'stdio', label: 'STDIO' },
-                  { value: 'sse', label: 'SSE' },
+                  { value: 'stdio', label: 'Standard IO (STDIO)' },
+                  { value: 'sse', label: 'Security Service Edge (SSE)' },
                 ]}
                 styles={createDarkSelectStyles('200px')}
                 theme={darkSelectTheme}
