@@ -29,28 +29,28 @@ impl Theme {
 
 thread_local! {
     static CURRENT_THEME: RefCell<Theme> = RefCell::new({
-        let config = Config::global();
-        if let Ok(theme_str) = config.get_param::<String>("GOOSE_CLI_THEME") {
-            if theme_str.eq_ignore_ascii_case("light") {
+        let env_theme = std::env::var("GOOSE_CLI_THEME").ok();
+        if let Some(val) = env_theme {
+            if val.eq_ignore_ascii_case("light") {
                 Theme::Light
-            } else if theme_str.eq_ignore_ascii_case("ansi") {
+            } else if val.eq_ignore_ascii_case("ansi") {
                 Theme::Ansi
             } else {
                 Theme::Dark
             }
         } else {
-            std::env::var("GOOSE_CLI_THEME")
-                .ok()
-                .map(|val| {
-                    if val.eq_ignore_ascii_case("light") {
-                        Theme::Light
-                    } else if val.eq_ignore_ascii_case("ansi") {
-                        Theme::Ansi
-                    } else {
-                        Theme::Dark
-                    }
-                })
-                .unwrap_or(Theme::Dark)
+            let config = Config::global();
+            if let Ok(theme_str) = config.get_param::<String>("GOOSE_CLI_THEME") {
+                if theme_str.eq_ignore_ascii_case("light") {
+                    Theme::Light
+                } else if theme_str.eq_ignore_ascii_case("ansi") {
+                    Theme::Ansi
+                } else {
+                    Theme::Dark
+                }
+            } else {
+                Theme::Dark
+            }
         }
     });
 }
