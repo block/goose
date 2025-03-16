@@ -4,6 +4,7 @@ use goose::agents::AgentFactory;
 use std::fmt::Write;
 
 #[derive(Args)]
+/// Command to list available agent versions in the Goose system
 pub struct AgentCommand {}
 
 impl AgentCommand {
