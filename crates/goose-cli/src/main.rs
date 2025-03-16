@@ -419,17 +419,14 @@ async fn main() -> Result<()> {
             summary,
         }) => {
             if list {
-                let suites = list_suites().await?;
-                for suite in suites.keys() {
-                    println!("{}: {}", suite, suites.get(suite).unwrap());
-                }
-                return Ok(());
+                return list_suites().await;
             }
             let suites = if suites.is_empty() {
                 vec!["core".to_string()]
             } else {
                 suites
             };
+
             let current_dir = std::env::current_dir()?;
 
             for i in 0..repeat {
