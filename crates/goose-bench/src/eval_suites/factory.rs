@@ -50,17 +50,18 @@ impl EvaluationSuite {
     }
     pub fn select(selectors: Vec<String>) -> HashMap<String, Vec<&'static str>> {
         let eval_name_pattern = Regex::new(r":\w+$").unwrap();
-        let grouped_by_suite: HashMap<String, Vec<&'static str>> = EvaluationSuite::registered_evals()
-            .into_iter()
-            .filter(|&eval| selectors.is_empty() || matches_any_selectors(eval, &selectors))
-            .fold(HashMap::new(), |mut suites, eval| {
-                let suite = match eval_name_pattern.replace(eval, "") {
-                    Cow::Borrowed(s) => s.to_string(),
-                    Cow::Owned(s) => s,
-                };
-                suites.entry(suite).or_default().push(eval);
-                suites
-            });
+        let grouped_by_suite: HashMap<String, Vec<&'static str>> =
+            EvaluationSuite::registered_evals()
+                .into_iter()
+                .filter(|&eval| selectors.is_empty() || matches_any_selectors(eval, &selectors))
+                .fold(HashMap::new(), |mut suites, eval| {
+                    let suite = match eval_name_pattern.replace(eval, "") {
+                        Cow::Borrowed(s) => s.to_string(),
+                        Cow::Owned(s) => s,
+                    };
+                    suites.entry(suite).or_default().push(eval);
+                    suites
+                });
 
         grouped_by_suite
     }
