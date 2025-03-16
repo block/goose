@@ -43,9 +43,9 @@ impl EvaluationSuite {
             .read()
             .expect("Failed to read the benchmark evaluation registry.");
 
-        let mut suites: Vec<_> = map.keys().copied().collect();
-        suites.sort();
-        suites
+        let mut evals: Vec<_> = map.keys().copied().collect();
+        evals.sort();
+        evals
     }
     pub fn select(selectors: Vec<String>) -> Vec<&'static str> {
         if selectors.is_empty() {
@@ -54,7 +54,7 @@ impl EvaluationSuite {
 
         EvaluationSuite::registered_evals()
             .into_iter()
-            .filter(|&suite| selectors.iter().any(|selector| suite.starts_with(selector)))
+            .filter(|&eval| selectors.iter().any(|selector| eval.starts_with(selector)))
             .collect()
     }
 
@@ -80,7 +80,7 @@ macro_rules! register_evaluation {
                 let mut path = std::path::PathBuf::from(file!());
                 path.set_extension("");
                 let eval_suites_dir = "eval_suites";
-                let suite_name = {
+                let eval_selector = {
                     let s = path.components()
                         .skip_while(|comp| comp.as_os_str() != eval_suites_dir)
                         .skip(1)
@@ -90,7 +90,7 @@ macro_rules! register_evaluation {
                     Box::leak(s.into_boxed_str())
                 };
 
-                $crate::eval_suites::factory::register_eval(suite_name, || {
+                $crate::eval_suites::factory::register_eval(eval_selector, || {
                     Box::new(<$evaluation_type>::new())
                 });
             }

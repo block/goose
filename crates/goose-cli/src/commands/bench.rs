@@ -160,9 +160,9 @@ pub async fn run_benchmark(
     Ok(results)
 }
 
-pub async fn list_suites() -> anyhow::Result<()> {
-    let suites = EvaluationSuite::available_selectors();
-    let mut keys: Vec<_> = suites.keys().collect();
+pub async fn list_selectors() -> anyhow::Result<()> {
+    let selector_eval_counts = EvaluationSuite::available_selectors();
+    let mut keys: Vec<_> = selector_eval_counts.keys().collect();
     keys.sort();
     let max_key_len = keys.iter().map(|k| k.len()).max().unwrap_or(0);
     println!(
@@ -170,12 +170,12 @@ pub async fn list_suites() -> anyhow::Result<()> {
         " ".repeat(max_key_len - "selector".len())
     );
     println!("{}", "-".repeat(max_key_len + 6));
-    for suite in keys {
+    for selector in keys {
         println!(
             "{} {} => {}",
-            suite,
-            " ".repeat(max_key_len - suite.len()),
-            suites.get(suite).unwrap()
+            selector,
+            " ".repeat(max_key_len - selector.len()),
+            selector_eval_counts.get(selector).unwrap()
         );
     }
     Ok(())
