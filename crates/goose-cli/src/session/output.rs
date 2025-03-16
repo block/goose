@@ -51,10 +51,10 @@ impl Theme {
 
 thread_local! {
     static CURRENT_THEME: RefCell<Theme> = RefCell::new(
-        Config::global().get_param::<String>("GOOSE_CLI_THEME").ok()
+        std::env::var("GOOSE_CLI_THEME").ok()
             .map(|val| Theme::from_config_str(&val))
             .unwrap_or_else(||
-                std::env::var("GOOSE_CLI_THEME").ok()
+                Config::global().get_param::<String>("GOOSE_CLI_THEME").ok()
                     .map(|val| Theme::from_config_str(&val))
                     .unwrap_or(Theme::Dark)
             )
