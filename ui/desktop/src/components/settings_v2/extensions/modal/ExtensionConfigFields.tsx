@@ -28,7 +28,7 @@ export default function ExtensionConfigFields({
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
-              className={`w-full bg-bgSubtle ${!submitAttempted || isValid ? 'border-borderSubtle' : 'border-red-500'} text-textStandard`}
+              className={`w-full ${!submitAttempted || isValid ? 'border-borderSubtle' : 'border-red-500'} text-textStandard`}
             />
             {submitAttempted && !isValid && (
               <div className="absolute text-xs text-red-500 mt-1">Command is required</div>
@@ -46,7 +46,7 @@ export default function ExtensionConfigFields({
             value={endpoint}
             onChange={(e) => onChange('endpoint', e.target.value)}
             placeholder="Enter endpoint URL..."
-            className={`w-full bg-bgSubtle ${!submitAttempted || isValid ? 'border-borderSubtle' : 'border-red-500'} text-textStandard`}
+            className={`w-full ${!submitAttempted || isValid ? 'border-borderSubtle' : 'border-red-500'} text-textStandard`}
           />
           {submitAttempted && !isValid && (
             <div className="absolute text-xs text-red-500 mt-1">Endpoint URL is required</div>

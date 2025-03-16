@@ -248,6 +248,6 @@ function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
   };
 }
 
-function combineCmdAndArgs(cmd: string, args: string[]): string {
+export function combineCmdAndArgs(cmd: string, args: string[]): string {
   return [cmd, ...args].join(' ');
 }

@@ -183,7 +183,7 @@ export default function ExtensionModal({
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Enter extension name..."
-                  className={`bg-bgSubtle ${!submitAttempted || formData.name.trim() !== '' ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
+                  className={`${!submitAttempted || formData.name.trim() !== '' ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
                 />
                 {submitAttempted && !isNameValid() && (
                   <div className="absolute text-xs text-red-500 mt-1">Name is required</div>

@@ -69,12 +69,12 @@ export default function EnvVarsSection({
         {/* Empty row with Add button */}
         <Input
           placeholder="Variable name"
-          className="w-full bg-bgSubtle border-borderSubtle text-textStandard"
+          className="w-full border-borderStandard text-textStandard"
           disabled
         />
         <Input
           placeholder="Value"
-          className="w-full bg-bgSubtle border-borderSubtle text-textStandard"
+          className="w-full border-borderStandard text-textStandard"
           disabled
         />
         <Button
