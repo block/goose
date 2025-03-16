@@ -9,16 +9,16 @@ use mcp_core::role::Role;
 use serde_json::{self, Value};
 
 #[derive(Debug)]
-pub struct ComputerControllerWebScrape {}
+pub struct ComputerControllerScript {}
 
-impl ComputerControllerWebScrape {
+impl ComputerControllerScript {
     pub fn new() -> Self {
-        ComputerControllerWebScrape {}
+        ComputerControllerScript {}
     }
 }
 
 #[async_trait]
-impl Evaluation for ComputerControllerWebScrape {
+impl Evaluation for ComputerControllerScript {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
@@ -27,9 +27,7 @@ impl Evaluation for ComputerControllerWebScrape {
         let mut metrics = Vec::new();
 
         // Send the prompt to list files
-        let messages = agent.prompt(
-            "What are the headlines on hackernews? Organize the list into categories.".to_string(),
-        );
+        let messages = agent.prompt("Make a beep sound".to_string());
         let messages = messages.await?;
 
         let valid_tool_call = messages.iter().any(|msg| {
@@ -40,14 +38,14 @@ impl Evaluation for ComputerControllerWebScrape {
                 if let MessageContent::ToolRequest(tool_req) = content {
                     if let Ok(tool_call) = tool_req.tool_call.as_ref() {
                         // Check tool name is correct
-                        if tool_call.name != "computercontroller__web_scrape" {
+                        if tool_call.name != "computer_controller__computer_control" {
                             return false;
                         }
 
                         // Parse the arguments as JSON
                         if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
-                            // Check all required parameters match exactly                                                        
-                            args.get("url").and_then(Value::as_str).map(|s| s.trim_end_matches('/')) == Some("https://news.ycombinator.com")
+                            // Check all required parameters match exactly
+                            args.get("script").and_then(Value::as_str).is_some_and(|s| s.contains("beep"))
                         } else {
                             false
                         }
@@ -61,22 +59,22 @@ impl Evaluation for ComputerControllerWebScrape {
         });
 
         metrics.push((
-            "Retrieve and scrape web pages".to_string(),
+            "Running os scripts".to_string(),
             EvaluationMetric::Boolean(valid_tool_call),
         ));
         Ok(metrics)
     }
 
     fn name(&self) -> &str {
-        "computercontroller_web_scrape"
+        "computer_controller_script"
     }
 
     fn required_extensions(&self) -> ExtensionRequirements {
         ExtensionRequirements {
-            builtin: vec!["computercontroller".to_string()],
+            builtin: vec!["computer_controller".to_string()],
             external: Vec::new(),
         }
     }
 }
 
-register_evaluation!("computercontroller", ComputerControllerWebScrape);
+register_evaluation!(ComputerControllerScript);

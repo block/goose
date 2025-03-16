@@ -99,4 +99,4 @@ impl Evaluation for DeveloperSearchReplace {
     }
 }
 
-register_evaluation!("developer_search_replace", DeveloperSearchReplace);
+register_evaluation!(DeveloperSearchReplace);
