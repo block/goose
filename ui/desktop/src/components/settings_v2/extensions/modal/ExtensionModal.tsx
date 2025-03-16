@@ -154,7 +154,7 @@ export default function ExtensionModal({
   const modalTitle = showDeleteConfirmation ? `Delete Extension "${formData.name}"` : title;
 
   return (
-    <Modal footer={footerContent}>
+    <Modal footer={footerContent} onClose={onClose}>
       {/* Title and Icon */}
       <div className="flex flex-col mb-6">
         <div>{getModalIcon()}</div>
