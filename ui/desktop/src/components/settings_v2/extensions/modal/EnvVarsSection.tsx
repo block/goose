@@ -80,7 +80,7 @@ export default function EnvVarsSection({
         <Button
           onClick={onAdd}
           variant="ghost"
-          className="flex items-center justify-start gap-1 px-2 text-xs font-medium rounded-md bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors min-w-[60px] h-9"
+          className="flex items-center justify-start gap-1 px-2 pr-4 text-s font-medium rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors min-w-[60px] h-9"
         >
           <Plus className="h-3 w-3" /> Add
         </Button>
