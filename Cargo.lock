@@ -2352,6 +2352,7 @@ dependencies = [
  "mcp-core",
  "once_cell",
  "paste",
+ "regex",
  "serde",
  "serde_json",
  "tokio",

@@ -1,4 +1,6 @@
 pub use super::Evaluation;
+use regex::Regex;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 
@@ -44,18 +46,23 @@ impl EvaluationSuite {
             .expect("Failed to read the benchmark evaluation registry.");
 
         let mut evals: Vec<_> = map.keys().copied().collect();
-        evals.sort();
         evals
     }
-    pub fn select(selectors: Vec<String>) -> Vec<&'static str> {
-        if selectors.is_empty() {
-            return EvaluationSuite::registered_evals();
-        }
-
-        EvaluationSuite::registered_evals()
+    pub fn select(selectors: Vec<String>) -> HashMap<String, Vec<&'static str>> {
+        let eval_name_pattern = Regex::new(r":\w+$").unwrap();
+        let grouped_by_suite = EvaluationSuite::registered_evals()
             .into_iter()
-            .filter(|&eval| selectors.iter().any(|selector| eval.starts_with(selector)))
-            .collect()
+            .filter(|&eval| selectors.is_empty() || matches_any_selectors(eval, &selectors))
+            .fold(HashMap::new(), |mut suites, eval| {
+                let suite = match eval_name_pattern.replace(eval, "") {
+                    Cow::Borrowed(s) => s.to_string(),
+                    Cow::Owned(s) => s,
+                };
+                suites.entry(suite).or_insert_with(Vec::new).push(eval);
+                suites
+            });
+
+        grouped_by_suite
     }
 
     pub fn available_selectors() -> HashMap<String, usize> {
@@ -70,6 +77,29 @@ impl EvaluationSuite {
         counts
     }
 }
+
+fn matches_any_selectors(eval: &str, selectors: &Vec<String>) -> bool {
+    // selectors must prefix match exactly, no matching half-way in a word
+    // remove one level of nesting at a time and check exact match
+    let nesting_pattern = Regex::new(r":\w+$").unwrap();
+    let mut level_up = eval.to_string();
+    for selector in selectors {
+        while !level_up.is_empty() {
+            if level_up == *selector {
+                return true;
+            }
+            if !level_up.contains(":") {
+                break;
+            };
+            level_up = match nesting_pattern.replace(&level_up, "") {
+                Cow::Borrowed(s) => s.to_string(),
+                Cow::Owned(s) => s,
+            };
+        }
+    }
+    false
+}
+
 #[macro_export]
 macro_rules! register_evaluation {
     ($evaluation_type:ty) => {

@@ -144,14 +144,15 @@ pub async fn run_benchmark(
         include_dirs.clone(),
     ));
 
-    for selector in EvaluationSuite::select(selectors) {
-        let mut suite_result = SuiteResult::new(selector.to_string());
-
-        if let Some(eval) = EvaluationSuite::from(selector) {
-            let mut work_dir = work_dir.lock().await;
-            work_dir.set_eval(selector);
-            let eval_result = run_eval(eval, &mut work_dir).await?;
-            suite_result.add_evaluation(eval_result);
+    for (suite, evals) in EvaluationSuite::select(selectors).iter() {
+        let mut suite_result = SuiteResult::new(suite.clone());
+        for eval_selector in evals {
+            if let Some(eval) = EvaluationSuite::from(eval_selector) {
+                let mut work_dir = work_dir.lock().await;
+                work_dir.set_eval(eval_selector);
+                let eval_result = run_eval(eval, &mut work_dir).await?;
+                suite_result.add_evaluation(eval_result);
+            }
         }
 
         results.add_suite(suite_result);
