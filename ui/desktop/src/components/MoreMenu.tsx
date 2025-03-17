@@ -16,8 +16,6 @@ export default function MoreMenu({
   setView: (view: View) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  localStorage.setItem('use_system_theme', 'false');
-
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
