@@ -63,7 +63,7 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <Modal>
+    <Modal onClose={closeModal}>
       <div className="space-y-1">
         {/* Logo area - centered above title */}
         <ProviderLogo providerName={currentProvider.name} />

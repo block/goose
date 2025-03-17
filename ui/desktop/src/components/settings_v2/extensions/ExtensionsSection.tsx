@@ -3,12 +3,17 @@ import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
-import { ExtensionConfig } from '../../../api/types.gen';
 import ExtensionList from './subcomponents/ExtensionList';
 import ExtensionModal from './modal/ExtensionModal';
+import {
+  createExtensionConfig,
+  ExtensionFormData,
+  extensionToFormData,
+  getDefaultFormData,
+} from './utils';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, addExtension } = useConfig();
+  const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
@@ -74,6 +79,16 @@ export default function ExtensionsSection() {
     }
   };
 
+  const handleDeleteExtension = async (name: string) => {
+    try {
+      await removeExtension(name);
+      handleModalClose();
+      fetchExtensions(); // Refresh the list after deleting
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
+    }
+  };
+
   const handleModalClose = () => {
     setIsModalOpen(false);
     setIsAddModalOpen(false);
@@ -122,7 +137,9 @@ export default function ExtensionsSection() {
           initialData={extensionToFormData(selectedExtension)}
           onClose={handleModalClose}
           onSubmit={handleUpdateExtension}
+          onDelete={handleDeleteExtension}
           submitLabel="Save Changes"
+          modalType={'edit'}
         />
       )}
 
@@ -134,90 +151,9 @@ export default function ExtensionsSection() {
           onClose={handleModalClose}
           onSubmit={handleAddExtension}
           submitLabel="Add Extension"
+          modalType={'add'}
         />
       )}
     </section>
   );
-}
-
-// Helper functions
-
-export interface ExtensionFormData {
-  name: string;
-  type: 'stdio' | 'sse' | 'builtin';
-  cmd?: string;
-  args?: string[];
-  endpoint?: string;
-  enabled: boolean;
-  envVars: { key: string; value: string }[];
-}
-
-function getDefaultFormData(): ExtensionFormData {
-  return {
-    name: '',
-    type: 'stdio',
-    cmd: '',
-    args: [],
-    endpoint: '',
-    enabled: true,
-    envVars: [],
-  };
-}
-
-function extensionToFormData(extension: FixedExtensionEntry): ExtensionFormData {
-  // Type guard: Check if 'envs' property exists for this variant
-  const hasEnvs = extension.type === 'sse' || extension.type === 'stdio';
-
-  const envVars =
-    hasEnvs && extension.envs
-      ? Object.entries(extension.envs).map(([key, value]) => ({
-          key,
-          value: value as string,
-        }))
-      : [];
-
-  return {
-    name: extension.name,
-    type: extension.type,
-    cmd: extension.type === 'stdio' ? extension.cmd : undefined,
-    args: extension.type === 'stdio' ? extension.args : [],
-    endpoint: extension.type === 'sse' ? extension.uri : undefined,
-    enabled: extension.enabled,
-    envVars,
-  };
-}
-
-function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
-  const envs = formData.envVars.reduce(
-    (acc, { key, value }) => {
-      if (key) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, string>
-  );
-
-  if (formData.type === 'stdio') {
-    return {
-      type: 'stdio',
-      name: formData.name,
-      cmd: formData.cmd,
-      args: formData.args,
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
-    };
-  } else if (formData.type === 'sse') {
-    return {
-      type: 'sse',
-      name: formData.name,
-      uri: formData.endpoint, // Assuming endpoint maps to uri for SSE type
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
-    };
-  } else {
-    // For other types
-    return {
-      type: formData.type,
-      name: formData.name,
-    };
-  }
 }
