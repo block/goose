@@ -1083,15 +1083,17 @@ impl GoogleDriveRouter {
             ..Default::default()
         };
 
-        if let Some(p) = parent {
-            req.parents = Some(vec![p.to_string()]);
-        }
-
         let builder = self.drive.files();
 
         let result = match operation {
             FileOperation::Create { ref name } => {
                 req.name = Some(name.to_string());
+
+                // we only accept parent_id from create tool calls
+                if let Some(p) = parent {
+                    req.parents = Some(vec![p.to_string()]);
+                }
+
                 builder
                     .create(req)
                     .use_content_as_indexable_text(true)
@@ -1199,7 +1201,7 @@ impl GoogleDriveRouter {
         let source_mime_type = "text/markdown";
         let target_mime_type = "application/vnd.google-apps.document";
 
-        let parent_id = params.get("parent").and_then(|q| q.as_str());
+        let parent_id = params.get("parentId").and_then(|q| q.as_str());
 
         let allow_shared_drives = params
             .get("allowSharedDrives")
@@ -1241,7 +1243,7 @@ impl GoogleDriveRouter {
         let source_mime_type = "text/csv";
         let target_mime_type = "application/vnd.google-apps.spreadsheet";
 
-        let parent_id = params.get("parent_id").and_then(|q| q.as_str());
+        let parent_id = params.get("parentId").and_then(|q| q.as_str());
 
         let allow_shared_drives = params
             .get("allowSharedDrives")
@@ -1288,7 +1290,7 @@ impl GoogleDriveRouter {
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         let target_mime_type = "application/vnd.google-apps.presentation";
 
-        let parent_id = params.get("parent_id").and_then(|q| q.as_str());
+        let parent_id = params.get("parentId").and_then(|q| q.as_str());
 
         let allow_shared_drives = params
             .get("allowSharedDrives")
