@@ -82,19 +82,27 @@ goose configure
     ```
 
 ---
-### session list
+### session list [options]
 
 List all saved sessions.
 
 - **`-v, --verbose`**: (Optional) Includes session file paths in the output.
+- **`-f, --format <format>`**: Specify output format (`text` or `json`). Default is `text`.
 
 **Usage:**
 
 ```bash
+# List all sessions in text format (default)
 goose session list
 ```
 ```bash
+# List sessions with file paths
 goose session list --verbose
+```
+
+```bash
+# List sessions in JSON format
+goose session list --format json
 ```
 ---
 
