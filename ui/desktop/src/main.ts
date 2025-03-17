@@ -46,7 +46,6 @@ app.on('open-url', async (event, url) => {
 
   // Parse the URL to determine the type
   const parsedUrl = new URL(url);
-  let botPrompt = '';
   let botConfig = null;
 
   // Extract bot config if it's a bot URL
@@ -55,7 +54,6 @@ app.on('open-url', async (event, url) => {
     if (configParam) {
       try {
         botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        botPrompt = botConfig.instructions || '';
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
@@ -67,15 +65,7 @@ app.on('open-url', async (event, url) => {
 
   // Always create a new window for bot URLs only
   if (parsedUrl.pathname === '/bot') {
-    firstOpenWindow = await createChat(
-      app,
-      undefined,
-      openDir,
-      undefined,
-      undefined,
-      botPrompt,
-      botConfig
-    );
+    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -91,10 +81,6 @@ app.on('open-url', async (event, url) => {
   // Handle different types of deep links
   if (parsedUrl.pathname === '/extension') {
     firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-  }
-  // No need to send configure-bot event anymore since we're passing botConfig directly
-  else if (parsedUrl.pathname !== '/bot') {
-    console.log(`Unknown deep link type: ${parsedUrl.pathname}`);
   }
 });
 
@@ -154,8 +140,7 @@ const createChat = async (
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  botPrompt?: string, // Add botPrompt parameter
-  botConfig?: any // Add botConfig parameter
+  botConfig?: any // Bot configuration
 ) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
@@ -182,7 +167,6 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
-          botPrompt: botPrompt,
           botConfig: botConfig,
         }),
       ],
@@ -379,10 +363,8 @@ ipcMain.on('react-ready', (event) => {
     if (parsedUrl.pathname === '/extension') {
       console.log('Sending add-extension event');
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.pathname === '/bot') {
-      console.log('Sending configure-bot event');
-      firstOpenWindow.webContents.send('configure-bot', pendingDeepLink);
     }
+    // Bot URLs are now handled directly through botConfig in additionalArguments
     pendingDeepLink = null;
   } else {
     console.log('No pending deep link to process');
@@ -535,12 +517,10 @@ app.whenReady().then(async () => {
 
           // Extract the bot config from the URL
           const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let botPrompt = '';
           let botConfig = null;
           if (configParam) {
             try {
               botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-              botPrompt = botConfig.instructions || '';
             } catch (e) {
               console.error('Failed to parse bot config:', e);
             }
@@ -550,7 +530,7 @@ app.whenReady().then(async () => {
           const recentDirs = loadRecentDirs();
           const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-          createChat(app, undefined, openDir, undefined, undefined, botPrompt, botConfig);
+          createChat(app, undefined, openDir, undefined, undefined, botConfig);
         },
       })
     );
@@ -564,16 +544,13 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on(
-    'create-chat-window',
-    (_, query, dir, version, resumeSessionId, botPrompt, botConfig) => {
-      if (!dir?.trim()) {
-        const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : null;
-      }
-      createChat(app, query, dir, version, resumeSessionId, botPrompt, botConfig);
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
-  );
+    createChat(app, query, dir, version, resumeSessionId, botConfig);
+  });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
     openDirectoryDialog(replace);

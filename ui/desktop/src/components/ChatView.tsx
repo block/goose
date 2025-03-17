@@ -58,13 +58,6 @@ export default function ChatView({
   // Get botConfig directly from appConfig
   const botConfig = window.appConfig.get('botConfig') as BotConfig | null;
 
-  // Log botConfig if available
-  useEffect(() => {
-    if (botConfig) {
-      window.electron.logInfo('Using bot config from appConfig: ' + JSON.stringify(botConfig));
-    }
-  }, []);
-
   const {
     messages,
     append,

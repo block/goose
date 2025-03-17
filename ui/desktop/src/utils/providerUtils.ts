@@ -75,8 +75,9 @@ export const initializeSystem = async (provider: string, model: string) => {
     const syncedModel = syncModelWithAgent(provider, model);
     console.log('Model synced with React state:', syncedModel);
 
-    // Get botPrompt directly here
-    const botPrompt = window.appConfig?.get?.('botPrompt');
+    // Get botConfig directly here
+    const botConfig = window.appConfig?.get?.('botConfig');
+    const botPrompt = botConfig?.instructions;
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
