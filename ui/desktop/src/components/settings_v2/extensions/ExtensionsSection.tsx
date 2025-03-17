@@ -11,7 +11,6 @@ import {
   extensionToFormData,
   getDefaultFormData,
 } from './utils';
-import { useAgent } from '../../../agent/UpdateAgent';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
