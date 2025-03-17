@@ -82,6 +82,21 @@ goose configure
     ```
 
 ---
+### session list
+
+List all saved sessions.
+
+- **`-v, --verbose`**: (Optional) Includes session file paths in the output.
+
+**Usage:**
+
+```bash
+goose session list
+```
+```bash
+goose session list --verbose
+```
+---
 
 ### info [options]
 
