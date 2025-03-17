@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://youtube.com/embed/2IVPcjEr-yQ" /> 
 
 This tutorial covers how to add the [Filesystem MCP server](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/filesystem) as a Goose extension, enabling powerful code analysis and file management. With this extension, Goose can analyze project structures, edit and organize files, detect unused dependencies, and generate documentation to improve software maintainability.
 

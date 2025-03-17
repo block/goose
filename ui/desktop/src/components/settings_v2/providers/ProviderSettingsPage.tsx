@@ -4,6 +4,7 @@ import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
+import { useAgent } from '../../../agent/UpdateAgent';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -12,6 +13,7 @@ interface ProviderSettingsProps {
 
 export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
   const { getProviders, upsert } = useConfig();
+  const { initializeAgent } = useAgent();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -50,24 +52,30 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
 
   // Handler for when a provider is launched if this component is used as part of onboarding page
   const handleProviderLaunch = useCallback(
-    (provider: ProviderDetails) => {
+    async (provider: ProviderDetails) => {
+      const provider_name = provider.name;
+      const model = provider.metadata.default_model;
+
       console.log(`Launching with provider: ${provider.name}`);
       try {
+        // update the config
         // set GOOSE_PROVIDER in the config file
-        // @lily-de: leaving as test for now to avoid messing with my config directly
-        upsert('GOOSE_PROVIDER_TEST', provider.name, false).then((_) =>
-          console.log('Setting GOOSE_PROVIDER to', provider.name)
+        upsert('GOOSE_PROVIDER', provider_name, false).then((_) =>
+          console.log('Setting GOOSE_PROVIDER to', provider_name)
         );
         // set GOOSE_MODEL in the config file
-        upsert('GOOSE_MODEL_TEST', provider.metadata.default_model, false).then((_) =>
-          console.log('Setting GOOSE_MODEL to', provider.metadata.default_model)
+        upsert('GOOSE_MODEL', model, false).then((_) =>
+          console.log('Setting GOOSE_MODEL to', model)
         );
+
+        // initialize agent
+        await initializeAgent(provider_name, model);
       } catch (error) {
-        console.error(`Failed to initialize with provider ${provider.name}:`, error);
+        console.error(`Failed to initialize with provider ${provider_name}:`, error);
       }
       onClose();
     },
-    [onClose, upsert]
+    [initializeAgent, onClose, upsert]
   );
 
   return (
