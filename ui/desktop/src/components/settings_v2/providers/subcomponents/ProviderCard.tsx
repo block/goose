@@ -36,6 +36,7 @@ export const ProviderCard = memo(function ProviderCard({
 
   return (
     <CardContainer
+      grayedOut={!provider.is_configured && isOnboarding} // onboarding page will have grayed out cards if not configured
       onClick={handleCardClick}
       header={
         <CardHeader
