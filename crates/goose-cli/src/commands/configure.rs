@@ -301,7 +301,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
         .map(|val| val == "1" || val.to_lowercase() == "true")
         .unwrap_or(false);
-        
+
     let model_config = goose::model::ModelConfig::new(model.clone())
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
