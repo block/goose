@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use super::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::Message;
-use crate::providers::base::{Provider, ProviderUsage};
+use crate::providers::base::Provider;
 use crate::session;
 use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
@@ -46,9 +46,6 @@ pub trait Agent: Send + Sync {
 
     /// Pass through a JSON-RPC request to a specific extension
     async fn passthrough(&self, extension: &str, request: Value) -> ExtensionResult<Value>;
-
-    /// Get the total usage of the agent
-    async fn usage(&self) -> Vec<ProviderUsage>;
 
     /// Add custom text to be included in the system prompt
     async fn extend_system_prompt(&mut self, extension: String);
