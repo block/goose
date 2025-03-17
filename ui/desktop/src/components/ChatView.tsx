@@ -15,7 +15,7 @@ import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import { useBotConfig } from '../hooks/useBotConfig';
+import { BotConfig } from '../botConfig';
 import {
   Message,
   createUserMessage,
@@ -54,21 +54,16 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const { botConfig } = useBotConfig();
 
-  // Force re-render of Splash component when botConfig changes
-  const [splashKey, setSplashKey] = useState(0);
+  // Get botConfig directly from appConfig
+  const botConfig = window.appConfig.get('botConfig') as BotConfig | null;
 
-  // Log botConfig when it changes
+  // Log botConfig if available
   useEffect(() => {
-    window.electron.logInfo('ChatView botConfig changed: ' + JSON.stringify(botConfig));
-    if (botConfig && botConfig.activities) {
-      window.electron.logInfo(
-        'Bot activities are available: ' + JSON.stringify(botConfig.activities)
-      );
-      setSplashKey((prev) => prev + 1);
+    if (botConfig) {
+      window.electron.logInfo('Using bot config from appConfig: ' + JSON.stringify(botConfig));
     }
-  }, [botConfig]);
+  }, []);
 
   const {
     messages,
@@ -279,7 +274,6 @@ export default function ChatView({
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
           <Splash
-            key={splashKey}
             append={(text) => append(createUserMessage(text))}
             activities={botConfig?.activities || null}
           />

@@ -5,7 +5,6 @@ const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}
 // Define the API types in a single place
 type ElectronAPI = {
   reactReady: () => void;
-  botReady: () => void;
   getConfig: () => Record<string, any>;
   hideWindow: () => void;
   directoryChooser: (replace: string) => void;
@@ -14,7 +13,8 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botPrompt?: string
+    botPrompt?: string,
+    botConfig?: any
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: any) => void;
@@ -48,7 +48,6 @@ type AppConfigAPI = {
 
 const electronAPI: ElectronAPI = {
   reactReady: () => ipcRenderer.send('react-ready'),
-  botReady: () => ipcRenderer.send('bot-ready'),
   getConfig: () => config,
   hideWindow: () => ipcRenderer.send('hide-window'),
   directoryChooser: (replace: string) => ipcRenderer.send('directory-chooser', replace),
@@ -57,8 +56,18 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botPrompt?: string
-  ) => ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, botPrompt),
+    botPrompt?: string,
+    botConfig?: any
+  ) =>
+    ipcRenderer.send(
+      'create-chat-window',
+      query,
+      dir,
+      version,
+      resumeSessionId,
+      botPrompt,
+      botConfig
+    ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: any) => ipcRenderer.send('notify', data),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
