@@ -11,6 +11,7 @@ import {
   extensionToFormData,
   getDefaultFormData,
 } from './utils';
+import { useAgent } from '../../../agent/UpdateAgent';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
@@ -20,6 +21,7 @@ export default function ExtensionsSection() {
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const { updateAgent, addExtensionToAgent } = useAgent();
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -60,8 +62,10 @@ export default function ExtensionsSection() {
 
     try {
       await addExtension(formData.name, extensionConfig, formData.enabled);
+      console.log('attempting to add extension');
+      await updateAgent(extensionConfig);
       handleModalClose();
-      fetchExtensions(); // Refresh the list after adding
+      await fetchExtensions(); // Refresh the list after adding
     } catch (error) {
       console.error('Failed to add extension:', error);
     }
