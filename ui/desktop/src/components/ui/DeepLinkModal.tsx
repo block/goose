@@ -61,32 +61,34 @@ export function DeepLinkModal({
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="bg-bgApp p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Agent Created!</h2>
-        <p className="mb-4">
+        <h2 className="text-xl font-bold mb-4 text-textStandard">Agent Created!</h2>
+        <p className="mb-4 text-textStandard">
           Your agent has been created successfully. You can review and edit the details below:
         </p>
 
         {/* Instructions Section */}
         <div className="mb-4">
-          <label htmlFor="instructions" className="block font-medium mb-1">
+          <label htmlFor="instructions" className="block font-medium mb-1 text-textStandard">
             Instructions:
           </label>
           <textarea
             id="instructions"
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
-            className="w-full p-2 border border-borderSubtle rounded-md bg-bgSubtle text-textStandard min-h-[100px]"
+            className="w-full p-2 border border-borderSubtle rounded-md bg-transparent text-textStandard min-h-[100px] focus:border-borderStandard hover:border-borderStandard"
             placeholder="Instructions for the agent..."
           />
         </div>
 
         {/* Activities Section */}
         <div className="mb-4">
-          <label className="block font-medium mb-1">Activities:</label>
+          <label className="block font-medium mb-1 text-textStandard">Activities:</label>
           <ul className="mb-2 space-y-1">
             {activities.map((activity, index) => (
               <li key={index} className="flex items-center">
-                <span className="flex-1 p-2 bg-bgSubtle rounded-l-md">{activity}</span>
+                <span className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-transparent text-textStandard">
+                  {activity}
+                </span>
                 <button
                   onClick={() => handleRemoveActivity(index)}
                   className="p-2 bg-red-500 text-white rounded-r-md hover:bg-red-600"
@@ -102,7 +104,7 @@ export function DeepLinkModal({
               value={activityInput}
               onChange={(e) => setActivityInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
-              className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-bgSubtle text-textStandard"
+              className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-transparent text-textStandard focus:border-borderStandard hover:border-borderStandard"
               placeholder="Add new activity..."
             />
             <button
@@ -116,13 +118,13 @@ export function DeepLinkModal({
 
         {/* Deep Link Section */}
         <div className="mb-4">
-          <label className="block font-medium mb-1">Deep Link:</label>
+          <label className="block font-medium mb-1 text-textStandard">Deep Link:</label>
           <div className="flex items-center">
             <input
               type="text"
               value={deepLink}
               readOnly
-              className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-bgSubtle text-textStandard"
+              className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
             />
             <button
               onClick={() => {
