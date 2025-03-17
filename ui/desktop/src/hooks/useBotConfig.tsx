@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { parseBotConfigFromUrl, setBotSystemPrompt, type BotConfig } from '../botConfig';
+import { parseBotConfigFromUrl, type BotConfig } from '../botConfig';
 import { toast } from 'react-toastify';
 
 export function useBotConfig() {
@@ -17,15 +17,6 @@ export function useBotConfig() {
         if (!config) {
           window.electron.logInfo('Invalid bot configuration');
           toast.error('Invalid bot configuration');
-          return;
-        }
-
-        // Set the system prompt
-        window.electron.logInfo('Setting system prompt for bot: ' + config.name);
-        const success = await setBotSystemPrompt(config.instructions);
-        if (!success) {
-          window.electron.logInfo('Failed to set system prompt');
-          toast.error('Failed to configure bot');
           return;
         }
 

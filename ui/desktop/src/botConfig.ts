@@ -42,39 +42,3 @@ export function parseBotConfigFromUrl(url: string): BotConfig | null {
     return null;
   }
 }
-
-/**
- * Sets the system prompt for a bot
- * @param instructions The instructions to set as the system prompt
- * @returns A promise that resolves when the prompt is set
- */
-export async function setBotSystemPrompt(instructions: string): Promise<boolean> {
-  try {
-    const apiUrl = getApiUrl('/agent/prompt');
-    window.electron.logInfo(`Setting system prompt, API URL: ${apiUrl}`);
-
-    // Use extension parameter just like in providerUtils.ts
-    const requestBody = JSON.stringify({ extension: instructions });
-    window.electron.logInfo(`Request body: ${requestBody}`);
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: requestBody,
-    });
-
-    if (!response.ok) {
-      window.electron.logInfo(`Failed to set bot system prompt: ${response.statusText}`);
-      return false;
-    }
-
-    window.electron.logInfo('System prompt extended successfully');
-    return true;
-  } catch (error) {
-    window.electron.logInfo('Error setting bot system prompt: ' + error);
-    return false;
-  }
-}
