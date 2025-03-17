@@ -41,7 +41,14 @@ export function useBotConfig() {
       }
     };
 
-    window.electron.on('configure-bot', handleConfigureBot);
+    // Make sure we're listening for the event
+    window.electron.off('configure-bot', handleConfigureBot); // Remove any existing listeners
+    window.electron.on('configure-bot', handleConfigureBot); // Add fresh listener
+
+    // Signal to main process that we're ready to receive bot configuration
+    window.electron.logInfo('Sending bot-ready event to main process');
+    window.electron.botReady();
+
     return () => {
       window.electron.logInfo('Removing bot configuration listener');
       window.electron.off('configure-bot', handleConfigureBot);

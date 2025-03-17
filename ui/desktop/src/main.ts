@@ -267,7 +267,14 @@ const createTray = () => {
         createChat(app, undefined, openDir).then((window) => {
           // Send the bot configuration URL to the window
           window.webContents.on('did-finish-load', () => {
+            console.log('Window loaded from tray menu, waiting for bot-ready event');
+          });
+
+          // Listen for bot-ready event from renderer
+          ipcMain.once('bot-ready', () => {
+            console.log('Bot ready event received from tray menu, sending configure-bot event');
             window.webContents.send('configure-bot', sqlBotUrl);
+            console.log('Sent configure-bot event from tray menu');
           });
         });
       },
@@ -356,15 +363,22 @@ process.on('unhandledRejection', (error) => {
 });
 
 ipcMain.on('react-ready', (event) => {
+  console.log('React ready event received');
+
   if (pendingDeepLink) {
+    console.log('Processing pending deep link:', pendingDeepLink);
     const parsedUrl = new URL(pendingDeepLink);
 
     if (parsedUrl.pathname === '/extension') {
+      console.log('Sending add-extension event');
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
     } else if (parsedUrl.pathname === '/bot') {
+      console.log('Sending configure-bot event');
       firstOpenWindow.webContents.send('configure-bot', pendingDeepLink);
     }
     pendingDeepLink = null;
+  } else {
+    console.log('No pending deep link to process');
   }
 });
 
@@ -519,7 +533,14 @@ app.whenReady().then(async () => {
           createChat(app, undefined, openDir).then((window) => {
             // Send the bot configuration URL to the window
             window.webContents.on('did-finish-load', () => {
+              console.log('Window loaded, waiting for bot-ready event');
+            });
+
+            // Listen for bot-ready event from renderer
+            ipcMain.once('bot-ready', () => {
+              console.log('Bot ready event received, sending configure-bot event');
               window.webContents.send('configure-bot', sqlBotUrl);
+              console.log('Sent configure-bot event');
             });
           });
         },

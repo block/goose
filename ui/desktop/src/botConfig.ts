@@ -50,13 +50,20 @@ export function parseBotConfigFromUrl(url: string): BotConfig | null {
  */
 export async function setBotSystemPrompt(instructions: string): Promise<boolean> {
   try {
-    const response = await fetch(getApiUrl('/agent/prompt'), {
+    const apiUrl = getApiUrl('/agent/prompt');
+    window.electron.logInfo(`Setting system prompt, API URL: ${apiUrl}`);
+
+    // Use extension parameter just like in providerUtils.ts
+    const requestBody = JSON.stringify({ extension: instructions });
+    window.electron.logInfo(`Request body: ${requestBody}`);
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': getSecretKey(),
       },
-      body: JSON.stringify({ prompt: instructions }),
+      body: requestBody,
     });
 
     if (!response.ok) {
@@ -64,6 +71,7 @@ export async function setBotSystemPrompt(instructions: string): Promise<boolean>
       return false;
     }
 
+    window.electron.logInfo('System prompt extended successfully');
     return true;
   } catch (error) {
     window.electron.logInfo('Error setting bot system prompt: ' + error);

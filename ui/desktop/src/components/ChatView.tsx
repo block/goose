@@ -56,9 +56,18 @@ export default function ChatView({
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const { botConfig } = useBotConfig();
 
+  // Force re-render of Splash component when botConfig changes
+  const [splashKey, setSplashKey] = useState(0);
+
   // Log botConfig when it changes
   useEffect(() => {
     window.electron.logInfo('ChatView botConfig changed: ' + JSON.stringify(botConfig));
+    if (botConfig && botConfig.activities) {
+      window.electron.logInfo(
+        'Bot activities are available: ' + JSON.stringify(botConfig.activities)
+      );
+      setSplashKey((prev) => prev + 1);
+    }
   }, [botConfig]);
 
   const {
@@ -270,6 +279,7 @@ export default function ChatView({
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
           <Splash
+            key={splashKey}
             append={(text) => append(createUserMessage(text))}
             activities={botConfig?.activities || null}
           />
