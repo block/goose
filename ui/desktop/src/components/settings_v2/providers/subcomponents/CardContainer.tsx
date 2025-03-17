@@ -3,6 +3,7 @@ import React from 'react';
 interface CardContainerProps {
   header: React.ReactNode;
   body: React.ReactNode;
+  onClick: () => void;
 }
 
 function GlowingRing() {
