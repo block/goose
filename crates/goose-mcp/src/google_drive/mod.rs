@@ -1082,11 +1082,13 @@ impl GoogleDriveRouter {
             mime_type: Some(target_mime_type.to_string()),
             ..Default::default()
         };
+
         if let Some(p) = parent {
             req.parents = Some(vec![p.to_string()]);
         }
 
         let builder = self.drive.files();
+
         let result = match operation {
             FileOperation::Create { ref name } => {
                 req.name = Some(name.to_string());
@@ -1110,6 +1112,7 @@ impl GoogleDriveRouter {
                     .await
             }
         };
+
         match result {
             Err(e) => Err(ToolError::ExecutionError(format!(
                 "Failed to upload google drive file {:?}, {}.",
@@ -1132,6 +1135,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The name param is required".to_string(),
                 ))?;
+
         let mime_type =
             params
                 .get("mimeType")
@@ -1139,8 +1143,10 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The mimeType param is required".to_string(),
                 ))?;
+
         let body = params.get("body").and_then(|q| q.as_str());
         let path = params.get("path").and_then(|q| q.as_str());
+
         let reader: Box<dyn ReadSeek> = match (body, path) {
             (None, None) | (Some(_), Some(_)) => {
                 return Err(ToolError::InvalidParameters(
@@ -1152,11 +1158,14 @@ impl GoogleDriveRouter {
                 ToolError::ExecutionError(format!("Error opening {}: {}", p, e).to_string())
             })?),
         };
+
         let parent = params.get("parent").and_then(|q| q.as_str());
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1178,6 +1187,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The name param is required".to_string(),
                 ))?;
+
         let body =
             params
                 .get("body")
@@ -1185,14 +1195,19 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
+
         let source_mime_type = "text/markdown";
         let target_mime_type = "application/vnd.google-apps.document";
+
         let parent = params.get("parent").and_then(|q| q.as_str());
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1214,6 +1229,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The name param is required".to_string(),
                 ))?;
+
         let body =
             params
                 .get("body")
@@ -1221,14 +1237,19 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
+
         let source_mime_type = "text/csv";
         let target_mime_type = "application/vnd.google-apps.spreadsheet";
+
         let parent = params.get("parent").and_then(|q| q.as_str());
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1250,6 +1271,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The name param is required".to_string(),
                 ))?;
+
         let path =
             params
                 .get("path")
@@ -1257,17 +1279,22 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The path param is required".to_string(),
                 ))?;
+
         let reader = Box::new(std::fs::File::open(path).map_err(|e| {
             ToolError::ExecutionError(format!("Error opening {}: {}", path, e).to_string())
         })?);
+
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         let target_mime_type = "application/vnd.google-apps.presentation";
+
         let parent = params.get("parent").and_then(|q| q.as_str());
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         self.upload_to_drive(
             FileOperation::Create {
                 name: filename.to_string(),
@@ -1289,6 +1316,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The fileId param is required".to_string(),
                 ))?;
+
         let mime_type =
             params
                 .get("mimeType")
@@ -1296,8 +1324,10 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The mimeType param is required".to_string(),
                 ))?;
+
         let body = params.get("body").and_then(|q| q.as_str());
         let path = params.get("path").and_then(|q| q.as_str());
+
         let reader: Box<dyn ReadSeek> = match (body, path) {
             (None, None) | (Some(_), Some(_)) => {
                 return Err(ToolError::InvalidParameters(
@@ -1309,6 +1339,7 @@ impl GoogleDriveRouter {
                 ToolError::ExecutionError(format!("Error opening {}: {}", p, e).to_string())
             })?),
         };
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
@@ -1335,6 +1366,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The fileId param is required".to_string(),
                 ))?;
+
         let body =
             params
                 .get("body")
@@ -1342,13 +1374,17 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
+
         let source_mime_type = "text/markdown";
         let target_mime_type = "application/vnd.google-apps.document";
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+
         self.upload_to_drive(
             FileOperation::Update {
                 file_id: file_id.to_string(),
@@ -1370,6 +1406,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The fileId param is required".to_string(),
                 ))?;
+
         let body =
             params
                 .get("body")
@@ -1377,13 +1414,17 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The body param is required".to_string(),
                 ))?;
+
         let source_mime_type = "text/csv";
         let target_mime_type = "application/vnd.google-apps.spreadsheet";
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         let cursor = Box::new(Cursor::new(body.as_bytes().to_owned()));
+
         self.upload_to_drive(
             FileOperation::Update {
                 file_id: file_id.to_string(),
@@ -1405,6 +1446,7 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The fileId param is required".to_string(),
                 ))?;
+
         let path =
             params
                 .get("path")
@@ -1412,16 +1454,20 @@ impl GoogleDriveRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The path param is required".to_string(),
                 ))?;
+
         let reader = Box::new(std::fs::File::open(path).map_err(|e| {
             ToolError::ExecutionError(format!("Error opening {}: {}", path, e).to_string())
         })?);
+
         let source_mime_type =
             "application/vnd.openxmlformats-officedocument.presentationml.presentation";
         let target_mime_type = "application/vnd.google-apps.presentation";
+
         let support_all_drives = params
             .get("supportAllDrives")
             .and_then(|q| q.as_bool())
             .unwrap_or_default();
+
         self.upload_to_drive(
             FileOperation::Update {
                 file_id: file_id.to_string(),
