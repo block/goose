@@ -265,6 +265,19 @@ export default function MoreMenu({
               <span>Previous Sessions</span>
             </button>
 
+            {/* Make Agent from Chat */}
+            <button
+              className="w-full text-left p-2 text-sm hover:bg-bgSubtle transition-colors"
+              onClick={() => {
+                setOpen(false);
+                // Signal to ChatView that we want to make an agent from the current chat
+                window.electron.logInfo('Make Agent button clicked');
+                window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
+              }}
+            >
+              <span>Make Agent...</span>
+            </button>
+
             {/* Settings Menu */}
             <button
               onClick={() => {

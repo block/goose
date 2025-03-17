@@ -11,7 +11,6 @@ import MoreMenu from './MoreMenu';
 import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
-import { askAi } from '../utils/askAI';
 import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
@@ -97,6 +96,39 @@ export default function ChatView({
       // Implement tool call handling logic here
     },
   });
+
+  // Listen for make-agent-from-chat event
+  useEffect(() => {
+    const handleMakeAgent = async () => {
+      window.electron.logInfo('Making agent from chat...');
+
+      // Log all messages for now
+      window.electron.logInfo('Current messages:');
+      chat.messages.forEach((message, index) => {
+        const role = isUserMessage(message) ? 'user' : 'assistant';
+        const content = isUserMessage(message) ? message.text : getTextContent(message);
+        window.electron.logInfo(`Message ${index} (${role}): ${content}`);
+      });
+
+      // Inject a question into the chat to generate instructions
+      const instructionsPrompt =
+        'Based on our conversation so far, could you create:\n' +
+        "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with\n" +
+        '2. A list of 4-6 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
+        "Format your response with clear headings for 'Instructions:' and 'Activities:' sections.";
+
+      // Add the prompt as a user message
+      append(createUserMessage(instructionsPrompt));
+
+      window.electron.logInfo('Injected instructions prompt into chat');
+    };
+
+    window.addEventListener('make-agent-from-chat', handleMakeAgent);
+
+    return () => {
+      window.removeEventListener('make-agent-from-chat', handleMakeAgent);
+    };
+  }, [append, chat.messages]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
