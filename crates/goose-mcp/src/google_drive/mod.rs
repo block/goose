@@ -177,7 +177,11 @@ impl GoogleDriveRouter {
               "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query",
+                    "description": "String to search for in the file's name.",
+                },
+                "mimeType": {
+                    "type": "string",
+                    "description": "MIME type to constrain the search to.",
                 },
                 "corpora": {
                     "type": "string",
@@ -418,6 +422,28 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let comment_read_tool = Tool::new(
+            "comment_read".to_string(),
+            indoc! {r#"
+                Read a full comment thread for a file in google drive by id, given an input file id and comment id.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file with the comment to read.",
+                },
+                "commentId": {
+                    "type": "string",
+                    "description": "Id of the comments to read.",
+                }
+              },
+              "required": ["fileId", "commentId"],
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -509,6 +535,7 @@ impl GoogleDriveRouter {
                 update_file_tool,
                 sheets_tool,
                 list_comments_tool,
+                comment_read_tool,
             ],
             instructions,
             drive,
@@ -527,6 +554,8 @@ impl GoogleDriveRouter {
             ))?
             .replace('\\', "\\\\")
             .replace('\'', "\\'");
+
+        let mime_type = params.get("mimeType").and_then(|q| q.as_str());
 
         // extract corpora query parameter, validate options, or default to "user"
         let corpus = params
@@ -564,12 +593,16 @@ impl GoogleDriveRouter {
             })
             .unwrap_or(Ok(10))?;
 
+        let mut query_string = format!("name contains '{}'", query);
+        if let Some(m) = mime_type {
+            query_string.push_str(&format!(" and mimeType = '{}'", m));
+        }
         let result = self
             .drive
             .files()
             .list()
             .corpora(corpus)
-            .q(format!("name contains '{}'", query).as_str())
+            .q(query_string.as_str())
             .order_by("viewedByMeTime desc")
             .param("fields", "files(id, name, mimeType, modifiedTime, size)")
             .page_size(page_size)
@@ -1408,6 +1441,52 @@ impl GoogleDriveRouter {
             }
         }
     }
+
+    async fn read_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The commentId param is required".to_string()),
+        )?;
+
+        let result = self
+            .drive
+            .comments()
+            .get(file_id, comment_id)
+            .param("fields", "*")
+            .clear_scopes()
+            .add_scope(Scope::Readonly)
+            .doit()
+            .await;
+
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to execute google drive comment read, {}.",
+                e
+            ))),
+            Ok(r) => {
+                let content = format!(
+                    "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
+                    r.1.author.unwrap_or_default(),
+                    r.1.quoted_file_content.unwrap_or_default(),
+                    r.1.content.unwrap_or_default(),
+                    r.1.replies.unwrap_or_default(),
+                    r.1.created_time.unwrap_or_default(),
+                    r.1.modified_time.unwrap_or_default(),
+                    r.1.anchor.unwrap_or_default(),
+                    r.1.resolved.unwrap_or_default(),
+                    r.1.id.unwrap_or_default()
+                );
+
+                Ok(vec![Content::text(content.to_string())])
+            }
+        }
+    }
 }
 
 impl Router for GoogleDriveRouter {
@@ -1447,6 +1526,7 @@ impl Router for GoogleDriveRouter {
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "list_comments" => this.list_comments(arguments).await,
+                "read_comment" => this.read_comment(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
