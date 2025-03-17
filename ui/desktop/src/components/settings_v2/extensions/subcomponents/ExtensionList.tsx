@@ -3,7 +3,7 @@ import { FixedExtensionEntry } from '../../../ConfigContext';
 import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs } from '../ExtensionsSection';
+import { combineCmdAndArgs } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
