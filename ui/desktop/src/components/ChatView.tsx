@@ -11,10 +11,10 @@ import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
 import Splash from './Splash';
+import { DeepLinkModal } from './ui/DeepLinkModal';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { BotConfig } from '../botConfig';
-import { Buffer } from 'buffer';
 import {
   Message,
   createUserMessage,
@@ -53,6 +53,8 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
+  const [showDeepLinkModal, setShowDeepLinkModal] = useState(false);
+  const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   // Get botConfig directly from appConfig
@@ -168,7 +170,7 @@ export default function ChatView({
           .filter((activity) => activity.length > 0);
 
         // Create a bot config object
-        const botConfig = {
+        const generatedConfig = {
           id: `bot-${Date.now()}`,
           name: 'Custom Bot',
           description: 'Bot created from chat',
@@ -177,20 +179,21 @@ export default function ChatView({
         };
 
         window.electron.logInfo('Extracted bot config:');
-        window.electron.logInfo(JSON.stringify(botConfig, null, 2));
+        window.electron.logInfo(JSON.stringify(generatedConfig, null, 2));
 
-        // Generate a deep link with the base64-encoded configuration
-        const configBase64 = Buffer.from(JSON.stringify(botConfig)).toString('base64');
-        const deepLink = `goose://bot?config=${configBase64}`;
+        // Store the generated bot config
+        setGeneratedBotConfig(generatedConfig);
 
-        window.electron.logInfo('Generated deep link:');
-        window.electron.logInfo(deepLink);
+        // Show the modal with the generated bot config
+        setShowDeepLinkModal(true);
+
+        window.electron.logInfo('Generated bot config for agent creation');
 
         // Reset waiting state
         setWaitingForAgentResponse(false);
       }
     }
-  }, [messages, waitingForAgentResponse]);
+  }, [messages, waitingForAgentResponse, setShowDeepLinkModal, setGeneratedBotConfig]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
@@ -424,6 +427,21 @@ export default function ChatView({
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
+
+      {/* Deep Link Modal */}
+      {showDeepLinkModal && generatedBotConfig && (
+        <DeepLinkModal
+          botConfig={generatedBotConfig}
+          onClose={() => {
+            setShowDeepLinkModal(false);
+            setGeneratedBotConfig(null);
+          }}
+          onOpen={() => {
+            setShowDeepLinkModal(false);
+            setGeneratedBotConfig(null);
+          }}
+        />
+      )}
     </div>
   );
 }
