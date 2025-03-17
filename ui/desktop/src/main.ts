@@ -44,22 +44,42 @@ let pendingDeepLink = null; // Store deep link if sent before React is ready
 app.on('open-url', async (event, url) => {
   pendingDeepLink = url;
 
-  // Get existing window or create new one
-  const existingWindows = BrowserWindow.getAllWindows();
+  // Parse the URL to determine the type
+  const parsedUrl = new URL(url);
+  let botPrompt = '';
 
-  if (existingWindows.length > 0) {
-    firstOpenWindow = existingWindows[0];
-    if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
-    firstOpenWindow.focus();
+  // Extract bot instructions if it's a bot URL
+  if (parsedUrl.pathname === '/bot') {
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        const config = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        botPrompt = config.instructions || '';
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
+  }
+
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+  // Always create a new window for bot URLs only
+  if (parsedUrl.pathname === '/bot') {
+    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botPrompt);
   } else {
-    const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    firstOpenWindow = await createChat(app, undefined, openDir);
+    // For other URL types, reuse existing window if available
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      firstOpenWindow = existingWindows[0];
+      if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+      firstOpenWindow.focus();
+    } else {
+      firstOpenWindow = await createChat(app, undefined, openDir);
+    }
   }
 
   // Handle different types of deep links
-  const parsedUrl = new URL(pendingDeepLink);
-
   if (parsedUrl.pathname === '/extension') {
     firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.pathname === '/bot') {
