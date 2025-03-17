@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
-import { generateSessionId } from '../sessions';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
@@ -15,6 +14,7 @@ import Splash from './Splash';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { BotConfig } from '../botConfig';
+import { Buffer } from 'buffer';
 import {
   Message,
   createUserMessage,
@@ -52,6 +52,7 @@ export default function ChatView({
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
+  const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   // Get botConfig directly from appConfig
@@ -117,6 +118,9 @@ export default function ChatView({
         '2. A list of 4-6 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
         "Format your response with clear headings for 'Instructions:' and 'Activities:' sections.";
 
+      // Set waiting state to true before adding the prompt
+      setWaitingForAgentResponse(true);
+
       // Add the prompt as a user message
       append(createUserMessage(instructionsPrompt));
 
@@ -128,7 +132,65 @@ export default function ChatView({
     return () => {
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
-  }, [append, chat.messages]);
+  }, [append, chat.messages, setWaitingForAgentResponse]);
+
+  // Listen for new messages and process agent response
+  useEffect(() => {
+    // Only process if we're waiting for an agent response
+    if (!waitingForAgentResponse || messages.length === 0) {
+      return;
+    }
+
+    // Get the last message
+    const lastMessage = messages[messages.length - 1];
+
+    // Check if it's an assistant message (response to our prompt)
+    if (lastMessage.role === 'assistant') {
+      // Extract the content
+      const content = getTextContent(lastMessage);
+
+      // Process the agent's response
+      if (content) {
+        window.electron.logInfo('Received agent response:');
+        window.electron.logInfo(content);
+
+        // Parse the response to extract instructions and activities
+        const instructionsMatch = content.match(/Instructions:(.*?)(?=Activities:|$)/s);
+        const activitiesMatch = content.match(/Activities:(.*?)$/s);
+
+        const instructions = instructionsMatch ? instructionsMatch[1].trim() : '';
+        const activitiesText = activitiesMatch ? activitiesMatch[1].trim() : '';
+
+        // Parse activities into an array
+        const activities = activitiesText
+          .split(/\n+/)
+          .map((line) => line.replace(/^[•\-*\d]+\.?\s*/, '').trim())
+          .filter((activity) => activity.length > 0);
+
+        // Create a bot config object
+        const botConfig = {
+          id: `bot-${Date.now()}`,
+          name: 'Custom Bot',
+          description: 'Bot created from chat',
+          instructions: instructions,
+          activities: activities,
+        };
+
+        window.electron.logInfo('Extracted bot config:');
+        window.electron.logInfo(JSON.stringify(botConfig, null, 2));
+
+        // Generate a deep link with the base64-encoded configuration
+        const configBase64 = Buffer.from(JSON.stringify(botConfig)).toString('base64');
+        const deepLink = `goose://bot?config=${configBase64}`;
+
+        window.electron.logInfo('Generated deep link:');
+        window.electron.logInfo(deepLink);
+
+        // Reset waiting state
+        setWaitingForAgentResponse(false);
+      }
+    }
+  }, [messages, waitingForAgentResponse]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
