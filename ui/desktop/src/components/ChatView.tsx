@@ -116,8 +116,8 @@ export default function ChatView({
       // Inject a question into the chat to generate instructions
       const instructionsPrompt =
         'Based on our conversation so far, could you create:\n' +
-        "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with\n" +
-        '2. A list of 4-6 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
+        "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with. Pay special attention if any output styles or formats are requested (and make it clear), and note any non standard tools used or required.\n" +
+        '2. A list of 3-5 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
         "Format your response with clear headings for 'Instructions:' and 'Activities:' sections.";
 
       // Set waiting state to true before adding the prompt

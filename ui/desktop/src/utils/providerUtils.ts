@@ -66,6 +66,21 @@ Some extensions are builtin, such as Developer and Memory, while
 3rd party extensions can be browsed at https://block.github.io/goose/v1/extensions/.
 `;
 
+// Desktop-specific system prompt extension when a bot is in play
+const desktopPromptBot = `You are a helpful agent. 
+You are being accessed through the Goose Desktop application, pre configured with instructions as requested by a human.
+
+The user is interacting with you through a graphical user interface with the following features:
+- A chat interface where messages are displayed in a conversation format
+- Support for markdown formatting in your responses
+- Support for code blocks with syntax highlighting
+- Tool use messages are included in the chat but outputs may need to be expanded
+
+It is VERY IMPORTANT that you take note of the provided instructions, also check if a style of output is requested and always do your best to adhere to it.
+You can also validate your output after you have generated it to ensure it meets the requirements of the user.
+There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
+`;
+
 export const initializeSystem = async (provider: string, model: string) => {
   try {
     console.log('initializing agent with provider', provider, 'model', model);
@@ -87,7 +102,9 @@ export const initializeSystem = async (provider: string, model: string) => {
         'X-Secret-Key': getSecretKey(),
       },
       body: JSON.stringify({
-        extension: botPrompt ? `${desktopPrompt}\n\n${botPrompt}` : desktopPrompt,
+        extension: botPrompt
+          ? `${desktopPromptBot}\nIMPORTANT instructions for you to operate as agent:\n${botPrompt}`
+          : desktopPrompt,
       }),
     });
 
