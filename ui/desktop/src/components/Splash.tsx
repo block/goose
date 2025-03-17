@@ -3,6 +3,8 @@ import SplashPills from './SplashPills';
 import GooseLogo from './GooseLogo';
 
 export default function Splash({ append, activities = null }) {
+  window.electron.logInfo('Splash component received activities: ' + JSON.stringify(activities));
+
   return (
     <div className="h-full flex flex-col pb-12">
       <div className="p-8">

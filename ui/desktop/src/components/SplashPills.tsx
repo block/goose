@@ -15,6 +15,8 @@ function SplashPill({ content, append, className = '', longForm = '' }) {
 }
 
 export default function SplashPills({ append, activities = null }) {
+  window.electron.logInfo('SplashPills received activities: ' + JSON.stringify(activities));
+
   // If custom activities are provided, use those instead of the default ones
   const pills = activities || [
     'What can you do?',
@@ -23,6 +25,8 @@ export default function SplashPills({ append, activities = null }) {
     'List files in my current directory',
     'Take a screenshot and summarize',
   ];
+
+  window.electron.logInfo('SplashPills using pills: ' + JSON.stringify(pills));
 
   return (
     <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">

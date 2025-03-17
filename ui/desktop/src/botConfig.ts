@@ -20,23 +20,25 @@ export function parseBotConfigFromUrl(url: string): BotConfig | null {
     const configParam = parsedUrl.searchParams.get('config');
 
     if (!configParam) {
-      console.error('No config parameter found in bot URL');
+      window.electron.logInfo('No config parameter found in bot URL');
       return null;
     }
 
     // Decode the base64 config parameter
     const decodedConfig = window.atob(configParam);
+    window.electron.logInfo('Decoded config: ' + decodedConfig);
     const config: BotConfig = JSON.parse(decodedConfig);
+    window.electron.logInfo('Parsed config: ' + JSON.stringify(config));
 
     // Validate required fields
     if (!config.id || !config.name || !config.instructions) {
-      console.error('Invalid bot configuration: missing required fields');
+      window.electron.logInfo('Invalid bot configuration: missing required fields');
       return null;
     }
 
     return config;
   } catch (error) {
-    console.error('Failed to parse bot configuration:', error);
+    window.electron.logInfo('Failed to parse bot configuration: ' + error);
     return null;
   }
 }
@@ -57,9 +59,14 @@ export async function setBotSystemPrompt(instructions: string): Promise<boolean>
       body: JSON.stringify({ prompt: instructions }),
     });
 
-    return response.ok;
+    if (!response.ok) {
+      window.electron.logInfo(`Failed to set bot system prompt: ${response.statusText}`);
+      return false;
+    }
+
+    return true;
   } catch (error) {
-    console.error('Error setting bot system prompt:', error);
+    window.electron.logInfo('Error setting bot system prompt: ' + error);
     return false;
   }
 }

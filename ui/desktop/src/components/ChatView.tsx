@@ -56,6 +56,11 @@ export default function ChatView({
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const { botConfig } = useBotConfig();
 
+  // Log botConfig when it changes
+  useEffect(() => {
+    window.electron.logInfo('ChatView botConfig changed: ' + JSON.stringify(botConfig));
+  }, [botConfig]);
+
   const {
     messages,
     append,
