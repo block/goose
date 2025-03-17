@@ -256,45 +256,6 @@ const createTray = () => {
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
     { type: 'separator' },
-    {
-      label: 'Launch SQL Bot (Demo)',
-      click: () => {
-        // Example SQL Assistant bot deep link
-        const sqlBotUrl =
-          'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
-
-        // Extract the bot instructions from the URL
-        const configParam = new URL(sqlBotUrl).searchParams.get('config');
-        let botPrompt = '';
-        if (configParam) {
-          try {
-            const config = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-            botPrompt = config.instructions || '';
-          } catch (e) {
-            console.error('Failed to parse bot config:', e);
-          }
-        }
-
-        // Create a new window
-        const recentDirs = loadRecentDirs();
-        const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-
-        createChat(app, undefined, openDir, undefined, undefined, botPrompt).then((window) => {
-          // Send the bot configuration URL to the window
-          window.webContents.on('did-finish-load', () => {
-            console.log('Window loaded from tray menu, waiting for bot-ready event');
-          });
-
-          // Listen for bot-ready event from renderer
-          ipcMain.once('bot-ready', () => {
-            console.log('Bot ready event received from tray menu, sending configure-bot event');
-            window.webContents.send('configure-bot', sqlBotUrl);
-            console.log('Sent configure-bot event from tray menu');
-          });
-        });
-      },
-    },
-    { type: 'separator' },
     { label: 'Quit', click: () => app.quit() },
   ]);
 
