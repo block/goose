@@ -1,5 +1,3 @@
-import { spawn } from 'child_process';
-import 'dotenv/config';
 import {
   app,
   BrowserWindow,
@@ -12,8 +10,11 @@ import {
   powerSaveBlocker,
   Tray,
 } from 'electron';
+import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import { spawn } from 'child_process';
+import 'dotenv/config';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -123,7 +124,8 @@ const createChat = async (
   query?: string,
   dir?: string,
   version?: string,
-  resumeSessionId?: string
+  resumeSessionId?: string,
+  botPrompt?: string // Add botPrompt parameter
 ) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
@@ -150,6 +152,7 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
+          botPrompt: botPrompt,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -260,11 +263,24 @@ const createTray = () => {
         const sqlBotUrl =
           'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
 
+        // Extract the bot instructions from the URL
+        const configParam = new URL(sqlBotUrl).searchParams.get('config');
+        let botPrompt = '';
+        if (configParam) {
+          try {
+            // eslint-disable-next-line no-undef
+            const config = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+            botPrompt = config.instructions || '';
+          } catch (e) {
+            console.error('Failed to parse bot config:', e);
+          }
+        }
+
         // Create a new window
         const recentDirs = loadRecentDirs();
         const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-        createChat(app, undefined, openDir).then((window) => {
+        createChat(app, undefined, openDir, undefined, undefined, botPrompt).then((window) => {
           // Send the bot configuration URL to the window
           window.webContents.on('did-finish-load', () => {
             console.log('Window loaded from tray menu, waiting for bot-ready event');
@@ -526,11 +542,24 @@ app.whenReady().then(async () => {
           const sqlBotUrl =
             'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
 
+          // Extract the bot instructions from the URL
+          const configParam = new URL(sqlBotUrl).searchParams.get('config');
+          let botPrompt = '';
+          if (configParam) {
+            try {
+              // eslint-disable-next-line no-undef
+              const config = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+              botPrompt = config.instructions || '';
+            } catch (e) {
+              console.error('Failed to parse bot config:', e);
+            }
+          }
+
           // Create a new window
           const recentDirs = loadRecentDirs();
           const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-          createChat(app, undefined, openDir).then((window) => {
+          createChat(app, undefined, openDir, undefined, undefined, botPrompt).then((window) => {
             // Send the bot configuration URL to the window
             window.webContents.on('did-finish-load', () => {
               console.log('Window loaded, waiting for bot-ready event');
@@ -556,12 +585,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId) => {
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botPrompt) => {
     if (!dir?.trim()) {
       const recentDirs = loadRecentDirs();
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
-    createChat(app, query, dir, version, resumeSessionId);
+    createChat(app, query, dir, version, resumeSessionId, botPrompt);
   });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {

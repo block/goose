@@ -75,6 +75,9 @@ export const initializeSystem = async (provider: string, model: string) => {
     const syncedModel = syncModelWithAgent(provider, model);
     console.log('Model synced with React state:', syncedModel);
 
+    // Get botPrompt directly here
+    const botPrompt = window.appConfig?.get?.('botPrompt');
+
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {
       method: 'POST',
@@ -82,13 +85,18 @@ export const initializeSystem = async (provider: string, model: string) => {
         'Content-Type': 'application/json',
         'X-Secret-Key': getSecretKey(),
       },
-      body: JSON.stringify({ extension: desktopPrompt }),
+      body: JSON.stringify({
+        extension: botPrompt ? `${desktopPrompt}\n\n${botPrompt}` : desktopPrompt,
+      }),
     });
 
     if (!response.ok) {
       console.warn(`Failed to extend system prompt: ${response.statusText}`);
     } else {
       console.log('Extended system prompt with desktop-specific information');
+      if (botPrompt) {
+        console.log('Added custom bot prompt to system prompt');
+      }
     }
 
     loadAndAddStoredExtensions().catch((error) => {
