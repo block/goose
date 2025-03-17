@@ -400,10 +400,10 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let list_comments_tool = Tool::new(
-            "list_comments".to_string(),
+        let get_comments_tool = Tool::new(
+            "get_comments".to_string(),
             indoc! {r#"
-                List comments for a file in google drive by id, given an input file id.
+                List comments for a file in google drive, or get one comment and all of its replies.
             "#}
             .to_string(),
             json!({
@@ -413,34 +413,16 @@ impl GoogleDriveRouter {
                     "type": "string",
                     "description": "Id of the file to list comments for.",
                 },
+                "commentId": {
+                    "type": "string",
+                    "description": "Optional ID of the single comment to read in full.",
+                },
                 "pageSize": {
                     "type": "number",
-                    "description": "How many items to return from the search query, default 10, max 100",
+                    "description": "How many items to return from the search query, default 20, max 100",
                 }
               },
               "required": ["fileId"],
-            }),
-        );
-
-        let comment_read_tool = Tool::new(
-            "comment_read".to_string(),
-            indoc! {r#"
-                Read a full comment thread for a file in google drive by id, given an input file id and comment id.
-            "#}
-            .to_string(),
-            json!({
-              "type": "object",
-              "properties": {
-                "fileId": {
-                    "type": "string",
-                    "description": "Id of the file with the comment to read.",
-                },
-                "commentId": {
-                    "type": "string",
-                    "description": "Id of the comments to read.",
-                }
-              },
-              "required": ["fileId", "commentId"],
             }),
         );
 
@@ -534,8 +516,7 @@ impl GoogleDriveRouter {
                 update_tool,
                 update_file_tool,
                 sheets_tool,
-                list_comments_tool,
-                comment_read_tool,
+                get_comments_tool,
             ],
             instructions,
             drive,
@@ -1367,7 +1348,7 @@ impl GoogleDriveRouter {
         .await
     }
 
-    async fn list_comments(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn get_comments(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
                 .get("fileId")
@@ -1376,7 +1357,9 @@ impl GoogleDriveRouter {
                     "The fileId param is required".to_string(),
                 ))?;
 
-        // extract pageSize, and convert it to an i32, default to 10
+        let comment_id = params.get("commentId").and_then(|q| q.as_str());
+
+        // extract pageSize, and convert it to an i32, default to 20
         let page_size: i32 = params
             .get("pageSize")
             .map(|s| {
@@ -1384,106 +1367,95 @@ impl GoogleDriveRouter {
                     .and_then(|n| i32::try_from(n).ok())
                     .ok_or_else(|| ToolError::InvalidParameters(format!("Invalid pageSize: {}", s)))
                     .and_then(|n| {
-                        if (0..=100).contains(&n) {
+                        if (1..=100).contains(&n) {
                             Ok(n)
                         } else {
                             Err(ToolError::InvalidParameters(format!(
-                                "pageSize must be between 0 and 100, got {}",
+                                "pageSize must be between 1 and 100, got {}",
                                 n
                             )))
                         }
                     })
             })
-            .unwrap_or(Ok(10))?;
+            .unwrap_or(Ok(20))?;
 
-        let result = self
-            .drive
-            .comments()
-            .list(file_id)
-            .page_size(page_size)
-            .param(
-                "fields",
-                "comments(author, content, createdTime, modifiedTime, id, anchor, resolved)",
-            )
-            .clear_scopes()
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .doit()
-            .await;
+        if let Some(comment) = comment_id {
+            // Use the get comment method to read a single comment
+            let result = self
+                .drive
+                .comments()
+                .get(file_id, comment)
+                .param("fields", "*")
+                .clear_scopes()
+                .add_scope(GOOGLE_DRIVE_SCOPES)
+                .doit()
+                .await;
 
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute google drive comment list, {}.",
-                e
-            ))),
-            Ok(r) => {
-                let content =
-                    r.1.comments
-                        .map(|comments| {
-                            comments.into_iter().map(|c| {
-                                format!(
-                                    "Author:{:?} Content: {} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
-                                    c.author.unwrap_or_default(),
-                                    c.content.unwrap_or_default(),
-                                    c.created_time.unwrap_or_default(),
-                                    c.modified_time.unwrap_or_default(),
-                                    c.anchor.unwrap_or_default(),
-                                    c.resolved.unwrap_or_default(),
-                                    c.id.unwrap_or_default()
-                                )
-                            })
-                        })
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<_>>()
-                        .join("\n");
+            match result {
+                Err(e) => Err(ToolError::ExecutionError(format!(
+                    "Failed to execute google drive comment read, {}.",
+                    e
+                ))),
+                Ok(r) => {
+                    let content = format!(
+                        "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
+                        r.1.author.unwrap_or_default(),
+                        r.1.quoted_file_content.unwrap_or_default(),
+                        r.1.content.unwrap_or_default(),
+                        r.1.replies.unwrap_or_default(),
+                        r.1.created_time.unwrap_or_default(),
+                        r.1.modified_time.unwrap_or_default(),
+                        r.1.anchor.unwrap_or_default(),
+                        r.1.resolved.unwrap_or_default(),
+                        r.1.id.unwrap_or_default()
+                    );
 
-                Ok(vec![Content::text(content.to_string())])
+                    Ok(vec![Content::text(content.to_string())])
+                }
             }
-        }
-    }
+        } else {
+            let result = self
+                .drive
+                .comments()
+                .list(file_id)
+                .page_size(page_size)
+                .param(
+                    "fields",
+                    "comments(author, content, createdTime, modifiedTime, id, resolved)",
+                )
+                .clear_scopes()
+                .add_scope(GOOGLE_DRIVE_SCOPES)
+                .doit()
+                .await;
 
-    async fn read_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let file_id =
-            params
-                .get("fileId")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The fileId param is required".to_string(),
-                ))?;
-        let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
-            ToolError::InvalidParameters("The commentId param is required".to_string()),
-        )?;
+            match result {
+                Err(e) => Err(ToolError::ExecutionError(format!(
+                    "Failed to execute google drive comment list, {}.",
+                    e
+                ))),
+                Ok(r) => {
+                    let content =
+                        r.1.comments
+                            .map(|comments| {
+                                comments.into_iter().map(|c| {
+                                    format!(
+                                        "Author:{:?} Content: {} (created time: {}) (modified time: {}) (resolved: {}) (id: {})",
+                                        c.author.unwrap_or_default(),
+                                        c.content.unwrap_or_default(),
+                                        c.created_time.unwrap_or_default(),
+                                        c.modified_time.unwrap_or_default(),
+                                        c.resolved.unwrap_or_default(),
+                                        c.id.unwrap_or_default()
+                                    )
+                                })
+                            })
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                            .join("\n");
 
-        let result = self
-            .drive
-            .comments()
-            .get(file_id, comment_id)
-            .param("fields", "*")
-            .clear_scopes()
-            .add_scope(Scope::Readonly)
-            .doit()
-            .await;
-
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute google drive comment read, {}.",
-                e
-            ))),
-            Ok(r) => {
-                let content = format!(
-                    "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
-                    r.1.author.unwrap_or_default(),
-                    r.1.quoted_file_content.unwrap_or_default(),
-                    r.1.content.unwrap_or_default(),
-                    r.1.replies.unwrap_or_default(),
-                    r.1.created_time.unwrap_or_default(),
-                    r.1.modified_time.unwrap_or_default(),
-                    r.1.anchor.unwrap_or_default(),
-                    r.1.resolved.unwrap_or_default(),
-                    r.1.id.unwrap_or_default()
-                );
-
-                Ok(vec![Content::text(content.to_string())])
+                    Ok(vec![Content::text(content.to_string())])
+                }
             }
         }
     }
@@ -1525,8 +1497,7 @@ impl Router for GoogleDriveRouter {
                 "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
-                "list_comments" => this.list_comments(arguments).await,
-                "read_comment" => this.read_comment(arguments).await,
+                "get_comments" => this.get_comments(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
