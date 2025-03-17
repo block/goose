@@ -268,7 +268,6 @@ const createTray = () => {
         let botPrompt = '';
         if (configParam) {
           try {
-            // eslint-disable-next-line no-undef
             const config = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
             botPrompt = config.instructions || '';
           } catch (e) {
