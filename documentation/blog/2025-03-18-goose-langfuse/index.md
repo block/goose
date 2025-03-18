@@ -46,10 +46,10 @@ To keep up with the exciting developments as they release, you can check out bot
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/18/goose-langfuse" />
   <meta property="og:description" content="Get detailed insights into Goose's behavior with Langfuse's observability tools." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/goose_aierrors.png" />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/goose_aierrors-2bf2d341e6acf7c96d835709379bf2c5.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goosing Around: How Goose Catches AI Errors with Langfuse" />
   <meta name="twitter:description" content="Get detailed insights into Goose's behavior with Langfuse's observability tools." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose_aierrors.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose_aierrors-2bf2d341e6acf7c96d835709379bf2c5.png" />
 </head>
