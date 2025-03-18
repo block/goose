@@ -102,7 +102,12 @@ impl ExtensionConfig {
         }
     }
 
-    pub fn stdio<S: Into<String>, T: Into<u64>>(name: S, cmd: S, description: S, timeout: T) -> Self {
+    pub fn stdio<S: Into<String>, T: Into<u64>>(
+        name: S,
+        cmd: S,
+        description: S,
+        timeout: T,
+    ) -> Self {
         Self::Stdio {
             name: name.into(),
             cmd: cmd.into(),

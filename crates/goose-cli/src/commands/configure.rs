@@ -514,8 +514,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             let cmd = parts.next().unwrap_or("").to_string();
             let args: Vec<String> = parts.map(String::from).collect();
 
-            let add_desc =
-                cliclack::confirm("Would you like to add a description?").interact()?;
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
 
             let mut desc = String::new();
 
@@ -601,8 +600,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
-            let add_desc =
-                cliclack::confirm("Would you like to add a description?").interact()?;
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
 
             let mut desc = String::new();
 
