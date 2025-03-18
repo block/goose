@@ -222,21 +222,25 @@ export default function App() {
   const { switchModel } = useModel(); // TODO: remove
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
-  // TODO: remove
-  // Attempt to detect config for a stored provider
   useEffect(() => {
-    const config = window.electron.getConfig();
-    const storedProvider = getStoredProvider(config);
-    if (storedProvider) {
-      setView('chat');
-    } else {
-      setView('welcome');
+    if (process.env.ALPHA) {
+      return;
     }
-  }, []);
 
-  // TODO: remove
-  // Initialize system if we have a stored provider
-  useEffect(() => {
+    // TODO: remove
+    // Attempt to detect config for a stored provider
+    const detectStoredProvider = () => {
+      const config = window.electron.getConfig();
+      const storedProvider = getStoredProvider(config);
+      if (storedProvider) {
+        setView('chat');
+      } else {
+        setView('welcome');
+      }
+    };
+
+    // TODO: remove
+    // Initialize system if we have a stored provider
     const setupStoredProvider = async () => {
       const config = window.electron.getConfig();
 
@@ -265,7 +269,7 @@ export default function App() {
         }
       }
     };
-
+    detectStoredProvider();
     setupStoredProvider();
   }, []);
 
