@@ -433,22 +433,22 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Code editing and shell access",
                 )
                 .item(
-                    "Computer Controller",
+                    "computercontroller",
                     "Computer Controller",
                     "controls for webscraping, file caching, and automations",
                 )
                 .item(
-                    "Google Drive",
+                    "googledrive",
                     "Google Drive",
                     "Search and read content from google drive - additional config required",
                 )
                 .item(
-                    "Memory",
+                    "memory",
                     "Memory",
                     "Tools to save and retrieve durable memories",
                 )
                 .item(
-                    "Tutorial",
+                    "tutorial",
                     "Tutorial",
                     "Access interactive tutorials and guides",
                 )
