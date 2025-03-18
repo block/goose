@@ -168,35 +168,39 @@ impl GoogleDriveRouter {
         let (drive, sheets, credentials_manager) = Self::google_auth().await;
 
         // handle auth
-        let search_tool = Tool::new(
-            "search".to_string(),
-            indoc! {r#"
-                Search for files in google drive by name, given an input search query.
-            "#}
-            .to_string(),
-            json!({
-              "type": "object",
-              "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "String to search for in the file's name.",
-                },
-                "mimeType": {
-                    "type": "string",
-                    "description": "MIME type to constrain the search to.",
-                },
-                "corpora": {
-                    "type": "string",
-                    "description": "Which corpus to search, either 'user' (default), 'drive' or 'allDrives'",
-                },
-                "pageSize": {
-                    "type": "number",
-                    "description": "How many items to return from the search query, default 10, max 100",
-                }
-              },
-              "required": ["query"],
-            }),
-        );
+      let search_tool = Tool::new(
+    "search".to_string(),
+    indoc! {r#"
+        Search for files in google drive by name, given an input search query.
+    "#}
+    .to_string(),
+    json!({
+      "type": "object",
+      "properties": {
+        "query": {
+            "type": "string",
+            "description": "String to search for in the file's name.",
+        },
+        "mimeType": {
+            "type": "string",
+            "description": "MIME type to constrain the search to.",
+        },
+        "corpora": {
+            "type": "string",
+            "description": "Which corpus to search, either 'user' (default), 'drive' or 'allDrives'",
+        },
+        "pageSize": {
+            "type": "number",
+            "description": "How many items to return from the search query, default 10, max 100",
+        },
+        "parentId": {
+            "type": "string",
+            "description": "ID of the parent folder to search within",
+        }
+      },
+      "required": ["query"],
+    }),
+);
 
         let read_tool = Tool::new(
             "read".to_string(),
@@ -578,8 +582,12 @@ impl GoogleDriveRouter {
 
         let mut query_string = format!("name contains '{}'", query);
         if let Some(m) = mime_type {
-            query_string.push_str(&format!(" and mimeType = '{}'", m));
-        }
+        query_string.push_str(&format!(" and mimeType = '{}'", m));
+            }
+        // Add parent folder constraint if provided
+        if let Some(parent_id) = params.get("parentId").and_then(|q| q.as_str()) {
+            query_string.push_str(&format!(" and '{}' in parents", parent_id));
+            }
         let result = self
             .drive
             .files()
