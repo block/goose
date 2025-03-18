@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
+import { RadioInput } from '../../ui/RadioInput';
 
 export interface GooseMode {
   key: string;
@@ -66,6 +67,17 @@ export function filterGooseModes(
   });
 }
 
+const ConfigureButton = ({ onClick }) => (
+  <button
+    onClick={(event) => {
+      event.stopPropagation();
+      onClick();
+    }}
+  >
+    <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
+  </button>
+);
+
 interface ModeSelectionItemProps {
   currentMode: string;
   mode: GooseMode;
@@ -88,60 +100,29 @@ export function ModeSelectionItem({
     setChecked(currentMode === mode.key);
   }, [currentMode, mode.key]);
 
+  const showConfigure =
+    !isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve');
+
   return (
     <div>
-      <div
-        className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
+      <RadioInput
+        label={mode.label}
+        description={showDescription ? mode.description : null}
+        Accessory={() =>
+          showConfigure ? <ConfigureButton onClick={() => setIsDislogOpen(true)} /> : null
+        }
+        isChecked={checked}
         onClick={() => handleModeChange(mode.key)}
-      >
-        <div>
-          <h3 className="text-sm font-semibold text-textStandard dark:text-gray-200">
-            {mode.label}
-          </h3>
-          {showDescription && (
-            <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
-              {mode.description}
-            </p>
-          )}
-        </div>
-        <div className="relative flex items-center gap-3">
-          {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
-            <button
-              onClick={() => {
-                setIsDislogOpen(true);
-              }}
-            >
-              <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
-            </button>
-          )}
-          <input
-            type="radio"
-            name="modes"
-            value={mode.key}
-            checked={checked}
-            onChange={() => handleModeChange(mode.key)}
-            className="peer sr-only"
-          />
-          <div
-            className="h-5 w-5 rounded-full border border-gray-400 dark:border-gray-500
-                  peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
-                  peer-checked:bg-white dark:peer-checked:bg-black
-                  transition-all duration-200 ease-in-out"
-          ></div>
-        </div>
-      </div>
+        value={mode.key}
+      />
       <div>
-        <div>
-          {isDislogOpen ? (
-            <ConfigureApproveMode
-              onClose={() => {
-                setIsDislogOpen(false);
-              }}
-              handleModeChange={handleModeChange}
-              currentMode={currentMode}
-            />
-          ) : null}
-        </div>
+        {isDislogOpen ? (
+          <ConfigureApproveMode
+            onClose={() => setIsDislogOpen(false)}
+            handleModeChange={handleModeChange}
+            currentMode={currentMode}
+          />
+        ) : null}
       </div>
     </div>
   );
