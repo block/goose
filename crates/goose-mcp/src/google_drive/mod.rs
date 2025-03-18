@@ -405,7 +405,7 @@ impl GoogleDriveRouter {
         let get_comments_tool = Tool::new(
             "get_comments".to_string(),
             indoc! {r#"
-                List comments for a file in google drive, or get one comment and all of its replies.
+                List comments for a file in google drive.
             "#}
             .to_string(),
             json!({
@@ -414,14 +414,6 @@ impl GoogleDriveRouter {
                 "fileId": {
                     "type": "string",
                     "description": "Id of the file to list comments for.",
-                },
-                "commentId": {
-                    "type": "string",
-                    "description": "Optional ID of the single comment to read in full.",
-                },
-                "pageSize": {
-                    "type": "number",
-                    "description": "How many items to return from the search query, default 20, max 100",
                 }
               },
               "required": ["fileId"],
@@ -1430,6 +1422,12 @@ impl GoogleDriveRouter {
     }
 
     async fn get_comments(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        #[derive(PartialEq)]
+        enum State {
+            Start,
+            Next(String),
+            End,
+        }
         let file_id =
             params
                 .get("fileId")
@@ -1438,93 +1436,43 @@ impl GoogleDriveRouter {
                     "The fileId param is required".to_string(),
                 ))?;
 
-        let comment_id = params.get("commentId").and_then(|q| q.as_str());
-
-        // extract pageSize, and convert it to an i32, default to 20
-        let page_size: i32 = params
-            .get("pageSize")
-            .map(|s| {
-                s.as_i64()
-                    .and_then(|n| i32::try_from(n).ok())
-                    .ok_or_else(|| ToolError::InvalidParameters(format!("Invalid pageSize: {}", s)))
-                    .and_then(|n| {
-                        if (1..=100).contains(&n) {
-                            Ok(n)
-                        } else {
-                            Err(ToolError::InvalidParameters(format!(
-                                "pageSize must be between 1 and 100, got {}",
-                                n
-                            )))
-                        }
-                    })
-            })
-            .unwrap_or(Ok(20))?;
-
-        if let Some(comment) = comment_id {
-            // Use the get comment method to read a single comment
-            let result = self
-                .drive
-                .comments()
-                .get(file_id, comment)
-                .param("fields", "*")
-                .clear_scopes()
-                .add_scope(GOOGLE_DRIVE_SCOPES)
-                .doit()
-                .await;
-
-            match result {
-                Err(e) => Err(ToolError::ExecutionError(format!(
-                    "Failed to execute google drive comment read, {}.",
-                    e
-                ))),
-                Ok(r) => {
-                    let content = format!(
-                        "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
-                        r.1.author.unwrap_or_default(),
-                        r.1.quoted_file_content.unwrap_or_default(),
-                        r.1.content.unwrap_or_default(),
-                        r.1.replies.unwrap_or_default(),
-                        r.1.created_time.unwrap_or_default(),
-                        r.1.modified_time.unwrap_or_default(),
-                        r.1.anchor.unwrap_or_default(),
-                        r.1.resolved.unwrap_or_default(),
-                        r.1.id.unwrap_or_default()
-                    );
-
-                    Ok(vec![Content::text(content.to_string())])
-                }
-            }
-        } else {
-            let result = self
+        let mut results: Vec<String> = Vec::new();
+        let mut state = State::Start;
+        while state != State::End {
+            let mut comment_list = self
                 .drive
                 .comments()
                 .list(file_id)
-                .page_size(page_size)
-                .param(
-                    "fields",
-                    "comments(author, content, createdTime, modifiedTime, id, resolved)",
-                )
+                // 100 is the maximum according to the API.
+                .page_size(100)
+                .param("fields", "*")
                 .clear_scopes()
-                .add_scope(GOOGLE_DRIVE_SCOPES)
-                .doit()
-                .await;
-
+                .add_scope(GOOGLE_DRIVE_SCOPES);
+            if let State::Next(pt) = state {
+                comment_list = comment_list.page_token(&pt);
+            }
+            let result = comment_list.doit().await;
             match result {
-                Err(e) => Err(ToolError::ExecutionError(format!(
-                    "Failed to execute google drive comment list, {}.",
-                    e
-                ))),
+                Err(e) => {
+                    return Err(ToolError::ExecutionError(format!(
+                        "Failed to execute google drive comment list, {}.",
+                        e
+                    )))
+                }
                 Ok(r) => {
-                    let content =
+                    let mut content =
                         r.1.comments
                             .map(|comments| {
                                 comments.into_iter().map(|c| {
                                     format!(
-                                        "Author:{:?} Content: {} (created time: {}) (modified time: {}) (resolved: {}) (id: {})",
+                                        "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
                                         c.author.unwrap_or_default(),
+                                        c.quoted_file_content.unwrap_or_default(),
                                         c.content.unwrap_or_default(),
+                                        c.replies.unwrap_or_default(),
                                         c.created_time.unwrap_or_default(),
                                         c.modified_time.unwrap_or_default(),
+                                        c.anchor.unwrap_or_default(),
                                         c.resolved.unwrap_or_default(),
                                         c.id.unwrap_or_default()
                                     )
@@ -1532,13 +1480,16 @@ impl GoogleDriveRouter {
                             })
                             .into_iter()
                             .flatten()
-                            .collect::<Vec<_>>()
-                            .join("\n");
-
-                    Ok(vec![Content::text(content.to_string())])
+                            .collect::<Vec<_>>();
+                    results.append(&mut content);
+                    state = match r.1.next_page_token {
+                        Some(npt) => State::Next(npt),
+                        None => State::End,
+                    }
                 }
             }
         }
+        Ok(vec![Content::text(results.join("\n"))])
     }
 }
 
