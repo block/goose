@@ -62,8 +62,16 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
-  const { getExtensions, addExtension } = useConfig();
+  const { getExtensions, addExtension, read } = useConfig();
   const initAttemptedRef = useRef(false);
+
+  // Utility function to extract the command from the link
+  function extractCommand(link: string): string {
+    const url = new URL(link);
+    const cmd = url.searchParams.get('cmd') || 'Unknown Command';
+    const args = url.searchParams.getAll('arg').map(decodeURIComponent);
+    return `${cmd} ${args.join(' ')}`.trim();
+  }
 
   useEffect(() => {
     // Skip if feature flag is not enabled
@@ -94,28 +102,82 @@ export default function App() {
       }
     };
 
-    setupExtensions();
+    const initializeApp = async () => {
+      try {
+        // Check if we have the required configuration
+        const provider = (await read('GOOSE_PROVIDER', false)) as string;
+        const model = (await read('GOOSE_MODEL', false)) as string;
+
+        if (provider && model) {
+          // We have all needed configuration, initialize the system
+          console.log('Initializing system with stored GOOSE_MODEL and GOOSE_PROVIDER');
+          await initializeSystem(provider, model);
+          setView('chat');
+        } else {
+          // Missing configuration, show onboarding
+          console.log('Missing configuration, showing onboarding');
+          setView('welcome');
+        }
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        setView('welcome');
+      }
+    };
+
+    initializeApp().then();
+    setupExtensions().then();
   }, []); // Empty dependency array since we're using initAttemptedRef
 
-  const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
-  const [isLoadingSession, setIsLoadingSession] = useState(false);
-
-  const { switchModel } = useModel();
-  const { addRecentModel } = useRecentModels();
   const setView = (view: View, viewOptions: Record<any, any> = {}) => {
     setInternalView({ view, viewOptions });
   };
 
-  // Utility function to extract the command from the link
-  function extractCommand(link: string): string {
-    const url = new URL(link);
-    const cmd = url.searchParams.get('cmd') || 'Unknown Command';
-    const args = url.searchParams.getAll('arg').map(decodeURIComponent);
-    return `${cmd} ${args.join(' ')}`.trim();
-  }
+  const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const { chat, setChat } = useChat({ setView, setIsLoadingSession });
 
   useEffect(() => window.electron.reactReady(), []);
 
+  // Keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
+        event.preventDefault();
+        window.electron.createChatWindow(undefined, window.appConfig.get('GOOSE_WORKING_DIR'));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleFatalError = (_: any, errorMessage: string) => {
+      setFatalError(errorMessage);
+    };
+
+    window.electron.on('fatal-error', handleFatalError);
+    return () => {
+      window.electron.off('fatal-error', handleFatalError);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSetView = (_, view) => setView(view);
+    window.electron.on('set-view', handleSetView);
+    return () => window.electron.off('set-view', handleSetView);
+  }, []);
+
+  // Add cleanup for session states when view changes
+  useEffect(() => {
+    if (view !== 'chat') {
+      setIsLoadingSession(false);
+    }
+  }, [view]);
+
+  // TODO: modify
   useEffect(() => {
     const handleAddExtension = (_: any, link: string) => {
       const command = extractCommand(link);
@@ -134,21 +196,33 @@ export default function App() {
     };
   }, []);
 
-  // Keyboard shortcut handler
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'n') {
-        event.preventDefault();
-        window.electron.createChatWindow(undefined, window.appConfig.get('GOOSE_WORKING_DIR'));
+  // TODO: modify
+  const handleConfirm = async () => {
+    if (pendingLink && !isInstalling) {
+      setIsInstalling(true);
+      try {
+        await addExtensionFromDeepLink(pendingLink, setView);
+      } catch (error) {
+        console.error('Failed to add extension:', error);
+      } finally {
+        setModalVisible(false);
+        setPendingLink(null);
+        setIsInstalling(false);
       }
-    };
+    }
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  // TODO: modify
+  const handleCancel = () => {
+    console.log('Cancelled extension installation.');
+    setModalVisible(false);
+    setPendingLink(null);
+  };
 
+  const { switchModel } = useModel(); // TODO: remove
+  const { addRecentModel } = useRecentModels(); // TODO: remove
+
+  // TODO: remove
   // Attempt to detect config for a stored provider
   useEffect(() => {
     const config = window.electron.getConfig();
@@ -160,6 +234,7 @@ export default function App() {
     }
   }, []);
 
+  // TODO: remove
   // Initialize system if we have a stored provider
   useEffect(() => {
     const setupStoredProvider = async () => {
@@ -194,53 +269,7 @@ export default function App() {
     setupStoredProvider();
   }, []);
 
-  const { chat, setChat } = useChat({ setView, setIsLoadingSession });
-
-  useEffect(() => {
-    const handleFatalError = (_: any, errorMessage: string) => {
-      setFatalError(errorMessage);
-    };
-
-    window.electron.on('fatal-error', handleFatalError);
-    return () => {
-      window.electron.off('fatal-error', handleFatalError);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleSetView = (_, view) => setView(view);
-    window.electron.on('set-view', handleSetView);
-    return () => window.electron.off('set-view', handleSetView);
-  }, []);
-
-  // Add cleanup for session states when view changes
-  useEffect(() => {
-    if (view !== 'chat') {
-      setIsLoadingSession(false);
-    }
-  }, [view]);
-
-  const handleConfirm = async () => {
-    if (pendingLink && !isInstalling) {
-      setIsInstalling(true);
-      try {
-        await addExtensionFromDeepLink(pendingLink, setView);
-      } catch (error) {
-        console.error('Failed to add extension:', error);
-      } finally {
-        setModalVisible(false);
-        setPendingLink(null);
-        setIsInstalling(false);
-      }
-    }
-  };
-
-  const handleCancel = () => {
-    console.log('Cancelled extension installation.');
-    setModalVisible(false);
-    setPendingLink(null);
-  };
-
+  // keep
   if (fatalError) {
     return <ErrorScreen error={fatalError} onReload={() => window.electron.reloadApp()} />;
   }
