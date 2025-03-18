@@ -20,7 +20,7 @@ const customFormsMap = {
 };
 
 export default function ProviderConfigurationModal() {
-  const { upsert, getProviders } = useConfig();
+  const { upsert } = useConfig();
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
 
@@ -63,7 +63,10 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <Modal onClose={closeModal}>
+    <Modal
+      onClose={closeModal}
+      footer={<ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />}
+    >
       <div className="space-y-1">
         {/* Logo area - centered above title */}
         <ProviderLogo providerName={currentProvider.name} />
@@ -82,7 +85,6 @@ export default function ProviderConfigurationModal() {
       {currentProvider.metadata.config_keys && currentProvider.metadata.config_keys.length > 0 && (
         <SecureStorageNotice />
       )}
-      <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />
     </Modal>
   );
 }

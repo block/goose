@@ -101,12 +101,12 @@ export default function SettingsView({
                     ))}
                   </div>
                   <div className="flex gap-4 pt-4 w-full">
-                    <Button className="flex items-center gap-2 flex-1 justify-center bg-[#393838] hover:bg-subtle">
+                    <Button className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-black dark:bg-white hover:bg-subtle">
                       <Plus className="h-4 w-4" />
                       Add Model
                     </Button>
                     <Button
-                      className="flex items-center gap-2 flex-1 justify-center text-textSubtle border-standard bg-grey-60 hover:bg-subtle"
+                      className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-white dark:bg-black hover:bg-subtle dark:border dark:border-gray-500 dark:hover:border-gray-400"
                       onClick={() => {
                         setView('ConfigureProviders');
                       }}
