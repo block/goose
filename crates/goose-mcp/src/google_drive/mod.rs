@@ -1,6 +1,8 @@
 mod oauth_pkce;
 pub mod storage;
 
+use anyhow::{Context, Error};
+use base64::Engine;
 use indoc::indoc;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
@@ -632,6 +634,67 @@ impl GoogleDriveRouter {
         image_regex.replace_all(input, "").to_string()
     }
 
+    // Helper function that processes one captured image.
+    // It decodes the base64 data, resizes the image if its width exceeds `max_width`,
+    // and then returns a new image tag (always output as PNG).
+    // logic copied from developer/mod.rs
+    fn process_image(&self, caps: &regex::Captures, max_width: u32) -> Result<Content, Error> {
+        let base64_data = &caps["data"];
+
+        // Decode the Base64 data.
+        let image_bytes = base64::prelude::BASE64_STANDARD
+            .decode(base64_data)
+            .context("Failed to decode base64 image data")?;
+
+        // Load the image from the decoded bytes.
+        let img = xcap::image::load_from_memory(&image_bytes)
+            .context("Failed to load image from memory")?;
+
+        // Resize the image if necessary.
+        let mut processed_image = img;
+        if processed_image.width() > max_width {
+            let scale = max_width as f32 / processed_image.width() as f32;
+            let new_height = (processed_image.height() as f32 * scale) as u32;
+            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &processed_image,
+                max_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        // Write the processed image to an in-memory buffer in PNG format.
+        let mut buffer: Vec<u8> = Vec::new();
+        processed_image
+            .write_to(&mut Cursor::new(&mut buffer), xcap::image::ImageFormat::Png)
+            .context("Failed to write processed image to buffer")?;
+
+        // Re-encode the buffer back into a Base64 string.
+        let data = base64::prelude::BASE64_STANDARD.encode(&buffer);
+        Ok(Content::image(data, "image/png"))
+    }
+
+    /// Resizes all base64-encoded images found in the input string.
+    /// If any image fails to process, an error is returned.
+    fn resize_images(&self, input: &str) -> Result<Vec<Content>, Error> {
+        // Regex to match and capture the MIME type and Base64 data.
+        let image_regex =
+            Regex::new(r"<data:image/(?P<mime>[a-zA-Z0-9.+-]+);base64,(?P<data>[^>]+)>")
+                .context("Failed to compile regex")?;
+
+        let mut result: Vec<Content> = Vec::new();
+
+        // Iterate over all matches, process them, and rebuild the output string.
+        for caps in image_regex.captures_iter(input) {
+            let processed_tag = self
+                .process_image(&caps, 768)
+                .context("Failed to process one of the images")?;
+            result.push(processed_tag);
+        }
+
+        Ok(result)
+    }
+
     // Downloading content with alt=media only works if the file is stored in Drive.
     // To download Google Docs, Sheets, and Slides use files.export instead.
     async fn export_google_file(
@@ -665,13 +728,22 @@ impl GoogleDriveRouter {
             Ok(r) => {
                 if let Ok(body) = r.into_body().collect().await {
                     if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
-                        let content = if !include_images {
-                            self.strip_image_body(&response)
+                        if !include_images {
+                            let content = self.strip_image_body(&response);
+                            Ok(vec![Content::text(content).with_priority(0.1)])
                         } else {
-                            response
-                        };
+                            let images = self.resize_images(&response).map_err(|e| {
+                                ToolError::ExecutionError(format!(
+                                    "Failed to resize image(s): {}",
+                                    e
+                                ))
+                            })?;
 
-                        Ok(vec![Content::text(content).with_priority(0.1)])
+                            let content = self.strip_image_body(&response);
+                            Ok(std::iter::once(Content::text(content).with_priority(0.1))
+                                .chain(images.iter().cloned())
+                                .collect::<Vec<Content>>())
+                        }
                     } else {
                         Err(ToolError::ExecutionError(format!(
                             "Failed to export google drive to string, {}.",
@@ -717,13 +789,22 @@ impl GoogleDriveRouter {
                 if mime_type.starts_with("text/") || mime_type == "application/json" {
                     if let Ok(body) = r.0.into_body().collect().await {
                         if let Ok(response) = String::from_utf8(body.to_bytes().to_vec()) {
-                            let content = if !include_images {
-                                self.strip_image_body(&response)
+                            if !include_images {
+                                let content = self.strip_image_body(&response);
+                                Ok(vec![Content::text(content).with_priority(0.1)])
                             } else {
-                                response
-                            };
+                                let images = self.resize_images(&response).map_err(|e| {
+                                    ToolError::ExecutionError(format!(
+                                        "Failed to resize image(s): {}",
+                                        e
+                                    ))
+                                })?;
 
-                            Ok(vec![Content::text(content).with_priority(0.1)])
+                                let content = self.strip_image_body(&response);
+                                Ok(std::iter::once(Content::text(content).with_priority(0.1))
+                                    .chain(images.iter().cloned())
+                                    .collect::<Vec<Content>>())
+                            }
                         } else {
                             Err(ToolError::ExecutionError(format!(
                                 "Failed to convert google drive to string, {}.",
