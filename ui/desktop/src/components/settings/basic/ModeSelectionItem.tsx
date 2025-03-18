@@ -23,7 +23,7 @@ export const all_goose_modes: GooseMode[] = [
   {
     key: 'smart_approve',
     label: 'Smart Approval',
-    description: 'Intelligently determime which actions need approval based on risk level ',
+    description: 'Intelligently determine which actions need approval based on risk level ',
   },
   {
     key: 'chat',
