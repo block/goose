@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ExternalLink, Plus } from 'lucide-react';
 
 import Modal from '../../Modal';
 import { Button } from '../../ui/button';
 import { QUICKSTART_GUIDE_URL } from '../providers/modal/constants';
-import { useActiveKeys } from '../../settings/api_keys/ActiveKeysContext';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/Select';
 import { useConfig } from '../../ConfigContext';
@@ -34,16 +33,15 @@ const ModalButtons = ({ onSubmit, onCancel }) => (
 
 type AddModelModalProps = { onClose: () => void };
 export const AddModelModal = ({ onClose }: AddModelModalProps) => {
-  const { activeKeys } = useActiveKeys();
-  const config = useConfig();
+  const { getProviders, upsert } = useConfig();
+  const [providerOptions, setProviderOptions] = useState([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [modelName, setModelName] = useState<string>('');
-  const providerOptions = activeKeys.map((key) => ({ value: key.toLowerCase(), label: key }));
 
   const changeModel = async () => {
     try {
-      await config.upsert('GOOSE_PROVIDER', provider, false);
-      await config.upsert('GOOSE_MODEL', modelName, false);
+      await upsert('GOOSE_PROVIDER', provider, false);
+      await upsert('GOOSE_MODEL', modelName, false);
       await initializeSystem(provider, modelName);
       ToastSuccessModelSwitch({ provider, name: modelName });
       onClose();
@@ -51,6 +49,23 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
       ToastFailureGeneral(e.message);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const providersResponse = await getProviders(false);
+        const activeProviders = providersResponse.filter((provider) => provider.is_configured);
+        setProviderOptions(
+          activeProviders.map(({ metadata, name }) => ({
+            value: name,
+            label: metadata.display_name,
+          }))
+        );
+      } catch (error) {
+        console.error('Failed to load providers:', error);
+      }
+    })();
+  }, [getProviders]);
 
   return (
     <div className="z-10">
