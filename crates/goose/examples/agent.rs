@@ -1,7 +1,7 @@
 use dotenv::dotenv;
 use futures::StreamExt;
 use goose::agents::{AgentFactory, ExtensionConfig};
-use goose::config::DEFAULT_EXTENSION_TIMEOUT;
+use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::message::Message;
 use goose::providers::databricks::DatabricksProvider;
 
@@ -18,6 +18,7 @@ async fn main() {
     let config = ExtensionConfig::stdio(
         "developer",
         "./target/debug/developer",
+        DEFAULT_EXTENSION_DESCRIPTION,
         DEFAULT_EXTENSION_TIMEOUT,
     );
     agent.add_extension(config).await.unwrap();
