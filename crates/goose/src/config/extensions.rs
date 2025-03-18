@@ -7,6 +7,7 @@ use utoipa::ToSchema;
 
 pub const DEFAULT_EXTENSION: &str = "developer";
 pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
+pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct ExtensionEntry {

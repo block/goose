@@ -115,6 +115,7 @@ async fn add_extension(
                 name,
                 uri,
                 envs: Envs::new(env_map),
+                description: None,
                 timeout,
             }
         }
@@ -151,6 +152,7 @@ async fn add_extension(
                 name,
                 cmd,
                 args,
+                description: None,
                 envs: Envs::new(env_map),
                 timeout,
             }
