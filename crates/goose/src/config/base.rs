@@ -191,7 +191,7 @@ impl Config {
     }
 
     // Load current secrets from the keyring
-    fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
+    pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
         let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
 
         match entry.get_password() {

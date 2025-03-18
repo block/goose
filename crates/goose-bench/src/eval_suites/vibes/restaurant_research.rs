@@ -106,4 +106,4 @@ Present the information in order of significance or quality. Focus specifically 
     }
 }
 
-register_evaluation!("vibes", RestaurantResearch);
+register_evaluation!(RestaurantResearch);

@@ -3,6 +3,8 @@ import React from 'react';
 interface CardContainerProps {
   header: React.ReactNode;
   body: React.ReactNode;
+  onClick: () => void;
+  grayedOut: boolean;
 }
 
 function GlowingRing() {
@@ -24,11 +26,29 @@ function HeaderContainer({ children }: HeaderContainerProps) {
   return <div>{children}</div>;
 }
 
-export default function CardContainer({ header, body }: CardContainerProps) {
+export default function CardContainer({
+  header,
+  body,
+  onClick,
+  grayedOut = false,
+}: CardContainerProps) {
   return (
-    <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
-      <GlowingRing />
-      <div className="relative bg-bgApp rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col justify-between hover:border-borderStandard">
+    <div
+      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle ${
+        !grayedOut ? 'hover:bg-transparent hover:duration-300' : ''
+      }`}
+      onClick={!grayedOut ? onClick : undefined}
+      style={{
+        cursor: !grayedOut && onClick ? 'pointer' : 'default',
+        opacity: !grayedOut ? '1' : '0.5',
+      }}
+    >
+      {!grayedOut && <GlowingRing />}
+      <div
+        className={`relative bg-bgApp rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col justify-between ${
+          !grayedOut ? 'hover:border-borderStandard' : ''
+        }`}
+      >
         <HeaderContainer>{header}</HeaderContainer>
         {body}
       </div>

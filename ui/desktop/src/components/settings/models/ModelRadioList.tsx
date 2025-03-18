@@ -5,11 +5,7 @@ import { useHandleModelSelection } from './utils';
 import type { View } from '@/src/App';
 
 interface ModelRadioListProps {
-  renderItem: (props: {
-    model: Model;
-    isSelected: boolean;
-    onSelect: () => void;
-  }) => React.ReactNode;
+  RenderItem: React.FC<{ model: Model; isSelected: boolean; onSelect: () => void }>;
   className?: string;
 }
 
@@ -29,7 +25,7 @@ export function SeeMoreModelsButtons({ setView }: { setView: (view: View) => voi
   );
 }
 
-export function ModelRadioList({ renderItem, className = '' }: ModelRadioListProps) {
+export function ModelRadioList({ RenderItem, className = '' }: ModelRadioListProps) {
   const { recentModels } = useRecentModels();
   const { currentModel } = useModel();
   const handleModelSelection = useHandleModelSelection();
@@ -53,13 +49,14 @@ export function ModelRadioList({ renderItem, className = '' }: ModelRadioListPro
 
   return (
     <div className={className}>
-      {recentModels.map((model) =>
-        renderItem({
-          model,
-          isSelected: selectedModel === model.name,
-          onSelect: () => handleRadioChange(model),
-        })
-      )}
+      {recentModels.map((model) => (
+        <RenderItem
+          key={model.name}
+          model={model}
+          isSelected={selectedModel === model.name}
+          onSelect={() => handleRadioChange(model)}
+        />
+      ))}
     </div>
   );
 }

@@ -3,18 +3,25 @@ import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
-import { ExtensionConfig } from '../../../api/types.gen';
 import ExtensionList from './subcomponents/ExtensionList';
 import ExtensionModal from './modal/ExtensionModal';
+import {
+  createExtensionConfig,
+  ExtensionFormData,
+  extensionToFormData,
+  getDefaultFormData,
+} from './utils';
+import { useAgent } from '../../../agent/UpdateAgent';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, addExtension } = useConfig();
+  const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const { updateAgent, addExtensionToAgent } = useAgent();
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -55,8 +62,10 @@ export default function ExtensionsSection() {
 
     try {
       await addExtension(formData.name, extensionConfig, formData.enabled);
+      console.log('attempting to add extension');
+      await updateAgent(extensionConfig);
       handleModalClose();
-      fetchExtensions(); // Refresh the list after adding
+      await fetchExtensions(); // Refresh the list after adding
     } catch (error) {
       console.error('Failed to add extension:', error);
     }
@@ -71,6 +80,16 @@ export default function ExtensionsSection() {
       fetchExtensions(); // Refresh the list after updating
     } catch (error) {
       console.error('Failed to update extension configuration:', error);
+    }
+  };
+
+  const handleDeleteExtension = async (name: string) => {
+    try {
+      await removeExtension(name);
+      handleModalClose();
+      fetchExtensions(); // Refresh the list after deleting
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
     }
   };
 
@@ -99,14 +118,14 @@ export default function ExtensionsSection() {
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 flex-1 justify-center bg-[#393838] hover:bg-subtle"
+            className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-black dark:bg-white hover:bg-subtle"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
             Add custom extension
           </Button>
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-textSubtle border-standard bg-grey-60 hover:bg-subtle"
+            className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-white dark:bg-black hover:bg-subtle dark:border dark:border-gray-500 dark:hover:border-gray-400"
             onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
           >
             <GPSIcon size={18} />
@@ -122,7 +141,9 @@ export default function ExtensionsSection() {
           initialData={extensionToFormData(selectedExtension)}
           onClose={handleModalClose}
           onSubmit={handleUpdateExtension}
+          onDelete={handleDeleteExtension}
           submitLabel="Save Changes"
+          modalType={'edit'}
         />
       )}
 
@@ -134,90 +155,9 @@ export default function ExtensionsSection() {
           onClose={handleModalClose}
           onSubmit={handleAddExtension}
           submitLabel="Add Extension"
+          modalType={'add'}
         />
       )}
     </section>
   );
-}
-
-// Helper functions
-
-export interface ExtensionFormData {
-  name: string;
-  type: 'stdio' | 'sse' | 'builtin';
-  cmd?: string;
-  args?: string[];
-  endpoint?: string;
-  enabled: boolean;
-  envVars: { key: string; value: string }[];
-}
-
-function getDefaultFormData(): ExtensionFormData {
-  return {
-    name: '',
-    type: 'stdio',
-    cmd: '',
-    args: [],
-    endpoint: '',
-    enabled: true,
-    envVars: [],
-  };
-}
-
-function extensionToFormData(extension: FixedExtensionEntry): ExtensionFormData {
-  // Type guard: Check if 'envs' property exists for this variant
-  const hasEnvs = extension.type === 'sse' || extension.type === 'stdio';
-
-  const envVars =
-    hasEnvs && extension.envs
-      ? Object.entries(extension.envs).map(([key, value]) => ({
-          key,
-          value: value as string,
-        }))
-      : [];
-
-  return {
-    name: extension.name,
-    type: extension.type,
-    cmd: extension.type === 'stdio' ? extension.cmd : undefined,
-    args: extension.type === 'stdio' ? extension.args : [],
-    endpoint: extension.type === 'sse' ? extension.uri : undefined,
-    enabled: extension.enabled,
-    envVars,
-  };
-}
-
-function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
-  const envs = formData.envVars.reduce(
-    (acc, { key, value }) => {
-      if (key) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, string>
-  );
-
-  if (formData.type === 'stdio') {
-    return {
-      type: 'stdio',
-      name: formData.name,
-      cmd: formData.cmd,
-      args: formData.args,
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
-    };
-  } else if (formData.type === 'sse') {
-    return {
-      type: 'sse',
-      name: formData.name,
-      uri: formData.endpoint, // Assuming endpoint maps to uri for SSE type
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
-    };
-  } else {
-    // For other types
-    return {
-      type: formData.type,
-      name: formData.name,
-    };
-  }
 }

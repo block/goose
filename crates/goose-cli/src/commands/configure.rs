@@ -298,36 +298,42 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     spin.start("Checking your configuration...");
 
     // Create model config with env var settings
+    let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
+
     let model_config = goose::model::ModelConfig::new(model.clone())
         .with_max_tokens(Some(50))
-        .with_toolshim(
-            std::env::var("GOOSE_TOOLSHIM")
-                .map(|val| val == "1" || val.to_lowercase() == "true")
-                .unwrap_or(false),
-        )
+        .with_toolshim(toolshim_enabled)
         .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
 
     let provider = create(provider_name, model_config)?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
-    let sample_tool = Tool::new(
-        "get_weather".to_string(),
-        "Get current temperature for a given location.".to_string(),
-        json!({
-            "type": "object",
-            "required": ["location"],
-            "properties": {
-                "location": {"type": "string"}
-            }
-        }),
-    );
+    // Only add the sample tool if toolshim is not enabled
+    let tools = if !toolshim_enabled {
+        let sample_tool = Tool::new(
+            "get_weather".to_string(),
+            "Get current temperature for a given location.".to_string(),
+            json!({
+                "type": "object",
+                "required": ["location"],
+                "properties": {
+                    "location": {"type": "string"}
+                }
+            }),
+        );
+        vec![sample_tool]
+    } else {
+        vec![]
+    };
 
     let result = provider
         .complete(
             "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
             &messages,
-            &[sample_tool]
+            &tools
         )
         .await;
 

@@ -23,7 +23,7 @@ export function ConfigureApproveMode({
     {
       key: 'smart_approve',
       label: 'Smart Approval',
-      description: 'Intelligently determime which actions need approval based on risk level ',
+      description: 'Intelligently determine which actions need approval based on risk level ',
     },
   ];
 

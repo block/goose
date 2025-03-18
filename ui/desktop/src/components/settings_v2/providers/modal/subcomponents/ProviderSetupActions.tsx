@@ -12,7 +12,7 @@ interface ProviderSetupActionsProps {
  */
 export default function ProviderSetupActions({ onCancel, onSubmit }: ProviderSetupActionsProps) {
   return (
-    <div className="mt-8 -ml-8 -mr-8">
+    <div className="-ml-8 -mr-8">
       {/* We rely on the <form> "onSubmit" for the actual Submit logic */}
       <Button
         type="submit"

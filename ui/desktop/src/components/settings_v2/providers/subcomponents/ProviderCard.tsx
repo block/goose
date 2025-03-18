@@ -24,14 +24,20 @@ export const ProviderCard = memo(function ProviderCard({
   // Instead of useEffect for logging, use useMemo to memoize the metadata
   const metadata = useMemo(() => providerMetadata, [provider]);
 
-  // Remove the logging completely
-
   if (!metadata) {
     return <div>ProviderCard error: No metadata provided</div>;
   }
 
+  const handleCardClick = () => {
+    if (!isOnboarding) {
+      onConfigure();
+    }
+  };
+
   return (
     <CardContainer
+      grayedOut={!provider.is_configured && isOnboarding} // onboarding page will have grayed out cards if not configured
+      onClick={handleCardClick}
       header={
         <CardHeader
           name={metadata.display_name || provider?.name || 'Unknown Provider'}

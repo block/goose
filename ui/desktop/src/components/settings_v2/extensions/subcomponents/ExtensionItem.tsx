@@ -12,6 +12,15 @@ interface ExtensionItemProps {
 }
 
 export default function ExtensionItem({ extension, onToggle, onConfigure }: ExtensionItemProps) {
+  const renderFormattedSubtitle = () => {
+    const subtitle = getSubtitle(extension);
+    return subtitle.split('\n').map((part, index) => (
+      <React.Fragment key={index}>
+        {index === 0 ? part : <span className="font-mono text-xs">{part}</span>}
+        {index < subtitle.split('\n').length - 1 && <br />}
+      </React.Fragment>
+    ));
+  };
   return (
     <div className="rounded-lg border border-borderSubtle p-4 mb-2">
       <div className="flex items-center justify-between mb-2">
@@ -33,7 +42,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
           />
         </div>
       </div>
-      <p className="text-sm text-textSubtle">{getSubtitle(extension)}</p>
+      <p className="text-sm text-textSubtle">{renderFormattedSubtitle()}</p>
     </div>
   );
 }

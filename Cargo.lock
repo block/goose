@@ -2287,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.0.14"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2341,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.14"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2352,6 +2352,7 @@ dependencies = [
  "mcp-core",
  "once_cell",
  "paste",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
@@ -2362,7 +2363,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.14"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2399,7 +2400,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.14"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2444,7 +2445,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.14"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -43,4 +43,4 @@ impl Evaluation for ExampleEval {
     }
 }
 
-register_evaluation!("core", ExampleEval);
+register_evaluation!(ExampleEval);

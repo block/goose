@@ -124,4 +124,4 @@ impl Evaluation for DeveloperCreateFile {
     }
 }
 
-register_evaluation!("developer", DeveloperCreateFile);
+register_evaluation!(DeveloperCreateFile);

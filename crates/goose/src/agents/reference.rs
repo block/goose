@@ -13,7 +13,6 @@ use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
-use crate::providers::base::ProviderUsage;
 use crate::token_counter::TokenCounter;
 use crate::{register_agent, session};
 use anyhow::{anyhow, Result};
@@ -146,7 +145,6 @@ impl Agent for ReferenceAgent {
                     &messages,
                     &tools,
                 ).await?;
-                capabilities.record_usage(usage.clone()).await;
 
                 // record usage for the session in the session file
                 if let Some(session) = session.clone() {
@@ -202,11 +200,6 @@ impl Agent for ReferenceAgent {
                 messages.push(message_tool_response);
             }
         }))
-    }
-
-    async fn usage(&self) -> Vec<ProviderUsage> {
-        let capabilities = self.capabilities.lock().await;
-        capabilities.get_usage().await
     }
 
     async fn extend_system_prompt(&mut self, extension: String) {
