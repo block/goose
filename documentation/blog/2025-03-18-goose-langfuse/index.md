@@ -5,7 +5,7 @@ authors:
     - tania
 ---
 
-![blog cover](goose_aierrors_.png)
+![blog cover](goose_aierrors.png)
 
 How do we debug AI agents like Goose? In the [Goosing Around](https://youtube.com/playlist?list=PLyMFt_U2IX4uFFhd_2TD9-tlJkgHMMb6F&feature=shared) stream series, host [Rizel Scarlett](https://www.linkedin.com/in/rizel-bobb-semple/) invited [Marc Klingen](https://www.linkedin.com/in/marcklingen/), Co-Founder at Langfuse, and [Alice Hau](https://www.linkedin.com/in/alice-hau/), Machine Learning Engineer at Block, to demo how Langfuse enables observability into Goose's actions-letting you trace LLM behavior and catch errors.
 
