@@ -84,7 +84,7 @@ pub async fn classify_planner_response(
         )
         .await?;
 
-    println!("classify_planner_response: {result:?}\n"); // TODO: remove
+    // println!("classify_planner_response: {result:?}\n"); // TODO: remove
 
     let predicted = result.as_concat_text();
     if predicted.to_lowercase().contains("plan") {
@@ -432,8 +432,11 @@ impl Session {
                     plan_messages.push(Message::user().with_text(&message_text));
 
                     let plan_prompt = self.agent.get_plan_prompt().await?;
+                    output::show_thinking();
                     let (plan_response, _usage) =
                         reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+                    output::render_message(&plan_response, self.debug);
+                    output::hide_thinking();
 
                     // Check if plan_response is a plan or clarifying question
                     let planner_response_type = classify_planner_response(
@@ -444,14 +447,12 @@ impl Session {
 
                     match planner_response_type {
                         PlannerResponseType::Plan => {
-                            // Render the plan & ask if user wants to act on it
-                            output::render_message(&plan_response, self.debug);
-                            let confirmed = cliclack::confirm(
+                            let should_act = cliclack::confirm(
                                 "Do you want to clear message history & act on this plan?",
                             )
                             .initial_value(true)
                             .interact()?;
-                            if confirmed {
+                            if should_act {
                                 // set goose mode: auto if that isn't already the case
                                 let config = Config::global();
                                 let curr_goose_mode =
@@ -460,7 +461,7 @@ impl Session {
                                     config
                                         .set_param("GOOSE_MODE", Value::String("auto".to_string()))
                                         .unwrap();
-                                    println!("Goose mode set to 'auto'");
+                                    println!("Goose mode set to 'auto' for plan execution");
                                 }
 
                                 // clear the messages before acting on the plan
@@ -474,6 +475,17 @@ impl Session {
                                 output::show_thinking();
                                 self.process_agent_response(true).await?;
                                 output::hide_thinking();
+
+                                // Reset goose mode
+                                if curr_goose_mode != "auto" {
+                                    config
+                                        .set_param(
+                                            "GOOSE_MODE",
+                                            Value::String(curr_goose_mode.to_string()),
+                                        )
+                                        .unwrap();
+                                    println!("Goose mode set back to '{curr_goose_mode}'");
+                                }
                             } else {
                                 // add the plan response (assistant message) & carry the conversation forward
                                 // in the next round, the user might wanna slightly modify the plan
