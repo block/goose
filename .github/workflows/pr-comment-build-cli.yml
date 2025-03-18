@@ -1,0 +1,74 @@
+# This workflow is triggered by a comment on an issue or PR with the text ".build-cli"
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: string
+
+# permissions needed for reacting to IssueOps commands on PRs
+permissions:
+  pull-requests: write
+  checks: read
+
+name: Build CLI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trigger-on-command:
+    name: Trigger on ".build-cli" PR comment
+    runs-on: ubuntu-latest
+    outputs:
+      continue: ${{ steps.command.outputs.continue || github.event_name == 'workflow_dispatch' }}
+      pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
+    steps:
+      - if: ${{ github.event_name == 'issue_comment' }}
+        uses: github/command@v1.3.0
+        id: command
+        with:
+          command: ".build-cli"
+          skip_reviews: true
+          reaction: "eyes"
+          allowed_contexts: pull_request
+
+  build-cli:
+    needs: [trigger-on-command]
+    if: ${{ needs.trigger-on-command.outputs.continue == 'true' }}
+    uses: ./.github/workflows/build-cli.yml
+
+  pr-comment-cli:
+    name: PR Comment with CLI builds
+    runs-on: ubuntu-latest
+    needs: [trigger-on-command, build-cli]
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download CLI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: goose-*
+          path: cli-dist
+          merge-multiple: true
+
+      - name: Comment on PR with CLI download links
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
+          body: |
+            ### CLI Builds
+
+            Download CLI builds for different platforms:
+            - [📦 Linux (x86_64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-unknown-linux-gnu.zip)
+            - [📦 Linux (aarch64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-unknown-linux-gnu.zip)
+            - [📦 macOS (x86_64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-x86_64-apple-darwin.zip)
+            - [📦 macOS (aarch64)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/goose-aarch64-apple-darwin.zip)
+
+            These links are provided by nightly.link and will work even if you're not logged into GitHub.
+  
