@@ -424,6 +424,23 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let list_drives_tool = Tool::new(
+            "list_drives".to_string(),
+            indoc! {r#"
+                List shared Google drives.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "name_contains": {
+                    "type": "string",
+                    "description": "Optional name to search for when listing drives.",
+                }
+              },
+            }),
+        );
+
         let instructions = indoc::formatdoc! {r#"
             Google Drive MCP Server Instructions
 
@@ -515,6 +532,7 @@ impl GoogleDriveRouter {
                 update_file_tool,
                 sheets_tool,
                 get_comments_tool,
+                list_drives_tool,
             ],
             instructions,
             drive,
@@ -1499,6 +1517,49 @@ impl GoogleDriveRouter {
         }
         Ok(vec![Content::text(results.join("\n"))])
     }
+
+    async fn list_drives(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let query = params.get("name_contains").and_then(|q| q.as_str());
+
+        let mut builder = self.drive.drives().list();
+        if let Some(q) = query {
+            builder = builder.q(format!("name contains '{}'", q).as_str());
+        }
+        // TODO: Add pagination
+        let result = builder
+            .page_size(100)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .doit()
+            .await;
+
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to execute google drive list, {}.",
+                e
+            ))),
+            Ok(r) => {
+                let content =
+                    r.1.drives
+                        .map(|drives| {
+                            drives.into_iter().map(|f| {
+                                format!(
+                                    "{} (capabilities: {:?}) (uri: {})",
+                                    f.name.unwrap_or_default(),
+                                    f.capabilities.unwrap_or_default(),
+                                    f.id.unwrap_or_default()
+                                )
+                            })
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                Ok(vec![Content::text(content.to_string()).with_priority(0.3)])
+            }
+        }
+    }
 }
 
 impl Router for GoogleDriveRouter {
@@ -1538,6 +1599,7 @@ impl Router for GoogleDriveRouter {
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
+                "list_drives" => this.list_drives(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
