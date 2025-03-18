@@ -1,3 +1,5 @@
+// Create a new file called test.txt with the content 'Hello, World!
+
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
     collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
@@ -10,16 +12,16 @@ use mcp_core::role::Role;
 use serde_json::{self, Value};
 
 #[derive(Debug)]
-pub struct DeveloperListFiles {}
+pub struct MemoryRememberMemory {}
 
-impl DeveloperListFiles {
+impl MemoryRememberMemory {
     pub fn new() -> Self {
-        DeveloperListFiles {}
+        MemoryRememberMemory {}
     }
 }
 
 #[async_trait]
-impl Evaluation for DeveloperListFiles {
+impl Evaluation for MemoryRememberMemory {
     async fn run(
         &self,
         mut agent: Box<dyn BenchAgent>,
@@ -28,32 +30,31 @@ impl Evaluation for DeveloperListFiles {
         // Send the prompt to list files
         let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
-            "list the files in the current directory".to_string(),
+            "Save this fact: The capital of France is Paris.".to_string(),
         )
         .await;
 
         // Convert HashMap to Vec for our metrics
         let mut metrics = metrics_hashmap_to_vec(perf_metrics);
 
-        // Check if the assistant makes appropriate tool calls
         let valid_tool_call = messages.iter().any(|msg| {
             // Check if it's an assistant message
             msg.role == Role::Assistant &&
-                // Check if any content item is a tool request for listing files
+                // Check if any content item is a tool request for creating a file
                 msg.content.iter().any(|content| {
                     if let MessageContent::ToolRequest(tool_req) = content {
-                        // Check if the tool call is for shell with ls or rg --files
                         if let Ok(tool_call) = tool_req.tool_call.as_ref() {
-                            // Parse arguments as JSON Value first
+                            // Check tool name is correct
+                            if tool_call.name != "memory__remember_memory" {
+                                return false;
+                            }
+
+                            // Parse the arguments as JSON
                             if let Ok(args) = serde_json::from_value::<Value>(tool_call.arguments.clone()) {
-                                tool_call.name == "developer__shell" &&
-                                    args.get("command")
-                                        .and_then(Value::as_str).is_some_and(|cmd| {
-                                        cmd.contains("ls ") ||
-                                            cmd.contains("ls\n") ||
-                                            cmd.contains("ls$") ||
-                                            cmd.contains("rg --files")
-                                    })
+                                // Check all required parameters match exactly
+                                args.get("category").and_then(Value::as_str).is_some_and(|s| s.contains("fact")) &&
+                                    args.get("data").and_then(Value::as_str) == Some("The capital of France is Paris.") &&
+                                    args.get("is_global").and_then(Value::as_bool) == Some(true)
                             } else {
                                 false
                             }
@@ -67,22 +68,22 @@ impl Evaluation for DeveloperListFiles {
         });
 
         metrics.push((
-            "Using the shell command tool".to_string(),
+            "Saving facts".to_string(),
             EvaluationMetric::Boolean(valid_tool_call),
         ));
         Ok(metrics)
     }
 
     fn name(&self) -> &str {
-        "developer_list_files"
+        "memory_remember_memory"
     }
 
     fn required_extensions(&self) -> ExtensionRequirements {
         ExtensionRequirements {
-            builtin: vec!["developer".to_string()],
+            builtin: vec!["memory".to_string()],
             external: Vec::new(),
         }
     }
 }
 
-register_evaluation!("developer", DeveloperListFiles);
+register_evaluation!(MemoryRememberMemory);

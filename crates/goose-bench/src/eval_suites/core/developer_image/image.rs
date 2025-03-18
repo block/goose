@@ -102,4 +102,4 @@ impl Evaluation for DeveloperImage {
     }
 }
 
-register_evaluation!("developer_image", DeveloperImage);
+register_evaluation!(DeveloperImage);

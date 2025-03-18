@@ -4,7 +4,7 @@ use clap::{Args, Parser, Subcommand};
 use goose::config::Config;
 
 use goose_cli::commands::agent_version::AgentCommand;
-use goose_cli::commands::bench::{list_suites, run_benchmark};
+use goose_cli::commands::bench::{list_selectors, run_benchmark};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
 use goose_cli::commands::mcp::run_server;
@@ -237,13 +237,13 @@ enum Command {
     Bench {
         #[arg(
             short = 's',
-            long = "suites",
-            value_name = "BENCH_SUITE_NAME",
+            long = "selectors",
+            value_name = "EVALUATIONS_SELECTOR",
             help = "Run this list of bench-suites.",
             long_help = "Specify a comma-separated list of evaluation-suite names to be run.",
             value_delimiter = ','
         )]
-        suites: Vec<String>,
+        selectors: Vec<String>,
 
         #[arg(
             short = 'i',
@@ -266,7 +266,7 @@ enum Command {
         #[arg(
             long = "list",
             value_name = "LIST",
-            help = "List all available bench suites."
+            help = "List all selectors and the number of evaluations they select."
         )]
         list: bool,
 
@@ -416,7 +416,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
         Some(Command::Bench {
-            suites,
+            selectors,
             include_dirs,
             repeat,
             list,
@@ -425,24 +425,22 @@ async fn main() -> Result<()> {
             summary,
         }) => {
             if list {
-                let suites = list_suites().await?;
-                for suite in suites.keys() {
-                    println!("{}: {}", suite, suites.get(suite).unwrap());
-                }
-                return Ok(());
+                return list_selectors().await;
             }
-            let suites = if suites.is_empty() {
+
+            let selectors = if selectors.is_empty() {
                 vec!["core".to_string()]
             } else {
-                suites
+                selectors
             };
+
             let current_dir = std::env::current_dir()?;
 
             for i in 0..repeat {
                 if repeat > 1 {
                     println!("\nRun {} of {}:", i + 1, repeat);
                 }
-                let results = run_benchmark(suites.clone(), include_dirs.clone()).await?;
+                let results = run_benchmark(selectors.clone(), include_dirs.clone()).await?;
 
                 // Handle output based on format
                 let output_str = match format.as_str() {

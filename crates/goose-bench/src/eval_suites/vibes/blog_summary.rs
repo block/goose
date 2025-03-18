@@ -86,4 +86,4 @@ impl Evaluation for BlogSummary {
     }
 }
 
-register_evaluation!("vibes", BlogSummary);
+register_evaluation!(BlogSummary);

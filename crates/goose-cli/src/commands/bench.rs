@@ -5,9 +5,8 @@ use async_trait::async_trait;
 use goose::config::Config;
 use goose::message::Message;
 use goose_bench::bench_work_dir::BenchmarkWorkDir;
-use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuiteFactory};
+use goose_bench::eval_suites::{BenchAgent, BenchAgentError, Evaluation, EvaluationSuite};
 use goose_bench::reporting::{BenchmarkResults, EvaluationResult, SuiteResult};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -116,31 +115,10 @@ async fn run_eval(
     Ok(result)
 }
 
-async fn run_suite(suite: &str, work_dir: &mut BenchmarkWorkDir) -> anyhow::Result<SuiteResult> {
-    let mut suite_result = SuiteResult::new(suite.to_string());
-    let eval_work_dir_guard = Mutex::new(work_dir);
-
-    if let Some(evals) = EvaluationSuiteFactory::create(suite) {
-        for eval in evals {
-            let mut eval_work_dir = eval_work_dir_guard.lock().await;
-            eval_work_dir.set_eval(eval.name());
-            let eval_result = run_eval(eval, &mut eval_work_dir).await?;
-            suite_result.add_evaluation(eval_result);
-        }
-    }
-
-    Ok(suite_result)
-}
-
 pub async fn run_benchmark(
-    suites: Vec<String>,
+    selectors: Vec<String>,
     include_dirs: Vec<PathBuf>,
 ) -> anyhow::Result<BenchmarkResults> {
-    let suites = EvaluationSuiteFactory::available_evaluations()
-        .into_iter()
-        .filter(|&s| suites.contains(&s.to_string()))
-        .collect::<Vec<_>>();
-
     let config = Config::global();
     let goose_model: String = config
         .get_param("GOOSE_MODEL")
@@ -151,30 +129,45 @@ pub async fn run_benchmark(
 
     let mut results = BenchmarkResults::new(provider_name.clone());
 
-    let suite_work_dir = Mutex::new(BenchmarkWorkDir::new(
+    let work_dir = Mutex::new(BenchmarkWorkDir::new(
         format!("{}-{}", provider_name, goose_model),
         include_dirs.clone(),
     ));
 
-    for suite in suites {
-        let mut work_dir = suite_work_dir.lock().await;
-        work_dir.set_suite(suite);
-        let suite_result = run_suite(suite, &mut work_dir).await?;
+    for (suite, evals) in EvaluationSuite::select(selectors).iter() {
+        let mut suite_result = SuiteResult::new(suite.clone());
+        for eval_selector in evals {
+            if let Some(eval) = EvaluationSuite::from(eval_selector) {
+                let mut work_dir = work_dir.lock().await;
+                work_dir.set_eval(eval_selector);
+                let eval_result = run_eval(eval, &mut work_dir).await?;
+                suite_result.add_evaluation(eval_result);
+            }
+        }
+
         results.add_suite(suite_result);
     }
 
     Ok(results)
 }
 
-pub async fn list_suites() -> anyhow::Result<HashMap<String, usize>> {
-    let suites = EvaluationSuiteFactory::available_evaluations();
-    let mut suite_counts = HashMap::new();
-
-    for suite in suites {
-        if let Some(evals) = EvaluationSuiteFactory::create(suite) {
-            suite_counts.insert(suite.to_string(), evals.len());
-        }
+pub async fn list_selectors() -> anyhow::Result<()> {
+    let selector_eval_counts = EvaluationSuite::available_selectors();
+    let mut keys: Vec<_> = selector_eval_counts.keys().collect();
+    keys.sort();
+    let max_key_len = keys.iter().map(|k| k.len()).max().unwrap_or(0);
+    println!(
+        "selector {} => Eval Count",
+        " ".repeat(max_key_len - "selector".len())
+    );
+    println!("{}", "-".repeat(max_key_len + 6));
+    for selector in keys {
+        println!(
+            "{} {} => {}",
+            selector,
+            " ".repeat(max_key_len - selector.len()),
+            selector_eval_counts.get(selector).unwrap()
+        );
     }
-
-    Ok(suite_counts)
+    Ok(())
 }
