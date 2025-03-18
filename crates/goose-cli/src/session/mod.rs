@@ -6,6 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::build_session;
+use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
 use anyhow::Result;
@@ -54,6 +55,42 @@ impl CompletionCache {
             prompt_info: HashMap::new(),
             last_updated: Instant::now(),
         }
+    }
+}
+
+pub enum PlannerResponseType {
+    Plan,
+    ClarifyingQuestions,
+}
+
+/// Decide if the planner's reponse is a plan or a clarifying question
+///
+/// This function is called after the planner has generated a response
+/// to the user's message. The response is either a plan or a clarifying
+/// question.
+pub async fn classify_planner_response(
+    message_text: String,
+    provider: Arc<Box<dyn Provider>>,
+) -> Result<PlannerResponseType> {
+    let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
+
+    // Generate the description
+    let message = Message::user().with_text(&prompt);
+    let (result, _usage) = provider
+        .complete(
+            "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
+            &[message],
+            &[],
+        )
+        .await?;
+
+    println!("classify_planner_response: {result:?}\n"); // TODO: remove
+
+    let predicted = result.as_concat_text();
+    if predicted.to_lowercase().contains("plan") {
+        Ok(PlannerResponseType::Plan)
+    } else {
+        Ok(PlannerResponseType::ClarifyingQuestions)
     }
 }
 
@@ -349,6 +386,17 @@ impl Session {
                     println!("Goose mode set to '{}'", mode);
                     continue;
                 }
+                input::InputResult::Warmup => {
+                    // Alias for setting goose mode to 'approve'. Meant to be used with '/plan' command
+                    save_history(&mut editor);
+
+                    let config = Config::global();
+                    config
+                        .set_param("GOOSE_MODE", Value::String("approve".to_string()))
+                        .unwrap();
+                    println!("Goose mode set to 'approve'. After warming up with context, use '/plan' command to generate a plan.");
+                    continue;
+                }
                 input::InputResult::Plan(options) => {
                     let model = options.model;
                     let message_text = options.message_text;
@@ -384,33 +432,59 @@ impl Session {
                     plan_messages.push(Message::user().with_text(&message_text));
 
                     let plan_prompt = self.agent.get_plan_prompt().await?;
-                    println!("Plan Prompt: {}\n", plan_prompt); // TODO: remove
                     let (plan_response, _usage) =
                         reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
 
-                    // Render the plan & ask if user wants to act on it
-                    output::render_message(&plan_response, self.debug);
-                    let confirmed =
-                        cliclack::confirm("Do you want to clear history & act on this plan?")
+                    // Check if plan_response is a plan or clarifying question
+                    let planner_response_type = classify_planner_response(
+                        plan_response.as_concat_text(),
+                        self.agent.provider().await,
+                    )
+                    .await?;
+
+                    match planner_response_type {
+                        PlannerResponseType::Plan => {
+                            // Render the plan & ask if user wants to act on it
+                            output::render_message(&plan_response, self.debug);
+                            let confirmed = cliclack::confirm(
+                                "Do you want to clear message history & act on this plan?",
+                            )
                             .initial_value(true)
                             .interact()?;
+                            if confirmed {
+                                // set goose mode: auto if that isn't already the case
+                                let config = Config::global();
+                                let curr_goose_mode =
+                                    config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+                                if curr_goose_mode != "auto" {
+                                    config
+                                        .set_param("GOOSE_MODE", Value::String("auto".to_string()))
+                                        .unwrap();
+                                    println!("Goose mode set to 'auto'");
+                                }
 
-                    if confirmed {
-                        // clear the messages before the plan
-                        self.messages.clear();
-                        output::display_session_history_cleared();
-                        // add the plan response as a user message
-                        let plan_message =
-                            Message::user().with_text(plan_response.as_concat_text());
-                        self.messages.push(plan_message);
-                        // act on the plan
-                        output::show_thinking();
-                        self.process_agent_response(true).await?;
-                        output::hide_thinking();
-                    } else {
-                        // add the plan response (assistant message) & carry the conversation forward
-                        // in the next round, the user might wanna slightly modify the plan
-                        self.messages.push(plan_response);
+                                // clear the messages before acting on the plan
+                                self.messages.clear();
+                                output::display_session_history_cleared();
+                                // add the plan response as a user message
+                                let plan_message =
+                                    Message::user().with_text(plan_response.as_concat_text());
+                                self.messages.push(plan_message);
+                                // act on the plan
+                                output::show_thinking();
+                                self.process_agent_response(true).await?;
+                                output::hide_thinking();
+                            } else {
+                                // add the plan response (assistant message) & carry the conversation forward
+                                // in the next round, the user might wanna slightly modify the plan
+                                self.messages.push(plan_response);
+                            }
+                        }
+                        PlannerResponseType::ClarifyingQuestions => {
+                            // add the plan response (assistant message) & carry the conversation forward
+                            // in the next round, the user will answer the clarifying questions
+                            self.messages.push(plan_response);
+                        }
                     }
                 }
                 input::InputResult::PromptCommand(opts) => {
