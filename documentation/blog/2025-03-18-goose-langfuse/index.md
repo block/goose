@@ -51,5 +51,5 @@ To keep up with the exciting developments as they release, you can check out bot
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goosing Around: How Goose Catches AI Errors with Langfuse" />
   <meta name="twitter:description" content="Get detailed insights into Goose's behavior with Langfuse's observability tools." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose_airerrors.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose_aierrors.png" />
 </head>
