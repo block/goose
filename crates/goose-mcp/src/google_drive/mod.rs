@@ -165,9 +165,9 @@ impl GoogleDriveRouter {
     }
 
     pub async fn new() -> Self {
+        // handle auth
         let (drive, sheets, credentials_manager) = Self::google_auth().await;
 
-        // handle auth
         let search_tool = Tool::new(
             "search".to_string(),
             indoc! {r#"
@@ -184,6 +184,10 @@ impl GoogleDriveRouter {
                 "mimeType": {
                     "type": "string",
                     "description": "MIME type to constrain the search to.",
+                },
+                "parent": {
+                    "type": "string",
+                    "description": "ID of a folder to limit the search to",
                 },
                 "corpora": {
                     "type": "string",
@@ -531,6 +535,7 @@ impl GoogleDriveRouter {
             .replace('\'', "\\'");
 
         let mime_type = params.get("mimeType").and_then(|q| q.as_str());
+        let parent = params.get("parent").and_then(|q| q.as_str());
 
         // extract corpora query parameter, validate options, or default to "user"
         let corpus = params
@@ -571,6 +576,9 @@ impl GoogleDriveRouter {
         let mut query_string = format!("name contains '{}'", query);
         if let Some(m) = mime_type {
             query_string.push_str(&format!(" and mimeType = '{}'", m));
+        }
+        if let Some(p) = parent {
+            query_string.push_str(&format!(" and '{}' in parents", p));
         }
         let result = self
             .drive
