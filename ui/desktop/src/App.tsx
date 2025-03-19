@@ -300,7 +300,7 @@ export default function App() {
     setPendingLink(null);
   };
 
-  // TOOD: remove
+  // TODO: remove
   const { switchModel } = useModel(); // TODO: remove
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
@@ -337,22 +337,19 @@ export default function App() {
         const config = window.electron.getConfig();
 
         if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
-          window.electron.logInfo(
-            'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
-          );
+          console.log('using GOOSE_PROVIDER and GOOSE_MODEL from config');
           await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
           return;
         }
 
         const storedProvider = getStoredProvider(config);
-        console.log('Setup using stored provider:', storedProvider);
-
         const storedModel = getStoredModel();
-        console.log('Setup using stored model:', storedModel);
 
         if (storedProvider) {
           try {
             await initializeSystem(storedProvider, storedModel);
+            console.log('Setup using locally stored provider:', storedProvider);
+            console.log('Setup using locally stored model:', storedModel);
 
             if (!storedModel) {
               const modelName = getDefaultModel(storedProvider.toLowerCase());
