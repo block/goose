@@ -205,7 +205,8 @@ Goose CLI supports several shortcuts and built-in commands for easier navigation
 
 ### Slash Commands
 - **`/exit` or `/quit`** - Exit the session
-- **`/t`** - Toggle between Light/Dark modes
+- **`/t`** - Toggle between Light/Dark/Ansi themes
+- **`/t <theme>`** - Set theme directly (`/t light`, `/t dark`, or `/t ansi`)
 - **`/?` or `/help`** - Display the help menu
 
 ### Keyboard Navigation
