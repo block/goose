@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import Select from 'react-select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 import { getApiUrl, getSecretKey } from '../../../config';
+import { ToastError } from '../models/toasts';
 
 interface ManualExtensionModalProps {
   isOpen: boolean;
@@ -38,22 +39,22 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
     e.preventDefault();
 
     if (!formData.id || !formData.name || !formData.description) {
-      toast.error('Please fill in all required fields');
+      ToastError({ title: 'Please fill in all required fields' });
       return;
     }
 
     if (formData.type === 'stdio' && !formData.commandInput) {
-      toast.error('Command is required for stdio type');
+      ToastError({ title: 'Command is required for stdio type' });
       return;
     }
 
     if (formData.type === 'sse' && !formData.uri) {
-      toast.error('URI is required for SSE type');
+      ToastError({ title: 'URI is required for SSE type' });
       return;
     }
 
     if (formData.type === 'builtin' && !formData.name) {
-      toast.error('Name is required for builtin type');
+      ToastError({ title: 'Name is required for builtin type' });
       return;
     }
 
@@ -98,7 +99,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       resetForm();
     } catch (error) {
       console.error('Error configuring extension:', error);
-      toast.error('Failed to configure extension');
+      ToastError({ title: 'Failed to configure extension', errorMessage: error.message });
     }
   };
 

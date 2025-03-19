@@ -98,6 +98,8 @@
     --background-prominent: var(--grey-80);
     --background-standard: var(--grey-90);
     --background-subtle: var(--grey-95);
+    --background-app-inverse: var(--constant-black);
+    --background-standard-inverse: var(--dark-grey-25);
 
     --border-divider: var(--grey-90);
     --border-inverse: var(--constant-white);
@@ -116,12 +118,15 @@
     --text-prominent: var(--grey-10);
     --text-standard: var(--grey-20);
     --text-subtle: var(--grey-50);
+    --text-prominent-inverse: var(--constant-white);
 
     &.dark {
       --background-app: var(--constant-black);
       --background-prominent: var(--dark-grey-40);
       --background-standard: var(--dark-grey-25);
       --background-subtle: var(--dark-grey-15);
+      --background-app-inverse: var(--constant-white);
+      --background-prominent-inverse: var(--grey-80);
 
       --border-divider: var(--dark-grey-25);
       --border-inverse: var(--constant-black);
@@ -140,6 +145,7 @@
       --text-prominent: var(--constant-white);
       --text-standard: var(--dark-grey-90);
       --text-subtle: var(--dark-grey-60);
+      --text-prominent-inverse: var(--grey-20);
     }
     /* end arcade colors */
   }
