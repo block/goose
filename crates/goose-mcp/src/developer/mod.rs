@@ -318,15 +318,17 @@ impl DeveloperRouter {
                 PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
             });
 
-        // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        // Create the global hints directory if it doesn't exist
+        if let Some(parent) = global_hints_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
 
         // Check for local hints in current directory
         let local_hints_path = cwd.join(".goosehints");
 
         // Read global hints if they exist
         let mut hints = String::new();
-        if global_hints_path.is_file() {
+        if global_hints_path.exists() {
             if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
                 hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
                 hints.push_str(&global_hints);
@@ -334,7 +336,7 @@ impl DeveloperRouter {
         }
 
         // Read local hints if they exist
-        if local_hints_path.is_file() {
+        if local_hints_path.exists() {
             if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
                 if !hints.is_empty() {
                     hints.push_str("\n\n");
