@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import 'dotenv/config';
 import {
   app,
+  session,
   BrowserWindow,
   dialog,
   globalShortcut,
@@ -56,7 +57,12 @@ app.on('open-url', async (event, url) => {
     firstOpenWindow = await createChat(app, undefined, openDir);
   }
 
-  firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  // Handle different deep link types
+  if (url.startsWith('goose://extension')) {
+    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  } else if (url.startsWith('goose://sessions/')) {
+    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+  }
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -328,7 +334,11 @@ process.on('unhandledRejection', (error) => {
 
 ipcMain.on('react-ready', (event) => {
   if (pendingDeepLink) {
-    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    if (pendingDeepLink.startsWith('goose://extension')) {
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (pendingDeepLink.startsWith('goose://sessions/')) {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+    }
     pendingDeepLink = null;
   }
 });
@@ -377,6 +387,11 @@ ipcMain.handle('check-ollama', async () => {
 });
 
 app.whenReady().then(async () => {
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    details.requestHeaders['Origin'] = 'http://localhost:5173';
+    callback({ cancel: false, requestHeaders: details.requestHeaders });
+  });
+
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {
     console.log('Test error feature enabled, will throw error in 5 seconds');

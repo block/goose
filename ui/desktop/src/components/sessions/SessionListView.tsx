@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ViewConfig } from '../../App';
-import { MessageSquare, Loader, AlertCircle, Calendar, ChevronRight, Folder } from 'lucide-react';
+import {
+  MessageSquare,
+  LoaderCircle,
+  AlertCircle,
+  Calendar,
+  ChevronRight,
+  Folder,
+} from 'lucide-react';
 import { fetchSessions, type Session } from '../../sessions';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -80,7 +87,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
           <div className="flex-1 overflow-y-auto p-4">
             {isLoading ? (
               <div className="flex justify-center items-center h-full">
-                <Loader className="h-8 w-8 animate-spin text-textPrimary" />
+                <LoaderCircle className="h-8 w-8 animate-spin text-textPrimary" />
               </div>
             ) : error ? (
               <div className="flex flex-col items-center justify-center h-full text-textSubtle">
