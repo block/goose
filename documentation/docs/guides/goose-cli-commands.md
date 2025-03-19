@@ -171,7 +171,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Options:**
 
-- **`-i, --instructions <FILE>`**: Path to instruction file containing commands
+- **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use - for stdin.
 - **`-t, --text <TEXT>`**: Input text to provide to Goose directly
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
 - **`-n, --name <NAME>`**: Name for this run session (e.g. 'daily-tasks')

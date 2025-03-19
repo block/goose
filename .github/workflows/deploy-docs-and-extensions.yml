@@ -64,6 +64,7 @@ jobs:
           mkdir combined-build
           cp -r documentation/build/* combined-build/
           mkdir -p combined-build/v1/extensions
+          mkdir -p combined-build/v1/extensions/install-link-generator
           cp -r extensions-site/build/client/* combined-build/v1/extensions/
           cp -r extensions-site/install-link-generator/* combined-build/v1/extensions/install-link-generator/
 
