@@ -171,13 +171,13 @@ impl GoogleDriveRouter {
         let search_tool = Tool::new(
             "search".to_string(),
             indoc! {r#"
-                Search for files in google drive by name, given an input search query.
+                Search for files in google drive by name, given an input search query. At least one of ('name', 'mimeType', or 'parent') are required.
             "#}
             .to_string(),
             json!({
               "type": "object",
               "properties": {
-                "query": {
+                "name": {
                     "type": "string",
                     "description": "String to search for in the file's name.",
                 },
@@ -189,16 +189,19 @@ impl GoogleDriveRouter {
                     "type": "string",
                     "description": "ID of a folder to limit the search to",
                 },
+                "driveId": {
+                    "type": "string",
+                    "description": "ID of a shared drive to constrain the search to when using the corpus 'drive'.",
+                },
                 "corpora": {
                     "type": "string",
-                    "description": "Which corpus to search, either 'user' (default), 'drive' or 'allDrives'",
+                    "description": "Which corpus to search, either 'user' (default), 'drive' (requires a driveID) or 'allDrives'",
                 },
                 "pageSize": {
                     "type": "number",
                     "description": "How many items to return from the search query, default 10, max 100",
                 }
               },
-              "required": ["query"],
             }),
         );
 
@@ -543,16 +546,9 @@ impl GoogleDriveRouter {
 
     // Implement search tool functionality
     async fn search(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let query = params
-            .get("query")
-            .and_then(|q| q.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The query string is required".to_string(),
-            ))?
-            .replace('\\', "\\\\")
-            .replace('\'', "\\'");
-
+        let name = params.get("name").and_then(|q| q.as_str());
         let mime_type = params.get("mimeType").and_then(|q| q.as_str());
+        let drive_id = params.get("driveId").and_then(|q| q.as_str());
         let parent = params.get("parent").and_then(|q| q.as_str());
 
         // extract corpora query parameter, validate options, or default to "user"
@@ -591,14 +587,30 @@ impl GoogleDriveRouter {
             })
             .unwrap_or(Ok(10))?;
 
-        let mut query_string = format!("name contains '{}'", query);
+        let mut query = Vec::new();
+        if let Some(n) = name {
+            query.push(
+                format!(
+                    "name contains '{}'",
+                    n.replace('\\', "\\\\").replace('\'', "\\'")
+                )
+                .to_string(),
+            );
+        }
         if let Some(m) = mime_type {
-            query_string.push_str(&format!(" and mimeType = '{}'", m));
+            query.push(format!("mimeType = '{}'", m).to_string());
         }
         if let Some(p) = parent {
-            query_string.push_str(&format!(" and '{}' in parents", p));
+            query.push(format!("'{}' in parents", p).to_string());
         }
-        let result = self
+        let query_string = query.join(" and ");
+        if query_string.len() == 0 {
+            return Err(ToolError::InvalidParameters(
+                "No query provided. Please include one of ('name', 'mimeType', 'parent')."
+                    .to_string(),
+            ));
+        }
+        let mut builder = self
             .drive
             .files()
             .list()
@@ -610,13 +622,17 @@ impl GoogleDriveRouter {
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .doit()
-            .await;
+            .add_scope(GOOGLE_DRIVE_SCOPES);
+        // You can only use the drive_id param when the corpus is "drive".
+        if let (Some(d), "drive") = (drive_id, corpus) {
+            builder = builder.drive_id(d);
+        }
+        let result = builder.doit().await;
 
         match result {
             Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute google drive search query, {}.",
+                "Failed to execute google drive search query '{}', {}.",
+                query_string.as_str(),
                 e
             ))),
             Ok(r) => {
