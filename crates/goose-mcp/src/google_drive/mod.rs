@@ -45,6 +45,13 @@ enum FileOperation {
     Create { name: String },
     Update { file_id: String },
 }
+#[derive(PartialEq)]
+
+enum PaginationState {
+    Start,
+    Next(String),
+    End,
+}
 
 pub struct GoogleDriveRouter {
     tools: Vec<Tool>,
@@ -1464,12 +1471,6 @@ impl GoogleDriveRouter {
     }
 
     async fn get_comments(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        #[derive(PartialEq)]
-        enum State {
-            Start,
-            Next(String),
-            End,
-        }
         let file_id =
             params
                 .get("fileId")
@@ -1479,8 +1480,8 @@ impl GoogleDriveRouter {
                 ))?;
 
         let mut results: Vec<String> = Vec::new();
-        let mut state = State::Start;
-        while state != State::End {
+        let mut state = PaginationState::Start;
+        while state != PaginationState::End {
             let mut comment_list = self
                 .drive
                 .comments()
@@ -1490,7 +1491,7 @@ impl GoogleDriveRouter {
                 .param("fields", "*")
                 .clear_scopes()
                 .add_scope(GOOGLE_DRIVE_SCOPES);
-            if let State::Next(pt) = state {
+            if let PaginationState::Next(pt) = state {
                 comment_list = comment_list.page_token(&pt);
             }
             let result = comment_list.doit().await;
@@ -1525,8 +1526,8 @@ impl GoogleDriveRouter {
                             .collect::<Vec<_>>();
                     results.append(&mut content);
                     state = match r.1.next_page_token {
-                        Some(npt) => State::Next(npt),
-                        None => State::End,
+                        Some(npt) => PaginationState::Next(npt),
+                        None => PaginationState::End,
                     }
                 }
             }
@@ -1537,44 +1538,56 @@ impl GoogleDriveRouter {
     async fn list_drives(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let query = params.get("name_contains").and_then(|q| q.as_str());
 
-        let mut builder = self.drive.drives().list();
-        if let Some(q) = query {
-            builder = builder.q(format!("name contains '{}'", q).as_str());
-        }
-        // TODO: Add pagination
-        let result = builder
-            .page_size(100)
-            .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .doit()
-            .await;
+        let mut results: Vec<String> = Vec::new();
+        let mut state = PaginationState::Start;
+        while state != PaginationState::End {
+            let mut builder = self
+                .drive
+                .drives()
+                .list()
+                .page_size(100)
+                .clear_scopes() // Scope::MeetReadonly is the default, remove it
+                .add_scope(GOOGLE_DRIVE_SCOPES);
+            if let Some(q) = query {
+                builder = builder.q(format!("name contains '{}'", q).as_str());
+            }
+            if let PaginationState::Next(pt) = state {
+                builder = builder.page_token(&pt);
+            }
+            let result = builder.doit().await;
 
-        match result {
-            Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute google drive list, {}.",
-                e
-            ))),
-            Ok(r) => {
-                let content =
-                    r.1.drives
-                        .map(|drives| {
-                            drives.into_iter().map(|f| {
-                                format!(
-                                    "{} (capabilities: {:?}) (uri: {})",
-                                    f.name.unwrap_or_default(),
-                                    f.capabilities.unwrap_or_default(),
-                                    f.id.unwrap_or_default()
-                                )
+            match result {
+                Err(e) => {
+                    return Err(ToolError::ExecutionError(format!(
+                        "Failed to execute google drive list, {}.",
+                        e
+                    )))
+                }
+                Ok(r) => {
+                    let mut content =
+                        r.1.drives
+                            .map(|drives| {
+                                drives.into_iter().map(|f| {
+                                    format!(
+                                        "{} (capabilities: {:?}) (uri: {})",
+                                        f.name.unwrap_or_default(),
+                                        f.capabilities.unwrap_or_default(),
+                                        f.id.unwrap_or_default()
+                                    )
+                                })
                             })
-                        })
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<_>>()
-                        .join("\n");
-
-                Ok(vec![Content::text(content.to_string()).with_priority(0.3)])
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>();
+                    results.append(&mut content);
+                    state = match r.1.next_page_token {
+                        Some(npt) => PaginationState::Next(npt),
+                        None => PaginationState::End,
+                    }
+                }
             }
         }
+        Ok(vec![Content::text(results.join("\n"))])
     }
 }
 
