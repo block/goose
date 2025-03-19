@@ -134,6 +134,7 @@ impl Capabilities {
                 );
                 Box::new(McpClient::new(service))
             }
+            #[allow(unused_variables)]
             ExtensionConfig::Builtin {
                 name,
                 display_name,
