@@ -516,17 +516,18 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
             let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
 
-            let mut desc = String::new();
-
-            if add_desc {
-                desc = cliclack::input("Enter a description for this extension:")
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
                     .placeholder("Description")
                     .validate(|input: &String| match input.parse::<String>() {
                         Ok(_) => Ok(()),
                         Err(_) => Err("Please enter a valid description"),
                     })
                     .interact()?;
-            }
+                Some(desc)
+            } else {
+                None
+            };
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -557,7 +558,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
-                    description: Some(desc),
+                    description,
                     timeout: Some(timeout),
                 },
             })?;
@@ -596,23 +597,24 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
                 .validate(|input: &String| match input.parse::<u64>() {
                     Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valide timeout"),
+                    Err(_) => Err("Please enter a valid timeout"),
                 })
                 .interact()?;
 
             let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
 
-            let mut desc = String::new();
-
-            if add_desc {
-                desc = cliclack::input("Enter a description for this extension:")
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
                     .placeholder("Description")
                     .validate(|input: &String| match input.parse::<String>() {
                         Ok(_) => Ok(()),
                         Err(_) => Err("Please enter a valid description"),
                     })
                     .interact()?;
-            }
+                Some(desc)
+            } else {
+                None
+            };
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -642,7 +644,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
-                    description: Some(desc),
+                    description,
                     timeout: Some(timeout),
                 },
             })?;
