@@ -25,7 +25,7 @@ use mcp_server::Router;
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
-    api::{File, Scope},
+    api::{File, Reply, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
     DriveHub,
@@ -434,6 +434,36 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let reply_tool = Tool::new(
+            "reply".to_string(),
+            indoc! {r#"
+                Add a reply to a comment thread, or resolve a comment.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file.",
+                },
+                "commentId": {
+                    "type": "string",
+                    "description": "Id of the comment to which you'd like to reply.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Content of the reply.",
+                },
+                "resolveComment": {
+                    "type": "boolean",
+                    "description": "Whether to resolve the comment. Defaults to false.",
+                }
+              },
+              "required": ["fileId", "commentId", "content"],
+            }),
+        );
+
         let list_drives_tool = Tool::new(
             "list_drives".to_string(),
             indoc! {r#"
@@ -542,6 +572,7 @@ impl GoogleDriveRouter {
                 update_file_tool,
                 sheets_tool,
                 get_comments_tool,
+                reply_tool,
                 list_drives_tool,
             ],
             instructions,
@@ -1535,6 +1566,62 @@ impl GoogleDriveRouter {
         Ok(vec![Content::text(results.join("\n"))])
     }
 
+    async fn reply(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The commentId param is required".to_string()),
+        )?;
+        let content =
+            params
+                .get("content")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The content param is required if the action is create".to_string(),
+                ))?;
+        let resolve_comment = params
+            .get("resolveComment")
+            .and_then(|q| q.as_bool())
+            .unwrap_or(false);
+
+        let mut req = Reply {
+            content: Some(content.to_string()),
+            ..Default::default()
+        };
+
+        if resolve_comment {
+            req.action = Some("resolve".to_string());
+        }
+        let result = self
+            .drive
+            .replies()
+            .create(req, file_id, comment_id)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .param("fields", "action, author, content, createdTime, id")
+            .doit()
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to manage reply to comment {} for google drive file {}, {}.",
+                comment_id, file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "Action: {} Author: {:?} Content: {} Created: {}uri: {}",
+                r.1.action.unwrap_or_default(),
+                r.1.author.unwrap_or_default(),
+                r.1.content.unwrap_or_default(),
+                r.1.created_time.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
+    }
+
     async fn list_drives(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let query = params.get("name_contains").and_then(|q| q.as_str());
 
@@ -1628,6 +1715,7 @@ impl Router for GoogleDriveRouter {
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
+                "reply" => this.reply(arguments).await,
                 "list_drives" => this.list_drives(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
