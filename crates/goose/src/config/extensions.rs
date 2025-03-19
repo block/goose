@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 pub const DEFAULT_EXTENSION: &str = "developer";
 pub const DEFAULT_EXTENSION_TIMEOUT: u64 = 300;
 pub const DEFAULT_EXTENSION_DESCRIPTION: &str = "";
+pub const DEFAULT_DISPLAY_NAME: &str = "Developer";
 
 #[derive(Debug, Deserialize, Serialize, Clone, ToSchema)]
 pub struct ExtensionEntry {
@@ -42,6 +43,7 @@ impl ExtensionManager {
                         enabled: true,
                         config: ExtensionConfig::Builtin {
                             name: DEFAULT_EXTENSION.to_string(),
+                            display_name: Some(DEFAULT_DISPLAY_NAME.to_string()),
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
                         },
                     },

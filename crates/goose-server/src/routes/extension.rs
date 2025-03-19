@@ -45,6 +45,7 @@ enum ExtensionConfigRequest {
     Builtin {
         /// The name of the built-in extension.
         name: String,
+        display_name: Option<String>,
         timeout: Option<u64>,
     },
 }
@@ -157,9 +158,15 @@ async fn add_extension(
                 timeout,
             }
         }
-        ExtensionConfigRequest::Builtin { name, timeout } => {
-            ExtensionConfig::Builtin { name, timeout }
-        }
+        ExtensionConfigRequest::Builtin {
+            name,
+            display_name,
+            timeout,
+        } => ExtensionConfig::Builtin {
+            name,
+            display_name,
+            timeout,
+        },
     };
 
     // Acquire a lock on the agent and attempt to add the extension.

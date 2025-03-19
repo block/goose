@@ -133,6 +133,7 @@ impl Session {
         for name in builtin_name.split(',') {
             let config = ExtensionConfig::Builtin {
                 name: name.trim().to_string(),
+                display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             };

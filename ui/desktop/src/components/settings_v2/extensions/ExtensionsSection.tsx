@@ -118,7 +118,7 @@ export default function ExtensionsSection() {
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-black dark:bg-white hover:bg-subtle"
+            className="flex items-center gap-2 flex-1 justify-center text-white dark:text-textSubtle bg-black dark:bg-white hover:bg-subtle"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />

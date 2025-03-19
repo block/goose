@@ -24,7 +24,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
   return (
     <div className="rounded-lg border border-borderSubtle p-4 mb-2">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-medium text-textStandard">{getFriendlyTitle(extension.name)}</h3>
+        <h3 className="font-medium text-textStandard">{getFriendlyTitle(extension)}</h3>
         <div className="flex items-center gap-2">
           {/* Only show config button for non-builtin extensions */}
           {extension.type !== 'builtin' && (
