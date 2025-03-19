@@ -8,4 +8,5 @@ pub use experiments::ExperimentManager;
 pub use extensions::{ExtensionEntry, ExtensionManager};
 
 pub use extensions::DEFAULT_EXTENSION;
+pub use extensions::DEFAULT_EXTENSION_DESCRIPTION;
 pub use extensions::DEFAULT_EXTENSION_TIMEOUT;
