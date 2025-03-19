@@ -133,7 +133,7 @@ impl Provider for AnthropicProvider {
                 ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
                 ConfigKey::new(
                     "ANTHROPIC_HOST",
-                    false,
+                    true,
                     false,
                     Some("https://api.anthropic.com"),
                 ),
