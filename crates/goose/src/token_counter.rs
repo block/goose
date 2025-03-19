@@ -1,5 +1,5 @@
 use include_dir::{include_dir, Dir};
-use mcp_core::Tool;
+use rmcp::model::Tool;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -236,8 +236,7 @@ mod tests {
     use super::*;
     use crate::message::{Message, MessageContent}; // or however your `Message` is imported
     use crate::model::{CLAUDE_TOKENIZER, GPT_4O_TOKENIZER};
-    use mcp_core::role::Role;
-    use mcp_core::tool::Tool;
+    use rmcp::model::{Role, Tool};
     use serde_json::json;
 
     #[test]

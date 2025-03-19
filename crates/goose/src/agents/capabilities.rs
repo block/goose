@@ -1,22 +1,26 @@
-use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
-use mcp_client::McpService;
-use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
-use std::time::Duration;
+use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
 use crate::config::Config;
+use crate::message::{ToolCall, ToolError, ToolResult};
 use crate::prompt_template;
 use crate::providers::base::Provider;
-use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
-use mcp_client::transport::{SseTransport, StdioTransport, Transport};
-use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
+use rmcp::model::{
+    CallToolRequestParam, GetPromptRequestParam, GetPromptResult, PaginatedRequestParam,
+    ReadResourceRequestParam,
+};
+use rmcp::model::{Content, Prompt, Tool};
+use rmcp::{
+    serve_client, service::RunningService, transport::child_process::TokioChildProcess,
+    transport::sse::SseTransport, ClientHandlerService,
+};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -24,11 +28,9 @@ use serde_json::Value;
 static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
     LazyLock::new(|| Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap());
 
-type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
-
 /// Manages MCP clients and their interactions
 pub struct Capabilities {
-    clients: HashMap<String, McpClientBox>,
+    clients: HashMap<String, Arc<Mutex<RunningService<ClientHandlerService>>>>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     provider: Arc<Box<dyn Provider>>,
@@ -103,78 +105,60 @@ impl Capabilities {
     /// Add a new MCP extension based on the provided client type
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
-        let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse {
-                uri, envs, timeout, ..
-            } => {
-                let transport = SseTransport::new(uri, envs.get_env());
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
+        let client: RunningService<ClientHandlerService> = match &config {
+            ExtensionConfig::Sse { uri, .. } => {
+                // envs not used for sse
+                let transport = SseTransport::start(uri, Default::default()).await?;
+                let service = serve_client(ClientHandlerService::simple(), transport)
+                    .await
+                    .inspect_err(|e| {
+                        tracing::error!("client error: {:?}", e);
+                    })?;
+                service
             }
             ExtensionConfig::Stdio {
-                cmd,
-                args,
-                envs,
-                timeout,
-                ..
+                cmd, args, envs, ..
             } => {
-                let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
+                let transport =
+                    TokioChildProcess::new(Command::new(cmd).args(args).envs(envs.get_env()))
+                        .map_err(|e| ExtensionError::StdIoProcess(e))?;
+                let service = serve_client(ClientHandlerService::simple(), transport).await?;
+                service
             }
-            ExtensionConfig::Builtin { name, timeout } => {
-                // For builtin extensions, we run the current executable with mcp and extension name
-                let cmd = std::env::current_exe()
-                    .expect("should find the current executable")
-                    .to_str()
-                    .expect("should resolve executable to string path")
-                    .to_string();
-                let transport = StdioTransport::new(
-                    &cmd,
-                    vec!["mcp".to_string(), name.clone()],
-                    HashMap::new(),
-                );
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
-            }
+            ExtensionConfig::Builtin {
+                name: _,
+                timeout: _,
+            } => todo!(),
+            // {
+            //     // For builtin extensions, we run the current executable with mcp and extension name
+            //     let cmd = std::env::current_exe()
+            //         .expect("should find the current executable")
+            //         .to_str()
+            //         .expect("should resolve executable to string path")
+            //         .to_string();
+            //     let transport = StdioTransport::new(
+            //         &cmd,
+            //         vec!["mcp".to_string(), name.clone()],
+            //         HashMap::new(),
+            //     );
+            //     let handle = transport.start().await?;
+            //     let service = McpService::with_timeout(
+            //         handle,
+            //         Duration::from_secs(
+            //             timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+            //         ),
+            //     );
+            //     Box::new(McpClient::new(service))
+            // }
         };
 
-        // Initialize the client with default capabilities
-        let info = ClientInfo {
-            name: "goose".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-        let capabilities = ClientCapabilities::default();
-
-        let init_result = client
-            .initialize(info, capabilities)
-            .await
-            .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
-
+        let init_result = client.peer_info();
         let sanitized_name = normalize(config.key().to_string());
 
         // Store instructions if provided
-        if let Some(instructions) = init_result.instructions {
+        if let Some(instructions) = &init_result.instructions {
             self.instructions
-                .insert(sanitized_name.clone(), instructions);
+                .insert(sanitized_name.clone(), instructions.clone());
         }
 
         // if the server is capable if resources we track it
@@ -184,6 +168,7 @@ impl Capabilities {
         }
 
         // Store the client using the provided name
+        println!("Adding extension: {}", sanitized_name);
         self.clients
             .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
 
@@ -224,13 +209,15 @@ impl Capabilities {
         let mut tools = Vec::new();
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let mut client_tools = client_guard.list_tools(None).await?;
+            let mut client_tools = client_guard
+                .list_tools(PaginatedRequestParam { cursor: None })
+                .await?;
 
             loop {
                 for tool in client_tools.tools {
                     tools.push(Tool::new(
                         format!("{}__{}", name, tool.name),
-                        &tool.description,
+                        tool.description,
                         tool.input_schema,
                     ));
                 }
@@ -240,7 +227,11 @@ impl Capabilities {
                     break;
                 }
 
-                client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
+                client_tools = client_guard
+                    .list_tools(PaginatedRequestParam {
+                        cursor: client_tools.next_cursor,
+                    })
+                    .await?;
             }
         }
         Ok(tools)
@@ -252,24 +243,34 @@ impl Capabilities {
 
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
-            let resources = client_guard.list_resources(None).await?;
+            let resources = client_guard
+                .list_resources(PaginatedRequestParam { cursor: None })
+                .await?;
+            let resources = resources.resources;
 
-            for resource in resources.resources {
+            for resource in resources {
                 // Skip reading the resource if it's not marked active
                 // This avoids blowing up the context with inactive resources
-                if !resource.is_active() {
-                    continue;
+                if let Some(priority) = resource.priority() {
+                    if !((priority - 1.0).abs() < 1e-6) {
+                        continue;
+                    }
                 }
 
-                if let Ok(contents) = client_guard.read_resource(&resource.uri).await {
+                if let Ok(contents) = client_guard
+                    .read_resource(ReadResourceRequestParam {
+                        uri: resource.uri.clone(),
+                    })
+                    .await
+                {
                     for content in contents.contents {
                         let (uri, content_str) = match content {
-                            mcp_core::resource::ResourceContents::TextResourceContents {
+                            rmcp::model::ResourceContents::TextResourceContents {
                                 uri,
                                 text,
                                 ..
                             } => (uri, text),
-                            mcp_core::resource::ResourceContents::BlobResourceContents {
+                            rmcp::model::ResourceContents::BlobResourceContents {
                                 uri,
                                 blob,
                                 ..
@@ -343,11 +344,14 @@ impl Capabilities {
     }
 
     /// Find and return a reference to the appropriate client for a tool call
-    fn get_client_for_tool(&self, prefixed_name: &str) -> Option<(&str, McpClientBox)> {
+    fn get_client_for_tool(
+        &self,
+        prefixed_name: &str,
+    ) -> Option<(&str, &Arc<Mutex<RunningService<ClientHandlerService>>>)> {
         self.clients
             .iter()
             .find(|(key, _)| prefixed_name.starts_with(*key))
-            .map(|(name, client)| (name.as_str(), Arc::clone(client)))
+            .map(|(name, client)| (name.as_str(), client))
     }
 
     // Function that gets executed for read_resource tool
@@ -416,15 +420,19 @@ impl Capabilities {
             .ok_or(ToolError::InvalidParameters(error_msg))?;
 
         let client_guard = client.lock().await;
-        let read_result = client_guard.read_resource(uri).await.map_err(|_| {
-            ToolError::ExecutionError(format!("Could not read resource with uri: {}", uri))
-        })?;
+        let read_result = client_guard
+            .read_resource(ReadResourceRequestParam {
+                uri: uri.to_string(),
+            })
+            .await
+            .map_err(|_| {
+                ToolError::ExecutionError(format!("Could not read resource with uri: {}", uri))
+            })?;
 
         let mut result = Vec::new();
         for content in read_result.contents {
             // Only reading the text resource content; skipping the blob content cause it's too long
-            if let mcp_core::resource::ResourceContents::TextResourceContents { text, .. } = content
-            {
+            if let rmcp::model::ResourceContents::TextResourceContents { text, .. } = content {
                 let content_str = format!("{}\n\n{}", uri, text);
                 result.push(Content::text(content_str));
             }
@@ -443,7 +451,7 @@ impl Capabilities {
 
         let client_guard = client.lock().await;
         client_guard
-            .list_resources(None)
+            .list_resources(PaginatedRequestParam { cursor: None })
             .await
             .map_err(|e| {
                 ToolError::ExecutionError(format!(
@@ -527,17 +535,26 @@ impl Capabilities {
                 .get_client_for_tool(&tool_call.name)
                 .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
 
-            // rsplit returns the iterator in reverse, tool_name is then at 0
-            let tool_name = tool_call
-                .name
-                .strip_prefix(client_name)
-                .and_then(|s| s.strip_prefix("__"))
-                .ok_or_else(|| ToolError::NotFound(tool_call.name.clone()))?;
+            // Get the tool name by stripping the client name prefix
+            let name_clone = tool_call.name.clone();
+            let tool_name = {
+                let stripped_name = match name_clone.strip_prefix(client_name) {
+                    Some(s) => s,
+                    None => return Err(ToolError::NotFound(tool_call.name.clone())),
+                };
+                match stripped_name.strip_prefix("__") {
+                    Some(s) => s.to_string(),
+                    None => return Err(ToolError::NotFound(tool_call.name.clone())),
+                }
+            };
 
             let client_guard = client.lock().await;
 
             client_guard
-                .call_tool(tool_name, tool_call.clone().arguments)
+                .call_tool(CallToolRequestParam {
+                    name: std::borrow::Cow::from(tool_name),
+                    arguments: tool_call.arguments.as_object().map(|m| m.clone()),
+                })
                 .await
                 .map(|result| result.content)
                 .map_err(|e| ToolError::ExecutionError(e.to_string()))
@@ -561,7 +578,7 @@ impl Capabilities {
 
         let client_guard = client.lock().await;
         client_guard
-            .list_prompts(None)
+            .list_prompts(PaginatedRequestParam { cursor: None })
             .await
             .map_err(|e| {
                 ToolError::ExecutionError(format!(
@@ -619,17 +636,22 @@ impl Capabilities {
         extension_name: &str,
         name: &str,
         arguments: Value,
-    ) -> Result<GetPromptResult> {
+    ) -> Result<GetPromptResult, anyhow::Error> {
         let client = self
             .clients
             .get(extension_name)
             .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
 
         let client_guard = client.lock().await;
-        client_guard
-            .get_prompt(name, arguments)
+        let result = client_guard
+            .get_prompt(GetPromptRequestParam {
+                name: name.to_string(),
+                arguments: arguments.as_object().map(|m| m.clone()),
+            })
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
+            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e));
+
+        result
     }
 }
 

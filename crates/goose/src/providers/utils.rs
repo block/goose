@@ -11,7 +11,7 @@ use std::io::Read;
 use std::path::Path;
 
 use crate::providers::errors::{OpenAIError, ProviderError};
-use mcp_core::content::ImageContent;
+use rmcp::model::{AnnotateAble, Annotated, ImageContent, RawImageContent};
 
 #[derive(serde::Deserialize)]
 struct OpenAIErrorResponse {
@@ -25,7 +25,7 @@ pub enum ImageFormat {
 }
 
 /// Convert an image content into an image json based on format
-pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value {
+pub fn convert_image(image: &RawImageContent, image_format: &ImageFormat) -> Value {
     match image_format {
         ImageFormat::OpenAi => json!({
             "type": "image_url",
@@ -281,11 +281,13 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
     // Convert to base64
     let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
 
-    Ok(ImageContent {
-        mime_type: mime_type.to_string(),
-        data,
-        annotations: None,
-    })
+    let content: Annotated<RawImageContent> = RawImageContent {
+        data: data.into(),
+        mime_type: mime_type.into(),
+    }
+    .no_annotation();
+
+    Ok(content)
 }
 
 pub fn unescape_json_values(value: &Value) -> Value {

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::ProviderError;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use utoipa::ToSchema;
 
 /// Metadata about a provider's configuration requirements and capabilities

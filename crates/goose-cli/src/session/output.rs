@@ -1,9 +1,8 @@
 use bat::WrappingMode;
 use console::style;
 use goose::config::Config;
-use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
-use mcp_core::prompt::PromptArgument;
-use mcp_core::tool::ToolCall;
+use goose::message::{Message, MessageContent, ToolCall, ToolRequest, ToolResponse};
+use rmcp::model::PromptArgument;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -144,7 +143,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
         Ok(contents) => {
             for content in contents {
                 if let Some(audience) = content.audience() {
-                    if !audience.contains(&mcp_core::role::Role::User) {
+                    if !audience.contains(&rmcp::model::Role::User) {
                         continue;
                     }
                 }
@@ -164,7 +163,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
 
                 if debug {
                     println!("{:#?}", content);
-                } else if let mcp_core::content::Content::Text(text) = content {
+                } else if let rmcp::model::RawContent::Text(text) = &content.raw {
                     print_markdown(&text.text, theme);
                 }
             }

@@ -241,7 +241,7 @@ pub async fn persist_messages(
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User)
         .filter(|m| !m.as_concat_text().trim().is_empty())
         .count();
 
@@ -326,7 +326,7 @@ pub async fn generate_description(
     // get context from messages so far
     let context: Vec<String> = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
+        .filter(|m| m.role == rmcp::model::Role::User)
         .take(3) // Use up to first 3 user messages for context
         .map(|m| m.as_concat_text())
         .collect();

@@ -391,7 +391,7 @@ impl Validator for GooseCompleter {
 mod tests {
     use super::*;
     use crate::session::output;
-    use mcp_core::prompt::PromptArgument;
+    use rmcp::model::PromptArgument;
     use std::sync::{Arc, RwLock};
 
     // Helper function to create a test completion cache

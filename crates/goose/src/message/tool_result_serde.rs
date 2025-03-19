@@ -1,4 +1,4 @@
-use mcp_core::handler::{ToolError, ToolResult};
+use crate::message::{ToolError, ToolResult};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 

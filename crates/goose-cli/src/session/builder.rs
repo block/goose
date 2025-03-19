@@ -1,10 +1,10 @@
 use console::style;
-use goose::agents::extension::ExtensionError;
-use goose::agents::AgentFactory;
-use goose::config::{Config, ExtensionManager};
+use goose::agents::extension::Envs;
+use goose::agents::{extension, AgentFactory};
+use goose::config::{Config, ExtensionConfig, ExtensionEntry, ExtensionManager};
 use goose::session;
 use goose::session::Identifier;
-use mcp_client::transport::Error as McpClientError;
+use std::collections::HashMap;
 use std::process;
 
 use super::output;
@@ -20,13 +20,16 @@ pub async fn build_session(
     // Load config and get provider/model
     let config = Config::global();
 
-    let provider_name: String = config
-        .get_param("GOOSE_PROVIDER")
-        .expect("No provider configured. Run 'goose configure' first");
+    // let provider_name: String = config
+    //     .get_param("GOOSE_PROVIDER")
+    //     .expect("No provider configured. Run 'goose configure' first");
 
-    let model: String = config
-        .get_param("GOOSE_MODEL")
-        .expect("No model configured. Run 'goose configure' first");
+    // let model: String = config
+    //     .get_param("GOOSE_MODEL")
+    //     .expect("No model configured. Run 'goose configure' first");
+    let provider_name = "databricks".to_string();
+    let model = "gpt-4o-mini".to_string();
+
     let model_config = goose::model::ModelConfig::new(model.clone());
     let provider =
         goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
@@ -88,7 +91,31 @@ pub async fn build_session(
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
-    for extension in ExtensionManager::get_all().expect("should load extensions") {
+    // let extension_entries = ExtensionManager::get_all().expect("should load extensions");
+    let extension_entries = vec![
+        ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::Stdio {
+                name: "filesystem".to_string(),
+                cmd: "npx".to_string(),
+                args: vec!["-y".to_string(), "@modelcontextprotocol/server-filesystem".to_string(), "./".to_string()],
+                envs: Envs::new(HashMap::new()),
+                timeout: Some(30),
+            },
+        },
+        ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::Stdio {
+                name: "fetch".to_string(),
+                cmd: "uvx".to_string(),
+                args: vec!["mcp-server-fetch".to_string()],
+                envs: Envs::new(HashMap::new()),
+                timeout: Some(30),
+            },
+        },
+    ];
+
+    for extension in extension_entries {
         if extension.enabled {
             let config = extension.config.clone();
             agent
@@ -96,9 +123,6 @@ pub async fn build_session(
                 .await
                 .unwrap_or_else(|e| {
                     let err = match e {
-                        ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => {
-                            inner
-                        }
                         _ => e.to_string(),
                     };
                     println!("Failed to start extension: {}, {:?}", config.name(), err);

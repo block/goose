@@ -13,11 +13,8 @@ path = "src/main.rs"
 
 [dependencies]
 goose = { path = "../goose" }
-goose-bench = { path = "../goose-bench" }
-goose-mcp = { path = "../goose-mcp" }
-mcp-client = { path = "../mcp-client" }
 mcp-server = { path = "../mcp-server" }
-mcp-core = { path = "../mcp-core" }
+rmcp = { git = "https://github.com/4t145/rmcp", branch = "dev", features = ["client"] }
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"

@@ -2,9 +2,7 @@ use anyhow::{Context, Result};
 use etcetera::{choose_app_strategy, AppStrategy};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::Once;
-use tokio::sync::Mutex;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
@@ -12,8 +10,6 @@ use tracing_subscriber::{
 };
 
 use goose::tracing::langfuse_layer;
-use goose_bench::error_capture::ErrorCaptureLayer;
-use goose_bench::eval_suites::BenchAgentError;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
@@ -55,26 +51,19 @@ fn get_log_directory_with_date(test_date: Option<String>) -> Result<PathBuf> {
 /// - File-based logging with JSON formatting (DEBUG level)
 /// - Console output for development (INFO level)
 /// - Optional Langfuse integration (DEBUG level)
-/// - Optional error capture layer for benchmarking
 pub fn setup_logging(
     name: Option<&str>,
-    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
 ) -> Result<()> {
-    setup_logging_internal(name, error_capture, false)
+    setup_logging_internal(name, false)
 }
 
 /// Internal function that allows bypassing the Once check for testing
 fn setup_logging_internal(
     name: Option<&str>,
-    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
     force: bool,
 ) -> Result<()> {
     let mut result = Ok(());
 
-    // Register the error vector if provided
-    if let Some(errors) = error_capture {
-        ErrorCaptureLayer::register_error_vector(errors);
-    }
 
     let mut setup = || {
         result = (|| {
@@ -117,10 +106,8 @@ fn setup_logging_internal(
             let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
                 // Set default levels for different modules
                 EnvFilter::new("")
-                    // Set mcp-server module to DEBUG
-                    .add_directive("mcp_server=debug".parse().unwrap())
                     // Set mcp-client to DEBUG
-                    .add_directive("mcp_client=debug".parse().unwrap())
+                    .add_directive("rmcp=debug".parse().unwrap())
                     // Set goose module to DEBUG
                     .add_directive("goose=debug".parse().unwrap())
                     // Set goose-cli to INFO
@@ -134,11 +121,6 @@ fn setup_logging_internal(
                 file_layer.with_filter(env_filter).boxed(),
                 console_layer.with_filter(LevelFilter::WARN).boxed(),
             ];
-
-            // Only add ErrorCaptureLayer if not in test mode
-            if !force {
-                layers.push(ErrorCaptureLayer::new().boxed());
-            }
 
             // Add Langfuse layer if available
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
@@ -237,9 +219,6 @@ mod tests {
             env::set_var("HOME", &test_dir);
         }
 
-        // Create error capture if needed - but don't use it in tests to avoid tokio runtime issues
-        let error_capture = None;
-
         // Get current timestamp before setting up logging
         let before_timestamp = chrono::Local::now() - chrono::Duration::seconds(1);
         println!("Before timestamp: {}", before_timestamp);
@@ -260,7 +239,7 @@ mod tests {
         println!("Log directory created: {}", log_dir.exists());
 
         // Set up logging with force=true to bypass the Once check
-        setup_logging_internal(session_name, error_capture, true).unwrap();
+        setup_logging_internal(session_name, true).unwrap();
 
         // Write a test log entry
         tracing::info!("Test log entry");

@@ -4,10 +4,8 @@ use clap::{Args, Parser, Subcommand};
 use goose::config::Config;
 
 use goose_cli::commands::agent_version::AgentCommand;
-use goose_cli::commands::bench::{list_selectors, run_benchmark};
 use goose_cli::commands::configure::handle_configure;
 use goose_cli::commands::info::handle_info;
-use goose_cli::commands::mcp::run_server;
 use goose_cli::commands::session::handle_session_list;
 use goose_cli::logging::setup_logging;
 use goose_cli::session;
@@ -84,10 +82,6 @@ enum Command {
         #[arg(short, long, help = "Show verbose information including config.yaml")]
         verbose: bool,
     },
-
-    /// Manage system prompts and behaviors
-    #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp { name: String },
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -233,66 +227,6 @@ enum Command {
         #[arg(short, long, help = "Enforce to re-configure goose during update")]
         reconfigure: bool,
     },
-
-    Bench {
-        #[arg(
-            short = 's',
-            long = "selectors",
-            value_name = "EVALUATIONS_SELECTOR",
-            help = "Run this list of bench-suites.",
-            long_help = "Specify a comma-separated list of evaluation-suite names to be run.",
-            value_delimiter = ','
-        )]
-        selectors: Vec<String>,
-
-        #[arg(
-            short = 'i',
-            long = "include-dir",
-            value_name = "DIR_NAME",
-            action = clap::ArgAction::Append,
-            long_help = "Make one or more dirs available to all bench suites. Specify either a single dir-name, a comma-separated list of dir-names, or use this multiple instances of this flag to specify multiple dirs.",
-            value_delimiter = ','
-        )]
-        include_dirs: Vec<PathBuf>,
-
-        #[arg(
-            long = "repeat",
-            value_name = "QUANTITY",
-            long_help = "Number of times to repeat the benchmark run.",
-            default_value = "1"
-        )]
-        repeat: usize,
-
-        #[arg(
-            long = "list",
-            value_name = "LIST",
-            help = "List all selectors and the number of evaluations they select."
-        )]
-        list: bool,
-
-        #[arg(
-            long = "output",
-            short = 'o',
-            value_name = "FILE",
-            help = "Save benchmark results to a file"
-        )]
-        output: Option<PathBuf>,
-
-        #[arg(
-            long = "format",
-            value_name = "FORMAT",
-            help = "Output format (text, json)",
-            default_value = "text"
-        )]
-        format: String,
-
-        #[arg(
-            long = "summary",
-            help = "Show only summary results",
-            action = clap::ArgAction::SetTrue
-        )]
-        summary: bool,
-    },
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -314,9 +248,6 @@ async fn main() -> Result<()> {
         Some(Command::Info { verbose }) => {
             handle_info(verbose)?;
             return Ok(());
-        }
-        Some(Command::Mcp { name }) => {
-            let _ = run_server(&name).await;
         }
         Some(Command::Session {
             command,
@@ -343,7 +274,7 @@ async fn main() -> Result<()> {
                     .await;
                     setup_logging(
                         session.session_file().file_stem().and_then(|s| s.to_str()),
-                        None,
+
                     )?;
                     let _ = session.interactive(None).await;
                     return Ok(());
@@ -393,7 +324,6 @@ async fn main() -> Result<()> {
 
             setup_logging(
                 session.session_file().file_stem().and_then(|s| s.to_str()),
-                None,
             )?;
 
             if interactive {
@@ -401,81 +331,26 @@ async fn main() -> Result<()> {
             } else {
                 session.headless(contents).await?;
             }
-
-            return Ok(());
         }
         Some(Command::Agents(cmd)) => {
             cmd.run()?;
-            return Ok(());
         }
         Some(Command::Update {
             canary,
             reconfigure,
         }) => {
             goose_cli::commands::update::update(canary, reconfigure)?;
-            return Ok(());
-        }
-        Some(Command::Bench {
-            selectors,
-            include_dirs,
-            repeat,
-            list,
-            output,
-            format,
-            summary,
-        }) => {
-            if list {
-                return list_selectors().await;
-            }
-
-            let selectors = if selectors.is_empty() {
-                vec!["core".to_string()]
-            } else {
-                selectors
-            };
-
-            let current_dir = std::env::current_dir()?;
-
-            for i in 0..repeat {
-                if repeat > 1 {
-                    println!("\nRun {} of {}:", i + 1, repeat);
-                }
-                let results = run_benchmark(selectors.clone(), include_dirs.clone()).await?;
-
-                // Handle output based on format
-                let output_str = match format.as_str() {
-                    "json" => serde_json::to_string_pretty(&results)?,
-                    _ => results.to_string(), // Uses Display impl
-                };
-
-                // Save to file if specified
-                if let Some(path) = &output {
-                    std::fs::write(current_dir.join(path), &output_str)?;
-                    println!("Results saved to: {}", path.display());
-                } else {
-                    // Print to console
-                    if summary {
-                        println!("{}", results.summary());
-                    } else {
-                        println!("{}", output_str);
-                    }
-                }
-            }
-            return Ok(());
         }
         None => {
             if !Config::global().exists() {
                 let _ = handle_configure().await;
-                return Ok(());
             } else {
                 // Run session command by default
                 let mut session = build_session(None, false, vec![], vec![], false).await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
-                    None,
                 )?;
                 let _ = session.interactive(None).await;
-                return Ok(());
             }
         }
     }

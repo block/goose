@@ -1921,6 +1921,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "eventsource-client"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee53bc484c1ff2390bbf8744b4f8c405fccadb38700de6ed43c8f22b8da9280c"
+dependencies = [
+ "base64 0.22.1",
+ "futures",
+ "hyper 0.14.32",
+ "hyper-rustls 0.24.2",
+ "hyper-timeout",
+ "log",
+ "pin-project",
+ "rand",
+ "tokio",
+]
+
+[[package]]
 name = "exr"
 version = "1.73.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2309,8 +2326,6 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "lazy_static",
- "mcp-client",
- "mcp-core",
  "minijinja",
  "mockall",
  "nanoid",
@@ -2319,6 +2334,7 @@ dependencies = [
  "rand",
  "regex",
  "reqwest 0.12.12",
+ "rmcp",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -2375,14 +2391,11 @@ dependencies = [
  "etcetera",
  "futures",
  "goose",
- "goose-bench",
- "goose-mcp",
- "mcp-client",
- "mcp-core",
  "mcp-server",
  "once_cell",
  "rand",
  "reqwest 0.12.12",
+ "rmcp",
  "rustyline",
  "serde",
  "serde_json",
@@ -3524,7 +3537,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "eventsource-client",
+ "eventsource-client 0.12.2",
  "futures",
  "mcp-core",
  "rand",
@@ -4782,6 +4795,39 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rmcp"
+version = "0.1.2"
+source = "git+https://github.com/4t145/rmcp?branch=dev#3018cddd0728853e36ce592c55df98ac847b7814"
+dependencies = [
+ "base64 0.21.7",
+ "chrono",
+ "eventsource-client 0.14.0",
+ "futures",
+ "paste",
+ "pin-project-lite",
+ "reqwest 0.12.12",
+ "rmcp-macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.1.2"
+source = "git+https://github.com/4t145/rmcp?branch=dev#3018cddd0728853e36ce592c55df98ac847b7814"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.99",
 ]
 
 [[package]]

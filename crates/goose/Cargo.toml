@@ -12,8 +12,7 @@ tokio = { version = "1.36", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls"], default-features = false }
 
 [dependencies]
-mcp-client = { path = "../mcp-client" }
-mcp-core = { path = "../mcp-core" }
+rmcp = { git = "https://github.com/4t145/rmcp", branch = "dev", features = ["client", "transport-sse", "transport-child-process"] }
 anyhow = "1.0"
 thiserror = "1.0"
 futures = "0.3"

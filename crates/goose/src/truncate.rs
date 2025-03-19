@@ -1,6 +1,6 @@
 use crate::message::Message;
 use anyhow::{anyhow, Result};
-use mcp_core::Role;
+use rmcp::model::Role;
 use std::collections::HashSet;
 use tracing::debug;
 
@@ -182,10 +182,9 @@ pub fn truncate_messages(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message::Message;
+    use crate::message::{Message, ToolCall};
     use anyhow::Result;
-    use mcp_core::content::Content;
-    use mcp_core::tool::ToolCall;
+    use rmcp::model::Content;
     use serde_json::json;
 
     // Helper function to create a user text message with a specified token count

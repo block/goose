@@ -1,4 +1,5 @@
 use crate::message::{Message, MessageContent};
+use crate::message::{ToolCall, ToolError};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
@@ -7,8 +8,7 @@ use crate::providers::utils::{
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
-use mcp_core::ToolError;
-use mcp_core::{Content, Role, Tool, ToolCall};
+use rmcp::model::{RawContent, Role, Tool};
 use serde_json::{json, Value};
 
 /// Convert internal Message format to OpenAI's API message specification
@@ -89,7 +89,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         .audience()
                                         .is_none_or(|audience| audience.contains(&Role::Assistant))
                                 })
-                                .map(|content| content.unannotated())
+                                .map(|content| content.raw.clone())
                                 .collect();
 
                             // Process all content, replacing images with placeholder text
@@ -98,9 +98,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
                             for content in abridged {
                                 match content {
-                                    Content::Image(image) => {
+                                    RawContent::Image(image) => {
                                         // Add placeholder text in the tool response
-                                        tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
+                                        tool_content.push(RawContent::text("This tool result included an image that is uploaded in the next message."));
 
                                         // Create a separate image message
                                         image_messages.push(json!({
@@ -108,8 +108,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                             "content": [convert_image(&image, image_format)]
                                         }));
                                     }
-                                    Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
+                                    RawContent::Resource(resource) => {
+                                        tool_content.push(RawContent::text(format!(
+                                            "{:?}",
+                                            resource.resource
+                                        )));
                                     }
                                     _ => {
                                         tool_content.push(content);
@@ -119,7 +122,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             let tool_response_content: Value = json!(tool_content
                                 .iter()
                                 .map(|content| match content {
-                                    Content::Text(text) => text.text.clone(),
+                                    RawContent::Text(text) => text.text.clone(),
                                     _ => String::new(),
                                 })
                                 .collect::<Vec<String>>()
@@ -173,8 +176,12 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let mut description = tool.description.clone();
-        description.truncate(1024);
+        let description = tool.description.clone();
+        let description = if description.len() > 1024 {
+            &description[..1024]
+        } else {
+            &description
+        };
 
         // OpenAI's tool description max str len is 1024
         result.push(json!({
@@ -425,7 +432,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mcp_core::content::Content;
+    use rmcp::model::Content;
     use serde_json::json;
 
     #[test]
