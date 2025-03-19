@@ -134,7 +134,11 @@ impl Capabilities {
                 );
                 Box::new(McpClient::new(service))
             }
-            ExtensionConfig::Builtin { name, timeout } => {
+            ExtensionConfig::Builtin {
+                name,
+                display_name,
+                timeout,
+            } => {
                 // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")

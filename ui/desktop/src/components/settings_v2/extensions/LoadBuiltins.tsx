@@ -1,11 +1,12 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
-import builtInExtensionsData from '../../../built-in-extensions.json';
-import { FixedExtensionEntry } from '@/src/components/ConfigContext';
+import builtInExtensionsData from './built-in-extensions.json';
+import { FixedExtensionEntry } from '../../ConfigContext';
 
 // Type definition for built-in extensions from JSON
 type BuiltinExtension = {
   id: string;
   name: string;
+  display_name: string;
   description: string;
   enabled: boolean;
   type: 'builtin';
@@ -50,13 +51,14 @@ export async function syncBuiltInExtensions(
 
     // Check each built-in extension
     for (const builtinExt of builtinExtensions) {
-      // Only add if the extension doesn't already exist
+      // Only add if the extension doesn't already exist -- use the id
       if (!existingExtensionKeys.has(builtinExt.id)) {
         console.log(`Adding built-in extension: ${builtinExt.id}`);
 
         // Convert to the ExtensionConfig format
         const extConfig: ExtensionConfig = {
           name: builtinExt.name,
+          display_name: builtinExt.display_name,
           type: 'builtin',
           timeout: builtinExt.timeout ?? 300,
         };
