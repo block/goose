@@ -48,6 +48,24 @@ Here's an example of an instruction file that runs a security audit on project d
 Save findings in 'security_audit.md' with severity levels highlighted.
 ```
 
+### With stdin
+You can also pass instructions to Goose using standard input via `-i -`. This is useful when you want to pipe commands from another tool or script into Goose.
+
+#### Simple echo pipe
+
+```bash
+echo "What is 2+2?" | goose run -i -
+```
+
+#### Multi-line instructions
+```bash
+cat << EOF | goose run -i -
+Please help me with these tasks:
+1. Calculate 15% of 85
+2. Convert 32°C to Fahrenheit
+EOF
+```
+
 ## Key Features
 
 ### Interactive Mode
