@@ -73,6 +73,7 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
+  // this is all settings v2 stuff
   useEffect(() => {
     // Skip if feature flag is not enabled
     if (!process.env.ALPHA) {
@@ -155,6 +156,7 @@ export default function App() {
 
   useEffect(() => {
     const handleFatalError = (_: any, errorMessage: string) => {
+      console.error('Encountered a fatal error: ', errorMessage);
       setFatalError(errorMessage);
     };
 
@@ -227,50 +229,74 @@ export default function App() {
       return;
     }
 
-    // TODO: remove
+    console.log('Non-alpha flow initializing...');
+
     // Attempt to detect config for a stored provider
     const detectStoredProvider = () => {
-      const config = window.electron.getConfig();
-      const storedProvider = getStoredProvider(config);
-      if (storedProvider) {
-        setView('chat');
-      } else {
-        setView('welcome');
+      try {
+        const config = window.electron.getConfig();
+        console.log('Loaded config:', JSON.stringify(config));
+
+        const storedProvider = getStoredProvider(config);
+        console.log('Stored provider:', storedProvider);
+
+        if (storedProvider) {
+          setView('chat');
+        } else {
+          setView('welcome');
+        }
+      } catch (err) {
+        console.error('DETECTION ERROR:', err);
+        setFatalError(`Config detection error: ${err.message || 'Unknown error'}`);
       }
     };
 
-    // TODO: remove
     // Initialize system if we have a stored provider
     const setupStoredProvider = async () => {
-      const config = window.electron.getConfig();
+      try {
+        const config = window.electron.getConfig();
 
-      if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
-        window.electron.logInfo(
-          'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
-        );
-        await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
-        return;
-      }
-      const storedProvider = getStoredProvider(config);
-      const storedModel = getStoredModel();
-      if (storedProvider) {
-        try {
-          await initializeSystem(storedProvider, storedModel);
-
-          if (!storedModel) {
-            const modelName = getDefaultModel(storedProvider.toLowerCase());
-            const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
-            switchModel(model);
-            addRecentModel(model);
-          }
-        } catch (error) {
-          // TODO: add sessionError state and show error screen with option to start fresh
-          console.error('Failed to initialize with stored provider:', error);
+        if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
+          window.electron.logInfo(
+            'Initializing system with environment: GOOSE_MODEL and GOOSE_PROVIDER as priority.'
+          );
+          await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+          return;
         }
+
+        const storedProvider = getStoredProvider(config);
+        console.log('Setup using stored provider:', storedProvider);
+
+        const storedModel = getStoredModel();
+        console.log('Setup using stored model:', storedModel);
+
+        if (storedProvider) {
+          try {
+            await initializeSystem(storedProvider, storedModel);
+
+            if (!storedModel) {
+              const modelName = getDefaultModel(storedProvider.toLowerCase());
+              const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
+              switchModel(model);
+              addRecentModel(model);
+            }
+          } catch (error) {
+            console.error('Failed to initialize with stored provider:', error);
+            setFatalError(`Initialization failed: ${error.message || 'Unknown error'}`);
+          }
+        }
+      } catch (err) {
+        console.error('SETUP ERROR:', err);
+        setFatalError(`Setup error: ${err.message || 'Unknown error'}`);
       }
     };
+
+    // Execute the functions with better error handling
     detectStoredProvider();
-    setupStoredProvider();
+    setupStoredProvider().catch((err) => {
+      console.error('ASYNC SETUP ERROR:', err);
+      setFatalError(`Async setup error: ${err.message || 'Unknown error'}`);
+    });
   }, []);
 
   // keep
