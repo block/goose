@@ -15,7 +15,7 @@ Goose’s permissions determine how much autonomy it has when modifying files, u
 | Mode             | Description                                                                                             | Best For                                                                               |
 | ---------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | **Auto Mode**    | Goose can modify files, use extensions, and delete files **without requiring approval**.                | Users who want **full automation** and seamless integration into their workflow.       |
-| **Approve Mode** | Goose **asks for confirmation** before modifying, creating, deleting files and before using extensions. | Users who want to **review and approve** changes and extension use before they happen. |
+| **Approve Mode** | Goose **asks for confirmation** before all tools and extensions. | Users who want to **review and approve** any changes and extension use before they happen. |
 | **Chat Mode**    | Goose **only engages in chat**, with no extension use or file modifications.                            | Users who prefer a **conversational AI experience** without automation.                |
 
 :::warning
@@ -90,14 +90,22 @@ Here's how to configure:
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
 
+    You can change modes before or during a session and it will take effect immediately.
+
+    **From Settings**
+
     1. Click `...` in the upper right corner
     2. Click `Settings`
-    3. Scroll down to `Others` section
-    4. Under `Mode Selection`, choose the mode you'd like
+    3. Under `Mode Selection`, choose the mode you'd like
 
-    :::info
-    If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls. Goose will only ask for permission before tool call for tools that it deems are 'write' tools, for example any 'text editor write', 'text editor edit', 'bash - rm, cp, mv' commands, as an example. Read write approval makes best effort attempt at classifying read or write tools- this is interpreted by your LLM provider. 
-    :::
+    **Within Session**
 
+    Click the Goose Mode option from the bottom menu. 
   </TabItem>
 </Tabs>
+
+  :::info
+  If you choose `Approve` mode, you will see "Allow" and "Deny" buttons in your session windows during tool calls. Goose will only ask for permission for tools that it deems are 'write' tools, e.g. any 'text editor write', 'text editor edit', 'bash - rm, cp, mv' commands. 
+  
+  Read/write approval makes best effort attempt at classifying read or write tools. This is interpreted by your LLM provider. 
+  :::

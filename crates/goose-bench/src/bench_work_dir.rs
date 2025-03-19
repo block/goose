@@ -11,10 +11,9 @@ pub static BUILTIN_EVAL_ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/asse
 
 pub struct BenchmarkWorkDir {
     pub base_path: PathBuf,
+    run_dir: PathBuf,
     cwd: PathBuf,
     run_name: String,
-    suite: Option<String>,
-    eval: Option<String>,
 }
 
 impl Default for BenchmarkWorkDir {
@@ -24,6 +23,7 @@ impl Default for BenchmarkWorkDir {
 }
 impl BenchmarkWorkDir {
     pub fn new(work_dir_name: String, include_dirs: Vec<PathBuf>) -> Self {
+        let run_dir = std::env::current_dir().unwrap().canonicalize().unwrap();
         let base_path = PathBuf::from(format!("./benchmark-{}", work_dir_name));
         fs::create_dir_all(&base_path).unwrap();
 
@@ -54,10 +54,9 @@ impl BenchmarkWorkDir {
 
         BenchmarkWorkDir {
             base_path: base_path.clone(),
+            run_dir,
             cwd: base_path.clone(),
             run_name,
-            suite: None,
-            eval: None,
         }
     }
     fn copy_auto_included_dirs(dest: &Path) {
@@ -74,24 +73,10 @@ impl BenchmarkWorkDir {
         self.cwd = path;
         Ok(self)
     }
-    pub fn set_suite(&mut self, suite: &str) {
-        self.eval = None;
-        self.suite = Some(suite.to_string());
-
-        let mut suite_dir = self.base_path.clone();
-        suite_dir.push(self.run_name.clone());
-        suite_dir.push(suite);
-
-        self.cd(suite_dir.clone()).unwrap_or_else(|_| {
-            panic!("Failed to execute cd into {}", suite_dir.clone().display())
-        });
-    }
     pub fn set_eval(&mut self, eval: &str) {
-        self.eval = Some(eval.to_string());
-
+        let eval = eval.replace(":", std::path::MAIN_SEPARATOR_STR);
         let mut eval_dir = self.base_path.clone();
         eval_dir.push(self.run_name.clone());
-        eval_dir.push(self.suite.clone().unwrap());
         eval_dir.push(eval);
 
         self.cd(eval_dir.clone())
@@ -176,5 +161,11 @@ impl BenchmarkWorkDir {
             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
             Err(io::Error::new(ErrorKind::Other, error_message))
         }
+    }
+}
+
+impl Drop for BenchmarkWorkDir {
+    fn drop(&mut self) {
+        std::env::set_current_dir(&self.run_dir).unwrap();
     }
 }

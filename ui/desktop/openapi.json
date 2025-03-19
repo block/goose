@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.12"
+    "version": "1.0.14"
   },
   "paths": {
     "/config": {
@@ -33,7 +33,28 @@
         }
       }
     },
-    "/config/extension": {
+    "/config/extensions": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_extensions",
+        "responses": {
+          "200": {
+            "description": "All extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
       "post": {
         "tags": [
           "super::routes::config_management"
@@ -51,7 +72,7 @@
         },
         "responses": {
           "200": {
-            "description": "Extension added successfully",
+            "description": "Extension added or updated successfully",
             "content": {
               "text/plain": {
                 "schema": {
@@ -67,56 +88,24 @@
             "description": "Internal server error"
           }
         }
-      },
-      "put": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "update_extension",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ExtensionQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Extension configuration updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Extension not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
+      }
+    },
+    "/config/extensions/{name}": {
       "delete": {
         "tags": [
           "super::routes::config_management"
         ],
         "operationId": "remove_extension",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfigKeyQuery"
-              }
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "description": "Extension removed successfully",
@@ -313,16 +302,168 @@
           }
         }
       },
+      "Envs": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string",
+          "description": "A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host"
+        }
+      },
+      "ExtensionConfig": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Server-sent events client with a URI endpoint",
+            "required": [
+              "name",
+              "uri",
+              "type"
+            ],
+            "properties": {
+              "envs": {
+                "$ref": "#/components/schemas/Envs"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "sse"
+                ]
+              },
+              "uri": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Standard I/O client with command and arguments",
+            "required": [
+              "name",
+              "cmd",
+              "args",
+              "type"
+            ],
+            "properties": {
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cmd": {
+                "type": "string"
+              },
+              "envs": {
+                "$ref": "#/components/schemas/Envs"
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "stdio"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Built-in extension that is part of the goose binary",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "timeout": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "builtin"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Represents the different types of MCP extensions that can be added to the manager",
+        "discriminator": {
+          "propertyName": "type"
+        }
+      },
+      "ExtensionEntry": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          {
+            "type": "object",
+            "required": [
+              "enabled"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
           "name",
-          "config"
+          "config",
+          "enabled"
         ],
         "properties": {
-          "config": {},
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "ExtensionResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionEntry"
+            }
           }
         }
       },

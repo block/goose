@@ -14,8 +14,8 @@ export function SecureStorageNotice({
   message = 'Keys are stored securely in the keychain',
 }) {
   return (
-    <div className={`flex items-start mt-2 text-gray-600 dark:text-gray-300 ${className}`}>
-      <Lock className="w-5 h-5 mt-1" />
+    <div className={`flex items-center mt-2 text-gray-600 dark:text-gray-300 ${className}`}>
+      <Lock className="w-5 h-5" />
       <span className="text-sm font-light ml-2">{message}</span>
     </div>
   );

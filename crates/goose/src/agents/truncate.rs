@@ -18,8 +18,10 @@ use crate::agents::ToolPermissionStore;
 use crate::config::Config;
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
-use crate::providers::base::ProviderUsage;
 use crate::providers::errors::ProviderError;
+use crate::providers::toolshim::{
+    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
+};
 use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
@@ -218,7 +220,17 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
-        let system_prompt = capabilities.get_system_prompt().await;
+        let config = capabilities.provider().get_model_config();
+        let mut system_prompt = capabilities.get_system_prompt().await;
+        let mut toolshim_tools = vec![];
+        if config.toolshim {
+            // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
+            system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
+            // make a copy of tools before empty
+            toolshim_tools = tools.clone();
+            // pass empty tools vector to provider completion since toolshim will handle tool calls instead
+            tools = vec![];
+        }
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -237,8 +249,14 @@ impl Agent for TruncateAgent {
                     &messages,
                     &tools,
                 ).await {
-                    Ok((response, usage)) => {
-                        capabilities.record_usage(usage.clone()).await;
+                    Ok((mut response, usage)) => {
+                        // Post-process / structure the response only if tool interpretation is enabled
+                        if config.toolshim {
+                            let interpreter = OllamaInterpreter::new()
+                                .map_err(|e| anyhow::anyhow!("Failed to create OllamaInterpreter: {}", e))?;
+
+                            response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
+                        }
 
                         // record usage for the session in the session file
                         if let Some(session) = session.clone() {
@@ -276,7 +294,7 @@ impl Agent for TruncateAgent {
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
                         match mode.as_str() {
-                            "approve" => {
+                            "approve" | "smart_approve" => {
                                 let mut read_only_tools = Vec::new();
                                 let mut needs_confirmation = Vec::<&ToolRequest>::new();
                                 let mut approved_tools = Vec::new();
@@ -299,7 +317,7 @@ impl Agent for TruncateAgent {
                                 }
 
                                 // Only check read-only status for tools needing confirmation
-                                if !needs_confirmation.is_empty() {
+                                if !needs_confirmation.is_empty() && mode == "smart_approve" {
                                     read_only_tools = detect_read_only_tools(&capabilities, needs_confirmation.clone()).await;
                                 }
 
@@ -344,7 +362,7 @@ impl Agent for TruncateAgent {
                                                         // User declined - add declined response
                                                         message_tool_response = message_tool_response.with_tool_response(
                                                             request.id.clone(),
-                                                            Ok(vec![Content::text("User declined to run this tool.")]),
+                                                            Ok(vec![Content::text("User declined to run this tool. Don't try to make the same tool call again. If there is no other ways to do it, it is ok to stop.")]),
                                                         );
                                                     }
                                                     break; // Exit the loop once the matching `req_id` is found
@@ -451,11 +469,6 @@ impl Agent for TruncateAgent {
                 tokio::task::yield_now().await;
             }
         }))
-    }
-
-    async fn usage(&self) -> Vec<ProviderUsage> {
-        let capabilities = self.capabilities.lock().await;
-        capabilities.get_usage().await
     }
 
     async fn extend_system_prompt(&mut self, extension: String) {

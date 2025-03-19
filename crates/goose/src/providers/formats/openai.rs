@@ -826,6 +826,8 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -856,6 +858,8 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -887,6 +891,8 @@ mod tests {
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();

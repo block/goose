@@ -1,67 +1,122 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
+import { useAgent } from '../../../agent/UpdateAgent';
+import WelcomeGooseLogo from '../../WelcomeGooseLogo';
 
-export default function ProviderSettings({ onClose }: { onClose: () => void }) {
-  const { getProviders } = useConfig();
+interface ProviderSettingsProps {
+  onClose: () => void;
+  isOnboarding: boolean;
+}
+
+export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
+  const { getProviders, upsert } = useConfig();
+  const { initializeAgent } = useAgent();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
+  const initialLoadDone = useRef(false);
+
+  // Create a function to load providers that can be called multiple times
+  const loadProviders = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Only force refresh when explicitly requested, not on initial load
+      const result = await getProviders(!initialLoadDone.current);
+      if (result) {
+        setProviders(result);
+        initialLoadDone.current = true;
+      }
+    } catch (error) {
+      console.error('Failed to load providers:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [getProviders]);
 
   // Load providers only once when component mounts
   useEffect(() => {
-    let isMounted = true;
-
-    const loadProviders = async () => {
-      try {
-        // Force refresh to ensure we have the latest data
-        const result = await getProviders(true);
-        // Only update state if component is still mounted
-        if (isMounted && result) {
-          setProviders(result);
-        }
-      } catch (error) {
-        console.error('Failed to load providers:', error);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
     loadProviders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally not including loadProviders in deps to prevent reloading
 
-    // Cleanup function to prevent state updates on unmounted component
-    return () => {
-      isMounted = false;
-    };
-  }, []); // Empty dependency array ensures this only runs once
+  // This function will be passed to ProviderGrid for manual refreshes after config changes
+  const refreshProviders = useCallback(() => {
+    if (initialLoadDone.current) {
+      getProviders(true).then((result) => {
+        if (result) setProviders(result);
+      });
+    }
+  }, [getProviders]);
 
-  console.log(providers);
+  // Handler for when a provider is launched if this component is used as part of onboarding page
+  const handleProviderLaunch = useCallback(
+    async (provider: ProviderDetails) => {
+      const provider_name = provider.name;
+      const model = provider.metadata.default_model;
+
+      console.log(`Launching with provider: ${provider.name}`);
+      try {
+        // update the config
+        // set GOOSE_PROVIDER in the config file
+        upsert('GOOSE_PROVIDER', provider_name, false).then((_) =>
+          console.log('Setting GOOSE_PROVIDER to', provider_name)
+        );
+        // set GOOSE_MODEL in the config file
+        upsert('GOOSE_MODEL', model, false).then((_) =>
+          console.log('Setting GOOSE_MODEL to', model)
+        );
+
+        // initialize agent
+        await initializeAgent(provider_name, model);
+      } catch (error) {
+        console.error(`Failed to initialize with provider ${provider_name}:`, error);
+      }
+      onClose();
+    },
+    [initializeAgent, onClose, upsert]
+  );
+
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      {isOnboarding && (
+        <div className="group/logo">
+          <WelcomeGooseLogo className="h-16 w-16 md:h-20 md:w-20 text-black dark:text-white" />
+        </div>
+      )}
 
       <ScrollArea className="h-full w-full">
         <div className="px-8 pt-6 pb-4">
-          <BackButton onClick={onClose} />
-          <h1 className="text-3xl font-medium text-textStandard mt-1">Configure</h1>
+          {/* Only show back button if not in onboarding mode */}
+          {!isOnboarding && <BackButton onClick={onClose} />}
+          <h1 className="text-3xl font-medium text-textStandard mt-1">
+            {isOnboarding ? 'Configure your providers' : 'Provider Configuration Settings'}
+          </h1>
+          {isOnboarding && (
+            <p className="text-s text-textSubtle max-w-2xl pt-2">
+              Select an AI model provider to get started with goose. You’ll need to use API keys
+              generated by each provider which will be encrypted and stored locally. You can change
+              your provider at any time in settings.
+            </p>
+          )}
         </div>
 
         <div className="py-8 pt-[20px]">
-          <div className="flex justify-between items-center mb-6 border-b border-borderSubtle px-8">
-            <h2 className="text-xl font-medium text-textStandard">Providers</h2>
-          </div>
-
           {/* Content Area */}
           <div className="max-w-5xl pt-4 px-8">
             <div className="relative z-10">
               {loading ? (
                 <div>Loading providers...</div>
               ) : (
-                <ProviderGrid providers={providers} isOnboarding={false} />
+                <ProviderGrid
+                  providers={providers}
+                  isOnboarding={isOnboarding}
+                  onProviderLaunch={handleProviderLaunch}
+                  refreshProviders={refreshProviders}
+                />
               )}
             </div>
           </div>

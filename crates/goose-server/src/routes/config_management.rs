@@ -1,20 +1,21 @@
-use axum::routing::put;
+use crate::routes::utils::check_provider_configured;
+use crate::state::AppState;
 use axum::{
     extract::State,
     routing::{delete, get, post},
     Json, Router,
 };
+use goose::agents::ExtensionConfig;
+use goose::config::extensions::name_to_key;
 use goose::config::Config;
+use goose::config::{ExtensionEntry, ExtensionManager};
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::env;
 use utoipa::ToSchema;
-
-use crate::state::AppState;
 
 fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
     // Verify secret key
@@ -30,6 +31,18 @@ fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode
     }
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct ExtensionResponse {
+    pub extensions: Vec<ExtensionEntry>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct ExtensionQuery {
+    pub name: String,
+    pub config: ExtensionConfig,
+    pub enabled: bool,
+}
+
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertConfigQuery {
     pub key: String,
@@ -41,12 +54,6 @@ pub struct UpsertConfigQuery {
 pub struct ConfigKeyQuery {
     pub key: String,
     pub is_secret: bool,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct ExtensionQuery {
-    pub name: String,
-    pub config: Value,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -123,7 +130,7 @@ pub async fn remove_config(
 }
 
 #[utoipa::path(
-    post, // Change from get to post
+    post,
     path = "/config/read",
     request_body = ConfigKeyQuery, // Switch back to request_body
     responses(
@@ -156,11 +163,31 @@ pub async fn read_config(
 }
 
 #[utoipa::path(
+    get,
+    path = "/config/extensions",
+    responses(
+        (status = 200, description = "All extensions retrieved successfully", body = ExtensionResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_extensions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ExtensionResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    match ExtensionManager::get_all() {
+        Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
+#[utoipa::path(
     post,
-    path = "/config/extension",
+    path = "/config/extensions",
     request_body = ExtensionQuery,
     responses(
-        (status = 200, description = "Extension added successfully", body = String),
+        (status = 200, description = "Extension added or updated successfully", body = String),
         (status = 400, description = "Invalid request"),
         (status = 500, description = "Internal server error")
     )
@@ -168,35 +195,35 @@ pub async fn read_config(
 pub async fn add_extension(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(extension): Json<ExtensionQuery>,
+    Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
-    let config = Config::global();
+    // Get existing extensions to check if this is an update
+    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let key = name_to_key(&extension_query.name);
 
-    // Get current extensions or initialize empty map
-    let mut extensions: HashMap<String, Value> = config
-        .get_param("extensions")
-        .unwrap_or_else(|_| HashMap::new());
+    let is_update = extensions.iter().any(|e| e.config.key() == key);
 
-    // Add new extension
-    extensions.insert(extension.name.clone(), extension.config);
-
-    // Save updated extensions
-    match config.set_param(
-        "extensions",
-        Value::Object(extensions.into_iter().collect()),
-    ) {
-        Ok(_) => Ok(Json(format!("Added extension {}", extension.name))),
+    // Use ExtensionManager to set the extension
+    match ExtensionManager::set(ExtensionEntry {
+        enabled: extension_query.enabled,
+        config: extension_query.config,
+    }) {
+        Ok(_) => {
+            if is_update {
+                Ok(Json(format!("Updated extension {}", extension_query.name)))
+            } else {
+                Ok(Json(format!("Added extension {}", extension_query.name)))
+            }
+        }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
 #[utoipa::path(
     delete,
-    path = "/config/extension",
-    request_body = ConfigKeyQuery,
+    path = "/config/extensions/{name}",
     responses(
         (status = 200, description = "Extension removed successfully", body = String),
         (status = 404, description = "Extension not found"),
@@ -206,31 +233,15 @@ pub async fn add_extension(
 pub async fn remove_extension(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(query): Json<ConfigKeyQuery>,
+    axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<String>, StatusCode> {
-    // Use the helper function to verify the secret key
     verify_secret_key(&headers, &state)?;
 
-    let config = Config::global();
-
-    // Get current extensions
-    let mut extensions: HashMap<String, Value> = match config.get_param("extensions") {
-        Ok(exts) => exts,
-        Err(_) => return Err(StatusCode::NOT_FOUND),
-    };
-
-    // Remove extension if it exists
-    if extensions.remove(&query.key).is_some() {
-        // Save updated extensions
-        match config.set_param(
-            "extensions",
-            Value::Object(extensions.into_iter().collect()),
-        ) {
-            Ok(_) => Ok(Json(format!("Removed extension {}", query.key))),
-            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-        }
-    } else {
-        Err(StatusCode::NOT_FOUND)
+    let key = name_to_key(&name);
+    // Use ExtensionManager to remove the extension
+    match ExtensionManager::remove(&key) {
+        Ok(_) => Ok(Json(format!("Removed extension {}", name))),
+        Err(_) => Err(StatusCode::NOT_FOUND),
     }
 }
 
@@ -254,50 +265,6 @@ pub async fn read_all_config(
     let values = config.load_values().unwrap_or_default();
 
     Ok(Json(ConfigResponse { config: values }))
-}
-
-#[utoipa::path(
-    put,
-    path = "/config/extension",
-    request_body = ExtensionQuery,
-    responses(
-        (status = 200, description = "Extension configuration updated successfully", body = String),
-        (status = 404, description = "Extension not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-pub async fn update_extension(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(extension): Json<ExtensionQuery>,
-) -> Result<Json<String>, StatusCode> {
-    // Use the helper function to verify the secret key
-    verify_secret_key(&headers, &state)?;
-
-    let config = Config::global();
-
-    // Get current extensions
-    let mut extensions: HashMap<String, Value> = match config.get_param("extensions") {
-        Ok(exts) => exts,
-        Err(_) => return Err(StatusCode::NOT_FOUND),
-    };
-
-    // Check if extension exists
-    if !extensions.contains_key(&extension.name) {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    // Update extension configuration
-    extensions.insert(extension.name.clone(), extension.config);
-
-    // Save updated extensions
-    match config.set_param(
-        "extensions",
-        Value::Object(extensions.into_iter().collect()),
-    ) {
-        Ok(_) => Ok(Json(format!("Updated extension {}", extension.name))),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
 }
 
 // Modified providers function using the new response type
@@ -335,40 +302,15 @@ pub async fn providers(
     Ok(Json(providers_response))
 }
 
-fn check_provider_configured(metadata: &ProviderMetadata) -> bool {
-    let config = Config::global();
-
-    // Check all required keys for the provider
-    for key in &metadata.config_keys {
-        if key.required {
-            let key_name = &key.name;
-
-            // First, check if the key is set in the environment
-            let is_set_in_env = env::var(key_name).is_ok();
-
-            // If not set in environment, check the config file based on whether it's a secret or not
-            let is_set_in_config = config.get(key_name, key.secret).is_ok();
-
-            // If the key is neither in the environment nor in the config, the provider is not configured
-            if !is_set_in_env && !is_set_in_config {
-                return false;
-            }
-        }
-    }
-
-    // If all required keys are accounted for, the provider is considered configured
-    true
-}
-
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
         .route("/config/upsert", post(upsert_config))
         .route("/config/remove", post(remove_config))
         .route("/config/read", post(read_config))
-        .route("/config/extension", post(add_extension))
-        .route("/config/extension", put(update_extension))
-        .route("/config/extension", delete(remove_extension))
+        .route("/config/extensions", get(get_extensions))
+        .route("/config/extensions", post(add_extension))
+        .route("/config/extensions/:name", delete(remove_extension))
         .route("/config/providers", get(providers))
         .with_state(state)
 }

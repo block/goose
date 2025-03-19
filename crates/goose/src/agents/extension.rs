@@ -3,8 +3,10 @@ use std::collections::HashMap;
 use mcp_client::client::Error as ClientError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 use crate::config;
+use crate::config::extensions::name_to_key;
 
 /// Errors from Extension operation
 #[derive(Error, Debug)]
@@ -21,7 +23,7 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
@@ -43,7 +45,7 @@ impl Envs {
 }
 
 /// Represents the different types of MCP extensions that can be added to the manager
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
 #[serde(tag = "type")]
 pub enum ExtensionConfig {
     /// Server-sent events client with a URI endpoint
@@ -54,6 +56,7 @@ pub enum ExtensionConfig {
         uri: String,
         #[serde(default)]
         envs: Envs,
+        description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
@@ -68,6 +71,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         envs: Envs,
         timeout: Option<u64>,
+        description: Option<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -88,21 +92,28 @@ impl Default for ExtensionConfig {
 }
 
 impl ExtensionConfig {
-    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, timeout: T) -> Self {
+    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, description: S, timeout: T) -> Self {
         Self::Sse {
             name: name.into(),
             uri: uri.into(),
             envs: Envs::default(),
+            description: Some(description.into()),
             timeout: Some(timeout.into()),
         }
     }
 
-    pub fn stdio<S: Into<String>, T: Into<u64>>(name: S, cmd: S, timeout: T) -> Self {
+    pub fn stdio<S: Into<String>, T: Into<u64>>(
+        name: S,
+        cmd: S,
+        description: S,
+        timeout: T,
+    ) -> Self {
         Self::Stdio {
             name: name.into(),
             cmd: cmd.into(),
             args: vec![],
             envs: Envs::default(),
+            description: Some(description.into()),
             timeout: Some(timeout.into()),
         }
     }
@@ -118,25 +129,33 @@ impl ExtensionConfig {
                 cmd,
                 envs,
                 timeout,
+                description,
                 ..
             } => Self::Stdio {
                 name,
                 cmd,
                 envs,
                 args: args.into_iter().map(Into::into).collect(),
+                description,
                 timeout,
             },
             other => other,
         }
     }
 
+    pub fn key(&self) -> String {
+        let name = self.name();
+        name_to_key(&name)
+    }
+
     /// Get the extension name regardless of variant
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> String {
         match self {
             Self::Sse { name, .. } => name,
             Self::Stdio { name, .. } => name,
             Self::Builtin { name, .. } => name,
         }
+        .to_string()
     }
 }
 

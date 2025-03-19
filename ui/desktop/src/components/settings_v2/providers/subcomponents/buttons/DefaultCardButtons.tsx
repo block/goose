@@ -34,7 +34,7 @@ export default function DefaultCardButtons({
       {/*Set up an unconfigured provider */}
       {!provider.is_configured && (
         <ConfigureSettingsButton
-          tooltip={getDefaultTooltipMessages(provider.name, 'add')}
+          tooltip={getDefaultTooltipMessages(provider.metadata.display_name, 'add')}
           onClick={(e) => {
             e.stopPropagation();
             onConfigure(provider);
@@ -44,7 +44,7 @@ export default function DefaultCardButtons({
       {/*show edit tooltip instead when hovering over button for configured providers*/}
       {provider.is_configured && !isOnboardingPage && (
         <ConfigureSettingsButton
-          tooltip={getDefaultTooltipMessages(provider.name, 'edit')}
+          tooltip={getDefaultTooltipMessages(provider.metadata.display_name, 'edit')}
           onClick={(e) => {
             e.stopPropagation();
             onConfigure(provider);
@@ -54,6 +54,7 @@ export default function DefaultCardButtons({
       {/*show Launch button for configured providers on onboarding page*/}
       {provider.is_configured && isOnboardingPage && (
         <RocketButton
+          tooltip={'Get started with goose!'}
           onClick={(e) => {
             e.stopPropagation();
             onLaunch(provider);

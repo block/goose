@@ -1,3 +1,4 @@
+import React from 'react';
 import { getApiUrl, getSecretKey } from './config';
 import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
@@ -80,6 +81,9 @@ export async function addExtension(
       timeout: extension.timeout,
     };
 
+    let toastId;
+    if (!silent) toastId = toast.loading(`Adding ${extension.name} extension...`);
+
     const response = await fetch(getApiUrl('/extensions/add'), {
       method: 'POST',
       headers: {
@@ -93,19 +97,39 @@ export async function addExtension(
 
     if (!data.error) {
       if (!silent) {
+        if (toastId) toast.dismiss(toastId);
         toast.success(`Successfully enabled ${extension.name} extension`);
       }
       return response;
     }
 
     const errorMessage = `Error adding ${extension.name} extension ${data.message ? `. ${data.message}` : ''}`;
+    const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
+      <div className="flex flex-col gap-1">
+        <div>Error adding {extension.name} extension</div>
+        <div>
+          <button
+            className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
+            onClick={() => {
+              navigator.clipboard.writeText(data.message);
+              closeToast();
+            }}
+          >
+            Copy error message
+          </button>
+        </div>
+      </div>
+    );
+
     console.error(errorMessage);
-    toast.error(errorMessage);
+    if (toastId) toast.dismiss(toastId);
+    toast(ErrorMsg, { type: 'error', autoClose: false });
+
     return response;
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -132,12 +156,12 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
 
     const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     return response;
   } catch (error) {
     const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -217,7 +241,7 @@ function envVarsRequired(config: ExtensionConfig) {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message);
+  toast.error(message, { autoClose: false });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
@@ -32,15 +32,25 @@ export default function ProviderConfigurationModal() {
   const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
   const FormComponent = customFormsMap[currentProvider.name] || DefaultProviderSetupForm;
 
-  const handleSubmitForm = (e) => {
+  const handleSubmitForm = async (e) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
 
-    SubmitHandler(upsert, currentProvider, configValues);
+    try {
+      // Wait for the submission to complete
+      await SubmitHandler(upsert, currentProvider, configValues);
 
-    // Close the modal unless the custom handler explicitly returns false
-    // This gives custom handlers the ability to keep the modal open if needed
-    closeModal();
+      // Close the modal before triggering refreshes to avoid UI issues
+      closeModal();
+
+      // Call onSubmit callback if provided (from modal props)
+      if (modalProps.onSubmit) {
+        modalProps.onSubmit(configValues);
+      }
+    } catch (error) {
+      console.error('Failed to save configuration:', error);
+      // Keep modal open if there's an error
+    }
   };
 
   const handleCancel = () => {
@@ -53,7 +63,10 @@ export default function ProviderConfigurationModal() {
   };
 
   return (
-    <Modal>
+    <Modal
+      onClose={closeModal}
+      footer={<ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />}
+    >
       <div className="space-y-1">
         {/* Logo area - centered above title */}
         <ProviderLogo providerName={currentProvider.name} />
@@ -72,7 +85,6 @@ export default function ProviderConfigurationModal() {
       {currentProvider.metadata.config_keys && currentProvider.metadata.config_keys.length > 0 && (
         <SecureStorageNotice />
       )}
-      <ProviderSetupActions onCancel={handleCancel} onSubmit={handleSubmitForm} />
     </Modal>
   );
 }

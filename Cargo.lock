@@ -2266,8 +2266,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "google-sheets4"
+version = "6.0.0+20240621"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4f8ccfc6418e81d1e2ed66fad49d0487526281505b8a0ed8ee770dc7d6bb1e5"
+dependencies = [
+ "chrono",
+ "google-apis-common",
+ "hyper 1.6.0",
+ "hyper-rustls 0.27.5",
+ "hyper-util",
+ "mime",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tokio",
+ "url",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "goose"
-version = "1.0.12"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2321,7 +2341,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.0.12"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2332,6 +2352,7 @@ dependencies = [
  "mcp-core",
  "once_cell",
  "paste",
+ "regex",
  "serde",
  "serde_json",
  "tokio",
@@ -2342,7 +2363,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.0.12"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2379,7 +2400,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.0.12"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2388,16 +2409,19 @@ dependencies = [
  "docx-rs",
  "etcetera",
  "google-drive3",
+ "google-sheets4",
  "http-body-util",
  "ignore",
  "image 0.24.9",
  "include_dir",
  "indoc",
+ "keyring",
  "kill_tree",
  "lazy_static",
  "lopdf",
  "mcp-core",
  "mcp-server",
+ "oauth2",
  "once_cell",
  "regex",
  "reqwest 0.11.27",
@@ -2421,7 +2445,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.0.12"
+version = "1.0.15"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3897,6 +3921,26 @@ name = "number_prefix"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
+
+[[package]]
+name = "oauth2"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "getrandom 0.2.15",
+ "http 1.2.0",
+ "rand",
+ "reqwest 0.12.12",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "sha2",
+ "thiserror 1.0.69",
+ "url",
+]
 
 [[package]]
 name = "objc"
@@ -6178,6 +6222,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

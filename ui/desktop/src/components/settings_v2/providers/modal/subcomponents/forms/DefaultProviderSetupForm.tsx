@@ -25,12 +25,11 @@ export default function DefaultProviderSetupForm({
 
       // Try to load actual values from config for each parameter that is not secret
       for (const parameter of parameters) {
-        if (parameter.required && !parameter.secret) {
+        if (parameter.required) {
           try {
             // Check if there's a stored value in the config system
             const configKey = `${parameter.name}`;
             const configResponse = await read(configKey, parameter.secret || false);
-            console.log('configResponse', configResponse);
 
             if (configResponse) {
               // Use the value from the config provider
