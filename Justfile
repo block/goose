@@ -216,3 +216,87 @@ tag-push: tag
 release-notes:
     #!/usr/bin/env bash
     git log --pretty=format:"- %s" v$(just get-tag-version)..HEAD
+
+### s = file seperator based on OS
+s := if os() == "windows" { "\\" } else { "/" }
+
+### testing/debugging
+os:
+  echo "{{os()}}"
+  echo "{{s}}"
+
+# Make just work on Window
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
+### Build the core code
+### M = --release or "" for debug
+### F = OR/AND/ANY/NONE --workspace --all-features --all-targets
+win-bld M F: 
+  cargo run {{M}} -p goose-server --bin  generate_schema
+  cargo build {{M}} {{F}}
+
+### Build just debug
+win-bld-dbg: 
+  just win-bld " " " "
+
+### Build debug and test, examples,...
+win-bld-dbg-all: 
+  just win-bld " " "--workspace --all-targets --all-features"
+
+### Build just release
+win-bld-rls:
+  just win-bld "--release" " "
+
+### Build release and test, examples, ...
+win-bld-rls-all:
+  just win-bld "--release" "--workspace --all-targets --all-features"
+
+### Install npm stuff
+win-app-deps:
+  cd ui{{s}}desktop ; npm install
+
+### Windows copy {release|debug} files to ui\desktop\src\bin
+### s = os depenent file seperator
+### F = release or debug
+win-cpy-win F:
+  copy target{{s}}{{F}}{{s}}*.exe ui{{s}}desktop{{s}}src{{s}}bin
+  copy target{{s}}{{F}}{{s}}*.dll ui{{s}}desktop{{s}}src{{s}}bin
+
+### "Other" copy {release|debug} files to ui/desktop/src/bin
+### s = os depenent file seperator
+### F = release or debug
+win-cpy-oth F:
+  find target{{s}}{{F}}{{s}} -maxdepth 1 -type f -executable -print -exec cp {} ui{{s}}desktop{{s}}src{{s}}bin \;
+
+### copy files depending on OS
+### F = release or debug
+win-app-cpy F="release":
+  just win-cpy-{{ if os() == "windows" { "win" } else { "oth" } }} {{F}}
+
+### Only copy binaries, npm install, start-gui
+### F = release or debug
+### s = os depenent file seperator
+win-app-run F:
+  just win-app-cpy {{F}}
+  just win-app-deps
+  cd ui{{s}}desktop ; npm run start-gui
+
+### Only run debug desktop, no build
+win-run-dbg:
+  just win-app-run "debug"
+
+### Only run release desktop, nu build
+win-run-rls:
+  just win-app-run "release"
+
+### Build and run debug desktop
+### P = nothing or -all passed on command line
+win-tot-dbg *P:
+  just win-bld-dbg{{P}}
+  just win-run-dbg
+
+### Build and run release desktop
+### P = nothing or -all passed on command line
+win-tot-rls *P:
+  just win-bld-rls{{P}}
+  just win-run-rls
