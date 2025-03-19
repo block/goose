@@ -611,7 +611,7 @@ impl GoogleDriveRouter {
             query.push(format!("'{}' in parents", p).to_string());
         }
         let query_string = query.join(" and ");
-        if query_string.len() == 0 {
+        if query_string.is_empty() {
             return Err(ToolError::InvalidParameters(
                 "No query provided. Please include one of ('name', 'mimeType', 'parent')."
                     .to_string(),
