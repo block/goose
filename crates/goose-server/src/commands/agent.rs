@@ -4,12 +4,21 @@ use anyhow::Result;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-pub async fn run() -> Result<()> {
+pub async fn run(host: Option<&str>, port: Option<u16>) -> Result<()> {
     // Initialize logging
     crate::logging::setup_logging(Some("goosed"))?;
 
     // Load configuration
-    let settings = configuration::Settings::new()?;
+    let mut settings = configuration::Settings::new()?;
+    
+    // Override settings with CLI arguments if provided
+    if let Some(host_value) = host {
+        settings.host = host_value.to_string();
+    }
+    
+    if let Some(port_value) = port {
+        settings.port = port_value;
+    }
 
     // load secret key from GOOSE_SERVER__SECRET_KEY environment variable
     let secret_key =
