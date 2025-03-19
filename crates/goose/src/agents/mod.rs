@@ -7,6 +7,7 @@ mod permission_store;
 mod reference;
 mod summarize;
 mod truncate;
+mod types;
 
 pub use agent::{Agent, SessionConfig};
 pub use capabilities::Capabilities;

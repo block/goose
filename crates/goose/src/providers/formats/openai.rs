@@ -151,6 +151,32 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Handle direct image content
                     converted["content"] = json!([convert_image(image, image_format)]);
                 }
+                MessageContent::FrontendToolRequest(request) => match &request.tool_call {
+                    Ok(tool_call) => {
+                        let sanitized_name = sanitize_function_name(&tool_call.name);
+                        let tool_calls = converted
+                            .as_object_mut()
+                            .unwrap()
+                            .entry("tool_calls")
+                            .or_insert(json!([]));
+
+                        tool_calls.as_array_mut().unwrap().push(json!({
+                            "id": request.id,
+                            "type": "function",
+                            "function": {
+                                "name": sanitized_name,
+                                "arguments": tool_call.arguments.to_string(),
+                            }
+                        }));
+                    }
+                    Err(e) => {
+                        output.push(json!({
+                            "role": "tool",
+                            "content": format!("Error: {}", e),
+                            "tool_call_id": request.id
+                        }));
+                    }
+                },
             }
         }
 

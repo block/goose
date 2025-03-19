@@ -26,9 +26,17 @@ static DEFAULT_TIMESTAMP: LazyLock<DateTime<Utc>> =
 
 type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
 
+/// A frontend tool that will be executed by the frontend rather than an extension
+#[derive(Clone)]
+pub struct FrontendTool {
+    pub name: String,
+    pub tool: Tool,
+}
+
 /// Manages MCP clients and their interactions
 pub struct Capabilities {
     clients: HashMap<String, McpClientBox>,
+    frontend_tools: HashMap<String, FrontendTool>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
     provider: Arc<Box<dyn Provider>>,
@@ -96,6 +104,7 @@ impl Capabilities {
     pub fn new(provider: Box<dyn Provider>) -> Self {
         Self {
             clients: HashMap::new(),
+            frontend_tools: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
             provider: Arc::new(provider),
@@ -111,96 +120,120 @@ impl Capabilities {
     /// Add a new MCP extension based on the provided client type
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
-        let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse {
-                uri, envs, timeout, ..
-            } => {
-                let transport = SseTransport::new(uri, envs.get_env());
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
-            }
-            ExtensionConfig::Stdio {
-                cmd,
-                args,
-                envs,
-                timeout,
-                ..
-            } => {
-                let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
-            }
-            #[allow(unused_variables)]
-            ExtensionConfig::Builtin {
-                name,
-                display_name,
-                timeout,
-            } => {
-                // For builtin extensions, we run the current executable with mcp and extension name
-                let cmd = std::env::current_exe()
-                    .expect("should find the current executable")
-                    .to_str()
-                    .expect("should resolve executable to string path")
-                    .to_string();
-                let transport = StdioTransport::new(
-                    &cmd,
-                    vec!["mcp".to_string(), name.clone()],
-                    HashMap::new(),
-                );
-                let handle = transport.start().await?;
-                let service = McpService::with_timeout(
-                    handle,
-                    Duration::from_secs(
-                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                    ),
-                );
-                Box::new(McpClient::new(service))
-            }
-        };
-
-        // Initialize the client with default capabilities
-        let info = ClientInfo {
-            name: "goose".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-        let capabilities = ClientCapabilities::default();
-
-        let init_result = client
-            .initialize(info, capabilities)
-            .await
-            .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
-
         let sanitized_name = normalize(config.key().to_string());
 
-        // Store instructions if provided
-        if let Some(instructions) = init_result.instructions {
-            self.instructions
-                .insert(sanitized_name.clone(), instructions);
+        match &config {
+            ExtensionConfig::Frontend {
+                name: _,
+                tools,
+                instructions,
+            } => {
+                // For frontend tools, just store them in the frontend_tools map
+                for tool in tools {
+                    let frontend_tool = FrontendTool {
+                        name: tool.name.clone(),
+                        tool: tool.clone(),
+                    };
+                    self.frontend_tools.insert(tool.name.clone(), frontend_tool);
+                }
+                // Store instructions if provided, using "frontend" as the key
+                if let Some(instructions) = instructions {
+                    self.instructions
+                        .insert("frontend".to_string(), instructions.clone());
+                }
+                Ok(())
+            }
+            _ => {
+                let mut client: Box<dyn McpClientTrait> = match &config {
+                    ExtensionConfig::Sse {
+                        uri, envs, timeout, ..
+                    } => {
+                        let transport = SseTransport::new(uri, envs.get_env());
+                        let handle = transport.start().await?;
+                        let service = McpService::with_timeout(
+                            handle,
+                            Duration::from_secs(
+                                timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                            ),
+                        );
+                        Box::new(McpClient::new(service))
+                    }
+                    ExtensionConfig::Stdio {
+                        cmd,
+                        args,
+                        envs,
+                        timeout,
+                        ..
+                    } => {
+                        let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
+                        let handle = transport.start().await?;
+                        let service = McpService::with_timeout(
+                            handle,
+                            Duration::from_secs(
+                                timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                            ),
+                        );
+                        Box::new(McpClient::new(service))
+                    }
+                    ExtensionConfig::Builtin {
+                        name,
+                        display_name: _,
+                        timeout,
+                    } => {
+                        // For builtin extensions, we run the current executable with mcp and extension name
+                        let cmd = std::env::current_exe()
+                            .expect("should find the current executable")
+                            .to_str()
+                            .expect("should resolve executable to string path")
+                            .to_string();
+                        let transport = StdioTransport::new(
+                            &cmd,
+                            vec!["mcp".to_string(), name.clone()],
+                            HashMap::new(),
+                        );
+                        let handle = transport.start().await?;
+                        let service = McpService::with_timeout(
+                            handle,
+                            Duration::from_secs(
+                                timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                            ),
+                        );
+                        Box::new(McpClient::new(service))
+                    }
+                    _ => unreachable!(),
+                };
+
+                // Initialize the client with default capabilities
+                let info = ClientInfo {
+                    name: "goose".to_string(),
+                    version: env!("CARGO_PKG_VERSION").to_string(),
+                };
+                let capabilities = ClientCapabilities::default();
+
+                let init_result = client
+                    .initialize(info, capabilities)
+                    .await
+                    .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
+
+                // Store instructions if provided
+                if let Some(instructions) = init_result.instructions {
+                    self.instructions
+                        .insert(sanitized_name.clone(), instructions);
+                }
+
+                // if the server is capable if resources we track it
+                if init_result.capabilities.resources.is_some() {
+                    self.resource_capable_extensions
+                        .insert(sanitized_name.clone());
+                }
+
+                // Store the client using the provided name
+                self.clients
+                    .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
+
+                Ok(())
+            }
         }
-
-        // if the server is capable if resources we track it
-        if init_result.capabilities.resources.is_some() {
-            self.resource_capable_extensions
-                .insert(sanitized_name.clone());
-        }
-
-        // Store the client using the provided name
-        self.clients
-            .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
-
-        Ok(())
     }
 
     /// Add a system prompt extension
@@ -235,6 +268,13 @@ impl Capabilities {
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = Vec::new();
+
+        // Add frontend tools directly - they don't need prefixing since they're already uniquely named
+        for frontend_tool in self.frontend_tools.values() {
+            tools.push(frontend_tool.tool.clone());
+        }
+
+        // Add tools from MCP extensions with prefixing
         for (name, client) in &self.clients {
             let client_guard = client.lock().await;
             let mut client_tools = client_guard.list_tools(None).await?;
@@ -317,7 +357,7 @@ impl Capabilities {
     pub async fn get_system_prompt(&self) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
 
-        let extensions_info: Vec<ExtensionInfo> = self
+        let mut extensions_info: Vec<ExtensionInfo> = self
             .clients
             .keys()
             .map(|name| {
@@ -326,6 +366,15 @@ impl Capabilities {
                 ExtensionInfo::new(name, &instructions, has_resources)
             })
             .collect();
+
+        // Add frontend tools as a special extension if any exist
+        if !self.frontend_tools.is_empty() {
+            let name = "frontend";
+            let instructions = self.instructions.get(name).cloned().unwrap_or_else(||
+                "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string()
+            );
+            extensions_info.push(ExtensionInfo::new(name, &instructions, false));
+        }
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -362,6 +411,16 @@ impl Capabilities {
                 system_prompt_extensions.join("\n\n")
             )
         }
+    }
+
+    /// Check if a tool is a frontend tool
+    pub fn is_frontend_tool(&self, name: &str) -> bool {
+        self.frontend_tools.contains_key(name)
+    }
+
+    /// Get a reference to a frontend tool
+    pub fn get_frontend_tool(&self, name: &str) -> Option<&FrontendTool> {
+        self.frontend_tools.get(name)
     }
 
     /// Find and return a reference to the appropriate client for a tool call
@@ -543,6 +602,11 @@ impl Capabilities {
             self.read_resource(tool_call.arguments.clone()).await
         } else if tool_call.name == "platform__list_resources" {
             self.list_resources(tool_call.arguments.clone()).await
+        } else if self.is_frontend_tool(&tool_call.name) {
+            // For frontend tools, return an error indicating we need frontend execution
+            Err(ToolError::ExecutionError(
+                "Frontend tool execution required".to_string(),
+            ))
         } else {
             // Else, dispatch tool call based on the prefix naming convention
             let (client_name, client) = self

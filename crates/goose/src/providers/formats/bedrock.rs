@@ -57,6 +57,21 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
         }
+        MessageContent::FrontendToolRequest(tool_req) => {
+            let tool_use_id = tool_req.id.to_string();
+            let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .name(call.name.to_string())
+                    .input(to_bedrock_json(&call.arguments))
+                    .build()
+            } else {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .build()
+            }?;
+            bedrock::ContentBlock::ToolUse(tool_use)
+        }
         MessageContent::ToolResponse(tool_res) => {
             let content = match &tool_res.tool_result {
                 Ok(content) => Some(

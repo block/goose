@@ -71,6 +71,14 @@ pub struct RedactedThinkingContent {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendToolRequest {
+    pub id: String,
+    #[serde(with = "tool_result_serde")]
+    pub tool_call: ToolResult<ToolCall>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -79,6 +87,7 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
+    FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
 }
@@ -136,6 +145,13 @@ impl MessageContent {
 
     pub fn redacted_thinking<S: Into<String>>(data: S) -> Self {
         MessageContent::RedactedThinking(RedactedThinkingContent { data: data.into() })
+    }
+
+    pub fn frontend_tool_request<S: Into<String>>(id: S, tool_call: ToolResult<ToolCall>) -> Self {
+        MessageContent::FrontendToolRequest(FrontendToolRequest {
+            id: id.into(),
+            tool_call,
+        })
     }
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
@@ -318,6 +334,14 @@ impl Message {
         self.with_content(MessageContent::tool_confirmation_request(
             id, tool_name, arguments, prompt,
         ))
+    }
+
+    pub fn with_frontend_tool_request<S: Into<String>>(
+        self,
+        id: S,
+        tool_call: ToolResult<ToolCall>,
+    ) -> Self {
+        self.with_content(MessageContent::frontend_tool_request(id, tool_call))
     }
 
     /// Add thinking content to the message
