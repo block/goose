@@ -1182,6 +1182,7 @@ impl GoogleDriveRouter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn upload_to_drive(
         &self,
         operation: FileOperation,
