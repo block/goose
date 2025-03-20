@@ -64,14 +64,65 @@ export function DeepLinkModal({
       <div className="bg-bgApp p-6 rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4 text-textStandard">Agent Created!</h2>
         <p className="mb-4 text-textStandard">
-          Your agent has been created successfully. You can review and edit the details below:
+          Your agent has been created successfully. You can share or open it below:
         </p>
 
-        {/* Instructions Section */}
+        {/* Sharable Goose Bot Section - Moved to top */}
+        <div className="mb-6">
+          <label className="block font-medium mb-1 text-textStandard">Sharable Goose Bot:</label>
+          <div className="flex items-center">
+            <input
+              type="text"
+              value={deepLink}
+              readOnly
+              className="flex-1 p-3 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
+            />
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(deepLink);
+                window.electron.logInfo('Deep link copied to clipboard');
+              }}
+              className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 flex items-center justify-center min-w-[100px]"
+            >
+              <Copy className="w-5 h-5 mr-1" />
+              Copy
+            </button>
+          </div>
+        </div>
+
+        {/* Action Buttons - Moved to top */}
+        <div className="flex mb-6">
+          <button
+            onClick={() => {
+              // Open the deep link with the current bot config
+              const currentConfig = {
+                ...botConfig,
+                instructions,
+                activities,
+              };
+              window.electron.createChatWindow(
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                currentConfig
+              );
+              // Don't close the modal
+            }}
+            className="px-5 py-2.5 bg-green-500 text-white rounded-md hover:bg-green-600 flex-1 mr-2"
+          >
+            Open Agent
+          </button>
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 flex-1"
+          >
+            Close
+          </button>
+        </div>
+
+        <h3 className="text-lg font-medium mb-3 text-textStandard">Edit Instructions:</h3>
         <div className="mb-4">
-          <label htmlFor="instructions" className="block font-medium mb-1 text-textStandard">
-            Instructions:
-          </label>
           <div className="border border-borderSubtle rounded-md bg-transparent max-h-[120px] overflow-y-auto">
             <textarea
               id="instructions"
@@ -117,60 +168,6 @@ export function DeepLinkModal({
               +
             </button>
           </div>
-        </div>
-
-        {/* Sharable Goose Bot Section */}
-        <div className="mb-4">
-          <label className="block font-medium mb-1 text-textStandard">Sharable Goose Bot:</label>
-          <div className="flex items-center">
-            <input
-              type="text"
-              value={deepLink}
-              readOnly
-              className="flex-1 p-3 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
-            />
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(deepLink);
-                window.electron.logInfo('Deep link copied to clipboard');
-              }}
-              className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 flex items-center justify-center min-w-[100px]"
-            >
-              <Copy className="w-5 h-5 mr-1" />
-              Copy
-            </button>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 mr-2"
-          >
-            Close
-          </button>
-          <button
-            onClick={() => {
-              // Open the deep link with the current bot config
-              const currentConfig = {
-                ...botConfig,
-                instructions,
-                activities,
-              };
-              window.electron.createChatWindow(
-                undefined,
-                undefined,
-                undefined,
-                undefined,
-                currentConfig
-              );
-              // Don't close the modal
-            }}
-            className="px-5 py-2.5 bg-green-500 text-white rounded-md hover:bg-green-600"
-          >
-            Open Agent
-          </button>
         </div>
       </div>
     </div>
