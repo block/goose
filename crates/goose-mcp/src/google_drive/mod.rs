@@ -130,7 +130,7 @@ impl GoogleDriveRouter {
         // Read the OAuth credentials from the keyfile
         match fs::read_to_string(keyfile_path) {
             Ok(_) => {
-                // Create the PKCE OAuth2 client
+                // Create the PKCE OAuth2 clien
                 let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
                     .expect("Failed to create OAuth2 client");
 
@@ -375,6 +375,10 @@ impl GoogleDriveRouter {
                 - list_sheets: List all sheets in a spreadsheet
                 - get_columns: Get column headers from a specific sheet
                 - get_values: Get values from a range
+                - update_values: Update values in a range
+                - update_cell: Update a single cell value
+                - add_sheet: Add a new sheet (tab) to a spreadsheet
+                - clear_values: Clear values from a range
             "#}
             .to_string(),
             json!({
@@ -386,7 +390,7 @@ impl GoogleDriveRouter {
                   },
                   "operation": {
                       "type": "string",
-                      "enum": ["list_sheets", "get_columns", "get_values"],
+                      "enum": ["list_sheets", "get_columns", "get_values", "update_values", "update_cell", "add_sheet", "clear_values"],
                       "description": "The operation to perform on the spreadsheet",
                   },
                   "sheetName": {
@@ -395,7 +399,28 @@ impl GoogleDriveRouter {
                   },
                   "range": {
                       "type": "string",
-                      "description": "The A1 notation of the range to retrieve values (e.g., 'Sheet1!A1:D10')",
+                      "description": "The A1 notation of the range to retrieve or update values (e.g., 'Sheet1!A1:D10')",
+                  },
+                  "values": {
+                      "type": "string",
+                      "description": "CSV formatted data for update operations (required for update_values)",
+                  },
+                  "cell": {
+                      "type": "string",
+                      "description": "The A1 notation of the cell to update (e.g., 'Sheet1!A1') for update_cell operation",
+                  },
+                  "value": {
+                      "type": "string",
+                      "description": "The value to set in the cell for update_cell operation",
+                  },
+                  "title": {
+                      "type": "string",
+                      "description": "Title for the new sheet (required for add_sheet)",
+                  },
+                  "valueInputOption": {
+                      "type": "string",
+                      "enum": ["RAW", "USER_ENTERED"],
+                      "description": "How input data should be interpreted (default: USER_ENTERED)",
                   }
               },
               "required": ["spreadsheetId", "operation"],
@@ -436,6 +461,8 @@ impl GoogleDriveRouter {
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
             3. sheets_tool - Work with Google Sheets data using various operations
+            4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
+            5. update_file - Update existing Google Workspace files
 
             ## Available Tools
 
@@ -459,6 +486,16 @@ impl GoogleDriveRouter {
             - list_sheets: List all sheets in a spreadsheet
             - get_columns: Get column headers from a specific sheet
             - get_values: Get values from a range
+            - update_values: Update values in a range (requires CSV formatted data)
+            - update_cell: Update a single cell value
+            - add_sheet: Add a new sheet (tab) to a spreadshee
+            - clear_values: Clear values from a range
+
+            For update_values operation, provide CSV formatted data in the values parameter.
+            Each line represents a row, with values separated by commas.
+            Example: "John,Doe,30\nJane,Smith,25"
+
+            For update_cell operation, provide the cell reference (e.g., 'Sheet1!A1') and the value to set.
 
             ### 4. Create File Tool
             Create Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
@@ -477,7 +514,12 @@ impl GoogleDriveRouter {
             - spreadsheetId: The ID of the spreadsheet (can be obtained from search results)
             - operation: The operation to perform (one of the operations listed above)
             - sheetName: The name of the sheet to work with (optional for some operations)
-            - range: The A1 notation of the range to retrieve values (e.g., 'Sheet1!A1:D10')
+            - range: The A1 notation of the range to retrieve or update values (e.g., 'Sheet1!A1:D10')
+            - values: CSV formatted data for update operations
+            - cell: The A1 notation of the cell to update (e.g., 'Sheet1!A1') for update_cell operation
+            - value: The value to set in the cell for update_cell operation
+            - title: Title for the new sheet (required for add_sheet operation)
+            - valueInputOption: How input data should be interpreted (RAW or USER_ENTERED)
 
             ## File Format Handling
             The server automatically handles different file types:
@@ -497,7 +539,7 @@ impl GoogleDriveRouter {
             1. Always use search first to find the correct file URI
             2. Search results include file types (MIME types) to help identify the right file
             3. Search is limited to 10 results per query, so use specific search terms
-            4. The server has read-only access to Google Drive
+            4. When updating sheet values, format the data as CSV with one row per line
 
             ## Error Handling
             If you encounter errors:
@@ -1011,8 +1053,250 @@ impl GoogleDriveRouter {
                     }
                 }
             },
+            "update_values" => {
+                let range = params
+                    .get("range")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The range is required for update_values operation".to_string(),
+                    ))?;
+
+                let values_csv = params
+                    .get("values")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The values parameter is required for update_values operation".to_string(),
+                    ))?;
+
+                // Parse the CSV data into a 2D array of values
+                let mut values: Vec<Vec<serde_json::Value>> = Vec::new();
+                for line in values_csv.lines() {
+                    let row: Vec<serde_json::Value> = line
+                        .split(',')
+                        .map(|cell| serde_json::Value::String(cell.trim().to_string()))
+                        .collect();
+                    if !row.is_empty() {
+                        values.push(row);
+                    }
+                }
+
+                // Determine the input option (default to USER_ENTERED)
+                let value_input_option = params
+                    .get("valueInputOption")
+                    .and_then(|q| q.as_str())
+                    .unwrap_or("USER_ENTERED");
+
+                // Create the ValueRange objec
+                let value_range = google_sheets4::api::ValueRange {
+                    range: Some(range.to_string()),
+                    values: Some(values),
+                    major_dimension: None,
+                };
+
+                // Update the values
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .values_update(value_range, spreadsheet_id, range)
+                    .value_input_option(value_input_option)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets values_update query, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let update_response = r.1;
+                        let updated_cells = update_response.updated_cells.unwrap_or(0);
+                        let updated_rows = update_response.updated_rows.unwrap_or(0);
+                        let updated_columns = update_response.updated_columns.unwrap_or(0);
+                        let updated_range = update_response.updated_range.unwrap_or_default();
+
+                        let response = format!(
+                            "Successfully updated values in range '{}'. Updated {} cells across {} rows and {} columns.",
+                            updated_range, updated_cells, updated_rows, updated_columns
+                        );
+
+                        Ok(vec![Content::text(response).with_priority(0.1)])
+                    }
+                }
+            },
+            "update_cell" => {
+                let cell = params
+                    .get("cell")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The cell parameter is required for update_cell operation".to_string(),
+                    ))?;
+
+                let value = params
+                    .get("value")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The value parameter is required for update_cell operation".to_string(),
+                    ))?;
+
+                // Determine the input option (default to USER_ENTERED)
+                let value_input_option = params
+                    .get("valueInputOption")
+                    .and_then(|q| q.as_str())
+                    .unwrap_or("USER_ENTERED");
+
+                // Create a single-cell ValueRange objec
+                let value_range = google_sheets4::api::ValueRange {
+                    range: Some(cell.to_string()),
+                    values: Some(vec![vec![serde_json::Value::String(value.to_string())]]),
+                    major_dimension: None,
+                };
+
+                // Update the cell value
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .values_update(value_range, spreadsheet_id, cell)
+                    .value_input_option(value_input_option)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets update_cell operation, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let update_response = r.1;
+                        let updated_range = update_response.updated_range.unwrap_or_default();
+
+                        Ok(vec![Content::text(format!(
+                            "Successfully updated cell '{}' with value '{}'.",
+                            updated_range, value
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
+            "add_sheet" => {
+                let title = params
+                    .get("title")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The title parameter is required for add_sheet operation".to_string(),
+                    ))?;
+
+                // Create the AddSheetReques
+                let add_sheet_request = google_sheets4::api::AddSheetRequest {
+                    properties: Some(google_sheets4::api::SheetProperties {
+                        title: Some(title.to_string()),
+                        sheet_id: None, // Google will auto-assign a sheet ID
+                        index: None,
+                        sheet_type: None,
+                        grid_properties: None,
+                        hidden: None,
+                        tab_color: None,
+                        right_to_left: None,
+                        data_source_sheet_properties: None,
+                        tab_color_style: None,
+                    }),
+                };
+
+                // Create the BatchUpdateSpreadsheetReques
+                let batch_update_request = google_sheets4::api::BatchUpdateSpreadsheetRequest {
+                    requests: Some(vec![google_sheets4::api::Request {
+                        add_sheet: Some(add_sheet_request),
+                        ..google_sheets4::api::Request::default()
+                    }]),
+                    include_spreadsheet_in_response: Some(true),
+                    response_ranges: None,
+                    response_include_grid_data: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .batch_update(batch_update_request, spreadsheet_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets add_sheet operation, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let response = r.1;
+                        let replies = response.replies.unwrap_or_default();
+
+                        if let Some(first_reply) = replies.first() {
+                            if let Some(add_sheet_response) = &first_reply.add_sheet {
+                                if let Some(properties) = &add_sheet_response.properties {
+                                    let sheet_id = properties.sheet_id.unwrap_or(0);
+                                    let title = properties.title.as_deref().unwrap_or("Unknown");
+
+                                    let response = format!(
+                                        "Successfully added new sheet '{}' with ID {}.",
+                                        title, sheet_id
+                                    );
+
+                                    return Ok(vec![Content::text(response).with_priority(0.1)]);
+                                }
+                            }
+                        }
+
+                        // Generic success message if we couldn't extract specific details
+                        Ok(vec![Content::text(format!(
+                            "Successfully added new sheet '{}'.",
+                            title
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
+            "clear_values" => {
+                let range = params
+                    .get("range")
+                    .and_then(|q| q.as_str())
+                    .ok_or(ToolError::InvalidParameters(
+                        "The range is required for clear_values operation".to_string(),
+                    ))?;
+
+                // Create the ClearValuesReques
+                let clear_values_request = google_sheets4::api::ClearValuesRequest::default();
+
+                // Execute the clear values reques
+                let result = self
+                    .sheets
+                    .spreadsheets()
+                    .values_clear(clear_values_request, spreadsheet_id, range)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Sheets clear_values operation, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let response = r.1;
+                        let cleared_range = response.cleared_range.unwrap_or_default();
+
+                        Ok(vec![Content::text(format!(
+                            "Successfully cleared values in range '{}'.",
+                            cleared_range
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
             _ => Err(ToolError::InvalidParameters(format!(
-                "Invalid operation: {}. Supported operations are: list_sheets, get_columns, get_values",
+                "Invalid operation: {}. Supported operations are: list_sheets, get_columns, get_values, update_values, update_cell, add_sheet, clear_values",
                 operation
             ))),
         }
