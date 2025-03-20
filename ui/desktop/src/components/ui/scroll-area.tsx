@@ -1,10 +1,13 @@
 import * as React from 'react';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 
+type ScrollBehavior = 'auto' | 'smooth';
+
 import { cn } from '../../utils';
 
 export interface ScrollAreaHandle {
   scrollToBottom: () => void;
+  scrollToPosition: (options: { top: number; behavior?: ScrollBehavior }) => void;
 }
 
 interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
@@ -30,13 +33,26 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       }
     }, []);
 
-    // Expose the scrollToBottom method to parent components
+    const scrollToPosition = React.useCallback(
+      ({ top, behavior = 'smooth' }: { top: number; behavior?: ScrollBehavior }) => {
+        if (viewportRef.current) {
+          viewportRef.current.scrollTo({
+            top,
+            behavior,
+          });
+        }
+      },
+      []
+    );
+
+    // Expose the scroll methods to parent components
     React.useImperativeHandle(
       ref,
       () => ({
         scrollToBottom,
+        scrollToPosition,
       }),
-      [scrollToBottom]
+      [scrollToBottom, scrollToPosition]
     );
 
     // Handle scroll events to update isFollowing state
