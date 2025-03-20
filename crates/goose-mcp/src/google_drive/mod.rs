@@ -25,7 +25,7 @@ use mcp_server::Router;
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
-    api::{File, Reply, Scope},
+    api::{File, FileShortcutDetails, Reply, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
     DriveHub,
@@ -276,7 +276,7 @@ impl GoogleDriveRouter {
         let create_file_tool = Tool::new(
             "create_file".to_string(),
             indoc! {r#"
-                Create a Google file (Document, Spreadsheet, or Slides) in Google Drive.
+                Create a Google file (Document, Spreadsheet, Slides, folder, or shortcut) in Google Drive.
             "#}
             .to_string(),
             json!({
@@ -288,8 +288,8 @@ impl GoogleDriveRouter {
                   },
                   "fileType": {
                       "type": "string",
-                      "enum": ["document", "spreadsheet", "slides"],
-                      "description": "Type of Google file to create (document, spreadsheet, or slides)",
+                      "enum": ["document", "spreadsheet", "slides", "folder", "shortcut"],
+                      "description": "Type of Google file to create (document, spreadsheet, slides, folder, or shortcut)",
                   },
                   "body": {
                       "type": "string",
@@ -303,12 +303,42 @@ impl GoogleDriveRouter {
                       "type": "string",
                       "description": "ID of the parent folder in which to create the file (default: creates files in the root of 'My Drive')",
                   },
+                  "targetId": {
+                      "type": "string",
+                      "description": "ID of the file to target when creating a shortcut",
+                  },
                   "allowSharedDrives": {
                       "type": "boolean",
                       "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "fileType"],
+            }),
+        );
+
+        let move_file_tool = Tool::new(
+            "move_file".to_string(),
+            indoc! {r#"
+                Move a Google Drive file, folder, or shortcut to a new parent folder. You cannot move a folder to a different drive.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "fileId": {
+                      "type": "string",
+                      "description": "The ID of the file to update.",
+                  },
+                  "currentFolderId": {
+                      "type": "string",
+                      "description": "The ID of the current parent folder.",
+                  },
+                  "newFolderId": {
+                      "type": "string",
+                      "description": "The ID of the folder to move the file to.",
+                  },
+              },
+              "required": ["fileId", "currentFolderId", "newFolderId"],
             }),
         );
 
@@ -568,6 +598,7 @@ impl GoogleDriveRouter {
                 read_tool,
                 upload_tool,
                 create_file_tool,
+                move_file_tool,
                 update_tool,
                 update_file_tool,
                 sheets_tool,
@@ -1159,6 +1190,7 @@ impl GoogleDriveRouter {
         target_mime_type: &str,
         parent: Option<&str>,
         support_all_drives: bool,
+        target_id: Option<&str>,
     ) -> Result<Vec<Content>, ToolError> {
         let mut req = File {
             mime_type: Some(target_mime_type.to_string()),
@@ -1174,6 +1206,13 @@ impl GoogleDriveRouter {
                 // we only accept parent_id from create tool calls
                 if let Some(p) = parent {
                     req.parents = Some(vec![p.to_string()]);
+                }
+
+                if let Some(t) = target_id {
+                    req.shortcut_details = Some(FileShortcutDetails {
+                        target_id: Some(t.to_string()),
+                        ..Default::default()
+                    });
                 }
 
                 builder
@@ -1259,6 +1298,7 @@ impl GoogleDriveRouter {
             mime_type,
             parent_id,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1282,6 +1322,8 @@ impl GoogleDriveRouter {
                 ))?;
 
         let parent_id = params.get("parentId").and_then(|q| q.as_str());
+
+        let target_id = params.get("targetId").and_then(|q| q.as_str());
 
         let allow_shared_drives = params
             .get("allowSharedDrives")
@@ -1336,9 +1378,33 @@ impl GoogleDriveRouter {
                         Box::new(file),
                     )
                 }
+                "folder" => {
+                    let emptybuf: [u8; 0] = [];
+                    let empty_stream = Cursor::new(emptybuf);
+                    (
+                        "application/vnd.google-apps.folder".to_string(),
+                        "application/vnd.google-apps.folder".to_string(),
+                        Box::new(empty_stream),
+                    )
+                }
+                "shortcut" => {
+                    if target_id.is_none() {
+                        return Err(ToolError::InvalidParameters(
+                            "The targetId param is required when creating a shortcut".to_string(),
+                        ))
+                    }
+                    let emptybuf: [u8; 0] = [];
+                    let empty_stream = Cursor::new(emptybuf);
+                    (
+                        "application/vnd.google-apps.shortcut".to_string(),
+                        "application/vnd.google-apps.shortcut".to_string(),
+                        Box::new(empty_stream),
+                    )
+                }
+
                 _ => {
                     return Err(ToolError::InvalidParameters(format!(
-                        "Invalid fileType: {}. Supported types are: document, spreadsheet, slides",
+                        "Invalid fileType: {}. Supported types are: document, spreadsheet, slides, folder, shortcut",
                         file_type
                     )))
                 }
@@ -1354,8 +1420,53 @@ impl GoogleDriveRouter {
             &target_mime_type,
             parent_id,
             allow_shared_drives,
+            target_id,
         )
         .await
+    }
+
+    async fn move_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let current_folder_id = params
+            .get("currentFolderId")
+            .and_then(|q| q.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The currentFolderId param is required".to_string(),
+            ))?;
+        let new_folder_id = params.get("newFolderId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The newFolderId param is required".to_string()),
+        )?;
+        let req = File::default();
+        let result = self
+            .drive
+            .files()
+            .update(req, file_id)
+            .add_parents(new_folder_id)
+            .remove_parents(current_folder_id)
+            .clear_scopes()
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .supports_all_drives(true)
+            .doit_without_upload()
+            .await;
+
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to move google drive file {}, {}.",
+                file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "{} ({}) (uri: {})",
+                r.1.name.unwrap_or_default(),
+                r.1.mime_type.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
     }
 
     async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1404,6 +1515,7 @@ impl GoogleDriveRouter {
             mime_type,
             None,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1497,6 +1609,7 @@ impl GoogleDriveRouter {
             &target_mime_type,
             None,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1711,6 +1824,7 @@ impl Router for GoogleDriveRouter {
                 "read" => this.read(arguments).await,
                 "upload" => this.upload(arguments).await,
                 "create_file" => this.create_file(arguments).await,
+                "move_file" => this.move_file(arguments).await,
                 "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
