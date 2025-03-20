@@ -76,13 +76,17 @@ pub async fn build_session(
             process::exit(1);
         });
 
-        // Ask user if they want to change the working directory
-        let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
-                .initial_value(true)
-                .interact().expect("Failed to get user input");
+        let current_workdir =
+            std::env::current_dir().expect("Failed to get current working directory");
+        if current_workdir != metadata.working_dir {
+            // Ask user if they want to change the working directory
+            let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+            .initial_value(true)
+            .interact().expect("Failed to get user input");
 
-        if change_workdir {
-            std::env::set_current_dir(metadata.working_dir).unwrap();
+            if change_workdir {
+                std::env::set_current_dir(metadata.working_dir).unwrap();
+            }
         }
     }
 

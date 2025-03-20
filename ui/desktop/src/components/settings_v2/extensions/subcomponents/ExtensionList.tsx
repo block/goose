@@ -28,9 +28,21 @@ export default function ExtensionList({ extensions, onToggle, onConfigure }: Ext
 
 // Helper functions
 // Helper function to get a friendly title from extension name
-export function getFriendlyTitle(name: string): string {
+export function getFriendlyTitle(extension: FixedExtensionEntry): string {
+  let name = '';
+
+  // if it's a builtin, check if there's a display_name (old configs didn't have this field)
+  if (extension.type === 'builtin' && 'display_name' in extension && extension.display_name) {
+    // If we have a display_name for a builtin, use it directly
+    return extension.display_name;
+  } else {
+    // For non-builtins or builtins without display_name
+    name = extension.name;
+  }
+
+  // Format the name to be more readable
   return name
-    .split('-')
+    .split(/[-_]/) // Split on hyphens and underscores
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }

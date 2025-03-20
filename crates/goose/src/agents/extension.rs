@@ -56,6 +56,7 @@ pub enum ExtensionConfig {
         uri: String,
         #[serde(default)]
         envs: Envs,
+        description: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
@@ -70,12 +71,14 @@ pub enum ExtensionConfig {
         #[serde(default)]
         envs: Envs,
         timeout: Option<u64>,
+        description: Option<String>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
     Builtin {
         /// The name used to identify this extension
         name: String,
+        display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
     },
 }
@@ -84,27 +87,35 @@ impl Default for ExtensionConfig {
     fn default() -> Self {
         Self::Builtin {
             name: config::DEFAULT_EXTENSION.to_string(),
+            display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
         }
     }
 }
 
 impl ExtensionConfig {
-    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, timeout: T) -> Self {
+    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, description: S, timeout: T) -> Self {
         Self::Sse {
             name: name.into(),
             uri: uri.into(),
             envs: Envs::default(),
+            description: Some(description.into()),
             timeout: Some(timeout.into()),
         }
     }
 
-    pub fn stdio<S: Into<String>, T: Into<u64>>(name: S, cmd: S, timeout: T) -> Self {
+    pub fn stdio<S: Into<String>, T: Into<u64>>(
+        name: S,
+        cmd: S,
+        description: S,
+        timeout: T,
+    ) -> Self {
         Self::Stdio {
             name: name.into(),
             cmd: cmd.into(),
             args: vec![],
             envs: Envs::default(),
+            description: Some(description.into()),
             timeout: Some(timeout.into()),
         }
     }
@@ -120,12 +131,14 @@ impl ExtensionConfig {
                 cmd,
                 envs,
                 timeout,
+                description,
                 ..
             } => Self::Stdio {
                 name,
                 cmd,
                 envs,
                 args: args.into_iter().map(Into::into).collect(),
+                description,
                 timeout,
             },
             other => other,

@@ -43,6 +43,7 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'stdio';
 } | {
+    display_name?: string | null;
     /**
      * The name used to identify this extension
      */

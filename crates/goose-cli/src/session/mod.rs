@@ -109,6 +109,7 @@ impl Session {
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
         };
@@ -132,6 +133,7 @@ impl Session {
         for name in builtin_name.split(',') {
             let config = ExtensionConfig::Builtin {
                 name: name.trim().to_string(),
+                display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             };

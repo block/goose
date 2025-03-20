@@ -33,6 +33,28 @@ jobs:
     name: Build and Test Rust Project
     runs-on: ubuntu-latest
     steps:
+          # Add disk space cleanup before linting
+      - name: Check disk space before build
+        run: df -h
+
+      #https://github.com/actions/runner-images/issues/2840
+      - name: Clean up disk space
+        run: |
+          echo "Cleaning up disk space..."
+          sudo rm -rf \
+            /opt/google/chrome \
+            /opt/microsoft/msedge \
+            /opt/microsoft/powershell \
+            /usr/lib/mono \
+            /usr/local/lib/android \
+            /usr/local/lib/node_modules \
+            /usr/local/share/chromium \
+            /usr/local/share/powershell \
+            /usr/share/dotnet \
+            /usr/share/swift
+
+          df -h
+          
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -69,28 +91,6 @@ jobs:
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-build-
-
-      # Add disk space cleanup before linting
-      - name: Check disk space before build
-        run: df -h
-
-      #https://github.com/actions/runner-images/issues/2840
-      - name: Clean up disk space
-        run: |
-          echo "Cleaning up disk space..."
-          sudo rm -rf \
-            /opt/google/chrome \
-            /opt/microsoft/msedge \
-            /opt/microsoft/powershell \
-            /usr/lib/mono \
-            /usr/local/lib/android \
-            /usr/local/lib/node_modules \
-            /usr/local/share/chromium \
-            /usr/local/share/powershell \
-            /usr/share/dotnet \
-            /usr/share/swift
-
-          df -h
 
       - name: Build and Test
         run: |
