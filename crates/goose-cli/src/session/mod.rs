@@ -541,16 +541,12 @@ impl Session {
                     output::hide_thinking();
 
                     // Reset run & goose mode
+                    output::render_act_on_plan();
                     self.run_mode = RunMode::Normal;
-                    output::render_exit_plan_mode();
-
                     if curr_goose_mode != "auto" {
                         config
                             .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
                             .unwrap();
-                        output::goose_mode_message(&format!(
-                            "Goose mode set back to '{curr_goose_mode}'"
-                        ));
                     }
                 } else {
                     // add the plan response (assistant message) & carry the conversation forward

@@ -130,20 +130,23 @@ pub fn render_enter_plan_mode() {
     println!(
         "\n{} {}\n",
         style("Entering plan mode.").green().bold(),
-        style("Enter your instructions, or type /endplan to exit.")
+        style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
             .green()
             .dim()
     );
 }
 
-pub fn render_exit_plan_mode() {
+pub fn render_act_on_plan() {
     println!(
-        "\n{} {}\n",
-        style("Exiting plan mode.").green().bold(),
-        style("Enter your instructions, or type /plan to enter plan mode.")
+        "\n{}\n",
+        style("Acting on the above plan and exiting plan mode.")
             .green()
-            .dim()
+            .bold(),
     );
+}
+
+pub fn render_exit_plan_mode() {
+    println!("\n{}\n", style("Exiting plan mode.").green().bold());
 }
 
 pub fn goose_mode_message(text: &str) {
