@@ -25,7 +25,7 @@ use mcp_server::Router;
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
-    api::{File, FileShortcutDetails, Reply, Scope},
+    api::{Comment, File, FileShortcutDetails, Reply, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
     DriveHub,
@@ -464,6 +464,28 @@ impl GoogleDriveRouter {
             }),
         );
 
+        let create_comment_tool = Tool::new(
+            "create_comment".to_string(),
+            indoc! {r#"
+                Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file to comment on.",
+                },
+                "comment": {
+                    "type": "string",
+                    "description": "Content of the comment.",
+                }
+              },
+              "required": ["fileId", "comment"],
+            }),
+        );
+
         let reply_tool = Tool::new(
             "reply".to_string(),
             indoc! {r#"
@@ -603,6 +625,7 @@ impl GoogleDriveRouter {
                 update_file_tool,
                 sheets_tool,
                 get_comments_tool,
+                create_comment_tool,
                 reply_tool,
                 list_drives_tool,
             ],
@@ -1680,6 +1703,52 @@ impl GoogleDriveRouter {
         Ok(vec![Content::text(results.join("\n"))])
     }
 
+    async fn create_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let comment =
+            params
+                .get("comment")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The comment param is required".to_string(),
+                ))?;
+
+        let req = Comment {
+            content: Some(comment.to_string()),
+            ..Default::default()
+        };
+        let result = self
+            .drive
+            .comments()
+            .create(req, file_id)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .param("fields", "*")
+            // .param("fields", "action, author, content, createdTime, id")
+            .doit()
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to add comment for google drive file {}, {}.",
+                file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "Author: {:?} Content: {} Created: {} uri: {} quoted_content: {:?}",
+                r.1.author.unwrap_or_default(),
+                r.1.content.unwrap_or_default(),
+                r.1.created_time.unwrap_or_default(),
+                r.1.id.unwrap_or_default(),
+                r.1.quoted_file_content.unwrap_or_default()
+            ))]),
+        }
+    }
+
     async fn reply(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
@@ -1726,7 +1795,7 @@ impl GoogleDriveRouter {
                 comment_id, file_id, e
             ))),
             Ok(r) => Ok(vec![Content::text(format!(
-                "Action: {} Author: {:?} Content: {} Created: {}uri: {}",
+                "Action: {} Author: {:?} Content: {} Created: {} uri: {}",
                 r.1.action.unwrap_or_default(),
                 r.1.author.unwrap_or_default(),
                 r.1.content.unwrap_or_default(),
@@ -1829,6 +1898,7 @@ impl Router for GoogleDriveRouter {
                 "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
+                "create_comment" => this.create_comment(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
                 "reply" => this.reply(arguments).await,
                 "list_drives" => this.list_drives(arguments).await,
