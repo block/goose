@@ -399,33 +399,16 @@ mod tests {
 
     #[test]
     fn test_plan_mode() {
-        // Test plan mode with no model or text
-        let result = handle_slash_command("/plan");
-        assert!(result.is_none());
-
         // Test plan mode with no text
-        let result = handle_slash_command("/plan --model=claude-3-7");
-        assert!(result.is_none());
-
-        // Test plan mode with model & text
-        let result = handle_slash_command("/plan --model=claude-3-7 hello world");
+        let result = handle_slash_command("/plan");
         assert!(result.is_some());
-        let options = result.unwrap();
-        match options {
-            InputResult::Plan(options) => {
-                assert_eq!(options.model, "claude-3-7");
-                assert_eq!(options.message_text, "hello world");
-            }
-            _ => panic!("Expected Plan"),
-        }
 
-        // Test plan mode with only text
+        // Test plan mode with text
         let result = handle_slash_command("/plan hello world");
         assert!(result.is_some());
         let options = result.unwrap();
         match options {
             InputResult::Plan(options) => {
-                assert_eq!(options.model, "");
                 assert_eq!(options.message_text, "hello world");
             }
             _ => panic!("Expected Plan"),
