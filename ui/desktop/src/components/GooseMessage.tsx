@@ -105,7 +105,7 @@ export default function GooseMessage({
 
         {toolRequests.length > 0 && (
           <div
-            className={`goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 ${textContent ? '' : 'rounded-t-2xl'} rounded-b-2xl px-4 pt-4 pb-2 mt-1`}
+            className={`goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 ${textContent ? '' : 'rounded-t-2xl'} rounded-b-2xl px-4 pt-4 pb-2`}
           >
             {toolRequests.map((toolRequest) => (
               <ToolCallWithResponse
