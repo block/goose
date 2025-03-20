@@ -139,7 +139,7 @@ pub fn render_enter_plan_mode() {
 pub fn render_act_on_plan() {
     println!(
         "\n{}\n",
-        style("Acting on the above plan and exiting plan mode.")
+        style("Exiting plan mode and acting on the above plan")
             .green()
             .bold(),
     );
@@ -150,7 +150,7 @@ pub fn render_exit_plan_mode() {
 }
 
 pub fn goose_mode_message(text: &str) {
-    println!("\n{}\n", style(text).yellow(),);
+    println!("\n{}", style(text).yellow(),);
 }
 
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
@@ -517,10 +517,6 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
 
 pub fn display_greeting() {
     println!("\nGoose is running! Enter your instructions, or try asking what goose can do.\n");
-}
-
-pub fn display_session_history_cleared() {
-    println!("\n{}\n", style("Session history cleared.").dim().cyan(),);
 }
 
 #[cfg(test)]

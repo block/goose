@@ -518,6 +518,8 @@ impl Session {
                         .initial_value(true)
                         .interact()?;
                 if should_act {
+                    output::render_act_on_plan();
+                    self.run_mode = RunMode::Normal;
                     // set goose mode: auto if that isn't already the case
                     let config = Config::global();
                     let curr_goose_mode =
@@ -526,12 +528,10 @@ impl Session {
                         config
                             .set_param("GOOSE_MODE", Value::String("auto".to_string()))
                             .unwrap();
-                        output::goose_mode_message("Goose mode set to 'auto' for plan execution");
                     }
 
                     // clear the messages before acting on the plan
                     self.messages.clear();
-                    output::display_session_history_cleared();
                     // add the plan response as a user message
                     let plan_message = Message::user().with_text(plan_response.as_concat_text());
                     self.messages.push(plan_message);
@@ -541,8 +541,6 @@ impl Session {
                     output::hide_thinking();
 
                     // Reset run & goose mode
-                    output::render_act_on_plan();
-                    self.run_mode = RunMode::Normal;
                     if curr_goose_mode != "auto" {
                         config
                             .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
