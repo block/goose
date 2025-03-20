@@ -53,7 +53,7 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
-  const [showDeepLinkModal, setShowDeepLinkModal] = useState(false);
+  const [showShareableBotModal, setshowShareableBotModal] = useState(false);
   const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -188,7 +188,7 @@ export default function ChatView({
         setGeneratedBotConfig(generatedConfig);
 
         // Show the modal with the generated bot config
-        setShowDeepLinkModal(true);
+        setshowShareableBotModal(true);
 
         window.electron.logInfo('Generated bot config for agent creation');
 
@@ -196,7 +196,7 @@ export default function ChatView({
         setWaitingForAgentResponse(false);
       }
     }
-  }, [messages, waitingForAgentResponse, setShowDeepLinkModal, setGeneratedBotConfig]);
+  }, [messages, waitingForAgentResponse, setshowShareableBotModal, setGeneratedBotConfig]);
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
@@ -432,15 +432,15 @@ export default function ChatView({
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
 
       {/* Deep Link Modal */}
-      {showDeepLinkModal && generatedBotConfig && (
+      {showShareableBotModal && generatedBotConfig && (
         <DeepLinkModal
           botConfig={generatedBotConfig}
           onClose={() => {
-            setShowDeepLinkModal(false);
+            setshowShareableBotModal(false);
             setGeneratedBotConfig(null);
           }}
           onOpen={() => {
-            setShowDeepLinkModal(false);
+            setshowShareableBotModal(false);
             setGeneratedBotConfig(null);
           }}
         />
