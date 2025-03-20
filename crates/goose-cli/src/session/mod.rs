@@ -510,7 +510,8 @@ impl Session {
         let planner_response_type =
             classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await)
                 .await?;
-        Ok(match planner_response_type {
+
+        match planner_response_type {
             PlannerResponseType::Plan => {
                 println!();
                 let should_act =
@@ -557,7 +558,9 @@ impl Session {
                 // in the next round, the user will answer the clarifying questions
                 self.messages.push(plan_response);
             }
-        })
+        }
+
+        Ok(())
     }
 
     /// Process a single message and exit
