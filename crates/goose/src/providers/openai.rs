@@ -173,13 +173,9 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
     s.split(',')
         .filter_map(|header| {
             let mut parts = header.splitn(2, '=');
-            let Some(key) = parts.next() else {
-                return None;
-            };
-            let Some(value) = parts.next() else {
-                return None;
-            };
-            Some((key.trim().to_string(), value.trim().to_string()))
+            let key = parts.next().map(|s| s.trim().to_string())?;
+            let value = parts.next().map(|s| s.trim().to_string())?;
+            Some((key, value))
         })
         .collect()
 }
