@@ -28,7 +28,6 @@ pub struct PromptCommandOptions {
 
 #[derive(Debug)]
 pub struct PlanCommandOptions {
-    // pub model: String,
     pub message_text: String,
 }
 
@@ -195,9 +194,9 @@ fn print_help() {
 /t - Toggle Light/Dark/Ansi theme
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
-/prompts [--extension <n>] - List all available prompts, optionally filtered by extension
+/prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
-/mode <n> - Set the goose mode to use ('auto', 'approve', 'chat')
+/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat')
 /plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
                         If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
                         To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
