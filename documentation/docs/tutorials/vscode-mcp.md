@@ -17,7 +17,7 @@ npx vscode-mcp-server
 
 **Required Setup**
 
-Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) from the marketplace
+Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) from the Visual Studio Marketplace.
 :::
 
 ## Configuration
@@ -26,7 +26,7 @@ Install the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?i
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
-1. Add the [MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) to your VS Code. No additional settings required in VS Code.
+1. Add the [VS Code MCP Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) to your VS Code. No additional settings required in VS Code.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -123,7 +123,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   </TabItem>
 </Tabs>
 
-## VS Code Extension
 
 No additional setup is required to use the VS Code MCP extension in VS Code. 
 
@@ -151,5 +150,5 @@ Update the contributing guide with instructions on how to start docusaurus dev s
 
 ## Result
 
-![VS Code MCP](../assets/guides/vscode-mcp.png)
+![session showing goose making updates and VS Code prompting user to accept or reject changes](../assets/guides/vscode-mcp.png)
 
