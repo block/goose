@@ -24,6 +24,7 @@ export type Envs = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
+    description?: string | null;
     envs?: Envs;
     /**
      * The name used to identify this extension
@@ -35,6 +36,7 @@ export type ExtensionConfig = {
 } | {
     args: Array<string>;
     cmd: string;
+    description?: string | null;
     envs?: Envs;
     /**
      * The name used to identify this extension

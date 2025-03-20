@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Buffer } from 'buffer';
+import Copy from '../icons/Copy';
 
 interface DeepLinkModalProps {
   botConfig: any;
@@ -60,8 +61,8 @@ export function DeepLinkModal({
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-bgApp p-6 rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-textStandard">Agent Created!</h2>
+      <div className="bg-bgApp p-6 rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4 text-textStandard">Agent Created!</h2>
         <p className="mb-4 text-textStandard">
           Your agent has been created successfully. You can review and edit the details below:
         </p>
@@ -71,33 +72,35 @@ export function DeepLinkModal({
           <label htmlFor="instructions" className="block font-medium mb-1 text-textStandard">
             Instructions:
           </label>
-          <textarea
-            id="instructions"
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            className="w-full p-2 border border-borderSubtle rounded-md bg-transparent text-textStandard min-h-[100px] focus:border-borderStandard hover:border-borderStandard"
-            placeholder="Instructions for the agent..."
-          />
+          <div className="border border-borderSubtle rounded-md bg-transparent max-h-[120px] overflow-y-auto">
+            <textarea
+              id="instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              className="w-full p-3 bg-transparent text-textStandard focus:outline-none"
+              placeholder="Instructions for the agent..."
+            />
+          </div>
         </div>
 
         {/* Activities Section */}
         <div className="mb-4">
           <label className="block font-medium mb-1 text-textStandard">Activities:</label>
-          <ul className="mb-2 space-y-1">
-            {activities.map((activity, index) => (
-              <li key={index} className="flex items-center">
-                <span className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-transparent text-textStandard">
-                  {activity}
-                </span>
-                <button
-                  onClick={() => handleRemoveActivity(index)}
-                  className="p-2 bg-red-500 text-white rounded-r-md hover:bg-red-600"
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="border border-borderSubtle rounded-md bg-transparent max-h-[120px] overflow-y-auto mb-2">
+            <ul className="divide-y divide-borderSubtle">
+              {activities.map((activity, index) => (
+                <li key={index} className="flex items-center">
+                  <span className="flex-1 p-2 text-textStandard">{activity}</span>
+                  <button
+                    onClick={() => handleRemoveActivity(index)}
+                    className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 m-1"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
           <div className="flex">
             <input
               type="text"
@@ -116,23 +119,24 @@ export function DeepLinkModal({
           </div>
         </div>
 
-        {/* Deep Link Section */}
+        {/* Sharable Goose Bot Section */}
         <div className="mb-4">
-          <label className="block font-medium mb-1 text-textStandard">Deep Link:</label>
+          <label className="block font-medium mb-1 text-textStandard">Sharable Goose Bot:</label>
           <div className="flex items-center">
             <input
               type="text"
               value={deepLink}
               readOnly
-              className="flex-1 p-2 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
+              className="flex-1 p-3 border border-borderSubtle rounded-l-md bg-transparent text-textStandard"
             />
             <button
               onClick={() => {
                 navigator.clipboard.writeText(deepLink);
                 window.electron.logInfo('Deep link copied to clipboard');
               }}
-              className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600"
+              className="p-2 bg-blue-500 text-white rounded-r-md hover:bg-blue-600 flex items-center justify-center min-w-[100px]"
             >
+              <Copy className="w-5 h-5 mr-1" />
               Copy
             </button>
           </div>
@@ -142,7 +146,7 @@ export function DeepLinkModal({
         <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 mr-2"
+            className="px-5 py-2.5 bg-gray-500 text-white rounded-md hover:bg-gray-600 mr-2"
           >
             Close
           </button>
@@ -161,9 +165,9 @@ export function DeepLinkModal({
                 undefined,
                 currentConfig
               );
-              onOpen();
+              // Don't close the modal
             }}
-            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+            className="px-5 py-2.5 bg-green-500 text-white rounded-md hover:bg-green-600"
           >
             Open Agent
           </button>
