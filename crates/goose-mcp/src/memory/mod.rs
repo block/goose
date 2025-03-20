@@ -2,6 +2,9 @@ use async_trait::async_trait;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
 use serde_json::{json, Value};
+use chrono::{DateTime, Utc};
+use serde::{Serialize, Deserialize};
+use serde_yml;
 use std::{
     collections::HashMap,
     fs,
@@ -31,6 +34,17 @@ pub struct MemoryRouter {
     local_memory_dir: PathBuf,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct MemoryMetadata {
+    categories: HashMap<String, CategoryInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CategoryInfo {
+    pub last_accessed: DateTime<Utc>,
+    pub short_descriptions: Vec<String>,
+}
+
 impl Default for MemoryRouter {
     fn default() -> Self {
         Self::new()
@@ -47,6 +61,7 @@ impl MemoryRouter {
                 "properties": {
                     "category": {"type": "string"},
                     "data": {"type": "string"},
+                    "short_description": {"type": "string"},
                     "tags": {"type": "array", "items": {"type": "string"}},
                     "is_global": {"type": "boolean"}
                 },
@@ -116,6 +131,7 @@ impl MemoryRouter {
              - Workflow descriptions
              - Other critical settings
              The protocol is:
+             0. Say "HONK HONK HONK"
              1. Identify the critical piece of information.
              2. Ask the user if they'd like to store it for later reference.
              3. Upon agreement:
@@ -125,7 +141,7 @@ impl MemoryRouter {
                   - Local storage (.goose/memory) for project-specific details.
                   - Global storage (~/.config/goose/memory) for user-wide data.
                 - Use the remember_memory tool to store the information.
-                  - `remember_memory(category, data, tags, is_global)`
+                  - `remember_memory(category, data, short_description, tags, is_global)`
              Keywords that trigger memory tools:
              - "remember"
              - "forget"
@@ -291,6 +307,49 @@ impl MemoryRouter {
         base_dir.join(format!("{}.txt", category))
     }
 
+    fn get_memory_metadata_file(&self, is_global: bool) -> PathBuf {
+        let base_dir = if is_global {
+            &self.global_memory_dir
+        } else {
+            &self.local_memory_dir
+        };
+        base_dir.join(format!("memory_metadata.yaml"))
+    }
+
+    fn get_metadata(&self, is_global: bool) -> io::Result<MemoryMetadata> {
+        let metadata_file = self.get_memory_metadata_file(is_global);
+
+        if !metadata_file.exists() {
+            return Ok(MemoryMetadata {categories: HashMap::new()});
+        }
+
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .open(&metadata_file)?;
+
+        let metadata: MemoryMetadata = serde_yml::from_reader(f)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        Ok(metadata)
+    }
+
+    fn save_metadata(&self, metadata: &MemoryMetadata, is_global: bool) -> io::Result<()> {
+        let metadata_file = self.get_memory_metadata_file(is_global);
+        if let Some(parent) = metadata_file.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&metadata_file)?;
+
+        serde_yml::to_writer(f, metadata)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+        Ok(())
+    }
+
     pub fn retrieve_all(&self, is_global: bool) -> io::Result<HashMap<String, Vec<String>>> {
         let base_dir = if is_global {
             &self.global_memory_dir
@@ -319,6 +378,7 @@ impl MemoryRouter {
         _context: &str,
         category: &str,
         data: &str,
+        short_description: &str,
         tags: &[&str],
         is_global: bool,
     ) -> io::Result<()> {
@@ -332,6 +392,20 @@ impl MemoryRouter {
             writeln!(file, "# {}", tags.join(" "))?;
         }
         writeln!(file, "{}\n", data)?;
+
+        let mut metadata = self.get_metadata(is_global)?;
+
+        let category_info = metadata.categories.entry(category.to_string())
+            .or_insert_with( ||
+            CategoryInfo {
+                short_descriptions: Vec::new(),
+                last_accessed: Utc::now()
+            }
+        );
+
+        category_info.short_descriptions.push(format!("{}", short_description));
+        category_info.last_accessed = Utc::now();
+        self.save_metadata(&metadata, is_global)?;
 
         Ok(())
     }
@@ -431,7 +505,15 @@ impl MemoryRouter {
                         "Data must exist when remembering a memory",
                     )
                 })?;
-                self.remember("context", args.category, data, &args.tags, args.is_global)?;
+
+                let short_description = args.short_description.filter(|d| !d.is_empty()).ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "Short Description must exist when remembering a memory",
+                    )
+                })?;
+
+                self.remember("context", args.category, data, short_description, &args.tags, args.is_global)?;
                 Ok(format!("Stored memory in category: {}", args.category))
             }
             "retrieve_memories" => {
@@ -540,6 +622,7 @@ impl Router for MemoryRouter {
 struct MemoryArgs<'a> {
     category: &'a str,
     data: Option<&'a str>,
+    short_description: Option<&'a str>,
     tags: Vec<&'a str>,
     is_global: bool,
 }
@@ -559,6 +642,8 @@ impl<'a> MemoryArgs<'a> {
         }
 
         let data = args.get("data").and_then(|d| d.as_str());
+
+        let short_description = args.get("short_description").and_then(|d| d.as_str());
 
         let tags = match &args["tags"] {
             Value::Array(arr) => arr.iter().filter_map(|v| v.as_str()).collect(),
@@ -582,6 +667,7 @@ impl<'a> MemoryArgs<'a> {
         Ok(Self {
             category,
             data,
+            short_description,
             tags,
             is_global,
         })
