@@ -8,6 +8,7 @@ import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import ExtensionInfoFields from './ExtensionInfoFields';
 
 interface ExtensionModalProps {
   title: string;
@@ -172,50 +173,18 @@ export default function ExtensionModal({
       ) : (
         <>
           {/* Form Fields */}
-          {/* Name */}
-          <div className="flex justify-between gap-4 mb-6">
-            <div className="flex-1">
-              <label className="text-sm font-medium mb-2 block text-textStandard">
-                Extension Name
-              </label>
-              <div className="relative">
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter extension name..."
-                  className={`${!submitAttempted || formData.name.trim() !== '' ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
-                />
-                {submitAttempted && !isNameValid() && (
-                  <div className="absolute text-xs text-red-500 mt-1">Name is required</div>
-                )}
-              </div>
-            </div>
-            {/*Type Dropdown */}
-            <div className="w-[200px]">
-              <label className="text-sm font-medium mb-2 block text-textStandard">Type</label>
-              <Select
-                value={{ value: formData.type, label: formData.type.toUpperCase() }}
-                onChange={(option: { value: string; label: string } | null) =>
-                  setFormData({
-                    ...formData,
-                    type: (option?.value as 'stdio' | 'sse' | 'builtin') || 'stdio',
-                  })
-                }
-                options={[
-                  { value: 'stdio', label: 'Standard IO (STDIO)' },
-                  { value: 'sse', label: 'Security Service Edge (SSE)' },
-                ]}
-                styles={createDarkSelectStyles('200px')}
-                theme={darkSelectTheme}
-                isSearchable={false}
-              />
-            </div>
-          </div>
+          {/* Name and Type */}
+          <ExtensionInfoFields
+            name={formData.name}
+            type={formData.type}
+            onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+            submitAttempted={submitAttempted}
+          />
 
           {/* Divider */}
           <hr className="border-t border-borderSubtle mb-6" />
 
-          {/* Config Fields */}
+          {/* Command */}
           <div className="mb-6">
             <ExtensionConfigFields
               type={formData.type}
