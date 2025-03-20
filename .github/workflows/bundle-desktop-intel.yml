@@ -76,7 +76,7 @@ jobs:
           echo "All required signing secrets are present."
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       # Update versions before build
       - name: Update versions
@@ -91,7 +91,7 @@ jobs:
           npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@38b70195107dddab2c7bbd522bcf763bac00963b # pin@stable
         with:
           toolchain: stable
           targets: x86_64-apple-darwin
@@ -112,7 +112,7 @@ jobs:
           df -h
 
       - name: Cache Cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-intel-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
@@ -120,7 +120,7 @@ jobs:
             ${{ runner.os }}-intel-cargo-registry-
 
       - name: Cache Cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ~/.cargo/index
           key: ${{ runner.os }}-intel-cargo-index
@@ -128,7 +128,7 @@ jobs:
             ${{ runner.os }}-intel-cargo-index
 
       - name: Cache Cargo build
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: target
           key: ${{ runner.os }}-intel-cargo-build-${{ hashFiles('**/Cargo.lock') }}
@@ -165,7 +165,7 @@ jobs:
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@7c12f8017d5436eb855f1ed4399f037a36fbd9e8 # pin@v2
         with:
           node-version: 'lts/*'
 
@@ -231,7 +231,7 @@ jobs:
           df -h
 
       - name: Upload Desktop artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: Goose-darwin-x64
           path: ui/desktop/out/Goose-darwin-x64/Goose_intel_mac.zip

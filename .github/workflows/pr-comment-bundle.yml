@@ -32,7 +32,7 @@ jobs:
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
     steps:
       - if: ${{ github.event_name == 'issue_comment' }}
-        uses: github/command@v1.3.0
+        uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
         id: command
         with:
           command: ".bundle"
@@ -63,13 +63,13 @@ jobs:
 
     steps:
       - name: Download ARM64 artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
         with:
           name: Goose-darwin-arm64
           path: arm64-dist
 
       - name: Comment on PR with ARM64 download link
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |
