@@ -372,12 +372,12 @@ impl GoogleDriveRouter {
             indoc! {r#"
                 Work with Google Sheets data using various operations.
                 Supports operations:
-                - list_sheets: List all sheets in a spreadshee
-                - get_columns: Get column headers from a specific shee
+                - list_sheets: List all sheets in a spreadsheet
+                - get_columns: Get column headers from a specific sheet
                 - get_values: Get values from a range
                 - update_values: Update values in a range
                 - update_cell: Update a single cell value
-                - add_sheet: Add a new sheet (tab) to a spreadshee
+                - add_sheet: Add a new sheet (tab) to a spreadsheet
                 - clear_values: Clear values from a range
             "#}
             .to_string(),
@@ -499,14 +499,14 @@ impl GoogleDriveRouter {
 
             ### 4. Create File Tool
             Create Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
-            - For Google Docs: Converts Markdown text to a Google Documen
-            - For Google Sheets: Converts CSV text to a Google Spreadshee
+            - For Google Docs: Converts Markdown text to a Google Document
+            - For Google Sheets: Converts CSV text to a Google Spreadsheet
             - For Google Slides: Converts a PowerPoint file to Google Slides (requires a path to the powerpoint file)
 
             ### 5. Update File Tool
             Update existing Google Workspace files (Docs, Sheets, or Slides) in Google Drive.
-            - For Google Docs: Updates with new Markdown tex
-            - For Google Sheets: Updates with new CSV tex
+            - For Google Docs: Updates with new Markdown text
+            - For Google Sheets: Updates with new CSV text
             - For Google Slides: Updates with a new PowerPoint file (requires a path to the powerpoint file)
                 - Note: This functionally is an overwrite to the slides, warn the user before using this tool.
 
@@ -525,8 +525,8 @@ impl GoogleDriveRouter {
             The server automatically handles different file types:
             - Google Docs → Markdown
             - Google Sheets → CSV
-            - Google Presentations → Plain tex
-            - Text/JSON files → UTF-8 tex
+            - Google Presentations → Plain text
+            - Text/JSON files → UTF-8 text
             - Binary files → Base64 encoded
 
             ## Common Usage Pattern
@@ -543,7 +543,7 @@ impl GoogleDriveRouter {
 
             ## Error Handling
             If you encounter errors:
-            1. Verify the file URI is correc
+            1. Verify the file URI is correct
             2. Ensure you have access to the file
             3. Check if the file format is supported
             4. Verify the server is properly configured
@@ -633,7 +633,7 @@ impl GoogleDriveRouter {
             .page_size(page_size)
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
-            .clear_scopes() // Scope::MeetReadonly is the default, remove i
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
             .add_scope(GOOGLE_DRIVE_SCOPES)
             .doit()
             .await;
@@ -905,7 +905,7 @@ impl GoogleDriveRouter {
             ToolError::ExecutionError(format!("Missing mime type in file metadata for {}.", uri))
         })?;
 
-        // Handle Google Docs expor
+        // Handle Google Docs export
         if mime_type.starts_with("application/vnd.google-apps") {
             self.export_google_file(&drive_uri, &mime_type, include_images)
                 .await
@@ -967,12 +967,12 @@ impl GoogleDriveRouter {
                 }
             },
             "get_columns" => {
-                // Get the sheet name if provided, otherwise we'll use the first shee
+                // Get the sheet name if provided, otherwise we'll use the first sheet
                 let sheet_name = params
                     .get("sheetName")
                     .and_then(|q| q.as_str())
                     .map(|s| format!("{}!1:1", s))
-                    .unwrap_or_else(|| "1:1".to_string()); // Default to first row of first shee
+                    .unwrap_or_else(|| "1:1".to_string()); // Default to first row of first sheet
 
                 let result = self
                     .sheets
@@ -1327,7 +1327,7 @@ impl GoogleDriveRouter {
             .param("fields", "nextPageToken, files(id, name, mimeType)")
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
-            .clear_scopes() // Scope::MeetReadonly is the default, remove i
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
             .add_scope(GOOGLE_DRIVE_SCOPES);
 
         // add a next token if we have one
@@ -1745,7 +1745,7 @@ impl GoogleDriveRouter {
             .unwrap_or(Ok(20))?;
 
         if let Some(comment) = comment_id {
-            // Use the get comment method to read a single commen
+            // Use the get comment method to read a single comment
             let result = self
                 .drive
                 .comments()
