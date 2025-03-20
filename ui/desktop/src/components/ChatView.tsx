@@ -118,7 +118,10 @@ export default function ChatView({
         'Based on our conversation so far, could you create:\n' +
         "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with. Pay special attention if any output styles or formats are requested (and make it clear), and note any non standard tools used or required.\n" +
         '2. A list of 3-5 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
-        "Format your response with clear headings for 'Instructions:' and 'Activities:' sections.";
+        "Format your response with clear headings for 'Instructions:' and 'Activities:' sections." +
+        'For example, perhaps we have been discussing fruit and you might write:\n\n' +
+        'Instructions:\nUsing web searches we find pictures of fruit, and always check what language to reply in.' +
+        'Activities:\nShow pics of apples, say a random fruit, share a fruit fact';
 
       // Set waiting state to true before adding the prompt
       setWaitingForAgentResponse(true);
