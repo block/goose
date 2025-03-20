@@ -46,7 +46,7 @@ These powerful debugging and analysis capabilities are only the beginning. This 
 
 To keep up with the exciting developments as they release, you can check out both of the [Goose](https://github.com/block/goose) and [Langfuse](https://github.com/langfuse/langfuse) repositories on GitHub. 
 
-You can also watch the [livestream discussing the Goose and Langfuse integration](https://www.youtube.com/live/W39BQjsTS9E?feature=shared).
+You can also watch the [livestream discussing the Goose and Langfuse integration](https://www.youtube.com/live/W39BQjsTS9E?feature=shared), and follow the [tutorial showing you how to integrate Langfuse with Goose](https://block.github.io/goose/docs/tutorials/langfuse).
 
 Also, be sure to subscribe to our [events calendar](https://calget.com/c/t7jszrie) to catch upcoming events.
 
