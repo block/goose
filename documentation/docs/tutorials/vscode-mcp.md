@@ -124,7 +124,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 </Tabs>
 
 
-No additional setup is required to use the VS Code MCP extension in VS Code. 
 
 ## Example Usage
 
