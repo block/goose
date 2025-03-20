@@ -320,6 +320,10 @@
               "type"
             ],
             "properties": {
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
               "envs": {
                 "$ref": "#/components/schemas/Envs"
               },
@@ -362,6 +366,10 @@
               },
               "cmd": {
                 "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
               },
               "envs": {
                 "$ref": "#/components/schemas/Envs"

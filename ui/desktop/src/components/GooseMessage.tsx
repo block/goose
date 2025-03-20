@@ -87,15 +87,12 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
       <div className="flex flex-col w-full">
-        {/* Always show the top content area if there are tool calls, even if textContent is empty */}
-        {(textContent || toolRequests.length > 0) && (
+        {textContent && (
           <div className="flex flex-col group">
             <div
               className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
             >
-              <div ref={contentRef}>
-                {textContent ? <MarkdownContent content={textContent} /> : null}
-              </div>
+              <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
             {textContent && message.content.every((content) => content.type === 'text') && (
@@ -107,7 +104,9 @@ export default function GooseMessage({
         )}
 
         {toolRequests.length > 0 && (
-          <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+          <div
+            className={`goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 ${textContent ? '' : 'rounded-t-2xl'} rounded-b-2xl px-4 pt-4 pb-2 mt-1`}
+          >
             {toolRequests.map((toolRequest) => (
               <ToolCallWithResponse
                 // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
