@@ -35,12 +35,12 @@ goose configure
 
     **Options:**
 
-    **`-n, --name <n>`**
+    **`-n, --name <name>`**
 
     **Usage:**
 
     ```bash
-    goose session --name <n>
+    goose session --name <name>
     ```
 
 - Resume a previous session
@@ -52,7 +52,7 @@ goose configure
     **Usage:**
 
     ```bash
-    goose session --resume --name <n>
+    goose session --resume --name <name>
     ```
 
 - Start a session with the specified extension
@@ -156,11 +156,11 @@ goose update --reconfigure
 
 ### mcp
 
-Run an enabled MCP server specified by `<n>` (e.g. 'Google Drive')
+Run an enabled MCP server specified by `<name>` (e.g. 'Google Drive')
 
 **Usage:**
 ```bash
-goose mcp <n>
+goose mcp <name>
 ```
 
 ---
@@ -174,11 +174,11 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-i, --instructions <FILE>`**: Path to instruction file containing commands. Use - for stdin.
 - **`-t, --text <TEXT>`**: Input text to provide to Goose directly
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
-- **`-n, --name <n>`**: Name for this run session (e.g. 'daily-tasks')
+- **`-n, --name <NAME>`**: Name for this run session (e.g. 'daily-tasks')
 - **`-r, --resume`**: Resume from a previous run
 - **`-p, --path <PATH>`**: Path for this run session (e.g. './playground.jsonl')
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times in the same command)
-- **`--with-builtin <n>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
+- **`--with-builtin <NAME>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Usage:**
 
