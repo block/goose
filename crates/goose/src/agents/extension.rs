@@ -192,3 +192,21 @@ impl ExtensionInfo {
         }
     }
 }
+
+/// Information about the tool used for building prompts
+#[derive(Clone, Debug, Serialize)]
+pub struct ToolInfo {
+    name: String,
+    description: String,
+    parameters: Vec<String>,
+}
+
+impl ToolInfo {
+    pub fn new(name: &str, description: &str, parameters: Vec<String>) -> Self {
+        Self {
+            name: name.to_string(),
+            description: description.to_string(),
+            parameters,
+        }
+    }
+}

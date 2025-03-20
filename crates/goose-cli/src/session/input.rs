@@ -15,6 +15,8 @@ pub enum InputResult {
     ListPrompts(Option<String>),
     PromptCommand(PromptCommandOptions),
     GooseMode(String),
+    Plan(PlanCommandOptions),
+    EndPlan,
 }
 
 #[derive(Debug)]
@@ -22,6 +24,11 @@ pub struct PromptCommandOptions {
     pub name: String,
     pub info: bool,
     pub arguments: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct PlanCommandOptions {
+    pub message_text: String,
 }
 
 pub fn get_input(
@@ -72,6 +79,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_EXTENSION: &str = "/extension ";
     const CMD_BUILTIN: &str = "/builtin ";
     const CMD_MODE: &str = "/mode ";
+    const CMD_PLAN: &str = "/plan";
+    const CMD_ENDPLAN: &str = "/endplan";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -111,6 +120,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with(CMD_MODE) => {
             Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
         }
+        s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
+        s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         _ => None,
     }
 }
@@ -168,6 +179,14 @@ fn parse_prompt_command(args: &str) -> Option<InputResult> {
     Some(InputResult::PromptCommand(options))
 }
 
+fn parse_plan_command(input: String) -> Option<InputResult> {
+    let options = PlanCommandOptions {
+        message_text: input.trim().to_string(),
+    };
+
+    Some(InputResult::Plan(options))
+}
+
 fn print_help() {
     println!(
         "Available commands:
@@ -178,6 +197,12 @@ fn print_help() {
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
 /mode <name> - Set the goose mode to use ('auto', 'approve', 'chat')
+/plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
+                        If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
+                        To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
+                        The model is used based on $GOOSE_PLANNER_PROVIDER and $GOOSE_PLANNER_MODEL environment variables.
+                        If no model is set, the default model is used.
+/endplan - Exit plan mode and return to 'normal' goose mode.
 /? or /help - Display this help message
 
 Navigation:
@@ -368,6 +393,24 @@ mod tests {
             // Invalid arguments are ignored but logged
         } else {
             panic!("Expected PromptCommand");
+        }
+    }
+
+    #[test]
+    fn test_plan_mode() {
+        // Test plan mode with no text
+        let result = handle_slash_command("/plan");
+        assert!(result.is_some());
+
+        // Test plan mode with text
+        let result = handle_slash_command("/plan hello world");
+        assert!(result.is_some());
+        let options = result.unwrap();
+        match options {
+            InputResult::Plan(options) => {
+                assert_eq!(options.message_text, "hello world");
+            }
+            _ => panic!("Expected Plan"),
         }
     }
 }

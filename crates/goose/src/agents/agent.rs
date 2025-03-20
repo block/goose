@@ -63,6 +63,9 @@ pub trait Agent: Send + Sync {
     /// Returns the prompt text that would be used as user input
     async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult>;
 
+    /// Get the plan prompt, which will be used with the planner (reasoner) model
+    async fn get_plan_prompt(&self) -> anyhow::Result<String>;
+
     /// Get a reference to the provider used by this agent
     async fn provider(&self) -> Arc<Box<dyn Provider>>;
 }

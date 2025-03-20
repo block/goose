@@ -10,7 +10,9 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
 use super::agent::SessionConfig;
+use super::capabilities::get_parameter_names;
 use super::detect_read_only_tools;
+use super::extension::ToolInfo;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
@@ -455,6 +457,19 @@ impl Agent for SummarizeAgent {
         }
 
         Err(anyhow!("Prompt '{}' not found", name))
+    }
+
+    async fn get_plan_prompt(&self) -> anyhow::Result<String> {
+        let mut capabilities = self.capabilities.lock().await;
+        let tools = capabilities.get_prefixed_tools().await?;
+        let tools_info = tools
+            .into_iter()
+            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .collect();
+
+        let plan_prompt = capabilities.get_planning_prompt(tools_info).await;
+
+        Ok(plan_prompt)
     }
 
     async fn provider(&self) -> Arc<Box<dyn Provider>> {

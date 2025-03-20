@@ -100,11 +100,29 @@ Later, you can ask:
 
 Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
 
+## Trigger Words and When to Use Them
+Goose also recognizes certain trigger words that signal when to store, retrieve, or remove memory.
+
+| **Trigger Words**   | **When to Use** |
+|---------------------|----------------|
+| remember            | Store useful info for later use |
+| forget           | Remove a stored memory |
+| memory           | General memory-related actions |
+| save             | Save a command, config, or preference |
+| remove memory    | Delete specific stored data |
+| clear memory     | Wipe all stored memories |
+| search memory    | Find previously stored data |
+| find memory      | Locate specific saved information |
+
 ## Example Usage
 
-In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and retrieve it later to help with your tasks.
+In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and recall it when needed, helping you stay consistent in your work.
 
 This means you no longer have to repeat yourself. Goose will remember your project’s requirements and automatically apply them to new tasks.
+
+:::tip  
+If you frequently work with API standards or other structured knowledge, Goose may automatically suggest saving them to memory for you when it detects a pattern in your workflow.  
+:::
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>

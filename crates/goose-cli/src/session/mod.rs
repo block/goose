@@ -6,6 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::build_session;
+use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
 use anyhow::Result;
@@ -28,6 +29,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio;
 
+pub enum RunMode {
+    Normal,
+    Plan,
+}
+
 pub struct Session {
     agent: Box<dyn Agent>,
     messages: Vec<Message>,
@@ -35,6 +41,7 @@ pub struct Session {
     // Cache for completion data - using std::sync for thread safety without async
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool, // New field for debug mode
+    run_mode: RunMode,
 }
 
 // Cache structure for completion data
@@ -54,6 +61,42 @@ impl CompletionCache {
     }
 }
 
+pub enum PlannerResponseType {
+    Plan,
+    ClarifyingQuestions,
+}
+
+/// Decide if the planner's reponse is a plan or a clarifying question
+///
+/// This function is called after the planner has generated a response
+/// to the user's message. The response is either a plan or a clarifying
+/// question.
+pub async fn classify_planner_response(
+    message_text: String,
+    provider: Arc<Box<dyn Provider>>,
+) -> Result<PlannerResponseType> {
+    let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
+
+    // Generate the description
+    let message = Message::user().with_text(&prompt);
+    let (result, _usage) = provider
+        .complete(
+            "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
+            &[message],
+            &[],
+        )
+        .await?;
+
+    // println!("classify_planner_response: {result:?}\n"); // TODO: remove
+
+    let predicted = result.as_concat_text();
+    if predicted.to_lowercase().contains("plan") {
+        Ok(PlannerResponseType::Plan)
+    } else {
+        Ok(PlannerResponseType::ClarifyingQuestions)
+    }
+}
+
 impl Session {
     pub fn new(agent: Box<dyn Agent>, session_file: PathBuf, debug: bool) -> Self {
         let messages = match session::read_messages(&session_file) {
@@ -70,6 +113,7 @@ impl Session {
             session_file,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
             debug,
+            run_mode: RunMode::Normal,
         }
     }
 
@@ -265,20 +309,35 @@ impl Session {
         loop {
             match input::get_input(&mut editor)? {
                 input::InputResult::Message(content) => {
-                    save_history(&mut editor);
+                    match self.run_mode {
+                        RunMode::Normal => {
+                            save_history(&mut editor);
 
-                    self.messages.push(Message::user().with_text(&content));
+                            self.messages.push(Message::user().with_text(&content));
 
-                    // Get the provider from the agent for description generation
-                    let provider = self.agent.provider().await;
+                            // Get the provider from the agent for description generation
+                            let provider = self.agent.provider().await;
 
-                    // Persist messages with provider for automatic description generation
-                    session::persist_messages(&self.session_file, &self.messages, Some(provider))
-                        .await?;
+                            // Persist messages with provider for automatic description generation
+                            session::persist_messages(
+                                &self.session_file,
+                                &self.messages,
+                                Some(provider),
+                            )
+                            .await?;
 
-                    output::show_thinking();
-                    self.process_agent_response(true).await?;
-                    output::hide_thinking();
+                            output::show_thinking();
+                            self.process_agent_response(true).await?;
+                            output::hide_thinking();
+                        }
+                        RunMode::Plan => {
+                            let mut plan_messages = self.messages.clone();
+                            plan_messages.push(Message::user().with_text(&content));
+                            let reasoner = get_reasoner()?;
+                            self.plan_with_reasoner_model(plan_messages, reasoner)
+                                .await?;
+                        }
+                    }
                 }
                 input::InputResult::Exit => break,
                 input::InputResult::AddExtension(cmd) => {
@@ -345,7 +404,27 @@ impl Session {
                     config
                         .set_param("GOOSE_MODE", Value::String(mode.to_string()))
                         .unwrap();
-                    println!("Goose mode set to '{}'", mode);
+                    output::goose_mode_message(&format!("Goose mode set to '{}'", mode));
+                    continue;
+                }
+                input::InputResult::Plan(options) => {
+                    self.run_mode = RunMode::Plan;
+                    output::render_enter_plan_mode();
+
+                    let message_text = options.message_text;
+                    if message_text.is_empty() {
+                        continue;
+                    }
+                    let mut plan_messages = self.messages.clone();
+                    plan_messages.push(Message::user().with_text(&message_text));
+
+                    let reasoner = get_reasoner()?;
+                    self.plan_with_reasoner_model(plan_messages, reasoner)
+                        .await?;
+                }
+                input::InputResult::EndPlan => {
+                    self.run_mode = RunMode::Normal;
+                    output::render_exit_plan_mode();
                     continue;
                 }
                 input::InputResult::PromptCommand(opts) => {
@@ -416,6 +495,72 @@ impl Session {
             "\nClosing session. Recorded to {}",
             self.session_file.display()
         );
+        Ok(())
+    }
+
+    async fn plan_with_reasoner_model(
+        &mut self,
+        plan_messages: Vec<Message>,
+        reasoner: Box<dyn Provider + Send + Sync>,
+    ) -> Result<(), anyhow::Error> {
+        let plan_prompt = self.agent.get_plan_prompt().await?;
+        output::show_thinking();
+        let (plan_response, _usage) = reasoner.complete(&plan_prompt, &plan_messages, &[]).await?;
+        output::render_message(&plan_response, self.debug);
+        output::hide_thinking();
+        let planner_response_type =
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await)
+                .await?;
+
+        match planner_response_type {
+            PlannerResponseType::Plan => {
+                println!();
+                let should_act =
+                    cliclack::confirm("Do you want to clear message history & act on this plan?")
+                        .initial_value(true)
+                        .interact()?;
+                if should_act {
+                    output::render_act_on_plan();
+                    self.run_mode = RunMode::Normal;
+                    // set goose mode: auto if that isn't already the case
+                    let config = Config::global();
+                    let curr_goose_mode =
+                        config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+                    if curr_goose_mode != "auto" {
+                        config
+                            .set_param("GOOSE_MODE", Value::String("auto".to_string()))
+                            .unwrap();
+                    }
+
+                    // clear the messages before acting on the plan
+                    self.messages.clear();
+                    // add the plan response as a user message
+                    let plan_message = Message::user().with_text(plan_response.as_concat_text());
+                    self.messages.push(plan_message);
+                    // act on the plan
+                    output::show_thinking();
+                    self.process_agent_response(true).await?;
+                    output::hide_thinking();
+
+                    // Reset run & goose mode
+                    if curr_goose_mode != "auto" {
+                        config
+                            .set_param("GOOSE_MODE", Value::String(curr_goose_mode.to_string()))
+                            .unwrap();
+                    }
+                } else {
+                    // add the plan response (assistant message) & carry the conversation forward
+                    // in the next round, the user might wanna slightly modify the plan
+                    self.messages.push(plan_response);
+                }
+            }
+            PlannerResponseType::ClarifyingQuestions => {
+                // add the plan response (assistant message) & carry the conversation forward
+                // in the next round, the user will answer the clarifying questions
+                self.messages.push(plan_response);
+            }
+        }
+
         Ok(())
     }
 
@@ -649,4 +794,35 @@ impl Session {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
     }
+}
+
+fn get_reasoner() -> Result<Box<dyn Provider + Send + Sync>, anyhow::Error> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    let (reasoner_provider, reasoner_model) = match (
+        std::env::var("GOOSE_PLANNER_PROVIDER"),
+        std::env::var("GOOSE_PLANNER_MODEL"),
+    ) {
+        (Ok(provider), Ok(model)) => (provider, model),
+        _ => {
+            println!(
+                "WARNING: GOOSE_PLANNER_PROVIDER or GOOSE_PLANNER_MODEL is not set. \
+                 Using default model from config..."
+            );
+            let config = Config::global();
+            let provider = config
+                .get_param("GOOSE_PROVIDER")
+                .expect("No provider configured. Run 'goose configure' first");
+            let model = config
+                .get_param("GOOSE_MODEL")
+                .expect("No model configured. Run 'goose configure' first");
+            (provider, model)
+        }
+    };
+
+    let model_config = ModelConfig::new(reasoner_model);
+    let reasoner = create(&reasoner_provider, model_config)?;
+
+    Ok(reasoner)
 }
