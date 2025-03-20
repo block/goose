@@ -47,37 +47,12 @@ Then select "Toggle Experiment" option in the menu:
 ## Available Experimental Features
 
 :::note
-The list of experimental features may change as Goose development progresses. Some features may be promoted to stable features, while others might be modified or removed.This section will be updated with specific experimental features as they become available
+There are no experimental features at this time!
 :::
 
-### Smart Approve
-
-The `GOOSE_SMART_APPROVE` experimental feature when enabled allows Goose to review any commands about to be run to determine their sensitivity. Commands with high sensitivity will require approval from the user before it's executed.
-
-Here's an example when a `write` command is about to be executed
-
-```sh
-─── text_editor | developer ──────────────────────────
-path: ~/Documents/block/goose/test.txt
-command: write
-file_text: This is a test file.
-
-// highlight-start
-◇  Goose would like to call the above tool, do you approve?
-│  Yes 
-// highlight-end
-│
-### /Users/yingjiehe/Documents/block/goose/test.txt
-
-This is a test file.
-
-
-I've created a file named "test.txt" with some simple content. Let me verify that the file was created by checking its contents:
-
-─── text_editor | developer ──────────────────────────
-path: ~/Documents/block/goose/test.txt
-command: view
-```
+:::note
+The list of experimental features may change as Goose development progresses. Some features may be promoted to stable features, while others might be modified or removed.This section will be updated with specific experimental features as they become available
+:::
 
 ## Feedback
 
