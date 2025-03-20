@@ -45,7 +45,7 @@ export default function EnvVarsSection({
                 value={envVar.key}
                 onChange={(e) => onChange(index, 'key', e.target.value)}
                 placeholder="Variable name"
-                className={`w-full bg-bgSubtle border-borderSubtle text-textStandard`}
+                className={`w-full border-borderSubtle text-textStandard`}
               />
             </div>
             <div className="relative">
@@ -53,7 +53,7 @@ export default function EnvVarsSection({
                 value={envVar.value}
                 onChange={(e) => onChange(index, 'value', e.target.value)}
                 placeholder="Value"
-                className={`w-full bg-bgSubtle border-borderSubtle text-textStandard`}
+                className={`w-full border-borderSubtle text-textStandard`}
               />
             </div>
             <Button
@@ -80,7 +80,7 @@ export default function EnvVarsSection({
         <Button
           onClick={onAdd}
           variant="ghost"
-          className="flex items-center justify-start gap-1 px-2 pr-4 text-s font-medium rounded-full dark:bg-slate-400 dark:text-gray-300 bg-gray-300 text-slate-400 dark:hover:bg-slate-300 hover:bg-gray-500 hover:text-white dark:hover:text-gray-900 transition-colors min-w-[60px] h-9"
+          className="flex items-center justify-start gap-1 px-2 pr-4 text-s font-medium rounded-full dark:bg-slate-400 dark:text-gray-300 bg-gray-300 dark:bg-slate text-slate-400 dark:hover:bg-slate-300 hover:bg-gray-500 hover:text-white dark:hover:text-gray-900 transition-colors min-w-[60px] h-9"
         >
           <Plus className="h-3 w-3" /> Add
         </Button>
