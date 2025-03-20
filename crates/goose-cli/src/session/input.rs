@@ -16,7 +16,7 @@ pub enum InputResult {
     PromptCommand(PromptCommandOptions),
     GooseMode(String),
     Plan(PlanCommandOptions),
-    Warmup,
+    EndPlan,
 }
 
 #[derive(Debug)]
@@ -28,7 +28,7 @@ pub struct PromptCommandOptions {
 
 #[derive(Debug)]
 pub struct PlanCommandOptions {
-    pub model: String,
+    // pub model: String,
     pub message_text: String,
 }
 
@@ -80,8 +80,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_EXTENSION: &str = "/extension ";
     const CMD_BUILTIN: &str = "/builtin ";
     const CMD_MODE: &str = "/mode ";
-    const CMD_WARMUP: &str = "/warmup";
     const CMD_PLAN: &str = "/plan";
+    const CMD_ENDPLAN: &str = "/endplan";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -121,8 +121,8 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         s if s.starts_with(CMD_MODE) => {
             Some(InputResult::GooseMode(s[CMD_MODE.len()..].to_string()))
         }
-        s if s.starts_with(CMD_WARMUP) => Some(InputResult::Warmup),
         s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
+        s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
         _ => None,
     }
 }
@@ -181,34 +181,9 @@ fn parse_prompt_command(args: &str) -> Option<InputResult> {
 }
 
 fn parse_plan_command(input: String) -> Option<InputResult> {
-    let mut options = PlanCommandOptions {
-        model: String::new(),
-        message_text: String::new(),
+    let options = PlanCommandOptions {
+        message_text: input.trim().to_string(),
     };
-
-    let parts: Vec<String> = shlex::split(&input).unwrap_or_default();
-
-    if parts.is_empty() {
-        println!("For the /plan command, you must provide message text but none was provided.");
-        println!("Usage: /plan --model=<model> <message_text>");
-        return None;
-    }
-
-    if parts[0].starts_with("--model=") {
-        options.model = parts[0]
-            .strip_prefix("--model=")
-            .unwrap_or_default()
-            .to_string();
-    }
-
-    // start at index 0 if no model is provided, else start at index 1 & join the rest
-    options.message_text = parts[if options.model.is_empty() { 0 } else { 1 }..].join(" ");
-
-    if options.message_text.is_empty() {
-        println!("For the /plan command, you must provide message text but none was provided.");
-        println!("Usage: /plan --model=<model> <message_text>");
-        return None;
-    }
 
     Some(InputResult::Plan(options))
 }
@@ -223,10 +198,12 @@ fn print_help() {
 /prompts [--extension <n>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
 /mode <n> - Set the goose mode to use ('auto', 'approve', 'chat')
-/warmup - Warm up goose with required context before using '/plan' command. This sets the goose mode to 'approve'.
-/plan --model=<model> <message_text> - Create a plan based on the current messages and asks user if they wanto act on it.
-                        If user acts on the plan, the goose mode is automatically set to 'auto'.
-                        Model options: o1, o3-mini-high, o3-mini, claude-3-7. Default model is o1-high.
+/plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
+                        If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
+                        To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
+                        The model is used based on $GOOSE_PLANNER_PROVIDER and $GOOSE_PLANNER_MODEL environment variables.
+                        If no model is set, the default model is used.
+/endplan - Exit plan mode and return to 'normal' goose mode.
 /? or /help - Display this help message
 
 Navigation:
