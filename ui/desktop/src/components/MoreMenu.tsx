@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger, PopoverPortal } from '@radix-ui/react-popover';
 import React, { useEffect, useState } from 'react';
-import { More } from './icons';
+import { More, Send } from './icons';
 import { View } from '../App';
 
 interface VersionInfo {
@@ -275,7 +275,7 @@ export default function MoreMenu({
                 window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
               }}
             >
-              <span>Make Agent...</span>
+              Make Custom Agent
             </button>
 
             {/* Settings Menu */}
