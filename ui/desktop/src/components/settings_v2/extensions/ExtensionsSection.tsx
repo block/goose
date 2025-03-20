@@ -13,16 +13,17 @@ import {
 } from './utils';
 import { useAgent } from '../../../agent/UpdateAgent';
 import { activateExtension } from '.';
+import {useExtensionUpdater, handleExtensionError} from './extensionUtils';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
+  const performExtensionAction = useExtensionUpdater()
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { updateAgent, addExtensionToAgent } = useAgent();
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -45,11 +46,15 @@ export default function ExtensionsSection() {
   }, []);
 
   const handleExtensionToggle = async (name: string) => {
+    // TODO: how to handle updating agent based on if we are toggling extension on vs off?
     try {
-      await toggleExtension(name);
-      fetchExtensions(); // Refresh the list after toggling
+      await performExtensionAction(toggleExtension, [name])
     } catch (error) {
-      console.error('Failed to toggle extension:', error);
+      // TODO: move to separate function
+      // TODO: handle error for configuration problems (make sure it's set to not enabled) -- do we handle that configcontext side or via a callback here?
+      handleExtensionError(error)
+    } finally {
+      await fetchExtensions(); // Refresh the list after toggling
     }
   };
 
@@ -65,10 +70,12 @@ export default function ExtensionsSection() {
       await activateExtension(formData.name, extensionConfig, addExtension);
       console.log('attempting to add extension');
       await updateAgent(extensionConfig);
+      await performExtensionAction(addExtension, [formData.name, extensionConfig, formData.enabled])
       handleModalClose();
-      await fetchExtensions(); // Refresh the list after adding
     } catch (error) {
-      console.error('Failed to add extension:', error);
+      handleExtensionError(error)
+    } finally {
+      await fetchExtensions(); // Refresh the list after adding
     }
   };
 
@@ -82,15 +89,17 @@ export default function ExtensionsSection() {
     } catch (error) {
       console.error('Failed to update extension configuration:', error);
     }
+    return handleAddExtension(formData)
   };
 
   const handleDeleteExtension = async (name: string) => {
     try {
-      await removeExtension(name);
+      await performExtensionAction(removeExtension, [name])
       handleModalClose();
-      fetchExtensions(); // Refresh the list after deleting
     } catch (error) {
-      console.error('Failed to delete extension:', error);
+      handleExtensionError(error)
+    } finally {
+      await fetchExtensions(); // Refresh the list after deleting
     }
   };
 

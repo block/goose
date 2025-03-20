@@ -11,6 +11,10 @@ import {
   ToastSuccess,
 } from '../components/settings/models/toasts';
 
+export interface ExtensionUpdate {
+  extension: ExtensionConfig
+  type: 'add' | 'remove'
+}
 // extensionUpdate = an extension was newly added or updated so we should attempt to add it
 
 export const useAgent = () => {
@@ -39,7 +43,7 @@ export const useAgent = () => {
     }
   };
 
-  const updateAgent = async (extensionUpdate?: ExtensionConfig) => {
+  const updateAgent = async (extensionUpdate?: ExtensionUpdate) => {
     setIsUpdating(true);
 
     try {
@@ -62,7 +66,13 @@ export const useAgent = () => {
       }
 
       if (extensionUpdate) {
-        await addExtensionToAgent(extensionUpdate);
+        if (extensionUpdate.type == 'remove') {
+          // If explicitly set to false, remove the extension -- only need name
+          await removeExtensionFromAgent(extensionUpdate.extension.name);
+        } else {
+          // Otherwise, add or update the extension -- need full config
+          await addExtensionToAgent(extensionUpdate.extension);
+        }
       }
 
       return true;
@@ -180,6 +190,91 @@ export const useAgent = () => {
         msg: 'Failed to add extension',
         errorMessage: error.message,
       });
+      throw error;
+    }
+  };
+
+  const removeExtensionFromAgent = async (
+      name: string,
+      silent: boolean = false
+  ): Promise<Response> => {
+    try {
+      let toastId;
+      if (!silent) {
+        toastId = toast.loading(`Removing ${name} extension...`, {
+          position: 'top-center',
+        });
+      }
+
+      const response = await fetch(getApiUrl('/extensions/remove'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        },
+        body: JSON.stringify(name),
+      });
+
+      // Handle non-OK responses
+      if (!response.ok) {
+        const errorMsg = `Server returned ${response.status}: ${response.statusText}`;
+        console.error(errorMsg);
+
+        if (!silent) {
+          if (toastId) toast.dismiss(toastId);
+          toast.error(`Failed to remove ${name} extension: ${errorMsg}`);
+        }
+        return response;
+      }
+
+      // Parse response JSON safely
+      let data;
+      try {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : { error: false };
+      } catch (error) {
+        console.warn('Could not parse response as JSON, assuming success', error);
+        data = { error: false };
+      }
+
+      console.log('Response data:', data);
+
+      if (!data.error) {
+        if (!silent) {
+          if (toastId) toast.dismiss(toastId);
+          toast.success(`Successfully disabled ${name} extension`);
+        }
+        return response;
+      }
+
+      const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
+      const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
+          <div className="flex flex-col gap-1">
+            <div>Error removing {name} extension</div>
+            <div>
+              <button
+                  className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
+                  onClick={() => {
+                    navigator.clipboard.writeText(data.message || 'Unknown error');
+                    closeToast?.();
+                  }}
+              >
+                Copy error message
+              </button>
+            </div>
+          </div>
+      );
+
+      console.error(errorMessage);
+      if (toastId) toast.dismiss(toastId);
+      toast(ErrorMsg, { type: 'error', autoClose: false });
+
+      return response;
+    } catch (error) {
+      console.log('Got some other error');
+      const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(errorMessage);
+      toast.error(errorMessage, { autoClose: false });
       throw error;
     }
   };
