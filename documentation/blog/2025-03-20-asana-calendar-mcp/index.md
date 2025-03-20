@@ -1,6 +1,6 @@
 ---
 title: "How I Use Goose to Plan My Week with Asana and Google Calendar MCPs"
-description: Use MCP with Goose to automate task management and enhance productivity.
+description: Use MCPs with Goose to automate task management and enhance productivity.
 authors: 
     - angie
 ---
@@ -44,11 +44,11 @@ This has been so extremly helpful in increasing my productivity. Thanks, Goose! 
   <meta property="og:title" content="MCP in Action: How I Use AI to Plan My Week with Goose, Asana, and Google Calendar" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/20/asana-calendar-mcp" />
-  <meta property="og:description" content="Use MCP with Goose to automate task management and enhance productivity." />
+  <meta property="og:description" content="Use MCPs with Goose to automate task management and enhance productivity." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/mcp-planner-761303c5ddcd5c79ed853536e3f87bcf.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="MCP in Action: How I Use AI to Plan My Week with Goose, Asana, and Google Calendar" />
-  <meta name="twitter:description" content="Use MCP with Goose to automate task management and enhance productivity." />
+  <meta name="twitter:description" content="Use MCPs with Goose to automate task management and enhance productivity." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/mcp-planner-761303c5ddcd5c79ed853536e3f87bcf.png" />
 </head>
