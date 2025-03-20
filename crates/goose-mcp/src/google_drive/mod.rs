@@ -134,7 +134,7 @@ impl GoogleDriveRouter {
                 let auth = PkceOAuth2Client::new(keyfile_path, credentials_manager.clone())
                     .expect("Failed to create OAuth2 client");
 
-                // Create the HTTP clien
+                // Create the HTTP client
                 let client = hyper_util::client::legacy::Client::builder(
                     hyper_util::rt::TokioExecutor::new(),
                 )
@@ -150,7 +150,7 @@ impl GoogleDriveRouter {
                 let drive_hub = DriveHub::new(client.clone(), auth.clone());
                 let sheets_hub = Sheets::new(client, auth);
 
-                // Create and return the DriveHub, Sheets and our PKCE OAuth2 clien
+                // Create and return the DriveHub, Sheets and our PKCE OAuth2 client
                 (drive_hub, sheets_hub, credentials_manager)
             }
             Err(e) => {
@@ -459,7 +459,7 @@ impl GoogleDriveRouter {
             ## Overview
             The Google Drive MCP server provides tools for interacting with Google Drive files and Google Sheets:
             1. search - Find files in your Google Drive
-            2. read - Read file contents directly using a uri in the `gdrive:///uri` forma
+            2. read - Read file contents directly using a uri in the `gdrive:///uri` format
             3. sheets_tool - Work with Google Sheets data using various operations
             4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
             5. update_file - Update existing Google Workspace files
@@ -483,8 +483,8 @@ impl GoogleDriveRouter {
 
             ### 3. Sheets Tool
             Work with Google Sheets data using various operations:
-            - list_sheets: List all sheets in a spreadshee
-            - get_columns: Get column headers from a specific shee
+            - list_sheets: List all sheets in a spreadsheet
+            - get_columns: Get column headers from a specific sheet
             - get_values: Get values from a range
             - update_values: Update values in a range (requires CSV formatted data)
             - update_cell: Update a single cell value
