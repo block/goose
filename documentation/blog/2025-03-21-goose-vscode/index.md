@@ -1,6 +1,6 @@
 ---
-title: "How Goose Catches AI Errors with Langfuse"
-description: Get detailed insights into Goose's behavior with Langfuse's observability tools.
+title: "Cracking the Code in VS Code"
+description: Connect Goose directly to your code editor with this Visual Studio Code MCP.
 authors: 
     - tania
 ---
@@ -52,14 +52,14 @@ The project is open-source, and welcomes contributions from the community. If yo
 You can also follow the [tutorial showing you how to integrate VS Code with Goose](https://block.github.io/goose/docs/tutorials/vscode-mcp).
 
 <head>
-  <meta property="og:title" content="Use Goose in VS Code" />
+  <meta property="og:title" content="Cracking the Code in VS Code" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/21/goose-vscode" />
-  <meta property="og:description" content="Bring Goose's AI capabilities into VS Code." />
+  <meta property="og:description" content="Connect Goose directly to your code editor with this Visual Studio Code MCP." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/vscodestream.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Use Goose in VS Code" />
-  <meta name="twitter:description" content="Bring Goose's AI capabilities into VS Code." />
+  <meta name="twitter:title" content="Cracking the Code in VS Code" />
+  <meta name="twitter:description" content="Connect Goose directly to your code editor with this Visual Studio Code MCP." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/vscodestream.png" />
 </head>
