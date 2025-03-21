@@ -427,6 +427,16 @@ impl Session {
                     output::render_exit_plan_mode();
                     continue;
                 }
+                input::InputResult::Clear => {
+                    save_history(&mut editor);
+
+                    self.messages.clear();
+                    output::render_message(
+                        &Message::assistant().with_text("Chat context cleared."),
+                        self.debug,
+                    );
+                    continue;
+                }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
 
