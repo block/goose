@@ -91,9 +91,15 @@ export const initializeSystem = async (provider: string, model: string) => {
       console.log('Extended system prompt with desktop-specific information');
     }
 
-    loadAndAddStoredExtensions().catch((error) => {
-      console.error('Failed to load and add stored extension configs:', error);
-    });
+    // This will go away after the release of settings v2 as we now handle this via
+    //
+    // initializeBuildInExtensions
+    // syncBuiltInExtensions
+    if (!process.env.ALPHA) {
+      loadAndAddStoredExtensions().catch((error) => {
+        console.error('Failed to load and add stored extension configs:', error);
+      });
+    }
   } catch (error) {
     console.error('Failed to initialize agent:', error);
     throw error;
