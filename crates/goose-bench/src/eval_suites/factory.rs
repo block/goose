@@ -49,7 +49,6 @@ impl EvaluationSuite {
         evals
     }
     pub fn select(selectors: Vec<String>) -> HashMap<String, Vec<&'static str>> {
-        println!("Selecting evals with selectors: {:?}", selectors);
         let eval_name_pattern = Regex::new(r":\w+$").unwrap();
         let grouped_by_suite: HashMap<String, Vec<&'static str>> =
             EvaluationSuite::registered_evals()
