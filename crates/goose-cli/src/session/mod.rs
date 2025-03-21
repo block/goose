@@ -431,6 +431,7 @@ impl Session {
                     save_history(&mut editor);
 
                     self.messages.clear();
+                    tracing::info!("Chat context cleared by user.");
                     output::render_message(
                         &Message::assistant().with_text("Chat context cleared."),
                         self.debug,
