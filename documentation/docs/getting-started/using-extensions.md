@@ -25,7 +25,6 @@ Here are the built-in extensions:
 2. **Computer Controller**: provides general computer control tools for webscraping, file caching, and automations.
 3. **Memory**: teaches goose to remember your preferences as you use it
 4. **JetBrains**: provides an integration for working with JetBrains IDEs.
-5. **Google Drive**: provides an integration for working with Google Drive for file management and access.
 
 
 #### Toggling Built-in Extensions
@@ -274,7 +273,12 @@ You can remove installed extensions.
 
 ## Starting Session with Extensions
 
-You can start a tailored Goose session with specific extensions directly from the CLI. This will add and enable the extensions, so there's no need to do this if you already have the extensions enabled.
+You can start a tailored Goose session with specific extensions directly from the CLI. 
+
+:::info Notes
+* The extension will not be installed. It will only be enabled for the current session.
+* There's no need to do this if you already have the extensions enabled.
+:::
 
 ### Built-in Extensions
 
