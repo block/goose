@@ -56,10 +56,10 @@ You can also follow the [tutorial showing you how to integrate VS Code with Goos
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/21/goose-vscode" />
   <meta property="og:description" content="Connect Goose directly to your code editor with this Visual Studio Code MCP." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/vscodestream.png" />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/vscodestream-74eafa34e7ae10cfb738feddecc98519.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Cracking the Code in VS Code" />
   <meta name="twitter:description" content="Connect Goose directly to your code editor with this Visual Studio Code MCP." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/vscodestream.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/vscodestream-74eafa34e7ae10cfb738feddecc98519.png" />
 </head>
