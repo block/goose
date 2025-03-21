@@ -73,7 +73,10 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         className={cn('relative overflow-hidden', className)}
         {...props}
       >
-        <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]">
+        <ScrollAreaPrimitive.Viewport
+          ref={viewportRef}
+          className="h-full w-full rounded-[inherit] [&>div]:!block"
+        >
           {children}
           {autoScroll && <div ref={viewportEndRef} style={{ height: '1px' }} />}
         </ScrollAreaPrimitive.Viewport>
