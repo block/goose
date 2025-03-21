@@ -1,14 +1,14 @@
 ---
-title: "Stop Confusing Your AI Agent"
-description: How to prompt your AI agent the right way and vibe code your way to better responses.
+title: "AI Prompting 101: How to Craft The Perfect Prompt"
+description: How to prompt your AI agent the right way.
 authors: 
     - ebony
 ---
+![blog cover](prompt.png)
 
+Remember that saying, "it’s not what you ask, but **how you ask**"?
 
-Remember that saying, It’s not what you ask, but **how you ask**?
-
-When I first started working with Goose and AI agents, I was convinced there had to be one ‘best' prompting style. I spent so much time trying to figure out which one was superior, but the more I used Goose, the more I realized that couldn't be further from the truth. There isn’t one ‘right’ way to prompt AI, but there are better approaches depending on what your end goal is.
+When I first started working with Goose as an AI agent, I was convinced there had to be one ‘best' prompting style. I spent so much time trying to figure out which one was superior, but the more I used Goose, the more I realized that couldn't be further from the truth. There isn’t one _right_  way to prompt AI, but there are better approaches depending on what your end goal is.
 
 So, let’s go through **which prompt style works best for your specific needs**, and how you can use them to vibe code a little better with Goose.
 
@@ -16,7 +16,7 @@ So, let’s go through **which prompt style works best for your specific needs**
 
 ## Instruction-Based Prompting
 
-If you’re not a developer or new to Goose, this is a great place to start. The best way to get good responses is to be as clear and direct as possible. Goose works best when given specific instructions, so tell it exactly what you need and include all of the important details. If you’re too vague, you might end up with an overly technical or even a possibly incomplete answer that doesn’t actually help you.
+If you’re not a developer or you're just new to Goose, this is a great place to start. The best way to get good responses is to be as clear and direct as possible. Goose works best when given specific instructions, so tell it exactly what you need and include all of the important details. If you’re too vague, you might end up with an overly technical or even a possibly incomplete answer that doesn’t actually help you.
 
 
 For example, instead of saying:
@@ -36,14 +36,12 @@ This tells Goose exactly what you need and at what level.
 
 
 :::tip pro tip
-If you want Goose to remember your preferences, you can simply say, 
+If you want Goose to remember your preferences, you can say, 
 
 >_**Goose, remember I’m not a developer. Explain things at a high level unless I ask for technical details**_
 
 If you have the [Memory Extension](/docs/tutorials/memory-mcp) enabled, Goose will save this preference so you won’t have to remind it every time. 
 :::
-
-But what if you’re tackling something more complex that needs a step-by-step breakdown? That’s where Chain-of-Thought Prompting comes in.
 
 ## Chain-of-Thought Prompting
 
@@ -150,14 +148,14 @@ At the end of the day, all these prompting styles are just tools, at your dispos
 Goose is here to make your life easier, so the next time you open up a session, just keep your goal in mind, experiment with different prompting styles, and see what works best for you.
 
 <head>
-  <meta property="og:title" content="Stop Confusing Your AI Agent" />
+  <meta property="og:title" content="AI Prompting 101: How to Craft The Perfect Prompt" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/prompts" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/13/better-ai-prompting" />
   <meta property="og:description" content="How to prompt and vibe code your way to better responses." />
   <meta property="og:image" content="" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Stop Confusing Your AI Agent" />
+  <meta name="twitter:title" content="AI Prompting 101: How to Craft The Perfect Prompt" />
   <meta name="twitter:description" content="How to prompt and vibe code your way to better responses." />
   <meta name="twitter:image" content="" />
 </head>
