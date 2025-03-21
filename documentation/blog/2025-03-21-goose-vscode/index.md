@@ -12,7 +12,7 @@ Want to use Goose in VS Code? On the recent [Wild Goose Case livestream](https:/
 <!--truncate-->
 
 # What is the VSCode MCP?
-The [VSCode MCP Server](https://github.com/block/vscode-mcp), and its companion VSCode Extension, together enable AI agents like Goose to interact with VS Code through the Model Context Protocol.
+The [VSCode MCP Server](https://github.com/block/vscode-mcp) and its companion VSCode Extension enable AI agents like Goose to interact with VS Code through the Model Context Protocol.
 
 As Andrew explained during the stream, an MCP ([Model Context Protocol](https://modelcontextprotocol.io/introduction)) server acts as a proxy between a Large Language Model (LLM) and whatever applications or tools you want to access to - in this case, VS Code. Extensions are add-ons based on this protocol that provide a way to extend Goose's functionality for your workflow.
 
@@ -40,7 +40,7 @@ Developers can see proposed changes in real-time with the diff view, making it e
 # What's Next for VSCode MCP?
 The features don't end here. The team is actively exploring several exciting features to take VSCode MCP to the next level:
 
-- **Custom diff tool for granular control** - This means you will be able to be selective on specifici parts of changes you want to accept or reject.
+- **Custom diff tool for granular control** - This means you will be able to be selective on specific parts of changes you want to accept or reject.
 - **Smart navigation to specific code locations** - Imagine being able to ask Goose to take you directly to a function definition or a specific implementation.
 - **Enhanced linting integration** - To help maintain code quality standards automatically, making it way easier to fix issues before production.
 - **Terminal integration for command execution** - This would allow Goose to execute commands and display results right in your development environment.
