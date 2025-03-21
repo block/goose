@@ -49,6 +49,7 @@ impl EvaluationSuite {
         evals
     }
     pub fn select(selectors: Vec<String>) -> HashMap<String, Vec<&'static str>> {
+        println!("Selecting evals with selectors: {:?}", selectors);
         let eval_name_pattern = Regex::new(r":\w+$").unwrap();
         let grouped_by_suite: HashMap<String, Vec<&'static str>> =
             EvaluationSuite::registered_evals()
@@ -83,8 +84,8 @@ fn matches_any_selectors(eval: &str, selectors: &Vec<String>) -> bool {
     // selectors must prefix match exactly, no matching half-way in a word
     // remove one level of nesting at a time and check exact match
     let nesting_pattern = Regex::new(r":\w+$").unwrap();
-    let mut level_up = eval.to_string();
     for selector in selectors {
+        let mut level_up = eval.to_string();
         while !level_up.is_empty() {
             if level_up == *selector {
                 return true;
