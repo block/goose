@@ -26,8 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-cli]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
         with:
           name: download_cli.sh
           path: download_cli.sh
@@ -84,13 +84,13 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
         with:
           merge-multiple: true
 
       # Create/update the versioned release
       - name: Release versioned
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
@@ -103,7 +103,7 @@ jobs:
 
       # Create/update the stable release
       - name: Release stable
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
         with:
           tag: stable
           name: Stable
