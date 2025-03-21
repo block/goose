@@ -265,7 +265,7 @@ win-copy-win profile:
 ### "Other" copy {release|debug} files to ui/desktop/src/bin
 ### s = os depenent file seperator
 ### profile = release or debug
-win-copy-oth F:
+win-copy-oth profile:
   find target{{s}}{{profile}}{{s}} -maxdepth 1 -type f -executable -print -exec cp {} ui{{s}}desktop{{s}}src{{s}}bin \;
 
 ### copy files depending on OS
