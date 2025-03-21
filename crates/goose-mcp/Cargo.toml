@@ -48,6 +48,8 @@ image = "0.24.9"
 umya-spreadsheet = "2.2.3"
 keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
 oauth2 = { version = "5.0.0", features = ["reqwest"] }
+rust-analyzer = "0.0.1"
+serde_yml = "0.0.12"
 
 [dev-dependencies]
 serial_test = "3.0.0"
