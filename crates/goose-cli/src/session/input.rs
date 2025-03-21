@@ -17,6 +17,7 @@ pub enum InputResult {
     GooseMode(String),
     Plan(PlanCommandOptions),
     EndPlan,
+    Clear,
 }
 
 #[derive(Debug)]
@@ -81,6 +82,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_MODE: &str = "/mode ";
     const CMD_PLAN: &str = "/plan";
     const CMD_ENDPLAN: &str = "/endplan";
+    const CMD_CLEAR: &str = "/clear";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -122,6 +124,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         }
         s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
+        s if s == CMD_CLEAR => Some(InputResult::Clear),
         _ => None,
     }
 }
@@ -204,6 +207,7 @@ fn print_help() {
                         If no model is set, the default model is used.
 /endplan - Exit plan mode and return to 'normal' goose mode.
 /? or /help - Display this help message
+/clear - Clears the current chat history
 
 Navigation:
 Ctrl+C - Interrupt goose (resets the interaction to before the interrupted user request)
