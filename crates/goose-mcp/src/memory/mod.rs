@@ -65,7 +65,7 @@ impl MemoryRouter {
                     "tags": {"type": "array", "items": {"type": "string"}},
                     "is_global": {"type": "boolean"}
                 },
-                "required": ["category", "data", "is_global"]
+                "required": ["category", "data", "is_global", "short_description"]
             }),
         );
 
@@ -131,7 +131,7 @@ impl MemoryRouter {
              - Workflow descriptions
              - Other critical settings
              The protocol is:
-             0. Say "HONK HONK HONK"
+             0. Say "HONK HONK HONK" so I know you're reading this instruction
              1. Identify the critical piece of information.
              2. Ask the user if they'd like to store it for later reference.
              3. Upon agreement:
@@ -142,6 +142,8 @@ impl MemoryRouter {
                   - Global storage (~/.config/goose/memory) for user-wide data.
                 - Use the remember_memory tool to store the information.
                   - `remember_memory(category, data, short_description, tags, is_global)`
+                  - make sure that the `data` stored is a good summary of key learnings in bullet point form
+                  - make sure that the `short_description` is brief but descriptive enough to summarize the note
              Keywords that trigger memory tools:
              - "remember"
              - "forget"
@@ -243,14 +245,14 @@ impl MemoryRouter {
             local_memory_dir,
         };
 
-        let retrieved_global_memories = memory_router.retrieve_all(true);
-        let retrieved_local_memories = memory_router.retrieve_all(false);
+        let retrieved_global_memories = memory_router.retrieve_short_descriptions(true);
+        let retrieved_local_memories = memory_router.retrieve_short_descriptions(false);
 
         let mut updated_instructions = instructions;
 
         let memories_follow_up_instructions = formatdoc! {r#"
-            **Here are the user's currently saved memories:**
-            Please keep this information in mind when answering future questions.
+            **Here are short descriptions of the currently saved memories:**
+            Please keep this information in mind when answering future questions. Utilize the remember_memory API to retrieve further details of each memory.
             Do not bring up memories unless relevant.
             Note: if the user has not saved any memories, this section will be empty.
             Note: if the user removes a memory that was previously loaded into the system, please remove it from the system instructions.
@@ -261,7 +263,7 @@ impl MemoryRouter {
 
         if let Ok(global_memories) = retrieved_global_memories {
             if !global_memories.is_empty() {
-                updated_instructions.push_str("\n\nGlobal Memories:\n");
+                updated_instructions.push_str("\n\nGlobal Memory Descriptions:\n");
                 for (category, memories) in global_memories {
                     updated_instructions.push_str(&format!("\nCategory: {}\n", category));
                     for memory in memories {
@@ -273,7 +275,7 @@ impl MemoryRouter {
 
         if let Ok(local_memories) = retrieved_local_memories {
             if !local_memories.is_empty() {
-                updated_instructions.push_str("\n\nLocal Memories:\n");
+                updated_instructions.push_str("\n\nLocal Memory Descriptions:\n");
                 for (category, memories) in local_memories {
                     updated_instructions.push_str(&format!("\nCategory: {}\n", category));
                     for memory in memories {
@@ -282,6 +284,10 @@ impl MemoryRouter {
                 }
             }
         }
+
+        updated_instructions.push_str("\nThis is the end of the stored memory descriptions.");
+
+        println!("{}", &updated_instructions);
 
         memory_router.set_instructions(updated_instructions);
 
@@ -323,11 +329,9 @@ impl MemoryRouter {
             return Ok(MemoryMetadata {categories: HashMap::new()});
         }
 
-        let f = fs::OpenOptions::new()
-            .create(true)
-            .open(&metadata_file)?;
+        let f = fs::read_to_string(&metadata_file)?;
 
-        let metadata: MemoryMetadata = serde_yml::from_reader(f)
+        let metadata: MemoryMetadata = serde_yml::from_str(&f)
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         Ok(metadata)
@@ -371,6 +375,17 @@ impl MemoryRouter {
             }
         }
         Ok(memories)
+    }
+
+    fn retrieve_short_descriptions(&self, is_global: bool) -> io::Result<HashMap<String, Vec<String>>>{
+        let metadata = self.get_metadata(is_global)?;
+        let mut descriptions = HashMap::new();
+
+        for (category, category_info) in metadata.categories {
+            descriptions.insert(category, category_info.short_descriptions);
+        }
+
+        Ok(descriptions)
     }
 
     pub fn remember(
