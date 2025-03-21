@@ -18,55 +18,16 @@ uvx -p 3.10.14 speech-mcp@latest
 
 **Requirement**
 
-[PortAudio](/docs/tutorials/speech-mcp#install-portaudio) is required for PyAudio to capture audio from your microphone
+[PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone
 :::
 
 ## Configuration
 
 :::info
 Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+
+Before adding this extension, make sure [PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is installed on your system. **PortAudio is required** for PyAudio to capture audio from your microphone.
 :::
-
-## Install PortAudio
-
-Before adding this extension, make sure PortAudio is installed on your system. PortAudio is required for PyAudio to capture audio from your microphone.
-
-<Tabs groupId="interface">
-  <TabItem value="macOS" label="Mac Instructions" default>
-
-  ```bash
-    brew install portaudio
-    export LDFLAGS="-L/usr/local/lib"
-    export CPPFLAGS="-I/usr/local/include"
-  ```
-
-  </TabItem>
-  <TabItem value="Linux" label="Linux Instructions">
-   
-    ### Debian/Ubuntu
-
-    ```bash
-    sudo apt-get update
-    sudo apt-get install portaudio19-dev python3-dev
-    ```
-    ### Fedora/RHEL/CentOS
-
-    ```bash
-    sudo dnf install portaudio-devel
-    ```
-  </TabItem>
-  <TabItem value="Windows" label="Windows Instructions">
-
-    ```bash
-    pip install pyaudio
-    ```
-    :::important
-    PortAudio is included in the PyAudio wheel for Windows, so no separate installation is needed.
-    :::
-  </TabItem>
-</Tabs>
-
-## Add Speech Extension 
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -208,11 +169,18 @@ This allows you to build with Goose hands-free, making development more accessib
 </Tabs>
 
 ### Goose Prompt
+Here are some things you can say to activate the speech interface:
+
+- “Goose, I don’t feel like typing today.”
+- “Let’s talk using voice.”
+- “Can we have a voice conversation?”
+- “I’d like to speak instead of typing.”
+- “Goose, launch the speech UI.”
 
 ```
 Goose I don't feel like talking today
 ```
-
+### Goose Output
 ```
 I understand! In that case, I can help you use voice commands instead. I'll launch the speech interface so you can speak your requests rather than type them
 
@@ -232,12 +200,12 @@ I understand! In that case, I can help you use voice commands instead. I'll laun
 
 <div style={{ width: "100%", height: 0, position: "relative", paddingBottom: "56.25%" }}>
   <iframe
-    src="https://streamyard.com/e/95b6b5zmry5vkusx"
-    width="100%"
-    height="100%"
+    src="https://www.youtube.com/embed/vbD8IHwx-OY"
     frameBorder="0"
-    title="Embed recording"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
     allowFullScreen
-    style={{ width: "100%", height: "100%", position: "absolute", left: 0, top: 0, overflow: "hidden" }}
+    title="YouTube video"
+    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
   ></iframe>
 </div>
+
