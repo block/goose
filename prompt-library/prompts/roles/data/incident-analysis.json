@@ -1,0 +1,27 @@
+{
+  "id": "data-incident-analysis",
+  "title": "Analyze PagerDuty Incident Patterns",
+  "description": "Analyze incident data to identify patterns and opportunities for reducing alert noise",
+  "category": "Technical",
+  "function": "data",
+  "extensions": ["computercontroller"],
+  "prompt": "Analyze the PagerDuty incident activity data to:\n1. Identify most frequent issues and their patterns\n2. Calculate incident frequencies and trends\n3. Determine if issues are ongoing or resolved\n4. Highlight top opportunities to reduce alert noise\n5. Generate recommendations for alert optimization\n\nThe analysis should focus on actionable insights to reduce unnecessary pages and improve on-call experience.",
+  "example": "For a file incident_activity.csv containing PagerDuty export data, the analysis will show:\n- Top 5 most frequent incident types\n- Incident frequency trends over time\n- Active vs resolved issue breakdown\n- Recommendations for alert tuning\n- Potential automation opportunities\n\nThis helps teams identify which alerts need adjustment and where to focus improvement efforts.",
+  "tags": ["pagerduty", "incidents", "alerts", "analysis", "oncall", "monitoring"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "data_file": {
+      "description": "Path to the PagerDuty incident activity CSV file",
+      "required": true
+    },
+    "time_period": {
+      "description": "Time period to analyze (e.g., 'last 30 days', 'last quarter')",
+      "required": false
+    }
+  }
+}
