@@ -1,5 +1,5 @@
 ---
-title: "AI Prompting 101: How to Craft The Perfect Prompt"
+title: "AI Prompting 101: How to Get the Best Responses from Your AI Agent"
 description: How to prompt your AI agent the right way.
 authors: 
     - ebony
