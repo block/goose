@@ -76,7 +76,8 @@ impl MemoryRouter {
                 "type": "object",
                 "properties": {
                     "category": {"type": "string"},
-                    "is_global": {"type": "boolean"}
+                    "is_global": {"type": "boolean"},
+                    "tags": {"type": "array", "items": {"type": "string"}}
                 },
                 "required": ["category", "is_global"]
             }),
@@ -142,8 +143,8 @@ impl MemoryRouter {
                   - Global storage (~/.config/goose/memory) for user-wide data.
                 - Use the remember_memory tool to store the information.
                   - `remember_memory(category, data, short_description, tags, is_global)`
-                  - make sure that the `data` stored is a good summary of key learnings in bullet point form
-                  - make sure that the `short_description` is brief but descriptive enough to summarize the note
+                  - The `data` stored is a good summary of key learnings in bullet point form and human readable.
+                  - `short_description` is brief but descriptive enough to summarize the note
              Keywords that trigger memory tools:
              - "remember"
              - "forget"
@@ -154,10 +155,15 @@ impl MemoryRouter {
              - "clear memory"
              - "search memory"
              - "find memory"
+             - "checkpoint"
              Suggest the user to use memory tools when:
              - When the user mentions a keyword that triggers a memory tool
              - When the user performs a routine task
              - When the user executes a command and would benefit from remembering the exact command
+             - When the user wants to save key learnings during a session
+             Note about checkpointing:
+             - Remember to summarize all key learnings from the current checkpoint to the previous checkpoint
+             - You are able to use up to 2000 characters to do so. The objective with checkpointing is being able to pick up where you left off without hogging the context window.
              Example Interaction for Storing Information:
              User: "For this project, we use black for code formatting"
              Assistant: "You've mentioned a development preference. Would you like to remember this for future conversations?
@@ -178,6 +184,11 @@ impl MemoryRouter {
              Assistant: "You've mentioned a command. Would you like to remember this for future conversations?
              User: "Yes, please."
              Assistant: "I'll store this in the 'github' category. Any specific tags to add? Suggestions: #comments #gh"
+             Another Example Interaction for Storing Information:
+             User: "I'm learning a lot about this conversation about authentication. Let's checkpoint this session."
+             Assistant: "You mentioned checkpointing. Would you like me remember key learnings up until the previous checkpoint?"
+             User: "Yes, please"
+             Assistant: "I'll store this in the 'authentication' category. Any specific tags to add? Suggestions: #security"
              Retrieving Memories:
              To access stored information, utilize the memory retrieval protocols:
              - **Search by Category**:
@@ -205,6 +216,12 @@ impl MemoryRouter {
              Assistant: *Executes retrieval: `retrieve_memories(category="development", is_global=False)`*
              Assistant: "We have 'black' configured for code formatting, specific to this project. Would you like further
              details?"
+             Another Example Interaction for Retrieving Information:
+             User: "Can we continue our recent conversations about auth?"
+             Assistant: "I can see that we talked about authentication several times in the last couple of days. Retrieving these memories."
+             Assistant: *Executes retrieval: `retrieve_memories(category="authentication", is_global=True)`*
+             Assistant: "I have the memory loaded in. What would you like to talk about?"
+
              Memory Overview:
              - Categories can include a wide range of topics, structured to keep information grouped logically.
              - Tags enable quick filtering and identification of specific entries.
@@ -245,8 +262,8 @@ impl MemoryRouter {
             local_memory_dir,
         };
 
-        let retrieved_global_memories = memory_router.retrieve_short_descriptions(true);
-        let retrieved_local_memories = memory_router.retrieve_short_descriptions(false);
+        let retrieved_global_metadata = memory_router.get_metadata(true);
+        let retrieved_local_metadata = memory_router.get_metadata(false);
 
         let mut updated_instructions = instructions;
 
@@ -261,11 +278,13 @@ impl MemoryRouter {
         updated_instructions.push_str("\n\n");
         updated_instructions.push_str(&memories_follow_up_instructions);
 
-        if let Ok(global_memories) = retrieved_global_memories {
-            if !global_memories.is_empty() {
+        if let Ok(global_memories) = retrieved_global_metadata {
+            if !global_memories.categories.is_empty() {
                 updated_instructions.push_str("\n\nGlobal Memory Descriptions:\n");
-                for (category, memories) in global_memories {
-                    updated_instructions.push_str(&format!("\nCategory: {}\n", category));
+                for (category, category_info) in global_memories.categories {
+                    let last_accessed = category_info.last_accessed;
+                    let memories = category_info.short_descriptions;
+                    updated_instructions.push_str(&format!("\nCategory: {} Last Accessed: {}\n", category, last_accessed));
                     for memory in memories {
                         updated_instructions.push_str(&format!("- {}\n", memory));
                     }
@@ -273,11 +292,13 @@ impl MemoryRouter {
             }
         }
 
-        if let Ok(local_memories) = retrieved_local_memories {
-            if !local_memories.is_empty() {
+        if let Ok(local_memories) = retrieved_local_metadata {
+            if !local_memories.categories.is_empty() {
                 updated_instructions.push_str("\n\nLocal Memory Descriptions:\n");
-                for (category, memories) in local_memories {
-                    updated_instructions.push_str(&format!("\nCategory: {}\n", category));
+                for (category, category_info) in local_memories.categories {
+                    let last_accessed = category_info.last_accessed;
+                    let memories = category_info.short_descriptions;
+                    updated_instructions.push_str(&format!("\nCategory: {} Last Accessed: {}\n", category, last_accessed));
                     for memory in memories {
                         updated_instructions.push_str(&format!("- {}\n", memory));
                     }
@@ -375,17 +396,6 @@ impl MemoryRouter {
             }
         }
         Ok(memories)
-    }
-
-    fn retrieve_short_descriptions(&self, is_global: bool) -> io::Result<HashMap<String, Vec<String>>>{
-        let metadata = self.get_metadata(is_global)?;
-        let mut descriptions = HashMap::new();
-
-        for (category, category_info) in metadata.categories {
-            descriptions.insert(category, category_info.short_descriptions);
-        }
-
-        Ok(descriptions)
     }
 
     pub fn remember(
