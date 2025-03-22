@@ -229,21 +229,19 @@ export default function MoreMenu({
 
               <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
 
-
-            {/* Make Agent from Chat */}
-            <MenuButton
-              
-              onClick={() => {
-                setOpen(false);
-                // Signal to ChatView that we want to make an agent from the current chat
-                window.electron.logInfo('Make Agent button clicked');
-                window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
-              }}
-              subtitle="Customize instructions"
-              icon={<Send/>}
-            >
-              Make Custom Agent
-            </MenuButton>
+              {/* Make Agent from Chat */}
+              <MenuButton
+                onClick={() => {
+                  setOpen(false);
+                  // Signal to ChatView that we want to make an agent from the current chat
+                  window.electron.logInfo('Make Agent button clicked');
+                  window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
+                }}
+                subtitle="Make a custom agent you can share or reuse with a link"
+                icon={<Send className="w-4 h-4" />}
+              >
+                Make Agent from this session
+              </MenuButton>
 
               <MenuButton
                 onClick={() => {
@@ -256,7 +254,6 @@ export default function MoreMenu({
                 Advanced settings
                 <span className="text-textSubtle ml-1">⌘,</span>
               </MenuButton>
-
 
               <MenuButton
                 onClick={() => {
