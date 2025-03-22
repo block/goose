@@ -95,6 +95,7 @@ export default function MoreMenu({
   });
 
   useEffect(() => {
+    // Fetch available versions when the menu opens
     const fetchVersions = async () => {
       try {
         const port = window.appConfig.get('GOOSE_PORT');
@@ -116,13 +117,18 @@ export default function MoreMenu({
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    // Handler for system theme changes
     const handleThemeChange = (e: { matches: boolean }) => {
       if (useSystemTheme) {
         setDarkMode(e.matches);
       }
     };
 
+    // Add listener for system theme changes
     mediaQuery.addEventListener('change', handleThemeChange);
+
+    // Initial setup
     if (useSystemTheme) {
       setDarkMode(mediaQuery.matches);
     } else {
@@ -130,6 +136,7 @@ export default function MoreMenu({
       setDarkMode(savedTheme ? savedTheme === 'dark' : mediaQuery.matches);
     }
 
+    // Cleanup
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, [useSystemTheme]);
 
@@ -231,7 +238,7 @@ export default function MoreMenu({
                 icon={<Sliders className="w-4 h-4 rotate-90" />}
               >
                 Advanced settings
-                <span className="text-textSubtle ml-1">(cmd+,)</span>
+                <span className="text-textSubtle ml-1">⌘,</span>
               </MenuButton>
 
               <MenuButton
