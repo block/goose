@@ -131,6 +131,8 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
 
   #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
 
+<Tabs groupId="extensions">
+   <TabItem value="node" label="Node">
   ```
  ┌   goose-configure 
  │
@@ -154,6 +156,74 @@ See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/s
  │
  └  Added Knowledge Graph Memory extension
  ```
+
+   </TabItem>
+   <TabItem value="python" label="Python">
+
+  ```
+ ┌   goose-configure
+ │
+ ◇  What would you like to configure?
+ │  Add Extension
+ │
+ ◇  What type of extension would you like to add?
+ │  Command-line Extension
+ │
+ ◇  What would you like to call this extension?
+ │  Wikipedia Reader
+ │
+ ◇  What command should be run?
+ │  uvx mcp-wiki
+ │
+ ◇  Please set the timeout for this tool (in secs):
+ │  300
+ │
+ ◆  Would you like to add environment variables?
+ │  No
+ │
+ └  Added Wikipedia Reader extension
+ ```
+
+   </TabItem>
+   <TabItem value="java" label="Java">
+
+Note: Java and Kotlin extensions are only support on Linux and macOS
+
+  ```
+ ┌   goose-configure
+ │
+ ◇  What would you like to configure?
+ │  Add Extension
+ │
+ ◇  What type of extension would you like to add?
+ │  Command-line Extension
+ │
+ ◇  What would you like to call this extension?
+ │  Spring Data Explorer
+ │
+ ◇  What command should be run?
+ │  jbang -Dspring.profiles.active=dev org.example:spring-data-mcp:1.0.0
+ │
+ ◇  Please set the timeout for this tool (in secs):
+ │  300
+ │
+ ◆  Would you like to add environment variables?
+ │  Yes
+ │
+ ◇  Environment variable name:
+ │  SPRING_DATASOURCE_URL
+ │
+ ◇  Environment variable value:
+ │  jdbc:postgresql://localhost:5432/mydb
+ │
+ ◇  Add another environment variable?
+ │  No
+ │
+ └  Added Spring Data Explorer extension
+ ```
+
+   </TabItem>
+  </Tabs>
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
