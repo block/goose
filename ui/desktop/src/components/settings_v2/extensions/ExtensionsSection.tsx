@@ -12,6 +12,7 @@ import {
   getDefaultFormData,
 } from './utils';
 import { useAgent } from '../../../agent/UpdateAgent';
+import { activateExtension } from '.';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
@@ -61,7 +62,7 @@ export default function ExtensionsSection() {
     const extensionConfig = createExtensionConfig(formData);
 
     try {
-      await addExtension(formData.name, extensionConfig, formData.enabled);
+      await activateExtension(formData.name, extensionConfig, addExtension);
       console.log('attempting to add extension');
       await updateAgent(extensionConfig);
       handleModalClose();
@@ -75,7 +76,7 @@ export default function ExtensionsSection() {
     const extensionConfig = createExtensionConfig(formData);
 
     try {
-      await addExtension(formData.name, extensionConfig, formData.enabled);
+      await activateExtension(formData.name, extensionConfig, addExtension);
       handleModalClose();
       fetchExtensions(); // Refresh the list after updating
     } catch (error) {
