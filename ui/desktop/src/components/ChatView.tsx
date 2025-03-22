@@ -265,7 +265,7 @@ export default function ChatView({
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle border-b border-borderSubtle">
+      <div className="relative flex items-center h-[36px] w-full">
         <MoreMenu setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
