@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import { getActiveProviders, isSecretKey } from '../api_keys/utils';
 import { useModel } from '../models/ModelContext';
 import { Button } from '../../ui/button';
+import { ToastError, ToastSuccess } from '../models/toasts';
 
 function ConfirmationModal({ message, onConfirm, onCancel }) {
   return (
@@ -141,11 +142,10 @@ export function ConfigureProvidersGrid() {
         }
       }
 
-      toast.success(
-        isUpdate
-          ? `Successfully updated configuration for ${provider}`
-          : `Successfully added configuration for ${provider}`
-      );
+      ToastSuccess({
+        title: provider,
+        msg: isUpdate ? `Successfully updated configuration` : `Successfully added configuration`,
+      });
 
       const updatedKeys = await getActiveProviders();
       setActiveKeys(updatedKeys);
@@ -155,9 +155,11 @@ export function ConfigureProvidersGrid() {
       setModalMode('setup');
     } catch (error) {
       console.error('Error handling modal submit:', error);
-      toast.error(
-        `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration for ${provider}`
-      );
+      ToastError({
+        title: provider,
+        msg: `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration`,
+        errorMessage: error.message,
+      });
     }
   };
 
@@ -178,9 +180,8 @@ export function ConfigureProvidersGrid() {
     try {
       // Check if the selected provider is currently active
       if (currentModel?.provider === providerToDelete.name) {
-        toast.error(
-          `Cannot delete the configuration for ${providerToDelete.name} because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`
-        );
+        const msg = `Cannot delete the configuration because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`;
+        ToastError({ title: providerToDelete.name, msg, errorMessage: msg });
         setIsConfirmationOpen(false);
         return;
       }
@@ -208,13 +209,20 @@ export function ConfigureProvidersGrid() {
       }
 
       console.log('Configuration deleted successfully.');
-      toast.success(`Successfully deleted configuration for ${providerToDelete.name}`);
+      ToastSuccess({
+        title: providerToDelete.name,
+        msg: 'Successfully deleted configuration',
+      });
 
       const updatedKeys = await getActiveProviders();
       setActiveKeys(updatedKeys);
     } catch (error) {
       console.error('Error deleting configuration:', error);
-      toast.error(`Unable to delete configuration for ${providerToDelete.name}`);
+      ToastError({
+        title: providerToDelete.name,
+        msg: 'Failed to delete configuration',
+        errorMessage: error.message,
+      });
     }
     setIsConfirmationOpen(false);
   };

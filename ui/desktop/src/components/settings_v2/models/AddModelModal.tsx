@@ -7,7 +7,7 @@ import { QUICKSTART_GUIDE_URL } from '../providers/modal/constants';
 import { Input } from '../../ui/input';
 import { Select } from '../../ui/Select';
 import { useConfig } from '../../ConfigContext';
-import { ToastFailureGeneral, ToastSuccessModelSwitch } from '../../settings/models/toasts';
+import { ToastError, ToastSuccess } from '../../settings/models/toasts';
 import { initializeSystem } from '../../../../src/utils/providerUtils';
 
 const ModalButtons = ({ onSubmit, onCancel }) => (
@@ -43,10 +43,16 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
       await upsert('GOOSE_PROVIDER', provider, false);
       await upsert('GOOSE_MODEL', modelName, false);
       await initializeSystem(provider, modelName);
-      ToastSuccessModelSwitch({ provider, name: modelName });
+      ToastSuccess({
+        title: 'Model changed',
+        msg: `Switched to ${modelName}.`,
+      });
       onClose();
     } catch (e) {
-      ToastFailureGeneral(e.message);
+      ToastError({
+        title: 'Failed to add model',
+        errorMessage: e.message,
+      });
     }
   };
 

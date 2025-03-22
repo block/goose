@@ -12,9 +12,9 @@ import { createSelectedModel } from './settings/models/utils';
 import { getDefaultModel } from './settings/models/hardcoded_stuff';
 import { initializeSystem } from '../utils/providerUtils';
 import { getApiUrl, getSecretKey } from '../config';
-import { toast } from 'react-toastify';
 import { getActiveProviders, isSecretKey } from './settings/api_keys/utils';
 import { BaseProviderGrid, getProviderDescription } from './settings/providers/BaseProviderGrid';
+import { ToastError, ToastSuccess } from './settings/models/toasts';
 
 interface ProviderGridProps {
   onSubmit?: () => void;
@@ -55,9 +55,10 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     addRecentModel(model);
     localStorage.setItem('GOOSE_PROVIDER', providerId);
 
-    toast.success(
-      `Selected ${provider.name} provider. Starting Goose with default model: ${getDefaultModel(provider.name.toLowerCase().replace(/ /g, '_'))}.`
-    );
+    ToastSuccess({
+      title: provider.name,
+      msg: `Starting Goose with default model: ${getDefaultModel(provider.name.toLowerCase().replace(/ /g, '_'))}.`,
+    });
 
     onSubmit?.();
   };
@@ -134,11 +135,10 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         }
       }
 
-      toast.success(
-        isUpdate
-          ? `Successfully updated configuration for ${provider}`
-          : `Successfully added configuration for ${provider}`
-      );
+      ToastSuccess({
+        title: provider,
+        msg: isUpdate ? `Successfully updated configuration` : `Successfully added configuration`,
+      });
 
       const updatedKeys = await getActiveProviders();
       setActiveKeys(updatedKeys);
@@ -147,9 +147,11 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       setSelectedId(null);
     } catch (error) {
       console.error('Error handling modal submit:', error);
-      toast.error(
-        `Failed to ${providers.find((p) => p.id === selectedId)?.isConfigured ? 'update' : 'add'} configuration for ${provider}`
-      );
+      ToastError({
+        title: provider,
+        msg: `Failed to ${providers.find((p) => p.id === selectedId)?.isConfigured ? 'update' : 'add'} configuration`,
+        errorMessage: error.message,
+      });
     }
   };
 

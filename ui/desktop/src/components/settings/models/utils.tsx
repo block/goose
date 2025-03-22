@@ -2,7 +2,7 @@ import { useModel } from './ModelContext'; // Import the useModel hook
 import { Model } from './ModelContext';
 import { useMemo } from 'react';
 import { gooseModels } from './GooseModels';
-import { ToastFailureGeneral, ToastSuccessModelSwitch } from './toasts';
+import { ToastError, ToastSuccess } from './toasts';
 import { initializeSystem } from '../../../utils/providerUtils';
 import { useRecentModels } from './RecentModels';
 
@@ -32,12 +32,19 @@ export function useHandleModelSelection() {
       console.log(`[${componentName}] Switched to model: ${model.name} (${model.provider})`);
 
       // Display a success toast notification
-      ToastSuccessModelSwitch(model);
+      ToastSuccess({
+        title: 'Model changed',
+        msg: `Switched to ${model.alias ?? model.name}`,
+      });
     } catch (error) {
       // Handle errors gracefully
       console.error(`[${componentName}] Failed to switch model:`, error);
       // Display an error toast notification
-      ToastFailureGeneral(`Failed to switch to model: ${model.name}`);
+      ToastError({
+        title: model.name,
+        msg: `Failed to switch to model`,
+        errorMessage: error.message,
+      });
     }
   };
 }

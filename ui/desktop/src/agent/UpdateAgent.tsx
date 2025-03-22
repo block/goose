@@ -4,6 +4,12 @@ import { ExtensionConfig } from '../api';
 import { toast } from 'react-toastify';
 import React, { useState } from 'react';
 import { initializeAgent as startAgent, replaceWithShims } from './utils';
+import {
+  ToastError,
+  ToastInfo,
+  ToastLoading,
+  ToastSuccess,
+} from '../components/settings/models/toasts';
 
 // extensionUpdate = an extension was newly added or updated so we should attempt to add it
 
@@ -25,9 +31,10 @@ export const useAgent = () => {
       return true;
     } catch (error) {
       console.error('Failed to initialize agent:', error);
-      toast.error(
-        `Failed to initialize agent: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      ToastError({
+        title: 'Failed to initialize agent',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
       return false;
     }
   };
@@ -84,10 +91,14 @@ export const useAgent = () => {
     try {
       let toastId;
       if (!silent) {
-        toastId = toast.loading(`Adding ${extension.name} extension...`, {
-          position: 'top-center',
+        toastId = ToastLoading({
+          title: extension.name,
+          msg: 'Adding extension...',
+          toastOptions: { position: 'top-center' },
         });
-        toast.info('Press the escape key to continue using goose while extension loads');
+        ToastInfo({
+          msg: 'Press the escape key to continue using goose while extension loads',
+        });
       }
 
       const response = await fetch(getApiUrl('/extensions/add'), {
@@ -108,14 +119,20 @@ export const useAgent = () => {
         if (response.status === 428) {
           if (!silent) {
             if (toastId) toast.dismiss(toastId);
-            toast.error('Agent is not initialized. Please initialize the agent first.');
+            ToastError({
+              msg: 'Agent is not initialized. Please initialize the agent first.',
+            });
           }
           return response;
         }
 
         if (!silent) {
           if (toastId) toast.dismiss(toastId);
-          toast.error(`Failed to add ${extension.name} extension: ${errorMsg}`);
+          ToastError({
+            title: extension.name,
+            msg: 'Failed to add extension',
+            errorMessage: errorMsg,
+          });
         }
         return response;
       }
@@ -135,40 +152,34 @@ export const useAgent = () => {
       if (!data.error) {
         if (!silent) {
           if (toastId) toast.dismiss(toastId);
-          toast.success(`Successfully enabled ${extension.name} extension`);
+          ToastSuccess({
+            title: extension.name,
+            msg: 'Successfully added extension',
+          });
         }
         return response;
       }
 
       console.log('Error trying to send a request to the extensions endpoint');
       const errorMessage = `Error adding ${extension.name} extension${data.message ? `. ${data.message}` : ''}`;
-      const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
-        <div className="flex flex-col gap-1">
-          <div>Error adding {extension.name} extension</div>
-          <div>
-            <button
-              className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
-              onClick={() => {
-                navigator.clipboard.writeText(data.message || 'Unknown error');
-                closeToast?.();
-              }}
-            >
-              Copy error message
-            </button>
-          </div>
-        </div>
-      );
-
       console.error(errorMessage);
       if (toastId) toast.dismiss(toastId);
-      toast(ErrorMsg, { type: 'error', autoClose: false });
+      ToastError({
+        title: extension.name,
+        msg: 'Failed to add extension',
+        errorMessage: data.message,
+      });
 
       return response;
     } catch (error) {
       console.log('Got some other error');
       const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(errorMessage);
-      toast.error(errorMessage, { autoClose: false });
+      ToastError({
+        title: extension.name,
+        msg: 'Failed to add extension',
+        errorMessage: error.message,
+      });
       throw error;
     }
   };
