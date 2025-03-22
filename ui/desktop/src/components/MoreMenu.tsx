@@ -196,7 +196,7 @@ export default function MoreMenu({
                 icon={<ChatSmart className="w-4 h-4" />}
               >
                 New session
-                <span className="text-textSubtle ml-1">(cmd+N)</span>
+                <span className="text-textSubtle ml-1">⌘N</span>
               </MenuButton>
 
               <MenuButton
@@ -208,7 +208,7 @@ export default function MoreMenu({
                 icon={<FolderOpen className="w-4 h-4" />}
               >
                 Open directory
-                <span className="text-textSubtle ml-1">(cmd+O)</span>
+                <span className="text-textSubtle ml-1">⌘O</span>
               </MenuButton>
 
               <MenuButton
