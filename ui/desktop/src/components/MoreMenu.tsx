@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../components/ui/popover';
 import React, { useEffect, useState } from 'react';
-import { ChatSmart, Idea, Refresh, Settings, Time } from './icons';
+import { ChatSmart, Idea, More, Refresh, Time } from './icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { View } from '../App';
 
@@ -169,7 +169,7 @@ export default function MoreMenu({
         <button
           className={`z-[100] absolute top-2 right-4 w-[20px] h-[20px] transition-colors cursor-pointer no-drag hover:text-textProminent ${open ? 'text-textProminent' : 'text-textSubtle'}`}
         >
-          <Settings />
+          <More />
         </button>
       </PopoverTrigger>
 
