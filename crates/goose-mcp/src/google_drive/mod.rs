@@ -25,7 +25,7 @@ use mcp_server::Router;
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
-    api::{File, Scope},
+    api::{Comment, File, FileShortcutDetails, Reply, Scope},
     hyper_rustls::{self, HttpsConnector},
     hyper_util::{self, client::legacy::connect::HttpConnector},
     DriveHub,
@@ -44,6 +44,12 @@ const GOOGLE_DRIVE_SCOPES: Scope = Scope::Full;
 enum FileOperation {
     Create { name: String },
     Update { file_id: String },
+}
+#[derive(PartialEq)]
+enum PaginationState {
+    Start,
+    Next(String),
+    End,
 }
 
 pub struct GoogleDriveRouter {
@@ -165,19 +171,19 @@ impl GoogleDriveRouter {
     }
 
     pub async fn new() -> Self {
+        // handle auth
         let (drive, sheets, credentials_manager) = Self::google_auth().await;
 
-        // handle auth
         let search_tool = Tool::new(
             "search".to_string(),
             indoc! {r#"
-                Search for files in google drive by name, given an input search query.
+                Search for files in google drive by name, given an input search query. At least one of ('name', 'mimeType', or 'parent') are required.
             "#}
             .to_string(),
             json!({
               "type": "object",
               "properties": {
-                "query": {
+                "name": {
                     "type": "string",
                     "description": "String to search for in the file's name.",
                 },
@@ -185,16 +191,23 @@ impl GoogleDriveRouter {
                     "type": "string",
                     "description": "MIME type to constrain the search to.",
                 },
+                "parent": {
+                    "type": "string",
+                    "description": "ID of a folder to limit the search to",
+                },
+                "driveId": {
+                    "type": "string",
+                    "description": "ID of a shared drive to constrain the search to when using the corpus 'drive'.",
+                },
                 "corpora": {
                     "type": "string",
-                    "description": "Which corpus to search, either 'user' (default), 'drive' or 'allDrives'",
+                    "description": "Which corpus to search, either 'user' (default), 'drive' (requires a driveID) or 'allDrives'",
                 },
                 "pageSize": {
                     "type": "number",
                     "description": "How many items to return from the search query, default 10, max 100",
                 }
               },
-              "required": ["query"],
             }),
         );
 
@@ -262,7 +275,7 @@ impl GoogleDriveRouter {
         let create_file_tool = Tool::new(
             "create_file".to_string(),
             indoc! {r#"
-                Create a Google file (Document, Spreadsheet, or Slides) in Google Drive.
+                Create a Google file (Document, Spreadsheet, Slides, folder, or shortcut) in Google Drive.
             "#}
             .to_string(),
             json!({
@@ -274,8 +287,8 @@ impl GoogleDriveRouter {
                   },
                   "fileType": {
                       "type": "string",
-                      "enum": ["document", "spreadsheet", "slides"],
-                      "description": "Type of Google file to create (document, spreadsheet, or slides)",
+                      "enum": ["document", "spreadsheet", "slides", "folder", "shortcut"],
+                      "description": "Type of Google file to create (document, spreadsheet, slides, folder, or shortcut)",
                   },
                   "body": {
                       "type": "string",
@@ -289,12 +302,42 @@ impl GoogleDriveRouter {
                       "type": "string",
                       "description": "ID of the parent folder in which to create the file (default: creates files in the root of 'My Drive')",
                   },
+                  "targetId": {
+                      "type": "string",
+                      "description": "ID of the file to target when creating a shortcut",
+                  },
                   "allowSharedDrives": {
                       "type": "boolean",
                       "description": "Whether to allow access to shared drives or just your personal drive (default: false)",
                   }
               },
               "required": ["name", "fileType"],
+            }),
+        );
+
+        let move_file_tool = Tool::new(
+            "move_file".to_string(),
+            indoc! {r#"
+                Move a Google Drive file, folder, or shortcut to a new parent folder. You cannot move a folder to a different drive.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "fileId": {
+                      "type": "string",
+                      "description": "The ID of the file to update.",
+                  },
+                  "currentFolderId": {
+                      "type": "string",
+                      "description": "The ID of the current parent folder.",
+                  },
+                  "newFolderId": {
+                      "type": "string",
+                      "description": "The ID of the folder to move the file to.",
+                  },
+              },
+              "required": ["fileId", "currentFolderId", "newFolderId"],
             }),
         );
 
@@ -430,7 +473,7 @@ impl GoogleDriveRouter {
         let get_comments_tool = Tool::new(
             "get_comments".to_string(),
             indoc! {r#"
-                List comments for a file in google drive, or get one comment and all of its replies.
+                List comments for a file in google drive.
             "#}
             .to_string(),
             json!({
@@ -439,17 +482,78 @@ impl GoogleDriveRouter {
                 "fileId": {
                     "type": "string",
                     "description": "Id of the file to list comments for.",
-                },
-                "commentId": {
-                    "type": "string",
-                    "description": "Optional ID of the single comment to read in full.",
-                },
-                "pageSize": {
-                    "type": "number",
-                    "description": "How many items to return from the search query, default 20, max 100",
                 }
               },
               "required": ["fileId"],
+            }),
+        );
+
+        let create_comment_tool = Tool::new(
+            "create_comment".to_string(),
+            indoc! {r#"
+                Create a comment for the latest revision of a Google Drive file. The Google Drive API only supports unanchored comments (they don't refer to a specific location in the file).
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file to comment on.",
+                },
+                "comment": {
+                    "type": "string",
+                    "description": "Content of the comment.",
+                }
+              },
+              "required": ["fileId", "comment"],
+            }),
+        );
+
+        let reply_tool = Tool::new(
+            "reply".to_string(),
+            indoc! {r#"
+                Add a reply to a comment thread, or resolve a comment.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "fileId": {
+                    "type": "string",
+                    "description": "Id of the file.",
+                },
+                "commentId": {
+                    "type": "string",
+                    "description": "Id of the comment to which you'd like to reply.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Content of the reply.",
+                },
+                "resolveComment": {
+                    "type": "boolean",
+                    "description": "Whether to resolve the comment. Defaults to false.",
+                }
+              },
+              "required": ["fileId", "commentId", "content"],
+            }),
+        );
+
+        let list_drives_tool = Tool::new(
+            "list_drives".to_string(),
+            indoc! {r#"
+                List shared Google drives.
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                "name_contains": {
+                    "type": "string",
+                    "description": "Optional name to search for when listing drives.",
+                }
+              },
             }),
         );
 
@@ -557,10 +661,14 @@ impl GoogleDriveRouter {
                 read_tool,
                 upload_tool,
                 create_file_tool,
+                move_file_tool,
                 update_tool,
                 update_file_tool,
                 sheets_tool,
                 get_comments_tool,
+                create_comment_tool,
+                reply_tool,
+                list_drives_tool,
             ],
             instructions,
             drive,
@@ -571,16 +679,10 @@ impl GoogleDriveRouter {
 
     // Implement search tool functionality
     async fn search(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let query = params
-            .get("query")
-            .and_then(|q| q.as_str())
-            .ok_or(ToolError::InvalidParameters(
-                "The query string is required".to_string(),
-            ))?
-            .replace('\\', "\\\\")
-            .replace('\'', "\\'");
-
+        let name = params.get("name").and_then(|q| q.as_str());
         let mime_type = params.get("mimeType").and_then(|q| q.as_str());
+        let drive_id = params.get("driveId").and_then(|q| q.as_str());
+        let parent = params.get("parent").and_then(|q| q.as_str());
 
         // extract corpora query parameter, validate options, or default to "user"
         let corpus = params
@@ -618,11 +720,30 @@ impl GoogleDriveRouter {
             })
             .unwrap_or(Ok(10))?;
 
-        let mut query_string = format!("name contains '{}'", query);
-        if let Some(m) = mime_type {
-            query_string.push_str(&format!(" and mimeType = '{}'", m));
+        let mut query = Vec::new();
+        if let Some(n) = name {
+            query.push(
+                format!(
+                    "name contains '{}'",
+                    n.replace('\\', "\\\\").replace('\'', "\\'")
+                )
+                .to_string(),
+            );
         }
-        let result = self
+        if let Some(m) = mime_type {
+            query.push(format!("mimeType = '{}'", m).to_string());
+        }
+        if let Some(p) = parent {
+            query.push(format!("'{}' in parents", p).to_string());
+        }
+        let query_string = query.join(" and ");
+        if query_string.is_empty() {
+            return Err(ToolError::InvalidParameters(
+                "No query provided. Please include one of ('name', 'mimeType', 'parent')."
+                    .to_string(),
+            ));
+        }
+        let mut builder = self
             .drive
             .files()
             .list()
@@ -634,13 +755,17 @@ impl GoogleDriveRouter {
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
             .clear_scopes() // Scope::MeetReadonly is the default, remove it
-            .add_scope(GOOGLE_DRIVE_SCOPES)
-            .doit()
-            .await;
+            .add_scope(GOOGLE_DRIVE_SCOPES);
+        // You can only use the drive_id param when the corpus is "drive".
+        if let (Some(d), "drive") = (drive_id, corpus) {
+            builder = builder.drive_id(d);
+        }
+        let result = builder.doit().await;
 
         match result {
             Err(e) => Err(ToolError::ExecutionError(format!(
-                "Failed to execute google drive search query, {}.",
+                "Failed to execute google drive search query '{}', {}.",
+                query_string.as_str(),
                 e
             ))),
             Ok(r) => {
@@ -1363,6 +1488,7 @@ impl GoogleDriveRouter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn upload_to_drive(
         &self,
         operation: FileOperation,
@@ -1371,6 +1497,7 @@ impl GoogleDriveRouter {
         target_mime_type: &str,
         parent: Option<&str>,
         support_all_drives: bool,
+        target_id: Option<&str>,
     ) -> Result<Vec<Content>, ToolError> {
         let mut req = File {
             mime_type: Some(target_mime_type.to_string()),
@@ -1386,6 +1513,13 @@ impl GoogleDriveRouter {
                 // we only accept parent_id from create tool calls
                 if let Some(p) = parent {
                     req.parents = Some(vec![p.to_string()]);
+                }
+
+                if let Some(t) = target_id {
+                    req.shortcut_details = Some(FileShortcutDetails {
+                        target_id: Some(t.to_string()),
+                        ..Default::default()
+                    });
                 }
 
                 builder
@@ -1471,6 +1605,7 @@ impl GoogleDriveRouter {
             mime_type,
             parent_id,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1494,6 +1629,8 @@ impl GoogleDriveRouter {
                 ))?;
 
         let parent_id = params.get("parentId").and_then(|q| q.as_str());
+
+        let target_id = params.get("targetId").and_then(|q| q.as_str());
 
         let allow_shared_drives = params
             .get("allowSharedDrives")
@@ -1548,9 +1685,33 @@ impl GoogleDriveRouter {
                         Box::new(file),
                     )
                 }
+                "folder" => {
+                    let emptybuf: [u8; 0] = [];
+                    let empty_stream = Cursor::new(emptybuf);
+                    (
+                        "application/vnd.google-apps.folder".to_string(),
+                        "application/vnd.google-apps.folder".to_string(),
+                        Box::new(empty_stream),
+                    )
+                }
+                "shortcut" => {
+                    if target_id.is_none() {
+                        return Err(ToolError::InvalidParameters(
+                            "The targetId param is required when creating a shortcut".to_string(),
+                        ))
+                    }
+                    let emptybuf: [u8; 0] = [];
+                    let empty_stream = Cursor::new(emptybuf);
+                    (
+                        "application/vnd.google-apps.shortcut".to_string(),
+                        "application/vnd.google-apps.shortcut".to_string(),
+                        Box::new(empty_stream),
+                    )
+                }
+
                 _ => {
                     return Err(ToolError::InvalidParameters(format!(
-                        "Invalid fileType: {}. Supported types are: document, spreadsheet, slides",
+                        "Invalid fileType: {}. Supported types are: document, spreadsheet, slides, folder, shortcut",
                         file_type
                     )))
                 }
@@ -1566,8 +1727,53 @@ impl GoogleDriveRouter {
             &target_mime_type,
             parent_id,
             allow_shared_drives,
+            target_id,
         )
         .await
+    }
+
+    async fn move_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let current_folder_id = params
+            .get("currentFolderId")
+            .and_then(|q| q.as_str())
+            .ok_or(ToolError::InvalidParameters(
+                "The currentFolderId param is required".to_string(),
+            ))?;
+        let new_folder_id = params.get("newFolderId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The newFolderId param is required".to_string()),
+        )?;
+        let req = File::default();
+        let result = self
+            .drive
+            .files()
+            .update(req, file_id)
+            .add_parents(new_folder_id)
+            .remove_parents(current_folder_id)
+            .clear_scopes()
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .supports_all_drives(true)
+            .doit_without_upload()
+            .await;
+
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to move google drive file {}, {}.",
+                file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "{} ({}) (uri: {})",
+                r.1.name.unwrap_or_default(),
+                r.1.mime_type.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
     }
 
     async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
@@ -1616,6 +1822,7 @@ impl GoogleDriveRouter {
             mime_type,
             None,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1709,6 +1916,7 @@ impl GoogleDriveRouter {
             &target_mime_type,
             None,
             allow_shared_drives,
+            None,
         )
         .await
     }
@@ -1722,93 +1930,43 @@ impl GoogleDriveRouter {
                     "The fileId param is required".to_string(),
                 ))?;
 
-        let comment_id = params.get("commentId").and_then(|q| q.as_str());
-
-        // extract pageSize, and convert it to an i32, default to 20
-        let page_size: i32 = params
-            .get("pageSize")
-            .map(|s| {
-                s.as_i64()
-                    .and_then(|n| i32::try_from(n).ok())
-                    .ok_or_else(|| ToolError::InvalidParameters(format!("Invalid pageSize: {}", s)))
-                    .and_then(|n| {
-                        if (1..=100).contains(&n) {
-                            Ok(n)
-                        } else {
-                            Err(ToolError::InvalidParameters(format!(
-                                "pageSize must be between 1 and 100, got {}",
-                                n
-                            )))
-                        }
-                    })
-            })
-            .unwrap_or(Ok(20))?;
-
-        if let Some(comment) = comment_id {
-            // Use the get comment method to read a single comment
-            let result = self
-                .drive
-                .comments()
-                .get(file_id, comment)
-                .param("fields", "*")
-                .clear_scopes()
-                .add_scope(GOOGLE_DRIVE_SCOPES)
-                .doit()
-                .await;
-
-            match result {
-                Err(e) => Err(ToolError::ExecutionError(format!(
-                    "Failed to execute google drive comment read, {}.",
-                    e
-                ))),
-                Ok(r) => {
-                    let content = format!(
-                        "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
-                        r.1.author.unwrap_or_default(),
-                        r.1.quoted_file_content.unwrap_or_default(),
-                        r.1.content.unwrap_or_default(),
-                        r.1.replies.unwrap_or_default(),
-                        r.1.created_time.unwrap_or_default(),
-                        r.1.modified_time.unwrap_or_default(),
-                        r.1.anchor.unwrap_or_default(),
-                        r.1.resolved.unwrap_or_default(),
-                        r.1.id.unwrap_or_default()
-                    );
-
-                    Ok(vec![Content::text(content.to_string())])
-                }
-            }
-        } else {
-            let result = self
+        let mut results: Vec<String> = Vec::new();
+        let mut state = PaginationState::Start;
+        while state != PaginationState::End {
+            let mut comment_list = self
                 .drive
                 .comments()
                 .list(file_id)
-                .page_size(page_size)
-                .param(
-                    "fields",
-                    "comments(author, content, createdTime, modifiedTime, id, resolved)",
-                )
+                // 100 is the maximum according to the API.
+                .page_size(100)
+                .param("fields", "*")
                 .clear_scopes()
-                .add_scope(GOOGLE_DRIVE_SCOPES)
-                .doit()
-                .await;
-
+                .add_scope(GOOGLE_DRIVE_SCOPES);
+            if let PaginationState::Next(pt) = state {
+                comment_list = comment_list.page_token(&pt);
+            }
+            let result = comment_list.doit().await;
             match result {
-                Err(e) => Err(ToolError::ExecutionError(format!(
-                    "Failed to execute google drive comment list, {}.",
-                    e
-                ))),
+                Err(e) => {
+                    return Err(ToolError::ExecutionError(format!(
+                        "Failed to execute google drive comment list, {}.",
+                        e
+                    )))
+                }
                 Ok(r) => {
-                    let content =
+                    let mut content =
                         r.1.comments
                             .map(|comments| {
                                 comments.into_iter().map(|c| {
                                     format!(
-                                        "Author:{:?} Content: {} (created time: {}) (modified time: {}) (resolved: {}) (id: {})",
+                                        "Author:{:?} Quoted File Content: {:?} Content: {} Replies: {:?} (created time: {}) (modified time: {})(anchor: {}) (resolved: {}) (id: {})",
                                         c.author.unwrap_or_default(),
+                                        c.quoted_file_content.unwrap_or_default(),
                                         c.content.unwrap_or_default(),
+                                        c.replies.unwrap_or_default(),
                                         c.created_time.unwrap_or_default(),
                                         c.modified_time.unwrap_or_default(),
+                                        c.anchor.unwrap_or_default(),
                                         c.resolved.unwrap_or_default(),
                                         c.id.unwrap_or_default()
                                     )
@@ -1816,13 +1974,173 @@ impl GoogleDriveRouter {
                             })
                             .into_iter()
                             .flatten()
-                            .collect::<Vec<_>>()
-                            .join("\n");
-
-                    Ok(vec![Content::text(content.to_string())])
+                            .collect::<Vec<_>>();
+                    results.append(&mut content);
+                    state = match r.1.next_page_token {
+                        Some(npt) => PaginationState::Next(npt),
+                        None => PaginationState::End,
+                    }
                 }
             }
         }
+        Ok(vec![Content::text(results.join("\n"))])
+    }
+
+    async fn create_comment(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let comment =
+            params
+                .get("comment")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The comment param is required".to_string(),
+                ))?;
+
+        let req = Comment {
+            content: Some(comment.to_string()),
+            ..Default::default()
+        };
+        let result = self
+            .drive
+            .comments()
+            .create(req, file_id)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .param("fields", "*")
+            // .param("fields", "action, author, content, createdTime, id")
+            .doit()
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to add comment for google drive file {}, {}.",
+                file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "Author: {:?} Content: {} Created: {} uri: {} quoted_content: {:?}",
+                r.1.author.unwrap_or_default(),
+                r.1.content.unwrap_or_default(),
+                r.1.created_time.unwrap_or_default(),
+                r.1.id.unwrap_or_default(),
+                r.1.quoted_file_content.unwrap_or_default()
+            ))]),
+        }
+    }
+
+    async fn reply(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let file_id =
+            params
+                .get("fileId")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The fileId param is required".to_string(),
+                ))?;
+        let comment_id = params.get("commentId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The commentId param is required".to_string()),
+        )?;
+        let content =
+            params
+                .get("content")
+                .and_then(|q| q.as_str())
+                .ok_or(ToolError::InvalidParameters(
+                    "The content param is required if the action is create".to_string(),
+                ))?;
+        let resolve_comment = params
+            .get("resolveComment")
+            .and_then(|q| q.as_bool())
+            .unwrap_or(false);
+
+        let mut req = Reply {
+            content: Some(content.to_string()),
+            ..Default::default()
+        };
+
+        if resolve_comment {
+            req.action = Some("resolve".to_string());
+        }
+        let result = self
+            .drive
+            .replies()
+            .create(req, file_id, comment_id)
+            .clear_scopes() // Scope::MeetReadonly is the default, remove it
+            .add_scope(GOOGLE_DRIVE_SCOPES)
+            .param("fields", "action, author, content, createdTime, id")
+            .doit()
+            .await;
+        match result {
+            Err(e) => Err(ToolError::ExecutionError(format!(
+                "Failed to manage reply to comment {} for google drive file {}, {}.",
+                comment_id, file_id, e
+            ))),
+            Ok(r) => Ok(vec![Content::text(format!(
+                "Action: {} Author: {:?} Content: {} Created: {} uri: {}",
+                r.1.action.unwrap_or_default(),
+                r.1.author.unwrap_or_default(),
+                r.1.content.unwrap_or_default(),
+                r.1.created_time.unwrap_or_default(),
+                r.1.id.unwrap_or_default()
+            ))]),
+        }
+    }
+
+    async fn list_drives(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let query = params.get("name_contains").and_then(|q| q.as_str());
+
+        let mut results: Vec<String> = Vec::new();
+        let mut state = PaginationState::Start;
+        while state != PaginationState::End {
+            let mut builder = self
+                .drive
+                .drives()
+                .list()
+                .page_size(100)
+                .clear_scopes() // Scope::MeetReadonly is the default, remove it
+                .add_scope(GOOGLE_DRIVE_SCOPES);
+            if let Some(q) = query {
+                builder = builder.q(format!("name contains '{}'", q).as_str());
+            }
+            if let PaginationState::Next(pt) = state {
+                builder = builder.page_token(&pt);
+            }
+            let result = builder.doit().await;
+
+            match result {
+                Err(e) => {
+                    return Err(ToolError::ExecutionError(format!(
+                        "Failed to execute google drive list, {}.",
+                        e
+                    )))
+                }
+                Ok(r) => {
+                    let mut content =
+                        r.1.drives
+                            .map(|drives| {
+                                drives.into_iter().map(|f| {
+                                    format!(
+                                        "{} (capabilities: {:?}) (uri: {})",
+                                        f.name.unwrap_or_default(),
+                                        f.capabilities.unwrap_or_default(),
+                                        f.id.unwrap_or_default()
+                                    )
+                                })
+                            })
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>();
+                    results.append(&mut content);
+                    state = match r.1.next_page_token {
+                        Some(npt) => PaginationState::Next(npt),
+                        None => PaginationState::End,
+                    }
+                }
+            }
+        }
+        Ok(vec![Content::text(results.join("\n"))])
     }
 }
 
@@ -1859,10 +2177,14 @@ impl Router for GoogleDriveRouter {
                 "read" => this.read(arguments).await,
                 "upload" => this.upload(arguments).await,
                 "create_file" => this.create_file(arguments).await,
+                "move_file" => this.move_file(arguments).await,
                 "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
+                "create_comment" => this.create_comment(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
+                "reply" => this.reply(arguments).await,
+                "list_drives" => this.list_drives(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })

@@ -36,7 +36,7 @@ With my tasks organized and estimated, Goose finds open time slots in my Google 
 
 Within the first few minutes of the start of my week, my schedule is already mapped out, optimized for focus.
 
-This has been so extremly helpful in increasing my productivity. Thanks, Goose! 🚀
+This has been so extremely helpful in increasing my productivity. Thanks, Goose! 🚀
 
 
 

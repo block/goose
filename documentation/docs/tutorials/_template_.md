@@ -174,12 +174,14 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 {describe any environment setup, access controls, and what you want to accomplish.}
 
 ### Goose Prompt
-```
-{exact prompt}.
-```
+
+> _exact prompt_
+
 
 ### Goose Output
 
-```
+:::note CLI
+
 {exact output}
-```
+
+:::

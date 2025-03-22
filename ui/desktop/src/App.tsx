@@ -28,7 +28,8 @@ import { useConfig } from './components/ConfigContext';
 import {
   initializeBuiltInExtensions,
   syncBuiltInExtensions,
-} from './components/settings_v2/extensions/LoadBuiltins';
+  addExtensionFromDeepLink as addExtensionFromDeepLinkV2,
+} from './components/settings_v2/extensions';
 
 // Views and their options
 export type View =
@@ -280,7 +281,12 @@ export default function App() {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
       setIsInstalling(true);
       try {
-        await addExtensionFromDeepLink(pendingLink, setView);
+        if (process.env.ALPHA) {
+          await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
+        } else {
+          await addExtensionFromDeepLink(pendingLink, setView);
+        }
+
         console.log('Extension installation successful');
       } catch (error) {
         console.error('Failed to add extension:', error);
