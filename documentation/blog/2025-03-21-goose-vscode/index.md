@@ -1,5 +1,5 @@
 ---
-title: "Cracking the Code in VS Code"
+title: "Cracking the Code with VS Code MCP"
 description: Connect Goose directly to your code editor with this Visual Studio Code MCP.
 authors: 
     - tania
@@ -12,7 +12,7 @@ Want to use Goose in VS Code? On the recent [Wild Goose Case livestream](https:/
 <!--truncate-->
 
 # What is the VSCode MCP?
-The [VSCode MCP Server](https://github.com/block/vscode-mcp) and its companion VSCode Extension enable AI agents like Goose to interact with VS Code through the Model Context Protocol.
+The [VSCode MCP Server](https://github.com/block/vscode-mcp) and its companion [VSCode Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-mcp-extension) enable AI agents like Goose to interact with VS Code through the Model Context Protocol.
 
 As Andrew explained during the stream, an MCP ([Model Context Protocol](https://modelcontextprotocol.io/introduction)) server acts as a proxy between a Large Language Model (LLM) and whatever applications or tools you want to access to - in this case, VS Code. Extensions are add-ons based on this protocol that provide a way to extend Goose's functionality for your workflow.
 
