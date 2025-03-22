@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../components/ui/popover';
 import React, { useEffect, useState } from 'react';
-import { ChatSmart, Idea, More, Refresh, Time } from './icons';
+import { ChatSmart, Idea, More, Refresh, Time, Send } from './icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { View } from '../App';
 
@@ -228,6 +228,20 @@ export default function MoreMenu({
               </MenuButton>
 
               <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
+
+              {/* Make Agent from Chat */}
+              <MenuButton
+                onClick={() => {
+                  setOpen(false);
+                  // Signal to ChatView that we want to make an agent from the current chat
+                  window.electron.logInfo('Make Agent button clicked');
+                  window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
+                }}
+                subtitle="Make a custom agent you can share or reuse with a link"
+                icon={<Send className="w-4 h-4" />}
+              >
+                Make Agent from this session
+              </MenuButton>
 
               <MenuButton
                 onClick={() => {

@@ -1,5 +1,3 @@
-import { spawn } from 'child_process';
-import 'dotenv/config';
 import {
   app,
   BrowserWindow,
@@ -12,8 +10,11 @@ import {
   powerSaveBlocker,
   Tray,
 } from 'electron';
+import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
+import { spawn } from 'child_process';
+import 'dotenv/config';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -43,20 +44,44 @@ let pendingDeepLink = null; // Store deep link if sent before React is ready
 app.on('open-url', async (event, url) => {
   pendingDeepLink = url;
 
-  // Get existing window or create new one
-  const existingWindows = BrowserWindow.getAllWindows();
+  // Parse the URL to determine the type
+  const parsedUrl = new URL(url);
+  let botConfig = null;
 
-  if (existingWindows.length > 0) {
-    firstOpenWindow = existingWindows[0];
-    if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
-    firstOpenWindow.focus();
-  } else {
-    const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    firstOpenWindow = await createChat(app, undefined, openDir);
+  // Extract bot config if it's a bot URL
+  if (parsedUrl.pathname === '/bot') {
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
   }
 
-  firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+  // Always create a new window for bot URLs only
+  if (parsedUrl.pathname === '/bot') {
+    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
+  } else {
+    // For other URL types, reuse existing window if available
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      firstOpenWindow = existingWindows[0];
+      if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+      firstOpenWindow.focus();
+    } else {
+      firstOpenWindow = await createChat(app, undefined, openDir);
+    }
+  }
+
+  // Handle different types of deep links
+  if (parsedUrl.pathname === '/extension') {
+    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  }
 });
 
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
@@ -114,7 +139,8 @@ const createChat = async (
   query?: string,
   dir?: string,
   version?: string,
-  resumeSessionId?: string
+  resumeSessionId?: string,
+  botConfig?: any // Bot configuration
 ) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
@@ -141,6 +167,7 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
+          botConfig: botConfig,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -327,9 +354,20 @@ process.on('unhandledRejection', (error) => {
 });
 
 ipcMain.on('react-ready', (event) => {
+  console.log('React ready event received');
+
   if (pendingDeepLink) {
-    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    console.log('Processing pending deep link:', pendingDeepLink);
+    const parsedUrl = new URL(pendingDeepLink);
+
+    if (parsedUrl.pathname === '/extension') {
+      console.log('Sending add-extension event');
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    }
+    // Bot URLs are now handled directly through botConfig in additionalArguments
     pendingDeepLink = null;
+  } else {
+    console.log('No pending deep link to process');
   }
 });
 
@@ -468,6 +506,34 @@ app.whenReady().then(async () => {
         },
       })
     );
+
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Launch SQL Bot (Demo)',
+        click() {
+          // Example SQL Assistant bot deep link
+          const sqlBotUrl =
+            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
+
+          // Extract the bot config from the URL
+          const configParam = new URL(sqlBotUrl).searchParams.get('config');
+          let botConfig = null;
+          if (configParam) {
+            try {
+              botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+            } catch (e) {
+              console.error('Failed to parse bot config:', e);
+            }
+          }
+
+          // Create a new window
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+          createChat(app, undefined, openDir, undefined, undefined, botConfig);
+        },
+      })
+    );
   }
 
   Menu.setApplicationMenu(menu);
@@ -478,12 +544,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId) => {
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
     if (!dir?.trim()) {
       const recentDirs = loadRecentDirs();
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
-    createChat(app, query, dir, version, resumeSessionId);
+    createChat(app, query, dir, version, resumeSessionId, botConfig);
   });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
