@@ -216,3 +216,89 @@ tag-push: tag
 release-notes:
     #!/usr/bin/env bash
     git log --pretty=format:"- %s" v$(just get-tag-version)..HEAD
+
+### s = file seperator based on OS
+s := if os() == "windows" { "\\" } else { "/" }
+
+### testing/debugging
+os:
+  echo "{{os()}}"
+  echo "{{s}}"
+
+# Make just work on Window
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
+### Build the core code
+### profile = --release or "" for debug
+### allparam = OR/AND/ANY/NONE --workspace --all-features --all-targets
+win-bld profile allparam: 
+  cargo run {{profile}} -p goose-server --bin  generate_schema
+  cargo build {{profile}} {{allparam}}
+
+### Build just debug
+win-bld-dbg: 
+  just win-bld " " " "
+
+### Build debug and test, examples,...
+win-bld-dbg-all: 
+  just win-bld " " "--workspace --all-targets --all-features"
+
+### Build just release
+win-bld-rls:
+  just win-bld "--release" " "
+
+### Build release and test, examples, ...
+win-bld-rls-all:
+  just win-bld "--release" "--workspace --all-targets --all-features"
+
+### Install npm stuff
+win-app-deps:
+  cd ui{{s}}desktop ; npm install
+
+### Windows copy {release|debug} files to ui\desktop\src\bin
+### s = os depenent file seperator
+### profile = release or debug
+win-copy-win profile:
+  copy target{{s}}{{profile}}{{s}}*.exe ui{{s}}desktop{{s}}src{{s}}bin
+  copy target{{s}}{{profile}}{{s}}*.dll ui{{s}}desktop{{s}}src{{s}}bin
+
+### "Other" copy {release|debug} files to ui/desktop/src/bin
+### s = os depenent file seperator
+### profile = release or debug
+win-copy-oth profile:
+  find target{{s}}{{profile}}{{s}} -maxdepth 1 -type f -executable -print -exec cp {} ui{{s}}desktop{{s}}src{{s}}bin \;
+
+### copy files depending on OS
+### profile = release or debug
+win-app-copy profile="release":
+  just win-copy-{{ if os() == "windows" { "win" } else { "oth" } }} {{profile}}
+
+### Only copy binaries, npm install, start-gui
+### profile = release or debug
+### s = os depenent file seperator
+win-app-run profile:
+  just win-app-copy {{profile}}
+  just win-app-deps
+  cd ui{{s}}desktop ; npm run start-gui
+
+### Only run debug desktop, no build
+win-run-dbg:
+  just win-app-run "debug"
+
+### Only run release desktop, nu build
+win-run-rls:
+  just win-app-run "release"
+
+### Build and run debug desktop. tot = cli and desktop
+### allparam = nothing or -all passed on command line
+### -all = build with --workspace --all-targets --all-features
+win-total-dbg *allparam:
+  just win-bld-dbg{{allparam}}
+  just win-run-dbg
+
+### Build and run release desktop
+### allparam = nothing or -all passed on command line
+### -all = build with --workspace --all-targets --all-features
+win-total-rls *allparam:
+  just win-bld-rls{{allparam}}
+  just win-run-rls
