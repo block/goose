@@ -54,8 +54,11 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
+        let timeout_secs: u64 = config
+            .get_param("OPENAI_TIMEOUT")
+            .unwrap_or(600); // Default to 600 seconds if not found
         let client = Client::builder()
-            .timeout(Duration::from_secs(600))
+            .timeout(Duration::from_secs(timeout_secs))
             .build()?;
 
         Ok(Self {
@@ -116,6 +119,7 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
+                ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
             ],
         )
     }
