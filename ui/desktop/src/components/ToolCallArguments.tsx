@@ -71,8 +71,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     return (
       <div className="mb-2">
         <div className="flex flex-row">
-          <span className="font-medium mr- min-w-[140px]2">{key}:</span>
-          <pre className="whitespace-pre-wrap">{content}</pre>
+          <span className="font-medium mr- text-textStandard min-w-[140px]2">{key}:</span>
+          <pre className="whitespace-pre-wrap text-textStandard">{content}</pre>
         </div>
       </div>
     );
