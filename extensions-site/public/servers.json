@@ -118,5 +118,17 @@
         "required": true
       }
     ]
-  }
+  },
+  {
+    "id": "pdf_read",
+    "name": "PDF Reader",
+    "description": "Read large and complex PDF documents",
+    "command": "uvx mcp-read-pdf",
+    "link": "https://github.com/michaelneale/mcp-read-pdf",
+    "installation_notes": "Install using uvx package manager.",
+    "is_builtin": false,
+    "endorsed": true,
+    "githubStars": 1,
+    "environmentVariables": []
+  },  
 ]
