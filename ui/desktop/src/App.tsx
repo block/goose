@@ -58,7 +58,6 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
-  const [isInstalling, setIsInstalling] = useState(false);
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>({
     view: 'welcome',
     viewOptions: {},
@@ -277,24 +276,21 @@ export default function App() {
 
   // TODO: modify
   const handleConfirm = async () => {
-    if (pendingLink && !isInstalling) {
+    if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
-      setIsInstalling(true);
+      setModalVisible(false); // Dismiss modal immediately
       try {
         if (process.env.ALPHA) {
           await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
         } else {
           await addExtensionFromDeepLink(pendingLink, setView);
         }
-
         console.log('Extension installation successful');
       } catch (error) {
         console.error('Failed to add extension:', error);
         // Consider showing a user-visible error notification here
       } finally {
-        setModalVisible(false);
         setPendingLink(null);
-        setIsInstalling(false);
       }
     }
   };
@@ -418,7 +414,6 @@ export default function App() {
           message={modalMessage}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
-          isSubmitting={isInstalling}
         />
       )}
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">

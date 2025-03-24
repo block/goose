@@ -1,8 +1,9 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import builtInExtensionsData from './built-in-extensions.json';
 import { FixedExtensionEntry } from '../../ConfigContext';
-import { toast } from 'react-toastify';
 import { getApiUrl, getSecretKey } from '../../../config';
+import { toast } from 'react-toastify';
+import { ToastError, ToastLoading, ToastSuccess } from '../../settings/models/toasts';
 
 // Default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -29,7 +30,11 @@ function nameToKey(name: string): string {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message, { autoClose: false });
+  ToastError({
+    title: 'Error',
+    msg: message,
+    errorMessage: message,
+  });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);
@@ -64,7 +69,11 @@ export async function activateExtension(
   config: ExtensionConfig,
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
+  let toastId;
   try {
+    // Show loading toast
+    toastId = ToastLoading({ title: name, msg: 'Adding extension...' });
+
     // First add to the config system
     await addExtensionFn(nameToKey(name), config, true);
 
@@ -88,16 +97,27 @@ export async function activateExtension(
     const data = await response.json();
 
     if (!data.error) {
-      toast.success(`Extension "${name}" has been successfully enabled`);
+      if (toastId) toast.dismiss(toastId);
+      ToastSuccess({ title: name, msg: 'Successfully enabled extension' });
     } else {
-      const errorMessage = `Error adding ${name} extension${data.message ? `. ${data.message}` : ''}`;
+      const errorMessage = `Error adding extension`;
       console.error(errorMessage);
-      toast.error(errorMessage, { autoClose: false });
+      if (toastId) toast.dismiss(toastId);
+      ToastError({
+        title: name,
+        msg: errorMessage,
+        errorMessage: data.message,
+      });
     }
   } catch (error) {
     const errorMessage = `Failed to add ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
+    if (toastId) toast.dismiss(toastId);
+    ToastError({
+      title: name,
+      msg: 'Failed to add extension',
+      errorMessage: error.message,
+    });
     throw error;
   }
 }
