@@ -77,6 +77,11 @@ else
     log "GOOSE_JBANG_REGISTRY is not set or not accessible. Using default jbang repository."
 fi
 
+# Trust all jbang scripts that a user might install. Without this, Jbang will attempt to
+# prompt the user to trust each script. However, Goose does not surfact this modal and without
+# user input, the addExtension method will timeout and fail.
+jbang --quiet trust add *
+
 # Final step: Execute jbang with passed arguments, always including --fresh and --quiet
 log "Executing 'jbang' command with arguments: $*"
 jbang --fresh --quiet "$@" || log "Failed to execute 'jbang' with arguments: $*"
