@@ -81,9 +81,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
         <div
           className={cn(
             'absolute top-0 left-0 right-0 z-10 transition-all duration-200',
-            isScrolled
-              ? 'border-t border-borderSubtle shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]'
-              : 'border-t border-transparent shadow-none'
+            isScrolled ? 'border-t border-borderSubtle' : 'border-t border-transparent'
           )}
         />
         <ScrollAreaPrimitive.Viewport
