@@ -18,6 +18,7 @@ import { BotConfig } from '../botConfig';
 import {
   Message,
   createUserMessage,
+  getTextContent,
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,

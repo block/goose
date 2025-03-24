@@ -1,4 +1,9 @@
-import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverPortal,
+  PopoverTrigger,
+} from '../../components/ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
