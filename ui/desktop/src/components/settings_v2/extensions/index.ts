@@ -34,7 +34,6 @@ function handleError(message: string, shouldThrow = false): void {
     title: 'Error',
     msg: message,
     errorMessage: message,
-    toastOptions: { autoClose: false },
   });
   console.error(message);
   if (shouldThrow) {
@@ -108,7 +107,6 @@ export async function activateExtension(
         title: name,
         msg: errorMessage,
         errorMessage: data.message,
-        toastOptions: { autoClose: false },
       });
     }
   } catch (error) {
@@ -119,7 +117,6 @@ export async function activateExtension(
       title: name,
       msg: 'Failed to add extension',
       errorMessage: error.message,
-      toastOptions: { autoClose: false },
     });
     throw error;
   }
