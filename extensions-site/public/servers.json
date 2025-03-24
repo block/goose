@@ -121,7 +121,7 @@
   },
   {
     "id": "pdf_read",
-    "name": "PDF reader",
+    "name": "PDF Reader",
     "description": "Read large and complex PDF documents",
     "command": "uvx mcp-read-pdf",
     "link": "https://github.com/michaelneale/mcp-read-pdf",
