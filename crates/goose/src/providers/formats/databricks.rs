@@ -1071,10 +1071,7 @@ mod tests {
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
-            assert_eq!(
-                redacted.data,
-                "E23sQFCkYIARgCKkATCHitsdf327Ber3v4NYUq2"
-            );
+            assert_eq!(redacted.data, "E23sQFCkYIARgCKkATCHitsdf327Ber3v4NYUq2");
         } else {
             panic!("Expected RedactedThinking content");
         }
