@@ -8,6 +8,12 @@
   }
 }
 
+*, :after, :before {
+  border: 0 solid #e5e7eb;
+}
+
+
+
 /* Search styling */
 .search-container {
   position: relative;
@@ -86,6 +92,12 @@
   padding: 1.5rem 1.5rem 0.75rem 1.5rem;
   display: flex;
   align-items: center;
+}
+
+.card-header a {
+  text-decoration: none;
+  color: var(--text-standard);
+  transition: color 0.2s;
 }
 
 .card-header-content {

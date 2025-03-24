@@ -1,6 +1,3 @@
-import { Search } from "lucide-react";
-import { Button } from "@site/src/components/ui/button";
-import { Input } from "@site/src/components/ui/input";
 import { ServerCard } from "@site/src/components/server-card";
 import { useState, useEffect } from "react";
 import type { MCPServer } from "@site/src/types/server";
