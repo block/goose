@@ -205,16 +205,25 @@ pub fn response_to_message(response: Value) -> anyhow::Result<Message> {
                     }
                 }
                 Some("reasoning") => {
-                    if let Some(summary_array) = content_item.get("summary").and_then(|s| s.as_array()) {
+                    if let Some(summary_array) =
+                        content_item.get("summary").and_then(|s| s.as_array())
+                    {
                         for summary in summary_array {
                             match summary.get("type").and_then(|t| t.as_str()) {
                                 Some("summary_text") => {
-                                    let text = summary.get("text").and_then(|t| t.as_str()).unwrap_or_default();
-                                    let signature = summary.get("signature").and_then(|s| s.as_str()).unwrap_or_default();
+                                    let text = summary
+                                        .get("text")
+                                        .and_then(|t| t.as_str())
+                                        .unwrap_or_default();
+                                    let signature = summary
+                                        .get("signature")
+                                        .and_then(|s| s.as_str())
+                                        .unwrap_or_default();
                                     content.push(MessageContent::thinking(text, signature));
                                 }
                                 Some("summary_encrypted_text") => {
-                                    if let Some(data) = summary.get("data").and_then(|d| d.as_str()) {
+                                    if let Some(data) = summary.get("data").and_then(|d| d.as_str())
+                                    {
                                         content.push(MessageContent::redacted_thinking(data));
                                     }
                                 }
@@ -372,7 +381,7 @@ pub fn create_request(
     let model_name = model_config.model_name.to_string();
     let is_o1 = model_name.starts_with("o1") || model_name.starts_with("goose-o1");
     let is_o3 = model_name.starts_with("o3") || model_name.starts_with("goose-o3");
-    let is_claude_3_7_sonnet = model_name.contains("claude-3-7-sonnet");  // can be goose- or databricks-
+    let is_claude_3_7_sonnet = model_name.contains("claude-3-7-sonnet"); // can be goose- or databricks-
 
     // Only extract reasoning effort for O1/O3 models
     let (model_name, reasoning_effort) = if is_o1 || is_o3 {
@@ -1062,7 +1071,10 @@ mod tests {
         assert_eq!(message.content.len(), 2);
 
         if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
-            assert_eq!(redacted.data, "EsQFCkYIARgCKkATCHitfgHt27Ber3v4NYUqeEIbjOO1TSR3WQ");
+            assert_eq!(
+                redacted.data,
+                "EsQFCkYIARgCKkATCHitfgHt27Ber3v4NYUqeEIbjOO1TSR3WQ"
+            );
         } else {
             panic!("Expected RedactedThinking content");
         }
