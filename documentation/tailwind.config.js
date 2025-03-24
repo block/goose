@@ -1,13 +1,11 @@
-import type { Config } from "tailwindcss";
-
-export default {
-  content: ["./app/**/{**,.client,.server}/**/*.{js,jsx,ts,tsx}"],
+// tailwind.config.js
+module.exports = {
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
   darkMode: "class",
-  safelist: ["dark"],
   theme: {
     extend: {
       colors: {
-        // start arcade colors
+        // Arcade colors
         bgApp: "var(--background-app)",
         bgSubtle: "var(--background-subtle)",
         bgStandard: "var(--background-standard)",
@@ -24,12 +22,11 @@ export default {
         iconProminent: "var(--icon-prominent)",
         iconStandard: "var(--icon-standard)",
         iconSubtle: "var(--icon-subtle)",
-        // end arcade colors
       },
       fontFamily: {
-        sans: ['"Cash Sans"'],
+        sans: ['"Cash Sans"', "sans-serif"],
       },
     },
   },
   plugins: [],
-} satisfies Config;
+};
