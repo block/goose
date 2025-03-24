@@ -18,9 +18,8 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
             <div>
               <Link to="/extensions" className="no-underline">
                 <Button
-                  variant="ghost"
-                  className="flex items-center gap-2 text-textSubtle hover:text-textProminent"
-                >
+                    className="flex items-center gap-2 hover:cursor-pointer"
+                  >
                   <ArrowLeft className="h-4 w-4" />
                   Back
                 </Button>
@@ -200,8 +199,7 @@ export default function DetailPage(): JSX.Element {
               <div>
                 <Link to="/extensions" className="no-underline">
                   <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 text-textSubtle hover:text-textProminent"
+                    className="flex items-center gap-2 hover:text-textProminent hover:cursor-pointer"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back
@@ -234,7 +232,7 @@ export default function DetailPage(): JSX.Element {
                 <Link to="/extensions" className="no-underline">
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-2 text-textSubtle hover:text-textProminent"
+                    className="flex items-center gap-2 hover:text-textProminent hover:cursor-pointer"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back
