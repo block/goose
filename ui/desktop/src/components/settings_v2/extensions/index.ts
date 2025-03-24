@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { ToastError, ToastLoading, ToastSuccess } from '../../settings/models/toasts';
 
 // Default extension timeout in seconds
+// TODO: keep in sync with rust better
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
 
 // Type definition for built-in extensions from JSON
@@ -76,6 +77,11 @@ export async function activateExtension(
 
     // First add to the config system
     await addExtensionFn(nameToKey(name), config, true);
+
+    if (config.type != 'stdio') {
+      console.error('only stdio is supported');
+      throw Error('Only STDIO extensions are currently supported');
+    }
 
     // Then call the API endpoint
     const response = await fetch(getApiUrl('/extensions/add'), {

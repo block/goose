@@ -9,15 +9,13 @@ import {
   createExtensionConfig,
   ExtensionFormData,
   extensionToFormData,
+  extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
-import { useAgent } from '../../../agent/UpdateAgent';
-import { activateExtension } from '.';
-import {useExtensionUpdater, handleExtensionError} from './extensionUtils';
+import { AddNewExtension, DeleteExtension, ToggleExtension, UpdateExtension } from './temp';
 
 export default function ExtensionsSection() {
   const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
-  const performExtensionAction = useExtensionUpdater()
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
@@ -45,17 +43,17 @@ export default function ExtensionsSection() {
     fetchExtensions();
   }, []);
 
-  const handleExtensionToggle = async (name: string) => {
-    // TODO: how to handle updating agent based on if we are toggling extension on vs off?
-    try {
-      await performExtensionAction(toggleExtension, [name])
-    } catch (error) {
-      // TODO: move to separate function
-      // TODO: handle error for configuration problems (make sure it's set to not enabled) -- do we handle that configcontext side or via a callback here?
-      handleExtensionError(error)
-    } finally {
-      await fetchExtensions(); // Refresh the list after toggling
-    }
+  const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
+    // If extension is enabled, we are trying to toggle if off, otherwise on
+    const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
+    const extensionConfig = extractExtensionConfig(extension);
+    await ToggleExtension({
+      toggle: toggleDirection,
+      extensionConfig: extensionConfig,
+      addToConfig: addExtension,
+      removeFromConfig: removeExtension,
+    });
+    await fetchExtensions(); // Refresh the list after toggling
   };
 
   const handleConfigureClick = (extension: FixedExtensionEntry) => {
@@ -65,42 +63,29 @@ export default function ExtensionsSection() {
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
-
-    try {
-      await activateExtension(formData.name, extensionConfig, addExtension);
-      console.log('attempting to add extension');
-      await updateAgent(extensionConfig);
-      await performExtensionAction(addExtension, [formData.name, extensionConfig, formData.enabled])
-      handleModalClose();
-    } catch (error) {
-      handleExtensionError(error)
-    } finally {
-      await fetchExtensions(); // Refresh the list after adding
-    }
+    // TODO: replace activateExtension in index
+    // TODO: make sure error handling works
+    await AddNewExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
 
-    try {
-      await activateExtension(formData.name, extensionConfig, addExtension);
-      handleModalClose();
-      fetchExtensions(); // Refresh the list after updating
-    } catch (error) {
-      console.error('Failed to update extension configuration:', error);
-    }
-    return handleAddExtension(formData)
+    await UpdateExtension({
+      enabled: formData.enabled,
+      extensionConfig: extensionConfig,
+      addToConfig: addExtension,
+    });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleDeleteExtension = async (name: string) => {
-    try {
-      await performExtensionAction(removeExtension, [name])
-      handleModalClose();
-    } catch (error) {
-      handleExtensionError(error)
-    } finally {
-      await fetchExtensions(); // Refresh the list after deleting
-    }
+    await DeleteExtension({ name, removeFromConfig: removeExtension });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleModalClose = () => {

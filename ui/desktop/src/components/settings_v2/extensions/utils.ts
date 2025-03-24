@@ -95,3 +95,13 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
   return [cmd, ...args].join(' ');
 }
+
+/**
+ * Extracts the ExtensionConfig from a FixedExtensionEntry object
+ * @param fixedEntry - The FixedExtensionEntry object
+ * @returns The ExtensionConfig portion of the object
+ */
+export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): ExtensionConfig {
+  const { enabled, ...extensionConfig } = fixedEntry;
+  return extensionConfig;
+}

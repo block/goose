@@ -7,7 +7,7 @@ import { combineCmdAndArgs } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
-  onToggle: (name: string) => void;
+  onToggle: (extension: FixedExtensionEntry) => void;
   onConfigure: (extension: FixedExtensionEntry) => void;
 }
 
