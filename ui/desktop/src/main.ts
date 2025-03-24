@@ -414,6 +414,11 @@ ipcMain.handle('check-ollama', async () => {
   }
 });
 
+// Handle binary path requests
+ipcMain.handle('get-binary-path', (event, binaryName) => {
+  return getBinaryPath(app, binaryName);
+});
+
 app.whenReady().then(async () => {
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {
