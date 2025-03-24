@@ -1,8 +1,15 @@
 import { Settings } from 'lucide-react';
 import MoreMenu from './MoreMenu';
 import React from 'react';
+import type { View } from '../../App';
 
-export default function MoreMenuLayout(setView, setIsGoosehintsModalOpen) {
+export default function MoreMenuLayout({
+  setView,
+  setIsGoosehintsModalOpen,
+}: {
+  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+}) {
   return (
     <div className="relative flex items-center h-[36px] w-full bg-bgSubtle border-b border-borderSubtle">
       <div className="flex-1"></div>

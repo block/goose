@@ -6,7 +6,6 @@ import GooseMessage from './GooseMessage';
 import Input from './Input';
 import { type View } from '../App';
 import LoadingGoose from './LoadingGoose';
-import MoreMenu from './more_menu/MoreMenu';
 import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
@@ -22,11 +21,8 @@ import {
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
-  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
-  getTextContent,
-  createAssistantMessage,
 } from '../types/message';
 
 export interface ChatType {
