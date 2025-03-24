@@ -11,15 +11,15 @@ export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
 
   return (
-    <div className="server-card">
-      <div className="card-glow"></div>
-      <div className="card">
-        <div className="card-header">
-          <div className="card-header-content">
-            <Link
-              to={`/extensions/detail?id=${server.id}`}
-              className="extension-title"
-            >
+    <Link
+      to={`/extensions/detail?id=${server.id}`}
+      className="extension-title h-full"
+    >
+      <div className="server-card interactive w-full h-full">
+        <div className="card-glow"></div>
+        <div className="card">
+          <div className="card-header">
+            <div className="card-header-content">
               <svg
                 className="extension-icon"
                 width="13"
@@ -41,94 +41,99 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   />
                 </g>
               </svg>
-              <div className="home-page-server-name">
-                {server.name}
-              </div>
-            </Link>
+              <div className="home-page-server-name">{server.name}</div>
+            </div>
           </div>
-        </div>
-        <div className="card-content">
-          <div>
+          <div className="card-content">
             <div>
-              <p className="card-description">{server.description}</p>
-            </div>
+              <div>
+                <p className="card-description">{server.description}</p>
+              </div>
 
-            <div className="py-4">
-              {server.is_builtin ? (
-                <div className="flex items-center gap-2">
-                  <Info style={{ width: '12px', height: '12px' }} className="text-textSubtle shrink-0" />
-                  <span style={{ fontSize: '12px' }} className="text-textSubtle leading-normal">Can be enabled in the goose settings page</span>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setIsCommandVisible(!isCommandVisible)}
-                    className="command-toggle"
-                  >
-                    <Terminal className="h-4 w-4" />
-                    <h4 className="mx-2">Command</h4>
-                    <ChevronRight
-                      className={`ml-auto transition-transform ${
-                        isCommandVisible ? "rotate-90" : ""
-                      }`}
+              <div className="py-4">
+                {server.is_builtin ? (
+                  <div className="flex items-center gap-2">
+                    <Info
+                      style={{ width: "12px", height: "12px" }}
+                      className="text-textSubtle shrink-0"
                     />
-                  </button>
-                  <AnimatePresence>
-                    {isCommandVisible && (
-                      <motion.div
-                        className="command-content"
-                        initial={{ opacity: 0, translateY: -20 }}
-                        animate={{ opacity: 1, translateY: 0 }}
-                        exit={{
-                          opacity: 0,
-                          translateY: -20,
-                          transition: { duration: 0.1 },
-                        }}
-                      >
-                        <code>
-                          {`goose session --with-extension "${server.command}"`}
-                        </code>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </>
-              )}
+                    <span
+                      style={{ fontSize: "12px" }}
+                      className="text-textSubtle leading-normal"
+                    >
+                      Can be enabled in the goose settings page
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setIsCommandVisible(!isCommandVisible)}
+                      className="command-toggle"
+                    >
+                      <Terminal className="h-4 w-4" />
+                      <h4 className="mx-2">Command</h4>
+                      <ChevronRight
+                        className={`ml-auto transition-transform ${
+                          isCommandVisible ? "rotate-90" : ""
+                        }`}
+                      />
+                    </button>
+                    <AnimatePresence>
+                      {isCommandVisible && (
+                        <motion.div
+                          className="command-content"
+                          initial={{ opacity: 0, translateY: -20 }}
+                          animate={{ opacity: 1, translateY: 0 }}
+                          exit={{
+                            opacity: 0,
+                            translateY: -20,
+                            transition: { duration: 0.1 },
+                          }}
+                        >
+                          <code>
+                            {`goose session --with-extension "${server.command}"`}
+                          </code>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="card-footer">
-            <a
-              href={server.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card-stats"
-            >
-              <Star className="h-4 w-4" />
-              <span>{server.githubStars} on Github</span>
-            </a>
-            <div className="card-action">
-              {server.is_builtin ? (
-                <div
-                  className="built-in-badge"
-                  title="This extension is built into goose and can be enabled in the settings page"
-                >
-                  Built-in
-                </div>
-              ) : (
-                <a
-                  href={getGooseInstallLink(server)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="install-button"
-                >
-                  <span>Install</span>
-                  <Download className="h-4 w-4" />
-                </a>
-              )}
+            <div className="card-footer">
+              <Link
+                to={server.link}
+                className="card-stats"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Star className="h-4 w-4" />
+                <span>{server.githubStars} on Github</span>
+              </Link>
+              <div className="card-action">
+                {server.is_builtin ? (
+                  <div
+                    className="built-in-badge"
+                    title="This extension is built into goose and can be enabled in the settings page"
+                  >
+                    Built-in
+                  </div>
+                ) : (
+                  <a
+                    href={getGooseInstallLink(server)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="install-button"
+                  >
+                    <span>Install</span>
+                    <Download className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

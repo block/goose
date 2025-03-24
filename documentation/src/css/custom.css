@@ -48,7 +48,7 @@
   --ifm-color-primary-lightest: #3cad6e;
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  
+
   /* Additional Arcade color system variables */
   --background-app: var(--constant-white);
   --background-prominent: var(--grey-80);
@@ -181,8 +181,7 @@
   /* video adnomition */
   --ifm-color-video-alert-contrast-background: #336e62;
   --ifm-color-video-alert-contrast-foreground: rgb(216 251 216);
-  --ifm-color-video-alert-border: #99d5c5
-  ;
+  --ifm-color-video-alert-border: #99d5c5;
 }
 
 /* overrides */
@@ -274,8 +273,59 @@ html[data-theme="light"] .hide-in-light {
 }
 
 .alert--video {
-  --ifm-alert-background-color: var(--ifm-color-video-alert-contrast-background);
+  --ifm-alert-background-color: var(
+    --ifm-color-video-alert-contrast-background
+  );
   --ifm-alert-background-color-highlight: rgba(84, 199, 236, 0.15);
-  --ifm-alert-foreground-color: var(--ifm-color-video-alert-contrast-foreground);
+  --ifm-alert-foreground-color: var(
+    --ifm-color-video-alert-contrast-foreground
+  );
   --ifm-alert-border-color: var(--ifm-color-video-alert-border);
+}
+
+.navbar {
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.navbar__item {
+  display: flex;
+  align-items: center;
+}
+
+.iconExternalLink_nPIU {
+  margin-left: 8px !important;
+}
+
+.mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 1536px) {
+  .container {
+    max-width: 1536px;
+  }
+}
+@media (min-width: 1280px) {
+  .container {
+    max-width: 1280px;
+  }
+}
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1024px;
+  }
+}
+@media (min-width: 768px) {
+  .container {
+    max-width: 768px;
+  }
+}
+@media (min-width: 640px) {
+  .container {
+    max-width: 640px;
+  }
+}
+.container {
+  width: 100%;
 }

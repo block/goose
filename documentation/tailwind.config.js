@@ -24,7 +24,7 @@ module.exports = {
         iconSubtle: "var(--icon-subtle)",
       },
       fontFamily: {
-        sans: ['"Cash Sans"', 'sans-serif'],
+        sans: ['"Cash Sans"', "sans-serif"],
       },
     },
   },

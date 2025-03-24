@@ -3,11 +3,11 @@ import { Download, Terminal, Star, ArrowLeft, Info } from "lucide-react";
 import { Button } from "@site/src/components/ui/button";
 import { Badge } from "@site/src/components/ui/badge";
 import { getGooseInstallLink } from "@site/src/utils/install-links";
-import { useLocation } from '@docusaurus/router';
+import { useLocation } from "@docusaurus/router";
 import { useEffect, useState } from "react";
 import type { MCPServer } from "@site/src/types/server";
 import { fetchMCPServers } from "@site/src/utils/mcp-servers";
-import Link from '@docusaurus/Link';
+import Link from "@docusaurus/Link";
 
 function ExtensionDetail({ server }: { server: MCPServer }) {
   return (
@@ -28,7 +28,6 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
             </div>
 
             <div className="server-card flex-1">
-              <div className="card-glow"></div>
               <div className="card p-8">
                 <div className="card-header mb-6">
                   <div className="flex items-center gap-4">
@@ -45,12 +44,16 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
 
                 <div className="card-content space-y-6">
                   <div>
-                    <p className="text-xl text-textSubtle m-0">{server.description}</p>
+                    <p className="text-xl text-textSubtle m-0">
+                      {server.description}
+                    </p>
                   </div>
 
                   {server.installation_notes && (
                     <div>
-                      <p className="text-md text-textSubtle m-0">{server.installation_notes}</p>
+                      <p className="text-md text-textSubtle m-0">
+                        {server.installation_notes}
+                      </p>
                     </div>
                   )}
 
@@ -79,7 +82,9 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
 
                   {server.environmentVariables && (
                     <div className="space-y-4">
-                      <h2 className="text-lg font-medium text-textStandard m-0">Environment Variables</h2>
+                      <h2 className="text-lg font-medium text-textStandard m-0">
+                        Environment Variables
+                      </h2>
                       {server.environmentVariables.length > 0 ? (
                         <div>
                           {server.environmentVariables.map((env) => (
@@ -87,7 +92,9 @@ function ExtensionDetail({ server }: { server: MCPServer }) {
                               key={env.name}
                               className="border-b border-borderSubtle py-4 first:pt-0 last:border-0"
                             >
-                              <div className="text-sm text-textStandard font-medium">{env.name}</div>
+                              <div className="text-sm text-textStandard font-medium">
+                                {env.name}
+                              </div>
                               <div className="text-textSubtle text-sm mt-1">
                                 {env.description}
                               </div>
@@ -162,7 +169,7 @@ export default function DetailPage(): JSX.Element {
         const servers = await fetchMCPServers();
         // Get the ID from the query parameter
         const params = new URLSearchParams(location.search);
-        const id = params.get('id');
+        const id = params.get("id");
         if (!id) {
           setError("No extension ID provided");
           return;
@@ -236,7 +243,9 @@ export default function DetailPage(): JSX.Element {
               </div>
               <div className="server-card flex-1">
                 <div className="card p-8">
-                  <div className="text-red-500">{error || "Extension not found"}</div>
+                  <div className="text-red-500">
+                    {error || "Extension not found"}
+                  </div>
                 </div>
               </div>
             </div>

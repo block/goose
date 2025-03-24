@@ -45,7 +45,7 @@
   transition: all 0.3s ease;
 }
 
-.server-card:hover {
+.server-card.interactive:hover {
   background-color: transparent;
   transform: translateY(-2px);
 }
@@ -63,7 +63,7 @@
   top: -150px;
   left: -50px;
   transform-origin: center;
-  background: linear-gradient(45deg, #13BBAF, #FF4F00);
+  background: linear-gradient(45deg, #13bbaf, #ff4f00);
   animation: rotate 6s linear infinite;
   z-index: -1;
   transition: opacity 0.2s;
@@ -178,7 +178,8 @@
 }
 
 .command-content code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   font-size: 0.875rem;
 }
 
@@ -240,7 +241,7 @@
 }
 
 .install-button:hover svg {
-  color: #FA5204;
+  color: #fa5204;
 }
 
 .built-in-badge {
@@ -274,16 +275,16 @@
 }
 
 /* Dark mode adjustments */
-html[data-theme='dark'] .card {
+html[data-theme="dark"] .card {
   background-color: var(--background-app);
   border-color: var(--border-subtle);
   box-shadow: none;
 }
 
-html[data-theme='dark'] .command-content {
+html[data-theme="dark"] .command-content {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
-html[data-theme='dark'] .built-in-badge {
+html[data-theme="dark"] .built-in-badge {
   background-color: rgba(255, 255, 255, 0.1);
 }
