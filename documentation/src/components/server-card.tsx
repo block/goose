@@ -11,10 +11,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
   const [isCommandVisible, setIsCommandVisible] = useState(false);
 
   return (
-    <Link
-      to={`/extensions/detail?id=${server.id}`}
-      className="extension-title h-full"
-    >
+    <div className="extension-title h-full">
       <div className="server-card interactive w-full h-full">
         <div className="card-glow"></div>
         <div className="card">
@@ -41,7 +38,9 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   />
                 </g>
               </svg>
-              <div className="home-page-server-name">{server.name}</div>
+              <Link to={`/extensions/detail?id=${server.id}`} className="home-page-server-name">
+                {server.name}
+              </Link>
             </div>
           </div>
           <div className="card-content">
@@ -134,6 +133,6 @@ export function ServerCard({ server }: { server: MCPServer }) {
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

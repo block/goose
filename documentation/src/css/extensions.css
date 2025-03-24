@@ -122,6 +122,11 @@
   line-height: 1.2;
 }
 
+.home-page-server-name:hover {
+  color: var(--text-prominent);
+  text-decoration: none;
+}
+
 /* Card content layout */
 .card-content {
   flex: 1;
