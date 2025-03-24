@@ -10,6 +10,10 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
+// useful for light themes where there is no dicernible colour contrast between
+// cursor-selected and cursor-unselected items.
+const MULTISELECT_VISIBILITY_HINT: &str = "<";
+
 fn get_display_name(extension_id: &str) -> String {
     match extension_id {
         "developer" => "Developer Tools".to_string(),
@@ -408,7 +412,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     .items(
         &extension_status
             .iter()
-            .map(|(name, _)| (name, name.as_str(), ""))
+            .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_extensions)
@@ -719,7 +723,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
             &disabled_extensions
                 .iter()
                 .filter(|(_, enabled)| !enabled)
-                .map(|(name, _)| (name, name.as_str(), ""))
+                .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
                 .collect::<Vec<_>>(),
         )
         .interact()?;
@@ -872,7 +876,7 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
     .items(
         &experiments
             .iter()
-            .map(|(name, _)| (name, name.as_str(), ""))
+            .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_experiments)
