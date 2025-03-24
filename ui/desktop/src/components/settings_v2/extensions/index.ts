@@ -1,8 +1,9 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import builtInExtensionsData from './built-in-extensions.json';
 import { FixedExtensionEntry } from '../../ConfigContext';
-import { toast } from 'react-toastify';
 import { getApiUrl, getSecretKey } from '../../../config';
+import { toast } from 'react-toastify';
+import { ToastError, ToastLoading, ToastSuccess } from '../../settings/models/toasts';
 
 // Default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -29,10 +30,95 @@ function nameToKey(name: string): string {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message, { autoClose: false });
+  ToastError({
+    title: 'Error',
+    msg: message,
+    errorMessage: message,
+  });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);
+  }
+}
+
+// Update the path to the binary based on the command
+async function replaceWithShims(cmd: string) {
+  const binaryPathMap: Record<string, string> = {
+    goosed: await window.electron.getBinaryPath('goosed'),
+    npx: await window.electron.getBinaryPath('npx'),
+    uvx: await window.electron.getBinaryPath('uvx'),
+  };
+
+  if (binaryPathMap[cmd]) {
+    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
+    cmd = binaryPathMap[cmd];
+  }
+
+  return cmd;
+}
+
+/**
+ * Activates an extension by adding it to both the config system and the API.
+ * @param name The extension name
+ * @param config The extension configuration
+ * @param addExtensionFn Function to add extension to config
+ * @returns Promise that resolves when activation is complete
+ */
+export async function activateExtension(
+  name: string,
+  config: ExtensionConfig,
+  addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
+): Promise<void> {
+  let toastId;
+  try {
+    // Show loading toast
+    toastId = ToastLoading({ title: name, msg: 'Adding extension...' });
+
+    // First add to the config system
+    await addExtensionFn(nameToKey(name), config, true);
+
+    // Then call the API endpoint
+    const response = await fetch(getApiUrl('/extensions/add'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify({
+        type: config.type,
+        name: nameToKey(name),
+        cmd: await replaceWithShims(config.cmd),
+        args: config.args || [],
+        env_keys: config.envs ? Object.keys(config.envs) : undefined,
+        timeout: config.timeout,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.error) {
+      if (toastId) toast.dismiss(toastId);
+      ToastSuccess({ title: name, msg: 'Successfully enabled extension' });
+    } else {
+      const errorMessage = `Error adding extension`;
+      console.error(errorMessage);
+      if (toastId) toast.dismiss(toastId);
+      ToastError({
+        title: name,
+        msg: errorMessage,
+        errorMessage: data.message,
+      });
+    }
+  } catch (error) {
+    const errorMessage = `Failed to add ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    console.error(errorMessage);
+    if (toastId) toast.dismiss(toastId);
+    ToastError({
+      title: name,
+      msg: 'Failed to add extension',
+      errorMessage: error.message,
+    });
+    throw error;
   }
 }
 
@@ -116,42 +202,7 @@ export async function addExtensionFromDeepLink(
   }
 
   // If no env vars are required, proceed with adding the extension
-  try {
-    // First add to the config system
-    await addExtensionFn(nameToKey(name), config, true);
-
-    // Then call the API endpoint
-    const response = await fetch(getApiUrl('/extensions/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        type: config.type,
-        name: nameToKey(name),
-        cmd: config.cmd,
-        args: config.args || [],
-        env_keys: config.envs ? Object.keys(config.envs) : undefined,
-        timeout: config.timeout,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!data.error) {
-      toast.success(`Extension "${name}" has been successfully enabled`);
-    } else {
-      const errorMessage = `Error adding ${name} extension${data.message ? `. ${data.message}` : ''}`;
-      console.error(errorMessage);
-      toast.error(errorMessage, { autoClose: false });
-    }
-  } catch (error) {
-    const errorMessage = `Failed to add ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
-    throw error;
-  }
+  await activateExtension(name, config, addExtensionFn);
 }
 
 /**

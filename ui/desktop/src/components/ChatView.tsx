@@ -6,7 +6,7 @@ import GooseMessage from './GooseMessage';
 import Input from './Input';
 import { type View } from '../App';
 import LoadingGoose from './LoadingGoose';
-import MoreMenu from './MoreMenu';
+import MoreMenuLayout from './more_menu/MoreMenuLayout';
 import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
@@ -27,6 +27,7 @@ import {
   getTextContent,
   createAssistantMessage,
 } from '../types/message';
+import { ToastSuccess } from './settings/models/toasts';
 
 export interface ChatType {
   id: string;
@@ -206,7 +207,6 @@ export default function ChatView({
   // One message with text content and tool calls
   // const messages = [{"role":"assistant","created":1742484388,"content":[{"type":"text","text":"Sure, let's break this down into two steps:\n\n1. **Write content to a `.txt` file.**\n2. **Read the content from the `.txt` file.**\n\nLet's start by writing some example content to a `.txt` file. I'll create a file named `example.txt` and write a sample sentence into it. Then I'll read the content back. \n\n### Sample Content\nWe'll write the following content into the `example.txt` file:\n\n```\nHello World! This is an example text file.\n```\n\nLet's proceed with this task."},{"type":"toolRequest","id":"call_CmvAsxMxiWVKZvONZvnz4QCE","toolCall":{"status":"success","value":{"name":"developer__text_editor","arguments":{"command":"write","file_text":"Hello World! This is an example text file.","path":"/Users/alexhancock/Development/example.txt"}}}}]}];
 
-
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
     setChat((prevChat) => {
@@ -371,7 +371,7 @@ export default function ChatView({
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       <div className="relative flex items-center h-[36px] w-full">
-        <MoreMenu setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (

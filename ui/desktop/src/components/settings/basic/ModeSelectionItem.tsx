@@ -95,9 +95,7 @@ export function ModeSelectionItem({
         onClick={() => handleModeChange(mode.key)}
       >
         <div>
-          <h3 className="text-sm font-semibold text-textStandard dark:text-gray-200">
-            {mode.label}
-          </h3>
+          <h3 className="text-sm font-light text-textStandard dark:text-gray-200">{mode.label}</h3>
           {showDescription && (
             <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
               {mode.description}
@@ -123,7 +121,7 @@ export function ModeSelectionItem({
             className="peer sr-only"
           />
           <div
-            className="h-5 w-5 rounded-full border border-gray-400 dark:border-gray-500
+            className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
                   peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                   peer-checked:bg-white dark:peer-checked:bg-black
                   transition-all duration-200 ease-in-out"

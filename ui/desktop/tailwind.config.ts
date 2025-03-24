@@ -53,6 +53,8 @@ export default {
         bgSubtle: 'var(--background-subtle)',
         bgStandard: 'var(--background-standard)',
         bgProminent: 'var(--background-prominent)',
+        bgAppInverse: 'var(--background-app-inverse)',
+        bgStandardInverse: 'var(--background-standard-inverse)',
 
         borderSubtle: 'var(--border-subtle)',
         borderStandard: 'var(--border-standard)',
@@ -61,6 +63,7 @@ export default {
         textStandard: 'var(--text-standard)',
         textSubtle: 'var(--text-subtle)',
         textPlaceholder: 'var(--text-placeholder)',
+        textProminentInverse: 'var(--text-prominent-inverse)',
 
         iconProminent: 'var(--icon-prominent)',
         iconStandard: 'var(--icon-standard)',

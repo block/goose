@@ -1,8 +1,13 @@
-import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../components/ui/popover';
+import {
+  Popover,
+  PopoverContent,
+  PopoverPortal,
+  PopoverTrigger,
+} from '../../components/ui/popover';
 import React, { useEffect, useState } from 'react';
-import { ChatSmart, Idea, More, Refresh, Time, Send } from './icons';
+import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
-import { View } from '../App';
+import { View } from '../../App';
 
 interface VersionInfo {
   current_version: string;

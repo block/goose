@@ -78,8 +78,8 @@ app.on('open-url', async (event, url) => {
     }
   }
 
-  // Handle different types of deep links
-  if (parsedUrl.pathname === '/extension') {
+  // Handle extension install links
+  if (parsedUrl.hostname === 'extension') {
     firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
   }
 });
@@ -360,7 +360,7 @@ ipcMain.on('react-ready', (event) => {
     console.log('Processing pending deep link:', pendingDeepLink);
     const parsedUrl = new URL(pendingDeepLink);
 
-    if (parsedUrl.pathname === '/extension') {
+    if (parsedUrl.hostname === 'extension') {
       console.log('Sending add-extension event');
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
     }
@@ -412,6 +412,11 @@ ipcMain.handle('check-ollama', async () => {
     console.error('Error checking for Ollama:', err);
     return false; // Return false on error
   }
+});
+
+// Handle binary path requests
+ipcMain.handle('get-binary-path', (event, binaryName) => {
+  return getBinaryPath(app, binaryName);
 });
 
 app.whenReady().then(async () => {
