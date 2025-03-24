@@ -10,6 +10,31 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
 
+// useful for light themes where there is no dicernible colour contrast between
+// cursor-selected and cursor-unselected items.
+const MULTISELECT_VISIBILITY_HINT: &str = "<";
+
+fn get_display_name(extension_id: &str) -> String {
+    match extension_id {
+        "developer" => "Developer Tools".to_string(),
+        "computercontroller" => "Computer Controller".to_string(),
+        "googledrive" => "Google Drive".to_string(),
+        "memory" => "Memory".to_string(),
+        "tutorial" => "Tutorial".to_string(),
+        "jetbrains" => "JetBrains".to_string(),
+        // Add other extensions as needed
+        _ => {
+            extension_id
+                .chars()
+                .next()
+                .unwrap_or_default()
+                .to_uppercase()
+                .collect::<String>()
+                + &extension_id[1..]
+        }
+    }
+}
+
 pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
 
@@ -39,6 +64,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                     enabled: true,
                     config: ExtensionConfig::Builtin {
                         name: "developer".to_string(),
+                        display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                     },
                 })?;
@@ -386,7 +412,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
     .items(
         &extension_status
             .iter()
-            .map(|(name, _)| (name, name.as_str(), ""))
+            .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_extensions)
@@ -433,22 +459,22 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Code editing and shell access",
                 )
                 .item(
-                    "Computer Controller",
+                    "computercontroller",
                     "Computer Controller",
                     "controls for webscraping, file caching, and automations",
                 )
                 .item(
-                    "Google Drive",
+                    "googledrive",
                     "Google Drive",
                     "Search and read content from google drive - additional config required",
                 )
                 .item(
-                    "Memory",
+                    "memory",
                     "Memory",
                     "Tools to save and retrieve durable memories",
                 )
                 .item(
-                    "Tutorial",
+                    "tutorial",
                     "Tutorial",
                     "Access interactive tutorials and guides",
                 )
@@ -464,10 +490,13 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
+            let display_name = get_display_name(&extension);
+
             ExtensionManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
+                    display_name: Some(display_name),
                     timeout: Some(timeout),
                 },
             })?;
@@ -504,14 +533,30 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
                 .validate(|input: &String| match input.parse::<u64>() {
                     Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valide timeout"),
+                    Err(_) => Err("Please enter a valid timeout"),
                 })
                 .interact()?;
 
             // Split the command string into command and args
+            // TODO: find a way to expose this to the frontend so we dont need to re-write code
             let mut parts = command_str.split_whitespace();
             let cmd = parts.next().unwrap_or("").to_string();
             let args: Vec<String> = parts.map(String::from).collect();
+
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
+
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
+                    .placeholder("Description")
+                    .validate(|input: &String| match input.parse::<String>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid description"),
+                    })
+                    .interact()?;
+                Some(desc)
+            } else {
+                None
+            };
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -542,6 +587,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
+                    description,
                     timeout: Some(timeout),
                 },
             })?;
@@ -580,9 +626,24 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
                 .validate(|input: &String| match input.parse::<u64>() {
                     Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valide timeout"),
+                    Err(_) => Err("Please enter a valid timeout"),
                 })
                 .interact()?;
+
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
+
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
+                    .placeholder("Description")
+                    .validate(|input: &String| match input.parse::<String>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid description"),
+                    })
+                    .interact()?;
+                Some(desc)
+            } else {
+                None
+            };
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -612,6 +673,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
+                    description,
                     timeout: Some(timeout),
                 },
             })?;
@@ -661,7 +723,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
             &disabled_extensions
                 .iter()
                 .filter(|(_, enabled)| !enabled)
-                .map(|(name, _)| (name, name.as_str(), ""))
+                .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
                 .collect::<Vec<_>>(),
         )
         .interact()?;
@@ -814,7 +876,7 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
     .items(
         &experiments
             .iter()
-            .map(|(name, _)| (name, name.as_str(), ""))
+            .map(|(name, _)| (name, name.as_str(), MULTISELECT_VISIBILITY_HINT))
             .collect::<Vec<_>>(),
     )
     .initial_values(enabled_experiments)

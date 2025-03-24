@@ -1,6 +1,7 @@
 import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
+import tailwindPlugin from "./plugins/tailwind-config.cjs";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -58,7 +59,11 @@ const config: Config = {
           blogSidebarCount: 'ALL'
         },
         theme: {
-          customCss: "./src/css/custom.css",
+          customCss: [
+            "./src/css/custom.css",
+            "./src/css/extensions.css",
+            "./src/css/tailwind.css",
+          ],
         },
       } satisfies Preset.Options,
     ],
@@ -95,10 +100,15 @@ const config: Config = {
           {
             from: '/docs',
             to: '/docs/category/getting-started'
+          },
+          {
+            from: '/v1/extensions',
+            to: '/extensions'
           }
-        ]
+        ],
       },
     ],
+    tailwindPlugin,
   ],
   themes: ["@inkeep/docusaurus/chatButton", "@inkeep/docusaurus/searchBar"],
   themeConfig: {
@@ -118,7 +128,7 @@ const config: Config = {
           position: "left",
         },
         {
-          to: "https://block.github.io/goose/v1/extensions/",
+          to: "/extensions",
           label: "Extensions",
           position: "left",
         },
@@ -127,6 +137,7 @@ const config: Config = {
           position: "left",
           label: "Docs",
         },
+        
         {
           to: "/docs/category/tutorials",
           position: "left",
@@ -157,7 +168,7 @@ const config: Config = {
             },
             {
               label: "Extensions",
-              to: "https://block.github.io/goose/v1/extensions/",
+              to: "/extensions",
             },
           ],
         },

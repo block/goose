@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.14"
+    "version": "1.0.15"
   },
   "paths": {
     "/config": {
@@ -320,6 +320,10 @@
               "type"
             ],
             "properties": {
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
               "envs": {
                 "$ref": "#/components/schemas/Envs"
               },
@@ -363,6 +367,10 @@
               "cmd": {
                 "type": "string"
               },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
               "envs": {
                 "$ref": "#/components/schemas/Envs"
               },
@@ -392,6 +400,10 @@
               "type"
             ],
             "properties": {
+              "display_name": {
+                "type": "string",
+                "nullable": true
+              },
               "name": {
                 "type": "string",
                 "description": "The name used to identify this extension"

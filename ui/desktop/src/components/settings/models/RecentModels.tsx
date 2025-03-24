@@ -137,7 +137,7 @@ export function RecentModelsRadio({ setView }: { setView: (view: View) => void }
       <div className="px-8">
         <div className="space-y-2">
           <ModelRadioList
-            RenderItem={({ model, isSelected, onSelect }) => (
+            renderItem={({ model, isSelected, onSelect }) => (
               <label key={model.name} className="flex items-center py-2 cursor-pointer">
                 <div className="relative mr-4">
                   <input

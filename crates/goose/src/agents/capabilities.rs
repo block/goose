@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
+use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
 use crate::config::Config;
 use crate::prompt_template;
 use crate::providers::base::Provider;
@@ -83,6 +83,14 @@ fn normalize(input: String) -> String {
     result.to_lowercase()
 }
 
+pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
+    tool.input_schema
+        .get("properties")
+        .and_then(|props| props.as_object())
+        .map(|props| props.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
 impl Capabilities {
     /// Create a new Capabilities with the specified provider
     pub fn new(provider: Box<dyn Provider>) -> Self {
@@ -134,7 +142,12 @@ impl Capabilities {
                 );
                 Box::new(McpClient::new(service))
             }
-            ExtensionConfig::Builtin { name, timeout } => {
+            #[allow(unused_variables)]
+            ExtensionConfig::Builtin {
+                name,
+                display_name,
+                timeout,
+            } => {
                 // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -289,6 +302,14 @@ impl Capabilities {
             }
         }
         Ok(result)
+    }
+
+    /// Get the extension prompt including client instructions
+    pub async fn get_planning_prompt(&self, tools_info: Vec<ToolInfo>) -> String {
+        let mut context: HashMap<&str, Value> = HashMap::new();
+        context.insert("tools", serde_json::to_value(tools_info).unwrap());
+
+        prompt_template::render_global_file("plan.md", &context).expect("Prompt should render")
     }
 
     /// Get the extension prompt including client instructions
