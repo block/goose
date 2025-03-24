@@ -36,6 +36,72 @@ function handleError(message: string, shouldThrow = false): void {
   }
 }
 
+// Update the path to the binary based on the command
+async function replaceWithShims(cmd: string) {
+  const binaryPathMap: Record<string, string> = {
+    goosed: await window.electron.getBinaryPath('goosed'),
+    npx: await window.electron.getBinaryPath('npx'),
+    uvx: await window.electron.getBinaryPath('uvx'),
+  };
+
+  if (binaryPathMap[cmd]) {
+    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
+    cmd = binaryPathMap[cmd];
+  }
+
+  return cmd;
+}
+
+/**
+ * Activates an extension by adding it to both the config system and the API.
+ * @param name The extension name
+ * @param config The extension configuration
+ * @param addExtensionFn Function to add extension to config
+ * @returns Promise that resolves when activation is complete
+ */
+export async function activateExtension(
+  name: string,
+  config: ExtensionConfig,
+  addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
+): Promise<void> {
+  try {
+    // First add to the config system
+    await addExtensionFn(nameToKey(name), config, true);
+
+    // Then call the API endpoint
+    const response = await fetch(getApiUrl('/extensions/add'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': getSecretKey(),
+      },
+      body: JSON.stringify({
+        type: config.type,
+        name: nameToKey(name),
+        cmd: await replaceWithShims(config.cmd),
+        args: config.args || [],
+        env_keys: config.envs ? Object.keys(config.envs) : undefined,
+        timeout: config.timeout,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.error) {
+      toast.success(`Extension "${name}" has been successfully enabled`);
+    } else {
+      const errorMessage = `Error adding ${name} extension${data.message ? `. ${data.message}` : ''}`;
+      console.error(errorMessage);
+      toast.error(errorMessage, { autoClose: false });
+    }
+  } catch (error) {
+    const errorMessage = `Failed to add ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    console.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
+    throw error;
+  }
+}
+
 export async function addExtensionFromDeepLink(
   url: string,
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>,
@@ -116,42 +182,7 @@ export async function addExtensionFromDeepLink(
   }
 
   // If no env vars are required, proceed with adding the extension
-  try {
-    // First add to the config system
-    await addExtensionFn(nameToKey(name), config, true);
-
-    // Then call the API endpoint
-    const response = await fetch(getApiUrl('/extensions/add'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        type: config.type,
-        name: nameToKey(name),
-        cmd: config.cmd,
-        args: config.args || [],
-        env_keys: config.envs ? Object.keys(config.envs) : undefined,
-        timeout: config.timeout,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!data.error) {
-      toast.success(`Extension "${name}" has been successfully enabled`);
-    } else {
-      const errorMessage = `Error adding ${name} extension${data.message ? `. ${data.message}` : ''}`;
-      console.error(errorMessage);
-      toast.error(errorMessage, { autoClose: false });
-    }
-  } catch (error) {
-    const errorMessage = `Failed to add ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
-    throw error;
-  }
+  await activateExtension(name, config, addExtensionFn);
 }
 
 /**
