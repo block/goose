@@ -11,7 +11,7 @@ export function getGooseInstallLink(server: MCPServer): string {
     return `goose://extension?${queryParams}`;
   }
   const parts = server.command.split(" ");
-  const baseCmd = parts[0]; // npx or uvx
+  const baseCmd = parts[0]; // jbang, npx or uvx
   const args = parts.slice(1); // remaining arguments
   const queryParams = [
     `cmd=${encodeURIComponent(baseCmd)}`,
