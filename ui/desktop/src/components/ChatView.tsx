@@ -6,6 +6,7 @@ import GooseMessage from './GooseMessage';
 import Input from './Input';
 import { type View } from '../App';
 import LoadingGoose from './LoadingGoose';
+import MoreMenuLayout from './more_menu/MoreMenuLayout';
 import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
@@ -13,17 +14,18 @@ import Splash from './Splash';
 import { DeepLinkModal } from './ui/DeepLinkModal';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import MoreMenuLayout from './more_menu/MoreMenuLayout';
 import { BotConfig } from '../botConfig';
 import {
   Message,
   createUserMessage,
-  getTextContent,
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
+  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
+  getTextContent,
+  createAssistantMessage,
 } from '../types/message';
 
 export interface ChatType {
@@ -367,7 +369,9 @@ export default function ChatView({
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
-      <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+      <div className="relative flex items-center h-[36px] w-full">
+        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+      </div>
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {messages.length === 0 ? (
           <Splash
