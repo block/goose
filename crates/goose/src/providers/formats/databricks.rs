@@ -453,7 +453,7 @@ pub fn create_request(
         // Default to 8192 (Claude max output) + budget if not specified
         let max_completion_tokens = model_config.max_tokens.unwrap_or(8192);
         payload.as_object_mut().unwrap().insert(
-            "max_completion_tokens".to_string(),
+            "max_tokens".to_string(),
             json!(max_completion_tokens + budget_tokens),
         );
 
