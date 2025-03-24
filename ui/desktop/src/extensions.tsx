@@ -5,6 +5,8 @@ import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
 import builtInExtensionsData from './built-in-extensions.json';
+import { ToastError, ToastLoading, ToastSuccess } from './components/settings/models/toasts';
+import { Toast } from 'react-toastify/dist/components';
 
 // Hardcoded default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -82,7 +84,7 @@ export async function addExtension(
     };
 
     let toastId;
-    if (!silent) toastId = toast.loading(`Adding ${extension.name} extension...`);
+    if (!silent) toastId = ToastLoading({ title: extension.name, msg: 'Adding extension...' });
 
     const response = await fetch(getApiUrl('/extensions/add'), {
       method: 'POST',
@@ -98,38 +100,31 @@ export async function addExtension(
     if (!data.error) {
       if (!silent) {
         if (toastId) toast.dismiss(toastId);
-        toast.success(`Successfully enabled ${extension.name} extension`);
+        ToastSuccess({ title: extension.name, msg: `Successfully enabled extension` });
       }
       return response;
     }
 
-    const errorMessage = `Error adding ${extension.name} extension ${data.message ? `. ${data.message}` : ''}`;
-    const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
-      <div className="flex flex-col gap-1">
-        <div>Error adding {extension.name} extension</div>
-        <div>
-          <button
-            className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
-            onClick={() => {
-              navigator.clipboard.writeText(data.message);
-              closeToast();
-            }}
-          >
-            Copy error message
-          </button>
-        </div>
-      </div>
-    );
-
+    const errorMessage = `Error adding extension`;
     console.error(errorMessage);
     if (toastId) toast.dismiss(toastId);
-    toast(ErrorMsg, { type: 'error', autoClose: false });
+    ToastError({
+      title: extension.name,
+      msg: errorMessage,
+      errorMessage: data.message,
+      toastOptions: { autoClose: false },
+    });
 
     return response;
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
+    ToastError({
+      title: extension.name,
+      msg: 'Failed to add extension',
+      errorMessage: error.message,
+      toastOptions: { autoClose: false },
+    });
     throw error;
   }
 }
@@ -149,19 +144,29 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
 
     if (!data.error) {
       if (!silent) {
-        toast.success(`Successfully disabled ${name} extension`);
+        ToastSuccess({ title: name, msg: 'Successfully disabled extension' });
       }
       return response;
     }
 
     const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
+    ToastError({
+      title: name,
+      msg: 'Error removing extension',
+      errorMessage: data.message,
+      toastOptions: { autoClose: false },
+    });
     return response;
   } catch (error) {
     const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage, { autoClose: false });
+    ToastError({
+      title: name,
+      msg: 'Error removing extension',
+      errorMessage: error.message,
+      toastOptions: { autoClose: false },
+    });
     throw error;
   }
 }
@@ -241,7 +246,12 @@ function envVarsRequired(config: ExtensionConfig) {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message, { autoClose: false });
+  ToastError({
+    title: 'Failed to install extension',
+    msg: message,
+    errorMessage: message,
+    toastOptions: { autoClose: false },
+  });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);
@@ -253,19 +263,14 @@ export async function addExtensionFromDeepLink(
   setView: (view: View, options: SettingsViewOptions) => void
 ) {
   if (!url.startsWith('goose://extension')) {
-    handleError(
-      'Failed to install extension: Invalid URL: URL must use the goose://extension scheme'
-    );
+    handleError('Invalid URL: URL must use the goose://extension scheme');
     return;
   }
 
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
-    handleError(
-      'Failed to install extension: Invalid protocol: URL must use the goose:// scheme',
-      true
-    );
+    handleError('Invalid protocol: URL must use the goose:// scheme', true);
   }
 
   // Check that all required fields are present and not empty
@@ -274,10 +279,7 @@ export async function addExtensionFromDeepLink(
   for (const field of requiredFields) {
     const value = parsedUrl.searchParams.get(field);
     if (!value || value.trim() === '') {
-      handleError(
-        `Failed to install extension: The link is missing required field '${field}'`,
-        true
-      );
+      handleError(`The link is missing required field '${field}'`, true);
     }
   }
 
@@ -298,10 +300,7 @@ export async function addExtensionFromDeepLink(
   // Check for security risk with npx -c command
   const args = parsedUrl.searchParams.getAll('arg');
   if (cmd === 'npx' && args.includes('-c')) {
-    handleError(
-      'Failed to install extension: npx with -c argument can lead to code injection',
-      true
-    );
+    handleError('npx with -c argument can lead to code injection', true);
   }
 
   const envList = parsedUrl.searchParams.getAll('env');

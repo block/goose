@@ -398,6 +398,14 @@ export default function App() {
     <>
       <ToastContainer
         aria-label="Toast notifications"
+        toastClassName={() =>
+          `relative min-h-16 mb-4 p-2 rounded-lg
+           flex justify-between overflow-hidden cursor-pointer
+           text-textProminentInverse bg-bgStandardInverse dark:bg-bgAppInverse
+          `
+        }
+        style={{ width: '380px' }}
+        className="mt-6"
         position="top-right"
         autoClose={3000}
         closeOnClick
