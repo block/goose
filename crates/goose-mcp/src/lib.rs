@@ -7,9 +7,9 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     app_name: "goose".to_string(),
 });
 
-mod computercontroller;
+pub mod computercontroller;
 mod developer;
-mod google_drive;
+pub mod google_drive;
 mod jetbrains;
 mod memory;
 mod tutorial;

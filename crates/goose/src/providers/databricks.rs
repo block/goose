@@ -18,7 +18,9 @@ use url::Url;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost:8020";
-const DEFAULT_SCOPES: &[&str] = &["all-apis"];
+// "offline_access" scope is used to request an OAuth 2.0 Refresh Token
+// https://openid.net/specs/openid-connect-core-1_0.html#OfflineAccess
+const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-meta-llama-3-3-70b-instruct";
 // Databricks can passthrough to a wide range of models, we only provide the default
@@ -81,7 +83,7 @@ impl DatabricksProvider {
 
         // For compatibility for now we check both config and secret for databricks host
         // but it is not actually a secret value
-        let mut host: Result<String, ConfigError> = config.get("DATABRICKS_HOST");
+        let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
 
         if host.is_err() {
             host = config.get_secret("DATABRICKS_HOST")
@@ -181,7 +183,16 @@ impl DatabricksProvider {
 
                 let mut error_msg = "Unknown error".to_string();
                 if let Some(payload) = &payload {
-                    error_msg = payload.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                    // try to convert message to string, if that fails use external_model_message
+                    error_msg = payload
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .or_else(|| {
+                            payload.get("external_model_message")
+                                .and_then(|ext| ext.get("message"))
+                                .and_then(|m| m.as_str())
+                        })
+                        .unwrap_or("Unknown error").to_string();
                 }
 
                 tracing::debug!(
@@ -259,7 +270,7 @@ impl Provider for DatabricksProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        super::utils::emit_debug_trace(self, &payload, &response, &usage);
+        super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);
 
         Ok((message, ProviderUsage::new(model, usage)))
     }

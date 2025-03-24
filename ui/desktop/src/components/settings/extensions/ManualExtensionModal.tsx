@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { FullExtensionConfig } from '../../../extensions';
+import { FullExtensionConfig, DEFAULT_EXTENSION_TIMEOUT } from '../../../extensions';
 import { toast } from 'react-toastify';
 import Select from 'react-select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
@@ -22,6 +22,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
     enabled: true,
     args: [],
     commandInput: '',
+    timeout: DEFAULT_EXTENSION_TIMEOUT,
   });
   const [envKey, setEnvKey] = useState('');
   const [envValue, setEnvValue] = useState('');
@@ -132,7 +133,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0">
         <div className="px-4 pb-0 space-y-8">
           <div className="flex">
-            <h2 className="text-2xl font-regular text-textStandard">Add Extension Manually</h2>
+            <h2 className="text-2xl font-regular text-textStandard">Add custom extension</h2>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -267,15 +268,27 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                   </div>
                 )}
               </div>
-            </div>
 
+              <div>
+                <label className="block text-sm font-medium text-textStandard mb-2">
+                  Timeout (secs)*
+                </label>
+                <Input
+                  type="number"
+                  value={formData.timeout || DEFAULT_EXTENSION_TIMEOUT}
+                  onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
+                  className="w-full"
+                  required
+                />
+              </div>
+            </div>
             <div className="mt-[8px] -ml-8 -mr-8 pt-8">
               <Button
                 type="submit"
                 variant="ghost"
                 className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-regular"
               >
-                Add Extension
+                Add
               </Button>
               <Button
                 type="button"

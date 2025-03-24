@@ -3,7 +3,7 @@ import { Card } from '../ui/card';
 import { Lock } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import { required_keys } from './models/hardcoded_stuff';
+import { required_keys, default_key_value } from './models/hardcoded_stuff';
 import { isSecretKey } from './api_keys/utils';
 import { OllamaBattleGame } from './OllamaBattleGame';
 
@@ -26,7 +26,9 @@ export function ProviderSetupModal({
   onCancel,
   forceBattle = false,
 }: ProviderSetupModalProps) {
-  const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>({});
+  const [configValues, setConfigValues] = React.useState<{ [key: string]: string }>(
+    default_key_value
+  );
   const requiredKeys = required_keys[provider] || ['API Key'];
   const headerText = title || `Setup ${provider}`;
 
@@ -45,7 +47,7 @@ export function ProviderSetupModal({
 
   return (
     <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards]">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0">
         <div className="px-4 pb-0 space-y-8">
           {/* Header */}
           <div className="flex">

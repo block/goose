@@ -1,6 +1,8 @@
+use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
+use mcp_core::protocol::GetPromptResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -8,12 +10,13 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
-use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult};
-use crate::prompt_template::load_prompt_file;
-use crate::providers::base::{Provider, ProviderUsage};
+use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use crate::config::Config;
+use crate::prompt_template;
+use crate::providers::base::Provider;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
-use mcp_core::{Content, Tool, ToolCall, ToolError, ToolResult};
+use mcp_core::{prompt::Prompt, Content, Tool, ToolCall, ToolError, ToolResult};
 use serde_json::Value;
 
 // By default, we set it to Jan 1, 2020 if the resource does not have a timestamp
@@ -28,8 +31,8 @@ pub struct Capabilities {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
-    provider: Box<dyn Provider>,
-    provider_usage: Mutex<Vec<ProviderUsage>>,
+    provider: Arc<Box<dyn Provider>>,
+    system_prompt_override: Option<String>,
     system_prompt_extensions: Vec<String>,
 }
 
@@ -80,6 +83,14 @@ fn normalize(input: String) -> String {
     result.to_lowercase()
 }
 
+pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
+    tool.input_schema
+        .get("properties")
+        .and_then(|props| props.as_object())
+        .map(|props| props.keys().cloned().collect())
+        .unwrap_or_default()
+}
+
 impl Capabilities {
     /// Create a new Capabilities with the specified provider
     pub fn new(provider: Box<dyn Provider>) -> Self {
@@ -87,8 +98,8 @@ impl Capabilities {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
-            provider,
-            provider_usage: Mutex::new(Vec::new()),
+            provider: Arc::new(provider),
+            system_prompt_override: None,
             system_prompt_extensions: Vec::new(),
         }
     }
@@ -101,21 +112,42 @@ impl Capabilities {
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
         let mut client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse { uri, envs, .. } => {
+            ExtensionConfig::Sse {
+                uri, envs, timeout, ..
+            } => {
                 let transport = SseTransport::new(uri, envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
             ExtensionConfig::Stdio {
-                cmd, args, envs, ..
+                cmd,
+                args,
+                envs,
+                timeout,
+                ..
             } => {
                 let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
-            ExtensionConfig::Builtin { name } => {
+            #[allow(unused_variables)]
+            ExtensionConfig::Builtin {
+                name,
+                display_name,
+                timeout,
+            } => {
                 // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
@@ -128,7 +160,12 @@ impl Capabilities {
                     HashMap::new(),
                 );
                 let handle = transport.start().await?;
-                let service = McpService::with_timeout(handle, Duration::from_secs(300));
+                let service = McpService::with_timeout(
+                    handle,
+                    Duration::from_secs(
+                        timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
+                    ),
+                );
                 Box::new(McpClient::new(service))
             }
         };
@@ -145,7 +182,7 @@ impl Capabilities {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
-        let sanitized_name = normalize(config.name().to_string());
+        let sanitized_name = normalize(config.key().to_string());
 
         // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
@@ -171,15 +208,14 @@ impl Capabilities {
         self.system_prompt_extensions.push(extension);
     }
 
-    /// Get a reference to the provider
-    pub fn provider(&self) -> &dyn Provider {
-        &*self.provider
+    /// Override the system prompt with custom text
+    pub fn set_system_prompt_override(&mut self, template: String) {
+        self.system_prompt_override = Some(template);
     }
 
-    /// Record provider usage
-    // TODO consider moving this off to the provider or as a form of logging
-    pub async fn record_usage(&self, usage: ProviderUsage) {
-        self.provider_usage.lock().await.push(usage);
+    /// Get a reference to the provider
+    pub fn provider(&self) -> Arc<Box<dyn Provider>> {
+        Arc::clone(&self.provider)
     }
 
     /// Get aggregated usage statistics
@@ -194,29 +230,6 @@ impl Capabilities {
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.clients.keys().cloned().collect())
-    }
-
-    pub async fn get_usage(&self) -> Vec<ProviderUsage> {
-        let provider_usage = self.provider_usage.lock().await.clone();
-        let mut usage_map: HashMap<String, ProviderUsage> = HashMap::new();
-
-        provider_usage.iter().for_each(|usage| {
-            usage_map
-                .entry(usage.model.clone())
-                .and_modify(|e| {
-                    e.usage.input_tokens = Some(
-                        e.usage.input_tokens.unwrap_or(0) + usage.usage.input_tokens.unwrap_or(0),
-                    );
-                    e.usage.output_tokens = Some(
-                        e.usage.output_tokens.unwrap_or(0) + usage.usage.output_tokens.unwrap_or(0),
-                    );
-                    e.usage.total_tokens = Some(
-                        e.usage.total_tokens.unwrap_or(0) + usage.usage.total_tokens.unwrap_or(0),
-                    );
-                })
-                .or_insert_with(|| usage.clone());
-        });
-        usage_map.into_values().collect()
     }
 
     /// Get all tools from all clients with proper prefixing
@@ -292,6 +305,14 @@ impl Capabilities {
     }
 
     /// Get the extension prompt including client instructions
+    pub async fn get_planning_prompt(&self, tools_info: Vec<ToolInfo>) -> String {
+        let mut context: HashMap<&str, Value> = HashMap::new();
+        context.insert("tools", serde_json::to_value(tools_info).unwrap());
+
+        prompt_template::render_global_file("plan.md", &context).expect("Prompt should render")
+    }
+
+    /// Get the extension prompt including client instructions
     pub async fn get_system_prompt(&self) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
 
@@ -304,21 +325,40 @@ impl Capabilities {
                 ExtensionInfo::new(name, &instructions, has_resources)
             })
             .collect();
+        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-
-        context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
         context.insert("current_date_time", Value::String(current_date_time));
 
-        let base_prompt = load_prompt_file("system.md", &context).expect("Prompt should render");
+        // Conditionally load the override prompt or the global system prompt
+        let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
+            prompt_template::render_inline_once(override_prompt, &context)
+                .expect("Prompt should render")
+        } else {
+            prompt_template::render_global_file("system.md", &context)
+                .expect("Prompt should render")
+        };
 
-        if self.system_prompt_extensions.is_empty() {
+        let mut system_prompt_extensions = self.system_prompt_extensions.clone();
+        let config = Config::global();
+        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        if goose_mode == "chat" {
+            system_prompt_extensions.push(
+                "Right now you are in the chat only mode, no access to any tool use and system."
+                    .to_string(),
+            );
+        } else {
+            system_prompt_extensions
+                .push("Right now you are *NOT* in the chat only mode and have access to tool use and system.".to_string());
+        }
+
+        if system_prompt_extensions.is_empty() {
             base_prompt
         } else {
             format!(
                 "{}\n\n# Additional Instructions:\n\n{}",
                 base_prompt,
-                self.system_prompt_extensions.join("\n\n")
+                system_prompt_extensions.join("\n\n")
             )
         }
     }
@@ -531,6 +571,87 @@ impl Capabilities {
 
         result
     }
+
+    pub async fn list_prompts_from_extension(
+        &self,
+        extension_name: &str,
+    ) -> Result<Vec<Prompt>, ToolError> {
+        let client = self.clients.get(extension_name).ok_or_else(|| {
+            ToolError::InvalidParameters(format!("Extension {} is not valid", extension_name))
+        })?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .list_prompts(None)
+            .await
+            .map_err(|e| {
+                ToolError::ExecutionError(format!(
+                    "Unable to list prompts for {}, {:?}",
+                    extension_name, e
+                ))
+            })
+            .map(|lp| lp.prompts)
+    }
+
+    pub async fn list_prompts(&self) -> Result<HashMap<String, Vec<Prompt>>, ToolError> {
+        let mut futures = FuturesUnordered::new();
+
+        for extension_name in self.clients.keys() {
+            futures.push(async move {
+                (
+                    extension_name,
+                    self.list_prompts_from_extension(extension_name).await,
+                )
+            });
+        }
+
+        let mut all_prompts = HashMap::new();
+        let mut errors = Vec::new();
+
+        // Process results as they complete
+        while let Some(result) = futures.next().await {
+            let (name, prompts) = result;
+            match prompts {
+                Ok(content) => {
+                    all_prompts.insert(name.to_string(), content);
+                }
+                Err(tool_error) => {
+                    errors.push(tool_error);
+                }
+            }
+        }
+
+        // Log any errors that occurred
+        if !errors.is_empty() {
+            tracing::debug!(
+                errors = ?errors
+                    .into_iter()
+                    .map(|e| format!("{:?}", e))
+                    .collect::<Vec<_>>(),
+                "errors from listing prompts"
+            );
+        }
+
+        Ok(all_prompts)
+    }
+
+    pub async fn get_prompt(
+        &self,
+        extension_name: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
+        let client = self
+            .clients
+            .get(extension_name)
+            .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .get_prompt(name, arguments)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
+    }
 }
 
 #[cfg(test)]
@@ -543,7 +664,8 @@ mod tests {
     use mcp_client::client::Error;
     use mcp_client::client::McpClientTrait;
     use mcp_core::protocol::{
-        CallToolResult, InitializeResult, ListResourcesResult, ListToolsResult, ReadResourceResult,
+        CallToolResult, GetPromptResult, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, ReadResourceResult,
     };
     use serde_json::json;
 
@@ -611,6 +733,21 @@ mod tests {
                 }),
                 _ => Err(Error::NotInitialized),
             }
+        }
+
+        async fn list_prompts(
+            &self,
+            _next_cursor: Option<String>,
+        ) -> Result<ListPromptsResult, Error> {
+            Err(Error::NotInitialized)
+        }
+
+        async fn get_prompt(
+            &self,
+            _name: &str,
+            _arguments: Value,
+        ) -> Result<GetPromptResult, Error> {
+            Err(Error::NotInitialized)
         }
     }
 

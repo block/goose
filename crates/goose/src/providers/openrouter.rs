@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{emit_debug_trace, get_model, handle_response_openai_compat};
+use super::utils::{
+    emit_debug_trace, get_model, handle_response_google_compat, handle_response_openai_compat,
+    is_google_model,
+};
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
@@ -41,7 +44,7 @@ impl OpenRouterProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config
-            .get("OPENROUTER_HOST")
+            .get_param("OPENROUTER_HOST")
             .unwrap_or_else(|_| "https://openrouter.ai".to_string());
 
         let client = Client::builder()
@@ -68,13 +71,17 @@ impl OpenRouterProvider {
             .post(url)
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("HTTP-Referer", "https://github.com/block/goose")
+            .header("HTTP-Referer", "https://block.github.io/goose")
             .header("X-Title", "Goose")
             .json(&payload)
             .send()
             .await?;
 
-        handle_response_openai_compat(response).await
+        if is_google_model(&payload) {
+            handle_response_google_compat(response).await
+        } else {
+            handle_response_openai_compat(response).await
+        }
     }
 }
 
@@ -231,7 +238,7 @@ impl Provider for OpenRouterProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }

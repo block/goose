@@ -56,6 +56,7 @@ const config: Config = {
           onInlineTags: "warn",
           onInlineAuthors: "warn",
           onUntruncatedBlogPosts: "warn",
+          blogSidebarCount: 'ALL'
         },
         theme: {
           customCss: [
@@ -127,25 +128,32 @@ const config: Config = {
           position: "left",
         },
         {
-          to: "/docs/category/getting-started",
-          position: "left",
-          label: "Docs",
-        },
-        { to: "/blog", label: "Blog", position: "left" },
-        {
           to: "/extensions",
           label: "Extensions",
           position: "left",
         },
         {
+          to: "/docs/category/getting-started",
+          position: "left",
+          label: "Docs",
+        },
+        
+        {
+          to: "/docs/category/tutorials",
+          position: "left",
+          label: "Tutorials",
+        },
+        { to: "/blog", label: "Blog", position: "left" },
+
+        {
           href: "https://discord.gg/block-opensource",
           label: "Discord",
-          position: "left",
+          position: "right",
         },
         {
           href: "https://github.com/block/goose",
           label: "GitHub",
-          position: "left",
+          position: "right",
         },
       ],
     },

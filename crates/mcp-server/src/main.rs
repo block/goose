@@ -1,6 +1,7 @@
 use anyhow::Result;
 use mcp_core::content::Content;
-use mcp_core::handler::ResourceError;
+use mcp_core::handler::{PromptError, ResourceError};
+use mcp_core::prompt::{Prompt, PromptArgument};
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
@@ -61,6 +62,7 @@ impl Router for CounterRouter {
         CapabilitiesBuilder::new()
             .with_tools(false)
             .with_resources(false, false)
+            .with_prompts(false)
             .build()
     }
 
@@ -149,6 +151,37 @@ impl Router for CounterRouter {
                 _ => Err(ResourceError::NotFound(format!(
                     "Resource {} not found",
                     uri
+                ))),
+            }
+        })
+    }
+
+    fn list_prompts(&self) -> Vec<Prompt> {
+        vec![Prompt::new(
+            "example_prompt",
+            Some("This is an example prompt that takes one required agrument, message"),
+            Some(vec![PromptArgument {
+                name: "message".to_string(),
+                description: Some("A message to put in the prompt".to_string()),
+                required: Some(true),
+            }]),
+        )]
+    }
+
+    fn get_prompt(
+        &self,
+        prompt_name: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
+        let prompt_name = prompt_name.to_string();
+        Box::pin(async move {
+            match prompt_name.as_str() {
+                "example_prompt" => {
+                    let prompt = "This is an example prompt with your message here: '{message}'";
+                    Ok(prompt.to_string())
+                }
+                _ => Err(PromptError::NotFound(format!(
+                    "Prompt {} not found",
+                    prompt_name
                 ))),
             }
         })

@@ -1,13 +1,35 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::{Config, ConfigError, ExtensionEntry, ExtensionManager};
+use goose::config::extensions::name_to_key;
+use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use mcp_core::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error::Error;
+
+fn get_display_name(extension_id: &str) -> String {
+    match extension_id {
+        "developer" => "Developer Tools".to_string(),
+        "computercontroller" => "Computer Controller".to_string(),
+        "googledrive" => "Google Drive".to_string(),
+        "memory" => "Memory".to_string(),
+        "tutorial" => "Tutorial".to_string(),
+        "jetbrains" => "JetBrains".to_string(),
+        // Add other extensions as needed
+        _ => {
+            extension_id
+                .chars()
+                .next()
+                .unwrap_or_default()
+                .to_uppercase()
+                .collect::<String>()
+                + &extension_id[1..]
+        }
+    }
+}
 
 pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
@@ -38,6 +60,8 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                     enabled: true,
                     config: ExtensionConfig::Builtin {
                         name: "developer".to_string(),
+                        display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
                     },
                 })?;
             }
@@ -151,9 +175,9 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             )
             .item("remove", "Remove Extension", "Remove an extension")
             .item(
-                "tool_output",
-                "Adjust Tool Output",
-                "Show more or less tool output",
+                "settings",
+                "Goose Settings",
+                "Set the Goose Mode, Tool Output, Experiment and more",
             )
             .interact()?;
 
@@ -161,7 +185,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
             "remove" => remove_extension_dialog(),
-            "tool_output" => configure_tool_output_dialog(),
+            "settings" => configure_settings_dialog(),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -183,7 +207,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
         .collect();
 
     // Get current default provider if it exists
-    let current_provider: Option<String> = config.get("GOOSE_PROVIDER").ok();
+    let current_provider: Option<String> = config.get_param("GOOSE_PROVIDER").ok();
     let default_provider = current_provider.unwrap_or_default();
 
     // Select provider
@@ -218,7 +242,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     if key.secret {
                         config.set_secret(&key.name, Value::String(env_value))?;
                     } else {
-                        config.set(&key.name, Value::String(env_value))?;
+                        config.set_param(&key.name, Value::String(env_value))?;
                     }
                     let _ = cliclack::log::info(format!("Saved {} to config file", key.name));
                 }
@@ -228,7 +252,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
-                    config.get(&key.name)
+                    config.get_param(&key.name)
                 };
 
                 match existing {
@@ -251,7 +275,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                             if key.secret {
                                 config.set_secret(&key.name, Value::String(new_value))?;
                             } else {
-                                config.set(&key.name, Value::String(new_value))?;
+                                config.set_param(&key.name, Value::String(new_value))?;
                             }
                         }
                     }
@@ -277,7 +301,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                         if key.secret {
                             config.set_secret(&key.name, Value::String(value))?;
                         } else {
-                            config.set(&key.name, Value::String(value))?;
+                            config.set_param(&key.name, Value::String(value))?;
                         }
                     }
                 }
@@ -295,37 +319,51 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
     let spin = spinner();
     spin.start("Checking your configuration...");
 
-    // Use max tokens to speed up the provider test.
-    let model_config = goose::model::ModelConfig::new(model.clone()).with_max_tokens(Some(50));
+    // Create model config with env var settings
+    let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
+
+    let model_config = goose::model::ModelConfig::new(model.clone())
+        .with_max_tokens(Some(50))
+        .with_toolshim(toolshim_enabled)
+        .with_toolshim_model(std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok());
+
     let provider = create(provider_name, model_config)?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
-    let sample_tool = Tool::new(
-        "get_weather".to_string(),
-        "Get current temperature for a given location.".to_string(),
-        json!({
-            "type": "object",
-            "required": ["location"],
-            "properties": {
-                "location": {"type": "string"}
-            }
-        }),
-    );
+    // Only add the sample tool if toolshim is not enabled
+    let tools = if !toolshim_enabled {
+        let sample_tool = Tool::new(
+            "get_weather".to_string(),
+            "Get current temperature for a given location.".to_string(),
+            json!({
+                "type": "object",
+                "required": ["location"],
+                "properties": {
+                    "location": {"type": "string"}
+                }
+            }),
+        );
+        vec![sample_tool]
+    } else {
+        vec![]
+    };
 
     let result = provider
         .complete(
             "You are an AI agent called Goose. You use tools of connected extensions to solve problems.",
             &messages,
-            &[sample_tool]
+            &tools
         )
         .await;
 
     match result {
         Ok((_message, _usage)) => {
             // Update config with new values only if the test succeeds
-            config.set("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
-            config.set("GOOSE_MODEL", Value::String(model.clone()))?;
+            config.set_param("GOOSE_PROVIDER", Value::String(provider_name.to_string()))?;
+            config.set_param("GOOSE_MODEL", Value::String(model.clone()))?;
             cliclack::outro("Configuration saved successfully")?;
             Ok(true)
         }
@@ -378,7 +416,10 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
-        ExtensionManager::set_enabled(name, selected.iter().any(|s| s.as_str() == name))?;
+        ExtensionManager::set_enabled(
+            &name_to_key(name),
+            selected.iter().any(|s| s.as_str() == name),
+        )?;
     }
 
     cliclack::outro("Extension settings updated successfully")?;
@@ -419,7 +460,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "controls for webscraping, file caching, and automations",
                 )
                 .item(
-                    "google_drive",
+                    "googledrive",
                     "Google Drive",
                     "Search and read content from google drive - additional config required",
                 )
@@ -437,10 +478,22 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 .interact()?
                 .to_string();
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid timeout"),
+                })
+                .interact()?;
+
+            let display_name = get_display_name(&extension);
+
             ExtensionManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
+                    display_name: Some(display_name),
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -472,10 +525,34 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid timeout"),
+                })
+                .interact()?;
+
             // Split the command string into command and args
+            // TODO: find a way to expose this to the frontend so we dont need to re-write code
             let mut parts = command_str.split_whitespace();
             let cmd = parts.next().unwrap_or("").to_string();
             let args: Vec<String> = parts.map(String::from).collect();
+
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
+
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
+                    .placeholder("Description")
+                    .validate(|input: &String| match input.parse::<String>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid description"),
+                    })
+                    .interact()?;
+                Some(desc)
+            } else {
+                None
+            };
 
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
@@ -506,6 +583,8 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
+                    description,
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -539,6 +618,29 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 })
                 .interact()?;
 
+            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
+                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+                .validate(|input: &String| match input.parse::<u64>() {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err("Please enter a valid timeout"),
+                })
+                .interact()?;
+
+            let add_desc = cliclack::confirm("Would you like to add a description?").interact()?;
+
+            let description = if add_desc {
+                let desc = cliclack::input("Enter a description for this extension:")
+                    .placeholder("Description")
+                    .validate(|input: &String| match input.parse::<String>() {
+                        Ok(_) => Ok(()),
+                        Err(_) => Err("Please enter a valid description"),
+                    })
+                    .interact()?;
+                Some(desc)
+            } else {
+                None
+            };
+
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
@@ -567,6 +669,8 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
+                    description,
+                    timeout: Some(timeout),
                 },
             })?;
 
@@ -602,10 +706,17 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    // Filter out only disabled extensions
+    let disabled_extensions: Vec<_> = extensions
+        .iter()
+        .filter(|entry| !entry.enabled)
+        .map(|entry| (entry.config.name().to_string(), entry.enabled))
+        .collect();
+
     let selected = cliclack::multiselect("Select extensions to remove (note: you can only remove disabled extensions - use \"space\" to toggle and \"enter\" to submit)")
         .required(false)
         .items(
-            &extension_status
+            &disabled_extensions
                 .iter()
                 .filter(|(_, enabled)| !enabled)
                 .map(|(name, _)| (name, name.as_str(), ""))
@@ -614,36 +725,164 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(name)?;
+        ExtensionManager::remove(&name_to_key(name))?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
     Ok(())
 }
 
+pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
+    let setting_type = cliclack::select("What setting would you like to configure?")
+        .item("goose_mode", "Goose Mode", "Configure Goose mode")
+        .item(
+            "tool_output",
+            "Tool Output",
+            "Show more or less tool output",
+        )
+        .item(
+            "experiment",
+            "Toggle Experiment",
+            "Enable or disable an experiment feature",
+        )
+        .interact()?;
+
+    match setting_type {
+        "goose_mode" => {
+            configure_goose_mode_dialog()?;
+        }
+        "tool_output" => {
+            configure_tool_output_dialog()?;
+        }
+        "experiment" => {
+            toggle_experiments_dialog()?;
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(())
+}
+
+pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    // Check if GOOSE_MODE is set as an environment variable
+    if std::env::var("GOOSE_MODE").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
+    }
+
+    let mode = cliclack::select("Which Goose mode would you like to configure?")
+        .item(
+            "auto",
+            "Auto Mode", 
+            "Full file modification, extension usage, edit, create and delete files freely"
+        )
+        .item(
+            "approve",
+            "Approve Mode",
+            "All tools, extensions and file modificatio will require human approval"
+        )
+        .item(
+            "smart_approve",
+            "Smart Approve Mode",
+            "Editing, creating, deleting files and using extensions will require human approval"
+        )
+        .item(
+            "chat",
+            "Chat Mode",
+            "Engage with the selected provider without using tools, extensions, or file modification"
+        )
+        .interact()?;
+
+    match mode {
+        "auto" => {
+            config.set_param("GOOSE_MODE", Value::String("auto".to_string()))?;
+            cliclack::outro("Set to Auto Mode - full file modification enabled")?;
+        }
+        "approve" => {
+            config.set_param("GOOSE_MODE", Value::String("approve".to_string()))?;
+            cliclack::outro("Set to Approve Mode - all tools and modifications require approval")?;
+        }
+        "smart_approve" => {
+            config.set_param("GOOSE_MODE", Value::String("smart_approve".to_string()))?;
+            cliclack::outro("Set to Smart Approve Mode - modifications require approval")?;
+        }
+        "chat" => {
+            config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
+            cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
+        }
+        _ => unreachable!(),
+    };
+    Ok(())
+}
+
 pub fn configure_tool_output_dialog() -> Result<(), Box<dyn Error>> {
     let config = Config::global();
+    // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
+    if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.");
+    }
     let tool_log_level = cliclack::select("Which tool output would you like to show?")
         .item("high", "High Importance", "")
         .item("medium", "Medium Importance", "Ex. results of file-writes")
-        .item("all", "All", "Ex. shell command output")
+        .item("all", "All (default)", "Ex. shell command output")
         .interact()?;
 
     match tool_log_level {
         "high" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.8))?;
             cliclack::outro("Showing tool output of high importance only.")?;
         }
-        "med" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
+        "medium" => {
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.2))?;
             cliclack::outro("Showing tool output of medium importance.")?;
         }
         "all" => {
-            config.set("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
+            config.set_param("GOOSE_CLI_MIN_PRIORITY", Value::from(0.0))?;
             cliclack::outro("Showing all tool output.")?;
         }
         _ => unreachable!(),
     };
 
+    Ok(())
+}
+
+/// Configure experiment features that can be used with goose
+/// Dialog for toggling which experiments are enabled/disabled
+pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
+    let experiments = ExperimentManager::get_all()?;
+
+    if experiments.is_empty() {
+        cliclack::outro("No experiments supported yet.")?;
+        return Ok(());
+    }
+
+    // Get currently enabled experiments for the selection
+    let enabled_experiments: Vec<&String> = experiments
+        .iter()
+        .filter(|(_, enabled)| *enabled)
+        .map(|(name, _)| name)
+        .collect();
+
+    // Let user toggle experiments
+    let selected = cliclack::multiselect(
+        "enable experiments: (use \"space\" to toggle and \"enter\" to submit)",
+    )
+    .required(false)
+    .items(
+        &experiments
+            .iter()
+            .map(|(name, _)| (name, name.as_str(), ""))
+            .collect::<Vec<_>>(),
+    )
+    .initial_values(enabled_experiments)
+    .interact()?;
+
+    // Update enabled status for each experiments
+    for name in experiments.iter().map(|(name, _)| name) {
+        ExperimentManager::set_enabled(name, selected.iter().any(|&s| s.as_str() == name))?;
+    }
+
+    cliclack::outro("Experiments settings updated successfully")?;
     Ok(())
 }

@@ -3,17 +3,16 @@ import { useModel } from './settings/models/ModelContext';
 import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
-// Remove react-router-dom usage
-// import { useNavigate } from 'react-router-dom';
 import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View } from '../ChatWindow';
+import type { View } from '../App';
+import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 
 export default function BottomMenu({
   hasMessages,
   setView,
 }: {
   hasMessages: boolean;
-  setView?: (view: View) => void;
+  setView: (view: View) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
@@ -54,10 +53,7 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
-  let envModelProvider = null;
-  if (window.electron.getConfig().GOOSE_MODEL && window.electron.getConfig().GOOSE_PROVIDER) {
-    envModelProvider = `${window.electron.getConfig().GOOSE_MODEL}  - ${window.electron.getConfig().GOOSE_PROVIDER}`;
-  }
+  // Removed the envModelProvider code that was checking for environment variables
 
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
@@ -65,7 +61,6 @@ export default function BottomMenu({
       <span
         className="cursor-pointer flex items-center [&>svg]:size-4"
         onClick={async () => {
-          console.log('Opening directory chooser');
           if (hasMessages) {
             window.electron.directoryChooser();
           } else {
@@ -78,13 +73,16 @@ export default function BottomMenu({
         <ChevronUp className="ml-1" />
       </span>
 
+      {/* Goose Mode Selector Dropdown */}
+      <BottomMenuModeSelection />
+
       {/* Model Selector Dropdown - Only in development */}
       <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
         <div
           className="flex items-center cursor-pointer"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          <span>{envModelProvider || currentModel?.name || 'Select Model'}</span>
+          <span>{(currentModel?.alias ?? currentModel?.name) || 'Select Model'}</span>
           {isModelMenuOpen ? (
             <ChevronDown className="w-4 h-4 ml-1" />
           ) : (
@@ -99,14 +97,14 @@ export default function BottomMenu({
               <ModelRadioList
                 className="divide-y divide-borderSubtle"
                 renderItem={({ model, isSelected, onSelect }) => (
-                  <label key={model.name} className="block cursor-pointer">
+                  <label key={model.alias ?? model.name} className="block cursor-pointer">
                     <div
                       className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
                       onClick={onSelect}
                     >
                       <div>
-                        <p className="text-sm ">{model.name}</p>
-                        <p className="text-xs text-textSubtle">{model.provider}</p>
+                        <p className="text-sm ">{model.alias ?? model.name}</p>
+                        <p className="text-xs text-textSubtle">{model.subtext ?? model.provider}</p>
                       </div>
                       <div className="relative">
                         <input
@@ -133,8 +131,7 @@ export default function BottomMenu({
                   border-t border-borderSubtle mt-2"
                 onClick={() => {
                   setIsModelMenuOpen(false);
-                  // Instead of navigate('/settings'), call setView('settings').
-                  setView?.('settings');
+                  setView('settings');
                 }}
               >
                 <span className="text-sm">Tools and Settings</span>

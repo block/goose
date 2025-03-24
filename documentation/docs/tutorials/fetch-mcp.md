@@ -10,7 +10,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/_WMm4kDYMog" />
 
 :::warning Known Limitation
-The Fetch extension [does not work](https://github.com/block/goose/issues/1184) with Google models (e.g. gemini-2.0-flash-exp) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
+The Fetch extension [does not work](https://github.com/block/goose/issues/1184) with Google models (e.g. gemini-2.0-flash) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
 :::
 
 This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a Goose extension to retrieve and process content from the web.
@@ -26,6 +26,10 @@ uvx mcp-server-fetch
 
 
 ## Configuration
+
+:::info
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+:::
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -87,8 +91,7 @@ uvx mcp-server-fetch
     └ 
   ``` 
 
-  5. Choose No when asked to add environment variables
-
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
    ```sh
     ┌   goose-configure 
     │
@@ -105,6 +108,33 @@ uvx mcp-server-fetch
     │  uvx mcp-server-fetch
     │
     // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    └ 
+  ```  
+
+  6. Choose No when asked to add environment variables
+
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  fetch
+    │
+    ◇  What command should be run?
+    │  uvx mcp-server-fetch
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │    
+    // highlight-start
     ◇  Would you like to add environment variables?
     │  No 
     // highlight-end
@@ -114,10 +144,8 @@ uvx mcp-server-fetch
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Go to the [Extensions Directory](https://block.github.io/goose/v1/extensions/)
-  2. Find the `Fetch` extension
-  3. Click `Install`
-  4. Press `Yes` to confirm the installation
+  1. [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
+  2. Press `Yes` to confirm the installation
   </TabItem>
 </Tabs>
 

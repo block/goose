@@ -11,6 +11,11 @@ Extensions are add-ons that provide a way to extend the functionality of Goose b
 Extensions are based on the [Model Context Protocol (MCP)](https://github.com/modelcontextprotocol), so you can connect
 Goose to a wide ecosystem of capabilities.
 
+:::tip Tutorials
+Check out the [step-by-step tutorials](/docs/category/tutorials) for adding and using several Goose Extensions
+:::
+
+
 ## Built-in Extensions
 Out of the box, Goose is installed with a few extensions but with only the `Developer` extension enabled by default.
 
@@ -20,7 +25,6 @@ Here are the built-in extensions:
 2. **Computer Controller**: provides general computer control tools for webscraping, file caching, and automations.
 3. **Memory**: teaches goose to remember your preferences as you use it
 4. **JetBrains**: provides an integration for working with JetBrains IDEs.
-5. **Google Drive**: provides an integration for working with Google Drive for file management and access.
 
 
 #### Toggling Built-in Extensions
@@ -67,7 +71,11 @@ Here are the built-in extensions:
     │  ○ Google Drive 
     │  ○ Memory 
     │  ● JetBrains 
-    └  
+    │        
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │ 
+    └  Enabled jetbrains extension    
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
@@ -78,7 +86,7 @@ Here are the built-in extensions:
 </Tabs>
 
 
-:::tip
+:::info
 All of Goose's built-in extensions are MCP servers in their own right. If you'd like
 to use the MCP servers included with Goose with any other agent, you are free to do so.
 :::
@@ -95,16 +103,12 @@ You can also add any other [MCP Server](#mcp-servers) as a Goose extension, even
 
 Extensions can be installed directly via the [extensions directory][extensions-directory], CLI, or UI.
 
-:::tip
-For advanced users, you can also edit the `~/.config/goose/config.yaml` file directly to add an extension. 
-:::
-
 ### MCP Servers
 
 You can install any MCP server as a Goose extension. 
 
 :::tip MCP Server Directory
-See available servers in the **[MCP Server Directory](https://github.com/modelcontextprotocol/servers?tab=readme-ov-file#model-context-protocol-servers)**.
+See available servers in the **[MCP Server Directory](https://www.pulsemcp.com/servers)**.
 :::
 
 <Tabs groupId="interface">
@@ -125,50 +129,51 @@ See available servers in the **[MCP Server Directory](https://github.com/modelco
 
   4. Follow the prompts based on the type of extension you selected.
 
-  #### Example of adding the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch):
+  #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
 
   ```
-  ┌   goose-configure 
-  │
-  ◇  What would you like to configure?
-  │  Add Extension 
-  │
-  ◇  What type of extension would you like to add?
-  │  Command-line Extension 
-  │
-  ◇  What would you like to call this extension?
-  │  fetch
-  │
-  ◇  What command should be run?
-  │  uvx mcp-server-fetch
-  │
-  ◇  Would you like to add environment variables?
-  │  No 
-  │
-  └  Added fetch extension
-  ```
+ ┌   goose-configure 
+ │
+ ◇  What would you like to configure?
+ │  Add Extension 
+ │
+ ◇  What type of extension would you like to add?
+ │  Command-line Extension 
+ │
+ ◇  What would you like to call this extension?
+ │  Knowledge Graph Memory
+ │
+ ◇  What command should be run?
+ │  npx -y @modelcontextprotocol/server-memory
+ │
+ ◇  Please set the timeout for this tool (in secs):
+ │  300
+ │
+ ◆  Would you like to add environment variables?
+ │  No 
+ │
+ └  Added Knowledge Graph Memory extension
+ ```
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
  
   1. Click `...` in the top right corner of the Goose Desktop.
   2. Select `Settings` from the menu.
-  3. Under `Extensions`, click `Add` link.
-  4. On the `Add Extension Manually` modal, enter the necessary details and click `Add` button
-  5. Click `Add Extension` button
+  3. Under `Extensions`, click `Add custom extension`.
+  4. On the `Add custom extension` modal, enter the necessary details
+     - If adding an environment variable, click `Add` button to the right of the variable
+     - The `Timeout` field lets you set how long Goose should wait for a tool call from this extension to complete
+  5. Click `Add` button
   
-  #### Example of adding the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch):
+  #### Example of adding the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory):
     * **Type**: `Standard IO`
-    * **ID**: `fetch` (_set this to whatever you want_)
-    * **Name**: `fetch` (_set this to whatever you want_)
-    * **Description**: `Fetch MCP Server` (_set this to whatever you want_)
-    * **Command**: `uvx mcp-server-fetch`
+    * **ID**: `kgm-mcp` (_set this to whatever you want_)
+    * **Name**: `Knowledge Graph Memory` (_set this to whatever you want_)
+    * **Description**: `maps and stores complex relationships between concepts` (_set this to whatever you want_)
+    * **Command**: `npx -y @modelcontextprotocol/server-memory`
   </TabItem>
 </Tabs>
-
-  :::tip Tutorials
-  Check out our [tutorials](/docs/category/tutorials) with step-by-step instructions on adding MCP Servers.
-  :::
 
 ### Config Entry
 For advanced users, you can also directly edit the config file (`~/.config/goose/config.yaml`) to add, remove, or update an extension:
@@ -182,6 +187,7 @@ extensions:
     enabled: true
     envs: { "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>" }
     type: stdio
+    timeout: 300
 ```
     
 
@@ -215,10 +221,8 @@ You can enable or disable installed extensions based on your workflow needs.
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click the three dots in the top-right corner of the application.
-  2. Select `Settings` from the menu, then click on the `Extensions` section.
+  2. Select `Settings` from the menu, scroll down to the `Extensions` section.
   2. Use the toggle switch next to each extension to enable or disable it.
-
-  ![Install Extension](../assets/guides/manage-extensions-ui.png)
 
   </TabItem>
 </Tabs>
@@ -230,7 +234,28 @@ You can remove installed extensions.
 
 <Tabs groupId="interface">
 <TabItem value="cli" label="Config file" default>
-    To remove extensions, open `~/.config/goose/config.yaml` and delete the extensions.
+  :::info
+  To remove an extension, you must [disable](#enablingdisabling-extensions) it first.
+  :::
+
+    1. Run the following command to open up Goose's configurations:
+    ```sh
+    goose configure
+    ```
+    2. Select `Remove` from the menu. Disabled extensions will be listed.
+    3. Arrow down to the extension you want to remove.
+    4. Press the `space bar` to select the extension. Solid means selected. 
+    ```
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Remove Extension 
+    │
+    ◆  Select extensions to remove (note: you can only remove disabled extensions - use "space" to toggle and "enter" to submit)
+    │  ◼ fetch 
+    └  
+    ```
+    5. Press Enter to save
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
 
@@ -248,7 +273,12 @@ You can remove installed extensions.
 
 ## Starting Session with Extensions
 
-You can start a tailored Goose session with specific extensions directly from the CLI. This will add and enable the extensions, so there's no need to do this if you already have the extensions enabled.
+You can start a tailored Goose session with specific extensions directly from the CLI. 
+
+:::info Notes
+* The extension will not be installed. It will only be enabled for the current session.
+* There's no need to do this if you already have the extensions enabled.
+:::
 
 ### Built-in Extensions
 
@@ -301,7 +331,7 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 ```
 
 :::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
 

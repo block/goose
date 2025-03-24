@@ -21,6 +21,10 @@ pub struct ModelConfig {
     pub temperature: Option<f32>,
     /// Optional maximum tokens to generate
     pub max_tokens: Option<i32>,
+    /// Whether to interpret tool calls with toolshim
+    pub toolshim: bool,
+    /// Model to use for toolshim (optional as a default exists)
+    pub toolshim_model: Option<String>,
 }
 
 impl ModelConfig {
@@ -34,12 +38,20 @@ impl ModelConfig {
         let context_limit = Self::get_model_specific_limit(&model_name);
         let tokenizer_name = Self::infer_tokenizer_name(&model_name);
 
+        let toolshim = std::env::var("GOOSE_TOOLSHIM")
+            .map(|val| val == "1" || val.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+
         Self {
             model_name,
             tokenizer_name: tokenizer_name.to_string(),
             context_limit,
             temperature: None,
             max_tokens: None,
+            toolshim,
+            toolshim_model,
         }
     }
 
@@ -59,6 +71,9 @@ impl ModelConfig {
             // OpenAI models, https://platform.openai.com/docs/models#models-overview
             name if name.contains("gpt-4o") => Some(128_000),
             name if name.contains("gpt-4-turbo") => Some(128_000),
+            name if name.contains("o1-mini") || name.contains("o1-preview") => Some(128_000),
+            name if name.contains("o1") => Some(200_000),
+            name if name.contains("o3-mini") => Some(200_000),
 
             // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
             name if name.contains("claude-3") => Some(200_000),
@@ -93,7 +108,19 @@ impl ModelConfig {
         self
     }
 
-    // Get the tokenizer name
+    /// Set whether to interpret tool calls
+    pub fn with_toolshim(mut self, toolshim: bool) -> Self {
+        self.toolshim = toolshim;
+        self
+    }
+
+    /// Set the tool call interpreter model
+    pub fn with_toolshim_model(mut self, model: Option<String>) -> Self {
+        self.toolshim_model = model;
+        self
+    }
+
+    /// Get the tokenizer name
     pub fn tokenizer_name(&self) -> &str {
         &self.tokenizer_name
     }
@@ -138,5 +165,21 @@ mod tests {
         assert_eq!(config.temperature, Some(0.7));
         assert_eq!(config.max_tokens, Some(1000));
         assert_eq!(config.context_limit, Some(50_000));
+    }
+
+    #[test]
+    fn test_model_config_tool_interpretation() {
+        // Test without env vars - should be false
+        let config = ModelConfig::new("test-model".to_string());
+        assert!(!config.toolshim);
+
+        // Test with tool interpretation setting
+        let config = ModelConfig::new("test-model".to_string()).with_toolshim(true);
+        assert!(config.toolshim);
+
+        // Test tool interpreter model
+        let config = ModelConfig::new("test-model".to_string())
+            .with_toolshim_model(Some("mistral-nemo".to_string()));
+        assert_eq!(config.toolshim_model, Some("mistral-nemo".to_string()));
     }
 }

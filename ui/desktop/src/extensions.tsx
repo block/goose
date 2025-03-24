@@ -1,14 +1,23 @@
+import React from 'react';
 import { getApiUrl, getSecretKey } from './config';
-import { NavigateFunction } from 'react-router-dom';
+import { type View } from './App';
+import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
+import builtInExtensionsData from './built-in-extensions.json';
+
+// Hardcoded default extension timeout in seconds
+export const DEFAULT_EXTENSION_TIMEOUT = 300;
+
 // ExtensionConfig type matching the Rust version
+// TODO: refactor this
 export type ExtensionConfig =
   | {
       type: 'sse';
       name: string;
       uri: string;
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'stdio';
@@ -16,11 +25,13 @@ export type ExtensionConfig =
       cmd: string;
       args: string[];
       env_keys?: string[];
+      timeout?: number;
     }
   | {
       type: 'builtin';
       name: string;
       env_keys?: string[];
+      timeout?: number;
     };
 
 // FullExtensionConfig type matching all the fields that come in deep links and are stored in local storage
@@ -37,55 +48,10 @@ export interface ExtensionPayload {
   args?: string[];
   uri?: string;
   env_keys?: string[];
+  timeout?: number;
 }
 
-export const BUILT_IN_EXTENSIONS = [
-  {
-    id: 'developer',
-    name: 'Developer',
-    description: 'General development tools useful for software engineering.',
-    enabled: true,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'computercontroller',
-    name: 'Computer Controller',
-    description:
-      "General computer control tools that don't require you to be a developer or engineer.",
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'memory',
-    name: 'Memory',
-    description: 'Teach goose your preferences as you go.',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  {
-    id: 'jetbrains',
-    name: 'Jetbrains',
-    description: 'Integration with any Jetbrains IDE',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [],
-  },
-  /* TODO re-enable when we have a smoother auth flow {
-    id: 'google_drive',
-    name: 'Google Drive',
-    description: 'Built-in Google Drive integration for file management and access',
-    enabled: false,
-    type: 'builtin',
-    env_keys: [
-      'GOOGLE_DRIVE_OAUTH_PATH',
-      'GOOGLE_DRIVE_CREDENTIALS_PATH',
-      'GOOGLE_DRIVE_OAUTH_CONFIG',
-    ],
-  },*/
-];
+export const BUILT_IN_EXTENSIONS = builtInExtensionsData as FullExtensionConfig[];
 
 function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
@@ -112,7 +78,11 @@ export async function addExtension(
         name: sanitizeName(extension.name),
       }),
       env_keys: extension.env_keys,
+      timeout: extension.timeout,
     };
+
+    let toastId;
+    if (!silent) toastId = toast.loading(`Adding ${extension.name} extension...`);
 
     const response = await fetch(getApiUrl('/extensions/add'), {
       method: 'POST',
@@ -127,19 +97,39 @@ export async function addExtension(
 
     if (!data.error) {
       if (!silent) {
+        if (toastId) toast.dismiss(toastId);
         toast.success(`Successfully enabled ${extension.name} extension`);
       }
       return response;
     }
 
     const errorMessage = `Error adding ${extension.name} extension ${data.message ? `. ${data.message}` : ''}`;
+    const ErrorMsg = ({ closeToast }: { closeToast?: () => void }) => (
+      <div className="flex flex-col gap-1">
+        <div>Error adding {extension.name} extension</div>
+        <div>
+          <button
+            className="text-sm rounded px-2 py-1 bg-gray-400 hover:bg-gray-300 text-white cursor-pointer"
+            onClick={() => {
+              navigator.clipboard.writeText(data.message);
+              closeToast();
+            }}
+          >
+            Copy error message
+          </button>
+        </div>
+      </div>
+    );
+
     console.error(errorMessage);
-    toast.error(errorMessage);
+    if (toastId) toast.dismiss(toastId);
+    toast(ErrorMsg, { type: 'error', autoClose: false });
+
     return response;
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -166,12 +156,12 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
 
     const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     return response;
   } catch (error) {
     const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    toast.error(errorMessage);
+    toast.error(errorMessage, { autoClose: false });
     throw error;
   }
 }
@@ -194,7 +184,7 @@ function storeExtensionConfig(config: FullExtensionConfig) {
       localStorage.setItem('user_settings', JSON.stringify(userSettings));
       console.log('Extension config stored successfully in user_settings');
       // Notify settings update through electron IPC
-      window.electron.send('settings-updated');
+      window.electron.emit('settings-updated');
     } else {
       console.log('Extension config already exists in user_settings');
     }
@@ -251,14 +241,17 @@ function envVarsRequired(config: ExtensionConfig) {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  toast.error(message);
+  toast.error(message, { autoClose: false });
   console.error(message);
   if (shouldThrow) {
     throw new Error(message);
   }
 }
 
-export async function addExtensionFromDeepLink(url: string, navigate: NavigateFunction) {
+export async function addExtensionFromDeepLink(
+  url: string,
+  setView: (view: View, options: SettingsViewOptions) => void
+) {
   if (!url.startsWith('goose://extension')) {
     handleError(
       'Failed to install extension: Invalid URL: URL must use the goose://extension scheme'
@@ -315,6 +308,7 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
   const id = parsedUrl.searchParams.get('id');
   const name = parsedUrl.searchParams.get('name');
   const description = parsedUrl.searchParams.get('description');
+  const timeout = parsedUrl.searchParams.get('timeout');
 
   // split env based on delimiter to a map
   const envs = envList.reduce(
@@ -327,6 +321,9 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
   );
 
   // Create a ExtensionConfig from the URL parameters
+  // Parse timeout if provided, otherwise use default
+  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
+
   const config: FullExtensionConfig = {
     id,
     name,
@@ -336,6 +333,10 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
     description,
     enabled: true,
     env_keys: Object.keys(envs).length > 0 ? Object.keys(envs) : [],
+    timeout:
+      parsedTimeout !== null && !isNaN(parsedTimeout) && Number.isInteger(parsedTimeout)
+        ? parsedTimeout
+        : DEFAULT_EXTENSION_TIMEOUT,
   };
 
   // Store the extension config regardless of env vars status
@@ -344,7 +345,7 @@ export async function addExtensionFromDeepLink(url: string, navigate: NavigateFu
   // Check if extension requires env vars and go to settings if so
   if (envVarsRequired(config)) {
     console.log('Environment variables required, redirecting to settings');
-    navigate(`/settings?extensionId=${config.id}&showEnvVars=true`);
+    setView('settings', { extensionId: config.id, showEnvVars: true });
     return;
   }
 

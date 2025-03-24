@@ -1,15 +1,22 @@
 use super::base::Usage;
+use super::errors::GoogleErrorCode;
+use crate::model::ModelConfig;
 use anyhow::Result;
 use base64::Engine;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{from_value, json, Map, Value};
 use std::io::Read;
 use std::path::Path;
 
-use crate::providers::errors::ProviderError;
+use crate::providers::errors::{OpenAIError, ProviderError};
 use mcp_core::content::ImageContent;
+
+#[derive(serde::Deserialize)]
+struct OpenAIErrorResponse {
+    error: OpenAIError,
+}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum ImageFormat {
@@ -54,26 +61,18 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", status, payload)))
         }
-        StatusCode::BAD_REQUEST => {
-            let mut message = "Unknown error".to_string();
-            if let Some(error) = payload.get("error") {
-            tracing::debug!("Bad Request Error: {error:?}");
-            message = error
-                        .get("message")
-                        .and_then(|m| m.as_str())
-                        .unwrap_or("Unknown error")
-                        .to_string();
-
-            if let Some(code) = error.get("code").and_then(|c| c.as_str()) {
-                if code == "context_length_exceeded" || code == "string_above_max_length" {
-                    return Err(ProviderError::ContextLengthExceeded(message));
-                }
-            }
-            }
+        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
-            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", status, message)))
+            if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(payload) {
+                let err = err_resp.error;
+                if err.is_context_length_exceeded() {
+                    return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
+                }
+                return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
+            }
+            Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
@@ -86,6 +85,97 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
             Err(ProviderError::RequestFailed(format!("Request failed with status: {}", status)))
+        }
+    }
+}
+
+/// Check if the model is a Google model based on the "model" field in the payload.
+///
+/// ### Arguments
+/// - `payload`: The JSON payload as a `serde_json::Value`.
+///
+/// ### Returns
+/// - `bool`: Returns `true` if the model is a Google model, otherwise `false`.
+pub fn is_google_model(payload: &Value) -> bool {
+    if let Some(model) = payload.get("model").and_then(|m| m.as_str()) {
+        // Check if the model name contains "google"
+        return model.to_lowercase().contains("google");
+    }
+    false
+}
+
+/// Extracts `StatusCode` from response status or payload error code.
+/// This function first checks the status code of the response. If the status is successful (2xx),
+/// it then checks the payload for any error codes and maps them to appropriate `StatusCode`.
+/// If the status is not successful (e.g., 4xx or 5xx), the original status code is returned.
+fn get_google_final_status(status: StatusCode, payload: Option<&Value>) -> StatusCode {
+    // If the status is successful, check for an error in the payload
+    if status.is_success() {
+        if let Some(payload) = payload {
+            if let Some(error) = payload.get("error") {
+                if let Some(code) = error.get("code").and_then(|c| c.as_u64()) {
+                    if let Some(google_error) = GoogleErrorCode::from_code(code) {
+                        return google_error.to_status_code();
+                    }
+                }
+            }
+        }
+    }
+    status
+}
+
+/// Handle response from Google Gemini API-compatible endpoints.
+///
+/// Processes HTTP responses, handling specific statuses and parsing the payload
+/// for error messages. Logs the response payload for debugging purposes.
+///
+/// ### References
+/// - Error Codes: https://ai.google.dev/gemini-api/docs/troubleshooting?lang=python
+///
+/// ### Arguments
+/// - `response`: The HTTP response to process.
+///
+/// ### Returns
+/// - `Ok(Value)`: Parsed JSON on success.
+/// - `Err(ProviderError)`: Describes the failure reason.
+pub async fn handle_response_google_compat(response: Response) -> Result<Value, ProviderError> {
+    let status = response.status();
+    let payload: Option<Value> = response.json().await.ok();
+    let final_status = get_google_final_status(status, payload.as_ref());
+
+    match final_status {
+        StatusCode::OK =>  payload.ok_or_else( || ProviderError::RequestFailed("Response body is not valid JSON".to_string()) ),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
+                Status: {}. Response: {:?}", final_status, payload )))
+        }
+        StatusCode::BAD_REQUEST => {
+            let mut error_msg = "Unknown error".to_string();
+            if let Some(payload) = &payload {
+                if let Some(error) = payload.get("error") {
+                    error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
+                    let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
+                    if error_status == "INVALID_ARGUMENT" && error_msg.to_lowercase().contains("exceeds") {
+                        return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
+                    }
+                }
+            }
+            tracing::debug!(
+                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+            );
+            Err(ProviderError::RequestFailed(format!("Request failed with status: {}. Message: {}", final_status, error_msg)))
+        }
+        StatusCode::TOO_MANY_REQUESTS => {
+            Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
+        }
+        StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE => {
+            Err(ProviderError::ServerError(format!("{:?}", payload)))
+        }
+        _ => {
+            tracing::debug!(
+                "{}", format!("Provider request failed with status: {}. Payload: {:?}", final_status, payload)
+            );
+            Err(ProviderError::RequestFailed(format!("Request failed with status: {}", final_status)))
         }
     }
 }
@@ -227,21 +317,15 @@ pub fn unescape_json_values(value: &Value) -> Value {
     }
 }
 
-pub fn emit_debug_trace<T: serde::Serialize>(
-    model_config: &T,
-    payload: &impl serde::Serialize,
+pub fn emit_debug_trace(
+    model_config: &ModelConfig,
+    payload: &Value,
     response: &Value,
     usage: &Usage,
 ) {
-    // Handle both Map<String, Value> and Value payload types
-    let payload_str = match serde_json::to_value(payload) {
-        Ok(value) => serde_json::to_string_pretty(&value).unwrap_or_default(),
-        Err(_) => serde_json::to_string_pretty(&payload).unwrap_or_default(),
-    };
-
     tracing::debug!(
         model_config = %serde_json::to_string_pretty(model_config).unwrap_or_default(),
-        input = %payload_str,
+        input = %serde_json::to_string_pretty(payload).unwrap_or_default(),
         output = %serde_json::to_string_pretty(response).unwrap_or_default(),
         input_tokens = ?usage.input_tokens.unwrap_or_default(),
         output_tokens = ?usage.output_tokens.unwrap_or_default(),
@@ -253,8 +337,6 @@ pub fn emit_debug_trace<T: serde::Serialize>(
 mod tests {
     use super::*;
     use serde_json::json;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_detect_image_path() {
@@ -394,5 +476,71 @@ mod tests {
         let value = json!({"text": "Hello World"});
         let unescaped_value = unescape_json_values(&value);
         assert_eq!(unescaped_value, json!({"text": "Hello World"}));
+    }
+
+    #[test]
+    fn test_is_google_model() {
+        // Define the test cases as a vector of tuples
+        let test_cases = vec![
+            // (input, expected_result)
+            (json!({ "model": "google_gemini" }), true),
+            (json!({ "model": "microsoft_bing" }), false),
+            (json!({ "model": "" }), false),
+            (json!({}), false),
+            (json!({ "model": "Google_XYZ" }), true),
+            (json!({ "model": "google_abc" }), true),
+        ];
+
+        // Iterate through each test case and assert the result
+        for (payload, expected_result) in test_cases {
+            assert_eq!(is_google_model(&payload), expected_result);
+        }
+    }
+
+    #[test]
+    fn test_get_google_final_status_success() {
+        let status = StatusCode::OK;
+        let payload = json!({});
+        let result = get_google_final_status(status, Some(&payload));
+        assert_eq!(result, StatusCode::OK);
+    }
+
+    #[test]
+    fn test_get_google_final_status_with_error_code() {
+        // Test error code mappings for different payload error codes
+        let test_cases = vec![
+            // (error code, status, expected status code)
+            (200, None, StatusCode::OK),
+            (429, Some(StatusCode::OK), StatusCode::TOO_MANY_REQUESTS),
+            (400, Some(StatusCode::OK), StatusCode::BAD_REQUEST),
+            (401, Some(StatusCode::OK), StatusCode::UNAUTHORIZED),
+            (403, Some(StatusCode::OK), StatusCode::FORBIDDEN),
+            (404, Some(StatusCode::OK), StatusCode::NOT_FOUND),
+            (500, Some(StatusCode::OK), StatusCode::INTERNAL_SERVER_ERROR),
+            (503, Some(StatusCode::OK), StatusCode::SERVICE_UNAVAILABLE),
+            (999, Some(StatusCode::OK), StatusCode::INTERNAL_SERVER_ERROR),
+            (500, Some(StatusCode::BAD_REQUEST), StatusCode::BAD_REQUEST),
+            (
+                404,
+                Some(StatusCode::INTERNAL_SERVER_ERROR),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+        ];
+
+        for (error_code, status, expected_status) in test_cases {
+            let payload = if let Some(_status) = status {
+                json!({
+                    "error": {
+                        "code": error_code,
+                        "message": "Error message"
+                    }
+                })
+            } else {
+                json!({})
+            };
+
+            let result = get_google_final_status(status.unwrap_or(StatusCode::OK), Some(&payload));
+            assert_eq!(result, expected_status);
+        }
     }
 }

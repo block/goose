@@ -40,10 +40,10 @@ impl AzureProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("AZURE_OPENAI_API_KEY")?;
-        let endpoint: String = config.get("AZURE_OPENAI_ENDPOINT")?;
-        let deployment_name: String = config.get("AZURE_OPENAI_DEPLOYMENT_NAME")?;
+        let endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
+        let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
         let api_version: String = config
-            .get("AZURE_OPENAI_API_VERSION")
+            .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
         let client = Client::builder()
@@ -64,10 +64,21 @@ impl AzureProvider {
         let mut base_url = url::Url::parse(&self.endpoint)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
 
-        base_url.set_path(&format!(
-            "openai/deployments/{}/chat/completions",
-            self.deployment_name
-        ));
+        // Get the existing path without trailing slashes
+        let existing_path = base_url.path().trim_end_matches('/');
+        let new_path = if existing_path.is_empty() {
+            format!(
+                "/openai/deployments/{}/chat/completions",
+                self.deployment_name
+            )
+        } else {
+            format!(
+                "{}/openai/deployments/{}/chat/completions",
+                existing_path, self.deployment_name
+            )
+        };
+
+        base_url.set_path(&new_path);
         base_url.set_query(Some(&format!("api-version={}", self.api_version)));
 
         let response: reqwest::Response = self
@@ -98,18 +109,8 @@ impl Provider for AzureProvider {
             vec![
                 ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, None),
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
-                ConfigKey::new(
-                    "AZURE_OPENAI_DEPLOYMENT_NAME",
-                    true,
-                    false,
-                    Some("Name of your Azure OpenAI deployment"),
-                ),
-                ConfigKey::new(
-                    "AZURE_OPENAI_API_VERSION",
-                    false,
-                    false,
-                    Some("Azure OpenAI API version, default: 2024-10-21"),
-                ),
+                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
+                ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, Some("2024-10-21")),
             ],
         )
     }
@@ -141,7 +142,7 @@ impl Provider for AzureProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }

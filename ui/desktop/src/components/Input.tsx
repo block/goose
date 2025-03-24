@@ -5,27 +5,29 @@ import { Attach, Send } from './icons';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
-  disabled?: boolean;
   isLoading?: boolean;
   onStop?: () => void;
+  commandHistory?: string[];
 }
 
 export default function Input({
   handleSubmit,
-  disabled = false,
   isLoading = false,
   onStop,
+  commandHistory = [],
 }: InputProps) {
   const [value, setValue] = useState('');
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedInput, setSavedInput] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (textAreaRef.current && !disabled) {
+    if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
-  }, [disabled, value]);
+  }, [value]);
 
   const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
@@ -56,22 +58,73 @@ export default function Input({
     setIsComposing(false);
   };
 
+  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    evt.preventDefault();
+
+    // Save current input if we're just starting to navigate history
+    if (historyIndex === -1) {
+      setSavedInput(value);
+    }
+
+    // Calculate new history index
+    let newIndex = historyIndex;
+    if (evt.key === 'ArrowUp') {
+      // Move backwards through history
+      if (historyIndex < commandHistory.length - 1) {
+        newIndex = historyIndex + 1;
+      }
+    } else {
+      // Move forwards through history
+      if (historyIndex > -1) {
+        newIndex = historyIndex - 1;
+      }
+    }
+
+    // Update index and value
+    setHistoryIndex(newIndex);
+    if (newIndex === -1) {
+      // Restore saved input when going past the end of history
+      setValue(savedInput);
+    } else {
+      setValue(commandHistory[newIndex] || '');
+    }
+  };
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Only trigger submit on Enter if not composing (IME input in progress) and shift is not pressed
-    if (evt.key === 'Enter' && !evt.shiftKey && !isComposing) {
+    // Handle command history navigation
+    if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
+      handleHistoryNavigation(evt);
+      return;
+    }
+
+    if (evt.key === 'Enter') {
+      // should not trigger submit on Enter if it's composing (IME input in progress) or shift is pressed
+      if (evt.shiftKey || isComposing) {
+        // Allow line break for Shift+Enter or during IME composition
+        return;
+      }
+
+      // Prevent default Enter behavior when loading or when not loading but has content
+      // So it won't trigger a new line
       evt.preventDefault();
-      if (value.trim()) {
+
+      // Only submit if not loading and has content
+      if (!isLoading && value.trim()) {
         handleSubmit(new CustomEvent('submit', { detail: { value } }));
         setValue('');
+        setHistoryIndex(-1);
+        setSavedInput('');
       }
     }
   };
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
+    if (value.trim() && !isLoading) {
       handleSubmit(new CustomEvent('submit', { detail: { value } }));
       setValue('');
+      setHistoryIndex(-1);
+      setSavedInput('');
     }
   };
 
@@ -91,13 +144,12 @@ export default function Input({
       <textarea
         autoFocus
         id="dynamic-textarea"
-        placeholder="What can goose help with?"
+        placeholder="What can goose help with?   ⌘↑/⌘↓"
         value={value}
         onChange={handleChange}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
         onKeyDown={handleKeyDown}
-        disabled={disabled}
         ref={textAreaRef}
         rows={1}
         style={{
@@ -105,19 +157,14 @@ export default function Input({
           maxHeight: `${maxHeight}px`,
           overflowY: 'auto',
         }}
-        className={`w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard ${
-          disabled ? 'cursor-not-allowed opacity-50' : ''
-        }`}
+        className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
       />
       <Button
         type="button"
         size="icon"
         variant="ghost"
         onClick={handleFileSelect}
-        disabled={disabled}
-        className={`absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-          disabled ? 'text-textSubtle cursor-not-allowed' : ''
-        }`}
+        className="absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard"
       >
         <Attach />
       </Button>
@@ -126,7 +173,11 @@ export default function Input({
           type="button"
           size="icon"
           variant="ghost"
-          onClick={onStop}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onStop();
+          }}
           className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
         >
           <Stop size={24} />
@@ -136,9 +187,9 @@ export default function Input({
           type="submit"
           size="icon"
           variant="ghost"
-          disabled={disabled || !value.trim()}
+          disabled={!value.trim()}
           className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-            disabled || !value.trim() ? 'text-textSubtle cursor-not-allowed' : ''
+            !value.trim() ? 'text-textSubtle cursor-not-allowed' : ''
           }`}
         >
           <Send />

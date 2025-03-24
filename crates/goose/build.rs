@@ -42,7 +42,12 @@ async fn download_tokenizer(repo_id: &str) -> Result<(), Box<dyn Error>> {
     // Download the file
     let response = reqwest::get(&file_url).await?;
     if !response.status().is_success() {
-        return Err(format!("Failed to download tokenizer for {}", repo_id).into());
+        return Err(format!(
+            "Failed to download tokenizer for {}, status: {}",
+            repo_id,
+            response.status()
+        )
+        .into());
     }
 
     let content = response.bytes().await?;

@@ -82,5 +82,16 @@ async fn main() -> Result<(), ClientError> {
     let resource = client.read_resource("memo://insights").await?;
     println!("Resource: {resource:?}\n");
 
+    let prompts = client.list_prompts(None).await?;
+    println!("Prompts: {prompts:?}\n");
+
+    let prompt = client
+        .get_prompt(
+            "example_prompt",
+            serde_json::json!({"message": "hello there!"}),
+        )
+        .await?;
+    println!("Prompt: {prompt:?}\n");
+
     Ok(())
 }

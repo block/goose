@@ -44,6 +44,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
+                MessageContent::Thinking(_) => {
+                    // Thinking blocks are not directly used in OpenAI format
+                    continue;
+                }
+                MessageContent::RedactedThinking(_) => {
+                    // Redacted thinking blocks are not directly used in OpenAI format
+                    continue;
+                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
@@ -135,6 +143,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             }));
                         }
                     }
+                }
+                MessageContent::ToolConfirmationRequest(_) => {
+                    // Skip tool confirmation requests
                 }
                 MessageContent::Image(image) => {
                     // Handle direct image content
@@ -289,7 +300,7 @@ fn ensure_valid_json_schema(schema: &mut Value) {
         let is_object_type = params_obj
             .get("type")
             .and_then(|t| t.as_str())
-            .map_or(true, |t| t == "object"); // Default to true if no type is specified
+            .is_none_or(|t| t == "object"); // Default to true if no type is specified
 
         // Only apply full schema validation to object types
         if is_object_type {
@@ -330,8 +341,28 @@ pub fn create_request(
     let is_o1 = model_config.model_name.starts_with("o1");
     let is_o3 = model_config.model_name.starts_with("o3");
 
+    // Only extract reasoning effort for O1/O3 models
+    let (model_name, reasoning_effort) = if is_o1 || is_o3 {
+        let parts: Vec<&str> = model_config.model_name.split('-').collect();
+        let last_part = parts.last().unwrap();
+
+        match *last_part {
+            "low" | "medium" | "high" => {
+                let base_name = parts[..parts.len() - 1].join("-");
+                (base_name, Some(last_part.to_string()))
+            }
+            _ => (
+                model_config.model_name.to_string(),
+                Some("medium".to_string()),
+            ),
+        }
+    } else {
+        // For non-O family models, use the model name as is and no reasoning effort
+        (model_config.model_name.to_string(), None)
+    };
+
     let system_message = json!({
-        "role": if is_o1 { "developer" } else { "system" },
+        "role": if is_o1 || is_o3 { "developer" } else { "system" },
         "content": system
     });
 
@@ -349,9 +380,16 @@ pub fn create_request(
     messages_array.extend(messages_spec);
 
     let mut payload = json!({
-        "model": model_config.model_name,
+        "model": model_name,
         "messages": messages_array
     });
+
+    if let Some(effort) = reasoning_effort {
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("reasoning_effort".to_string(), json!(effort));
+    }
 
     if !tools_spec.is_empty() {
         payload
@@ -774,6 +812,104 @@ mod tests {
             assert_eq!(tool_call.arguments, json!({}));
         } else {
             panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_gpt_4o() -> anyhow::Result<()> {
+        // Test default medium reasoning effort for O3 model
+        let model_config = ModelConfig {
+            model_name: "gpt-4o".to_string(),
+            tokenizer_name: "gpt-4o".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        let expected = json!({
+            "model": "gpt-4o",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "system"
+                }
+            ],
+            "max_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_o1_default() -> anyhow::Result<()> {
+        // Test default medium reasoning effort for O1 model
+        let model_config = ModelConfig {
+            model_name: "o1".to_string(),
+            tokenizer_name: "o1".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        let expected = json!({
+            "model": "o1",
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": "system"
+                }
+            ],
+            "reasoning_effort": "medium",
+            "max_completion_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
+        // Test custom reasoning effort for O3 model
+        let model_config = ModelConfig {
+            model_name: "o3-mini-high".to_string(),
+            tokenizer_name: "o3-mini".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+        };
+        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
+        let obj = request.as_object().unwrap();
+        let expected = json!({
+            "model": "o3-mini",
+            "messages": [
+                {
+                    "role": "developer",
+                    "content": "system"
+                }
+            ],
+            "reasoning_effort": "high",
+            "max_completion_tokens": 1024
+        });
+
+        for (key, value) in expected.as_object().unwrap() {
+            assert_eq!(obj.get(key).unwrap(), value);
         }
 
         Ok(())

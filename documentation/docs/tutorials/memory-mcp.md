@@ -7,8 +7,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://youtube.com/embed/BZ0yrSLXQwk" />
 
-The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it **personalized key information** (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
+The Memory extension turns Goose into a knowledgeable assistant by allowing you to teach it personalized key information (e.g. commands, code snippets, preferences and configurations) that it can recall and apply later. Whether it’s project-specific (local) or universal (global) knowledge, Goose learns and remembers what matters most to you.
 
 This tutorial covers enabling and using the Memory MCP Server, which is a built-in Goose extension.  
 
@@ -57,29 +58,71 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   │  ● Memory 
   // highlight-end
   |  ○ JetBrains
-  └  Enabled Memory extension
+  └  
   ```
+
+  4. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+
+  ```sh
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Add Extension 
+  │
+  ◇  What type of extension would you like to add?
+  │  Built-in Extension 
+  │
+  ◇  Which built-in extension would you like to enable?
+  │  Memory 
+  │
+  // highlight-start
+  ◆  Please set the timeout for this tool (in secs):
+  │  300
+  // highlight-end
+  └  Enabled Memory extension
+  ```  
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
   2. Click `Settings`
   3. Under `Extensions`, toggle `Memory` to on.
+  4. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 
 ## Why Use Memory?  
-With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:   
+With the Memory extension, you’re not just storing static notes, you’re teaching Goose how to assist you better. Imagine telling Goose:  
 
-- **"Goose, learn everything about MCP servers and save it to memory."**   
-- Later, you can ask: **"Goose, utilizing our MCP server knowledge help me build an MCP server."**  
+> _learn everything about MCP servers and save it to memory._
+
+Later, you can ask:
+> _utilizing our MCP server knowledge help me build an MCP server._ 
 
 Goose will recall everything you’ve saved as long as you instruct it to remember. This makes it easier to have consistent results when working with Goose.
 
+## Trigger Words and When to Use Them
+Goose also recognizes certain trigger words that signal when to store, retrieve, or remove memory.
+
+| **Trigger Words**   | **When to Use** |
+|---------------------|----------------|
+| remember            | Store useful info for later use |
+| forget           | Remove a stored memory |
+| memory           | General memory-related actions |
+| save             | Save a command, config, or preference |
+| remove memory    | Delete specific stored data |
+| clear memory     | Wipe all stored memories |
+| search memory    | Find previously stored data |
+| find memory      | Locate specific saved information |
+
 ## Example Usage
 
-In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and retrieve it later to help with your tasks.
+In this example, I’ll show you how to make Goose a knowledgeable development assistant by teaching it about your project’s API standards. With the Memory extension, Goose can store structured information and recall it when needed, helping you stay consistent in your work.
 
 This means you no longer have to repeat yourself. Goose will remember your project’s requirements and automatically apply them to new tasks.
+
+:::tip  
+If you frequently work with API standards or other structured knowledge, Goose may automatically suggest saving them to memory for you when it detects a pattern in your workflow.  
+:::
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>

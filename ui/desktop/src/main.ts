@@ -1,5 +1,3 @@
-import { spawn } from 'child_process';
-import 'dotenv/config';
 import {
   app,
   BrowserWindow,
@@ -12,9 +10,11 @@ import {
   powerSaveBlocker,
   Tray,
 } from 'electron';
+import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
 import path from 'node:path';
-import { handleSquirrelEvent } from './setup-events';
+import { spawn } from 'child_process';
+import 'dotenv/config';
 import { startGoosed } from './goosed';
 import { getBinaryPath } from './utils/binaryPath';
 import { loadShellEnv } from './utils/loadEnv';
@@ -34,104 +34,53 @@ import { promisify } from 'util';
 
 const exec = promisify(execCallback);
 
-// Handle Squirrel events for Windows installer
-if (process.platform === 'win32') {
-  console.log('Windows detected, command line args:', process.argv);
-
-  if (handleSquirrelEvent()) {
-    // squirrel event handled and app will exit in 1000ms, so don't do anything else
-    process.exit(0);
-  }
-
-  // Handle the protocol on Windows during first launch
-  if (process.argv.length >= 2) {
-    const url = process.argv[1];
-    console.log('Checking URL from command line:', url);
-    if (url.startsWith('goose://')) {
-      console.log('Found goose:// URL in command line args');
-      app.emit('open-url', { preventDefault: () => {} }, url);
-    }
-  }
-}
-
-// Ensure single instance lock
-const gotTheLock = app.requestSingleInstanceLock();
-
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (event, commandLine, _workingDirectory) => {
-    // Someone tried to run a second instance
-    console.log('Second instance detected with args:', commandLine);
-
-    // Get existing window or create new one
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      const window = existingWindows[0];
-      if (window.isMinimized()) window.restore();
-      window.focus();
-
-      if (process.platform === 'win32') {
-        // Protocol handling for Windows
-        const url = commandLine[commandLine.length - 1];
-        console.log('Checking last arg for protocol:', url);
-        if (url.startsWith('goose://')) {
-          console.log('Found goose:// URL in second instance');
-          // Send the URL to the window
-          if (!window.webContents.isLoading()) {
-            window.webContents.send('add-extension', url);
-          } else {
-            window.webContents.once('did-finish-load', () => {
-              window.webContents.send('add-extension', url);
-            });
-          }
-        }
-      }
-    }
-  });
-}
-
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) app.quit();
 
-// Register protocol handler
-if (process.platform === 'win32') {
-  const success = app.setAsDefaultProtocolClient('goose', process.execPath, ['--']);
-  console.log('Registering protocol handler for Windows:', success ? 'success' : 'failed');
-} else {
-  const success = app.setAsDefaultProtocolClient('goose');
-  console.log('Registering protocol handler:', success ? 'success' : 'failed');
-}
-
-// Log if we're the default protocol handler
-console.log('Is default protocol handler:', app.isDefaultProtocolClient('goose'));
+app.setAsDefaultProtocolClient('goose');
 
 // Triggered when the user opens "goose://..." links
+let firstOpenWindow: BrowserWindow;
+let pendingDeepLink = null; // Store deep link if sent before React is ready
 app.on('open-url', async (event, url) => {
-  event.preventDefault();
-  console.log('open-url:', url);
+  pendingDeepLink = url;
 
-  // Get existing window or create new one
-  let targetWindow: BrowserWindow;
-  const existingWindows = BrowserWindow.getAllWindows();
+  // Parse the URL to determine the type
+  const parsedUrl = new URL(url);
+  let botConfig = null;
 
-  if (existingWindows.length > 0) {
-    targetWindow = existingWindows[0];
-    if (targetWindow.isMinimized()) targetWindow.restore();
-    targetWindow.focus();
-  } else {
-    const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    targetWindow = await createChat(app, undefined, openDir);
+  // Extract bot config if it's a bot URL
+  if (parsedUrl.pathname === '/bot') {
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
   }
 
-  // Wait for window to be ready before sending the extension URL
-  if (!targetWindow.webContents.isLoading()) {
-    targetWindow.webContents.send('add-extension', url);
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+  // Always create a new window for bot URLs only
+  if (parsedUrl.pathname === '/bot') {
+    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
   } else {
-    targetWindow.webContents.once('did-finish-load', () => {
-      targetWindow.webContents.send('add-extension', url);
-    });
+    // For other URL types, reuse existing window if available
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      firstOpenWindow = existingWindows[0];
+      if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+      firstOpenWindow.focus();
+    } else {
+      firstOpenWindow = await createChat(app, undefined, openDir);
+    }
+  }
+
+  // Handle different types of deep links
+  if (parsedUrl.pathname === '/extension') {
+    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
   }
 });
 
@@ -181,52 +130,18 @@ let appConfig = {
   secretKey: generateSecretKey(),
 };
 
-const createLauncher = () => {
-  const launcherWindow = new BrowserWindow({
-    width: 600,
-    height: 60,
-    frame: process.platform === 'darwin' ? false : true,
-    transparent: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.ts'),
-      additionalArguments: [JSON.stringify(appConfig)],
-      partition: 'persist:goose',
-    },
-    skipTaskbar: true,
-    alwaysOnTop: true,
-  });
-
-  // Center on screen
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.workAreaSize;
-  const windowBounds = launcherWindow.getBounds();
-
-  launcherWindow.setPosition(
-    Math.round(width / 2 - windowBounds.width / 2),
-    Math.round(height / 3 - windowBounds.height / 2)
-  );
-
-  // Load launcher window content
-  const launcherParams = '?window=launcher#/launcher';
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    launcherWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${launcherParams}`);
-  } else {
-    launcherWindow.loadFile(
-      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html${launcherParams}`)
-    );
-  }
-
-  // Destroy window when it loses focus
-  launcherWindow.on('blur', () => {
-    launcherWindow.destroy();
-  });
-};
-
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-const createChat = async (app, query?: string, dir?: string, version?: string) => {
+const createChat = async (
+  app,
+  query?: string,
+  dir?: string,
+  version?: string,
+  resumeSessionId?: string,
+  botConfig?: any // Bot configuration
+) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
 
@@ -252,6 +167,7 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
+          botConfig: botConfig,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -269,7 +185,18 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   });
 
   // Load the index.html of the app.
-  const queryParam = query ? `?initialQuery=${encodeURIComponent(query)}` : '';
+  let queryParams = '';
+  if (query) {
+    queryParams = `?initialQuery=${encodeURIComponent(query)}`;
+  }
+
+  // Add resumeSessionId to query params if provided
+  if (resumeSessionId) {
+    queryParams = queryParams
+      ? `${queryParams}&resumeSessionId=${encodeURIComponent(resumeSessionId)}`
+      : `?resumeSessionId=${encodeURIComponent(resumeSessionId)}`;
+  }
+
   const primaryDisplay = electron.screen.getPrimaryDisplay();
   const { width } = primaryDisplay.workAreaSize;
 
@@ -284,13 +211,13 @@ const createChat = async (app, query?: string, dir?: string, version?: string) =
   mainWindow.setPosition(baseXPosition + xOffset, 100);
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParam}`);
+    mainWindow.loadURL(`${MAIN_WINDOW_VITE_DEV_SERVER_URL}${queryParams}`);
   } else {
     // In production, we need to use a proper file protocol URL with correct base path
     const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     console.log('Loading production path:', indexPath);
     mainWindow.loadFile(indexPath, {
-      search: queryParam ? queryParam.slice(1) : undefined,
+      search: queryParams ? queryParams.slice(1) : undefined,
     });
   }
 
@@ -426,6 +353,24 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
+ipcMain.on('react-ready', (event) => {
+  console.log('React ready event received');
+
+  if (pendingDeepLink) {
+    console.log('Processing pending deep link:', pendingDeepLink);
+    const parsedUrl = new URL(pendingDeepLink);
+
+    if (parsedUrl.pathname === '/extension') {
+      console.log('Sending add-extension event');
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    }
+    // Bot URLs are now handled directly through botConfig in additionalArguments
+    pendingDeepLink = null;
+  } else {
+    console.log('No pending deep link to process');
+  }
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
@@ -487,11 +432,25 @@ app.whenReady().then(async () => {
   let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
   createChat(app, undefined, openDir);
 
-  // Show launcher input on key combo
-  globalShortcut.register('Control+Alt+Command+G', createLauncher);
-
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
+
+  // App menu
+  const appMenu = menu.items.find((item) => item.label === 'Goose');
+  // add Settings to app menu after About
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  appMenu.submenu.insert(
+    1,
+    new MenuItem({
+      label: 'Settings',
+      accelerator: 'CmdOrCtrl+,',
+      click() {
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+      },
+    })
+  );
+  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
 
   // Add Environment menu items to View menu
   const viewMenu = menu.items.find((item) => item.label === 'View');
@@ -548,91 +507,33 @@ app.whenReady().then(async () => {
       })
     );
 
-    // Register global shortcut for Install MCP Extension
-    globalShortcut.register('Shift+Command+Y', () => {
-      const defaultUrl =
-        'goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-github&id=github&name=GitHub&description=Repository%20management%2C%20file%20operations%2C%20and%20GitHub%20API%20integration&env=GITHUB_TOKEN%3DGitHub%20personal%20access%20token';
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Launch SQL Bot (Demo)',
+        click() {
+          // Example SQL Assistant bot deep link
+          const sqlBotUrl =
+            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
 
-      const result = dialog.showMessageBoxSync({
-        type: 'question',
-        buttons: ['Install', 'Edit URL', 'Cancel'],
-        defaultId: 0,
-        cancelId: 2,
-        title: 'Install MCP Extension',
-        message: 'Install MCP Extension',
-        detail: `Current extension URL:\n\n${defaultUrl}`,
-      });
-
-      if (result === 0) {
-        // User clicked Install
-        const mockEvent = {
-          preventDefault: () => {
-            console.log('Default handling prevented.');
-          },
-        };
-        app.emit('open-url', mockEvent, defaultUrl);
-      } else if (result === 1) {
-        // User clicked Edit URL
-        // Create a simple input dialog
-        const win = new BrowserWindow({
-          width: 800,
-          height: 120,
-          frame: false,
-          transparent: false,
-          resizable: false,
-          minimizable: false,
-          maximizable: false,
-          parent: BrowserWindow.getFocusedWindow(),
-          modal: true,
-          show: false,
-          webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-          },
-        });
-
-        win.loadURL(`data:text/html,
-        <html>
-          <body style="margin: 20px; font-family: system-ui;">
-            <input type="text" id="url" value="${defaultUrl}" style="width: 100%; padding: 8px; margin-bottom: 10px;">
-            <div style="text-align: right;">
-              <button onclick="window.close()" style="margin-right: 10px;">Cancel</button>
-              <button onclick="submit()" style="min-width: 80px;">Install</button>
-            </div>
-            <script>
-              function submit() {
-                require('electron').ipcRenderer.send('install-extension-url', document.getElementById('url').value);
-              }
-              // Handle Enter key
-              document.getElementById('url').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') submit();
-              });
-              // Focus the input
-              document.getElementById('url').focus();
-              document.getElementById('url').select();
-            </script>
-          </body>
-        </html>
-      `);
-
-        win.once('ready-to-show', () => {
-          win.show();
-        });
-
-        // Handle the URL submission
-        ipcMain.once('install-extension-url', (event, url) => {
-          win.close();
-          const mockEvent = {
-            preventDefault: () => {
-              console.log('Default handling prevented.');
-            },
-          };
-          if (url && url.trim()) {
-            app.emit('open-url', mockEvent, url);
+          // Extract the bot config from the URL
+          const configParam = new URL(sqlBotUrl).searchParams.get('config');
+          let botConfig = null;
+          if (configParam) {
+            try {
+              botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+            } catch (e) {
+              console.error('Failed to parse bot config:', e);
+            }
           }
-        });
-      }
-    });
+
+          // Create a new window
+          const recentDirs = loadRecentDirs();
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+          createChat(app, undefined, openDir, undefined, undefined, botConfig);
+        },
+      })
+    );
   }
 
   Menu.setApplicationMenu(menu);
@@ -643,8 +544,12 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version) => {
-    createChat(app, query, dir, version);
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : null;
+    }
+    createChat(app, query, dir, version, resumeSessionId, botConfig);
   });
 
   ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
@@ -724,6 +629,41 @@ app.whenReady().then(async () => {
       // On Linux, use xdg-open with chrome
       spawn('xdg-open', [url]);
     }
+  });
+
+  ipcMain.handle('read-file', (event, filePath) => {
+    return new Promise((resolve) => {
+      exec(`cat ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+          // File not found
+          resolve({ file: '', filePath, error: null, found: false });
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve({ file: '', filePath, error, found: false });
+        }
+        resolve({ file: stdout, filePath, error: null, found: true });
+      });
+    });
+  });
+
+  ipcMain.handle('write-file', (event, filePath, content) => {
+    return new Promise((resolve) => {
+      const command = `cat << 'EOT' > ${filePath}
+${content}
+EOT`;
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error writing to file:', error);
+          resolve(false);
+        }
+        if (stderr) {
+          console.error('Error output:', stderr);
+          resolve(false);
+        }
+        resolve(true);
+      });
+    });
   });
 });
 

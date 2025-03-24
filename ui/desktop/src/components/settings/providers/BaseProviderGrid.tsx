@@ -38,7 +38,7 @@ function getArticle(word: string): string {
 
 export function getProviderDescription(provider) {
   const descriptions = {
-    OpenAI: 'Access GPT-4, GPT-3.5 Turbo, and other OpenAI models',
+    OpenAI: 'Access GPT-4 and other OpenAI models, including OpenAI compatible ones',
     Anthropic: 'Access Claude and other Anthropic models',
     Google: 'Access Gemini and other Google AI models',
     Groq: 'Access Mixtral and other Groq-hosted models',
@@ -204,9 +204,10 @@ function BaseProviderCard({
                       e.stopPropagation();
                       onTakeoff();
                     }}
-                    className="rounded-full h-7 w-7 p-0 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-borderStandard hover:text-textStandard transition-colors"
+                    className="rounded-full h-7 px-3 bg-bgApp hover:bg-bgApp shadow-none text-textSubtle border border-borderSubtle hover:border-transparent hover:bg-[#FF9772] hover:text-textProminent transition-colors"
                   >
                     <Rocket className="!size-4" />
+                    Launch
                   </Button>
                 </TooltipTrigger>
                 <Portal>
@@ -251,7 +252,7 @@ export function BaseProviderGrid({
   onTakeoff,
 }: BaseProviderGridProps) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 auto-rows-fr max-w-full [&_*]:z-20">
+    <div className="grid grid-cols-[repeat(auto-fill,_minmax(140px,_1fr))] gap-3 [&_*]:z-20">
       {providers.map((provider) => {
         const hasRequiredKeys = required_keys[provider.name]?.length > 0;
         return (

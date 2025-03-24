@@ -96,7 +96,7 @@ impl SseActor {
                         .join(&e.data)
                         .expect("Failed to resolve endpoint URL");
 
-                    println!("Discovered SSE POST endpoint: {}", post_url);
+                    tracing::debug!("Discovered SSE POST endpoint: {}", post_url);
                     *post_endpoint.write().await = Some(post_url.to_string());
                     break;
                 }
@@ -111,13 +111,23 @@ impl SseActor {
                     // Attempt to parse the SSE data as a JsonRpcMessage
                     match serde_json::from_str::<JsonRpcMessage>(&e.data) {
                         Ok(message) => {
-                            // If it's a response, complete the pending request
-                            if let JsonRpcMessage::Response(resp) = &message {
-                                if let Some(id) = &resp.id {
-                                    pending_requests.respond(&id.to_string(), Ok(message)).await;
+                            match &message {
+                                JsonRpcMessage::Response(response) => {
+                                    if let Some(id) = &response.id {
+                                        pending_requests
+                                            .respond(&id.to_string(), Ok(message))
+                                            .await;
+                                    }
                                 }
+                                JsonRpcMessage::Error(error) => {
+                                    if let Some(id) = &error.id {
+                                        pending_requests
+                                            .respond(&id.to_string(), Ok(message))
+                                            .await;
+                                    }
+                                }
+                                _ => {} // TODO: Handle other variants (Request, etc.)
                             }
-                            // If it's something else (notification, etc.), handle as needed
                         }
                         Err(err) => {
                             warn!("Failed to parse SSE message: {err}");
@@ -129,7 +139,7 @@ impl SseActor {
         }
 
         // SSE stream ended or errored; signal any pending requests
-        eprintln!("SSE stream ended or encountered an error; clearing pending requests.");
+        tracing::error!("SSE stream ended or encountered an error; clearing pending requests.");
         pending_requests.clear().await;
     }
 
@@ -200,7 +210,7 @@ impl SseActor {
         }
 
         // mpsc channel closed => no more outgoing messages
-        eprintln!("SseActor: outgoing message loop ended. Clearing pending requests.");
+        tracing::error!("SseActor: outgoing message loop ended. Clearing pending requests.");
         pending_requests.clear().await;
     }
 }

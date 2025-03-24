@@ -2,9 +2,11 @@ use bat::WrappingMode;
 use console::style;
 use goose::config::Config;
 use goose::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use mcp_core::prompt::PromptArgument;
 use mcp_core::tool::ToolCall;
 use serde_json::Value;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::path::Path;
 
 // Re-export theme for use in main
@@ -73,6 +75,14 @@ impl ThinkingIndicator {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PromptInfo {
+    pub name: String,
+    pub description: Option<String>,
+    pub arguments: Option<Vec<PromptArgument>>,
+    pub extension: Option<String>,
+}
+
 // Global thinking indicator
 thread_local! {
     static THINKING: RefCell<ThinkingIndicator> = RefCell::new(ThinkingIndicator::default());
@@ -86,34 +96,75 @@ pub fn hide_thinking() {
     THINKING.with(|t| t.borrow_mut().hide());
 }
 
-pub fn render_message(message: &Message) {
+pub fn render_message(message: &Message, debug: bool) {
     let theme = get_theme();
 
     for content in &message.content {
         match content {
             MessageContent::Text(text) => print_markdown(&text.text, theme),
-            MessageContent::ToolRequest(req) => render_tool_request(req, theme),
-            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme),
+            MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
+            MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+            }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() {
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                // For redacted thinking, print thinking was redacted
+                println!("\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
+            _ => {
+                println!("WARNING: Message content type could not be rendered");
             }
         }
     }
     println!();
 }
 
-fn render_tool_request(req: &ToolRequest, theme: Theme) {
+pub fn render_enter_plan_mode() {
+    println!(
+        "\n{} {}\n",
+        style("Entering plan mode.").green().bold(),
+        style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
+            .green()
+            .dim()
+    );
+}
+
+pub fn render_act_on_plan() {
+    println!(
+        "\n{}\n",
+        style("Exiting plan mode and acting on the above plan")
+            .green()
+            .bold(),
+    );
+}
+
+pub fn render_exit_plan_mode() {
+    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+}
+
+pub fn goose_mode_message(text: &str) {
+    println!("\n{}", style(text).yellow(),);
+}
+
+fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.as_str() {
-            "developer__text_editor" => render_text_editor_request(call),
-            "developer__shell" => render_shell_request(call),
-            _ => render_default_request(call),
+            "developer__text_editor" => render_text_editor_request(call, debug),
+            "developer__shell" => render_shell_request(call, debug),
+            _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
     }
 }
 
-fn render_tool_response(resp: &ToolResponse, theme: Theme) {
+fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
@@ -126,19 +177,21 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
                 }
 
                 let min_priority = config
-                    .get::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                    .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
                     .unwrap_or(0.0);
 
                 if content
                     .priority()
                     .is_some_and(|priority| priority < min_priority)
-                    || content.priority().is_none()
+                    || (content.priority().is_none() && !debug)
                 {
                     continue;
                 }
 
-                if let mcp_core::content::Content::Text(text) = content {
+                if debug {
+                    println!("{:#?}", content);
+                } else if let mcp_core::content::Content::Text(text) = content {
                     print_markdown(&text.text, theme);
                 }
             }
@@ -149,6 +202,51 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme) {
 
 pub fn render_error(message: &str) {
     println!("\n  {} {}\n", style("error:").red().bold(), message);
+}
+
+pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
+    println!();
+    for (extension, prompts) in prompts {
+        println!(" {}", style(extension).green());
+        for prompt in prompts {
+            println!("  - {}", style(prompt).cyan());
+        }
+    }
+    println!();
+}
+
+pub fn render_prompt_info(info: &PromptInfo) {
+    println!();
+
+    if let Some(ext) = &info.extension {
+        println!(" {}: {}", style("Extension").green(), ext);
+    }
+
+    println!(" Prompt: {}", style(&info.name).cyan().bold());
+
+    if let Some(desc) = &info.description {
+        println!("\n {}", desc);
+    }
+
+    if let Some(args) = &info.arguments {
+        println!("\n Arguments:");
+        for arg in args {
+            let required = arg.required.unwrap_or(false);
+            let req_str = if required {
+                style("(required)").red()
+            } else {
+                style("(optional)").dim()
+            };
+
+            println!(
+                "  {} {} {}",
+                style(&arg.name).yellow(),
+                req_str,
+                arg.description.as_deref().unwrap_or("")
+            );
+        }
+    }
+    println!();
 }
 
 pub fn render_extension_success(name: &str) {
@@ -197,7 +295,7 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &ToolCall) {
+fn render_text_editor_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
@@ -205,7 +303,7 @@ fn render_text_editor_request(call: &ToolCall) {
         println!(
             "{}: {}",
             style("path").dim(),
-            style(shorten_path(path)).green()
+            style(shorten_path(path, debug)).green()
         );
     }
 
@@ -217,26 +315,26 @@ fn render_text_editor_request(call: &ToolCall) {
                 other_args.insert(k.clone(), v.clone());
             }
         }
-        print_params(&Value::Object(other_args), 0);
+        print_params(&Value::Object(other_args), 0, debug);
     }
     println!();
 }
 
-fn render_shell_request(call: &ToolCall) {
+fn render_shell_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
 
     match call.arguments.get("command") {
         Some(Value::String(s)) => {
             println!("{}: {}", style("command").dim(), style(s).green());
         }
-        _ => print_params(&call.arguments, 0),
+        _ => print_params(&call.arguments, 0, debug),
     }
     println!();
 }
 
-fn render_default_request(call: &ToolCall) {
+fn render_default_request(call: &ToolCall, debug: bool) {
     print_tool_header(call);
-    print_params(&call.arguments, 0);
+    print_params(&call.arguments, 0, debug);
     println!();
 }
 
@@ -265,7 +363,7 @@ fn print_markdown(content: &str, theme: Theme) {
         .input(bat::Input::from_bytes(content.as_bytes()))
         .theme(theme.as_str())
         .language("Markdown")
-        .wrapping_mode(WrappingMode::Character)
+        .wrapping_mode(WrappingMode::NoWrapping(true))
         .print()
         .unwrap();
 }
@@ -273,7 +371,7 @@ fn print_markdown(content: &str, theme: Theme) {
 const MAX_STRING_LENGTH: usize = 40;
 const INDENT: &str = "    ";
 
-fn print_params(value: &Value, depth: usize) {
+fn print_params(value: &Value, depth: usize, debug: bool) {
     let indent = INDENT.repeat(depth);
 
     match value {
@@ -282,17 +380,17 @@ fn print_params(value: &Value, depth: usize) {
                 match val {
                     Value::Object(_) => {
                         println!("{}{}:", indent, style(key).dim());
-                        print_params(val, depth + 1);
+                        print_params(val, depth + 1, debug);
                     }
                     Value::Array(arr) => {
                         println!("{}{}:", indent, style(key).dim());
                         for item in arr.iter() {
                             println!("{}{}- ", indent, INDENT);
-                            print_params(item, depth + 2);
+                            print_params(item, depth + 2, debug);
                         }
                     }
                     Value::String(s) => {
-                        if s.len() > MAX_STRING_LENGTH {
+                        if !debug && s.len() > MAX_STRING_LENGTH {
                             println!("{}{}: {}", indent, style(key).dim(), style("...").dim());
                         } else {
                             println!("{}{}: {}", indent, style(key).dim(), style(s).green());
@@ -313,11 +411,11 @@ fn print_params(value: &Value, depth: usize) {
         Value::Array(arr) => {
             for (i, item) in arr.iter().enumerate() {
                 println!("{}{}.", indent, i + 1);
-                print_params(item, depth + 1);
+                print_params(item, depth + 1, debug);
             }
         }
         Value::String(s) => {
-            if s.len() > MAX_STRING_LENGTH {
+            if !debug && s.len() > MAX_STRING_LENGTH {
                 println!(
                     "{}{}",
                     indent,
@@ -339,7 +437,12 @@ fn print_params(value: &Value, depth: usize) {
     }
 }
 
-fn shorten_path(path: &str) -> String {
+fn shorten_path(path: &str, debug: bool) -> String {
+    // In debug mode, return the full path
+    if debug {
+        return path.to_string();
+    }
+
     let path = Path::new(path);
 
     // First try to convert to ~ if it's in home directory
@@ -403,6 +506,13 @@ pub fn display_session_info(resume: bool, provider: &str, model: &str, session_f
         style("logging to").dim(),
         style(session_file.display()).dim().cyan(),
     );
+    println!(
+        "    {} {}",
+        style("working directory:").dim(),
+        style(std::env::current_dir().unwrap().display())
+            .cyan()
+            .dim()
+    );
 }
 
 pub fn display_greeting() {
@@ -416,9 +526,17 @@ mod tests {
 
     #[test]
     fn test_short_paths_unchanged() {
-        assert_eq!(shorten_path("/usr/bin"), "/usr/bin");
-        assert_eq!(shorten_path("/a/b/c"), "/a/b/c");
-        assert_eq!(shorten_path("file.txt"), "file.txt");
+        assert_eq!(shorten_path("/usr/bin", false), "/usr/bin");
+        assert_eq!(shorten_path("/a/b/c", false), "/a/b/c");
+        assert_eq!(shorten_path("file.txt", false), "file.txt");
+    }
+
+    #[test]
+    fn test_debug_mode_returns_full_path() {
+        assert_eq!(
+            shorten_path("/very/long/path/that/would/normally/be/shortened", true),
+            "/very/long/path/that/would/normally/be/shortened"
+        );
     }
 
     #[test]
@@ -430,13 +548,13 @@ mod tests {
         env::set_var("HOME", "/Users/testuser");
 
         assert_eq!(
-            shorten_path("/Users/testuser/documents/file.txt"),
+            shorten_path("/Users/testuser/documents/file.txt", false),
             "~/documents/file.txt"
         );
 
         // A path that starts similarly to home but isn't in home
         assert_eq!(
-            shorten_path("/Users/testuser2/documents/file.txt"),
+            shorten_path("/Users/testuser2/documents/file.txt", false),
             "/Users/testuser2/documents/file.txt"
         );
 
@@ -452,7 +570,8 @@ mod tests {
     fn test_long_path_shortening() {
         assert_eq!(
             shorten_path(
-                "/vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv/long/path/with/many/components/file.txt"
+                "/vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv/long/path/with/many/components/file.txt",
+                false
             ),
             "/v/l/p/w/m/components/file.txt"
         );

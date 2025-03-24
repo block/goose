@@ -1,5 +1,11 @@
 use utoipa::OpenApi;
 
+use goose::agents::extension::Envs;
+use goose::agents::ExtensionConfig;
+use goose::config::ExtensionEntry;
+use goose::providers::base::ConfigKey;
+use goose::providers::base::ProviderMetadata;
+
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
 #[openapi(
@@ -9,13 +15,23 @@ use utoipa::OpenApi;
         super::routes::config_management::read_config,
         super::routes::config_management::add_extension,
         super::routes::config_management::remove_extension,
-        super::routes::config_management::read_all_config
+        super::routes::config_management::get_extensions,
+        super::routes::config_management::read_all_config,
+        super::routes::config_management::providers
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
         super::routes::config_management::ConfigKeyQuery,
+        super::routes::config_management::ConfigResponse,
+        super::routes::config_management::ProvidersResponse,
+        super::routes::config_management::ProviderDetails,
+        super::routes::config_management::ExtensionResponse,
         super::routes::config_management::ExtensionQuery,
-        super::routes::config_management::ConfigResponse
+        ProviderMetadata,
+        ExtensionEntry,
+        ExtensionConfig,
+        ConfigKey,
+        Envs,
     ))
 )]
 pub struct ApiDoc;

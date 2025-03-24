@@ -39,6 +39,8 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use xcap::{Monitor, Window};
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
+
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
 
@@ -70,9 +72,9 @@ pub fn load_prompt_files() -> HashMap<String, Prompt> {
                 description: arg.description,
                 required: arg.required,
             })
-            .collect();
+            .collect::<Vec<PromptArgument>>();
 
-        let prompt = Prompt::new(&template.id, &template.template, arguments);
+        let prompt = Prompt::new(&template.id, Some(&template.template), Some(arguments));
 
         if prompts.contains_key(&prompt.name) {
             eprintln!("Duplicate prompt name '{}' found. Skipping.", prompt.name);
@@ -90,6 +92,7 @@ pub struct DeveloperRouter {
     prompts: Arc<HashMap<String, Prompt>>,
     instructions: String,
     file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
+    ignore_patterns: Arc<Gitignore>,
 }
 
 impl Default for DeveloperRouter {
@@ -240,6 +243,28 @@ impl DeveloperRouter {
             }),
         );
 
+        let image_processor_tool = Tool::new(
+            "image_processor",
+            indoc! {r#"
+                Process an image file from disk. The image will be:
+                1. Resized if larger than max width while maintaining aspect ratio
+                2. Converted to PNG format
+                3. Returned as base64 encoded data
+
+                This allows processing image files for use in the conversation.
+            "#},
+            json!({
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Absolute path to the image file to process"
+                    }
+                }
+            }),
+        );
+
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
@@ -326,17 +351,64 @@ impl DeveloperRouter {
             format!("{base_instructions}\n{hints}")
         };
 
+        let mut builder = GitignoreBuilder::new(cwd.clone());
+        let mut has_ignore_file = false;
+        // Initialize ignore patterns
+        // - macOS/Linux: ~/.config/goose/
+        // - Windows:     ~\AppData\Roaming\Block\goose\config\
+        let global_ignore_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".gooseignore"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.gooseignore").to_string())
+            });
+
+        // Create the directory if it doesn't exist
+        let _ = std::fs::create_dir_all(global_ignore_path.parent().unwrap());
+
+        // Read global ignores if they exist
+        if global_ignore_path.is_file() {
+            let _ = builder.add(global_ignore_path);
+            has_ignore_file = true;
+        }
+
+        // Check for local ignores in current directory
+        let local_ignore_path = cwd.join(".gooseignore");
+
+        // Read local ignores if they exist
+        if local_ignore_path.is_file() {
+            let _ = builder.add(local_ignore_path);
+            has_ignore_file = true;
+        }
+
+        // Only use default patterns if no .gooseignore files were found
+        // If the file is empty, we will not ignore any file
+        if !has_ignore_file {
+            // Add some sensible defaults
+            let _ = builder.add_line(None, "**/.env");
+            let _ = builder.add_line(None, "**/.env.*");
+            let _ = builder.add_line(None, "**/secrets.*");
+        }
+
+        let ignore_patterns = builder.build().expect("Failed to build ignore patterns");
+
         Self {
             tools: vec![
                 bash_tool,
                 text_editor_tool,
                 list_windows_tool,
                 screen_capture_tool,
+                image_processor_tool,
             ],
             prompts: Arc::new(load_prompt_files()),
             instructions,
             file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
         }
+    }
+
+    // Helper method to check if a path should be ignored
+    fn is_ignored(&self, path: &Path) -> bool {
+        self.ignore_patterns.matched(path, false).is_ignore()
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
@@ -366,6 +438,27 @@ impl DeveloperRouter {
                 .ok_or(ToolError::InvalidParameters(
                     "The command string is required".to_string(),
                 ))?;
+
+        // Check if command might access ignored files and return early if it does
+        let cmd_parts: Vec<&str> = command.split_whitespace().collect();
+        for arg in &cmd_parts[1..] {
+            // Skip command flags
+            if arg.starts_with('-') {
+                continue;
+            }
+            // Skip invalid paths
+            let path = Path::new(arg);
+            if !path.exists() {
+                continue;
+            }
+
+            if self.is_ignored(path) {
+                return Err(ToolError::ExecutionError(format!(
+                    "The command attempts to access '{}' which is restricted by .gooseignore",
+                    arg
+                )));
+            }
+        }
 
         // Get platform-specific shell configuration
         let shell_config = get_shell_config();
@@ -424,6 +517,14 @@ impl DeveloperRouter {
             .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
 
         let path = self.resolve_path(path_str)?;
+
+        // Check if file is ignored before proceeding with any text editor operation
+        if self.is_ignored(&path) {
+            return Err(ToolError::ExecutionError(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            )));
+        }
 
         match command {
             "view" => self.text_editor_view(&path).await,
@@ -704,6 +805,125 @@ impl DeveloperRouter {
         ])
     }
 
+    // Helper function to handle Mac screenshot filenames that contain U+202F (narrow no-break space)
+    fn normalize_mac_screenshot_path(&self, path: &Path) -> PathBuf {
+        // Only process if the path has a filename
+        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+            // Check if this matches Mac screenshot pattern:
+            // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
+            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM)(?: \(\d+\))?\.png$")
+                .ok()
+                .and_then(|re| re.captures(filename))
+            {
+
+                // Get the AM/PM part
+                let meridian = captures.get(1).unwrap().as_str();
+
+                // Find the last space before AM/PM and replace it with U+202F
+                let space_pos = filename.rfind(meridian)
+                    .map(|pos| filename[..pos].trim_end().len())
+                    .unwrap_or(0);
+
+                if space_pos > 0 {
+                    let parent = path.parent().unwrap_or(Path::new(""));
+                    let new_filename = format!(
+                        "{}{}{}",
+                        &filename[..space_pos],
+                        '\u{202F}',
+                        &filename[space_pos+1..]
+                    );
+                    let new_path = parent.join(new_filename);
+
+                    return new_path;
+                }
+            }
+        }
+        path.to_path_buf()
+    }
+
+    async fn image_processor(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let path_str = params
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ToolError::InvalidParameters("Missing 'path' parameter".into()))?;
+
+        let path = {
+            let p = self.resolve_path(path_str)?;
+            if cfg!(target_os = "macos") {
+                self.normalize_mac_screenshot_path(&p)
+            } else {
+                p
+            }
+        };
+
+        // Check if file is ignored before proceeding
+        if self.is_ignored(&path) {
+            return Err(ToolError::ExecutionError(format!(
+                "Access to '{}' is restricted by .gooseignore",
+                path.display()
+            )));
+        }
+
+        // Check if file exists
+        if !path.exists() {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' does not exist",
+                path.display()
+            )));
+        }
+
+        // Check file size (10MB limit for image files)
+        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB in bytes
+        let file_size = std::fs::metadata(&path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to get file metadata: {}", e)))?
+            .len();
+
+        if file_size > MAX_FILE_SIZE {
+            return Err(ToolError::ExecutionError(format!(
+                "File '{}' is too large ({:.2}MB). Maximum size is 10MB.",
+                path.display(),
+                file_size as f64 / (1024.0 * 1024.0)
+            )));
+        }
+
+        // Open and decode the image
+        let image = xcap::image::open(&path)
+            .map_err(|e| ToolError::ExecutionError(format!("Failed to open image file: {}", e)))?;
+
+        // Resize if necessary (same logic as screen_capture)
+        let mut processed_image = image;
+        let max_width = 768;
+        if processed_image.width() > max_width {
+            let scale = max_width as f32 / processed_image.width() as f32;
+            let new_height = (processed_image.height() as f32 * scale) as u32;
+            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &processed_image,
+                max_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        // Convert to PNG and encode as base64
+        let mut bytes: Vec<u8> = Vec::new();
+        processed_image
+            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
+            .map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write image buffer: {}", e))
+            })?;
+
+        let data = base64::prelude::BASE64_STANDARD.encode(bytes);
+
+        Ok(vec![
+            Content::text(format!(
+                "Successfully processed image from {}",
+                path.display()
+            ))
+            .with_audience(vec![Role::Assistant]),
+            Content::image(data, "image/png").with_priority(0.0),
+        ])
+    }
+
     async fn screen_capture(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let mut image = if let Some(window_title) =
             params.get("window_title").and_then(|v| v.as_str())
@@ -810,6 +1030,7 @@ impl Router for DeveloperRouter {
                 "text_editor" => this.text_editor(arguments).await,
                 "list_windows" => this.list_windows(arguments).await,
                 "screen_capture" => this.screen_capture(arguments).await,
+                "image_processor" => this.image_processor(arguments).await,
                 _ => Err(ToolError::NotFound(format!("Tool {} not found", tool_name))),
             }
         })
@@ -827,47 +1048,35 @@ impl Router for DeveloperRouter {
         Box::pin(async move { Ok("".to_string()) })
     }
 
-    fn list_prompts(&self) -> Option<Vec<Prompt>> {
-        if self.prompts.is_empty() {
-            None
-        } else {
-            Some(self.prompts.values().cloned().collect())
-        }
+    fn list_prompts(&self) -> Vec<Prompt> {
+        self.prompts.values().cloned().collect()
     }
 
     fn get_prompt(
         &self,
         prompt_name: &str,
-    ) -> Option<Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>>> {
+    ) -> Pin<Box<dyn Future<Output = Result<String, PromptError>> + Send + 'static>> {
         let prompt_name = prompt_name.trim().to_owned();
 
         // Validate prompt name is not empty
         if prompt_name.is_empty() {
-            return Some(Box::pin(async move {
+            return Box::pin(async move {
                 Err(PromptError::InvalidParameters(
                     "Prompt name cannot be empty".to_string(),
                 ))
-            }));
+            });
         }
 
         let prompts = Arc::clone(&self.prompts);
 
-        Some(Box::pin(async move {
+        Box::pin(async move {
             match prompts.get(&prompt_name) {
-                Some(prompt) => {
-                    if prompt.description.trim().is_empty() {
-                        Err(PromptError::InternalError(format!(
-                            "Prompt '{prompt_name}' has an empty description"
-                        )))
-                    } else {
-                        Ok(prompt.description.clone())
-                    }
-                }
+                Some(prompt) => Ok(prompt.description.clone().unwrap_or_default()),
                 None => Err(PromptError::NotFound(format!(
                     "Prompt '{prompt_name}' not found"
                 ))),
             }
-        }))
+        })
     }
 }
 
@@ -878,6 +1087,7 @@ impl Clone for DeveloperRouter {
             prompts: Arc::clone(&self.prompts),
             instructions: self.instructions.clone(),
             file_history: Arc::clone(&self.file_history),
+            ignore_patterns: Arc::clone(&self.ignore_patterns),
         }
     }
 }
@@ -1262,6 +1472,169 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(text.contains("First line"));
+
+        temp_dir.close().unwrap();
+    }
+
+    // Test GooseIgnore pattern matching
+    #[tokio::test]
+    #[serial]
+    async fn test_goose_ignore_basic_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        builder.add_line(None, "*.env").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: vec![],
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Test basic file matching
+        assert!(
+            router.is_ignored(Path::new("secret.txt")),
+            "secret.txt should be ignored"
+        );
+        assert!(
+            router.is_ignored(Path::new("./secret.txt")),
+            "./secret.txt should be ignored"
+        );
+        assert!(
+            !router.is_ignored(Path::new("not_secret.txt")),
+            "not_secret.txt should not be ignored"
+        );
+
+        // Test pattern matching
+        assert!(
+            router.is_ignored(Path::new("test.env")),
+            "*.env pattern should match test.env"
+        );
+        assert!(
+            router.is_ignored(Path::new("./test.env")),
+            "*.env pattern should match ./test.env"
+        );
+        assert!(
+            !router.is_ignored(Path::new("test.txt")),
+            "*.env pattern should not match test.txt"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_text_editor_respects_ignore_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: DeveloperRouter::new().tools, // Reuse default tools
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Try to write to an ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("secret.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "Should not be able to write to ignored file"
+        );
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to write to a non-ignored file
+        let result = router
+            .call_tool(
+                "text_editor",
+                json!({
+                    "command": "write",
+                    "path": temp_dir.path().join("allowed.txt").to_str().unwrap(),
+                    "file_text": "test content"
+                }),
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Should be able to write to non-ignored file"
+        );
+
+        temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_respects_ignore_patterns() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a DeveloperRouter with custom ignore patterns
+        let mut builder = GitignoreBuilder::new(temp_dir.path().to_path_buf());
+        builder.add_line(None, "secret.txt").unwrap();
+        let ignore_patterns = builder.build().unwrap();
+
+        let router = DeveloperRouter {
+            tools: DeveloperRouter::new().tools, // Reuse default tools
+            prompts: Arc::new(HashMap::new()),
+            instructions: String::new(),
+            file_history: Arc::new(Mutex::new(HashMap::new())),
+            ignore_patterns: Arc::new(ignore_patterns),
+        };
+
+        // Create an ignored file
+        let secret_file_path = temp_dir.path().join("secret.txt");
+        std::fs::write(&secret_file_path, "secret content").unwrap();
+
+        // Try to cat the ignored file
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", secret_file_path.to_str().unwrap())
+                }),
+            )
+            .await;
+
+        assert!(result.is_err(), "Should not be able to cat ignored file");
+        assert!(matches!(result.unwrap_err(), ToolError::ExecutionError(_)));
+
+        // Try to cat a non-ignored file
+        let allowed_file_path = temp_dir.path().join("allowed.txt");
+        std::fs::write(&allowed_file_path, "allowed content").unwrap();
+
+        let result = router
+            .call_tool(
+                "shell",
+                json!({
+                    "command": format!("cat {}", allowed_file_path.to_str().unwrap())
+                }),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Should be able to cat non-ignored file");
 
         temp_dir.close().unwrap();
     }

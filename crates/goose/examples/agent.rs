@@ -1,6 +1,7 @@
 use dotenv::dotenv;
 use futures::StreamExt;
 use goose::agents::{AgentFactory, ExtensionConfig};
+use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::message::Message;
 use goose::providers::databricks::DatabricksProvider;
 
@@ -14,7 +15,12 @@ async fn main() {
     // Setup an agent with the developer extension
     let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
 
-    let config = ExtensionConfig::stdio("developer", "./target/debug/developer");
+    let config = ExtensionConfig::stdio(
+        "developer",
+        "./target/debug/developer",
+        DEFAULT_EXTENSION_DESCRIPTION,
+        DEFAULT_EXTENSION_TIMEOUT,
+    );
     agent.add_extension(config).await.unwrap();
 
     println!("Extensions:");
@@ -25,7 +31,7 @@ async fn main() {
     let messages = vec![Message::user()
         .with_text("can you summarize the readme.md in this dir using just a haiku?")];
 
-    let mut stream = agent.reply(&messages).await.unwrap();
+    let mut stream = agent.reply(&messages, None).await.unwrap();
     while let Some(message) = stream.next().await {
         println!(
             "{}",

@@ -15,7 +15,7 @@ This tutorial covers how to add the [Google Drive MCP Server](https://github.com
 
 **Authentication Command**
 
-In your terminal run the following:
+In your terminal, run the following:
 
 ```sh
 GDRIVE_OAUTH_PATH=/Users/<username>/.config/gcp-oauth.keys.json \ 
@@ -37,6 +37,10 @@ GDRIVE_OAUTH_PATH: ~/.config/gcp-oauth.keys.json
 :::
 
 ## Configuration
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
 
 To obtain your Google Drive server credentials and oauth keys, follow the steps below:
 
@@ -141,7 +145,35 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ```  
 
-  5. Add your environment variables 
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  google drive
+    │
+    ◇  What command should be run?
+    │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    └ 
+  ``` 
+
+
+:::tip
+You may need to use absolute paths (rather than relying on shell exapansion for `~`) for the `GDRIVE_CREDENTIALS_PATH` and `GDRIVE_OAUTH_PATH`.
+:::
+
+  6. Add your environment variables 
 
    ```sh
     ┌   goose-configure 
@@ -157,6 +189,10 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     │
     ◇  What command should be run?
     │  npx -y @modelcontextprotocol/server-gdrive 
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │    
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
@@ -182,25 +218,18 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, click the `Add` link
-  4. On the `Add Extension Manually` modal, enter the following:
-        * **Type**: `Standard IO`
-        * **ID**: `g-drive-mcp` (_set this to whatever you want_)
-        * **Name**: `google drive` (_set this to whatever you want_)
-        * **Description**: `Google Drive MCP Server` (_set this to whatever you want_)
-        * **Command**: `npx -y @modelcontextprotocol/server-gdrive`
-        * **Environment Variables**
-            * **Name**: `GDRIVE_CREDENTIALS_PATH`
-            * **Value**: `~/.config/.gdrive-server-credentials.json`
-            * Click `Add` button
-        * **Environment Variables**
-            * **Name**: `GDRIVE_OAUTH_PATH`
-            * **Value**: `~/.config/gcp-oauth.keys.json`
-            * Click `Add` button
-        
-  5. Click `Add Extension` button
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
+  2. Press `Yes` to confirm the installation
+  3. For `GDRIVE_CREDENTIALS_PATH`, enter the following:
+  ```
+  ~/.config/.gdrive-server-credentials.json
+  ```
+  4. For `GDRIVE_OAUTH_PATH`, enter the following:
+  ```
+  ~/.config/gcp-oauth.keys.json
+  ```
+  5. Click `Save Configuration`
+  6. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

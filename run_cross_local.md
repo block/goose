@@ -27,7 +27,7 @@ docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 docker pull arm64v8/ubuntu
 ```
 2. Run the container
-pwd is the directory contains the binary built in the previous step on your host machine
+pwd is the directory which contains the binary built in the previous step on your host machine
 ```sh
 docker run -v $(pwd):/app -it arm64v8/ubuntu /bin/bash
 ```

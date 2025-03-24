@@ -1,32 +1,61 @@
 import { Provider, ProviderResponse } from './types';
 import { getApiUrl, getSecretKey } from '../../../config';
+import { default_key_value, required_keys } from '../models/hardcoded_stuff'; // e.g. { OPENAI_HOST: '', OLLAMA_HOST: '' }
 
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
   const nonSecretKeys = [
     'DATABRICKS_HOST',
     'OLLAMA_HOST',
+    'OPENAI_HOST',
+    'OPENAI_BASE_PATH',
     'AZURE_OPENAI_ENDPOINT',
     'AZURE_OPENAI_DEPLOYMENT_NAME',
+    'GCP_PROJECT_ID',
+    'GCP_LOCATION',
   ];
   return !nonSecretKeys.includes(keyName);
 }
 
 export async function getActiveProviders(): Promise<string[]> {
   try {
-    // Fetch the secrets settings
     const configSettings = await getConfigSettings();
-
-    // Extract active providers based on `is_set` in `secret_status` or providers with no keys
-    const activeProviders = Object.values(configSettings) // Convert object to array
+    const activeProviders = Object.values(configSettings)
       .filter((provider) => {
-        const apiKeyStatus = Object.values(provider.config_status || {}); // Get all key statuses
+        const providerName = provider.name;
+        const configStatus = provider.config_status ?? {};
 
-        // Include providers if all required keys are set
-        return apiKeyStatus.length > 0 && apiKeyStatus.every((key) => key.is_set);
+        // Skip if provider isn't in required_keys
+        if (!required_keys[providerName]) return false;
+
+        // Get all required keys for this provider
+        const providerRequiredKeys = required_keys[providerName];
+
+        // Special case: If a provider has exactly one required key and that key
+        // has a default value, check if it's explicitly set
+        if (providerRequiredKeys.length === 1 && providerRequiredKeys[0] in default_key_value) {
+          const key = providerRequiredKeys[0];
+          // Only consider active if the key is explicitly set
+          return configStatus[key]?.is_set === true;
+        }
+
+        // For providers with multiple keys or keys without defaults:
+        // Check if all required keys without defaults are set
+        const requiredNonDefaultKeys = providerRequiredKeys.filter(
+          (key) => !(key in default_key_value)
+        );
+
+        // If there are no non-default keys, this provider needs at least one key explicitly set
+        if (requiredNonDefaultKeys.length === 0) {
+          return providerRequiredKeys.some((key) => configStatus[key]?.is_set === true);
+        }
+
+        // Otherwise, all non-default keys must be set
+        return requiredNonDefaultKeys.every((key) => configStatus[key]?.is_set === true);
       })
-      .map((provider) => provider.name || 'Unknown Provider'); // Extract provider name
+      .map((provider) => provider.name || 'Unknown Provider');
 
+    console.log('[GET ACTIVE PROVIDERS]:', activeProviders);
     return activeProviders;
   } catch (error) {
     console.error('Failed to get active providers:', error);

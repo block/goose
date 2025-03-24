@@ -6,12 +6,12 @@ use goose::agents::AgentFactory;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
-use goose::providers::{anthropic::AnthropicProvider, databricks::DatabricksProvider};
 use goose::providers::{
-    azure::AzureProvider, bedrock::BedrockProvider, ollama::OllamaProvider, openai::OpenAiProvider,
+    anthropic::AnthropicProvider, azure::AzureProvider, bedrock::BedrockProvider,
+    databricks::DatabricksProvider, gcpvertexai::GcpVertexAIProvider, google::GoogleProvider,
+    groq::GroqProvider, ollama::OllamaProvider, openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
 };
-use goose::providers::{google::GoogleProvider, groq::GroqProvider};
 
 #[derive(Debug, PartialEq)]
 enum ProviderType {
@@ -20,6 +20,7 @@ enum ProviderType {
     Anthropic,
     Bedrock,
     Databricks,
+    GcpVertexAI,
     Google,
     Groq,
     Ollama,
@@ -36,12 +37,13 @@ impl ProviderType {
             ],
             ProviderType::OpenAi => &["OPENAI_API_KEY"],
             ProviderType::Anthropic => &["ANTHROPIC_API_KEY"],
-            ProviderType::Bedrock => &["AWS_PROFILE", "AWS_REGION"],
+            ProviderType::Bedrock => &["AWS_PROFILE"],
             ProviderType::Databricks => &["DATABRICKS_HOST"],
             ProviderType::Google => &["GOOGLE_API_KEY"],
             ProviderType::Groq => &["GROQ_API_KEY"],
             ProviderType::Ollama => &[],
             ProviderType::OpenRouter => &["OPENROUTER_API_KEY"],
+            ProviderType::GcpVertexAI => &["GCP_PROJECT_ID", "GCP_LOCATION"],
         }
     }
 
@@ -70,6 +72,7 @@ impl ProviderType {
             ProviderType::Anthropic => Box::new(AnthropicProvider::from_env(model_config)?),
             ProviderType::Bedrock => Box::new(BedrockProvider::from_env(model_config)?),
             ProviderType::Databricks => Box::new(DatabricksProvider::from_env(model_config)?),
+            ProviderType::GcpVertexAI => Box::new(GcpVertexAIProvider::from_env(model_config)?),
             ProviderType::Google => Box::new(GoogleProvider::from_env(model_config)?),
             ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
             ProviderType::Ollama => Box::new(OllamaProvider::from_env(model_config)?),
@@ -120,7 +123,7 @@ async fn run_truncate_test(
         ),
     ];
 
-    let reply_stream = agent.reply(&messages).await?;
+    let reply_stream = agent.reply(&messages, None).await?;
     tokio::pin!(reply_stream);
 
     let mut responses = Vec::new();
@@ -185,8 +188,8 @@ mod tests {
     async fn test_truncate_agent_with_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenAi,
-            model: "gpt-4o-mini",
-            context_window: 128_000,
+            model: "o3-mini-low",
+            context_window: 200_000,
         })
         .await
     }
@@ -287,6 +290,16 @@ mod tests {
             provider_type: ProviderType::Ollama,
             model: "llama3.2",
             context_window: 128_000,
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_truncate_agent_with_gcpvertexai() -> Result<()> {
+        run_test_with_config(TestConfig {
+            provider_type: ProviderType::GcpVertexAI,
+            model: "claude-3-5-sonnet-v2@20241022",
+            context_window: 200_000,
         })
         .await
     }

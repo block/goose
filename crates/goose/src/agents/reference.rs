@@ -2,18 +2,25 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, instrument};
 
+use super::agent::SessionConfig;
+use super::capabilities::get_parameter_names;
+use super::extension::ToolInfo;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::{Message, ToolRequest};
 use crate::providers::base::Provider;
-use crate::providers::base::ProviderUsage;
-use crate::register_agent;
 use crate::token_counter::TokenCounter;
+use crate::{register_agent, session};
+use anyhow::{anyhow, Result};
 use indoc::indoc;
+use mcp_core::prompt::Prompt;
+use mcp_core::protocol::GetPromptResult;
 use mcp_core::tool::Tool;
 use serde_json::{json, Value};
 
@@ -61,10 +68,15 @@ impl Agent for ReferenceAgent {
         Ok(Value::Null)
     }
 
-    #[instrument(skip(self, messages), fields(user_message))]
+    async fn handle_confirmation(&self, _request_id: String, _confirmed: bool) {
+        // TODO implement
+    }
+
+    #[instrument(skip(self, messages, session), fields(user_message))]
     async fn reply(
         &self,
         messages: &[Message],
+        session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
@@ -135,7 +147,19 @@ impl Agent for ReferenceAgent {
                     &messages,
                     &tools,
                 ).await?;
-                capabilities.record_usage(usage).await;
+
+                // record usage for the session in the session file
+                if let Some(session) = session.clone() {
+                    // TODO: track session_id in langfuse tracing
+                    let session_file = session::get_path(session.id);
+                    let mut metadata = session::read_metadata(&session_file)?;
+                    metadata.working_dir = session.working_dir;
+                    metadata.total_tokens = usage.usage.total_tokens;
+                    // The message count is the number of messages in the session + 1 for the response
+                    // The message count does not include the tool response till next iteration
+                    metadata.message_count = messages.len() + 1;
+                    session::update_metadata(&session_file, &metadata).await?;
+                }
 
                 // Yield the assistant's response
                 yield response.clone();
@@ -180,14 +204,63 @@ impl Agent for ReferenceAgent {
         }))
     }
 
-    async fn usage(&self) -> Vec<ProviderUsage> {
-        let capabilities = self.capabilities.lock().await;
-        capabilities.get_usage().await
-    }
-
     async fn extend_system_prompt(&mut self, extension: String) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities.add_system_prompt_extension(extension);
+    }
+
+    async fn override_system_prompt(&mut self, template: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.set_system_prompt_override(template);
+    }
+
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
+            .list_prompts()
+            .await
+            .expect("Failed to list prompts")
+    }
+
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+        let capabilities = self.capabilities.lock().await;
+
+        // First find which extension has this prompt
+        let prompts = capabilities
+            .list_prompts()
+            .await
+            .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
+
+        if let Some(extension) = prompts
+            .iter()
+            .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
+            .map(|(extension, _)| extension)
+        {
+            return capabilities
+                .get_prompt(extension, name, arguments)
+                .await
+                .map_err(|e| anyhow!("Failed to get prompt: {}", e));
+        }
+
+        Err(anyhow!("Prompt '{}' not found", name))
+    }
+
+    async fn get_plan_prompt(&self) -> anyhow::Result<String> {
+        let mut capabilities = self.capabilities.lock().await;
+        let tools = capabilities.get_prefixed_tools().await?;
+        let tools_info = tools
+            .into_iter()
+            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .collect();
+
+        let plan_prompt = capabilities.get_planning_prompt(tools_info).await;
+
+        Ok(plan_prompt)
+    }
+
+    async fn provider(&self) -> Arc<Box<dyn Provider>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities.provider()
     }
 }
 

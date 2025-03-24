@@ -4,7 +4,8 @@ ebony:
   image_url: https://avatars.githubusercontent.com/u/55366651?v=4
   page: true
   socials:
-    x: ebonylouis
+    linkedin: ebonylouis
+    x: ebonyjlouis
     github: ebonylouis
 
 rizel:
@@ -40,6 +41,7 @@ tania:
   image_url: https://avatars.githubusercontent.com/u/126204004?v=4
   page: true
   socials:
+    linkedin: taniachakraborty
     x: taniashiba
     github: taniashiba
 
@@ -50,5 +52,6 @@ angie:
   url: https://angiejones.tech
   page: true
   socials:
+    linkedin: angiejones
+    github: angiejones
     x: techgirl1908
-    github: techgirl1908

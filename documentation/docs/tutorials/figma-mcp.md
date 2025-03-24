@@ -5,6 +5,9 @@ description: Add Figma MCP Server as a Goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/vHK9Xg_d6Sk" />
 
 
 This tutorial covers how to add the [Figma MCP Server](https://github.com/hapins/figma-mcp) as a Goose extension to enable interaction with Figma files, designs, and components.
@@ -23,11 +26,11 @@ FIGMA_ACCESS_TOKEN: <YOUR_TOKEN>
 ```
 :::
 
-:::info
-Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses npx.
-:::
-
 ## Configuration
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -89,7 +92,31 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  5. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
+  5. Enter the number of seconds Goose should wait for actions to complete before timing out. Default is 300s
+   ```sh
+    ┌   goose-configure 
+    │
+    ◇  What would you like to configure?
+    │  Add Extension 
+    │
+    ◇  What type of extension would you like to add?
+    │  Command-line Extension 
+    │
+    ◇  What would you like to call this extension?
+    │  figma
+    │
+    ◇  What command should be run?
+    │  npx @hapins/figma-mcp
+    │
+    // highlight-start
+    ◆  Please set the timeout for this tool (in secs):
+    │  300
+    // highlight-end
+    │
+    └ 
+  ```  
+
+  6. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in.
   :::info
   You can generate an access token from your Figma account settings under the Personal access tokens section.
   :::
@@ -108,6 +135,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │
     ◇  What command should be run?
     │  npx @hapins/figma-mcp
+    │
+    ◇  Please set the timeout for this tool (in secs):
+    │  300
+    │
     // highlight-start
     ◆  Would you like to add environment variables?
     │  Yes 
@@ -126,20 +157,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. Click `...` in the upper right corner
-  2. Click `Settings`
-  3. Under `Extensions`, click the `Add` link
-  4. On the `Add Extension Manually` modal, enter the following:
-        * **Type**: `Standard IO`
-        * **ID**: `figma-mcp` (_set this to whatever you want_)
-        * **Name**: `Figma` (_set this to whatever you want_)
-        * **Description**: `Figma MCP Server` (_set this to whatever you want_)
-        * **Command**: `npx @hapins/figma-mcp`
-        * **Environment Variables**
-            * **Name**: `FIGMA_ACCESS_TOKEN`
-            * **Value**: (_Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in._)
-            * Click `Add` button
-  5. Click `Add Extension` button
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40hapins%2Ffigma-mcp&id=figma&name=Figma&description=Figma%20design%20tool%20integration&env=FIGMA_ACCESS_TOKEN%3DAccess%20token%20from%20Figma%20user%20settings)
+  2. Press `Yes` to confirm the installation
+  3. Obtain a [Figma Access Token](https://www.figma.com/developers/api#access-tokens) and paste it in
+  4. Click `Save Configuration`
+  5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
 </Tabs>
 

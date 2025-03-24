@@ -28,7 +28,10 @@ pub struct OpenAiProvider {
     #[serde(skip)]
     client: Client,
     host: String,
+    base_path: String,
     api_key: String,
+    organization: Option<String>,
+    project: Option<String>,
     model: ModelConfig,
 }
 
@@ -44,8 +47,13 @@ impl OpenAiProvider {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENAI_API_KEY")?;
         let host: String = config
-            .get("OPENAI_HOST")
+            .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+        let base_path: String = config
+            .get_param("OPENAI_BASE_PATH")
+            .unwrap_or_else(|_| "v1/chat/completions".to_string());
+        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
+        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let client = Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?;
@@ -53,7 +61,10 @@ impl OpenAiProvider {
         Ok(Self {
             client,
             host,
+            base_path,
             api_key,
+            organization,
+            project,
             model,
         })
     }
@@ -61,17 +72,26 @@ impl OpenAiProvider {
     async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
         let base_url = url::Url::parse(&self.host)
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-        let url = base_url.join("v1/chat/completions").map_err(|e| {
+        let url = base_url.join(&self.base_path).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
         })?;
 
-        let response = self
+        let mut request = self
             .client
             .post(url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&payload)
-            .send()
-            .await?;
+            .header("Authorization", format!("Bearer {}", self.api_key));
+
+        // Add organization header if present
+        if let Some(org) = &self.organization {
+            request = request.header("OpenAI-Organization", org);
+        }
+
+        // Add project header if present
+        if let Some(project) = &self.project {
+            request = request.header("OpenAI-Project", project);
+        }
+
+        let response = request.json(&payload).send().await?;
 
         handle_response_openai_compat(response).await
     }
@@ -83,7 +103,7 @@ impl Provider for OpenAiProvider {
         ProviderMetadata::new(
             "openai",
             "OpenAI",
-            "GPT-4 and other OpenAI models",
+            "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
             OPEN_AI_KNOWN_MODELS
                 .iter()
@@ -92,7 +112,10 @@ impl Provider for OpenAiProvider {
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", true, true, None),
-                ConfigKey::new("OPENAI_HOST", false, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
+                ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
+                ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
+                ConfigKey::new("OPENAI_PROJECT", false, false, None),
             ],
         )
     }
@@ -127,7 +150,7 @@ impl Provider for OpenAiProvider {
             Err(e) => return Err(e),
         };
         let model = get_model(&response);
-        emit_debug_trace(self, &payload, &response, &usage);
+        emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
 }
