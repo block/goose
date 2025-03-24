@@ -1073,7 +1073,7 @@ mod tests {
         if let MessageContent::RedactedThinking(redacted) = &message.content[0] {
             assert_eq!(
                 redacted.data,
-                "EsQFCkYIARgCKkATCHitfgHt27Ber3v4NYUqeEIbjOO1TSR3WQ"
+                "E23sQFCkYIARgCKkATCHitsdf327Ber3v4NYUq2"
             );
         } else {
             panic!("Expected RedactedThinking content");
