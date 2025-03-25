@@ -21,7 +21,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             "role": message.role
         });
 
-        let mut output = Vec::new();
+        let mut content_array = Vec::new();
+        let mut has_tool_calls = false;
 
         for content in &message.content {
             match content {
@@ -31,79 +32,76 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         if let Some(image_path) = detect_image_path(&text.text) {
                             // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
+                                content_array.push(json!({
+                                    "type": "text",
+                                    "text": text.text
+                                }));
+                                content_array.push(convert_image(&image, image_format));
                             } else {
-                                // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                content_array.push(json!({
+                                    "type": "text",
+                                    "text": text.text
+                                }));
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            content_array.push(json!({
+                                "type": "text",
+                                "text": text.text
+                            }));
                         }
                     }
                 }
                 MessageContent::Thinking(content) => {
-                    // Thinking blocks need to be converted to Databricks type 'reasoning'
-                    let thinking_text = content.thinking.clone();
-                    let signature = content.signature.clone();
-                    output.push(json!({
-                        "role": "assistant",
-                        "content": [{
-                            "type": "reasoning",
-                            "summary": [
-                                {
-                                    "type": "summary_text",
-                                    "text": thinking_text,
-                                    "signature": signature
-                                }
-                            ]
-                        }]
+                    content_array.push(json!({
+                        "type": "reasoning",
+                        "summary": [
+                            {
+                                "type": "summary_text",
+                                "text": content.thinking,
+                                "signature": content.signature
+                            }
+                        ]
                     }));
                 }
                 MessageContent::RedactedThinking(content) => {
-                    // Redacted thinking blocks need to be converted to Databricks type 'reasoning'
-                    let encrypted_text = content.data.clone();
-                    output.push(json!({
-                        "role": "assistant",
-                        "content": [{
-                            "type": "reasoning",
-                            "summary": [
-                                {
-                                    "type": "summary_encrypted_text",
-                                    "data": encrypted_text
-                                }
-                            ]
-                        }]
+                    content_array.push(json!({
+                        "type": "reasoning",
+                        "summary": [
+                            {
+                                "type": "summary_encrypted_text",
+                                "data": content.data
+                            }
+                        ]
                     }));
                 }
-                MessageContent::ToolRequest(request) => match &request.tool_call {
-                    Ok(tool_call) => {
-                        let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let tool_calls = converted
-                            .as_object_mut()
-                            .unwrap()
-                            .entry("tool_calls")
-                            .or_insert(json!([]));
+                MessageContent::ToolRequest(request) => {
+                    has_tool_calls = true;
+                    match &request.tool_call {
+                        Ok(tool_call) => {
+                            let sanitized_name = sanitize_function_name(&tool_call.name);
+                            let tool_calls = converted
+                                .as_object_mut()
+                                .unwrap()
+                                .entry("tool_calls")
+                                .or_insert(json!([]));
 
-                        tool_calls.as_array_mut().unwrap().push(json!({
-                            "id": request.id,
-                            "type": "function",
-                            "function": {
-                                "name": sanitized_name,
-                                "arguments": tool_call.arguments.to_string(),
-                            }
-                        }));
+                            tool_calls.as_array_mut().unwrap().push(json!({
+                                "id": request.id,
+                                "type": "function",
+                                "function": {
+                                    "name": sanitized_name,
+                                    "arguments": tool_call.arguments.to_string(),
+                                }
+                            }));
+                        }
+                        Err(e) => {
+                            content_array.push(json!({
+                                "type": "text",
+                                "text": format!("Error: {}", e)
+                            }));
+                        }
                     }
-                    Err(e) => {
-                        output.push(json!({
-                            "role": "tool",
-                            "content": format!("Error: {}", e),
-                            "tool_call_id": request.id
-                        }));
-                    }
-                },
+                }
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(contents) => {
@@ -151,18 +149,18 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 .collect::<Vec<String>>()
                                 .join(" "));
 
-                            // First add the tool response with all content
-                            output.push(json!({
+                            // Add tool response as a separate message
+                            messages_spec.push(json!({
                                 "role": "tool",
                                 "content": tool_response_content,
                                 "tool_call_id": response.id
                             }));
                             // Then add any image messages that need to follow
-                            output.extend(image_messages);
+                            messages_spec.extend(image_messages);
                         }
                         Err(e) => {
                             // A tool result error is shown as output so the model can interpret the error message
-                            output.push(json!({
+                            messages_spec.push(json!({
                                 "role": "tool",
                                 "content": format!("The tool call returned the following error:\n{}", e),
                                 "tool_call_id": response.id
@@ -175,15 +173,23 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 }
                 MessageContent::Image(image) => {
                     // Handle direct image content
-                    converted["content"] = json!([convert_image(image, image_format)]);
+                    content_array.push(json!({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": convert_image(image, image_format)
+                        }
+                    }));
                 }
             }
         }
 
-        if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
-            output.insert(0, converted);
+        if !content_array.is_empty() {
+            converted["content"] = json!(content_array);
         }
-        messages_spec.extend(output);
+
+        if !content_array.is_empty() || has_tool_calls {
+            messages_spec.push(converted);
+        }
     }
 
     messages_spec
