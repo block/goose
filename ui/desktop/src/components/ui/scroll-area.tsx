@@ -17,6 +17,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     const viewportRef = React.useRef<HTMLDivElement>(null);
     const viewportEndRef = React.useRef<HTMLDivElement>(null);
     const [isFollowing, setIsFollowing] = React.useState(true);
+    const [isScrolled, setIsScrolled] = React.useState(false);
 
     const scrollToBottom = React.useCallback(() => {
       if (viewportEndRef.current) {
@@ -48,6 +49,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       const scrollBottom = scrollTop + clientHeight;
       const newIsFollowing = scrollHeight === scrollBottom;
 
+      // Check if scrolled from top
+      setIsScrolled(scrollTop > 0);
+
       // react will internally optimize this to not re-store the same values
       setIsFollowing(newIsFollowing);
     }, []);
@@ -71,8 +75,15 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       <ScrollAreaPrimitive.Root
         ref={rootRef}
         className={cn('relative overflow-hidden', className)}
+        data-scrolled={isScrolled}
         {...props}
       >
+        <div
+          className={cn(
+            'absolute top-0 left-0 right-0 z-10 transition-all duration-200',
+            isScrolled ? 'border-t border-borderSubtle' : 'border-t border-transparent'
+          )}
+        />
         <ScrollAreaPrimitive.Viewport
           ref={viewportRef}
           className="h-full w-full rounded-[inherit] [&>div]:!block"
