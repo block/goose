@@ -105,8 +105,17 @@ export async function addExtension(
       return response;
     }
 
-    const errorMessage = `Error adding extension`;
-    console.error(errorMessage);
+    var errorMessage = `Error adding extension`;
+    // Attempt to extract the message from inside StdioProcessError()
+    const regex = /StdioProcessError\("(.*?)"\)/;
+    const match = data.message.match(regex);
+
+    if (match) {
+      const extracted = match[1];
+      // only display the message if it is less than 100 chars
+      errorMessage = extracted.length > 100 ? errorMessage : extracted;
+    }
+
     if (toastId) toast.dismiss(toastId);
     ToastError({
       title: extension.name,
