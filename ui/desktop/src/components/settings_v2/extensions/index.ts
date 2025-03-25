@@ -96,6 +96,27 @@ export async function activateExtension({
   }
 }
 
+interface addToAgentOnStartupProps {
+  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  extensionConfig: ExtensionConfig;
+}
+
+export async function addToAgentOnStartup({
+  addToConfig,
+  extensionConfig,
+}: addToAgentOnStartupProps): Promise<void> {
+  try {
+    // AddToAgent
+    await AddToAgent(extensionConfig);
+  } catch (error) {
+    // update config with enabled = false
+    await toggleExtension({ toggle: 'toggleOff', extensionConfig, addToConfig });
+    // show user the error, return
+    console.log('error', error);
+    return;
+  }
+}
+
 interface updateExtensionProps {
   enabled: boolean;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
@@ -141,7 +162,6 @@ interface toggleExtensionProps {
   toggle: 'toggleOn' | 'toggleOff';
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
-  removeFromConfig: (name: string) => Promise<void>;
 }
 
 export async function toggleExtension({

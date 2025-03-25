@@ -24,12 +24,14 @@ import ProviderSettings from './components/settings_v2/providers/ProviderSetting
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig } from './components/ConfigContext';
+import { FixedExtensionEntry, useConfig } from './components/ConfigContext';
 import {
   initializeBuiltInExtensions,
   syncBuiltInExtensions,
   addExtensionFromDeepLink as addExtensionFromDeepLinkV2,
+  addToAgentOnStartup,
 } from './components/settings_v2/extensions';
+import { extractExtensionConfig } from './components/settings_v2/extensions/utils';
 
 // Views and their options
 export type View =
@@ -83,17 +85,22 @@ export default function App() {
     console.log('Alpha flow initializing...');
 
     const setupExtensions = async () => {
+      let refreshedExtensions: FixedExtensionEntry[] = [];
       try {
-        console.log('Setting up extensions...');
+        // Force refresh extensions from the backend to ensure we have the latest
+        console.log('Getting extensions from backend...');
+        refreshedExtensions = await getExtensions(true);
+        console.log(`Retrieved ${refreshedExtensions.length} extensions`);
+      } catch (error) {
+        console.log('Error getting extensions list');
+      }
+      // built-in extensions block -- just adds them to config if missing
+      try {
+        console.log('Setting up built-in extensions...');
 
         // Set the ref immediately to prevent duplicate runs
         initAttemptedRef.current = true;
         console.log('Set initAttemptedRef to prevent duplicate runs');
-
-        // Force refresh extensions from the backend to ensure we have the latest
-        console.log('Getting extensions from backend...');
-        const refreshedExtensions = await getExtensions(true);
-        console.log(`Retrieved ${refreshedExtensions.length} extensions`);
 
         if (refreshedExtensions.length === 0) {
           // If we still have no extensions, this is truly a first-time setup
@@ -115,6 +122,16 @@ export default function App() {
           name: error.name,
         });
         // We don't set fatal error here since the app might still work without extensions
+      }
+
+      // now try to add to agent
+      for (const extensionEntry of refreshedExtensions) {
+        if (extensionEntry.enabled) {
+          // need to convert to config because that's what the endpoint expects
+          const extensionConfig = extractExtensionConfig(extensionEntry);
+          // will handle toasts and also set failures to enabled = false
+          await addToAgentOnStartup({ addToConfig: addExtension, extensionConfig });
+        }
       }
     };
 
