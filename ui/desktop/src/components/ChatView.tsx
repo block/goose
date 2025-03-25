@@ -255,6 +255,12 @@ export default function ChatView({
     // isUserMessage also checks if the message is a toolConfirmationRequest
     // check if the last message is a real user's message
     if (lastMessage && isUserMessage(lastMessage) && !isToolResponse) {
+      // Get the text content from the last message before removing it
+      const textContent = lastMessage.content.find((c) => c.type === 'text')?.text || '';
+
+      // Set the text back to the input field
+      _setInput(textContent);
+
       // Remove the last user message if it's the most recent one
       if (messages.length > 1) {
         setMessages(messages.slice(0, -1));
@@ -433,6 +439,8 @@ export default function ChatView({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
+            value={_input}
+            onValueChange={_setInput}
           />
           <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
