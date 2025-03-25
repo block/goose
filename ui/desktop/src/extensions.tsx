@@ -105,13 +105,23 @@ export async function addExtension(
       return response;
     }
 
-    const errorMessage = `Error adding extension`;
-    console.error(errorMessage);
+    var errorMessage = `Error adding extension`;
+    // Attempt to extract the message from inside StdioProcessError()
+    // NOTE: this may change if the error response from /extensions/add changes
+    const regex = /StdioProcessError\("(.*?)"\)/;
+    const match = data.message.match(regex);
+
+    if (match) {
+      const extracted = match[1];
+      // only display the message if it is less than 100 chars
+      errorMessage = extracted.length > 100 ? errorMessage : extracted;
+    }
+
     if (toastId) toast.dismiss(toastId);
     ToastError({
       title: extension.name,
       msg: errorMessage,
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
 
@@ -122,7 +132,7 @@ export async function addExtension(
     ToastError({
       title: extension.name,
       msg: 'Failed to add extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -154,7 +164,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
     return response;
@@ -164,7 +174,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
