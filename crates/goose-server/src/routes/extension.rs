@@ -323,11 +323,11 @@ fn is_command_allowed_with_allowlist(
                 .and_then(|name| name.to_str())
                 .unwrap_or(cmd);
 
-            // Check if the command is in the allowlist
+            // Check if the command exactly matches an entry in the allowlist
             extensions
                 .extensions
                 .iter()
-                .any(|entry| cmd_base.contains(&entry.command))
+                .any(|entry| cmd_base == entry.command)
         }
     }
 }
@@ -361,7 +361,7 @@ mod tests {
     fn test_command_allowed_when_matching() {
         let allowlist = create_test_allowlist(&["uvx mcp_slack", "uvx mcp_github"]);
 
-        // Test with full paths
+        // Test with full paths - the base command should exactly match the allowlist entry
         assert!(is_command_allowed_with_allowlist(
             "/Users/username/path/to/uvx mcp_slack",
             &allowlist
@@ -371,13 +371,23 @@ mod tests {
             &allowlist
         ));
 
-        // Test with just the command
+        // Test with just the command - should match exactly
         assert!(is_command_allowed_with_allowlist(
             "uvx mcp_slack",
             &allowlist
         ));
         assert!(is_command_allowed_with_allowlist(
             "uvx mcp_github",
+            &allowlist
+        ));
+
+        // These should NOT match with exact matching
+        assert!(!is_command_allowed_with_allowlist(
+            "uvx mcp_slack_extra",
+            &allowlist
+        ));
+        assert!(!is_command_allowed_with_allowlist(
+            "prefix_uvx mcp_github",
             &allowlist
         ));
     }
