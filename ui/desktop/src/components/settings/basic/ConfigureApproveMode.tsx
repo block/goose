@@ -18,7 +18,7 @@ export function ConfigureApproveMode({
     {
       key: 'approve',
       label: 'Manual Approval',
-      description: 'All tools, extensions and file modificatio will require human approval',
+      description: 'All tools, extensions and file modifications will require human approval',
     },
     {
       key: 'smart_approve',
