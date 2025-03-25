@@ -17,7 +17,7 @@ export const all_goose_modes: GooseMode[] = [
   {
     key: 'approve',
     label: 'Manual Approval',
-    description: 'All tools, extensions and file modificatio will require human approval',
+    description: 'All tools, extensions and file modifications will require human approval',
   },
   {
     key: 'smart_approve',
