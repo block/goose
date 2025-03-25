@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../../../ui/button';
 import Modal from '../../../Modal';
-import { Input } from '../../../ui/input';
-import Select from 'react-select';
-import { createDarkSelectStyles, darkSelectTheme } from '../../../ui/select-styles';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
@@ -33,10 +30,10 @@ export default function ExtensionModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const handleAddEnvVar = () => {
+  const handleAddEnvVar = (key: string, value: string) => {
     setFormData({
       ...formData,
-      envVars: [...formData.envVars, { key: '', value: '' }],
+      envVars: [...formData.envVars, { key, value }],
     });
   };
 
@@ -208,7 +205,6 @@ export default function ExtensionModal({
               onRemove={handleRemoveEnvVar}
               onChange={Object.assign(handleEnvVarChange, { setSubmitAttempted })}
               submitAttempted={submitAttempted}
-              isValid={isEnvVarsValid()}
             />
           </div>
         </>
