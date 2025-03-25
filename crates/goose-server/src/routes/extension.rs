@@ -266,35 +266,29 @@ fn fetch_allowed_extensions() -> Option<AllowedExtensions> {
             // Environment variable not set, no allowlist to enforce
             None
         }
-        Ok(url) => {
-            match reqwest::blocking::get(&url) {
-                Err(e) => {
-                    eprintln!("Failed to fetch allowlist: {}", e);
-                    None
-                }
-                Ok(response) if !response.status().is_success() => {
-                    eprintln!("Failed to fetch allowlist, status: {}", response.status());
-                    None
-                }
-                Ok(response) => {
-                    match response.text() {
-                        Err(e) => {
-                            eprintln!("Failed to read allowlist response: {}", e);
-                            None
-                        }
-                        Ok(text) => {
-                            match serde_yaml::from_str::<AllowedExtensions>(&text) {
-                                Ok(allowed) => Some(allowed),
-                                Err(e) => {
-                                    eprintln!("Failed to parse allowlist YAML: {}", e);
-                                    None
-                                }
-                            }
-                        }
-                    }
-                }
+        Ok(url) => match reqwest::blocking::get(&url) {
+            Err(e) => {
+                eprintln!("Failed to fetch allowlist: {}", e);
+                None
             }
-        }
+            Ok(response) if !response.status().is_success() => {
+                eprintln!("Failed to fetch allowlist, status: {}", response.status());
+                None
+            }
+            Ok(response) => match response.text() {
+                Err(e) => {
+                    eprintln!("Failed to read allowlist response: {}", e);
+                    None
+                }
+                Ok(text) => match serde_yaml::from_str::<AllowedExtensions>(&text) {
+                    Ok(allowed) => Some(allowed),
+                    Err(e) => {
+                        eprintln!("Failed to parse allowlist YAML: {}", e);
+                        None
+                    }
+                },
+            },
+        },
     }
 }
 
@@ -310,14 +304,17 @@ fn is_command_allowed(cmd: &str) -> bool {
 
 /// Implementation of command allowlist checking that takes an explicit allowlist parameter
 /// This makes it easier to test without relying on global state
-fn is_command_allowed_with_allowlist(cmd: &str, allowed_extensions: &Option<AllowedExtensions>) -> bool {
+fn is_command_allowed_with_allowlist(
+    cmd: &str,
+    allowed_extensions: &Option<AllowedExtensions>,
+) -> bool {
     match allowed_extensions {
         // No allowlist configured, allow all commands
         None => true,
-        
+
         // Empty allowlist, allow all commands
         Some(extensions) if extensions.extensions.is_empty() => true,
-        
+
         // Check against the allowlist
         Some(extensions) => {
             // Extract the base command name (last part of the path)
@@ -338,6 +335,7 @@ fn is_command_allowed_with_allowlist(cmd: &str, allowed_extensions: &Option<Allo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     // Create a test allowlist with the given commands
     fn create_test_allowlist(commands: &[&str]) -> Option<AllowedExtensions> {
@@ -354,13 +352,15 @@ mod tests {
             })
             .collect();
 
-        Some(AllowedExtensions { extensions: entries })
+        Some(AllowedExtensions {
+            extensions: entries,
+        })
     }
 
     #[test]
     fn test_command_allowed_when_matching() {
         let allowlist = create_test_allowlist(&["uvx mcp_slack", "uvx mcp_github"]);
-        
+
         // Test with full paths
         assert!(is_command_allowed_with_allowlist(
             "/Users/username/path/to/uvx mcp_slack",
@@ -370,22 +370,31 @@ mod tests {
             "/opt/local/bin/uvx mcp_github",
             &allowlist
         ));
-        
+
         // Test with just the command
-        assert!(is_command_allowed_with_allowlist("uvx mcp_slack", &allowlist));
-        assert!(is_command_allowed_with_allowlist("uvx mcp_github", &allowlist));
+        assert!(is_command_allowed_with_allowlist(
+            "uvx mcp_slack",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "uvx mcp_github",
+            &allowlist
+        ));
     }
 
     #[test]
     fn test_command_not_allowed_when_not_matching() {
         let allowlist = create_test_allowlist(&["uvx mcp_slack", "uvx mcp_github"]);
-        
+
         // These should not be allowed
         assert!(!is_command_allowed_with_allowlist(
             "/Users/username/path/to/uvx mcp_malicious",
             &allowlist
         ));
-        assert!(!is_command_allowed_with_allowlist("uvx mcp_unauthorized", &allowlist));
+        assert!(!is_command_allowed_with_allowlist(
+            "uvx mcp_unauthorized",
+            &allowlist
+        ));
         assert!(!is_command_allowed_with_allowlist("/bin/bash", &allowlist));
     }
 
@@ -397,8 +406,71 @@ mod tests {
             "any_command_should_be_allowed",
             &empty_allowlist
         ));
-        
+
         // No allowlist should allow all commands
-        assert!(is_command_allowed_with_allowlist("any_command_should_be_allowed", &None));
+        assert!(is_command_allowed_with_allowlist(
+            "any_command_should_be_allowed",
+            &None
+        ));
+    }
+
+    #[test]
+    fn test_fetch_allowed_extensions_from_url() {
+        // Start a mock server - we need to use a blocking approach since fetch_allowed_extensions is blocking
+        let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        let server_url = format!("http://127.0.0.1:{}", port);
+        let server_path = "/allowed_extensions.yaml";
+
+        // Define the mock response
+        let yaml_content = r#"extensions:
+  - id: slack
+    command: uvx mcp_slack
+  - id: github
+    command: uvx mcp_github
+"#;
+
+        // Spawn a thread to handle the request
+        let handle = std::thread::spawn(move || {
+            let (stream, _) = server.accept().unwrap();
+            let mut buf_reader = std::io::BufReader::new(&stream);
+            let mut request_line = String::new();
+            std::io::BufRead::read_line(&mut buf_reader, &mut request_line).unwrap();
+
+            // Very simple HTTP response
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/yaml\r\n\r\n{}",
+                yaml_content.len(),
+                yaml_content
+            );
+
+            let mut writer = std::io::BufWriter::new(&stream);
+            std::io::Write::write_all(&mut writer, response.as_bytes()).unwrap();
+            std::io::Write::flush(&mut writer).unwrap();
+        });
+
+        // Set the environment variable to point to our mock server
+        env::set_var("GOOSE_ALLOWLIST", format!("{}{}", server_url, server_path));
+
+        // Give the server a moment to start
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Call the function that fetches from the URL
+        let allowed_extensions = fetch_allowed_extensions();
+
+        // Verify the result
+        assert!(allowed_extensions.is_some());
+        let extensions = allowed_extensions.unwrap();
+        assert_eq!(extensions.extensions.len(), 2);
+        assert_eq!(extensions.extensions[0].id, "slack");
+        assert_eq!(extensions.extensions[0].command, "uvx mcp_slack");
+        assert_eq!(extensions.extensions[1].id, "github");
+        assert_eq!(extensions.extensions[1].command, "uvx mcp_github");
+
+        // Clean up
+        env::remove_var("GOOSE_ALLOWLIST");
+
+        // Wait for the server thread to complete
+        handle.join().unwrap();
     }
 }
