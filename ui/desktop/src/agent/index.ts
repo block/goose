@@ -1,4 +1,4 @@
-import { getApiUrl, getSecretKey } from '@/src/config';
+import { getApiUrl, getSecretKey } from '../config';
 
 interface initializeAgentProps {
   model: string;

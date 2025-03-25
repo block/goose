@@ -1,6 +1,5 @@
-import { getApiUrl, getSecretKey } from '@/src/config';
 import { initializeAgent } from '../../../agent/index';
-import { ToastError, ToastLoading, ToastSuccess } from '../../settings/models/toasts';
+import { ToastError, ToastSuccess } from '../../settings/models/toasts';
 
 // titles
 const CHANGE_MODEL_TOAST_TITLE = 'Model selected';

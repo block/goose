@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ExternalLink, Plus } from 'lucide-react';
 
-import Modal from '../../Modal';
-import { Button } from '../../ui/button';
-import { QUICKSTART_GUIDE_URL } from '../providers/modal/constants';
-import { Input } from '../../ui/input';
-import { Select } from '../../ui/Select';
-import { useConfig } from '../../ConfigContext';
-import { ToastError, ToastSuccess } from '../../settings/models/toasts';
-import { initializeSystem } from '../../../../src/utils/providerUtils';
+import Modal from '../../../Modal';
+import { Button } from '../../../ui/button';
+import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
+import { Input } from '../../../ui/input';
+import { Select } from '../../../ui/Select';
+import { useConfig } from '../../../ConfigContext';
+import { changeModel as switchModel } from '../index';
 
 const ModalButtons = ({ onSubmit, onCancel }) => (
   <div>
@@ -35,25 +34,12 @@ type AddModelModalProps = { onClose: () => void };
 export const AddModelModal = ({ onClose }: AddModelModalProps) => {
   const { getProviders, upsert } = useConfig();
   const [providerOptions, setProviderOptions] = useState([]);
+  const [modelOptions, setModelOptions] = useState([]);
   const [provider, setProvider] = useState<string | null>(null);
-  const [modelName, setModelName] = useState<string>('');
+  const [model, setModel] = useState<string>('');
 
   const changeModel = async () => {
-    try {
-      await upsert('GOOSE_PROVIDER', provider, false);
-      await upsert('GOOSE_MODEL', modelName, false);
-      await initializeSystem(provider, modelName);
-      ToastSuccess({
-        title: 'Model changed',
-        msg: `Switched to ${modelName}.`,
-      });
-      onClose();
-    } catch (e) {
-      ToastError({
-        title: 'Failed to add model',
-        traceback: e.message,
-      });
-    }
+    await switchModel({ model: model, provider: provider, writeToConfig: upsert });
   };
 
   useEffect(() => {
@@ -65,6 +51,13 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
           activeProviders.map(({ metadata, name }) => ({
             value: name,
             label: metadata.display_name,
+          }))
+        );
+        setModelOptions(
+          activeProviders.map(({ metadata, name }) => ({
+            value: name,
+            label: metadata.display_name,
+            options: metadata.known_models,
           }))
         );
       } catch (error) {
@@ -103,7 +96,7 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
               value={providerOptions.find((option) => option.value === provider) || null}
               onChange={(option) => {
                 setProvider(option?.value || null);
-                setModelName('');
+                setModel('');
               }}
               placeholder="Provider"
               isClearable
@@ -111,8 +104,8 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
             <Input
               className="border-2 px-4 py-5"
               placeholder="GPT"
-              onChange={(event) => setModelName(event.target.value)}
-              value={modelName}
+              onChange={(event) => setModel(event.target.value)}
+              value={model}
             />
           </div>
         </div>
