@@ -4,7 +4,7 @@ import { useRecentModels } from './settings/models/RecentModels'; // Hook for re
 import { Document, ChevronUp } from './icons';
 import type { View } from '../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from './settings_v2/models/subcomponents/BottomBar';
+import ModelsBottomBar from './settings_v2/models/subcomponents/ModelsBottomBar';
 
 export default function BottomMenu({
   hasMessages,
@@ -76,7 +76,7 @@ export default function BottomMenu({
       <BottomMenuModeSelection />
 
       {/* Model Selector Dropdown - Only in development */}
-      <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} currentModel={currentModel} />
+      <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
     </div>
   );
 }

@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { Button } from '../../../ui/button';
 import { AddModelModal } from './AddModelModal';
 import { Gear } from '../../../icons';
+import type { View } from '../../../../App';
 
-export const AddModelButton = () => {
+interface AddModelButtonProps {
+  setView: (view: View) => void;
+}
+
+export const AddModelButton = ({ setView }: AddModelButtonProps) => {
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
 
   return (
@@ -15,7 +20,9 @@ export const AddModelButton = () => {
         <Gear className="h-4 w-4" />
         Switch Models
       </Button>
-      {isAddModelModalOpen ? <AddModelModal onClose={() => setIsAddModelModalOpen(false)} /> : null}
+      {isAddModelModalOpen ? (
+        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+      ) : null}
     </>
   );
 };

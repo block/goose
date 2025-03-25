@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { useConfig } from '../../../ConfigContext';
 import { getCurrentModelAndProviderForDisplay } from '../index';
 import { AddModelModal } from './AddModelModal';
+import type { View } from '../../../../App';
 
 interface ModelsBottomBarProps {
   dropdownRef: any;
-  setView: any;
+  setView: (view: View) => void;
 }
-export default function ModelsBottomBar({ dropdownRef }: ModelsBottomBarProps) {
+export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBarProps) {
   const { read, getProviders } = useConfig();
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
@@ -63,7 +64,9 @@ export default function ModelsBottomBar({ dropdownRef }: ModelsBottomBarProps) {
           </div>
         </div>
       )}
-      {isAddModelModalOpen ? <AddModelModal onClose={() => setIsAddModelModalOpen(false)} /> : null}
+      {isAddModelModalOpen ? (
+        <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
+      ) : null}
     </div>
   );
 }

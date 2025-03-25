@@ -8,6 +8,7 @@ import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { changeModel as switchModel } from '../index';
+import type { View } from '../../../../App';
 
 const ModalButtons = ({ onSubmit, onCancel }) => (
   <div>
@@ -30,8 +31,11 @@ const ModalButtons = ({ onSubmit, onCancel }) => (
   </div>
 );
 
-type AddModelModalProps = { onClose: () => void };
-export const AddModelModal = ({ onClose }: AddModelModalProps) => {
+type AddModelModalProps = {
+  onClose: () => void;
+  setView: (view: View) => void;
+};
+export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const { getProviders, upsert } = useConfig();
   const [providerOptions, setProviderOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
@@ -48,12 +52,17 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
       try {
         const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
-        setProviderOptions(
-          activeProviders.map(({ metadata, name }) => ({
+        // Create provider options and add "Use other provider" option
+        setProviderOptions([
+          ...activeProviders.map(({ metadata, name }) => ({
             value: name,
             label: metadata.display_name,
-          }))
-        );
+          })),
+          {
+            value: 'configure_providers',
+            label: 'Use other provider',
+          },
+        ]);
 
         // Format model options by provider
         const formattedModelOptions = [];
@@ -74,7 +83,7 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
         formattedModelOptions.forEach((group) => {
           group.options.push({
             value: 'custom',
-            label: 'Enter other value',
+            label: 'Use custom model',
             provider: group.options[0]?.provider,
           });
         });
@@ -131,9 +140,15 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
               options={providerOptions}
               value={providerOptions.find((option) => option.value === provider) || null}
               onChange={(option) => {
-                setProvider(option?.value || null);
-                setModel('');
-                setIsCustomModel(false);
+                if (option?.value === 'configure_providers') {
+                  // Navigate to ConfigureProviders view
+                  setView('ConfigureProviders');
+                  onClose(); // Close the current modal
+                } else {
+                  setProvider(option?.value || null);
+                  setModel('');
+                  setIsCustomModel(false);
+                }
               }}
               placeholder="Provider"
               isClearable
@@ -151,10 +166,10 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
                 ) : (
                   <div className="flex flex-col gap-2">
                     <div className="flex justify-between">
-                      <label className="text-sm text-textSubtle">Other model name</label>
+                      <label className="text-sm text-textSubtle">Custom model name</label>
                       <button
                         onClick={() => setIsCustomModel(false)}
-                        className="text-sm text-textSubtle"
+                        className="text-sm text-blue-500 hover:text-blue-700"
                       >
                         Back to model list
                       </button>
