@@ -260,7 +260,7 @@ function handleError(message: string, shouldThrow = false): void {
   ToastError({
     title: 'Failed to install extension',
     msg: message,
-    errorMessage: message,
+    traceback: message,
     toastOptions: { autoClose: false },
   });
   console.error(message);

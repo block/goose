@@ -33,7 +33,7 @@ export const useAgent = () => {
       console.error('Failed to initialize agent:', error);
       ToastError({
         title: 'Failed to initialize agent',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        traceback: error instanceof Error ? error.message : 'Unknown error',
       });
       return false;
     }
@@ -131,7 +131,7 @@ export const useAgent = () => {
           ToastError({
             title: extension.name,
             msg: 'Failed to add extension',
-            errorMessage: errorMsg,
+            traceback: errorMsg,
           });
         }
         return response;
@@ -167,7 +167,7 @@ export const useAgent = () => {
       ToastError({
         title: extension.name,
         msg: 'Failed to add extension',
-        errorMessage: data.message,
+        traceback: data.message,
       });
 
       return response;
@@ -178,7 +178,7 @@ export const useAgent = () => {
       ToastError({
         title: extension.name,
         msg: 'Failed to add extension',
-        errorMessage: error.message,
+        traceback: error.message,
       });
       throw error;
     }
