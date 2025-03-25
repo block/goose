@@ -44,13 +44,39 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::Thinking(content) => {
+                    // Thinking blocks need to be converted to Databricks type 'reasoning'
+                    let thinking_text = content.thinking.clone();
+                    let signature = content.signature.clone();
+                    output.push(json!({
+                        "role": "assistant",
+                        "content": [{
+                            "type": "reasoning",
+                            "summary": [
+                                {
+                                    "type": "summary_text",
+                                    "text": thinking_text,
+                                    "signature": signature
+                                }
+                            ]
+                        }]
+                    }));
                 }
-                MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::RedactedThinking(content) => {
+                    // Redacted thinking blocks need to be converted to Databricks type 'reasoning'
+                    let encrypted_text = content.data.clone();
+                    output.push(json!({
+                        "role": "assistant",
+                        "content": [{
+                            "type": "reasoning",
+                            "summary": [
+                                {
+                                    "type": "summary_encrypted_text",
+                                    "data": encrypted_text
+                                }
+                            ]
+                        }]
+                    }));
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
