@@ -62,7 +62,15 @@ When a Stdio extension attempts to register with a command, the system:
 2. Checks if this base command **exactly matches** any of the command strings in the allowlist
 3. Allows the extension if there's a match, rejects it otherwise
 
-This exact matching provides strong security guarantees by ensuring that only precisely specified commands are allowed.
+### Special Cases
+
+There are a few special cases in the command matching logic:
+
+1. **goosed commands**: Any command that is either exactly "goosed" or ends with "/goosed" is always allowed, regardless of the allowlist. This ensures that the Goose server itself can always be executed.
+
+2. **No allowlist**: If no allowlist is configured (the `GOOSE_ALLOWLIST` environment variable is not set), all commands are allowed.
+
+3. **Empty allowlist**: If the allowlist is empty (contains no entries), all commands are allowed.
 
 ### Best Practices for Defining Allowlist Entries
 

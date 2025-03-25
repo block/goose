@@ -308,6 +308,12 @@ fn is_command_allowed_with_allowlist(
     cmd: &str,
     allowed_extensions: &Option<AllowedExtensions>,
 ) -> bool {
+    // Special case: Always allow commands ending with "/goosed" or equal to "goosed"
+    let first_part = cmd.split_whitespace().next().unwrap_or(cmd);
+    if first_part == "goosed" || Path::new(first_part).to_string_lossy().ends_with("/goosed") {
+        return true;
+    }
+
     match allowed_extensions {
         // No allowlist configured, allow all commands
         None => true,
@@ -421,6 +427,42 @@ mod tests {
         assert!(is_command_allowed_with_allowlist(
             "any_command_should_be_allowed",
             &None
+        ));
+    }
+
+    #[test]
+    fn test_goosed_special_case() {
+        // Create a restrictive allowlist that doesn't include goosed
+        let allowlist = create_test_allowlist(&["uvx mcp_slack"]);
+
+        // These should be allowed because they end with "/goosed", regardless of the allowlist
+        assert!(is_command_allowed_with_allowlist(
+            "/usr/local/bin/goosed",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "/Users/username/path/to/goosed",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "/Users/username/path/to/goosed --flag value",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist("./goosed", &allowlist));
+        assert!(is_command_allowed_with_allowlist("goosed", &allowlist));
+
+        // These should NOT be allowed because they don't end with "/goosed"
+        assert!(!is_command_allowed_with_allowlist(
+            "/usr/local/bin/goosed-extra",
+            &allowlist
+        ));
+        assert!(!is_command_allowed_with_allowlist(
+            "/usr/local/bin/not-goosed",
+            &allowlist
+        ));
+        assert!(!is_command_allowed_with_allowlist(
+            "goosed-extra",
+            &allowlist
         ));
     }
 
