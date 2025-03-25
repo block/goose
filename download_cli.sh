@@ -78,12 +78,21 @@ if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
   exit 1
 fi
 
-echo "Extracting $FILE..."
-tar -xjf "$FILE"
+# Create a temporary directory for extraction
+TMP_DIR="/tmp/goose_install_$RANDOM"
+if ! mkdir -p "$TMP_DIR"; then
+  echo "Error: Could not create temporary extraction directory"
+  exit 1
+fi
+# Clean up temporary directory
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+echo "Extracting $FILE to temporary directory..."
+tar -xjf "$FILE" -C "$TMP_DIR"
 rm "$FILE" # clean up the downloaded tarball
 
-# Make binaries executable
-chmod +x goose
+# Make binary executable
+chmod +x "$TMP_DIR/goose"
 
 # --- 5) Install to $GOOSE_BIN_DIR ---
 if [ ! -d "$GOOSE_BIN_DIR" ]; then
@@ -92,7 +101,7 @@ if [ ! -d "$GOOSE_BIN_DIR" ]; then
 fi
 
 echo "Moving goose to $GOOSE_BIN_DIR/$OUT_FILE"
-mv goose "$GOOSE_BIN_DIR/$OUT_FILE"
+mv "$TMP_DIR/goose" "$GOOSE_BIN_DIR/$OUT_FILE"
 
 # skip configuration for non-interactive installs e.g. automation, docker
 if [ "$CONFIGURE" = true ]; then
