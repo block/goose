@@ -3,6 +3,7 @@ import { ExtensionConfig } from '../../../api/types.gen';
 
 export interface ExtensionFormData {
   name: string;
+  description: string;
   type: 'stdio' | 'sse' | 'builtin';
   cmd?: string;
   endpoint?: string;
@@ -13,6 +14,7 @@ export interface ExtensionFormData {
 export function getDefaultFormData(): ExtensionFormData {
   return {
     name: '',
+    description: '',
     type: 'stdio',
     cmd: '',
     endpoint: '',
@@ -35,6 +37,8 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
 
   return {
     name: extension.name,
+    description:
+      extension.type === 'stdio' || extension.type === 'sse' ? extension.description : undefined,
     type: extension.type,
     cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint: extension.type === 'sse' ? extension.uri : undefined,
@@ -61,6 +65,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
     return {
       type: 'stdio',
       name: formData.name,
+      description: formData.description,
       cmd: cmd,
       args: args,
       ...(Object.keys(envs).length > 0 ? { envs } : {}),
@@ -69,6 +74,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
     return {
       type: 'sse',
       name: formData.name,
+      description: formData.description,
       uri: formData.endpoint, // Assuming endpoint maps to uri for SSE type
       ...(Object.keys(envs).length > 0 ? { envs } : {}),
     };
