@@ -278,11 +278,14 @@ const createTray = () => {
   tray.setContextMenu(contextMenu);
 };
 
-const showWindow = () => {
+const showWindow = async () => {
   const windows = BrowserWindow.getAllWindows();
 
   if (windows.length === 0) {
-    log.info('No windows are currently open.');
+    log.info('No windows are open, creating a new one...');
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    await createChat(app, undefined, openDir);
     return;
   }
 
