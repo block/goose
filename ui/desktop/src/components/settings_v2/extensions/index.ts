@@ -245,7 +245,7 @@ export async function addExtensionFromDeepLink(
   }
 
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['npx', 'uvx', 'goosed'];
+  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,

@@ -239,6 +239,7 @@ export async function loadAndAddStoredExtensions() {
 export async function replaceWithShims(cmd: string) {
   const binaryPathMap: Record<string, string> = {
     goosed: await window.electron.getBinaryPath('goosed'),
+    jbang: await window.electron.getBinaryPath('jbang'),
     npx: await window.electron.getBinaryPath('npx'),
     uvx: await window.electron.getBinaryPath('uvx'),
   };
@@ -299,7 +300,7 @@ export async function addExtensionFromDeepLink(
   }
 
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['npx', 'uvx', 'goosed'];
+  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
