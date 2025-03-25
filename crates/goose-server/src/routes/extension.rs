@@ -135,8 +135,9 @@ async fn add_extension(
                 return Ok(Json(ExtensionResponse {
                     error: true,
                     message: Some(format!(
-                        "Command '{}' is not in the allowed extensions list",
-                        cmd
+                        "Extension '{}' is not in the allowed extensions list. Command: '{} {}'",                        
+                        args.join(" "),
+                        cmd, args.join(" ")
                     )),
                 }));
             }
