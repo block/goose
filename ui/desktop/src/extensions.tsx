@@ -107,6 +107,7 @@ export async function addExtension(
 
     var errorMessage = `Error adding extension`;
     // Attempt to extract the message from inside StdioProcessError()
+    // NOTE: this may change if the error response from /extensions/add changes
     const regex = /StdioProcessError\("(.*?)"\)/;
     const match = data.message.match(regex);
 
