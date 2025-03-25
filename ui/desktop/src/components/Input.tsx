@@ -144,7 +144,11 @@ export default function Input({
   const handleFileSelect = async () => {
     const path = await window.electron.selectFileOrDirectory();
     if (path) {
-      setValue(path);
+      // Append the path to existing text, with a space if there's existing text
+      setValue((prev) => {
+        const currentText = prev.trim();
+        return currentText ? `${currentText} ${path}` : path;
+      });
       textAreaRef.current?.focus();
     }
   };
