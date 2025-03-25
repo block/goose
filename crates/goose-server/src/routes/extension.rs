@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::env;
+use std::path::Path;
+use std::sync::OnceLock;
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
@@ -127,6 +130,17 @@ async fn add_extension(
             env_keys,
             timeout,
         } => {
+            // Check allowlist for Stdio extensions
+            if !is_command_allowed(&cmd) {
+                return Ok(Json(ExtensionResponse {
+                    error: true,
+                    message: Some(format!(
+                        "Command '{}' is not in the allowed extensions list",
+                        cmd
+                    )),
+                }));
+            }
+
             let mut env_map = HashMap::new();
             for key in env_keys {
                 match config.get_secret(&key) {
@@ -226,4 +240,165 @@ pub fn routes(state: AppState) -> Router {
         .route("/extensions/add", post(add_extension))
         .route("/extensions/remove", post(remove_extension))
         .with_state(state)
+}
+
+/// Structure representing the allowed extensions from the YAML file
+#[derive(Deserialize, Debug, Clone)]
+struct AllowedExtensions {
+    extensions: Vec<ExtensionAllowlistEntry>,
+}
+
+/// Structure representing an individual extension entry in the allowlist
+#[derive(Deserialize, Debug, Clone)]
+struct ExtensionAllowlistEntry {
+    #[allow(dead_code)]
+    id: String,
+    command: String,
+}
+
+// Global cache for the allowed extensions
+static ALLOWED_EXTENSIONS: OnceLock<Option<AllowedExtensions>> = OnceLock::new();
+
+/// Fetches and parses the allowed extensions from the URL specified in GOOSE_ALLOWLIST env var
+fn fetch_allowed_extensions() -> Option<AllowedExtensions> {
+    match env::var("GOOSE_ALLOWLIST") {
+        Err(_) => {
+            // Environment variable not set, no allowlist to enforce
+            None
+        }
+        Ok(url) => {
+            match reqwest::blocking::get(&url) {
+                Err(e) => {
+                    eprintln!("Failed to fetch allowlist: {}", e);
+                    None
+                }
+                Ok(response) if !response.status().is_success() => {
+                    eprintln!("Failed to fetch allowlist, status: {}", response.status());
+                    None
+                }
+                Ok(response) => {
+                    match response.text() {
+                        Err(e) => {
+                            eprintln!("Failed to read allowlist response: {}", e);
+                            None
+                        }
+                        Ok(text) => {
+                            match serde_yaml::from_str::<AllowedExtensions>(&text) {
+                                Ok(allowed) => Some(allowed),
+                                Err(e) => {
+                                    eprintln!("Failed to parse allowlist YAML: {}", e);
+                                    None
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Gets the cached allowed extensions or fetches them if not yet cached
+fn get_allowed_extensions() -> &'static Option<AllowedExtensions> {
+    ALLOWED_EXTENSIONS.get_or_init(fetch_allowed_extensions)
+}
+
+/// Checks if a command is allowed based on the allowlist
+fn is_command_allowed(cmd: &str) -> bool {
+    is_command_allowed_with_allowlist(cmd, get_allowed_extensions())
+}
+
+/// Implementation of command allowlist checking that takes an explicit allowlist parameter
+/// This makes it easier to test without relying on global state
+fn is_command_allowed_with_allowlist(cmd: &str, allowed_extensions: &Option<AllowedExtensions>) -> bool {
+    match allowed_extensions {
+        // No allowlist configured, allow all commands
+        None => true,
+        
+        // Empty allowlist, allow all commands
+        Some(extensions) if extensions.extensions.is_empty() => true,
+        
+        // Check against the allowlist
+        Some(extensions) => {
+            // Extract the base command name (last part of the path)
+            let cmd_base = Path::new(cmd)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(cmd);
+
+            // Check if the command is in the allowlist
+            extensions
+                .extensions
+                .iter()
+                .any(|entry| cmd_base.contains(&entry.command))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Create a test allowlist with the given commands
+    fn create_test_allowlist(commands: &[&str]) -> Option<AllowedExtensions> {
+        if commands.is_empty() {
+            return Some(AllowedExtensions { extensions: vec![] });
+        }
+
+        let entries = commands
+            .iter()
+            .enumerate()
+            .map(|(i, cmd)| ExtensionAllowlistEntry {
+                id: format!("test-{}", i),
+                command: cmd.to_string(),
+            })
+            .collect();
+
+        Some(AllowedExtensions { extensions: entries })
+    }
+
+    #[test]
+    fn test_command_allowed_when_matching() {
+        let allowlist = create_test_allowlist(&["uvx mcp_slack", "uvx mcp_github"]);
+        
+        // Test with full paths
+        assert!(is_command_allowed_with_allowlist(
+            "/Users/username/path/to/uvx mcp_slack",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "/opt/local/bin/uvx mcp_github",
+            &allowlist
+        ));
+        
+        // Test with just the command
+        assert!(is_command_allowed_with_allowlist("uvx mcp_slack", &allowlist));
+        assert!(is_command_allowed_with_allowlist("uvx mcp_github", &allowlist));
+    }
+
+    #[test]
+    fn test_command_not_allowed_when_not_matching() {
+        let allowlist = create_test_allowlist(&["uvx mcp_slack", "uvx mcp_github"]);
+        
+        // These should not be allowed
+        assert!(!is_command_allowed_with_allowlist(
+            "/Users/username/path/to/uvx mcp_malicious",
+            &allowlist
+        ));
+        assert!(!is_command_allowed_with_allowlist("uvx mcp_unauthorized", &allowlist));
+        assert!(!is_command_allowed_with_allowlist("/bin/bash", &allowlist));
+    }
+
+    #[test]
+    fn test_all_commands_allowed_when_no_allowlist() {
+        // Empty allowlist should allow all commands
+        let empty_allowlist = create_test_allowlist(&[]);
+        assert!(is_command_allowed_with_allowlist(
+            "any_command_should_be_allowed",
+            &empty_allowlist
+        ));
+        
+        // No allowlist should allow all commands
+        assert!(is_command_allowed_with_allowlist("any_command_should_be_allowed", &None));
+    }
 }
