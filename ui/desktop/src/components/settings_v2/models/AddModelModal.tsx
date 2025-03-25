@@ -51,7 +51,7 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
     } catch (e) {
       ToastError({
         title: 'Failed to add model',
-        errorMessage: e.message,
+        traceback: e.message,
       });
     }
   };

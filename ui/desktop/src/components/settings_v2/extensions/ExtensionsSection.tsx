@@ -12,10 +12,11 @@ import {
   extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
-import { AddNewExtension, DeleteExtension, ToggleExtension, UpdateExtension } from './temp';
+
+import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
+  const { getExtensions, addExtension, removeExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
@@ -47,7 +48,7 @@ export default function ExtensionsSection() {
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
-    await ToggleExtension({
+    await toggleExtension({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
@@ -65,7 +66,7 @@ export default function ExtensionsSection() {
     const extensionConfig = createExtensionConfig(formData);
     // TODO: replace activateExtension in index
     // TODO: make sure error handling works
-    await AddNewExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+    await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
     handleModalClose();
     await fetchExtensions();
   };
@@ -73,7 +74,7 @@ export default function ExtensionsSection() {
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
 
-    await UpdateExtension({
+    await updateExtension({
       enabled: formData.enabled,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
@@ -83,7 +84,7 @@ export default function ExtensionsSection() {
   };
 
   const handleDeleteExtension = async (name: string) => {
-    await DeleteExtension({ name, removeFromConfig: removeExtension });
+    await deleteExtension({ name, removeFromConfig: removeExtension });
     handleModalClose();
     await fetchExtensions();
   };

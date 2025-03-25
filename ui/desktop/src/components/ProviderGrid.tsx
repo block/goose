@@ -150,7 +150,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       ToastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedId)?.isConfigured ? 'update' : 'add'} configuration`,
-        errorMessage: error.message,
+        traceback: error.message,
       });
     }
   };

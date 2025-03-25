@@ -158,7 +158,7 @@ export function ConfigureProvidersGrid() {
       ToastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration`,
-        errorMessage: error.message,
+        traceback: error.message,
       });
     }
   };
@@ -181,7 +181,7 @@ export function ConfigureProvidersGrid() {
       // Check if the selected provider is currently active
       if (currentModel?.provider === providerToDelete.name) {
         const msg = `Cannot delete the configuration because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`;
-        ToastError({ title: providerToDelete.name, msg, errorMessage: msg });
+        ToastError({ title: providerToDelete.name, msg, traceback: msg });
         setIsConfirmationOpen(false);
         return;
       }
@@ -221,7 +221,7 @@ export function ConfigureProvidersGrid() {
       ToastError({
         title: providerToDelete.name,
         msg: 'Failed to delete configuration',
-        errorMessage: error.message,
+        traceback: error.message,
       });
     }
     setIsConfirmationOpen(false);

@@ -99,7 +99,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
       resetForm();
     } catch (error) {
       console.error('Error configuring extension:', error);
-      ToastError({ title: 'Failed to configure extension', errorMessage: error.message });
+      ToastError({ title: 'Failed to configure extension', traceback: error.message });
     }
   };
 
