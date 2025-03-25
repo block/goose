@@ -37,6 +37,7 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
   const [modelOptions, setModelOptions] = useState([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
+  const [isCustomModel, setIsCustomModel] = useState(false);
 
   const changeModel = async () => {
     await switchModel({ model: model, provider: provider, writeToConfig: upsert });
@@ -53,18 +54,53 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
             label: metadata.display_name,
           }))
         );
-        setModelOptions(
-          activeProviders.map(({ metadata, name }) => ({
-            value: name,
-            label: metadata.display_name,
-            options: metadata.known_models,
-          }))
-        );
+
+        // Format model options by provider
+        const formattedModelOptions = [];
+        activeProviders.forEach(({ metadata, name }) => {
+          if (metadata.known_models && metadata.known_models.length > 0) {
+            formattedModelOptions.push({
+              label: metadata.display_name,
+              options: metadata.known_models.map((modelName) => ({
+                value: modelName,
+                label: modelName,
+                provider: name,
+              })),
+            });
+          }
+        });
+
+        // Add the "Custom model" option to each provider group
+        formattedModelOptions.forEach((group) => {
+          group.options.push({
+            value: 'custom',
+            label: 'Enter other value',
+            provider: group.options[0]?.provider,
+          });
+        });
+
+        setModelOptions(formattedModelOptions);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
     })();
   }, [getProviders]);
+
+  // Filter model options based on selected provider
+  const filteredModelOptions = provider
+    ? modelOptions.filter((group) => group.options[0]?.provider === provider)
+    : [];
+
+  // Handle model selection change
+  const handleModelChange = (selectedOption) => {
+    if (selectedOption?.value === 'custom') {
+      setIsCustomModel(true);
+      setModel('');
+    } else {
+      setIsCustomModel(false);
+      setModel(selectedOption?.value || '');
+    }
+  };
 
   return (
     <div className="z-10">
@@ -74,7 +110,7 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
             <Plus size={24} className="text-textStandard" />
             <div className="text-textStandard font-medium">Add model</div>
             <div className="text-textSubtle text-center">
-              Configure your AI model providers by adding their API keys. your Keys are stored
+              Configure your AI model providers by adding their API keys. Your keys are stored
               securely and encrypted locally.
             </div>
             <div>
@@ -97,16 +133,42 @@ export const AddModelModal = ({ onClose }: AddModelModalProps) => {
               onChange={(option) => {
                 setProvider(option?.value || null);
                 setModel('');
+                setIsCustomModel(false);
               }}
               placeholder="Provider"
               isClearable
             />
-            <Input
-              className="border-2 px-4 py-5"
-              placeholder="GPT"
-              onChange={(event) => setModel(event.target.value)}
-              value={model}
-            />
+
+            {provider && (
+              <>
+                {!isCustomModel ? (
+                  <Select
+                    options={filteredModelOptions}
+                    onChange={handleModelChange}
+                    value={model ? { value: model, label: model } : null}
+                    placeholder="Select a model"
+                  />
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between">
+                      <label className="text-sm text-textSubtle">Other model name</label>
+                      <button
+                        onClick={() => setIsCustomModel(false)}
+                        className="text-sm text-textSubtle"
+                      >
+                        Back to model list
+                      </button>
+                    </div>
+                    <Input
+                      className="border-2 px-4 py-5"
+                      placeholder="Type model name here"
+                      onChange={(event) => setModel(event.target.value)}
+                      value={model}
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </Modal>
