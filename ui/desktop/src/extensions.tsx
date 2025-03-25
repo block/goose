@@ -120,7 +120,7 @@ export async function addExtension(
     ToastError({
       title: extension.name,
       msg: errorMessage,
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
 
@@ -131,7 +131,7 @@ export async function addExtension(
     ToastError({
       title: extension.name,
       msg: 'Failed to add extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -163,7 +163,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
     return response;
@@ -173,7 +173,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
