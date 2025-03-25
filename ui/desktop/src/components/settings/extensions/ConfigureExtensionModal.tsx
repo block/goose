@@ -82,7 +82,7 @@ export function ConfigureExtensionModal({
       ToastError({
         title: extension.name,
         msg: `Failed to configure extension`,
-        errorMessage: error.message,
+        traceback: error.message,
       });
     } finally {
       setIsSubmitting(false);
