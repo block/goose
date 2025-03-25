@@ -59,10 +59,10 @@ export function getSubtitle(config: ExtensionConfig): string {
   }
   if (config.type === 'stdio') {
     const full_command = combineCmdAndArgs(config.cmd, config.args);
-    return `STDIO extension${full_command ? `\n${full_command}` : ''}`;
+    return `STDIO extension${config.description ? `: ${config.description}` : ''}${full_command ? `\n${full_command}` : ''}`;
   }
   if (config.type === 'sse') {
-    return `SSE extension${config.uri ? ` (${config.uri})` : ''}`;
+    return `SSE extension${config.description ? `: ${config.description}` : ''}${config.uri ? ` (${config.uri})` : ''}`;
   }
   return `Unknown type of extension`;
 }
