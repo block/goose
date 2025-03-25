@@ -8,7 +8,7 @@ interface ConfigureModelButtonsProps {
   setView: (view: View) => void;
 }
 
-export default function ConfigureModelButtons({ setView }: ConfigureModelButtonsProps) {
+export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsProps) {
   return (
     <div className="flex gap-4 pt-4 w-full">
       <AddModelButton />

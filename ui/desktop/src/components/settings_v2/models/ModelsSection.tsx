@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { View } from '../../../App';
-import ConfigureModelButtons from './subcomponents/ConfigureModelButtons';
+import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
 import { ToastError } from '../../settings/models/toasts';
 
@@ -54,7 +54,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
           <h3 className="font-medium text-textStandard">{model}</h3>
           <h4 className="font-medium text-textSubtle">{provider}</h4>
         </div>
-        <ConfigureModelButtons setView={setView} />
+        <ModelSettingsButtons setView={setView} />
       </div>
     </section>
   );
