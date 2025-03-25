@@ -80,7 +80,7 @@ impl GoogleProvider {
 
         let max_retries = 3;
         let mut retries = 0;
-        let base_delay = Duration::from_secs(4);
+        let base_delay = Duration::from_secs(2);
 
         loop {
             let response = self
