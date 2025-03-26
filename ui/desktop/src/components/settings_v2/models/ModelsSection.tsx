@@ -11,7 +11,6 @@ interface ModelsSectionProps {
 const UNKNOWN_PROVIDER_TITLE = 'Provider name error';
 const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
-// todo: use for block settings
 export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');

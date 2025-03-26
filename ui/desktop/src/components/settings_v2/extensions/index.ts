@@ -2,24 +2,11 @@ import type { ExtensionConfig } from '../../../api/types.gen';
 import builtInExtensionsData from './built-in-extensions.json';
 import { FixedExtensionEntry } from '../../ConfigContext';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { toast } from 'react-toastify';
-import { ToastError, ToastLoading, ToastSuccess } from '../../settings/models/toasts';
+import { toastService, ToastOptions } from './toastService';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
-
-// Type definition for built-in extensions from JSON
-type BuiltinExtension = {
-  id: string;
-  name: string;
-  display_name: string;
-  description: string;
-  enabled: boolean;
-  type: 'builtin';
-  envs?: { [key: string]: string };
-  timeout?: number;
-};
 
 // TODO: need to keep this in sync better with `name_to_key` on the rust side
 function nameToKey(name: string): string {
@@ -28,18 +15,6 @@ function nameToKey(name: string): string {
     .filter((char) => !char.match(/\s/))
     .join('')
     .toLowerCase();
-}
-
-function handleError(message: string, shouldThrow = false): void {
-  ToastError({
-    title: 'Error',
-    msg: message,
-    traceback: message,
-  });
-  console.error(message);
-  if (shouldThrow) {
-    throw new Error(message);
-  }
 }
 
 // Update the path to the binary based on the command
@@ -111,13 +86,18 @@ export async function addToAgentOnStartup({
   extensionConfig,
 }: addToAgentOnStartupProps): Promise<void> {
   try {
-    // AddToAgent
-    await AddToAgent(extensionConfig);
+    // Use silent mode for startup
+    await AddToAgent(extensionConfig, { silent: true, showEscMessage: false });
   } catch (error) {
     console.log('got error trying to add to agent in addAgentOnStartUp', error);
     // update config with enabled = false
     try {
-      await toggleExtension({ toggle: 'toggleOff', extensionConfig, addToConfig });
+      await toggleExtension({
+        toggle: 'toggleOff',
+        extensionConfig,
+        addToConfig,
+        toastOptions: { silent: true }, // Pass toast options
+      });
     } catch (toggleError) {
       console.error('Failed to toggle extension off after agent error:', toggleError);
     }
@@ -169,22 +149,33 @@ interface toggleExtensionProps {
   toggle: 'toggleOn' | 'toggleOff';
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  toastOptions?: ToastOptions;
 }
 
 export async function toggleExtension({
   toggle,
   extensionConfig,
   addToConfig,
+  toastOptions = {},
 }: toggleExtensionProps) {
   // disabled to enabled
   if (toggle == 'toggleOn') {
     try {
-      // add to agent
-      await AddToAgent(extensionConfig);
+      // add to agent with toast options
+      await AddToAgent(extensionConfig, {
+        ...toastOptions,
+        // For toggle operations, we want to show toast but no ESC message
+        showEscMessage: false,
+      });
     } catch (error) {
       console.error('Error adding extension to agent. Will try to toggle back off. Error:', error);
       try {
-        await toggleExtension({ toggle: 'toggleOff', extensionConfig, addToConfig });
+        await toggleExtension({
+          toggle: 'toggleOff',
+          extensionConfig,
+          addToConfig,
+          toastOptions,
+        });
       } catch (toggleError) {
         console.error('Failed to toggle extension off after agent error:', toggleError);
       }
@@ -198,7 +189,7 @@ export async function toggleExtension({
       console.error('Failed to update config after enabling extension:', error);
       // remove from agent
       try {
-        await RemoveFromAgent(extensionConfig.name);
+        await RemoveFromAgent(extensionConfig.name, toastOptions);
       } catch (removeError) {
         console.error('Failed to remove extension from agent after config failure:', removeError);
       }
@@ -208,7 +199,7 @@ export async function toggleExtension({
     // enabled to disabled
     let agentRemoveError = null;
     try {
-      await RemoveFromAgent(extensionConfig.name);
+      await RemoveFromAgent(extensionConfig.name, toastOptions);
     } catch (error) {
       // note there was an error, but attempt to remove from config anyway
       console.error('Error removing extension from agent', extensionConfig.name, error);
@@ -262,9 +253,7 @@ export async function deleteExtension({ name, removeFromConfig }: deleteExtensio
   }
 }
 
-{
-  /*Deeplinks*/
-}
+/* Deeplinks */
 
 export async function addExtensionFromDeepLink(
   url: string,
@@ -278,9 +267,10 @@ export async function addExtensionFromDeepLink(
   const parsedUrl = new URL(url);
 
   if (parsedUrl.protocol !== 'goose:') {
-    handleError(
+    toastService.handleError(
+      'Invalid Protocol',
       'Failed to install extension: Invalid protocol: URL must use the goose:// scheme',
-      true
+      { shouldThrow: true }
     );
   }
 
@@ -290,33 +280,40 @@ export async function addExtensionFromDeepLink(
   for (const field of requiredFields) {
     const value = parsedUrl.searchParams.get(field);
     if (!value || value.trim() === '') {
-      handleError(
+      toastService.handleError(
+        'Missing Field',
         `Failed to install extension: The link is missing required field '${field}'`,
-        true
+        { shouldThrow: true }
       );
     }
   }
 
   const cmd = parsedUrl.searchParams.get('cmd');
   if (!cmd) {
-    handleError("Failed to install extension: Missing required 'cmd' parameter in the URL", true);
+    toastService.handleError(
+      'Missing Command',
+      "Failed to install extension: Missing required 'cmd' parameter in the URL",
+      { shouldThrow: true }
+    );
   }
 
   // Validate that the command is one of the allowed commands
   const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
-    handleError(
+    toastService.handleError(
+      'Invalid Command',
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
-      true
+      { shouldThrow: true }
     );
   }
 
   // Check for security risk with npx -c command
   const args = parsedUrl.searchParams.getAll('arg');
   if (cmd === 'npx' && args.includes('-c')) {
-    handleError(
+    toastService.handleError(
+      'Security Risk',
       'Failed to install extension: npx with -c argument can lead to code injection',
-      true
+      { shouldThrow: true }
     );
   }
 
@@ -358,9 +355,19 @@ export async function addExtensionFromDeepLink(
   }
 }
 
-{
-  /*Built ins*/
-}
+/* Built ins */
+
+// Type definition for built-in extensions from JSON
+type BuiltinExtension = {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  enabled: boolean;
+  type: 'builtin';
+  envs?: { [key: string]: string };
+  timeout?: number;
+};
 
 /**
  * Synchronizes built-in extensions with the config system.
@@ -435,30 +442,27 @@ export async function initializeBuiltInExtensions(
   await syncBuiltInExtensions([], addExtensionFn);
 }
 
-{
-  /* Agent-related helper functions */
-}
-async function extensionApiCall<T>(
+/* Agent-related helper functions */
+async function extensionApiCall(
   endpoint: string,
   payload: any,
-  actionType: 'adding' | 'removing',
-  extensionName: string
+  actionType: 'activating' | 'removing',
+  extensionName: string,
+  options: ToastOptions = {}
 ): Promise<Response> {
+  // Configure toast service for this call
+  toastService.configure(options);
+
   let toastId;
-  const actionVerb = actionType === 'adding' ? 'Adding' : 'Removing';
-  const pastVerb = actionType === 'adding' ? 'added' : 'removed';
+  const actionVerb = actionType === 'activating' ? 'Activating' : 'Removing';
+  const pastVerb = actionType === 'activating' ? 'activated' : 'removed';
 
   try {
-    if (actionType === 'adding') {
-      // Show loading toast
-      toastId = ToastLoading({
+    if (actionType === 'activating') {
+      toastId = toastService.loading({
         title: extensionName,
         msg: `${actionVerb} ${extensionName} extension...`,
       });
-      // FIXME: this also shows when toggling -- should only show when you have modal up (fix: diff message for toggling)
-      toast.info(
-        'Press the ESC key on your keyboard to continue using goose while extension loads'
-      );
     }
 
     const response = await fetch(getApiUrl(endpoint), {
@@ -476,9 +480,9 @@ async function extensionApiCall<T>(
       console.error(errorMsg);
 
       // Special handling for 428 Precondition Required (agent not initialized)
-      if (response.status === 428 && actionType === 'adding') {
-        if (toastId) toast.dismiss(toastId);
-        ToastError({
+      if (response.status === 428 && actionType === 'activating') {
+        toastService.dismiss(toastId);
+        toastService.error({
           title: extensionName,
           msg: 'Agent is not initialized. Please initialize the agent first.',
           traceback: errorMsg,
@@ -486,11 +490,9 @@ async function extensionApiCall<T>(
         throw new Error('Agent is not initialized. Please initialize the agent first.');
       }
 
-      const msg = `Failed to ${actionType === 'adding' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
-      console.error(msg);
-
-      if (toastId) toast.dismiss(toastId);
-      ToastError({
+      const msg = `Failed to ${actionType === 'activating' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
+      toastService.dismiss(toastId);
+      toastService.error({
         title: extensionName,
         msg: msg,
         traceback: errorMsg,
@@ -509,46 +511,52 @@ async function extensionApiCall<T>(
     }
 
     if (!data.error) {
-      if (toastId) toast.dismiss(toastId);
-      ToastSuccess({ title: extensionName, msg: `Successfully ${pastVerb} extension` });
+      toastService.dismiss(toastId);
+      toastService.success({ title: extensionName, msg: `Successfully ${pastVerb} extension` });
       return response;
     } else {
       const errorMessage = `Error ${actionType} extension -- parsing data: ${data.message || 'Unknown error'}`;
-      console.error(errorMessage);
-      if (toastId) toast.dismiss(toastId);
-      ToastError({
+      toastService.dismiss(toastId);
+      toastService.error({
         title: extensionName,
         msg: errorMessage,
-        traceback: data.message || 'Unknown error', // why data.message not data.error?
+        traceback: data.message || 'Unknown error',
       });
       throw new Error(errorMessage);
     }
   } catch (error) {
-    if (toastId) toast.dismiss(toastId);
+    toastService.dismiss(toastId);
     console.error(`Error in extensionApiCall for ${extensionName}:`, error);
     throw error;
   }
 }
 
 // Public functions
-export async function AddToAgent(extension: ExtensionConfig): Promise<Response> {
+export async function AddToAgent(
+  extension: ExtensionConfig,
+  options: ToastOptions = {}
+): Promise<Response> {
   try {
     if (extension.type === 'stdio') {
-      console.log('extension command', extension.cmd);
       extension.cmd = await replaceWithShims(extension.cmd);
-      console.log('next ext command', extension.cmd);
     }
 
-    return await extensionApiCall('/extensions/add', extension, 'adding', extension.name);
+    return await extensionApiCall(
+      '/extensions/add',
+      extension,
+      'activating',
+      extension.name,
+      options
+    );
   } catch (error) {
     console.error(`Failed to add extension ${extension.name} to agent:`, error);
     throw error;
   }
 }
 
-export async function RemoveFromAgent(name: string): Promise<Response> {
+export async function RemoveFromAgent(name: string, options: ToastOptions = {}): Promise<Response> {
   try {
-    return await extensionApiCall('/extensions/remove', name, 'removing', name);
+    return await extensionApiCall('/extensions/remove', name, 'removing', name, options);
   } catch (error) {
     console.error(`Failed to remove extension ${name} from agent:`, error);
     throw error;
