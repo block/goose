@@ -52,7 +52,6 @@ export default function ExtensionsSection() {
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
-      removeFromConfig: removeExtension,
     });
     await fetchExtensions(); // Refresh the list after toggling
   };
@@ -64,8 +63,6 @@ export default function ExtensionsSection() {
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
-    // TODO: replace activateExtension in index
-    // TODO: make sure error handling works
     await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
     handleModalClose();
     await fetchExtensions();

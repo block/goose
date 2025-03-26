@@ -2,7 +2,6 @@ import React from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import type { View } from '../../App';
-import { useConfig } from '../ConfigContext';
 import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 
@@ -20,6 +19,8 @@ export default function SettingsView({
   setView: (view: View) => void;
   viewOptions: SettingsViewOptions;
 }) {
+  // constantly re=renders
+  console.log('endless logs');
   return (
     <div className="h-screen w-full">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
