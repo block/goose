@@ -11,11 +11,12 @@ use mcp_core::ToolError;
 use mcp_core::{Content, Role, Tool, ToolCall};
 use serde_json::{json, Value};
 
-/// Convert internal Message format to OpenAI's API message specification
+/// Convert internal Message format to Databricks' API message specification
+///   Databricks is mostly OpenAI compatible, but has some differences (reasoning type, etc)
 ///   some openai compatible endpoints use the anthropic image spec at the content level
 ///   even though the message structure is otherwise following openai, the enum switches this
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
-    let mut messages_spec = Vec::new();
+    let mut result = Vec::new();
     for message in messages {
         let mut converted = json!({
             "role": message.role
@@ -23,6 +24,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
 
         let mut content_array = Vec::new();
         let mut has_tool_calls = false;
+        let mut has_multiple_content = false;
 
         for content in &message.content {
             match content {
@@ -30,6 +32,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     if !text.text.is_empty() {
                         // Check for image paths in the text
                         if let Some(image_path) = detect_image_path(&text.text) {
+                            has_multiple_content = true;
                             // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
                                 content_array.push(json!({
@@ -52,6 +55,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     }
                 }
                 MessageContent::Thinking(content) => {
+                    has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
                         "summary": [
@@ -64,6 +68,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     }));
                 }
                 MessageContent::RedactedThinking(content) => {
+                    has_multiple_content = true;
                     content_array.push(json!({
                         "type": "reasoning",
                         "summary": [
@@ -79,6 +84,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     match &request.tool_call {
                         Ok(tool_call) => {
                             let sanitized_name = sanitize_function_name(&tool_call.name);
+
+                            // Get mutable access to the "tool_calls" field in the converted object
+                            // If "tool_calls" doesn't exist, insert an empty JSON array
                             let tool_calls = converted
                                 .as_object_mut()
                                 .unwrap()
@@ -150,17 +158,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 .join(" "));
 
                             // Add tool response as a separate message
-                            messages_spec.push(json!({
+                            result.push(json!({
                                 "role": "tool",
                                 "content": tool_response_content,
                                 "tool_call_id": response.id
                             }));
                             // Then add any image messages that need to follow
-                            messages_spec.extend(image_messages);
+                            result.extend(image_messages);
                         }
                         Err(e) => {
                             // A tool result error is shown as output so the model can interpret the error message
-                            messages_spec.push(json!({
+                            result.push(json!({
                                 "role": "tool",
                                 "content": format!("The tool call returned the following error:\n{}", e),
                                 "tool_call_id": response.id
@@ -184,15 +192,24 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         }
 
         if !content_array.is_empty() {
-            converted["content"] = json!(content_array);
+            // If we only have a single text content and no other special content,
+            // use the simple string format
+            if content_array.len() == 1
+                && !has_multiple_content
+                && content_array[0]["type"] == "text"
+            {
+                converted["content"] = json!(content_array[0]["text"]);
+            } else {
+                converted["content"] = json!(content_array);
+            }
         }
 
         if !content_array.is_empty() || has_tool_calls {
-            messages_spec.push(converted);
+            result.push(converted);
         }
     }
 
-    messages_spec
+    result
 }
 
 /// Convert internal Tool format to OpenAI's API tool specification
