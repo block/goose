@@ -2,7 +2,7 @@ import type { ExtensionConfig } from '../../../api/types.gen';
 import builtInExtensionsData from './built-in-extensions.json';
 import { FixedExtensionEntry } from '../../ConfigContext';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { toastService, ToastOptions } from './toastService';
+import { toastService, ToastServiceOptions } from '../../../toasts';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -149,7 +149,7 @@ interface toggleExtensionProps {
   toggle: 'toggleOn' | 'toggleOff';
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
-  toastOptions?: ToastOptions;
+  toastOptions?: ToastServiceOptions;
 }
 
 export async function toggleExtension({
@@ -448,7 +448,7 @@ async function extensionApiCall(
   payload: any,
   actionType: 'activating' | 'removing',
   extensionName: string,
-  options: ToastOptions = {}
+  options: ToastServiceOptions = {}
 ): Promise<Response> {
   // Configure toast service for this call
   toastService.configure(options);
@@ -534,7 +534,7 @@ async function extensionApiCall(
 // Public functions
 export async function AddToAgent(
   extension: ExtensionConfig,
-  options: ToastOptions = {}
+  options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
     if (extension.type === 'stdio') {
@@ -554,7 +554,10 @@ export async function AddToAgent(
   }
 }
 
-export async function RemoveFromAgent(name: string, options: ToastOptions = {}): Promise<Response> {
+export async function RemoveFromAgent(
+  name: string,
+  options: ToastServiceOptions = {}
+): Promise<Response> {
   try {
     return await extensionApiCall('/extensions/remove', name, 'removing', name, options);
   } catch (error) {

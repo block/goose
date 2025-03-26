@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
-import { ToastError } from '../../settings/models/toasts';
+import { toastError } from '../../../toasts';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -37,7 +37,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
         if (providerDetailsList.length != 1) {
-          ToastError({
+          toastError({
             title: UNKNOWN_PROVIDER_TITLE,
             msg: UNKNOWN_PROVIDER_MSG,
           });
