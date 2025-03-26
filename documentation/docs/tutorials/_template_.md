@@ -36,6 +36,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
 :::
 
+:::info
+Note that you'll need [JBang](https://www.jbang.dev/download) installed on your system to run this command, as it uses `jbang`.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
   1. Run the `configure` command:
@@ -174,12 +178,14 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 {describe any environment setup, access controls, and what you want to accomplish.}
 
 ### Goose Prompt
-```
-{exact prompt}.
-```
+
+> _exact prompt_
+
 
 ### Goose Output
 
-```
+:::note CLI
+
 {exact output}
-```
+
+:::

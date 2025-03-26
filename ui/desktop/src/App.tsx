@@ -24,11 +24,14 @@ import ProviderSettings from './components/settings_v2/providers/ProviderSetting
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig } from './components/ConfigContext';
+import { FixedExtensionEntry, useConfig } from './components/ConfigContext';
 import {
   initializeBuiltInExtensions,
   syncBuiltInExtensions,
-} from './components/settings_v2/extensions/LoadBuiltins';
+  addExtensionFromDeepLink as addExtensionFromDeepLinkV2,
+  addToAgentOnStartup,
+} from './components/settings_v2/extensions';
+import { extractExtensionConfig } from './components/settings_v2/extensions/utils';
 
 // Views and their options
 export type View =
@@ -57,7 +60,6 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
-  const [isInstalling, setIsInstalling] = useState(false);
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>({
     view: 'welcome',
     viewOptions: {},
@@ -74,6 +76,8 @@ export default function App() {
   }
 
   // this is all settings v2 stuff
+  // Modified version of the alpha initialization flow for App.tsx
+
   useEffect(() => {
     // Skip if feature flag is not enabled
     if (!process.env.ALPHA) {
@@ -82,24 +86,68 @@ export default function App() {
 
     console.log('Alpha flow initializing...');
 
-    const setupExtensions = async () => {
+    // First quickly check if we have model and provider to set chat view
+    const checkRequiredConfig = async () => {
       try {
-        console.log('Setting up extensions...');
+        console.log('Reading GOOSE_PROVIDER and GOOSE_MODEL from config...');
+        const provider = (await read('GOOSE_PROVIDER', false)) as string;
+        const model = (await read('GOOSE_MODEL', false)) as string;
 
-        // Set the ref immediately to prevent duplicate runs
-        initAttemptedRef.current = true;
-        console.log('Set initAttemptedRef to prevent duplicate runs');
+        if (provider && model) {
+          // We have all needed configuration, set chat view immediately
+          console.log(`Found provider: ${provider}, model: ${model}, setting chat view`);
+          setView('chat');
 
+          // Initialize the system in background
+          initializeSystem(provider, model)
+            .then(() => console.log('System initialization successful'))
+            .catch((error) => {
+              console.error('Error initializing system:', error);
+              setFatalError(`System initialization error: ${error.message || 'Unknown error'}`);
+              setView('welcome');
+            });
+        } else {
+          // Missing configuration, show onboarding
+          console.log('Missing configuration, showing onboarding');
+          if (!provider) console.log('Missing provider');
+          if (!model) console.log('Missing model');
+          setView('welcome');
+        }
+      } catch (error) {
+        console.error('Error checking configuration:', error);
+        setFatalError(`Configuration check error: ${error.message || 'Unknown error'}`);
+        setView('welcome');
+      }
+    };
+
+    // Setup extensions in parallel
+    const setupExtensions = async () => {
+      // Set the ref immediately to prevent duplicate runs
+      initAttemptedRef.current = true;
+
+      let refreshedExtensions: FixedExtensionEntry[] = [];
+      try {
         // Force refresh extensions from the backend to ensure we have the latest
         console.log('Getting extensions from backend...');
-        const refreshedExtensions = await getExtensions(true);
+        refreshedExtensions = await getExtensions(true);
         console.log(`Retrieved ${refreshedExtensions.length} extensions`);
+      } catch (error) {
+        console.log('Error getting extensions list');
+        return; // Exit early if we can't get the extensions list
+      }
+
+      // built-in extensions block -- just adds them to config if missing
+      try {
+        console.log('Setting up built-in extensions...');
 
         if (refreshedExtensions.length === 0) {
           // If we still have no extensions, this is truly a first-time setup
           console.log('First-time setup: Adding all built-in extensions...');
           await initializeBuiltInExtensions(addExtension);
           console.log('Built-in extensions initialization complete');
+
+          // Refresh the extensions list after initialization
+          refreshedExtensions = await getExtensions(true);
         } else {
           // Extensions exist, check for any missing built-ins
           console.log('Checking for missing built-in extensions...');
@@ -109,69 +157,37 @@ export default function App() {
         }
       } catch (error) {
         console.error('Error setting up extensions:', error);
-        console.error('Extension setup error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-        });
         // We don't set fatal error here since the app might still work without extensions
       }
-    };
 
-    const initializeApp = async () => {
-      try {
-        console.log('Initializing alpha app...');
-
-        // Check if we have the required configuration
-        console.log('Reading GOOSE_PROVIDER from config...');
-        const provider = (await read('GOOSE_PROVIDER', false)) as string;
-        console.log('Provider from config:', provider);
-
-        console.log('Reading GOOSE_MODEL from config...');
-        const model = (await read('GOOSE_MODEL', false)) as string;
-        console.log('Model from config:', model);
-
-        if (provider && model) {
-          // We have all needed configuration, initialize the system
-          console.log(`Initializing system with provider: ${provider}, model: ${model}`);
-          await initializeSystem(provider, model);
-          console.log('System initialization successful');
-          setView('chat');
+      // now try to add to agent
+      console.log('Adding enabled extensions to agent...');
+      for (const extensionEntry of refreshedExtensions) {
+        if (extensionEntry.enabled) {
+          console.log(`Adding extension to agent: ${extensionEntry.name}`);
+          // need to convert to config because that's what the endpoint expects
+          const extensionConfig = extractExtensionConfig(extensionEntry);
+          // will handle toasts and also set failures to enabled = false
+          await addToAgentOnStartup({ addToConfig: addExtension, extensionConfig });
         } else {
-          // Missing configuration, show onboarding
-          console.log('Missing configuration, showing onboarding');
-          if (!provider) console.log('Missing provider');
-          if (!model) console.log('Missing model');
-          setView('welcome');
+          console.log(`Skipping disabled extension: ${extensionEntry.name}`);
         }
-      } catch (error) {
-        console.error('Error initializing app:', error);
-        console.error('App initialization error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-        });
-        setFatalError(`Alpha initialization error: ${error.message || 'Unknown error'}`);
-        setView('welcome');
       }
+
+      console.log('Extensions setup complete');
     };
 
-    // Execute with better promise handling
-    initializeApp()
-      .then(() => console.log('Alpha app initialization complete'))
-      .catch((error) => {
-        console.error('Unhandled error in initializeApp:', error);
-        setFatalError(`Unhandled alpha app error: ${error.message || 'Unknown error'}`);
-      });
+    // Execute the two flows in parallel for speed
+    checkRequiredConfig().catch((error) => {
+      console.error('Unhandled error in checkRequiredConfig:', error);
+      setFatalError(`Config check error: ${error.message || 'Unknown error'}`);
+    });
 
-    setupExtensions()
-      .then(() => console.log('Extensions setup complete'))
-      .catch((error) => {
-        console.error('Unhandled error in setupExtensions:', error);
-        // Not setting fatal error here since extensions are optional
-      });
+    setupExtensions().catch((error) => {
+      console.error('Unhandled error in setupExtensions:', error);
+      // Not setting fatal error here since extensions are optional
+    });
   }, []); // Empty dependency array since we're using initAttemptedRef
-
   const setView = (view: View, viewOptions: Record<any, any> = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
     setInternalView({ view, viewOptions });
@@ -276,19 +292,21 @@ export default function App() {
 
   // TODO: modify
   const handleConfirm = async () => {
-    if (pendingLink && !isInstalling) {
+    if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
-      setIsInstalling(true);
+      setModalVisible(false); // Dismiss modal immediately
       try {
-        await addExtensionFromDeepLink(pendingLink, setView);
+        if (process.env.ALPHA) {
+          await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
+        } else {
+          await addExtensionFromDeepLink(pendingLink, setView);
+        }
         console.log('Extension installation successful');
       } catch (error) {
         console.error('Failed to add extension:', error);
         // Consider showing a user-visible error notification here
       } finally {
-        setModalVisible(false);
         setPendingLink(null);
-        setIsInstalling(false);
       }
     }
   };
@@ -392,6 +410,14 @@ export default function App() {
     <>
       <ToastContainer
         aria-label="Toast notifications"
+        toastClassName={() =>
+          `relative min-h-16 mb-4 p-2 rounded-lg
+           flex justify-between overflow-hidden cursor-pointer
+           text-textProminentInverse bg-bgStandardInverse dark:bg-bgAppInverse
+          `
+        }
+        style={{ width: '380px' }}
+        className="mt-6"
         position="top-right"
         autoClose={3000}
         closeOnClick
@@ -404,7 +430,6 @@ export default function App() {
           message={modalMessage}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
-          isSubmitting={isInstalling}
         />
       )}
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">

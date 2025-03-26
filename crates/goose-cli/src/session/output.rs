@@ -126,6 +126,33 @@ pub fn render_message(message: &Message, debug: bool) {
     println!();
 }
 
+pub fn render_enter_plan_mode() {
+    println!(
+        "\n{} {}\n",
+        style("Entering plan mode.").green().bold(),
+        style("You can provide instructions to create a plan and then act on it. To exit early, type /endplan")
+            .green()
+            .dim()
+    );
+}
+
+pub fn render_act_on_plan() {
+    println!(
+        "\n{}\n",
+        style("Exiting plan mode and acting on the above plan")
+            .green()
+            .bold(),
+    );
+}
+
+pub fn render_exit_plan_mode() {
+    println!("\n{}\n", style("Exiting plan mode.").green().bold());
+}
+
+pub fn goose_mode_message(text: &str) {
+    println!("\n{}", style(text).yellow(),);
+}
+
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.as_str() {

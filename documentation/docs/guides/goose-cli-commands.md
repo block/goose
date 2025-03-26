@@ -67,7 +67,17 @@ goose configure
     goose session --with-extension <command>
     ```
 
-    Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`)
+    **Examples:**
+
+    ```bash
+    goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
+    ```
+
+    With environment variable:
+
+    ```bash
+    goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
+    ```
 
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
@@ -79,6 +89,12 @@ goose configure
 
     ```bash
     goose session --with-builtin <id>
+    ```
+
+    **Example:**
+
+    ```bash
+    goose session --with-builtin computercontroller
     ```
 
 ---
@@ -199,16 +215,37 @@ goose agents
 ```
 
 ---
+## Prompt Completion
+
+The CLI provides a set of slash commands that can be accessed during a session. These commands support tab completion for easier use.
+
+#### Available Commands
+- `/exit` or `/quit` - Exit the current session
+- `/t` - Toggle between Light/Dark/Ansi themes
+- `/extension <command>` - Add a stdio extension (format: ENV1=val1 command args...)
+- `/builtin <names>` - Add builtin extensions by name (comma-separated)
+- `/prompts [--extension <name>]` - List all available prompts, optionally filtered by extension
+- `/prompt <n> [--info] [key=value...]` - Get prompt info or execute a prompt
+- `/mode <name>` - Set the goose mode to use ('auto', 'approve', 'chat')
+- `/?` or `/help` - Display this help message
+
+All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
+
+#### Examples
+```bash
+# List all prompts from the developer extension
+/prompts --extension developer
+
+# Switch to chat mode
+/mode chat
+```
+
+
+---
 ## Keyboard Shortcuts
 
 Goose CLI supports several shortcuts and built-in commands for easier navigation.
 
-### Slash Commands
-- **`/exit` or `/quit`** - Exit the session
-- **`/t`** - Toggle between Light/Dark modes
-- **`/?` or `/help`** - Display the help menu
-
-### Keyboard Navigation
 - **`Ctrl+C`** - Interrupt the current request
 - **`Ctrl+J`** - Add a newline
 - **Up/Down arrows** - Navigate through command history
