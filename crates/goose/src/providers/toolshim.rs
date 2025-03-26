@@ -233,9 +233,7 @@ impl ToolInterpreter for OllamaInterpreter {
         }
 
         // Create the system prompt
-        let system_prompt = "Rewrite JSON-formatted tool requests into valid JSON tool calls in the following format.
-
-Always respond with the following tool_calls array format:
+        let system_prompt = "If there is detectable JSON-formatted tool requests, write them into valid JSON tool calls in the following format:
 {{
   \"tool_calls\": [
     {{
@@ -248,17 +246,19 @@ Always respond with the following tool_calls array format:
   ]
 }}
 
-You should return an empty tool_calls array if no tools are explicitly referenced:
+Otherwise, if no JSON tool requests are provided, use the no-op tool:
 {{
-  \"tool_calls\": []
+  \"tool_calls\": [
+    {{
+    \"name\": \"noop\",
+      \"arguments\": {{
+      }}
+    }}]
 }}
 ";
 
         // Create enhanced content with instruction to output tool calls as JSON
-        let format_instruction = format!(
-            "{}\n\nWrite valid json if there is detectable json or an attempt at json",
-            last_assistant_msg
-        );
+        let format_instruction = format!("{}\nRequest: {}\n\n", system_prompt, last_assistant_msg);
 
         // Define the JSON schema for tool call format
         let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
@@ -269,12 +269,7 @@ You should return an empty tool_calls array if no tools are explicitly reference
 
         // Make a call to ollama with structured output
         let interpreter_response = self
-            .post_structured(
-                system_prompt,
-                &format_instruction,
-                format_schema,
-                &interpreter_model,
-            )
+            .post_structured("", &format_instruction, format_schema, &interpreter_model)
             .await?;
 
         // Process the interpreter response to get tool calls directly
@@ -301,6 +296,7 @@ pub fn format_tool_info(tools: &[Tool]) -> String {
 /// Modifies the system prompt to include tool usage instructions when tool interpretation is enabled
 pub fn modify_system_prompt_for_tool_json(system_prompt: &str, tools: &[Tool]) -> String {
     let tool_info = format_tool_info(tools);
+
     format!(
         "{}\n\n{}\n\nBreak down your task into smaller steps and do one step and tool call at a time. Do not try to use multiple tools at once. If you want to use a tool, tell the user what tool to use by specifying the tool in this JSON format\n{{\n  \"name\": \"tool_name\",\n  \"arguments\": {{\n    \"parameter1\": \"value1\",\n    \"parameter2\": \"value2\"\n }}\n}}. After you get the tool result back, consider the result and then proceed to do the next step and tool call if required.",
         system_prompt,
@@ -354,8 +350,11 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     // Add each tool call to the message
     let mut final_message = message;
     for tool_call in tool_calls {
-        let id = Uuid::new_v4().to_string();
-        final_message = final_message.with_tool_request(id, Ok(tool_call));
+        if tool_call.name != "noop" {
+            // do not actually execute noop tool
+            let id = Uuid::new_v4().to_string();
+            final_message = final_message.with_tool_request(id, Ok(tool_call));
+        }
     }
 
     Ok(final_message)
