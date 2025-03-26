@@ -227,12 +227,16 @@ The CLI provides a set of slash commands that can be accessed during a session. 
 - `/prompts [--extension <name>]` - List all available prompts, optionally filtered by extension
 - `/prompt <n> [--info] [key=value...]` - Get prompt info or execute a prompt
 - `/mode <name>` - Set the goose mode to use ('auto', 'approve', 'chat')
+- `/plan <message>` - Create a structured plan based on the given message
 - `/?` or `/help` - Display this help message
 
 All commands support tab completion. Press `<Tab>` after a slash (/) to cycle through available commands or to complete partial commands. 
 
 #### Examples
 ```bash
+# Create a plan for triaging test failures
+/plan let's create a plan for triaging test failures
+
 # List all prompts from the developer extension
 /prompts --extension developer
 
