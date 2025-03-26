@@ -112,8 +112,8 @@ interface getCurrentModelAndProviderProps {
 }
 
 export async function getCurrentModelAndProvider({
-                                                   readFromConfig,
-                                                 }: getCurrentModelAndProviderProps) {
+  readFromConfig,
+}: getCurrentModelAndProviderProps) {
   let model: string;
   let provider: string;
 
@@ -135,9 +135,9 @@ interface getCurrentModelAndProviderForDisplayProps {
 
 // returns display name of the provider
 export async function getCurrentModelAndProviderForDisplay({
-                                                             readFromConfig,
-                                                             getProviders,
-                                                           }: getCurrentModelAndProviderForDisplayProps) {
+  readFromConfig,
+  getProviders,
+}: getCurrentModelAndProviderForDisplayProps) {
   const modelProvider = await getCurrentModelAndProvider({ readFromConfig: readFromConfig });
   const gooseModel = modelProvider.model;
   const gooseProvider = modelProvider.provider;
