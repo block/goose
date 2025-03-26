@@ -505,14 +505,22 @@ mod tests {
 
     #[test]
     fn test_command_allowed_when_matching() {
-        let allowlist =
-            create_test_allowlist(&["uvx something", "uvx mcp_slack", "npx mcp_github"]);
+        let allowlist = create_test_allowlist(&[
+            "uvx something",
+            "uvx mcp_slack",
+            "npx mcp_github",
+            "minecraft",
+        ]);
 
         // Test with exact command matches
         assert!(is_command_allowed_with_allowlist(
             "uvx something",
             &allowlist
         ));
+
+        // Test with exact command matches
+        assert!(is_command_allowed_with_allowlist("minecraft", &allowlist));
+
         assert!(is_command_allowed_with_allowlist(
             "uvx mcp_slack",
             &allowlist
