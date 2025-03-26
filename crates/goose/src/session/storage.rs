@@ -298,14 +298,7 @@ pub async fn generate_description(
         .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
         .take(3) // Use up to first 3 user messages for context
-        .map(|m| {
-            let text = m.as_concat_text();
-            if text.len() > 300 {
-                format!("{}...", &text[..297]) // truncate to 300 chars with ellipsis
-            } else {
-                text
-            }
-        })
+        .map(|m| m.as_concat_text())
         .collect();
 
     if !context.is_empty() {
