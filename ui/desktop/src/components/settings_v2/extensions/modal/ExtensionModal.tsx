@@ -177,6 +177,7 @@ export default function ExtensionModal({
           <ExtensionInfoFields
             name={formData.name}
             type={formData.type}
+            description={formData.description}
             onChange={(key, value) => setFormData({ ...formData, [key]: value })}
             submitAttempted={submitAttempted}
           />

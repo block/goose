@@ -67,7 +67,17 @@ goose configure
     goose session --with-extension <command>
     ```
 
-    Can also include environment variables (e.g., `'GITHUB_TOKEN={your_token} npx -y @modelcontextprotocol/server-github'`)
+    **Examples:**
+
+    ```bash
+    goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
+    ```
+
+    With environment variable:
+
+    ```bash
+    goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
+    ```
 
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
@@ -79,6 +89,12 @@ goose configure
 
     ```bash
     goose session --with-builtin <id>
+    ```
+
+    **Example:**
+
+    ```bash
+    goose session --with-builtin computercontroller
     ```
 
 ---

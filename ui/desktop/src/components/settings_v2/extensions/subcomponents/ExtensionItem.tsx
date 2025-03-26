@@ -7,7 +7,7 @@ import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
-  onToggle: (name: string) => void;
+  onToggle: (extension: FixedExtensionEntry) => void;
   onConfigure: (extension: FixedExtensionEntry) => void;
 }
 
@@ -37,7 +37,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
           )}
           <Switch
             checked={extension.enabled}
-            onCheckedChange={() => onToggle(extension.name)}
+            onCheckedChange={() => onToggle(extension)}
             variant="mono"
           />
         </div>

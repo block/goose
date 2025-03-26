@@ -56,10 +56,18 @@ pub fn get_input(
 
     // Handle non-slash commands first
     if !input.starts_with('/') {
-        if input.eq_ignore_ascii_case("exit") || input.eq_ignore_ascii_case("quit") {
-            return Ok(InputResult::Exit);
+        let trimmed = input.trim();
+        if trimmed.is_empty()
+            || trimmed.eq_ignore_ascii_case("exit")
+            || trimmed.eq_ignore_ascii_case("quit")
+        {
+            return Ok(if trimmed.is_empty() {
+                InputResult::Retry
+            } else {
+                InputResult::Exit
+            });
         }
-        return Ok(InputResult::Message(input.trim().to_string()));
+        return Ok(InputResult::Message(trimmed.to_string()));
     }
 
     // Handle slash commands

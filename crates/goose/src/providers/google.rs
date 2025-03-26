@@ -78,15 +78,49 @@ impl GoogleProvider {
                 ProviderError::RequestFailed(format!("Failed to construct endpoint URL: {e}"))
             })?;
 
-        let response = self
-            .client
-            .post(url)
-            .header("CONTENT_TYPE", "application/json")
-            .json(&payload)
-            .send()
-            .await?;
+        let max_retries = 3;
+        let mut retries = 0;
+        let base_delay = Duration::from_secs(2);
 
-        handle_response_google_compat(response).await
+        loop {
+            let response = self
+                .client
+                .post(url.clone()) // Clone the URL for each retry
+                .header("CONTENT_TYPE", "application/json")
+                .json(&payload)
+                .send()
+                .await;
+
+            match response {
+                Ok(res) => {
+                    match handle_response_google_compat(res).await {
+                        Ok(result) => return Ok(result),
+                        Err(ProviderError::RateLimitExceeded(_)) => {
+                            retries += 1;
+                            if retries > max_retries {
+                                return Err(ProviderError::RateLimitExceeded(
+                                    "Max retries exceeded for rate limit error".to_string(),
+                                ));
+                            }
+
+                            let delay = 2u64.pow(retries);
+                            let total_delay = Duration::from_secs(delay) + base_delay;
+
+                            println!("Rate limit hit. Retrying in {:?}", total_delay);
+                            tokio::time::sleep(total_delay).await;
+                            continue;
+                        }
+                        Err(err) => return Err(err), // Other errors
+                    }
+                }
+                Err(err) => {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "Request failed: {}",
+                        err
+                    )));
+                }
+            }
+        }
     }
 }
 

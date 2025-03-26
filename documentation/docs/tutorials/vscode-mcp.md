@@ -5,6 +5,10 @@ description: Use VS Code MCP Server as a Goose Extension for file operations and
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/gddEgvCLrgU" />
+
 
 This tutorial covers how to add the [VS Code MCP Server](https://github.com/block/vscode-mcp) as a Goose extension to enable VS Code integration, file operations, and development workflow management.
 

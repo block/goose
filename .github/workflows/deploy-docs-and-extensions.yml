@@ -1,4 +1,4 @@
-name: Deploy Docs & Extensions # (/documentation and /extensions-site)
+name: Deploy Documentation
 
 on:
   push:
@@ -8,7 +8,6 @@ on:
   pull_request:
     paths:
       - 'documentation/**'
-      - 'extensions-site/**'
 
 jobs:
   deploy:
@@ -43,34 +42,9 @@ jobs:
           npm install
           npm run build
 
-      - name: Cache Node.js modules (extensions-site)
-        uses: actions/cache@v3
-        with:
-          path: ./extensions-site/node_modules
-          key: ${{ runner.os }}-extensions-${{ hashFiles('./extensions-site/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-extensions-
-
-      - name: Install dependencies and build extensions-site
-        working-directory: ./extensions-site
-        env:
-          VITE_BASENAME: "/goose/v1/extensions/" # Set the base URL here for the extensions site
-        run: |
-          npm install
-          npm run build
-
-      - name: Combine builds into one directory
-        run: |
-          mkdir combined-build
-          cp -r documentation/build/* combined-build/
-          mkdir -p combined-build/v1/extensions
-          mkdir -p combined-build/v1/extensions/install-link-generator
-          cp -r extensions-site/build/client/* combined-build/v1/extensions/
-          cp -r extensions-site/install-link-generator/* combined-build/v1/extensions/install-link-generator/
-
       - name: Deploy to /gh-pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: combined-build
+          publish_dir: documentation/build
