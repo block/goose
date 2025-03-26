@@ -78,21 +78,51 @@ export async function activateExtension({
     // AddToAgent
     await AddToAgent(extensionConfig);
   } catch (error) {
+    console.error('Failed to add extension to agent:', error);
     // add to config with enabled = false
     await addToConfig(extensionConfig.name, extensionConfig, false);
-    // show user the error, return
-    console.log('error', error);
-    return;
+    // Rethrow the error to inform the caller
+    throw error;
   }
 
   // Then add to config
   try {
     await addToConfig(extensionConfig.name, extensionConfig, true);
   } catch (error) {
+    console.error('Failed to add extension to config:', error);
     // remove from Agent
-    await RemoveFromAgent(extensionConfig.name);
-    // config error workflow
-    console.log('error', error);
+    try {
+      await RemoveFromAgent(extensionConfig.name);
+    } catch (removeError) {
+      console.error('Failed to remove extension from agent after config failure:', removeError);
+    }
+    // Rethrow the error to inform the caller
+    throw error;
+  }
+}
+
+interface addToAgentOnStartupProps {
+  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  extensionConfig: ExtensionConfig;
+}
+
+export async function addToAgentOnStartup({
+  addToConfig,
+  extensionConfig,
+}: addToAgentOnStartupProps): Promise<void> {
+  try {
+    // AddToAgent
+    await AddToAgent(extensionConfig);
+  } catch (error) {
+    console.log('got error trying to add to agent in addAgentOnStartUp', error);
+    // update config with enabled = false
+    try {
+      await toggleExtension({ toggle: 'toggleOff', extensionConfig, addToConfig });
+    } catch (toggleError) {
+      console.error('Failed to toggle extension off after agent error:', toggleError);
+    }
+    // Rethrow the error to inform the caller
+    throw error;
   }
 }
 
@@ -113,26 +143,24 @@ export async function updateExtension({
       // AddToAgent
       await AddToAgent(extensionConfig);
     } catch (error) {
-      // i think only error that gets thrown here is when it's not from the response... rest are handled by agent
-      console.log('error', error);
-      // failed to add to agent -- show that error to user and do not update the config file
-      return;
+      console.error('Failed to add extension to agent during update:', error);
+      // Failed to add to agent -- show that error to user and do not update the config file
+      throw error;
     }
 
     // Then add to config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, enabled);
     } catch (error) {
-      // config error workflow
-      console.log('error', error);
+      console.error('Failed to update extension in config:', error);
+      throw error;
     }
   } else {
     try {
       await addToConfig(extensionConfig.name, extensionConfig, enabled);
     } catch (error) {
-      // TODO: Add to agent with previous configuration and raise error
-      // for now just log error
-      console.log('error', error);
+      console.error('Failed to update disabled extension in config:', error);
+      throw error;
     }
   }
 }
@@ -141,7 +169,6 @@ interface toggleExtensionProps {
   toggle: 'toggleOn' | 'toggleOff';
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
-  removeFromConfig: (name: string) => Promise<void>;
 }
 
 export async function toggleExtension({
@@ -155,33 +182,50 @@ export async function toggleExtension({
       // add to agent
       await AddToAgent(extensionConfig);
     } catch (error) {
-      // do nothing raise error
-      // show user error
-      console.log('Error adding extension to agent. Error:', error);
-      return;
+      console.error('Error adding extension to agent. Will try to toggle back off. Error:', error);
+      try {
+        await toggleExtension({ toggle: 'toggleOff', extensionConfig, addToConfig });
+      } catch (toggleError) {
+        console.error('Failed to toggle extension off after agent error:', toggleError);
+      }
+      throw error;
     }
 
     // update the config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, true);
     } catch (error) {
-      // remove from agent?
-      await RemoveFromAgent(extensionConfig.name);
+      console.error('Failed to update config after enabling extension:', error);
+      // remove from agent
+      try {
+        await RemoveFromAgent(extensionConfig.name);
+      } catch (removeError) {
+        console.error('Failed to remove extension from agent after config failure:', removeError);
+      }
+      throw error;
     }
   } else if (toggle == 'toggleOff') {
     // enabled to disabled
+    let agentRemoveError = null;
     try {
       await RemoveFromAgent(extensionConfig.name);
     } catch (error) {
-      // note there was an error, but remove from config anyway
+      // note there was an error, but attempt to remove from config anyway
       console.error('Error removing extension from agent', extensionConfig.name, error);
+      agentRemoveError = error;
     }
+
     // update the config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, false);
     } catch (error) {
-      // TODO: Add to agent with previous configuration
-      console.log('Error removing extension from config', extensionConfig.name, 'Error:', error);
+      console.error('Error removing extension from config', extensionConfig.name, 'Error:', error);
+      throw error;
+    }
+
+    // If we had an error removing from agent but succeeded updating config, still throw the original error
+    if (agentRemoveError) {
+      throw agentRemoveError;
     }
   }
 }
@@ -193,14 +237,28 @@ interface deleteExtensionProps {
 
 export async function deleteExtension({ name, removeFromConfig }: deleteExtensionProps) {
   // remove from agent
-  await RemoveFromAgent(name);
+  let agentRemoveError = null;
+  try {
+    await RemoveFromAgent(name);
+  } catch (error) {
+    console.error('Failed to remove extension from agent during deletion:', error);
+    agentRemoveError = error;
+  }
 
   try {
     await removeFromConfig(name);
   } catch (error) {
-    console.log('Failed to remove extension from config after removing from agent. Error:', error);
-    // TODO: tell user to restart goose and try again to remove (will still be present in settings but not on agent until restart)
+    console.error(
+      'Failed to remove extension from config after removing from agent. Error:',
+      error
+    );
+    // If we also had an agent remove error, log it but throw the config error as it's more critical
     throw error;
+  }
+
+  // If we had an error removing from agent but succeeded removing from config, still throw the original error
+  if (agentRemoveError) {
+    throw agentRemoveError;
   }
 }
 
@@ -292,7 +350,12 @@ export async function addExtensionFromDeepLink(
   }
 
   // If no env vars are required, proceed with adding the extension
-  await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
+  try {
+    await activateExtension({ extensionConfig: config, addToConfig: addExtensionFn });
+  } catch (error) {
+    console.error('Failed to activate extension from deeplink:', error);
+    throw error;
+  }
 }
 
 {
@@ -340,8 +403,13 @@ export async function syncBuiltInExtensions(
         };
 
         // Add the extension with its default enabled state
-        await addExtensionFn(nameToKey(builtinExt.name), extConfig, builtinExt.enabled);
-        addedCount++;
+        try {
+          await addExtensionFn(nameToKey(builtinExt.name), extConfig, builtinExt.enabled);
+          addedCount++;
+        } catch (error) {
+          console.error(`Failed to add built-in extension ${builtinExt.name}:`, error);
+          // Continue with other extensions even if one fails
+        }
       }
     }
 
@@ -415,7 +483,7 @@ async function extensionApiCall<T>(
           msg: 'Agent is not initialized. Please initialize the agent first.',
           traceback: errorMsg,
         });
-        return response;
+        throw new Error('Agent is not initialized. Please initialize the agent first.');
       }
 
       const msg = `Failed to ${actionType === 'adding' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
@@ -427,7 +495,7 @@ async function extensionApiCall<T>(
         msg: msg,
         traceback: errorMsg,
       });
-      return response;
+      throw new Error(msg);
     }
 
     // Parse response JSON safely
@@ -435,40 +503,54 @@ async function extensionApiCall<T>(
     try {
       const text = await response.text();
       data = text ? JSON.parse(text) : { error: false };
-    } catch (error) {
-      console.warn('Could not parse response as JSON, assuming success', error);
+    } catch (parseError) {
+      console.warn('Could not parse response as JSON, assuming success', parseError);
       data = { error: false };
     }
 
     if (!data.error) {
       if (toastId) toast.dismiss(toastId);
-      ToastSuccess({ title: extensionName, msg: 'Successfully enabled extension' });
+      ToastSuccess({ title: extensionName, msg: `Successfully ${pastVerb} extension` });
+      return response;
     } else {
-      const errorMessage = `Error adding extension -- parsing data`;
+      const errorMessage = `Error ${actionType} extension -- parsing data: ${data.message || 'Unknown error'}`;
       console.error(errorMessage);
       if (toastId) toast.dismiss(toastId);
       ToastError({
         title: extensionName,
         msg: errorMessage,
-        traceback: data.message, // why data.message not data.error?
+        traceback: data.message || 'Unknown error', // why data.message not data.error?
       });
+      throw new Error(errorMessage);
     }
   } catch (error) {
-    //
+    if (toastId) toast.dismiss(toastId);
+    console.error(`Error in extensionApiCall for ${extensionName}:`, error);
+    throw error;
   }
 }
 
 // Public functions
 export async function AddToAgent(extension: ExtensionConfig): Promise<Response> {
-  if (extension.type === 'stdio') {
-    console.log('extension command', extension.cmd);
-    extension.cmd = await replaceWithShims(extension.cmd);
-    console.log('next ext command', extension.cmd);
-  }
+  try {
+    if (extension.type === 'stdio') {
+      console.log('extension command', extension.cmd);
+      extension.cmd = await replaceWithShims(extension.cmd);
+      console.log('next ext command', extension.cmd);
+    }
 
-  return extensionApiCall('/extensions/add', extension, 'adding', extension.name);
+    return await extensionApiCall('/extensions/add', extension, 'adding', extension.name);
+  } catch (error) {
+    console.error(`Failed to add extension ${extension.name} to agent:`, error);
+    throw error;
+  }
 }
 
 export async function RemoveFromAgent(name: string): Promise<Response> {
-  return extensionApiCall('/extensions/remove', name, 'removing', name);
+  try {
+    return await extensionApiCall('/extensions/remove', name, 'removing', name);
+  } catch (error) {
+    console.error(`Failed to remove extension ${name} from agent:`, error);
+    throw error;
+  }
 }
