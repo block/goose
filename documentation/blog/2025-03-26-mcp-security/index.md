@@ -15,13 +15,11 @@ And just when I thought things couldn’t get any crazier **Zapier blessed us wi
 
 So trust me, I know it’s super tempting to want to plug your AI agent into everything and just _see_ what happens.
 
+<!--truncate-->
+
 But hold on a minute, we can’t afford to skip over security.
 
 When you connect to an MCP server, you’re giving it access to your workflows, most times even your data. And a lot of these servers are community built, with little to no governance.
-
-<!--truncate-->
-
----
 
 ## Here’s What I Do Before I Trust an MCP Server
 
@@ -30,8 +28,6 @@ Any time I’m checking out a new MCP server to plug into Goose, I start with **
 Glama is an all-in-one AI workspace, and it keeps one of the **best directories of MCP servers** that I've seen. The servers listed are either community built or created by the actual companies behind the tools, like **Azure**, or **JetBrains**.
 
 Each server gets a **report card**, so at a glance you can quickly assess whether it’s solid or a little sketchy.
-
----
 
 ## What Glama Scores
 
