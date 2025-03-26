@@ -63,7 +63,12 @@ export const required_keys = {
   Ollama: ['OLLAMA_HOST'],
   Google: ['GOOGLE_API_KEY'],
   OpenRouter: ['OPENROUTER_API_KEY'],
-  'Azure OpenAI': ['AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'AZURE_OPENAI_DEPLOYMENT_NAME'],
+  'Azure OpenAI': [
+    'AZURE_OPENAI_API_KEY',
+    'AZURE_OPENAI_ENDPOINT',
+    'AZURE_OPENAI_DEPLOYMENT_NAME',
+    'AZURE_OPENAI_API_VERSION',
+  ],
   'GCP Vertex AI': ['GCP_PROJECT_ID', 'GCP_LOCATION'],
   'AWS Bedrock': ['AWS_PROFILE'],
 };
@@ -73,6 +78,7 @@ export const default_key_value = {
   OPENAI_BASE_PATH: 'v1/chat/completions',
   OLLAMA_HOST: 'localhost',
   GCP_LOCATION: 'us-central1',
+  AZURE_OPENAI_API_VERSION: '2024-10-21',
 };
 
 export const supported_providers = [
