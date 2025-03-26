@@ -184,6 +184,11 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           name: 'AZURE_OPENAI_DEPLOYMENT_NAME',
           is_secret: false,
         },
+        {
+          name: 'AZURE_OPENAI_API_VERSION',
+          is_secret: false,
+          default: '2024-10-21',
+        },
       ],
     },
   },
