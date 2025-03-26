@@ -258,10 +258,7 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
 ";
 
         // Create enhanced content with instruction to output tool calls as JSON
-        let format_instruction = format!(
-            "{}\nRequest: {}\n\n",
-            system_prompt, last_assistant_msg
-        );
+        let format_instruction = format!("{}\nRequest: {}\n\n", system_prompt, last_assistant_msg);
 
         // Define the JSON schema for tool call format
         let format_schema = OllamaInterpreter::tool_structured_ouput_format_schema();
@@ -272,12 +269,7 @@ Otherwise, if no JSON tool requests are provided, use the no-op tool:
 
         // Make a call to ollama with structured output
         let interpreter_response = self
-            .post_structured(
-                "",
-                &format_instruction,
-                format_schema,
-                &interpreter_model,
-            )
+            .post_structured("", &format_instruction, format_schema, &interpreter_model)
             .await?;
 
         // Process the interpreter response to get tool calls directly
@@ -358,7 +350,8 @@ pub async fn augment_message_with_tool_calls<T: ToolInterpreter>(
     // Add each tool call to the message
     let mut final_message = message;
     for tool_call in tool_calls {
-        if tool_call.name != "noop" { // do not actually execute noop tool
+        if tool_call.name != "noop" {
+            // do not actually execute noop tool
             let id = Uuid::new_v4().to_string();
             final_message = final_message.with_tool_request(id, Ok(tool_call));
         }
