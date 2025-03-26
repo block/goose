@@ -311,10 +311,10 @@ pub fn create_request(
     }
 
     // Add thinking parameters for claude-3-7-sonnet model
-    let is_thinking_enabled = std::env::var("ANTHROPIC_THINKING_ENABLED").is_ok();
+    let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if model_config.model_name.starts_with("claude-3-7-sonnet-") && is_thinking_enabled {
         // Minimum budget_tokens is 1024
-        let budget_tokens = std::env::var("ANTHROPIC_THINKING_BUDGET")
+        let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
             .unwrap_or_else(|_| "16000".to_string())
             .parse()
             .unwrap_or(16000);
@@ -574,10 +574,10 @@ mod tests {
     #[test]
     fn test_create_request_with_thinking() -> Result<()> {
         // Save the original env var value if it exists
-        let original_value = std::env::var("ANTHROPIC_THINKING_ENABLED").ok();
+        let original_value = std::env::var("CLAUDE_THINKING_ENABLED").ok();
 
         // Set the env var for this test
-        std::env::set_var("ANTHROPIC_THINKING_ENABLED", "true");
+        std::env::set_var("CLAUDE_THINKING_ENABLED", "true");
 
         // Execute the test
         let result = (|| {
@@ -606,8 +606,8 @@ mod tests {
 
         // Restore the original env var state
         match original_value {
-            Some(val) => std::env::set_var("ANTHROPIC_THINKING_ENABLED", val),
-            None => std::env::remove_var("ANTHROPIC_THINKING_ENABLED"),
+            Some(val) => std::env::set_var("CLAUDE_THINKING_ENABLED", val),
+            None => std::env::remove_var("CLAUDE_THINKING_ENABLED"),
         }
 
         // Return the test result
