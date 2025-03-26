@@ -78,7 +78,7 @@ export default function BottomMenu({
       <BottomMenuModeSelection />
 
       {/* Model Selector Dropdown */}
-      {process.env.ALPHA === 'true' ? (
+      {process.env.ALPHA ? (
         <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
       ) : (
         <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
