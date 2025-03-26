@@ -478,16 +478,18 @@ export async function initializeBuiltInExtensions(
 async function extensionApiCall(
   endpoint: string,
   payload: any,
-  actionType: 'activating' | 'removing',
-  extensionName: string,
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   // Configure toast service for this call
   toastService.configure(options);
 
   let toastId;
+
+  const actionType = endpoint === 'extensions/add' ? 'activating' : 'removing';
   const actionVerb = actionType === 'activating' ? 'Activating' : 'Removing';
   const pastVerb = actionType === 'activating' ? 'activated' : 'removed';
+
+  const extensionName = payload.name;
 
   try {
     if (actionType === 'activating') {
@@ -573,13 +575,7 @@ export async function AddToAgent(
       extension.cmd = await replaceWithShims(extension.cmd);
     }
 
-    return await extensionApiCall(
-      '/extensions/add',
-      extension,
-      'activating',
-      extension.name,
-      options
-    );
+    return await extensionApiCall('/extensions/add', extension, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
@@ -600,7 +596,7 @@ export async function RemoveFromAgent(
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
-    return await extensionApiCall('/extensions/remove', name, 'removing', name, options);
+    return await extensionApiCall('/extensions/remove', name, 'removing', options);
   } catch (error) {
     console.error(`Failed to remove extension ${name} from agent:`, error);
     throw error;
