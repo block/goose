@@ -85,24 +85,56 @@ export async function addToAgentOnStartup({
   addToConfig,
   extensionConfig,
 }: addToAgentOnStartupProps): Promise<void> {
-  try {
-    // Use silent mode for startup
-    await AddToAgent(extensionConfig, { silent: true, showEscMessage: false });
-  } catch (error) {
-    console.log('got error trying to add to agent in addAgentOnStartUp', error);
-    // update config with enabled = false
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 second delay between retries
+
+  let retries = 0;
+
+  while (retries <= MAX_RETRIES) {
     try {
-      await toggleExtension({
-        toggle: 'toggleOff',
-        extensionConfig,
-        addToConfig,
-        toastOptions: { silent: true }, // Pass toast options
-      });
-    } catch (toggleError) {
-      console.error('Failed to toggle extension off after agent error:', toggleError);
+      // Use silent mode for startup
+      await AddToAgent(extensionConfig, { silent: true, showEscMessage: false });
+      // If successful, break out of the retry loop
+      break;
+    } catch (error) {
+      console.log(`Attempt ${retries + 1} failed when adding extension to agent:`, error);
+
+      // Check if this is a 428 error (agent not initialized)
+      const is428Error =
+        error.message &&
+        (error.message.includes('428') ||
+          error.message.includes('Precondition Required') ||
+          error.message.includes('Agent is not initialized'));
+
+      if (is428Error && retries < MAX_RETRIES) {
+        // This is a 428 error and we have retries left
+        retries++;
+        console.log(
+          `Agent not initialized yet. Retrying in ${RETRY_DELAY}ms... (${retries}/${MAX_RETRIES})`
+        );
+        // Wait before retrying
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+        continue;
+      }
+
+      // Either not a 428 error or we've exhausted retries
+      console.log('Failed to add to agent after retries or due to other error:', error);
+
+      // update config with enabled = false
+      try {
+        await toggleExtension({
+          toggle: 'toggleOff',
+          extensionConfig,
+          addToConfig,
+          toastOptions: { silent: true }, // Pass toast options
+        });
+      } catch (toggleError) {
+        console.error('Failed to toggle extension off after agent error:', toggleError);
+      }
+
+      // Rethrow the error to inform the caller
+      throw error;
     }
-    // Rethrow the error to inform the caller
-    throw error;
   }
 }
 
@@ -549,6 +581,15 @@ export async function AddToAgent(
       options
     );
   } catch (error) {
+    // Check if this is a 428 error and make the message more descriptive
+    if (error.message && error.message.includes('428')) {
+      const enhancedError = new Error(
+        'Agent is not initialized. Please initialize the agent first. (428 Precondition Required)'
+      );
+      console.error(`Failed to add extension ${extension.name} to agent: ${enhancedError.message}`);
+      throw enhancedError;
+    }
+
     console.error(`Failed to add extension ${extension.name} to agent:`, error);
     throw error;
   }
