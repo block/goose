@@ -27,7 +27,7 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 | [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be configured in advance. Follow the instructions at https://cloud.google.com/vertex-ai/docs/authentication.**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optional `GCP_MAX_RETRIES` (6), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](/docs/getting-started/providers#local-llms-ollama).**  | `OLLAMA_HOST`                                                                                                                                                                       |
-| [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because Goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional)                                                                           |
+| [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because Goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`                                                                                                                                                                |
 
 
@@ -128,6 +128,7 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
 | `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com) |
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
+| `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request, in the format "HEADER_A=VALUE_A,HEADER_B=VALUE_B" |
 
 ### Example Configurations
 
@@ -154,6 +155,15 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
     OPENAI_API_KEY=your-api-key
     OPENAI_ORGANIZATION=org-id123
     OPENAI_PROJECT=compliance-approved
+    ```
+  </TabItem>
+  <TabItem value="custom-headers" label="Custom Headers">
+    For OpenAI-compatible endpoints that require custom headers:
+    ```sh
+    OPENAI_API_KEY=your-api-key
+    OPENAI_ORGANIZATION=org-id123
+    OPENAI_PROJECT=compliance-approved
+    OPENAI_CUSTOM_HEADERS="X-Header-A=abc,X-Header-B=def"
     ```
   </TabItem>
 </Tabs>

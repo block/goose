@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::time::Duration;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -33,6 +34,7 @@ pub struct OpenAiProvider {
     organization: Option<String>,
     project: Option<String>,
     model: ModelConfig,
+    custom_headers: Option<HashMap<String, String>>,
 }
 
 impl Default for OpenAiProvider {
@@ -54,6 +56,10 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
+        let custom_headers: Option<HashMap<String, String>> = config
+            .get_secret("OPENAI_CUSTOM_HEADERS")
+            .ok()
+            .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
         let client = Client::builder()
             .timeout(Duration::from_secs(timeout_secs))
@@ -67,6 +73,7 @@ impl OpenAiProvider {
             organization,
             project,
             model,
+            custom_headers,
         })
     }
 
@@ -90,6 +97,12 @@ impl OpenAiProvider {
         // Add project header if present
         if let Some(project) = &self.project {
             request = request.header("OpenAI-Project", project);
+        }
+
+        if let Some(custom_headers) = &self.custom_headers {
+            for (key, value) in custom_headers {
+                request = request.header(key, value);
+            }
         }
 
         let response = request.json(&payload).send().await?;
@@ -117,6 +130,7 @@ impl Provider for OpenAiProvider {
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
+                ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
             ],
         )
@@ -155,4 +169,15 @@ impl Provider for OpenAiProvider {
         emit_debug_trace(&self.model, &payload, &response, &usage);
         Ok((message, ProviderUsage::new(model, usage)))
     }
+}
+
+fn parse_custom_headers(s: String) -> HashMap<String, String> {
+    s.split(',')
+        .filter_map(|header| {
+            let mut parts = header.splitn(2, '=');
+            let key = parts.next().map(|s| s.trim().to_string())?;
+            let value = parts.next().map(|s| s.trim().to_string())?;
+            Some((key, value))
+        })
+        .collect()
 }
