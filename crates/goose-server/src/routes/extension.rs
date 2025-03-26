@@ -306,7 +306,10 @@ fn is_command_allowed(cmd: &str) -> bool {
 /// Normalizes a command name by removing common executable extensions (.exe, .cmd, .bat)
 /// This makes the allowlist more portable across different operating systems
 fn normalize_command_name(cmd: &str) -> String {
-    cmd.replace(".exe", "").replace(".cmd", "").replace(".bat", "").to_string()
+    cmd.replace(".exe", "")
+        .replace(".cmd", "")
+        .replace(".bat", "")
+        .to_string()
 }
 
 /// Implementation of command allowlist checking that takes an explicit allowlist parameter
@@ -317,17 +320,15 @@ fn is_command_allowed_with_allowlist(
 ) -> bool {
     // Extract the first part of the command (before any spaces)
     let first_part = cmd.split_whitespace().next().unwrap_or(cmd);
-    
+
     // Extract the base command name (last part of the path)
     let cmd_base_with_ext = Path::new(first_part)
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(first_part);
-        
+
     // Normalize the command name by removing extensions like .exe or .cmd
     let cmd_base = normalize_command_name(cmd_base_with_ext);
-    println!("\n\n\n\n\ncmd_base: {}", cmd_base);
-    println!("cmd: {}", cmd);
 
     // Special case: Always allow commands ending with "/goosed" or equal to "goosed"
     // But still enforce that it's in the same directory as the current executable
@@ -335,15 +336,17 @@ fn is_command_allowed_with_allowlist(
         // Only allow exact matches (no arguments)
         if cmd == first_part {
             // For absolute paths, check that it's in the same directory as the current executable
-            if (first_part.contains('/') || first_part.contains('\\')) && !first_part.starts_with("./") {
+            if (first_part.contains('/') || first_part.contains('\\'))
+                && !first_part.starts_with("./")
+            {
                 let current_exe = std::env::current_exe().unwrap();
                 let current_exe_dir = current_exe.parent().unwrap();
                 let expected_path = current_exe_dir.join("goosed").to_str().unwrap().to_string();
-                
+
                 // Normalize both paths before comparing
                 let normalized_cmd_path = normalize_command_name(first_part);
                 let normalized_expected_path = normalize_command_name(&expected_path);
-                
+
                 if normalized_cmd_path == normalized_expected_path {
                     return true;
                 }
@@ -368,33 +371,24 @@ fn is_command_allowed_with_allowlist(
 
         // Check against the allowlist
         Some(extensions) => {
-
-
             // Check that the command exists as a peer command to current executable directory
             // Only apply this check if the command includes a path separator
             let current_exe = std::env::current_exe().unwrap();
             let current_exe_dir = current_exe.parent().unwrap();
-            let expected_path = current_exe_dir.join(&cmd_base).to_str().unwrap().to_string();
-                
+            let expected_path = current_exe_dir
+                .join(&cmd_base)
+                .to_str()
+                .unwrap()
+                .to_string();
+
             // Normalize both paths before comparing
             let normalized_cmd_path = normalize_command_name(first_part);
-            let normalized_expected_path = normalize_command_name(&expected_path);
 
-
-            println!("Expected path: {}", expected_path);
-            println!("Current executable directory: {}", current_exe_dir.to_str().unwrap());
-            println!("Normalized command path: {}", normalized_cmd_path);
-            println!("Normalized expected path: {}", normalized_expected_path);
-            println!("First part: {}", first_part);
-
-
-            if first_part.contains('/') || first_part.contains('\\') {
-                
-                if normalized_cmd_path != normalized_expected_path {
-                    println!("Command not in expected directory: {}", cmd);
-                    println!("Expected path: {}", expected_path);
-                    return false;
-                }
+            if (first_part.contains('/') || first_part.contains('\\'))
+                && normalized_cmd_path != expected_path
+            {
+                println!("Command not in expected directory: {}", cmd);
+                return false;
             }
 
             //let cmd_to_check= cmd.replace(current_exe_dir.to_str(), "").to_string();
@@ -404,23 +398,14 @@ fn is_command_allowed_with_allowlist(
 
             // now remove this to make it clean
             let cmd_to_check = cmd.replace(&path_to_trim, "");
-            
 
-            
             // Normalize the command before comparing with allowlist entries
             let normalized_cmd = normalize_command_name(&cmd_to_check);
 
-            println!("Normalized command to check: {}", normalized_cmd);
-            
-            let result = extensions
-                .extensions
-                .iter()
-                .any(|entry| {
-                    let normalized_entry = normalize_command_name(&entry.command);
-                    normalized_cmd == normalized_entry
-                });
-            println!("Result: {}\n\n\n\n--------\n\n\n\n", result);
-            result
+            extensions.extensions.iter().any(|entry| {
+                let normalized_entry = normalize_command_name(&entry.command);
+                normalized_cmd == normalized_entry
+            })
         }
     }
 }
@@ -434,16 +419,25 @@ mod tests {
     fn test_normalize_command_name() {
         // Test removing .exe extension
         assert_eq!(normalize_command_name("goosed.exe"), "goosed");
-        assert_eq!(normalize_command_name("/path/to/goosed.exe"), "/path/to/goosed");
-        
+        assert_eq!(
+            normalize_command_name("/path/to/goosed.exe"),
+            "/path/to/goosed"
+        );
+
         // Test removing .cmd extension
         assert_eq!(normalize_command_name("script.cmd"), "script");
-        assert_eq!(normalize_command_name("/path/to/script.cmd"), "/path/to/script");
-        
+        assert_eq!(
+            normalize_command_name("/path/to/script.cmd"),
+            "/path/to/script"
+        );
+
         // Test removing .bat extension
         assert_eq!(normalize_command_name("batch.bat"), "batch");
-        assert_eq!(normalize_command_name("/path/to/batch.bat thing"), "/path/to/batch thing");
-        
+        assert_eq!(
+            normalize_command_name("/path/to/batch.bat thing"),
+            "/path/to/batch thing"
+        );
+
         // Test with no extension
         assert_eq!(normalize_command_name("goosed"), "goosed");
         assert_eq!(normalize_command_name("/path/to/goosed"), "/path/to/goosed");
@@ -471,30 +465,49 @@ mod tests {
 
     #[test]
     fn test_command_allowed_when_matching() {
-        let allowlist = create_test_allowlist(&["uvx something", "uvx mcp_slack", "npx mcp_github"]);
+        let allowlist =
+            create_test_allowlist(&["uvx something", "uvx mcp_slack", "npx mcp_github"]);
 
         // Test with exact command matches
-        assert!(is_command_allowed_with_allowlist("uvx something", &allowlist));
-        assert!(is_command_allowed_with_allowlist("uvx mcp_slack", &allowlist));
-        assert!(is_command_allowed_with_allowlist("npx mcp_github", &allowlist));
-
+        assert!(is_command_allowed_with_allowlist(
+            "uvx something",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "uvx mcp_slack",
+            &allowlist
+        ));
+        assert!(is_command_allowed_with_allowlist(
+            "npx mcp_github",
+            &allowlist
+        ));
 
         // Get the current executable directory for reference
         let current_exe = std::env::current_exe().unwrap();
         let current_exe_dir = current_exe.parent().unwrap();
-        
+
         // Create a full path command that would be in the current executable directory
         // For testing purposes, we'll use a direct path to the command in the allowlist
-        let full_path_cmd = current_exe_dir.join("uvx my_mcp").to_str().unwrap().to_string();
-        
+        let full_path_cmd = current_exe_dir
+            .join("uvx my_mcp")
+            .to_str()
+            .unwrap()
+            .to_string();
+
         // Create a test allowlist with the command name (without path)
         let path_test_allowlist = create_test_allowlist(&["uvx my_mcp"]);
-        
+
         // This should be allowed because the path is correct and the base command matches
-        println!("Current executable directory: {}", current_exe_dir.to_str().unwrap());
+        println!(
+            "Current executable directory: {}",
+            current_exe_dir.to_str().unwrap()
+        );
         println!("Path test allowlist: {:?}", path_test_allowlist);
-        assert!(is_command_allowed_with_allowlist(&full_path_cmd, &path_test_allowlist));
-        
+        assert!(is_command_allowed_with_allowlist(
+            &full_path_cmd,
+            &path_test_allowlist
+        ));
+
         // Test with additional arguments - should NOT match because we require exact matches
         assert!(!is_command_allowed_with_allowlist(
             "uvx mcp_slack --verbose --flag=value",
@@ -507,9 +520,11 @@ mod tests {
             &allowlist
         ));
 
-
         // These should NOT match with exact matching
-        assert!(!is_command_allowed_with_allowlist("uvx other_command", &allowlist));
+        assert!(!is_command_allowed_with_allowlist(
+            "uvx other_command",
+            &allowlist
+        ));
         assert!(!is_command_allowed_with_allowlist(
             "prefix_npx mcp_github",
             &allowlist
@@ -518,7 +533,8 @@ mod tests {
 
     #[test]
     fn test_command_not_allowed_when_not_matching() {
-        let allowlist = create_test_allowlist(&["uvx something", "uvx mcp_slack", "npx mcp_github"]);
+        let allowlist =
+            create_test_allowlist(&["uvx something", "uvx mcp_slack", "npx mcp_github"]);
 
         // These should not be allowed
         assert!(!is_command_allowed_with_allowlist(
@@ -530,7 +546,10 @@ mod tests {
             &allowlist
         ));
         assert!(!is_command_allowed_with_allowlist("/bin/bash", &allowlist));
-        assert!(!is_command_allowed_with_allowlist("uvx unauthorized", &allowlist));
+        assert!(!is_command_allowed_with_allowlist(
+            "uvx unauthorized",
+            &allowlist
+        ));
     }
 
     #[test]
@@ -558,14 +577,21 @@ mod tests {
         let current_exe = std::env::current_exe().unwrap();
         let current_exe_dir = current_exe.parent().unwrap();
         let goosed_path = current_exe_dir.join("goosed").to_str().unwrap().to_string();
-        let goosed_exe_path = current_exe_dir.join("goosed.exe").to_str().unwrap().to_string();
-        
+        let goosed_exe_path = current_exe_dir
+            .join("goosed.exe")
+            .to_str()
+            .unwrap()
+            .to_string();
+
         // This should be allowed because it's goosed in the correct directory
         assert!(is_command_allowed_with_allowlist(&goosed_path, &allowlist));
-        
+
         // This should also be allowed because it's goosed.exe in the correct directory
-        assert!(is_command_allowed_with_allowlist(&goosed_exe_path, &allowlist));
-        
+        assert!(is_command_allowed_with_allowlist(
+            &goosed_exe_path,
+            &allowlist
+        ));
+
         // These should NOT be allowed because they're in the wrong directory
         assert!(!is_command_allowed_with_allowlist(
             "/usr/local/bin/goosed",
@@ -575,13 +601,13 @@ mod tests {
             "/Users/username/path/to/goosed",
             &allowlist
         ));
-        
+
         // Commands with arguments should NOT be allowed - we require exact matches
         assert!(!is_command_allowed_with_allowlist(
             "/Users/username/path/to/goosed --flag value",
             &allowlist
         ));
-        
+
         // Simple goosed without path should be allowed
         assert!(is_command_allowed_with_allowlist("./goosed", &allowlist));
         assert!(is_command_allowed_with_allowlist("goosed", &allowlist));
