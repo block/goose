@@ -9,20 +9,20 @@ import {
   createExtensionConfig,
   ExtensionFormData,
   extensionToFormData,
+  extractExtensionConfig,
   getDefaultFormData,
 } from './utils';
-import { useAgent } from '../../../agent/UpdateAgent';
-import { activateExtension } from '.';
+
+import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
 
 export default function ExtensionsSection() {
-  const { toggleExtension, getExtensions, addExtension, removeExtension } = useConfig();
+  const { getExtensions, addExtension, removeExtension } = useConfig();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const { updateAgent, addExtensionToAgent } = useAgent();
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -44,13 +44,17 @@ export default function ExtensionsSection() {
     fetchExtensions();
   }, []);
 
-  const handleExtensionToggle = async (name: string) => {
-    try {
-      await toggleExtension(name);
-      fetchExtensions(); // Refresh the list after toggling
-    } catch (error) {
-      console.error('Failed to toggle extension:', error);
-    }
+  const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
+    // If extension is enabled, we are trying to toggle if off, otherwise on
+    const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
+    const extensionConfig = extractExtensionConfig(extension);
+    await toggleExtension({
+      toggle: toggleDirection,
+      extensionConfig: extensionConfig,
+      addToConfig: addExtension,
+      removeFromConfig: removeExtension,
+    });
+    await fetchExtensions(); // Refresh the list after toggling
   };
 
   const handleConfigureClick = (extension: FixedExtensionEntry) => {
@@ -60,38 +64,29 @@ export default function ExtensionsSection() {
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
-
-    try {
-      await activateExtension(formData.name, extensionConfig, addExtension);
-      console.log('attempting to add extension');
-      await updateAgent(extensionConfig);
-      handleModalClose();
-      await fetchExtensions(); // Refresh the list after adding
-    } catch (error) {
-      console.error('Failed to add extension:', error);
-    }
+    // TODO: replace activateExtension in index
+    // TODO: make sure error handling works
+    await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
 
-    try {
-      await activateExtension(formData.name, extensionConfig, addExtension);
-      handleModalClose();
-      fetchExtensions(); // Refresh the list after updating
-    } catch (error) {
-      console.error('Failed to update extension configuration:', error);
-    }
+    await updateExtension({
+      enabled: formData.enabled,
+      extensionConfig: extensionConfig,
+      addToConfig: addExtension,
+    });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleDeleteExtension = async (name: string) => {
-    try {
-      await removeExtension(name);
-      handleModalClose();
-      fetchExtensions(); // Refresh the list after deleting
-    } catch (error) {
-      console.error('Failed to delete extension:', error);
-    }
+    await deleteExtension({ name, removeFromConfig: removeExtension });
+    handleModalClose();
+    await fetchExtensions();
   };
 
   const handleModalClose = () => {

@@ -784,7 +784,7 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         .item(
             "approve",
             "Approve Mode",
-            "All tools, extensions and file modificatio will require human approval"
+            "All tools, extensions and file modifications will require human approval"
         )
         .item(
             "smart_approve",

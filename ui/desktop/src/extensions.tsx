@@ -105,13 +105,23 @@ export async function addExtension(
       return response;
     }
 
-    const errorMessage = `Error adding extension`;
-    console.error(errorMessage);
+    var errorMessage = `Error adding extension`;
+    // Attempt to extract the message from inside StdioProcessError()
+    // NOTE: this may change if the error response from /extensions/add changes
+    const regex = /StdioProcessError\("(.*?)"\)/;
+    const match = data.message.match(regex);
+
+    if (match) {
+      const extracted = match[1];
+      // only display the message if it is less than 100 chars
+      errorMessage = extracted.length > 100 ? errorMessage : extracted;
+    }
+
     if (toastId) toast.dismiss(toastId);
     ToastError({
       title: extension.name,
       msg: errorMessage,
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
 
@@ -122,7 +132,7 @@ export async function addExtension(
     ToastError({
       title: extension.name,
       msg: 'Failed to add extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -154,7 +164,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: data.message,
+      traceback: data.message,
       toastOptions: { autoClose: false },
     });
     return response;
@@ -164,7 +174,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
     ToastError({
       title: name,
       msg: 'Error removing extension',
-      errorMessage: error.message,
+      traceback: error.message,
       toastOptions: { autoClose: false },
     });
     throw error;
@@ -229,6 +239,7 @@ export async function loadAndAddStoredExtensions() {
 export async function replaceWithShims(cmd: string) {
   const binaryPathMap: Record<string, string> = {
     goosed: await window.electron.getBinaryPath('goosed'),
+    jbang: await window.electron.getBinaryPath('jbang'),
     npx: await window.electron.getBinaryPath('npx'),
     uvx: await window.electron.getBinaryPath('uvx'),
   };
@@ -249,7 +260,7 @@ function handleError(message: string, shouldThrow = false): void {
   ToastError({
     title: 'Failed to install extension',
     msg: message,
-    errorMessage: message,
+    traceback: message,
     toastOptions: { autoClose: false },
   });
   console.error(message);
@@ -289,7 +300,7 @@ export async function addExtensionFromDeepLink(
   }
 
   // Validate that the command is one of the allowed commands
-  const allowedCommands = ['npx', 'uvx', 'goosed'];
+  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
       `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,

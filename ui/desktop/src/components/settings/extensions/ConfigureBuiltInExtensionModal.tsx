@@ -80,7 +80,7 @@ export function ConfigureBuiltInExtensionModal({
       ToastError({
         title: extension.name,
         msg: `Failed to configure the extension`,
-        errorMessage: error.message,
+        traceback: error.message,
       });
     } finally {
       setIsSubmitting(false);

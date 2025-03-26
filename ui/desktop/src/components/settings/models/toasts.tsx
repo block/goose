@@ -24,10 +24,10 @@ export function ToastSuccess({ title, msg, toastOptions = {} }: ToastSuccessProp
 type ToastErrorProps = {
   title?: string;
   msg?: string;
-  errorMessage?: string;
+  traceback?: string;
   toastOptions?: ToastOptions;
 };
-export function ToastError({ title, msg, errorMessage, toastOptions }: ToastErrorProps) {
+export function ToastError({ title, msg, traceback, toastOptions }: ToastErrorProps) {
   return toast.error(
     <div className="flex gap-4">
       <div className="flex-grow">
@@ -35,17 +35,17 @@ export function ToastError({ title, msg, errorMessage, toastOptions }: ToastErro
         {msg ? <div>{msg}</div> : null}
       </div>
       <div className="flex-none flex items-center">
-        {errorMessage ? (
+        {traceback ? (
           <button
             className="text-textProminentInverse font-medium"
-            onClick={() => navigator.clipboard.writeText(errorMessage)}
+            onClick={() => navigator.clipboard.writeText(traceback)}
           >
             Copy error
           </button>
         ) : null}
       </div>
     </div>,
-    { ...commonToastOptions, autoClose: errorMessage ? false : 5000, ...toastOptions }
+    { ...commonToastOptions, autoClose: traceback ? false : 5000, ...toastOptions }
   );
 }
 
