@@ -2,47 +2,6 @@
 
 Goose is an open source project that is constantly being improved, and new features are added regularly. Some of these features are considered experimental, meaning they are still in development and may not be fully stable or ready for production use. This guide covers how to enable and use experimental features in Goose, as well as how to provide feedback on them.
 
-:::note
-Experimental features are new capabilities that are still being tested and refined. While they can provide additional functionality, they may be less stable than standard features.
-:::
-
-## Enabling Experimental Features
-
-To access experimental features, run:
-
-```sh
-goose configure
-```
-
-Select "Goose Settings" from the menu:
-
-```sh
-┌ goose-configure
-│
-◆ What would you like to configure?
-| ○ Configure Providers
-| ○ Add Extension
-| ○ Toggle Extensions
-| ○ Remove Extension
-// highlight-next-line
-| ● Goose Settings (Set the Goose Mode, Tool Output, Experiment and more)
-└
-```
-
-Then select "Toggle Experiment" option in the menu:
-   ```sh
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Goose Settings 
-   │
-   ◆  What setting would you like to configure?
-   │  ○ Goose Mode 
-   │  ○ Tool Output 
-   // highlight-next-line
-   │  ● Toggle Experiment (Enable or disable an experiment feature)
-   └  
-   ```
 
 ## Available Experimental Features
 
@@ -57,22 +16,38 @@ The Ollama tool shim is an experimental feature that enables tool calling capabi
 
 #### How to use the Ollama Tool Shim
 
-1. Make sure you have Ollama installed and running
-2. For optimal performance, run the Ollama server with an increased context length:
+1. Make sure you have [Ollama](https://ollama.com/download) installed and running
+2. The default interpreter model is `mistral-nemo`, if you want to proceed with this, you have to pull it from ollama server by running:
+
    ```bash
-   OLLAMA_CONTEXT_LENGTH=50000 ollama serve
+   ollama pull mistral-nemo
    ```
-   Note: This feature requires building Ollama from source as it hasn't been released yet.
-3. Enable the tool shim by setting the `GOOSE_TOOLSHIM` environment variable:
+3. If you want to use a different model, make sure to pull it first from the Ollama server. Then override the default interpreter model using the `GOOSE_TOOLSHIM_OLLAMA_MODEL` environment variable. For example, to use the `llama3.2` model, run:
+
+   ```bash
+   ollama pull llama3.2
+   ```
+   Then,
+
+   ```bash
+   GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2 
+   ```
+
+4. For optimal performance, run the Ollama server with an increased context length:
+   ```bash
+   OLLAMA_CONTEXT_LENGTH=32768 ollama serve
+   ```
+
+5. Enable the tool shim by setting the `GOOSE_TOOLSHIM` environment variable:
 
    ```bash
    GOOSE_TOOLSHIM=1 
    ```
 
-The default interpreter model is `Mistral` but you can override it using the `GOOSE_TOOLSHIM_MODEL` environment variable.
+Start a new Goose session with your tool shim preferences:
 
   ```bash
-  GOOSE_TOOLSHIM=1 GOOSE_TOOLSHIM_MODEL=llama3.2 cargo run --bin goose session
+  GOOSE_TOOLSHIM=1 GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2 cargo run --bin goose session
   ```
 
 
