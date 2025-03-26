@@ -17,15 +17,15 @@ jobs:
 
     steps:
       - name: Checkout the branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
         with:
           node-version: 20 
 
       - name: Cache Node.js modules (documentation)
-        uses: actions/cache@v3
+        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
         with:
           path: ./documentation/node_modules
           key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}
@@ -44,7 +44,7 @@ jobs:
 
       - name: Deploy to /gh-pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@373f7f263a76c20808c831209c920827a82a2847 # pin@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: documentation/build
