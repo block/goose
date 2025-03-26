@@ -131,7 +131,7 @@ async fn add_extension(
             timeout,
         } => {
             // Check allowlist for Stdio extensions
-            if !is_command_allowed(&cmd) {
+            if !is_command_allowed(&cmd, &args) {
                 return Ok(Json(ExtensionResponse {
                     error: true,
                     message: Some(format!(
@@ -299,8 +299,15 @@ fn get_allowed_extensions() -> &'static Option<AllowedExtensions> {
 }
 
 /// Checks if a command is allowed based on the allowlist
-fn is_command_allowed(cmd: &str) -> bool {
-    is_command_allowed_with_allowlist(cmd, get_allowed_extensions())
+fn is_command_allowed(cmd: &str, args: &[String]) -> bool {
+    is_command_allowed_with_allowlist(&make_full_cmd(cmd, args), get_allowed_extensions())
+}
+
+fn make_full_cmd(cmd: &str, args: &[String]) -> String {
+    // trim each arg string to remove any leading/trailing whitespace
+    let args_trimmed = args.iter().map(|arg| arg.trim()).collect::<Vec<&str>>();
+
+    format!("{} {}", cmd.trim(), args_trimmed.join(" ").trim())
 }
 
 /// Normalizes a command name by removing common executable extensions (.exe, .cmd, .bat)
@@ -318,8 +325,10 @@ fn is_command_allowed_with_allowlist(
     cmd: &str,
     allowed_extensions: &Option<AllowedExtensions>,
 ) -> bool {
+    println!("\n\n\n\n\n\n------------\n\nChecking command: {}", cmd);
     // Extract the first part of the command (before any spaces)
     let first_part = cmd.split_whitespace().next().unwrap_or(cmd);
+    println!("First part: {}", first_part);
 
     // Extract the base command name (last part of the path)
     let cmd_base_with_ext = Path::new(first_part)
@@ -362,6 +371,8 @@ fn is_command_allowed_with_allowlist(
         return false;
     }
 
+    println!("Allowed extensions: {:?}", allowed_extensions);
+
     match allowed_extensions {
         // No allowlist configured, allow all commands
         None => true,
@@ -399,8 +410,12 @@ fn is_command_allowed_with_allowlist(
             // now remove this to make it clean
             let cmd_to_check = cmd.replace(&path_to_trim, "");
 
+            println!("Command to check: {}", cmd_to_check);
+
             // Normalize the command before comparing with allowlist entries
             let normalized_cmd = normalize_command_name(&cmd_to_check);
+
+            println!("Normalized command: {}", normalized_cmd);
 
             extensions.extensions.iter().any(|entry| {
                 let normalized_entry = normalize_command_name(&entry.command);
@@ -431,7 +446,6 @@ mod tests {
             "/path/to/script"
         );
 
-        // Test removing .bat extension
         assert_eq!(normalize_command_name("batch.bat"), "batch");
         assert_eq!(
             normalize_command_name("/path/to/batch.bat thing"),
@@ -461,6 +475,32 @@ mod tests {
         Some(AllowedExtensions {
             extensions: entries,
         })
+    }
+
+    #[test]
+    fn test_make_full() {
+        assert_eq!(
+            make_full_cmd("uvx", &vec!["mcp_slack".to_string()]),
+            "uvx mcp_slack"
+        );
+        assert_eq!(
+            make_full_cmd("uvx", &vec!["mcp_slack ".to_string()]),
+            "uvx mcp_slack"
+        );
+        assert_eq!(
+            make_full_cmd(
+                "uvx",
+                &vec!["mcp_slack".to_string(), "--verbose".to_string()]
+            ),
+            "uvx mcp_slack --verbose"
+        );
+        assert_eq!(
+            make_full_cmd(
+                "uvx",
+                &vec!["mcp_slack".to_string(), " --verbose".to_string()]
+            ),
+            "uvx mcp_slack --verbose"
+        );
     }
 
     #[test]
