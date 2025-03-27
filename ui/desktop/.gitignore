@@ -3,3 +3,5 @@ node_modules
 out
 src/bin/goosed
 /src/bin/goosed.exe
+/playwright-report/
+/test-results/
