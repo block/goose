@@ -10,7 +10,7 @@ import { useConfig } from '../../../ConfigContext';
 import { changeModel as switchModel } from '../index';
 import type { View } from '../../../../App';
 
-const ModalButtons = ({ onSubmit, onCancel }) => (
+const ModalButtons = ({ onSubmit, onCancel, isValid, validationErrors }) => (
   <div>
     <Button
       type="submit"
@@ -18,7 +18,7 @@ const ModalButtons = ({ onSubmit, onCancel }) => (
       onClick={onSubmit}
       className="w-full h-[60px] rounded-none border-borderSubtle text-base hover:bg-bgSubtle text-textProminent font-regular"
     >
-      Add model
+      Select model
     </Button>
     <Button
       type="button"
@@ -42,11 +42,52 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
   const [isCustomModel, setIsCustomModel] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({
+    provider: '',
+    model: '',
+  });
+  const [isValid, setIsValid] = useState(true);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  // Validate form data
+  const validateForm = () => {
+    const errors = {
+      provider: '',
+      model: '',
+    };
+    let formIsValid = true;
+
+    if (!provider) {
+      errors.provider = 'Please select a provider';
+      formIsValid = false;
+    }
+
+    if (!model) {
+      errors.model = 'Please select or enter a model';
+      formIsValid = false;
+    }
+
+    setValidationErrors(errors);
+    setIsValid(formIsValid);
+    return formIsValid;
+  };
 
   const changeModel = async () => {
-    await switchModel({ model: model, provider: provider, writeToConfig: upsert });
-    onClose(); // Add this line to close the modal after changing the model
+    setAttemptedSubmit(true);
+    const isFormValid = validateForm();
+
+    if (isFormValid) {
+      await switchModel({ model: model, provider: provider, writeToConfig: upsert });
+      onClose();
+    }
   };
+
+  // Re-validate when inputs change and after attempted submission
+  useEffect(() => {
+    if (attemptedSubmit) {
+      validateForm();
+    }
+  }, [provider, model, attemptedSubmit]);
 
   useEffect(() => {
     (async () => {
@@ -114,11 +155,21 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
 
   return (
     <div className="z-10">
-      <Modal onClose={onClose} footer={<ModalButtons onSubmit={changeModel} onCancel={onClose} />}>
+      <Modal
+        onClose={onClose}
+        footer={
+          <ModalButtons
+            onSubmit={changeModel}
+            onCancel={onClose}
+            isValid={isValid}
+            validationErrors={validationErrors}
+          />
+        }
+      >
         <div className="flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-3">
             <Plus size={24} className="text-textStandard" />
-            <div className="text-textStandard font-medium">Add model</div>
+            <div className="text-textStandard font-medium">Switch models</div>
             <div className="text-textSubtle text-center">
               Configure your AI model providers by adding their API keys. Your keys are stored
               securely and encrypted locally.
@@ -137,40 +188,50 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
           </div>
 
           <div className="w-full flex flex-col gap-4">
-            <Select
-              options={providerOptions}
-              value={providerOptions.find((option) => option.value === provider) || null}
-              onChange={(option) => {
-                if (option?.value === 'configure_providers') {
-                  // Navigate to ConfigureProviders view
-                  setView('ConfigureProviders');
-                  onClose(); // Close the current modal
-                } else {
-                  setProvider(option?.value || null);
-                  setModel('');
-                  setIsCustomModel(false);
-                }
-              }}
-              placeholder="Provider"
-              isClearable
-            />
+            <div>
+              <Select
+                options={providerOptions}
+                value={providerOptions.find((option) => option.value === provider) || null}
+                onChange={(option) => {
+                  if (option?.value === 'configure_providers') {
+                    // Navigate to ConfigureProviders view
+                    setView('ConfigureProviders');
+                    onClose(); // Close the current modal
+                  } else {
+                    setProvider(option?.value || null);
+                    setModel('');
+                    setIsCustomModel(false);
+                  }
+                }}
+                placeholder="Provider"
+                isClearable
+              />
+              {attemptedSubmit && validationErrors.provider && (
+                <div className="text-red-500 text-sm mt-1">{validationErrors.provider}</div>
+              )}
+            </div>
 
             {provider && (
               <>
                 {!isCustomModel ? (
-                  <Select
-                    options={filteredModelOptions}
-                    onChange={handleModelChange}
-                    value={model ? { value: model, label: model } : null}
-                    placeholder="Select a model"
-                  />
+                  <div>
+                    <Select
+                      options={filteredModelOptions}
+                      onChange={handleModelChange}
+                      value={model ? { value: model, label: model } : null}
+                      placeholder="Select a model"
+                    />
+                    {attemptedSubmit && validationErrors.model && (
+                      <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-2">
                     <div className="flex justify-between">
                       <label className="text-sm text-textSubtle">Custom model name</label>
                       <button
                         onClick={() => setIsCustomModel(false)}
-                        className="text-sm text-blue-500 hover:text-blue-700"
+                        className="text-sm text-textSubtle"
                       >
                         Back to model list
                       </button>
@@ -181,6 +242,9 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
                       onChange={(event) => setModel(event.target.value)}
                       value={model}
                     />
+                    {attemptedSubmit && validationErrors.model && (
+                      <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                    )}
                   </div>
                 )}
               </>
