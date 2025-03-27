@@ -18,10 +18,6 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   const [selectedSession, setSelectedSession] = useState<SessionDetails | null>(null);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shareToken, setShareToken] = useState('6dc69efc-5599-4493-968e-8615a93dd780');
-  const [baseUrl, setBaseUrl] = useState(
-    'https://goosed-playpen-smohammed--goosed.stage.sqprod.co/api'
-  );
 
   const handleSelectSession = async (sessionId: string) => {
     await loadSessionDetails(sessionId);
@@ -76,51 +72,6 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   const handleRetryLoadSession = () => {
     if (selectedSession) {
       loadSessionDetails(selectedSession.session_id);
-    }
-  };
-
-  const handleTestSharedSession = async () => {
-    if (!shareToken || !baseUrl) {
-      setError('Please enter both a share token and base URL');
-      return;
-    }
-
-    setIsLoadingSession(true);
-    setError(null);
-
-    try {
-      // Get the saved base URL from localStorage if available
-      let finalBaseUrl = baseUrl;
-      if (!finalBaseUrl) {
-        const savedSessionConfig = localStorage.getItem('session_sharing_config');
-        if (savedSessionConfig) {
-          const config = JSON.parse(savedSessionConfig);
-          if (config.enabled && config.baseUrl) {
-            finalBaseUrl = config.baseUrl;
-          }
-        }
-      }
-
-      if (!finalBaseUrl) {
-        throw new Error('Base URL is not configured. Please enter a base URL.');
-      }
-
-      // Fetch the shared session details
-      const sessionDetails = await fetchSharedSessionDetails(finalBaseUrl, shareToken);
-
-      // Navigate to the shared session view
-      setView('sharedSession', {
-        sessionDetails,
-        shareToken,
-        baseUrl: finalBaseUrl,
-      });
-    } catch (error) {
-      console.error('Failed to load shared session:', error);
-      setError(
-        `Failed to load shared session: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    } finally {
-      setIsLoadingSession(false);
     }
   };
 
