@@ -96,7 +96,7 @@ function handleErrorResponse(
     toastService.dismiss(toastId);
     toastService.error({
       title: extensionName,
-      msg: 'Agent is not initialized. Please initialize the agent first.',
+      msg: 'Failed to add extension. Goose Agent was still starting up. Please try again.',
       traceback: errorMsg,
     });
     throw new Error('Agent is not initialized. Please initialize the agent first.');
