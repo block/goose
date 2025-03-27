@@ -48,11 +48,14 @@ export default function ExtensionsSection() {
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
+
     await toggleExtension({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
+      toastOptions: { silent: false },
     });
+
     await fetchExtensions(); // Refresh the list after toggling
   };
 

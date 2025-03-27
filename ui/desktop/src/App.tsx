@@ -9,6 +9,7 @@ import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import ErrorScreen from './components/ErrorScreen';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
+import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails, fetchSessionDetails } from './sessions';
@@ -182,6 +183,9 @@ export default function App() {
       }
 
       console.log('Extensions setup complete');
+
+      // Reset the toast service silent flag to ensure toasts work after startup
+      toastService.configure({ silent: false });
     };
 
     // Execute the flows sequentially to ensure agent is initialized before adding extensions

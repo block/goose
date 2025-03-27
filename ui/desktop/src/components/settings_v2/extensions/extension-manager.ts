@@ -1,5 +1,5 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
-import { toastService, ToastServiceOptions } from '../../../toasts';
+import { ToastServiceOptions } from '../../../toasts';
 import { addToAgent, removeFromAgent } from './agent-api';
 
 interface ActivateExtensionProps {
@@ -76,6 +76,7 @@ export async function addToAgentOnStartup({
           error.message.includes('Precondition Required') ||
           error.message.includes('Agent is not initialized'));
 
+      // retry adding a few times if agent is spinning up
       if (is428Error && retries < MAX_RETRIES) {
         // This is a 428 error and we have retries left
         retries++;
@@ -88,15 +89,15 @@ export async function addToAgentOnStartup({
       }
 
       // Either not a 428 error or we've exhausted retries
-      console.log('Failed to add to agent after retries or due to other error:', error);
+      console.error('Failed to add to agent after retries or due to other error:', error);
 
-      // update config with enabled = false
+      // update config with enabled = false because we weren't able to install the extension
       try {
         await toggleExtension({
           toggle: 'toggleOff',
           extensionConfig,
           addToConfig,
-          toastOptions: { silent: true }, // Pass toast options
+          toastOptions: { silent: true }, // on startup, let extensions fail silently
         });
       } catch (toggleError) {
         console.error('Failed to toggle extension off after agent error:', toggleError);
@@ -127,7 +128,7 @@ export async function updateExtension({
       // AddToAgent
       await addToAgent(extensionConfig);
     } catch (error) {
-      console.error('Failed to add extension to agent during update:', error);
+      console.error('[updateExtension]: Failed to add extension to agent during update:', error);
       // Failed to add to agent -- show that error to user and do not update the config file
       throw error;
     }
@@ -136,14 +137,14 @@ export async function updateExtension({
     try {
       await addToConfig(extensionConfig.name, extensionConfig, enabled);
     } catch (error) {
-      console.error('Failed to update extension in config:', error);
+      console.error('[updateExtension]: Failed to update extension in config:', error);
       throw error;
     }
   } else {
     try {
       await addToConfig(extensionConfig.name, extensionConfig, enabled);
     } catch (error) {
-      console.error('Failed to update disabled extension in config:', error);
+      console.error('[updateExtension]: Failed to update disabled extension in config:', error);
       throw error;
     }
   }
@@ -181,7 +182,7 @@ export async function toggleExtension({
           toggle: 'toggleOff',
           extensionConfig,
           addToConfig,
-          toastOptions,
+          toastOptions: { silent: true }, // otherwise we will see a toast for removing something that was never added
         });
       } catch (toggleError) {
         console.error('Failed to toggle extension off after agent error:', toggleError);

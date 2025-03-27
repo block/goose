@@ -10,25 +10,31 @@ export async function extensionApiCall(
   payload: any,
   options: ToastServiceOptions = {}
 ): Promise<Response> {
-  // Configure toast service for this call
+  // Configure toast notifications
   toastService.configure(options);
 
+  // Determine if we're activating or removing an extension
+  const isActivating = endpoint == '/extensions/add';
+  const action = {
+    type: isActivating ? 'activating' : 'removing',
+    verb: isActivating ? 'Activating' : 'Removing',
+    pastTense: isActivating ? 'activated' : 'removed',
+  };
+
+  // for adding the payload is an extensionConfig, for removing payload is just the name
+  const extensionName = isActivating ? payload.name : payload;
   let toastId;
 
-  const actionType = endpoint === 'extensions/add' ? 'activating' : 'removing';
-  const actionVerb = actionType === 'activating' ? 'Activating' : 'Removing';
-  const pastVerb = actionType === 'activating' ? 'activated' : 'removed';
-
-  const extensionName = payload.name;
+  // Step 1: Show loading toast (only for activation)
+  if (isActivating) {
+    toastId = toastService.loading({
+      title: extensionName,
+      msg: `${action.verb} ${extensionName} extension...`,
+    });
+  }
 
   try {
-    if (actionType === 'activating') {
-      toastId = toastService.loading({
-        title: extensionName,
-        msg: `${actionVerb} ${extensionName} extension...`,
-      });
-    }
-
+    // Step 2: Make the API call
     const response = await fetch(getApiUrl(endpoint), {
       method: 'POST',
       headers: {
@@ -38,48 +44,17 @@ export async function extensionApiCall(
       body: JSON.stringify(payload),
     });
 
-    // Handle non-OK responses
+    // Step 3: Handle non-successful responses
     if (!response.ok) {
-      const errorMsg = `Server returned ${response.status}: ${response.statusText}`;
-      console.error(errorMsg);
-
-      // Special handling for 428 Precondition Required (agent not initialized)
-      if (response.status === 428 && actionType === 'activating') {
-        toastService.dismiss(toastId);
-        toastService.error({
-          title: extensionName,
-          msg: 'Agent is not initialized. Please initialize the agent first.',
-          traceback: errorMsg,
-        });
-        throw new Error('Agent is not initialized. Please initialize the agent first.');
-      }
-
-      const msg = `Failed to ${actionType === 'activating' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
-      toastService.dismiss(toastId);
-      toastService.error({
-        title: extensionName,
-        msg: msg,
-        traceback: errorMsg,
-      });
-      throw new Error(msg);
+      return handleErrorResponse(response, extensionName, action, toastId);
     }
 
-    // Parse response JSON safely
-    let data;
-    try {
-      const text = await response.text();
-      data = text ? JSON.parse(text) : { error: false };
-    } catch (parseError) {
-      console.warn('Could not parse response as JSON, assuming success', parseError);
-      data = { error: false };
-    }
+    // Step 4: Parse response data
+    const data = await parseResponseData(response);
 
-    if (!data.error) {
-      toastService.dismiss(toastId);
-      toastService.success({ title: extensionName, msg: `Successfully ${pastVerb} extension` });
-      return response;
-    } else {
-      const errorMessage = `Error ${actionType} extension -- parsing data: ${data.message || 'Unknown error'}`;
+    // Step 5: Check for errors in the response data
+    if (data.error) {
+      const errorMessage = `Error ${action.type} extension: ${data.message || 'Unknown error'}`;
       toastService.dismiss(toastId);
       toastService.error({
         title: extensionName,
@@ -88,10 +63,64 @@ export async function extensionApiCall(
       });
       throw new Error(errorMessage);
     }
+
+    // Step 6: Success - dismiss loading toast and return
+    toastService.dismiss(toastId);
+    toastService.success({
+      title: extensionName,
+      msg: `Successfully ${action.pastTense} extension!`,
+    });
+    return response;
   } catch (error) {
+    // Final catch-all error handler
     toastService.dismiss(toastId);
     console.error(`Error in extensionApiCall for ${extensionName}:`, error);
     throw error;
+  }
+}
+
+// Helper functions to separate concerns
+
+// Handles HTTP error responses
+function handleErrorResponse(
+  response: Response,
+  extensionName: string,
+  action: { type: string; verb: string },
+  toastId: string
+): never {
+  const errorMsg = `Server returned ${response.status}: ${response.statusText}`;
+  console.error(errorMsg);
+
+  // Special case: Agent not initialized (status 428)
+  if (response.status === 428 && action.type === 'activating') {
+    toastService.dismiss(toastId);
+    toastService.error({
+      title: extensionName,
+      msg: 'Agent is not initialized. Please initialize the agent first.',
+      traceback: errorMsg,
+    });
+    throw new Error('Agent is not initialized. Please initialize the agent first.');
+  }
+
+  // General error case
+  const msg = `Failed to ${action.type === 'activating' ? 'add' : 'remove'} ${extensionName} extension: ${errorMsg}`;
+  toastService.dismiss(toastId);
+  toastService.error({
+    title: extensionName,
+    msg: msg,
+    traceback: errorMsg,
+  });
+  throw new Error(msg);
+}
+
+// Safely parses JSON response
+async function parseResponseData(response: Response): Promise<any> {
+  try {
+    const text = await response.text();
+    return text ? JSON.parse(text) : { error: false };
+  } catch (parseError) {
+    console.warn('Could not parse response as JSON, assuming success', parseError);
+    return { error: false };
   }
 }
 
