@@ -433,6 +433,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     "Tutorial",
                     "Access interactive tutorials and guides",
                 )
+                .item("databricks", "Databricks", "Connect to Databricks to run queries")
                 .item("jetbrains", "JetBrains", "Connect to jetbrains IDEs")
                 .interact()?
                 .to_string();
