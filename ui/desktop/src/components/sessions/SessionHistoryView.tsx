@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MessageSquare, Folder, Share2, Copy, Check, LoaderCircle } from 'lucide-react';
+import { Clock, MessageSquare, Folder, Share, Copy, Check, LoaderCircle } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 import { createSharedSession } from '../../sharedSessions';
@@ -133,10 +133,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           <button
             onClick={handleShare}
             disabled={!canShare || isSharing}
-            className={`flex items-center text-textStandard ${
+            className={`flex items-center text-textStandard px-3 py-1 border rounded-md ${
               canShare
-                ? 'hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150'
-                : 'cursor-not-allowed opacity-50'
+                ? 'border-primary hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150'
+                : 'border-gray-300 cursor-not-allowed opacity-50'
             }`}
           >
             {isSharing ? (
@@ -146,7 +146,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               </>
             ) : (
               <>
-                <Share2 className="w-5 h-5" />
+                <Share className="w-5 h-5" />
               </>
             )}
           </button>

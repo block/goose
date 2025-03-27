@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '../../ui/input';
+import { Check } from 'lucide-react';
 
 export default function SessionSharingSection() {
   const [sessionSharingConfig, setSessionSharingConfig] = useState({
@@ -7,6 +8,8 @@ export default function SessionSharingSection() {
     baseUrl: '',
   });
   const [urlError, setUrlError] = useState('');
+  // Show a checkmark temporarily when the user’s input is valid
+  const [urlSaved, setUrlSaved] = useState(false);
 
   // Load session sharing config from localStorage
   useEffect(() => {
@@ -51,14 +54,15 @@ export default function SessionSharingSection() {
 
     if (isValidUrl(newBaseUrl)) {
       setUrlError('');
-      // If it’s valid, also persist to localStorage
-      const updated = {
-        ...sessionSharingConfig,
-        baseUrl: newBaseUrl,
-      };
+      const updated = { ...sessionSharingConfig, baseUrl: newBaseUrl };
       localStorage.setItem('session_sharing_config', JSON.stringify(updated));
+
+      // Show the checkmark temporarily
+      setUrlSaved(true);
+      setTimeout(() => {
+        setUrlSaved(false);
+      }, 2000);
     } else {
-      // If it’s invalid, display an error message
       setUrlError('Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).');
     }
   };
@@ -98,20 +102,25 @@ export default function SessionSharingSection() {
 
           {/* Base URL field (only visible if enabled) */}
           {sessionSharingConfig.enabled && (
-            <div className="space-y-2">
-              <label
-                htmlFor="session-sharing-url"
-                className="text-sm font-medium text-textStandard"
-              >
-                Base URL
-              </label>
-              <Input
-                id="session-sharing-url"
-                type="url"
-                placeholder="https://example.com/api"
-                value={sessionSharingConfig.baseUrl}
-                onChange={handleBaseUrlChange}
-              />
+            <div className="space-y-2 relative">
+              <div className="flex items-center space-x-2">
+                <label
+                  htmlFor="session-sharing-url"
+                  className="text-sm font-medium text-textStandard"
+                >
+                  Base URL
+                </label>
+                {urlSaved && <Check className="w-5 h-5 text-green-500" />}
+              </div>
+              <div className="flex items-center">
+                <Input
+                  id="session-sharing-url"
+                  type="url"
+                  placeholder="https://example.com/api"
+                  value={sessionSharingConfig.baseUrl}
+                  onChange={handleBaseUrlChange}
+                />
+              </div>
               {urlError && <p className="text-red-500 text-sm">{urlError}</p>}
             </div>
           )}
