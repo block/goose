@@ -111,7 +111,7 @@ export default function Input({
     }
 
     if (evt.key === 'Enter') {
-      // Check for Option/Alt+Enter or Shift+Enter for a new line
+      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
       if (evt.shiftKey || isComposing) {
         // Allow line break for Shift+Enter, or during IME composition
         return;
