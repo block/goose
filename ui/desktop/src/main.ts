@@ -1,5 +1,6 @@
 import {
   app,
+  session,
   BrowserWindow,
   dialog,
   globalShortcut,
@@ -81,6 +82,8 @@ app.on('open-url', async (event, url) => {
   // Handle extension install links
   if (parsedUrl.hostname === 'extension') {
     firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'sessions') {
+    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
   }
 });
 
@@ -363,11 +366,15 @@ ipcMain.on('react-ready', (event) => {
     console.log('Processing pending deep link:', pendingDeepLink);
     const parsedUrl = new URL(pendingDeepLink);
 
+    // Handle different deep link types
     if (parsedUrl.hostname === 'extension') {
       console.log('Sending add-extension event');
       firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      console.log('Sending open-shared-session event');
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
-    // Bot URLs are now handled directly through botConfig in additionalArguments
+    // Bot URLs are handled directly through botConfig in additionalArguments
     pendingDeepLink = null;
   } else {
     console.log('No pending deep link to process');
@@ -423,6 +430,11 @@ ipcMain.handle('get-binary-path', (event, binaryName) => {
 });
 
 app.whenReady().then(async () => {
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    details.requestHeaders['Origin'] = 'http://localhost:5173';
+    callback({ cancel: false, requestHeaders: details.requestHeaders });
+  });
+
   // Test error feature - only enabled with GOOSE_TEST_ERROR=true
   if (process.env.GOOSE_TEST_ERROR === 'true') {
     console.log('Test error feature enabled, will throw error in 5 seconds');

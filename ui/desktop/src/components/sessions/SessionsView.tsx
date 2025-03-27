@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { ViewConfig } from '../../App';
 import { fetchSessionDetails, type SessionDetails } from '../../sessions';
+import { fetchSharedSessionDetails } from '../../sharedSessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
+import { Card } from '../ui/card';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import BackButton from '../ui/BackButton';
+import { ScrollArea } from '../ui/scroll-area';
 
 interface SessionsViewProps {
   setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
@@ -70,7 +76,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   };
 
   // If a session is selected, show the session history view
-  // Otherwise, show the sessions list view
+  // Otherwise, show the sessions list view with a button to test shared sessions
   return selectedSession ? (
     <SessionHistoryView
       session={selectedSession}
@@ -81,7 +87,9 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       onRetry={handleRetryLoadSession}
     />
   ) : (
-    <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+    <>
+      <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+    </>
   );
 };
 
