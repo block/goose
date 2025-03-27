@@ -3,6 +3,7 @@ import { loadAndAddStoredExtensions } from '../extensions';
 import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
 import { gooseModels } from '../components/settings/models/GooseModels';
+import { initializeAgent } from '../agent';
 
 export function getStoredProvider(config: any): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
@@ -31,23 +32,6 @@ export interface Provider {
   models: string[]; // List of supported models
   requiredKeys: string[]; // List of required keys
 }
-
-const addAgent = async (provider: string, model: string) => {
-  const response = await fetch(getApiUrl('/agent'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Secret-Key': getSecretKey(),
-    },
-    body: JSON.stringify({ provider: provider, model: model }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to add agent: ${response.statusText}`);
-  }
-
-  return response;
-};
 
 // Desktop-specific system prompt extension
 const desktopPrompt = `You are being accessed through the Goose Desktop application.
@@ -84,7 +68,7 @@ There may be (but not always) some tools mentioned in the instructions which you
 export const initializeSystem = async (provider: string, model: string) => {
   try {
     console.log('initializing agent with provider', provider, 'model', model);
-    await addAgent(provider.toLowerCase().replace(/ /g, '_'), model);
+    await initializeAgent({ provider, model });
 
     // Sync the model state with React
     const syncedModel = syncModelWithAgent(provider, model);
@@ -119,7 +103,7 @@ export const initializeSystem = async (provider: string, model: string) => {
 
     // This will go away after the release of settings v2 as we now handle this via
     //
-    // initializeBuildInExtensions
+    // initializeBuiltInExtensions
     // syncBuiltInExtensions
     if (!process.env.ALPHA) {
       loadAndAddStoredExtensions().catch((error) => {

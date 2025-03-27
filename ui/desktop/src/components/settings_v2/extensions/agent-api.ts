@@ -1,6 +1,7 @@
 import { ExtensionConfig } from '../../../api/types.gen';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
+import { replaceWithShims } from './utils';
 
 /**
  * Makes an API call to the extension endpoints
@@ -165,20 +166,4 @@ export async function removeFromAgent(
     console.error(`Failed to remove extension ${name} from agent:`, error);
     throw error;
   }
-}
-
-// Update the path to the binary based on the command
-async function replaceWithShims(cmd: string): Promise<string> {
-  const binaryPathMap: Record<string, string> = {
-    goosed: await window.electron.getBinaryPath('goosed'),
-    npx: await window.electron.getBinaryPath('npx'),
-    uvx: await window.electron.getBinaryPath('uvx'),
-  };
-
-  if (binaryPathMap[cmd]) {
-    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
-    return binaryPathMap[cmd];
-  }
-
-  return cmd;
 }
