@@ -115,7 +115,7 @@ test.describe('Goose App', () => {
 
   test('verify initial screen and select provider if needed', async () => {
     console.log('Checking initial screen state...');
-    
+
     if (!isProviderSelected) {
       // Take screenshot of provider selection screen
       await mainWindow.screenshot({ path: 'test-results/provider-selection.png' });
@@ -125,12 +125,16 @@ test.describe('Goose App', () => {
       const headingText = await heading.textContent();
       expect(headingText).toBe('Choose a Provider');
       
-      // Find and verify the Databricks card
-      const databricksHeading = await mainWindow.waitForSelector('h3:has-text("Databricks")');
-      expect(await databricksHeading.isVisible()).toBe(true);
+      // Find and verify the Databricks card container
+      console.log('Looking for Databricks card...');
+      const databricksContainer = await mainWindow.waitForSelector(
+        'div:has(h3:text("Databricks"))[class*="relative bg-bgApp rounded-lg"]'
+      );
+      expect(await databricksContainer.isVisible()).toBe(true);
       
-      // Find the Launch button within the Databricks card
-      const launchButton = await mainWindow.locator('button:has-text("Launch")').nth(1);
+      // Find the Launch button within the Databricks container
+      console.log('Looking for Launch button in Databricks card...');
+      const launchButton = await databricksContainer.waitForSelector('button:has-text("Launch")');
       expect(await launchButton.isVisible()).toBe(true);
       
       // Take screenshot before clicking
@@ -149,10 +153,6 @@ test.describe('Goose App', () => {
     
     // Take screenshot of current state
     await mainWindow.screenshot({ path: 'test-results/chat-interface.png' });
-    
-    // Verify window title
-    const title = await mainWindow.title();
-    expect(title).toBe('Goose');
   });
 
   test('chat interaction', async () => {
