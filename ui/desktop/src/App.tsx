@@ -9,6 +9,7 @@ import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import ErrorScreen from './components/ErrorScreen';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
+import { toastService } from './toasts';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails, fetchSessionDetails } from './sessions';
@@ -98,29 +99,36 @@ export default function App() {
           console.log(`Found provider: ${provider}, model: ${model}, setting chat view`);
           setView('chat');
 
-          // Initialize the system in background
-          initializeSystem(provider, model)
-            .then(() => console.log('System initialization successful'))
-            .catch((error) => {
-              console.error('Error initializing system:', error);
-              setFatalError(`System initialization error: ${error.message || 'Unknown error'}`);
-              setView('welcome');
-            });
+          // Initialize the system and wait for it to complete before setting up extensions
+          try {
+            console.log('Initializing system before setting up extensions...');
+            await initializeSystem(provider, model);
+            console.log('System initialization successful');
+            // Now that the agent is initialized, we can safely set up extensions
+            return true;
+          } catch (error) {
+            console.error('Error initializing system:', error);
+            setFatalError(`System initialization error: ${error.message || 'Unknown error'}`);
+            setView('welcome');
+            return false;
+          }
         } else {
           // Missing configuration, show onboarding
           console.log('Missing configuration, showing onboarding');
           if (!provider) console.log('Missing provider');
           if (!model) console.log('Missing model');
           setView('welcome');
+          return false;
         }
       } catch (error) {
         console.error('Error checking configuration:', error);
         setFatalError(`Configuration check error: ${error.message || 'Unknown error'}`);
         setView('welcome');
+        return false;
       }
     };
 
-    // Setup extensions in parallel
+    // Setup extensions after agent is initialized
     const setupExtensions = async () => {
       // Set the ref immediately to prevent duplicate runs
       initAttemptedRef.current = true;
@@ -175,18 +183,25 @@ export default function App() {
       }
 
       console.log('Extensions setup complete');
+
+      // Reset the toast service silent flag to ensure toasts work after startup
+      toastService.configure({ silent: false });
     };
 
-    // Execute the two flows in parallel for speed
-    checkRequiredConfig().catch((error) => {
-      console.error('Unhandled error in checkRequiredConfig:', error);
-      setFatalError(`Config check error: ${error.message || 'Unknown error'}`);
-    });
-
-    setupExtensions().catch((error) => {
-      console.error('Unhandled error in setupExtensions:', error);
-      // Not setting fatal error here since extensions are optional
-    });
+    // Execute the flows sequentially to ensure agent is initialized before adding extensions
+    checkRequiredConfig()
+      .then((agentInitialized) => {
+        // Only proceed with extension setup if agent was successfully initialized
+        if (agentInitialized) {
+          return setupExtensions();
+        }
+        console.log('Skipping extension setup because agent was not initialized');
+        return Promise.resolve();
+      })
+      .catch((error) => {
+        console.error('Unhandled error in startup sequence:', error);
+        setFatalError(`Startup error: ${error.message || 'Unknown error'}`);
+      });
   }, []); // Empty dependency array since we're using initAttemptedRef
   const setView = (view: View, viewOptions: Record<any, any> = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);

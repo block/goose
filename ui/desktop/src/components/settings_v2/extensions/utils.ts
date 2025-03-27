@@ -1,3 +1,19 @@
+// Default extension timeout in seconds
+// TODO: keep in sync with rust better
+export const DEFAULT_EXTENSION_TIMEOUT = 300;
+
+/**
+ * Converts an extension name to a key format
+ * TODO: need to keep this in sync better with `name_to_key` on the rust side
+ */
+export function nameToKey(name: string): string {
+  return name
+    .split('')
+    .filter((char) => !char.match(/\s/))
+    .join('')
+    .toLowerCase();
+}
+
 import { FixedExtensionEntry } from '../../ConfigContext';
 import { ExtensionConfig } from '../../../api/types.gen';
 

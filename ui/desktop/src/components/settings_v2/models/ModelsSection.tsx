@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
-import { ToastError } from '../../settings/models/toasts';
+import { toastError } from '../../../toasts';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -11,38 +11,65 @@ interface ModelsSectionProps {
 const UNKNOWN_PROVIDER_TITLE = 'Provider name error';
 const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
-// todo: use for block settings
 export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);
   const [model, setModel] = useState<string>('');
   const { read, getProviders } = useConfig();
 
+  // Use a ref to prevent multiple loads
+  const isLoadingRef = useRef(false);
+  const isLoadedRef = useRef(false);
+
   useEffect(() => {
-    const currentModel = async () => {
-      const gooseModel = (await read('GOOSE_MODEL', false)) as string;
-      const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
-      const providers = await getProviders(true);
+    // Prevent the effect from running again if it's already loading or loaded
+    if (isLoadingRef.current || isLoadedRef.current) return;
 
-      // lookup display name
-      const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+    // Mark as loading
+    isLoadingRef.current = true;
 
-      if (providerDetailsList.length != 1) {
-        ToastError({
-          title: UNKNOWN_PROVIDER_TITLE,
-          msg: UNKNOWN_PROVIDER_MSG,
-        });
-        setModel(gooseModel);
-        setProvider(gooseProvider);
-        return;
+    const loadModelData = async () => {
+      try {
+        const gooseModel = (await read('GOOSE_MODEL', false)) as string;
+        const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
+        const providers = await getProviders(true);
+
+        // lookup display name
+        const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+
+        if (providerDetailsList.length != 1) {
+          toastError({
+            title: UNKNOWN_PROVIDER_TITLE,
+            msg: UNKNOWN_PROVIDER_MSG,
+          });
+          setModel(gooseModel);
+          setProvider(gooseProvider);
+        } else {
+          const providerDisplayName = providerDetailsList[0].metadata.display_name;
+          setModel(gooseModel);
+          setProvider(providerDisplayName);
+        }
+
+        // Mark as loaded and not loading
+        isLoadedRef.current = true;
+        isLoadingRef.current = false;
+      } catch (error) {
+        console.error('Error loading model data:', error);
+        isLoadingRef.current = false;
       }
-      const providerDisplayName = providerDetailsList[0].metadata.display_name;
-      setModel(gooseModel);
-      setProvider(providerDisplayName);
     };
-    (async () => {
-      await currentModel();
-    })();
-  }, [getProviders, read]);
+
+    loadModelData();
+
+    // Clean up function
+    return () => {
+      isLoadingRef.current = false;
+      isLoadedRef.current = false;
+    };
+
+    // Run this effect only once when the component mounts
+    // We're using refs to control the actual execution, so we don't need dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <section id="models">

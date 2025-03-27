@@ -1,5 +1,5 @@
 import { initializeAgent } from '../../../agent/index';
-import { ToastError, ToastSuccess } from '../../settings/models/toasts';
+import { toastError, toastSuccess } from '../../../toasts';
 import { ProviderDetails } from '@/src/api';
 
 // titles
@@ -29,8 +29,7 @@ export async function changeModel({ model, provider, writeToConfig }: changeMode
     await initializeAgent({ model: model, provider: provider });
   } catch (error) {
     console.error(`Failed to change model at agent step -- ${model} ${provider}`);
-    // show toast with error
-    ToastError({
+    toastError({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: SWITCH_MODEL_AGENT_ERROR_MSG,
       traceback: error,
@@ -44,8 +43,7 @@ export async function changeModel({ model, provider, writeToConfig }: changeMode
     await writeToConfig('GOOSE_MODEL', model, false);
   } catch (error) {
     console.error(`Failed to change model at config step -- ${model} ${provider}`);
-    // show toast with error
-    ToastError({
+    toastError({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: CONFIG_UPDATE_ERROR_MSG,
       traceback: error,
@@ -54,7 +52,7 @@ export async function changeModel({ model, provider, writeToConfig }: changeMode
     // TODO: reset agent to use current config settings
   } finally {
     // show toast
-    ToastSuccess({
+    toastSuccess({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model} from ${provider}`,
     });
@@ -73,8 +71,7 @@ export async function startAgentFromConfig({ readFromConfig }: startAgentFromCon
   try {
     modelProvider = await getCurrentModelAndProvider({ readFromConfig: readFromConfig });
   } catch (error) {
-    // show toast with error
-    ToastError({
+    toastError({
       title: START_AGENT_TITLE,
       msg: CONFIG_READ_MODEL_ERROR_MSG,
       traceback: error,
@@ -91,16 +88,14 @@ export async function startAgentFromConfig({ readFromConfig }: startAgentFromCon
     await initializeAgent({ model: model, provider: provider });
   } catch (error) {
     console.error(`Failed to change model at agent step -- ${model} ${provider}`);
-    // show toast with error
-    ToastError({
+    toastError({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: SWITCH_MODEL_AGENT_ERROR_MSG,
       traceback: error,
     });
     return;
   } finally {
-    // success toast
-    ToastSuccess({
+    toastSuccess({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: `${INITIALIZE_SYSTEM_WITH_MODEL_SUCCESS_MSG} with ${model} from ${provider}`,
     });
@@ -148,7 +143,7 @@ export async function getCurrentModelAndProviderForDisplay({
   const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
   if (providerDetailsList.length != 1) {
-    ToastError({
+    toastError({
       title: UNKNOWN_PROVIDER_TITLE,
       msg: UNKNOWN_PROVIDER_MSG,
     });

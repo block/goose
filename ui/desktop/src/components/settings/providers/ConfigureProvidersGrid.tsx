@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import { getActiveProviders, isSecretKey } from '../api_keys/utils';
 import { useModel } from '../models/ModelContext';
 import { Button } from '../../ui/button';
-import { ToastError, ToastSuccess } from '../models/toasts';
+import { toastError, toastSuccess } from '../../../toasts';
 
 function ConfirmationModal({ message, onConfirm, onCancel }) {
   return (
@@ -142,7 +142,7 @@ export function ConfigureProvidersGrid() {
         }
       }
 
-      ToastSuccess({
+      toastSuccess({
         title: provider,
         msg: isUpdate ? `Successfully updated configuration` : `Successfully added configuration`,
       });
@@ -155,7 +155,7 @@ export function ConfigureProvidersGrid() {
       setModalMode('setup');
     } catch (error) {
       console.error('Error handling modal submit:', error);
-      ToastError({
+      toastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedForSetup)?.isConfigured ? 'update' : 'add'} configuration`,
         traceback: error.message,
@@ -181,7 +181,7 @@ export function ConfigureProvidersGrid() {
       // Check if the selected provider is currently active
       if (currentModel?.provider === providerToDelete.name) {
         const msg = `Cannot delete the configuration because it's the provider of the current model (${currentModel.name}). Please switch to a different model first.`;
-        ToastError({ title: providerToDelete.name, msg, traceback: msg });
+        toastError({ title: providerToDelete.name, msg, traceback: msg });
         setIsConfirmationOpen(false);
         return;
       }
@@ -209,7 +209,7 @@ export function ConfigureProvidersGrid() {
       }
 
       console.log('Configuration deleted successfully.');
-      ToastSuccess({
+      toastSuccess({
         title: providerToDelete.name,
         msg: 'Successfully deleted configuration',
       });
@@ -218,7 +218,7 @@ export function ConfigureProvidersGrid() {
       setActiveKeys(updatedKeys);
     } catch (error) {
       console.error('Error deleting configuration:', error);
-      ToastError({
+      toastError({
         title: providerToDelete.name,
         msg: 'Failed to delete configuration',
         traceback: error.message,

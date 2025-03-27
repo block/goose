@@ -2,7 +2,6 @@ import React from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import type { View } from '../../App';
-import { useConfig } from '../ConfigContext';
 import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 
