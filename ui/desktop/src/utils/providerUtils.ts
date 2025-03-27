@@ -70,9 +70,12 @@ export const initializeSystem = async (provider: string, model: string) => {
     console.log('initializing agent with provider', provider, 'model', model);
     await initializeAgent({ provider, model });
 
-    // Sync the model state with React
-    const syncedModel = syncModelWithAgent(provider, model);
-    console.log('Model synced with React state:', syncedModel);
+    // This will go away after the release of settings v2 as this is now handled in config.yaml
+    if (!process.env.ALPHA) {
+      // Sync the model state with React
+      const syncedModel = syncModelWithAgent(provider, model);
+      console.log('Model synced with React state:', syncedModel);
+    }
 
     // Get botConfig directly here
     const botConfig = window.appConfig?.get?.('botConfig');
