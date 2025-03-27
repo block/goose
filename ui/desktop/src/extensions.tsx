@@ -5,7 +5,7 @@ import { type SettingsViewOptions } from './components/settings/SettingsView';
 import { toast } from 'react-toastify';
 
 import builtInExtensionsData from './built-in-extensions.json';
-import { ToastError, ToastLoading, ToastSuccess } from './components/settings/models/toasts';
+import { toastError, toastLoading, toastSuccess } from './toasts';
 import { Toast } from 'react-toastify/dist/components';
 
 // Hardcoded default extension timeout in seconds
@@ -84,7 +84,7 @@ export async function addExtension(
     };
 
     let toastId;
-    if (!silent) toastId = ToastLoading({ title: extension.name, msg: 'Adding extension...' });
+    if (!silent) toastId = toastLoading({ title: extension.name, msg: 'Adding extension...' });
 
     const response = await fetch(getApiUrl('/extensions/add'), {
       method: 'POST',
@@ -100,7 +100,7 @@ export async function addExtension(
     if (!data.error) {
       if (!silent) {
         if (toastId) toast.dismiss(toastId);
-        ToastSuccess({ title: extension.name, msg: `Successfully enabled extension` });
+        toastSuccess({ title: extension.name, msg: `Successfully enabled extension` });
       }
       return response;
     }
@@ -118,7 +118,7 @@ export async function addExtension(
     }
 
     if (toastId) toast.dismiss(toastId);
-    ToastError({
+    toastError({
       title: extension.name,
       msg: errorMessage,
       traceback: data.message,
@@ -129,7 +129,7 @@ export async function addExtension(
   } catch (error) {
     const errorMessage = `Failed to add ${extension.name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    ToastError({
+    toastError({
       title: extension.name,
       msg: 'Failed to add extension',
       traceback: error.message,
@@ -154,14 +154,14 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
 
     if (!data.error) {
       if (!silent) {
-        ToastSuccess({ title: name, msg: 'Successfully disabled extension' });
+        toastSuccess({ title: name, msg: 'Successfully disabled extension' });
       }
       return response;
     }
 
     const errorMessage = `Error removing ${name} extension${data.message ? `. ${data.message}` : ''}`;
     console.error(errorMessage);
-    ToastError({
+    toastError({
       title: name,
       msg: 'Error removing extension',
       traceback: data.message,
@@ -171,7 +171,7 @@ export async function removeExtension(name: string, silent: boolean = false): Pr
   } catch (error) {
     const errorMessage = `Failed to remove ${name} extension: ${error instanceof Error ? error.message : 'Unknown error'}`;
     console.error(errorMessage);
-    ToastError({
+    toastError({
       title: name,
       msg: 'Error removing extension',
       traceback: error.message,
@@ -257,7 +257,7 @@ function envVarsRequired(config: ExtensionConfig) {
 }
 
 function handleError(message: string, shouldThrow = false): void {
-  ToastError({
+  toastError({
     title: 'Failed to install extension',
     msg: message,
     traceback: message,

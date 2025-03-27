@@ -235,55 +235,25 @@ pub async fn persist_messages(
     messages: &[Message],
     provider: Option<Arc<Box<dyn Provider>>>,
 ) -> Result<()> {
-    // Read existing metadata
-    let mut metadata = read_metadata(session_file)?;
-
     // Count user messages
     let user_message_count = messages
         .iter()
-        .filter(|m| m.role == mcp_core::role::Role::User)
-        .filter(|m| !m.as_concat_text().trim().is_empty())
+        .filter(|m| m.role == mcp_core::role::Role::User && !m.as_concat_text().trim().is_empty())
         .count();
 
     // Check if we need to update the description (after 1st or 3rd user message)
-    if let Some(provider) = provider {
-        if user_message_count < 4 {
-            // Generate description
-            let mut description_prompt = "Based on the conversation so far, provide a concise header for this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the header. Avoid filler words such as help, summary, exchange, request etc that do not help distinguish different conversations.".to_string();
-
-            // get context from messages so far
-            let context: Vec<String> = messages.iter().map(|m| m.as_concat_text()).collect();
-
-            if !context.is_empty() {
-                description_prompt = format!(
-                    "Here are the first few user messages:\n{}\n\n{}",
-                    context.join("\n"),
-                    description_prompt
-                );
-            }
-
-            // Generate the description
-            let message = Message::user().with_text(&description_prompt);
-            match provider
-                .complete(
-                    "Reply with only a description in four words or less.",
-                    &[message],
-                    &[],
-                )
-                .await
-            {
-                Ok((response, _)) => {
-                    metadata.description = response.as_concat_text();
-                }
-                Err(e) => {
-                    tracing::error!("Failed to generate session description: {:?}", e);
-                }
-            }
+    match provider {
+        Some(provider) if user_message_count < 4 => {
+            //generate_description is responsible for writing the messages
+            generate_description(session_file, messages, provider.as_ref().as_ref()).await
+        }
+        _ => {
+            // Read existing metadata
+            let metadata = read_metadata(session_file)?;
+            // Write the file with metadata and messages
+            save_messages_with_metadata(session_file, &metadata, messages)
         }
     }
-
-    // Write the file with metadata and messages
-    save_messages_with_metadata(session_file, &metadata, messages)
 }
 
 /// Write messages to a session file with the provided metadata
@@ -323,7 +293,7 @@ pub async fn generate_description(
     // Create a special message asking for a 3-word description
     let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();
 
-    // get context from messages so far
+    // get context from messages so far, limiting each message to 300 chars
     let context: Vec<String> = messages
         .iter()
         .filter(|m| m.role == mcp_core::role::Role::User)
@@ -358,9 +328,7 @@ pub async fn generate_description(
     metadata.description = description;
 
     // Update the file with the new metadata and existing messages
-    update_metadata(session_file, &metadata).await?;
-
-    Ok(())
+    save_messages_with_metadata(session_file, &metadata, messages)
 }
 
 /// Update only the metadata in a session file, preserving all messages

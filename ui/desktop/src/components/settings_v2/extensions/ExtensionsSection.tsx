@@ -48,12 +48,14 @@ export default function ExtensionsSection() {
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
+
     await toggleExtension({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
-      removeFromConfig: removeExtension,
+      toastOptions: { silent: false },
     });
+
     await fetchExtensions(); // Refresh the list after toggling
   };
 
@@ -64,8 +66,6 @@ export default function ExtensionsSection() {
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
-    // TODO: replace activateExtension in index
-    // TODO: make sure error handling works
     await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
     handleModalClose();
     await fetchExtensions();

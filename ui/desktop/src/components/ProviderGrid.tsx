@@ -14,7 +14,7 @@ import { initializeSystem } from '../utils/providerUtils';
 import { getApiUrl, getSecretKey } from '../config';
 import { getActiveProviders, isSecretKey } from './settings/api_keys/utils';
 import { BaseProviderGrid, getProviderDescription } from './settings/providers/BaseProviderGrid';
-import { ToastError, ToastSuccess } from './settings/models/toasts';
+import { toastError, toastSuccess } from '../toasts';
 
 interface ProviderGridProps {
   onSubmit?: () => void;
@@ -55,7 +55,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
     addRecentModel(model);
     localStorage.setItem('GOOSE_PROVIDER', providerId);
 
-    ToastSuccess({
+    toastSuccess({
       title: provider.name,
       msg: `Starting Goose with default model: ${getDefaultModel(provider.name.toLowerCase().replace(/ /g, '_'))}.`,
     });
@@ -135,7 +135,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
         }
       }
 
-      ToastSuccess({
+      toastSuccess({
         title: provider,
         msg: isUpdate ? `Successfully updated configuration` : `Successfully added configuration`,
       });
@@ -147,7 +147,7 @@ export function ProviderGrid({ onSubmit }: ProviderGridProps) {
       setSelectedId(null);
     } catch (error) {
       console.error('Error handling modal submit:', error);
-      ToastError({
+      toastError({
         title: provider,
         msg: `Failed to ${providers.find((p) => p.id === selectedId)?.isConfigured ? 'update' : 'add'} configuration`,
         traceback: error.message,

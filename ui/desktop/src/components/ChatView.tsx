@@ -27,7 +27,6 @@ import {
   getTextContent,
   createAssistantMessage,
 } from '../types/message';
-import { ToastSuccess } from './settings/models/toasts';
 
 export interface ChatType {
   id: string;

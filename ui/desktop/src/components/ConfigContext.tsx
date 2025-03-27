@@ -178,8 +178,20 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       getProviders,
       getExtensions,
     }),
-    [config, providersList, extensionsList]
-  ); // Functions don't need to be dependencies as they don't change
+    [
+      config,
+      providersList,
+      extensionsList,
+      upsert,
+      read,
+      remove,
+      addExtension,
+      removeExtension,
+      toggleExtension,
+      getProviders,
+      getExtensions,
+    ]
+  );
 
   return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../../../ui/button';
 import Modal from '../../../Modal';
-import { Input } from '../../../ui/input';
-import Select from 'react-select';
-import { createDarkSelectStyles, darkSelectTheme } from '../../../ui/select-styles';
 import { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
@@ -33,10 +30,10 @@ export default function ExtensionModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const handleAddEnvVar = () => {
+  const handleAddEnvVar = (key: string, value: string) => {
     setFormData({
       ...formData,
-      envVars: [...formData.envVars, { key: '', value: '' }],
+      envVars: [...formData.envVars, { key, value }],
     });
   };
 
@@ -111,7 +108,12 @@ export default function ExtensionModal({
         </p>
       </div>
       <Button
-        onClick={() => onDelete && onDelete(formData.name)}
+        onClick={() => {
+          if (onDelete) {
+            onDelete(formData.name);
+            onClose(); // Add this line to close the modal after deletion
+          }
+        }}
         className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
       >
         <Trash2 className="h-4 w-4 mr-2" /> Confirm Delete
@@ -208,7 +210,6 @@ export default function ExtensionModal({
               onRemove={handleRemoveEnvVar}
               onChange={Object.assign(handleEnvVarChange, { setSubmitAttempted })}
               submitAttempted={submitAttempted}
-              isValid={isEnvVarsValid()}
             />
           </div>
         </>
