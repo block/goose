@@ -9,8 +9,10 @@ const execAsync = promisify(exec);
 test.describe('Goose App', () => {
   let electronApp;
   let appProcess;
+  let mainWindow;
+  let isProviderSelected = false;
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
     console.log('Starting Electron app...');
     
     // Start the electron-forge process
@@ -48,10 +50,25 @@ test.describe('Goose App', () => {
         NODE_ENV: 'development'
       }
     });
+
+    // Get the main window once for all tests
+    mainWindow = await electronApp.firstWindow();
+    await mainWindow.waitForLoadState('domcontentloaded');
+
+    // Check if we're already on the chat screen
+    try {
+      const chatInput = await mainWindow.waitForSelector('textarea[placeholder*="What can goose help with?"]', 
+        { timeout: 5000 });
+      isProviderSelected = await chatInput.isVisible();
+      console.log('Provider already selected, chat interface visible');
+    } catch (e) {
+      console.log('On provider selection screen');
+      isProviderSelected = false;
+    }
   });
 
-  test.afterEach(async () => {
-    console.log('Cleaning up...');
+  test.afterAll(async () => {
+    console.log('Final cleanup...');
     
     // Close the test instance
     if (electronApp) {
@@ -66,7 +83,6 @@ test.describe('Goose App', () => {
         await execAsync('pkill -f electron || true');
       }
     } catch (error) {
-      // Ignore errors if no processes found
       if (!error.message?.includes('no process found')) {
         console.error('Error killing electron processes:', error);
       }
@@ -77,11 +93,9 @@ test.describe('Goose App', () => {
       if (process.platform === 'win32') {
         await execAsync('taskkill /F /IM node.exe');
       } else {
-        // The || true ensures the command doesn't fail if no processes are found
         await execAsync('pkill -f "start-gui" || true');
       }
     } catch (error) {
-      // Only log real errors, not "no matching processes" errors
       if (!error.message?.includes('no process found')) {
         console.error('Error killing npm processes:', error);
       }
@@ -93,60 +107,147 @@ test.describe('Goose App', () => {
         process.kill(appProcess.pid);
       }
     } catch (error) {
-      // Ignore ESRCH errors (process not found)
       if (error.code !== 'ESRCH') {
         console.error('Error killing npm process:', error);
       }
     }
   });
 
-  test('basic app functionality', async () => {
-    console.log('Starting test...');
+  test('verify initial screen and select provider if needed', async () => {
+    console.log('Checking initial screen state...');
     
-    try {
-      // Get the first window
-      console.log('Getting first window...');
-      const window = await electronApp.firstWindow();
+    if (!isProviderSelected) {
+      // Take screenshot of provider selection screen
+      await mainWindow.screenshot({ path: 'test-results/provider-selection.png' });
       
-      // Wait for the window to load
-      console.log('Waiting for window load...');
-      await window.waitForLoadState('domcontentloaded');
-      
-      // Take a screenshot at this point
-      console.log('Taking first screenshot...');
-      await window.screenshot({ path: 'test-results/window-loaded.png' });
-      
-      // Wait for the provider selection screen with correct casing
-      console.log('Waiting for provider selection screen...');
-      const heading = await window.waitForSelector('h2:has-text("Choose a Provider")', { timeout: 10000 });
+      // Verify provider selection screen
+      const heading = await mainWindow.waitForSelector('h2:has-text("Choose a Provider")', { timeout: 10000 });
       const headingText = await heading.textContent();
       expect(headingText).toBe('Choose a Provider');
       
-      // Take a screenshot of the provider selection screen
-      await window.screenshot({ path: 'test-results/provider-selection.png' });
+      // Find and verify the Databricks card
+      const databricksHeading = await mainWindow.waitForSelector('h3:has-text("Databricks")');
+      expect(await databricksHeading.isVisible()).toBe(true);
       
-      // Get the window title
-      console.log('Getting window title...');
-      const title = await window.title();
-      console.log('Window title:', title);
+      // Find the Launch button within the Databricks card
+      const launchButton = await mainWindow.locator('button:has-text("Launch")').nth(1);
+      expect(await launchButton.isVisible()).toBe(true);
       
-      // Verify we're on the provider selection screen
-      const providerText = await window.textContent('h2');
-      expect(providerText).toBe('Choose a Provider');
+      // Take screenshot before clicking
+      await mainWindow.screenshot({ path: 'test-results/before-databricks-click.png' });
       
-      console.log('Test completed successfully');
-    } catch (error) {
-      console.error('Test failed:', error);
+      // Click the Launch button
+      await launchButton.click();
       
-      // Try to take an error screenshot
-      try {
-        const window = await electronApp.firstWindow();
-        await window.screenshot({ path: 'test-results/error-state.png' });
-      } catch (screenshotError) {
-        console.error('Failed to take error screenshot:', screenshotError);
-      }
-      
-      throw error;
+      // Wait for chat interface to appear
+      const chatTextarea = await mainWindow.waitForSelector('textarea[placeholder*="What can goose help with?"]', 
+        { timeout: 15000 });
+      expect(await chatTextarea.isVisible()).toBe(true);
+    } else {
+      console.log('Provider already selected, skipping provider selection test');
     }
+    
+    // Take screenshot of current state
+    await mainWindow.screenshot({ path: 'test-results/chat-interface.png' });
+    
+    // Verify window title
+    const title = await mainWindow.title();
+    expect(title).toBe('Goose');
+  });
+
+  test('chat interaction', async () => {
+    console.log('Testing chat interaction...');
+    
+    // Find the chat input
+    const chatInput = await mainWindow.waitForSelector('textarea[placeholder*="What can goose help with?"]');
+    expect(await chatInput.isVisible()).toBe(true);
+    
+    // Type a message
+    await chatInput.fill('Hello, can you help me with a simple task?');
+    
+    // Take screenshot before sending
+    await mainWindow.screenshot({ path: 'test-results/before-send.png' });
+    
+    // Get initial message count
+    const initialMessages = await mainWindow.locator('.prose').count();
+    
+    // Send message
+    await chatInput.press('Enter');
+    
+    // Wait for loading indicator to appear (using the specific class and text)
+    console.log('Waiting for loading indicator...');
+    const loadingGoose = await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"', 
+      { timeout: 10000 });
+    expect(await loadingGoose.isVisible()).toBe(true);
+    
+    // Take screenshot of loading state
+    await mainWindow.screenshot({ path: 'test-results/loading-state.png' });
+    
+    // Wait for loading indicator to disappear
+    console.log('Waiting for response...');
+    await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"', 
+      { state: 'hidden', timeout: 30000 });
+    
+    // Wait for new message to appear
+    await mainWindow.waitForFunction((count) => {
+      const messages = document.querySelectorAll('.prose');
+      return messages.length > count;
+    }, initialMessages, { timeout: 30000 });
+    
+    // Get the latest response
+    const response = await mainWindow.locator('.prose').last();
+    expect(await response.isVisible()).toBe(true);
+    
+    // Verify response has content
+    const responseText = await response.textContent();
+    expect(responseText).toBeTruthy();
+    expect(responseText.length).toBeGreaterThan(0);
+    
+    // Take screenshot of response
+    await mainWindow.screenshot({ path: 'test-results/chat-response.png' });
+  });
+
+  test('verify chat history', async () => {
+    console.log('Testing chat history...');
+    
+    // Find the chat input again
+    const chatInput = await mainWindow.waitForSelector('textarea[placeholder*="What can goose help with?"]');
+    
+    // Test message sending with a specific question
+    await chatInput.fill('What is 2+2?');
+    
+    // Get initial message count
+    const initialMessages = await mainWindow.locator('.prose').count();
+    
+    // Send message
+    await chatInput.press('Enter');
+    
+    // Wait for loading indicator and response using the correct selector
+    await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"', { timeout: 10000 });
+    await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"', 
+      { state: 'hidden', timeout: 30000 });
+    
+    // Wait for new message
+    await mainWindow.waitForFunction((count) => {
+      const messages = document.querySelectorAll('.prose');
+      return messages.length > count;
+    }, initialMessages, { timeout: 30000 });
+    
+    // Get the latest response
+    const response = await mainWindow.locator('.prose').last();
+    const responseText = await response.textContent();
+    expect(responseText).toBeTruthy();
+    
+    // Check for message history
+    const messages = await mainWindow.locator('.prose').all();
+    expect(messages.length).toBeGreaterThanOrEqual(2);
+    
+    // Take screenshot of chat history
+    await mainWindow.screenshot({ path: 'test-results/chat-history.png' });
+    
+    // Test command history (up arrow)
+    await chatInput.press('Control+ArrowUp');
+    const inputValue = await chatInput.inputValue();
+    expect(inputValue).toBe('What is 2+2?');
   });
 });
