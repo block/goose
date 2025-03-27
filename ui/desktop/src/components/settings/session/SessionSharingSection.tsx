@@ -6,6 +6,7 @@ export default function SessionSharingSection() {
     enabled: false,
     baseUrl: '',
   });
+  const [urlError, setUrlError] = useState('');
 
   // Load session sharing config from localStorage
   useEffect(() => {
@@ -19,6 +20,48 @@ export default function SessionSharingSection() {
       }
     }
   }, []);
+
+  // Helper to check if the user’s input is a valid URL
+  function isValidUrl(value: string): boolean {
+    if (!value) return false;
+    try {
+      new URL(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // Handle toggling "Enable Session Sharing"
+  const handleEnableToggle = () => {
+    setSessionSharingConfig((prev) => {
+      const updated = { ...prev, enabled: !prev.enabled };
+      localStorage.setItem('session_sharing_config', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Handle changes to the base URL field
+  const handleBaseUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newBaseUrl = e.target.value;
+    setSessionSharingConfig((prev) => ({
+      ...prev,
+      baseUrl: newBaseUrl,
+    }));
+
+    if (isValidUrl(newBaseUrl)) {
+      setUrlError('');
+      // If it’s valid, also persist to localStorage
+      const updated = {
+        ...sessionSharingConfig,
+        baseUrl: newBaseUrl,
+      };
+      localStorage.setItem('session_sharing_config', JSON.stringify(updated));
+    } else {
+      // If it’s invalid, display an error message
+      setUrlError('Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).');
+    }
+  };
 
   return (
     <>
@@ -34,22 +77,13 @@ export default function SessionSharingSection() {
         </p>
 
         <div className="space-y-4">
+          {/* Enable Session Sharing toggle */}
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-textStandard cursor-pointer">
               Enable Session Sharing
             </label>
             <button
-              onClick={() => {
-                setSessionSharingConfig((prev) => {
-                  const updated = {
-                    ...prev,
-                    enabled: !prev.enabled,
-                  };
-                  // Save to localStorage
-                  localStorage.setItem('session_sharing_config', JSON.stringify(updated));
-                  return updated;
-                });
-              }}
+              onClick={handleEnableToggle}
               className={`relative inline-flex h-6 w-11 items-center rounded-full ${
                 sessionSharingConfig.enabled ? 'bg-indigo-500' : 'bg-bgProminent'
               } transition-colors duration-200 ease-in-out focus:outline-none`}
@@ -62,6 +96,7 @@ export default function SessionSharingSection() {
             </button>
           </div>
 
+          {/* Base URL field (only visible if enabled) */}
           {sessionSharingConfig.enabled && (
             <div className="space-y-2">
               <label
@@ -75,19 +110,9 @@ export default function SessionSharingSection() {
                 type="url"
                 placeholder="https://example.com/api"
                 value={sessionSharingConfig.baseUrl}
-                onChange={(e) => {
-                  const newBaseUrl = e.target.value;
-                  setSessionSharingConfig((prev) => {
-                    const updated = {
-                      ...prev,
-                      baseUrl: newBaseUrl,
-                    };
-                    // Save to localStorage
-                    localStorage.setItem('session_sharing_config', JSON.stringify(updated));
-                    return updated;
-                  });
-                }}
+                onChange={handleBaseUrlChange}
               />
+              {urlError && <p className="text-red-500 text-sm">{urlError}</p>}
             </div>
           )}
         </div>

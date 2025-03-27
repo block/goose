@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, MessageSquare, Folder, Share2, Copy, Check, LoaderCircle } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
@@ -28,7 +28,23 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [shareLink, setShareLink] = useState<string>('');
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [canShare, setCanShare] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const savedSessionConfig = localStorage.getItem('session_sharing_config');
+    if (savedSessionConfig) {
+      try {
+        const config = JSON.parse(savedSessionConfig);
+        // If config.enabled is true and config.baseUrl is non-empty, we can share
+        if (config.enabled && config.baseUrl) {
+          setCanShare(true);
+        }
+      } catch (error) {
+        console.error('Error parsing session sharing config:', error);
+      }
+    }
+  }, []);
 
   const handleShare = async () => {
     setIsSharing(true);
@@ -116,9 +132,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="ml-auto flex items-center space-x-4">
           <button
             onClick={handleShare}
-            disabled={isSharing}
-            className="flex items-center text-textStandard hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150"
-            title="Share this session"
+            disabled={!canShare || isSharing}
+            className={`flex items-center text-textStandard ${
+              canShare
+                ? 'hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150'
+                : 'cursor-not-allowed opacity-50'
+            }`}
           >
             {isSharing ? (
               <>
