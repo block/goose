@@ -108,7 +108,12 @@ export default function ExtensionModal({
         </p>
       </div>
       <Button
-        onClick={() => onDelete && onDelete(formData.name)}
+        onClick={() => {
+          if (onDelete) {
+            onDelete(formData.name);
+            onClose(); // Add this line to close the modal after deletion
+          }
+        }}
         className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
       >
         <Trash2 className="h-4 w-4 mr-2" /> Confirm Delete

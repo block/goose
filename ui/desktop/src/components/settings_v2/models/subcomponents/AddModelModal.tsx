@@ -45,6 +45,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
 
   const changeModel = async () => {
     await switchModel({ model: model, provider: provider, writeToConfig: upsert });
+    onClose(); // Add this line to close the modal after changing the model
   };
 
   useEffect(() => {
