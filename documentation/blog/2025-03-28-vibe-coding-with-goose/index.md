@@ -82,14 +82,14 @@ The Speech MCP server is [open-source](https://github.com/Kvadratni/speech-mcp) 
 Voice interactions with AI agents like Goose with the power and tools to act on instructions provides a different kind of vibe that makes the future feel closer than ever. Whether you're interested in vibe coding, accessibility improvements, or just want to feel a bit more like Tony Stark while getting Goose to pull a J.A.R.V.I.S, the Speech MCP server offers a glimpse into the future of human-AI collaboration - and it's available today.
 
 <head>
-  <meta property="og:title" content="Vibe Coding with Goose: Speak Your Code into Existence" />
+  <meta property="og:title" content="Vibe Coding with Goose and the Speech MCP" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/28/vibe-coding-with-goose" />
-  <meta property="og:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI assistant." />
+  <meta property="og:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI agent." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/vibe-coding-74eafa34e7ae10cfb738feddecc98519.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Vibe Coding with Goose: Speak Your Code into Existence" />
-  <meta name="twitter:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI assistant." />
+  <meta name="twitter:title" content="Vibe Coding with Goose and the Speech MCP" />
+  <meta name="twitter:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI agent." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/vibe-coding-74eafa34e7ae10cfb738feddecc98519.png" />
 </head>
