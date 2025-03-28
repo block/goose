@@ -122,7 +122,17 @@ const generateSecretKey = () => {
   return key;
 };
 
+const getSharingUrl = () => {
+  // checks app env for sharing url
+  loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
+  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
+  // to in the env at bundle time
+  return process.env.GOOSE_BASE_URL_SHARE;
+};
+
 let [provider, model] = getGooseProvider();
+
+let sharingUrl = getSharingUrl();
 
 let appConfig = {
   GOOSE_PROVIDER: provider,
@@ -170,6 +180,7 @@ const createChat = async (
           GOOSE_PORT: port,
           GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
+          GOOSE_BASE_URL_SHARE: sharingUrl,
           botConfig: botConfig,
         }),
       ],
