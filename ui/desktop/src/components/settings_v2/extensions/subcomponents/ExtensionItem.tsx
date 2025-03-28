@@ -71,7 +71,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
             </button>
           )}
           <Switch
-            checked={visuallyEnabled}
+            checked={(isToggling && visuallyEnabled) || extension.enabled}
             onCheckedChange={() => handleToggle(extension)}
             variant="mono"
           />
