@@ -11,6 +11,7 @@ import { Card } from './ui/card';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
 import Splash from './Splash';
+import { SearchView } from './conversation/SearchView';
 import { DeepLinkModal } from './ui/DeepLinkModal';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
@@ -387,25 +388,27 @@ export default function ChatView({
           />
         ) : (
           <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
-            {filteredMessages.map((message, index) => (
-              <div key={message.id || index} className="mt-[16px]">
-                {isUserMessage(message) ? (
-                  <UserMessage message={message} />
-                ) : (
-                  <GooseMessage
-                    messageHistoryIndex={chat?.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    metadata={messageMetadata[message.id || '']}
-                    append={(text) => append(createUserMessage(text))}
-                    appendMessage={(newMessage) => {
-                      const updatedMessages = [...messages, newMessage];
-                      setMessages(updatedMessages);
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+            <SearchView className="mt-[16px]" scrollAreaRef={scrollRef}>
+              {filteredMessages.map((message, index) => (
+                <div key={message.id || index} className="mt-[16px] message-content">
+                  {isUserMessage(message) ? (
+                    <UserMessage message={message} />
+                  ) : (
+                    <GooseMessage
+                      messageHistoryIndex={chat?.messageHistoryIndex}
+                      message={message}
+                      messages={messages}
+                      metadata={messageMetadata[message.id || '']}
+                      append={(text) => append(createUserMessage(text))}
+                      appendMessage={(newMessage) => {
+                        const updatedMessages = [...messages, newMessage];
+                        setMessages(updatedMessages);
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </SearchView>
             {error && (
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">

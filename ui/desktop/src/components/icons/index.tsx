@@ -1,3 +1,5 @@
+import ArrowDown from './ArrowDown';
+import ArrowUp from './ArrowUp';
 import Attach from './Attach';
 import Back from './Back';
 import ChatSmart from './ChatSmart';
@@ -19,6 +21,8 @@ import Time from './Time';
 import { Gear } from './Gear';
 
 export {
+  ArrowDown,
+  ArrowUp,
   Attach,
   Back,
   ChatSmart,
