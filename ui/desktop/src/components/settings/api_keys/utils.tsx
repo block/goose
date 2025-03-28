@@ -5,6 +5,7 @@ import { default_key_value, required_keys } from '../models/hardcoded_stuff'; //
 export function isSecretKey(keyName: string): boolean {
   // Endpoints and hosts should not be stored as secrets
   const nonSecretKeys = [
+    'ANTHROPIC_HOST',
     'DATABRICKS_HOST',
     'OLLAMA_HOST',
     'OPENAI_HOST',

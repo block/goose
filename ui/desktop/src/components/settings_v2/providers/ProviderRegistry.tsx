@@ -91,6 +91,11 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
           name: 'ANTHROPIC_API_KEY',
           is_secret: true,
         },
+        {
+          name: 'ANTHROPIC_HOST',
+          is_secret: false,
+          default: 'https://api.anthropic.com',
+        },
       ],
     },
   },
