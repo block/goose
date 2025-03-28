@@ -3,8 +3,7 @@ import { Input } from '../../ui/input';
 import { Check, Lock } from 'lucide-react';
 
 export default function SessionSharingSection() {
-  process.env.GOOSE_BASE_URL_SHARE = 'https://goosed.stage.sqprod.co/api'; // TODO: remove after testing
-  const envBaseUrlShare = process.env.GOOSE_BASE_URL_SHARE;
+  const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
   console.log('envBaseUrlShare', envBaseUrlShare);
 
   // If env is set, force sharing enabled and set the baseUrl accordingly.
