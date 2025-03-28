@@ -12,8 +12,9 @@ export default function SessionSharingSection() {
     baseUrl: envBaseUrlShare || '',
   });
   const [urlError, setUrlError] = useState('');
-  // Show a checkmark temporarily when the user’s input is valid
-  const [urlSaved, setUrlSaved] = useState(false);
+  // isUrlConfigured is true if the user has configured a baseUrl and it is valid.
+  const isUrlConfigured =
+    !envBaseUrlShare && sessionSharingConfig.enabled && isValidUrl(sessionSharingConfig.baseUrl);
 
   // Only load saved config from localStorage if the env variable is not provided.
   useEffect(() => {
@@ -30,7 +31,7 @@ export default function SessionSharingSection() {
     }
   }, [envBaseUrlShare]);
 
-  // Helper to check if the user’s input is a valid URL
+  // Helper to check if the user's input is a valid URL
   function isValidUrl(value: string): boolean {
     if (!value) return false;
     try {
@@ -65,12 +66,6 @@ export default function SessionSharingSection() {
       setUrlError('');
       const updated = { ...sessionSharingConfig, baseUrl: newBaseUrl };
       localStorage.setItem('session_sharing_config', JSON.stringify(updated));
-
-      // Show the checkmark temporarily
-      setUrlSaved(true);
-      setTimeout(() => {
-        setUrlSaved(false);
-      }, 2000);
     } else {
       setUrlError('Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).');
     }
@@ -83,7 +78,12 @@ export default function SessionSharingSection() {
       </div>
 
       <div className="px-8">
-        {!envBaseUrlShare && (
+        {envBaseUrlShare ? (
+          <p className="text-sm text-textStandard mb-4">
+            Session sharing is configured but fully opt-in — your sessions are only shared when you
+            explicitly click the share button.
+          </p>
+        ) : (
           <p className="text-sm text-textStandard mb-4">
             You can enable session sharing to share your sessions with others. You'll then need to
             enter the base URL for the session sharing API endpoint. Anyone with access to the same
@@ -130,7 +130,7 @@ export default function SessionSharingSection() {
                 >
                   Base URL
                 </label>
-                {urlSaved && <Check className="w-5 h-5 text-green-500" />}
+                {isUrlConfigured && <Check className="w-5 h-5 text-green-500" />}
               </div>
               <div className="flex items-center">
                 <Input
