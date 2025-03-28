@@ -117,7 +117,9 @@
     --text-placeholder: var(--grey-60);
     --text-prominent: var(--grey-10);
     --text-standard: var(--grey-20);
+    --text-standard-inverse: var(--dark-grey-90);
     --text-subtle: var(--grey-50);
+    --text-subtle-inverse: var(--dark-grey-60);
     --text-prominent-inverse: var(--constant-white);
 
     &.dark {
@@ -144,7 +146,9 @@
       --text-placeholder: var(--dark-grey-45);
       --text-prominent: var(--constant-white);
       --text-standard: var(--dark-grey-90);
+      --text-standard-inverse: var(--grey-20);
       --text-subtle: var(--dark-grey-60);
+      --text-subtle-inverse: var(--grey-50);
       --text-prominent-inverse: var(--grey-20);
     }
     /* end arcade colors */

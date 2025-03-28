@@ -1,5 +1,6 @@
 import React, { useEffect, KeyboardEvent, useState } from 'react';
-import { Search as SearchIcon, X as XIcon, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search as SearchIcon } from 'lucide-react';
+import { ArrowDown, ArrowUp, Close } from '../icons';
 
 /**
  * Props for the SearchBar component
@@ -81,14 +82,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <div
-      className={`fixed top-[36px] left-0 right-0 bg-bgSubtle border-b border-borderSubtle z-50 rounded-b-xl ${
+      className={`fixed top-[36px] left-0 right-0 bg-bgAppInverse text-textProminentInverse z-50 ${
         isExiting ? 'search-bar-exit' : 'search-bar-enter'
       }`}
     >
-      <div className="flex items-center w-full max-w-5xl mx-auto p-4 pb-3">
-        <div className="relative flex items-center flex-1">
-          <SearchIcon className="h-4 w-4 text-textSubtle absolute left-3" />
-          <div className="flex-1">
+      <div className="flex w-full max-w-5xl mx-auto">
+        <div className="relative flex flex-1 items-center h-full">
+          <SearchIcon className="h-4 w-4 text-textSubtleInverse absolute left-3" />
+          <div className="w-full">
             <input
               ref={inputRef}
               id="search-input"
@@ -97,55 +98,53 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
               placeholder="Search conversation..."
-              className="w-full pl-9 pr-10 py-1.5 bg-bgApp rounded border border-borderSubtle 
-                       text-textStandard placeholder:text-textSubtle focus:outline-none focus:ring-1 
-                       focus:ring-borderHover"
+              className="w-full text-sm pl-9 pr-10 py-3 bg-bgAppInverse
+                      placeholder:text-textSubtleInverse focus:outline-none 
+                       active:border-borderProminent"
             />
+          </div>
+
+          <div className="absolute right-3 flex h-full items-center justify-center text-sm text-textStandardInverse">
+            {searchResults && searchResults.count}
           </div>
         </div>
 
-        <button
-          onClick={toggleCaseSensitive}
-          className={`ml-2 p-1 hover:bg-bgHover rounded case-sensitive-btn ${
-            caseSensitive
-              ? 'text-textStandard bg-bgHover'
-              : 'text-textSubtle hover:text-textStandard'
-          }`}
-          title="Case Sensitive"
-        >
-          <span className="text-sm font-medium">Cc</span>
-        </button>
+        <div className="flex items-center justify-center h-auto px-4 gap-2">
+          <button
+            onClick={toggleCaseSensitive}
+            className={`flex items-center justify-center case-sensitive-btn px-2 ${
+              caseSensitive
+                ? 'text-textStandardInverse bg-bgHover'
+                : 'text-textSubtleInverse hover:text-textStandardInverse'
+            }`}
+            title="Case Sensitive"
+          >
+            <span className="text-md font-medium">Aa</span>
+          </button>
 
-        <div className="flex items-center ml-4 space-x-2">
-          {searchResults && searchResults.count > 0 && (
-            <>
-              <span className="text-sm text-textSubtle">
-                {searchResults.currentIndex} of {searchResults.count}
-              </span>
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => handleNavigate('prev')}
-                  className="p-1 hover:bg-bgHover rounded text-textSubtle hover:text-textStandard"
-                  title="Previous (↑)"
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleNavigate('next')}
-                  className="p-1 hover:bg-bgHover rounded text-textSubtle hover:text-textStandard"
-                  title="Next (↓)"
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </button>
-              </div>
-            </>
-          )}
+          <button
+            onClick={() => handleNavigate('prev')}
+            className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
+            title="Previous (↑)"
+            disabled={!searchResults || searchResults.count === 0}
+          >
+            <ArrowUp className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => handleNavigate('next')}
+            className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
+            title="Next (↓)"
+            disabled={!searchResults || searchResults.count === 0}
+          >
+            <ArrowDown className="h-5 w-5" />
+          </button>
+
           <button
             onClick={handleClose}
-            className="p-1 hover:bg-bgHover rounded text-textSubtle hover:text-textStandard"
+            className="p-1 text-textSubtleInverse hover:text-textStandardInverse"
             title="Close (Esc)"
           >
-            <XIcon className="h-4 w-4" />
+            <Close className="h-5 w-5" />
           </button>
         </div>
       </div>
