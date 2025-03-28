@@ -152,6 +152,12 @@
 }
 
 @layer components {
+  /* Tailwind doesn't offer all three with break-words */
+  .word-break {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+  }
   .titlebar-drag-region {
     -webkit-app-region: drag;
     height: 32px;

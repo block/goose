@@ -86,10 +86,11 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeinlineCodeProperty, rehypeRaw]}
-        className={`prose prose-xs dark:prose-invert w-full max-w-full break-words
+        className={`prose prose-xs dark:prose-invert w-full max-w-full word-break
           prose-pre:p-0 prose-pre:m-0 !p-0
           prose-code:break-all prose-code:whitespace-pre-wrap
           prose-table:table prose-table:w-full
+          prose-blockquote:text-inherit
           prose-td:border prose-td:border-borderSubtle prose-td:p-2
           prose-th:border prose-th:border-borderSubtle prose-th:p-2
           prose-thead:bg-bgSubtle
