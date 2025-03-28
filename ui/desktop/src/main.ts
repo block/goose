@@ -47,28 +47,12 @@ app.on('open-url', async (event, url) => {
 
   // Parse the URL to determine the type
   const parsedUrl = new URL(url);
-  let botConfig = null;
-
-  // Extract bot config if it's a bot URL
-  if (parsedUrl.pathname === '/bot') {
-    const configParam = parsedUrl.searchParams.get('config');
-    if (configParam) {
-      try {
-        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-      } catch (e) {
-        console.error('Failed to parse bot config:', e);
-      }
-    }
-  }
 
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  // Always create a new window for bot URLs only
-  if (parsedUrl.pathname === '/bot') {
-    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
-  } else {
-    // For other URL types, reuse existing window if available
+  if (parsedUrl.hostname !== 'bot') {
+    // For non URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
@@ -79,11 +63,27 @@ app.on('open-url', async (event, url) => {
     }
   }
 
-  // Handle extension install links
+  // Handle extension install links and sessions
   if (parsedUrl.hostname === 'extension') {
     firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.hostname === 'sessions') {
     firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'bot') {
+    let botConfig = null;
+
+    // Extract bot config if it's a bot (miniagent) URL
+    if (parsedUrl.hostname === 'bot') {
+      const configParam = parsedUrl.searchParams.get('config');
+      if (configParam) {
+        try {
+          botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        } catch (e) {
+          console.error('Failed to parse bot config:', e);
+        }
+      }
+    }
+
+    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
   }
 });
 
