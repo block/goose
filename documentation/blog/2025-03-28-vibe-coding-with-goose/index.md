@@ -1,5 +1,5 @@
 ---
-title: "Vibe Coding with Goose: Speak Your Code into Existence"
+title: "Vibe Coding with Goose and the Speech MCP"
 description: "Explore the new Speech MCP server for Goose that enables voice-controlled coding and natural conversation with your AI assistant."
 authors: 
     - adewale
