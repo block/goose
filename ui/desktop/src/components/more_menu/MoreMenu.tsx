@@ -80,9 +80,11 @@ const DarkModeToggle: React.FC<DarkModeToggleProps> = ({ isDarkMode, onToggle })
 export default function MoreMenu({
   setView,
   setIsGoosehintsModalOpen,
+  toggleWebView,
 }: {
   setView: (view: View) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
+  toggleWebView?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<VersionInfo | null>(null);
@@ -231,6 +233,20 @@ export default function MoreMenu({
               >
                 Configure .goosehints
               </MenuButton>
+
+              {toggleWebView && (
+                <MenuButton
+                  onClick={() => {
+                    setOpen(false);
+                    toggleWebView();
+                  }}
+                  subtitle="Show or hide the editor"
+                  icon={<div className="w-4 h-4 flex items-center justify-center">🌐</div>}
+                >
+                  Code Editor
+                  <span className="text-textSubtle ml-1">⌘W</span>
+                </MenuButton>
+              )}
 
               <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
 

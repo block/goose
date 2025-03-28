@@ -174,6 +174,7 @@ const createChat = async (
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
+      webviewTag: true, // Enable webview tag
     },
   });
 
@@ -254,6 +255,8 @@ const createChat = async (
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
     unregisterDevToolsShortcut();
+
+    // Only stop the goosed process for this window
     goosedProcess.kill();
   });
   return mainWindow;
@@ -692,4 +695,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Also clean up when the app is about to quit
+app.on('will-quit', () => {
+  // Make sure to unregister all shortcuts
+  globalShortcut.unregisterAll();
 });

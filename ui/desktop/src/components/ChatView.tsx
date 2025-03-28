@@ -12,6 +12,7 @@ import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
 import Splash from './Splash';
 import { DeepLinkModal } from './ui/DeepLinkModal';
+import WebView from './WebView';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { BotConfig } from '../botConfig';
@@ -52,6 +53,7 @@ export default function ChatView({
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
+  const [showWebView, setShowWebView] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
   const [showShareableBotModal, setshowShareableBotModal] = useState(false);
   const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
@@ -220,6 +222,22 @@ export default function ChatView({
     }
   }, [messages]);
 
+  // Add keyboard shortcut for toggling editor
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Toggle WebView with Cmd/Ctrl+W
+      if ((event.metaKey || event.ctrlKey) && event.key === 'w') {
+        event.preventDefault();
+        setShowWebView(!showWebView);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showWebView]);
+
   // Handle submit
   const handleSubmit = (e: React.FormEvent) => {
     window.electron.startPowerSaveBlocker();
@@ -374,79 +392,95 @@ export default function ChatView({
   }, [filteredMessages, isUserMessage]);
 
   return (
-    <div className="flex flex-col w-full h-screen items-center justify-center">
-      <div className="relative flex items-center h-[36px] w-full">
-        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+    <div className="flex w-full h-screen">
+      <div className="flex flex-col h-screen flex-1">
+        <div className="relative flex items-center h-[36px] w-full">
+          <MoreMenuLayout
+            setView={setView}
+            setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+            toggleWebView={() => setShowWebView(!showWebView)}
+          />
+        </div>
+
+        <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+          {messages.length === 0 ? (
+            <Splash
+              append={(text) => append(createUserMessage(text))}
+              activities={botConfig?.activities || null}
+            />
+          ) : (
+            <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
+              {filteredMessages.map((message, index) => (
+                <div key={message.id || index} className="mt-[16px]">
+                  {isUserMessage(message) ? (
+                    <UserMessage message={message} />
+                  ) : (
+                    <GooseMessage
+                      messageHistoryIndex={chat?.messageHistoryIndex}
+                      message={message}
+                      messages={messages}
+                      metadata={messageMetadata[message.id || '']}
+                      append={(text) => append(createUserMessage(text))}
+                      appendMessage={(newMessage) => {
+                        const updatedMessages = [...messages, newMessage];
+                        setMessages(updatedMessages);
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+              {error && (
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                    {error.message || 'Honk! Goose experienced an error while responding'}
+                  </div>
+                  <div
+                    className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                    onClick={async () => {
+                      // Find the last user message
+                      const lastUserMessage = messages.reduceRight(
+                        (found, m) => found || (m.role === 'user' ? m : null),
+                        null as Message | null
+                      );
+                      if (lastUserMessage) {
+                        append(lastUserMessage);
+                      }
+                    }}
+                  >
+                    Retry Last Message
+                  </div>
+                </div>
+              )}
+              <div className="block h-16" />
+            </ScrollArea>
+          )}
+
+          <div className="relative">
+            {isLoading && <LoadingGoose />}
+            <Input
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              onStop={onStopGoose}
+              commandHistory={commandHistory}
+              value={_input}
+              onValueChange={_setInput}
+            />
+            <BottomMenu hasMessages={hasMessages} setView={setView} />
+          </div>
+        </Card>
+
+        {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
       </div>
 
-      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
-        {messages.length === 0 ? (
-          <Splash
-            append={(text) => append(createUserMessage(text))}
-            activities={botConfig?.activities || null}
-          />
-        ) : (
-          <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
-            {filteredMessages.map((message, index) => (
-              <div key={message.id || index} className="mt-[16px]">
-                {isUserMessage(message) ? (
-                  <UserMessage message={message} />
-                ) : (
-                  <GooseMessage
-                    messageHistoryIndex={chat?.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    metadata={messageMetadata[message.id || '']}
-                    append={(text) => append(createUserMessage(text))}
-                    appendMessage={(newMessage) => {
-                      const updatedMessages = [...messages, newMessage];
-                      setMessages(updatedMessages);
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                </div>
-                <div
-                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                  onClick={async () => {
-                    // Find the last user message
-                    const lastUserMessage = messages.reduceRight(
-                      (found, m) => found || (m.role === 'user' ? m : null),
-                      null as Message | null
-                    );
-                    if (lastUserMessage) {
-                      append(lastUserMessage);
-                    }
-                  }}
-                >
-                  Retry Last Message
-                </div>
-              </div>
-            )}
-            <div className="block h-16" />
-          </ScrollArea>
-        )}
-
-        <div className="relative">
-          {isLoading && <LoadingGoose />}
-          <Input
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            value={_input}
-            onValueChange={_setInput}
-          />
-          <BottomMenu hasMessages={hasMessages} setView={setView} />
-        </div>
-      </Card>
-
-      {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
+      {/* WebView positioned side-by-side */}
+      <div
+        className={`h-screen border-l border-borderSubtle transition-all duration-300 ${
+          showWebView ? 'w-2/3 opacity-100' : 'w-0 opacity-0 border-l-0'
+        }`}
+      >
+        {/* Only render WebView component if it's ever been shown */}
+        <WebView isVisible={showWebView} onClose={() => setShowWebView(false)} />
+      </div>
 
       {/* Deep Link Modal */}
       {showShareableBotModal && generatedBotConfig && (
