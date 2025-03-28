@@ -19,6 +19,7 @@ import type {
   ExtensionQuery,
   ExtensionConfig,
 } from '../api/types.gen';
+import { removeShims } from './settings_v2/extensions/utils';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
@@ -118,6 +119,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const addExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
+    // remove shims if present
+    if (config.type == 'stdio') {
+      config.cmd = removeShims(config.cmd);
+    }
     const query: ExtensionQuery = { name, config, enabled };
     await apiAddExtension({
       body: query,
