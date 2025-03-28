@@ -1,28 +1,28 @@
 ---
 title: "Vibe Coding with Goose and the Speech MCP"
-description: "Explore the new Speech MCP server for Goose that enables voice-controlled coding and natural conversation with your AI assistant."
+description: "Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI agent"
 authors: 
     - adewale
 ---
 
 ![blog cover](vibe-coding.png)
 
-Vibe coding is a term that is increasingly gaining ground in spaces all around us. It is a development technique that allows people create applications by describing the problem in a few sentences as a prompt to an AI agent. While this can be done by only typing, it is even more powerful when you can use your voice to express your ideas. This is where the new Speech MCP server for Goose comes in.
+Imagine creating an app just by describing what you want out loud, like you’re talking to a friend. That’s the magic of vibe coding: turning natural language into working code with the help of an AI agent. And while typing a prompt gets the job done, saying it out loud hits different 🔥 The new [Speech MCP server](https://block.github.io/goose/docs/tutorials/speech-mcp) has quite literally entered the chat.
 
 <!--truncate-->
 
-In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHY&ab_channel=BlockOpenSource), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension for Goose - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
+In a recent [Wild Goose Case livestream](https://www.youtube.com/watch?v=Zey9GHyXlHY&ab_channel=BlockOpenSource), hosts [Ebony Louis](https://www.linkedin.com/in/ebonylouis/) and [Adewale Abati](https://www.linkedin.com/in/acekyd/) were joined by [Max Novich](https://www.linkedin.com/in/maksym-stepanenko-26404867) from Block's AI tools team, who demonstrated an exciting new extension - the [Speech MCP server](https://github.com/Kvadratni/speech-mcp). 
 
-During the livestream, Max demonstrated this by creating an entire web application using only voice commands - no keyboard or mouse required. The result? A vibrant, animated webpage with 3D effects, synthwave aesthetics, and interactive elements, all created through natural conversation with Goose.
+During the livestream, Max demonstrated this by creating an entire web application using only voice commands - no keyboard or mouse required. This resulted in a vibrant, animated webpage with 3D effects, synthwave aesthetics, and interactive elements, all created through natural conversation with Goose.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/Zey9GHyXlHY?start=437&end=752" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 
 ## The Speech MCP Server
 
-The [Speech MCP server](https://github.com/Kvadratni/speech-mcp) is an open-source MCP server that enables voice interaction with AI agents like Goose. What makes it special is that it runs entirely locally on your machine, making it:
+[Speech MCP](https://github.com/Kvadratni/speech-mcp) is an open source MCP server that enables voice interaction with AI agents like Goose. What makes it special is that it runs entirely locally on your machine, making it:
 
-- Provider-agnostic
+- LLM agnostic
 - Privacy-focused
 - Cost-effective compared to cloud-based alternatives
 - Accessible without internet connectivity
@@ -30,7 +30,7 @@ The [Speech MCP server](https://github.com/Kvadratni/speech-mcp) is an open-sour
 ### Key Features
 
 1. **Local Speech Processing**: Uses two main models:
-   - Faster Whisper: A more efficient version of OpenAI's Whisper for speech-to-text (8x faster, less memory intensive)
+   - Faster Whisper: An efficient method to convert speech to text
    - Coqui TTS: A Japanese-engineered text-to-speech model with 54 natural-sounding voices
 
 2. **Voice Selection**: Choose from 54 different voices with varying characteristics and personalities
@@ -85,7 +85,7 @@ Voice interactions with AI agents like Goose with the power and tools to act on 
   <meta property="og:title" content="Vibe Coding with Goose: Speak Your Code into Existence" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/28/vibe-coding-with-goose" />
-  <meta property="og:description" content="Explore the new Speech MCP server for Goose that enables voice-controlled coding and natural conversation with your AI assistant." />
+  <meta property="og:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI assistant." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/vibe-coding-74eafa34e7ae10cfb738feddecc98519.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
