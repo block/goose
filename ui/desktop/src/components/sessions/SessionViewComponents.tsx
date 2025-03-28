@@ -77,7 +77,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
   onRetry,
 }) => {
   return (
-    <ScrollArea className="h-[calc(100vh-120px)] w-full">
+    <ScrollArea className="h-full w-full">
       <div className="p-4">
         <div className="flex flex-col space-y-4">
           <div className="space-y-4 mb-6">
