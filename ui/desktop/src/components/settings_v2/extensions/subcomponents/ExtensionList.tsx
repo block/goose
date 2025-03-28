@@ -7,7 +7,7 @@ import { combineCmdAndArgs } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
-  onToggle: (extension: FixedExtensionEntry) => void;
+  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   onConfigure: (extension: FixedExtensionEntry) => void;
 }
 
@@ -25,7 +25,6 @@ export default function ExtensionList({ extensions, onToggle, onConfigure }: Ext
     </div>
   );
 }
-
 // Helper functions
 // Helper function to get a friendly title from extension name
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
