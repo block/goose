@@ -90,6 +90,6 @@ Voice interactions with AI agents like Goose with the power and tools to act on 
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Vibe Coding with Goose: Speak Your Code into Existence" />
-  <meta name="twitter:description" content="Explore the new Speech MCP server for Goose that enables voice-controlled coding and natural conversation with your AI assistant." />
+  <meta name="twitter:description" content="Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI assistant." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/vibe-coding-74eafa34e7ae10cfb738feddecc98519.png" />
 </head>
