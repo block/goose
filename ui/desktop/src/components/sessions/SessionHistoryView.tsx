@@ -98,7 +98,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   };
 
   return (
-    <div className="h-screen w-full">
+    <div className="h-screen w-full flex flex-col">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
 
       {/* Top Row - back, info, reopen thread (fixed) */}

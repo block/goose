@@ -386,26 +386,28 @@ export default function ChatView({
             activities={botConfig?.activities || null}
           />
         ) : (
-          <ScrollArea ref={scrollRef} className="flex-1 px-4" autoScroll>
-            {filteredMessages.map((message, index) => (
-              <div key={message.id || index} className="mt-[16px]">
-                {isUserMessage(message) ? (
-                  <UserMessage message={message} />
-                ) : (
-                  <GooseMessage
-                    messageHistoryIndex={chat?.messageHistoryIndex}
-                    message={message}
-                    messages={messages}
-                    metadata={messageMetadata[message.id || '']}
-                    append={(text) => append(createUserMessage(text))}
-                    appendMessage={(newMessage) => {
-                      const updatedMessages = [...messages, newMessage];
-                      setMessages(updatedMessages);
-                    }}
-                  />
-                )}
-              </div>
-            ))}
+          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+            <div className="px-4">
+              {filteredMessages.map((message, index) => (
+                <div key={message.id || index} className="mt-[16px]">
+                  {isUserMessage(message) ? (
+                    <UserMessage message={message} />
+                  ) : (
+                    <GooseMessage
+                      messageHistoryIndex={chat?.messageHistoryIndex}
+                      message={message}
+                      messages={messages}
+                      metadata={messageMetadata[message.id || '']}
+                      append={(text) => append(createUserMessage(text))}
+                      appendMessage={(newMessage) => {
+                        const updatedMessages = [...messages, newMessage];
+                        setMessages(updatedMessages);
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
             {error && (
               <div className="flex flex-col items-center justify-center p-4">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">

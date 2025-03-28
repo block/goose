@@ -148,6 +148,93 @@
       --text-prominent-inverse: var(--grey-20);
     }
     /* end arcade colors */
+
+    /* Force scrollbars to be visible */
+    [data-radix-scroll-area-viewport] {
+      scrollbar-width: auto !important;
+      -ms-overflow-style: auto !important;
+    }
+
+    /* Override Radix UI ScrollArea styles */
+    [data-radix-scroll-area-viewport] > div {
+      display: block !important;
+    }
+
+    /* Native scrollbar styling */
+    * {
+      scrollbar-width: auto;
+      scrollbar-color: var(--grey-80) transparent;
+    }
+
+    .dark * {
+      scrollbar-color: var(--dark-grey-45) transparent;
+    }
+
+    /* Webkit scrollbar styles */
+    ::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 12px; /* Increased from 8px */
+      height: 12px;
+      background-color: transparent;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+      border-radius: 0;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: var(--grey-80);
+      border: 3px solid transparent; /* Creates padding effect */
+      border-radius: 8px;
+      background-clip: padding-box;
+      min-height: 40px; /* Minimum height of thumb */
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+      background-color: var(--dark-grey-45);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: var(--grey-60);
+      border: 2px solid transparent; /* Slightly less padding on hover */
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background-color: var(--dark-grey-60);
+    }
+
+    /* Ensure the thumb is more prominent when active */
+    ::-webkit-scrollbar-thumb:active {
+      background-color: var(--grey-50);
+      border: 2px solid transparent;
+    }
+
+    .dark ::-webkit-scrollbar-thumb:active {
+      background-color: var(--dark-grey-60);
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--grey-80);
+      border-radius: 4px;
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+      background: var(--dark-grey-45);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--grey-60);
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: var(--dark-grey-60);
+    }
   }
 }
 
