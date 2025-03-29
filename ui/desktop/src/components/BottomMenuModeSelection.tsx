@@ -6,29 +6,36 @@ import {
   filterGooseModes,
   ModeSelectionItem,
 } from './settings/basic/ModeSelectionItem';
+import { useConfig } from './ConfigContext';
 
 export const BottomMenuModeSelection = () => {
   const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
   const [gooseMode, setGooseMode] = useState('auto');
   const [previousApproveModel, setPreviousApproveModel] = useState('');
   const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
+  const { read, upsert } = useConfig();
 
   useEffect(() => {
     const fetchCurrentMode = async () => {
       try {
-        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': getSecretKey(),
-          },
-        });
+        if (!process.env.ALPHA) {
+          const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': getSecretKey(),
+            },
+          });
 
-        if (response.ok) {
-          const { value } = await response.json();
-          if (value) {
-            setGooseMode(value);
+          if (response.ok) {
+            const { value } = await response.json();
+            if (value) {
+              setGooseMode(value);
+            }
           }
+        } else {
+          const mode = (await read('GOOSE_MODE', false)) as string;
+          setGooseMode(mode);
         }
       } catch (error) {
         console.error('Error fetching current mode:', error);
@@ -77,28 +84,37 @@ export const BottomMenuModeSelection = () => {
     if (gooseMode === newMode) {
       return;
     }
-    const storeResponse = await fetch(getApiUrl('/configs/store'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        key: 'GOOSE_MODE',
-        value: newMode,
-        isSecret: false,
-      }),
-    });
 
-    if (!storeResponse.ok) {
-      const errorText = await storeResponse.text();
-      console.error('Store response error:', errorText);
-      throw new Error(`Failed to store new goose mode: ${newMode}`);
+    if (!process.env.ALPHA) {
+      const storeResponse = await fetch(getApiUrl('/configs/store'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': getSecretKey(),
+        },
+        body: JSON.stringify({
+          key: 'GOOSE_MODE',
+          value: newMode,
+          isSecret: false,
+        }),
+      });
+
+      if (!storeResponse.ok) {
+        const errorText = await storeResponse.text();
+        console.error('Store response error:', errorText);
+        throw new Error(`Failed to store new goose mode: ${newMode}`);
+      }
+      if (gooseMode.includes('approve')) {
+        setPreviousApproveModel(gooseMode);
+      }
+      setGooseMode(newMode);
+    } else {
+      await upsert('GOOSE_MODE', newMode, false);
+      if (gooseMode.includes('approve')) {
+        setPreviousApproveModel(gooseMode);
+      }
+      setGooseMode(newMode);
     }
-    if (gooseMode.includes('approve')) {
-      setPreviousApproveModel(gooseMode);
-    }
-    setGooseMode(newMode);
   };
 
   function getValueByKey(key) {
