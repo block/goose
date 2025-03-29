@@ -39,3 +39,5 @@ debug_*.txt
 
 # Benchmark paths
 benchmark-*
+
+__pycache__/

@@ -9,24 +9,26 @@ function show_usage() {
   echo ""
   echo "Options:"
   echo "  -p, --provider-models    Comma-separated list of provider:model pairs (e.g., 'openai:gpt-4o,anthropic:claude-3-5-sonnet')"
-  echo "  -s, --suites             Comma-separated list of benchmark suites to run (e.g., 'core,small_models')"
+  echo "  -s, --selectors          Comma-separated list of selectors to run (e.g., 'core,small_models')"
   echo "  -o, --output-dir         Directory to store benchmark results (default: './benchmark-results')"
   echo "  -d, --debug              Use debug build instead of release build"
   echo "  -t, --toolshim           Enable toolshim mode by setting GOOSE_TOOLSHIM=1"
   echo "  -m, --toolshim-model     Set the toolshim model (sets GOOSE_TOOLSHIM_MODEL)"
+  echo "  -r, --repeat            Number of times to repeat each benchmark"
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Example:"
-  echo "  $0 --provider-models 'openai:gpt-4o,anthropic:claude-3-5-sonnet' --suites 'core,small_models'"
+  echo "  $0 --provider-models 'openai:gpt-4o,anthropic:claude-3-5-sonnet' --selectors 'core,small_models'"
 }
 
 # Parse command line arguments
 PROVIDER_MODELS=""
-SUITES=""
+SELECTORS=""
 OUTPUT_DIR="./benchmark-results"
 DEBUG_MODE=false
 TOOLSHIM=false
 TOOLSHIM_MODEL=""
+REPEAT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,8 +36,8 @@ while [[ $# -gt 0 ]]; do
       PROVIDER_MODELS="$2"
       shift 2
       ;;
-    -s|--suites)
-      SUITES="$2"
+    -s|--selectors)
+      SELECTORS="$2"
       shift 2
       ;;
     -o|--output-dir)
@@ -52,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -m|--toolshim-model)
       TOOLSHIM_MODEL="$2"
+      shift 2
+      ;;
+    -r|--repeat)
+      REPEAT="$2"
       shift 2
       ;;
     -h|--help)
@@ -73,8 +79,8 @@ if [[ -z "$PROVIDER_MODELS" ]]; then
   exit 1
 fi
 
-if [[ -z "$SUITES" ]]; then
-  echo "Error: Benchmark suites must be specified"
+if [[ -z "$SELECTORS" ]]; then
+  echo "Error: Benchmark selectors must be specified"
   show_usage
   exit 1
 fi
@@ -86,7 +92,7 @@ mkdir -p "$OUTPUT_DIR"
 SUMMARY_FILE="$OUTPUT_DIR/summary.md"
 echo "# Benchmark Results Summary" > "$SUMMARY_FILE"
 echo "Run date: $(date)" >> "$SUMMARY_FILE"
-echo "Suites: $SUITES" >> "$SUMMARY_FILE"
+echo "Selectors: $SELECTORS" >> "$SUMMARY_FILE"
 if [ "$DEBUG_MODE" = true ]; then
   echo "Mode: Debug" >> "$SUMMARY_FILE"
 else
@@ -140,7 +146,7 @@ OVERALL_SUCCESS=true
 COUNT=${#PROVIDERS[@]}
 
 echo "Running benchmarks for $COUNT provider:model pairs..."
-echo "Benchmark suites: $SUITES"
+echo "Benchmark selectors: $SELECTORS"
 echo ""
 
 # Loop through each provider-model pair
@@ -167,11 +173,16 @@ for ((i=0; i<$COUNT; i++)); do
   fi
   
   # Run the benchmark and save results to JSON
-  echo "Running benchmark for $provider/$model with suites: $SUITES"
+  echo "Running benchmark for $provider/$model with selectors: $SELECTORS"
   OUTPUT_FILE="$OUTPUT_DIR/${provider}-${model}.json"
   ANALYSIS_FILE="$OUTPUT_DIR/${provider}-${model}-analysis.txt"
   
-  if $GOOSE_CMD bench --suites "$SUITES" --output "$OUTPUT_FILE" --format json; then
+  BENCH_CMD="$GOOSE_CMD bench --selectors \"$SELECTORS\" --output \"$OUTPUT_FILE\" --format json"
+  if [[ -n "$REPEAT" ]]; then
+    BENCH_CMD="$BENCH_CMD --repeat $REPEAT"
+  fi
+  
+  if eval "$BENCH_CMD"; then
     echo "✅ Benchmark completed successfully" | tee -a "$SUMMARY_FILE"
     
     # Parse the JSON to check for failures
@@ -186,13 +197,13 @@ for ((i=0; i<$COUNT; i++)); do
           # Extract basic information
           PROVIDER_NAME=$(jq -r '.provider' "$OUTPUT_FILE")
           START_TIME=$(jq -r '.start_time' "$OUTPUT_FILE")
-          SUITE_COUNT=$(jq '.suites | length' "$OUTPUT_FILE")
+          SELECTOR_COUNT=$(jq '.selectors | length' "$OUTPUT_FILE")
           
           echo "Benchmark Results Analysis" > "$ANALYSIS_FILE"
           echo "-------------------------" >> "$ANALYSIS_FILE"
           echo "Provider: $PROVIDER_NAME" >> "$ANALYSIS_FILE"
           echo "Start Time: $START_TIME" >> "$ANALYSIS_FILE"
-          echo "Number of Suites: $SUITE_COUNT" >> "$ANALYSIS_FILE"
+          echo "Number of Selectors: $SELECTOR_COUNT" >> "$ANALYSIS_FILE"
           echo "" >> "$ANALYSIS_FILE"
           
           # Initialize counters
@@ -204,29 +215,29 @@ for ((i=0; i<$COUNT; i++)); do
           TOTAL_ERRORS=0
           
           # Process each suite
-          for j in $(seq 0 $((SUITE_COUNT-1))); do
-            SUITE_NAME=$(jq -r ".suites[$j].name" "$OUTPUT_FILE")
-            EVAL_COUNT=$(jq ".suites[$j].evaluations | length" "$OUTPUT_FILE")
+          for j in $(seq 0 $((SELECTOR_COUNT-1))); do
+            SELECTOR_NAME=$(jq -r ".selectors[$j].name" "$OUTPUT_FILE")
+            EVAL_COUNT=$(jq ".selectors[$j].evaluations | length" "$OUTPUT_FILE")
             TOTAL_EVALS=$((TOTAL_EVALS + EVAL_COUNT))
             
-            echo "Suite: $SUITE_NAME ($EVAL_COUNT evaluations)" >> "$ANALYSIS_FILE"
+            echo "Selector: $SELECTOR_NAME ($EVAL_COUNT evaluations)" >> "$ANALYSIS_FILE"
             
             # Process each evaluation in this suite
             for k in $(seq 0 $((EVAL_COUNT-1))); do
-              EVAL_NAME=$(jq -r ".suites[$j].evaluations[$k].name" "$OUTPUT_FILE")
-              METRIC_COUNT=$(jq ".suites[$j].evaluations[$k].metrics | length" "$OUTPUT_FILE")
+              EVAL_NAME=$(jq -r ".selectors[$j].evaluations[$k].name" "$OUTPUT_FILE")
+              METRIC_COUNT=$(jq ".selectors[$j].evaluations[$k].metrics | length" "$OUTPUT_FILE")
               TOTAL_METRICS=$((TOTAL_METRICS + METRIC_COUNT))
               
               # Check for errors in this evaluation
-              ERROR_COUNT=$(jq ".suites[$j].evaluations[$k].errors | length" "$OUTPUT_FILE")
+              ERROR_COUNT=$(jq ".selectors[$j].evaluations[$k].errors | length" "$OUTPUT_FILE")
               TOTAL_ERRORS=$((TOTAL_ERRORS + ERROR_COUNT))
               
               # Count boolean metrics (passed and failed)
-              BOOLEAN_COUNT=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
+              BOOLEAN_COUNT=$(jq -r ".selectors[$j].evaluations[$k].metrics[] | 
                 select(.[1].Boolean != null) | .[0]" "$OUTPUT_FILE" | wc -l | tr -d ' ')
               
               # Count failed boolean metrics
-              FAILURES=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
+              FAILURES=$(jq -r ".selectors[$j].evaluations[$k].metrics[] | 
                 select(
                   .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
                 ) | .[0]" "$OUTPUT_FILE" | wc -l | tr -d ' ')
@@ -248,7 +259,7 @@ for ((i=0; i<$COUNT; i++)); do
                 if [ "$FAILURES" -gt 0 ]; then
                   echo "    - $FAILURES metric failures detected" >> "$ANALYSIS_FILE"
                   # Print the specific failing metrics
-                  FAILING_METRICS=$(jq -r ".suites[$j].evaluations[$k].metrics[] | 
+                  FAILING_METRICS=$(jq -r ".selectors[$j].evaluations[$k].metrics[] | 
                     select(
                     .[1].Boolean == false or .[1].Boolean == \"false\" or .[1].Boolean == 0 or .[1].Boolean == \"0\"
                   ) | .[0]" "$OUTPUT_FILE")
@@ -259,7 +270,7 @@ for ((i=0; i<$COUNT; i++)); do
                 if [ "$ERROR_COUNT" -gt 0 ]; then
                   echo "    - $ERROR_COUNT errors detected" >> "$ANALYSIS_FILE"
                   # Print the errors
-                  jq -r ".suites[$j].evaluations[$k].errors[] | \"      [\(.level)] \(.message)\"" "$OUTPUT_FILE" >> "$ANALYSIS_FILE"
+                  jq -r ".selectors[$j].evaluations[$k].errors[] | \"      [\(.level)] \(.message)\"" "$OUTPUT_FILE" >> "$ANALYSIS_FILE"
                 fi
               else
                 # This line is no longer needed since we count passes/fails/others individually
