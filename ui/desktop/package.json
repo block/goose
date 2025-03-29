@@ -5,6 +5,8 @@
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
+    "test": "jest src/",
+    "test:watch": "jest --watch src/",
     "generate-api": "openapi-ts",
     "start-gui": "npm run generate-api && electron-forge start",
     "start": "cd ../.. && just run-ui",
@@ -27,6 +29,11 @@
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.2",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "ts-jest": "^29.1.2",
     "@electron-forge/cli": "^7.5.0",
     "@electron-forge/maker-deb": "^7.5.0",
     "@electron-forge/maker-rpm": "^7.5.0",

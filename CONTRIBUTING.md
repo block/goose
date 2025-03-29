@@ -64,6 +64,18 @@ you can talk to goose!
 
 You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
 
+The gui uses `jest` as a test framework. To run tests, simply run the command
+
+```
+just test-ui
+```
+
+If you prefer to use [jest's "watch" mode](https://jestjs.io/docs/cli#--watch), run the command
+
+```
+just test-ui-watch
+```
+
 ## Keeping Your Fork Up-to-Date
 
 To ensure a smooth integration of your contributions, it's important that your fork is kept up-to-date with the main repository. This helps avoid conflicts and allows us to merge your pull requests more quickly. Here’s how you can sync your fork:

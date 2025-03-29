@@ -1,7 +1,7 @@
 import { ExtensionConfig } from '../../../api/types.gen';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
-import { replaceWithShims } from './utils';
+import { replaceWithShim } from '../../../utils/shims';
 
 /**
  * Makes an API call to the extension endpoints
@@ -134,7 +134,7 @@ export async function addToAgent(
 ): Promise<Response> {
   try {
     if (extension.type === 'stdio') {
-      extension.cmd = await replaceWithShims(extension.cmd);
+      extension.cmd = await replaceWithShim(extension.cmd);
     }
 
     return await extensionApiCall('/extensions/add', extension, options);

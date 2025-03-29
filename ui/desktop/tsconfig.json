@@ -6,6 +6,13 @@
     "lib": ["dom", "esnext"],
     "paths": {
       "@/*": ["./*"]
-    }
-  }
+    },
+    "types": ["jest", "node"],
+    "strict": true,
+    "moduleResolution": "node",
+    "isolatedModules": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 }
+

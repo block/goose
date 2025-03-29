@@ -132,6 +132,14 @@ make-ui-intel:
     @just release-intel
     cd ui/desktop && npm run bundle:intel
 
+test-ui:
+    @echo "Running UI tests..."
+    cd ui/desktop && npm run test
+
+test-ui-watch:
+    @echo "Watching UI tests..."
+    cd ui/desktop && npm run test:watch
+
 # Setup langfuse server
 langfuse-server:
     #!/usr/bin/env bash

@@ -126,6 +126,7 @@ module.exports = [
         },
       }],
       '@typescript-eslint/no-var-requires': 'warn', // Downgrade to warning for Electron main process
+      '@typescript-eslint/no-namespace': 'off',
       'no-undef': 'error',
       'no-useless-catch': 'warn',
       'custom/no-window-location-href': 'error'

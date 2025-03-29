@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import builtInExtensionsData from './built-in-extensions.json';
 import { toastError, toastLoading, toastSuccess } from './toasts';
 import { Toast } from 'react-toastify/dist/components';
+import { replaceWithShim } from './utils/shims';
 
 // Hardcoded default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -69,7 +70,7 @@ export async function addExtension(
       type: extension.type,
       ...(extension.type === 'stdio' && {
         name: sanitizeName(extension.name),
-        cmd: await replaceWithShims(extension.cmd),
+        cmd: await replaceWithShim(extension.cmd),
         args: extension.args || [],
       }),
       ...(extension.type === 'sse' && {
@@ -233,23 +234,6 @@ export async function loadAndAddStoredExtensions() {
   } catch (error) {
     console.error('Error loading and activating extensions from localStorage: ', error);
   }
-}
-
-// Update the path to the binary based on the command
-export async function replaceWithShims(cmd: string) {
-  const binaryPathMap: Record<string, string> = {
-    goosed: await window.electron.getBinaryPath('goosed'),
-    jbang: await window.electron.getBinaryPath('jbang'),
-    npx: await window.electron.getBinaryPath('npx'),
-    uvx: await window.electron.getBinaryPath('uvx'),
-  };
-
-  if (binaryPathMap[cmd]) {
-    console.log('--------> Replacing command with shim ------>', cmd, binaryPathMap[cmd]);
-    cmd = binaryPathMap[cmd];
-  }
-
-  return cmd;
 }
 
 function envVarsRequired(config: ExtensionConfig) {
