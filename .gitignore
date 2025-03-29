@@ -39,3 +39,6 @@ debug_*.txt
 
 # Benchmark paths
 benchmark-*
+benchconf.toml
+scripts/fake.sh
+local_ignore/

@@ -21,15 +21,14 @@ impl Default for BenchmarkWorkDir {
         Self::new("work_dir".to_string(), Vec::new())
     }
 }
+
 impl BenchmarkWorkDir {
     pub fn new(work_dir_name: String, include_dirs: Vec<PathBuf>) -> Self {
         let run_dir = std::env::current_dir().unwrap().canonicalize().unwrap();
-        let base_path = PathBuf::from(format!("./benchmark-{}", work_dir_name));
+        let base_path = PathBuf::from(format!("./{}", work_dir_name));
         fs::create_dir_all(&base_path).unwrap();
 
-        let current_time = Local::now().format("%H:%M:%S").to_string();
-        let current_date = Local::now().format("%Y-%m-%d").to_string();
-        let run_name = format!("{}-{}", &current_date, current_time);
+        let run_name = Local::now().format("%Y-%m-%d-%H:%M:%S").to_string();
 
         let mut base_path = PathBuf::from(&base_path).canonicalize().unwrap();
         base_path.push(run_name.clone());
@@ -37,10 +36,7 @@ impl BenchmarkWorkDir {
         base_path.pop();
 
         // abs paths from dir-strings
-        let dirs = include_dirs
-            .iter()
-            .map(|d| d.canonicalize().unwrap())
-            .collect::<Vec<_>>();
+        let dirs = Self::canonical_dirs(include_dirs);
 
         // deep copy each dir
         let _: Vec<_> = dirs
@@ -59,6 +55,28 @@ impl BenchmarkWorkDir {
             run_name,
         }
     }
+
+    pub fn init_experiment() {
+        let current_time = Local::now().format("%H:%M:%S").to_string();
+        let current_date = Local::now().format("%Y-%m-%d").to_string();
+        let exp_name = format!("{}-{}", &current_date, current_time);
+        let base_path = PathBuf::from(format!("./benchmark-{}", exp_name));
+        fs::create_dir_all(&base_path).unwrap();
+        std::env::set_current_dir(&base_path).unwrap();
+    }
+    pub fn canonical_dirs(include_dirs: Vec<PathBuf>) -> Vec<PathBuf> {
+        include_dirs
+            .iter()
+            .map(|d| {
+                let canon = d.canonicalize();
+                if canon.is_err() {
+                    eprintln!("{:?} can't be canonicalized", d);
+                    panic!();
+                }
+                canon.unwrap()
+            })
+            .collect::<Vec<_>>()
+    }
     fn copy_auto_included_dirs(dest: &Path) {
         let mut assets_dest = dest.to_path_buf();
         assets_dest.push("assets");
@@ -73,10 +91,11 @@ impl BenchmarkWorkDir {
         self.cwd = path;
         Ok(self)
     }
-    pub fn set_eval(&mut self, eval: &str) {
+    pub fn set_eval(&mut self, eval: &str, run_id: String) {
         let eval = eval.replace(":", std::path::MAIN_SEPARATOR_STR);
         let mut eval_dir = self.base_path.clone();
         eval_dir.push(self.run_name.clone());
+        eval_dir.push(run_id);
         eval_dir.push(eval);
 
         self.cd(eval_dir.clone())

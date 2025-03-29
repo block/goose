@@ -1,4 +1,5 @@
-use crate::eval_suites::{BenchAgentError, EvaluationMetric};
+use crate::bench_session::BenchAgentError;
+use crate::eval_suites::EvalMetricValue;
 use chrono::Local;
 use serde::Serialize;
 use std::fmt;
@@ -7,7 +8,7 @@ use std::fmt;
 #[derive(Default, Serialize)]
 pub struct EvaluationResult {
     pub name: String,
-    pub metrics: Vec<(String, EvaluationMetric)>,
+    pub metrics: Vec<(String, EvalMetricValue)>,
     pub errors: Vec<BenchAgentError>,
 }
 
@@ -35,7 +36,7 @@ impl EvaluationResult {
         }
     }
 
-    pub fn add_metric(&mut self, name: String, metric: EvaluationMetric) {
+    pub fn add_metric(&mut self, name: String, metric: EvalMetricValue) {
         self.metrics.push((name, metric));
     }
 
@@ -97,13 +98,13 @@ impl BenchmarkResults {
     }
 }
 
-impl fmt::Display for EvaluationMetric {
+impl fmt::Display for EvalMetricValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EvaluationMetric::Integer(i) => write!(f, "{}", i),
-            EvaluationMetric::Float(fl) => write!(f, "{:.2}", fl),
-            EvaluationMetric::String(s) => write!(f, "{}", s),
-            EvaluationMetric::Boolean(b) => write!(f, "{}", b),
+            EvalMetricValue::Integer(i) => write!(f, "{}", i),
+            EvalMetricValue::Float(fl) => write!(f, "{:.2}", fl),
+            EvalMetricValue::String(s) => write!(f, "{}", s),
+            EvalMetricValue::Boolean(b) => write!(f, "{}", b),
         }
     }
 }
