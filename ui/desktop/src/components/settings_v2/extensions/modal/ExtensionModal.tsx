@@ -96,6 +96,7 @@ export default function ExtensionModal({
     if (isFormValid()) {
       onSubmit(formData);
     }
+    onClose();
   };
 
   // Create footer buttons based on current state

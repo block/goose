@@ -176,7 +176,7 @@ export async function toggleExtension({
         showEscMessage: false,
       });
     } catch (error) {
-      console.error('Error adding extension to agent. Will try to toggle back off. Error:', error);
+      console.error('Error adding extension to agent. Will try to toggle back off.');
       try {
         await toggleExtension({
           toggle: 'toggleOff',

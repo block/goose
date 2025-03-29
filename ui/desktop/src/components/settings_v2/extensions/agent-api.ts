@@ -20,14 +20,15 @@ export async function extensionApiCall(
     type: isActivating ? 'activating' : 'removing',
     verb: isActivating ? 'Activating' : 'Removing',
     pastTense: isActivating ? 'activated' : 'removed',
+    presentTense: isActivating ? 'activate' : 'remove',
   };
 
   // for adding the payload is an extensionConfig, for removing payload is just the name
   const extensionName = isActivating ? payload.name : payload;
   let toastId;
 
-  // Step 1: Show loading toast (only for activation)
-  if (isActivating) {
+  // Step 1: Show loading toast (only for activation of stdio)
+  if (isActivating && (payload as ExtensionConfig) && payload.type == 'stdio') {
     toastId = toastService.loading({
       title: extensionName,
       msg: `${action.verb} ${extensionName} extension...`,
@@ -75,6 +76,12 @@ export async function extensionApiCall(
   } catch (error) {
     // Final catch-all error handler
     toastService.dismiss(toastId);
+    const msg = error.length < 100 ? error : `Failed to ${action.presentTense} extension`;
+    toastService.error({
+      title: extensionName,
+      msg: msg,
+      traceback: error,
+    });
     console.error(`Error in extensionApiCall for ${extensionName}:`, error);
     throw error;
   }
@@ -142,13 +149,11 @@ export async function addToAgent(
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
       const enhancedError = new Error(
-        'Agent is not initialized. Please initialize the agent first. (428 Precondition Required)'
+        'Failed to add extension. Goose Agent was still starting up. Please try again.'
       );
       console.error(`Failed to add extension ${extension.name} to agent: ${enhancedError.message}`);
       throw enhancedError;
     }
-
-    console.error(`Failed to add extension ${extension.name} to agent:`, error);
     throw error;
   }
 }

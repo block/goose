@@ -3,7 +3,7 @@ import { FixedExtensionEntry } from '../../../ConfigContext';
 import { ExtensionConfig } from '../../../../api/types.gen';
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { combineCmdAndArgs } from '../utils';
+import { combineCmdAndArgs, removeShims } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -57,7 +57,8 @@ export function getSubtitle(config: ExtensionConfig): string {
     return 'Built-in extension';
   }
   if (config.type === 'stdio') {
-    const full_command = combineCmdAndArgs(config.cmd, config.args);
+    // remove shims for displaying
+    const full_command = combineCmdAndArgs(removeShims(config.cmd), config.args);
     return `STDIO extension${config.description ? `: ${config.description}` : ''}${full_command ? `\n${full_command}` : ''}`;
   }
   if (config.type === 'sse') {
