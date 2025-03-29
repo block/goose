@@ -1,0 +1,27 @@
+{
+  "id": "incident-analysis",
+  "title": "Incident Analysis and Response",
+  "description": "Analyze system incidents and create comprehensive response plans",
+  "category": "technical",
+  "job": "operations",
+  "example_prompt": "Help me analyze this system incident and create a response plan. Include root cause analysis, immediate mitigation steps, and long-term prevention strategies. Document the timeline and impact.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "data_file",
+          "description": "Path to the PagerDuty incident activity CSV file",
+          "required": true
+        },
+        {
+          "name": "time_period",
+          "description": "Time period to analyze (e.g., 'last 30 days', 'last quarter')",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

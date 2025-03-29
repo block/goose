@@ -1,0 +1,27 @@
+{
+  "id": "roll-plan-analyzer",
+  "title": "Release Rollout Plan Analysis",
+  "description": "Analyze and optimize release rollout plans",
+  "category": "technical",
+  "job": "project-management",
+  "example_prompt": "Analyze our release rollout plan. Check dependencies, timing, resource allocation, and risk factors. Suggest optimizations for smoother deployment.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "roll_plan_path",
+          "description": "Path to the ROLL plan XML file to analyze",
+          "required": true
+        },
+        {
+          "name": "reference_plan_path",
+          "description": "Path to the reference ROLL plan XML file (optional)",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

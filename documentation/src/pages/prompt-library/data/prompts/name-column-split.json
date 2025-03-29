@@ -1,0 +1,35 @@
+{
+  "id": "name-column-split",
+  "title": "Name Column Data Splitting",
+  "description": "Split name columns into first, middle, and last names",
+  "category": "technical",
+  "job": "data-analytics",
+  "example_prompt": "Help me split this full name column into separate first, middle, and last name columns. Handle edge cases like suffixes and multiple middle names.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "file_path",
+          "description": "Path to the Excel file",
+          "required": true
+        },
+        {
+          "name": "worksheet_name",
+          "description": "Name of the worksheet containing the data (optional - will use first worksheet if not specified)",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

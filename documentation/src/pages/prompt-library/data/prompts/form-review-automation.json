@@ -1,0 +1,35 @@
+{
+  "id": "form-review-automation",
+  "title": "Form UX Review Automation",
+  "description": "Automate the review of form designs for usability and accessibility",
+  "category": "technical",
+  "job": "design",
+  "example_prompt": "Review this form design for usability and accessibility issues. Check field layouts, error handling, keyboard navigation, and screen reader compatibility. Suggest improvements for better user experience.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    },
+    {
+      "name": "Google Drive",
+      "command": "npx -y @modelcontextprotocol/server-gdrive",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "GDRIVE_OAUTH_PATH",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
+          "required": true
+        },
+        {
+          "name": "GDRIVE_CREDENTIALS_PATH",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

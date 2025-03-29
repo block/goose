@@ -1,0 +1,26 @@
+{
+  "id": "image-resize",
+  "title": "Batch Image Resizing",
+  "description": "Resize multiple images to specific dimensions while maintaining aspect ratio",
+  "category": "technical",
+  "job": "design",
+  "example_prompt": "Resize all images in the assets folder to be 800px wide while maintaining aspect ratio. Save them in a new 'resized' folder with the same filenames.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    },
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

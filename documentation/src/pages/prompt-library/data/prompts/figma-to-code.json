@@ -1,0 +1,30 @@
+{
+  "id": "figma-to-code",
+  "title": "Convert Figma Design to Code",
+  "description": "Convert Figma design components into React/CSS code with proper styling and responsiveness",
+  "category": "technical",
+  "job": "design",
+  "example_prompt": "Convert this Figma component into React code. Include proper styling, maintain design fidelity, and ensure it's responsive. Use Tailwind CSS for styling and follow modern React best practices.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    },
+    {
+      "name": "Figma",
+      "command": "npx -y @hapins/figma-mcp",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "FIGMA_ACCESS_TOKEN",
+          "description": "Figma API access token",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

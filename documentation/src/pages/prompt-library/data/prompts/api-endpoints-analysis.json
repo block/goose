@@ -1,0 +1,27 @@
+{
+  "id": "api-endpoints-analysis",
+  "title": "API Endpoint Performance Analysis",
+  "description": "Analyze API endpoint performance and usage patterns",
+  "category": "technical",
+  "job": "data-analytics",
+  "example_prompt": "Analyze our API endpoints' performance metrics for the last month. Identify high-traffic endpoints, response times, error rates, and usage patterns. Suggest optimization opportunities.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "config_path",
+          "description": "Path to the routing configuration file (e.g., routes.rb, urls.py, routes.js)",
+          "required": true
+        },
+        {
+          "name": "framework",
+          "description": "The web framework being used (e.g., Rails, Django, Express)",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

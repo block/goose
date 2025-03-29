@@ -1,0 +1,22 @@
+{
+  "id": "generate-toc",
+  "title": "Documentation TOC Generator",
+  "description": "Generate a table of contents for technical documentation",
+  "category": "technical",
+  "job": "engineering",
+  "example_prompt": "Generate a table of contents for our technical documentation. Include main sections, subsections, and proper markdown formatting. Ensure proper nesting and linking.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "file_path",
+          "description": "Path to the CONTRIBUTING.md file",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

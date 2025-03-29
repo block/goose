@@ -1,0 +1,22 @@
+{
+  "id": "security-patterns",
+  "title": "Security Pattern Implementation",
+  "description": "Implement security patterns and best practices across systems",
+  "category": "technical",
+  "job": "operations",
+  "example_prompt": "Review our system's security patterns and implement best practices. Focus on authentication, authorization, data encryption, and secure communication. Include compliance requirements and testing procedures.",
+  "extensions": [
+    {
+      "name": "Knowledge Graph",
+      "command": "npx -y @modelcontextprotocol/server-memory",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "domain",
+          "description": "Security domain to focus on (e.g., 'web', 'mobile', 'api')",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

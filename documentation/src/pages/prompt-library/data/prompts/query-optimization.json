@@ -1,0 +1,27 @@
+{
+  "id": "dev-query-optimization",
+  "title": "Optimize Database Query Performance",
+  "description": "Refactor a Ruby query to improve database performance by moving operations from memory to SQL",
+  "category": "technical",
+  "job": "data-analytics",
+  "example_prompt": "The list_records method in app/services/record_service.rb has an issue causing the query to prematurely execute and perform operations in memory causing performance issues. Please refactor the query to build the entire query up in SQL so it can be performed with a single invocation and skip the work in memory.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "file_path",
+          "description": "Path to the Ruby file containing the query (e.g., app/services/record_service.rb)",
+          "required": true
+        },
+        {
+          "name": "method_name",
+          "description": "Name of the method to optimize (e.g., list_records)",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

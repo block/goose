@@ -1,0 +1,45 @@
+{
+  "id": "retail-market-monitor",
+  "title": "Retail Market Monitoring",
+  "description": "Monitor retail market trends and competitor analysis",
+  "category": "business",
+  "job": "marketing-content",
+  "example_prompt": "Monitor retail market trends and competitor activities. Track pricing changes, promotional strategies, and market share. Generate weekly insights report.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "dashboard_path",
+          "description": "Path where the dashboard HTML should be saved",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "Tavily Web Search",
+      "command": "npx -y tavily-mcp",
+      "is_builtin": false,
+      "link": "https://github.com/tavily-ai/tavily-mcp",
+      "environmentVariables": [
+        {
+          "name": "num_retailers",
+          "description": "Number of top retailers to monitor",
+          "required": false
+        },
+        {
+          "name": "update_frequency",
+          "description": "How often to update the dashboard in days",
+          "required": false
+        },
+        {
+          "name": "search_type",
+          "description": "Tavily Web Search type (comprehensive or news)",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

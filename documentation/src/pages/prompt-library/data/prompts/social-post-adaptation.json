@@ -1,0 +1,18 @@
+{
+  "id": "social-post-adaptation",
+  "title": "Cross-Platform Social Media Adaptation",
+  "description": "Adapt content for different social media platforms while maintaining message consistency",
+  "category": "productivity",
+  "job": "marketing-content",
+  "example_prompt": "Adapt this product announcement for different social media platforms. Create versions for Twitter, LinkedIn, and Instagram. Maintain the key message but optimize for each platform's format and audience.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

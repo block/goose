@@ -1,0 +1,18 @@
+{
+  "id": "java-kotlin-test-migration",
+  "title": "Migrate Java Tests to Kotlin",
+  "description": "Convert Java JUnit tests to Kotlin test files while maintaining functionality",
+  "category": "technical",
+  "job": "engineering",
+  "example_prompt": "Convert this Java JUnit test file to Kotlin. Maintain all test functionality and assertions, but use Kotlin idioms and best practices. Keep the same test coverage and documentation.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

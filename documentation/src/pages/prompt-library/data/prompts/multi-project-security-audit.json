@@ -1,0 +1,18 @@
+{
+  "id": "multi-project-security-audit",
+  "title": "Multi-Project Security Audit",
+  "description": "Conduct security audits across multiple projects",
+  "category": "technical",
+  "job": "operations",
+  "example_prompt": "Conduct a security audit across our projects. Check for common vulnerabilities, outdated dependencies, and security best practices compliance.",
+  "extensions": [
+    {
+      "name": "Filesystem",
+      "command": "npx -y @modelcontextprotocol/server-filesystem",
+      "is_builtin": false,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

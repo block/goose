@@ -1,0 +1,18 @@
+{
+  "id": "ai-content-detection",
+  "title": "AI Content Detection Analysis",
+  "description": "Analyze content to detect AI-generated text and suggest improvements for authenticity",
+  "category": "productivity",
+  "job": "marketing-content",
+  "example_prompt": "Analyze this blog post for signs of AI-generated content. Provide suggestions to make it more authentic and human-like while maintaining the key message.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+
+      ]
+    }
+  ]
+}

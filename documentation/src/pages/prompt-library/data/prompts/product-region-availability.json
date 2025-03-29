@@ -1,0 +1,22 @@
+{
+  "id": "product-region-availability",
+  "title": "Product Region Availability Analysis",
+  "description": "Analyze product availability across different regions",
+  "category": "business",
+  "job": "project-management",
+  "example_prompt": "Analyze our product availability across different regions. Check compliance requirements, market restrictions, and technical limitations. Create a deployment strategy.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "product_name",
+          "description": "The name/model of the product to look up regional availability for",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

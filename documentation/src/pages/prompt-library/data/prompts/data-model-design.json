@@ -1,0 +1,27 @@
+{
+  "id": "data-model-design",
+  "title": "Database Model Design Optimization",
+  "description": "Design and optimize database models for better performance and scalability",
+  "category": "technical",
+  "job": "data-analytics",
+  "example_prompt": "Help me optimize this database model for our analytics system. Consider query performance, data relationships, and indexing strategies. Include recommendations for partitioning and caching.",
+  "extensions": [
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "requirements",
+          "description": "Verbal description of data model requirements",
+          "required": true
+        },
+        {
+          "name": "use_cases",
+          "description": "List of use cases to validate against",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

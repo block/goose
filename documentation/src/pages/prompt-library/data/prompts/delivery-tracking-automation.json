@@ -1,0 +1,22 @@
+{
+  "id": "delivery-tracking-automation",
+  "title": "Delivery Pipeline Tracking",
+  "description": "Automate tracking and reporting of delivery pipeline metrics",
+  "category": "technical",
+  "job": "operations",
+  "example_prompt": "Set up automated tracking for our delivery pipeline. Monitor build times, deployment frequency, failure rates, and recovery time. Create dashboards for key metrics.",
+  "extensions": [
+    {
+      "name": "Google Maps",
+      "command": "npx -y @modelcontextprotocol/server-google-maps",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "GOOGLE_MAPS_API_KEY",
+          "description": "<YOUR_TOKEN>",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

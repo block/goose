@@ -1,0 +1,27 @@
+{
+  "id": "system-control-research",
+  "title": "System Control Research",
+  "description": "Research and implement system control mechanisms",
+  "category": "technical",
+  "job": "operations",
+  "example_prompt": "Research system control mechanisms for our infrastructure. Focus on automation, monitoring, and recovery procedures. Include best practices and implementation guide.",
+  "extensions": [
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": [
+        {
+          "name": "music_app",
+          "description": "Preferred music application (e.g., Spotify, Apple Music)",
+          "required": true
+        },
+        {
+          "name": "csv_filename",
+          "description": "Name for the CSV file to store research results",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

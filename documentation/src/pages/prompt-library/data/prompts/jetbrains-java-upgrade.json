@@ -1,0 +1,27 @@
+{
+  "id": "jetbrains-java-upgrade",
+  "title": "JetBrains Java Version Upgrade",
+  "description": "Upgrade Java version in JetBrains IDE projects",
+  "category": "technical",
+  "job": "engineering",
+  "example_prompt": "Help me upgrade the Java version in my JetBrains project from Java 11 to Java 17. Check for compatibility issues and necessary configuration changes.",
+  "extensions": [
+    {
+      "name": "JetBrains",
+      "command": "npx -y @jetbrains/mcp-proxy",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "project_path",
+          "description": "Path to the Java project",
+          "required": true
+        },
+        {
+          "name": "target_java_version",
+          "description": "Target Java LTS version (e.g., '17', '21')",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

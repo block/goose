@@ -1,0 +1,22 @@
+{
+  "id": "github-branch-pr",
+  "title": "GitHub Branch and PR Management",
+  "description": "Manage GitHub branches and pull requests effectively",
+  "category": "technical",
+  "job": "engineering",
+  "example_prompt": "Help me manage this GitHub pull request. Review the branch structure, check for conflicts, and suggest improvements for the PR description and documentation.",
+  "extensions": [
+    {
+      "name": "GitHub",
+      "command": "npx -y @modelcontextprotocol/server-github",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "description": "<YOUR_TOKEN>",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
