@@ -20,18 +20,24 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
             Role::Assistant => "assistant",
         };
 
-        let mut content = Vec::new();
+        // First collect all content types
+        let mut tool_responses = Vec::new();
+        let mut texts = Vec::new();
+        let mut tool_requests = Vec::new();
+        let mut thinking = Vec::new();
+        let mut redacted_thinking = Vec::new();
+
         for msg_content in &message.content {
             match msg_content {
                 MessageContent::Text(text) => {
-                    content.push(json!({
+                    texts.push(json!({
                         "type": "text",
                         "text": text.text
                     }));
                 }
                 MessageContent::ToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
-                        content.push(json!({
+                        tool_requests.push(json!({
                             "type": "tool_use",
                             "id": tool_request.id,
                             "name": tool_call.name,
@@ -50,7 +56,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             .collect::<Vec<_>>()
                             .join("\n");
 
-                        content.push(json!({
+                        tool_responses.push(json!({
                             "type": "tool_result",
                             "tool_use_id": tool_response.id,
                             "content": text
@@ -60,22 +66,30 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::Thinking(thinking) => {
-                    content.push(json!({
+                MessageContent::Thinking(t) => {
+                    thinking.push(json!({
                         "type": "thinking",
-                        "thinking": thinking.thinking,
-                        "signature": thinking.signature
+                        "thinking": t.thinking,
+                        "signature": t.signature
                     }));
                 }
-                MessageContent::RedactedThinking(redacted) => {
-                    content.push(json!({
+                MessageContent::RedactedThinking(r) => {
+                    redacted_thinking.push(json!({
                         "type": "redacted_thinking",
-                        "data": redacted.data
+                        "data": r.data
                     }));
                 }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
             }
         }
+
+        // Combine content in the desired order: tool responses, text, tool requests, thinking
+        let mut content = Vec::new();
+        content.extend(tool_responses);
+        content.extend(texts);
+        content.extend(tool_requests);
+        content.extend(thinking);
+        content.extend(redacted_thinking);
 
         // Skip messages with empty content
         if !content.is_empty() {
@@ -339,6 +353,7 @@ pub fn create_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mcp_core::content::TextContent;
     use serde_json::json;
 
     #[test]
@@ -513,6 +528,101 @@ mod tests {
         assert_eq!(spec[1]["content"][0]["text"], "Hi there");
         assert_eq!(spec[2]["role"], "user");
         assert_eq!(spec[2]["content"][0]["text"], "How are you?");
+    }
+
+    #[test]
+    fn test_message_content_ordering() {
+        // Create a message with multiple content types in random order
+        let mut message = Message::assistant();
+
+        // Add text
+        message = message.with_text("Here's what I found");
+
+        // Add tool request
+        let tool_call = ToolCall::new("calculator", json!({"expression": "2 + 2"}));
+        message = message.with_tool_request("req_1", Ok(tool_call));
+
+        // Add tool response
+        let result = vec![Content::Text(TextContent {
+            text: "The result is 4".to_string(),
+            annotations: None,
+        })];
+        message = message.with_tool_response("resp_1", Ok(result));
+
+        // Add thinking
+        message = message.with_thinking("Let me think about this...", "signature123");
+
+        // Add redacted thinking
+        message = message.with_redacted_thinking("redacted_data");
+
+        // Format the message
+        let spec = format_messages(&[message]);
+
+        // Verify we got one message
+        assert_eq!(spec.len(), 1);
+        let content = &spec[0]["content"];
+        assert!(content.is_array());
+        let content = content.as_array().unwrap();
+
+        // Verify the order of content types
+        // Should be: tool_response -> text -> tool_request -> thinking -> redacted_thinking
+        assert_eq!(content.len(), 5);
+
+        // 1. First should be tool response
+        assert_eq!(content[0]["type"], "tool_result");
+        assert_eq!(content[0]["tool_use_id"], "resp_1");
+        assert_eq!(content[0]["content"], "The result is 4");
+
+        // 2. Second should be text
+        assert_eq!(content[1]["type"], "text");
+        assert_eq!(content[1]["text"], "Here's what I found");
+
+        // 3. Third should be tool request
+        assert_eq!(content[2]["type"], "tool_use");
+        assert_eq!(content[2]["id"], "req_1");
+        assert_eq!(content[2]["name"], "calculator");
+        assert_eq!(content[2]["input"], json!({"expression": "2 + 2"}));
+
+        // 4. Fourth should be thinking
+        assert_eq!(content[3]["type"], "thinking");
+        assert_eq!(content[3]["thinking"], "Let me think about this...");
+        assert_eq!(content[3]["signature"], "signature123");
+
+        // 5. Fifth should be redacted thinking
+        assert_eq!(content[4]["type"], "redacted_thinking");
+        assert_eq!(content[4]["data"], "redacted_data");
+    }
+
+    #[test]
+    fn test_message_content_partial_ordering() {
+        // Test with only some content types present
+        let mut message = Message::assistant();
+
+        // Add just text and tool request in reverse order
+        let tool_call = ToolCall::new("search", json!({"query": "test"}));
+        message = message.with_tool_request("req_1", Ok(tool_call));
+        message = message.with_text("Searching for information");
+
+        let spec = format_messages(&[message]);
+
+        // Verify ordering with partial content
+        assert_eq!(spec.len(), 1);
+        let content = &spec[0]["content"];
+        assert!(content.is_array());
+        let content = content.as_array().unwrap();
+
+        // Should maintain order: text -> tool_request
+        assert_eq!(content.len(), 2);
+
+        // 1. First should be text
+        assert_eq!(content[0]["type"], "text");
+        assert_eq!(content[0]["text"], "Searching for information");
+
+        // 2. Second should be tool request
+        assert_eq!(content[1]["type"], "tool_use");
+        assert_eq!(content[1]["id"], "req_1");
+        assert_eq!(content[1]["name"], "search");
+        assert_eq!(content[1]["input"], json!({"query": "test"}));
     }
 
     #[test]
