@@ -1,0 +1,27 @@
+{
+  "id": "dev-api-endpoints-analysis",
+  "title": "Analyze App Endpoints and Interfaces",
+  "description": "Review application routing configuration and summarize all external interfaces",
+  "category": "Technical",
+  "function": "coding",
+  "extensions": ["developer"],
+  "prompt": "Please analyze the application's routing configuration found in `config/routes.rb` and summarize all external interfaces, including API endpoints, service integrations, and public routes.",
+  "example": "This will analyze the routing configuration to show:\n- REST/GraphQL API endpoints\n- External service integrations\n- Public web routes\n- Authentication endpoints\n- Webhook handlers\n- Service-to-service communication paths\n- Health check and monitoring endpoints",
+  "tags": ["api", "routes", "endpoints", "interfaces", "security", "documentation"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "config_path": {
+      "description": "Path to the routing configuration file (e.g., routes.rb, urls.py, routes.js)",
+      "required": true
+    },
+    "framework": {
+      "description": "The web framework being used (e.g., Rails, Django, Express)",
+      "required": false
+    }
+  }
+}

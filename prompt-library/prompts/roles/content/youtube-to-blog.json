@@ -1,0 +1,25 @@
+{
+  "id": "content-youtube-to-blog",
+  "title": "Convert YouTube Video to Blog Post",
+  "description": "Generate a blog post from a YouTube video transcript",
+  "category": "Productivity",
+  "function": "content",
+  "extensions": ["youtube-transcript"],
+  "external": true,
+  "extensionUrl": "https://github.com/jkawamoto/mcp-youtube-transcript",
+  "prompt": "Get the transcript from this youtube video [link to video]. Then, summarize it into a blog post.",
+  "example": "This will:\n1. Extract the transcript from the provided YouTube video\n2. Analyze the content\n3. Generate a well-structured blog post with:\n   - An engaging title\n   - Key points from the video\n   - Main takeaways\n   - Proper formatting and structure",
+  "tags": ["youtube", "content", "blog", "writing", "transcription"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "video_url": {
+      "description": "The URL of the YouTube video to transcribe",
+      "required": true
+    }
+  }
+}

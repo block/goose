@@ -1,0 +1,33 @@
+{
+  "id": "developer-github-branch-pr",
+  "title": "Create GitHub Branch and PR",
+  "description": "Create a new branch, update README, and open a pull request on GitHub",
+  "category": "Technical",
+  "function": "coding",
+  "extensions": ["github"],
+  "externalExtensions": [
+    {
+      "name": "github",
+      "link": "https://block.github.io/goose/v1/extensions/github"
+    }
+  ],
+  "prompt": "Create a new branch called hello-world in my angiejones/goose-demo repository. Update the README.md file to say \"this was written by goose\" and commit it. Open a pull request with your changes.",
+  "example": "This will:\n- Create new branch 'hello-world'\n- Update README.md content\n- Commit changes\n- Open pull request",
+  "tags": ["github", "git", "branch", "pull-request"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "repository": {
+      "description": "Repository name in format owner/repo",
+      "required": true
+    },
+    "branch_name": {
+      "description": "Name of the new branch",
+      "required": true
+    }
+  }
+}
