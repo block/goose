@@ -131,7 +131,6 @@ export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): Extensi
 export async function replaceWithShims(cmd: string) {
   const binaryPathMap: Record<string, string> = {
     goosed: await window.electron.getBinaryPath('goosed'),
-    jbang: await window.electron.getBinaryPath('jbang'),
     npx: await window.electron.getBinaryPath('npx'),
     uvx: await window.electron.getBinaryPath('uvx'),
   };
