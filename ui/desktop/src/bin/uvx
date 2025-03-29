@@ -1,88 +1,34 @@
 #!/bin/bash
 
-# Enable strict mode to exit on errors and unset variables
-set -euo pipefail
-
-# Set log file
-LOG_FILE="/tmp/mcp.log"
-
-# Clear the log file at the start
-> "$LOG_FILE"
-
-# Function for logging
-log() {
-    local MESSAGE="$1"
-    echo "$(date +'%Y-%m-%d %H:%M:%S') - $MESSAGE" | tee -a "$LOG_FILE"
-}
-
-# Trap errors and log them before exiting
-trap 'log "An error occurred. Exiting with status $?."' ERR
+# Source common functions
+source "$(dirname "$0")/lib/shim.sh"
 
 log "Starting uvx setup script."
 
-# Ensure ~/.config/goose/mcp-hermit/bin exists
-log "Creating directory ~/.config/goose/mcp-hermit/bin if it does not exist."
-mkdir -p ~/.config/goose/mcp-hermit/bin
+setup_directories
+setup_hermit
 
-# Change to the ~/.config/goose/mcp-hermit directory
-log "Changing to directory ~/.config/goose/mcp-hermit."
-cd ~/.config/goose/mcp-hermit
-
-# Check if hermit binary exists and download if not
-if [ ! -f ~/.config/goose/mcp-hermit/bin/hermit ]; then
-    log "Hermit binary not found. Downloading hermit binary."
-    curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
-        | gzip -dc > ~/.config/goose/mcp-hermit/bin/hermit && chmod +x ~/.config/goose/mcp-hermit/bin/hermit
-    log "Hermit binary downloaded and made executable."
-else
-    log "Hermit binary already exists. Skipping download."
-fi
-
-
-log "setting hermit cache to be local for MCP servers"
-mkdir -p ~/.config/goose/mcp-hermit/cache
-export HERMIT_STATE_DIR=~/.config/goose/mcp-hermit/cache
-
-# Update PATH
-export PATH=~/.config/goose/mcp-hermit/bin:$PATH
-log "Updated PATH to include ~/.config/goose/mcp-hermit/bin."
-
-
-# Verify hermit installation
-log "Checking for hermit in PATH."
-which hermit >> "$LOG_FILE"
-
-# Initialize hermit
-log "Initializing hermit."
-hermit init >> "$LOG_FILE"
-
-# Initialize python >= 3.10
-log "hermit install python 3.10"
+# Initialize python
+log "Installing Python 3.10 with hermit"
 hermit install python3@3.10 >> "$LOG_FILE"
 
-# Install UV for python using hermit
+# Install UV using hermit
 log "Installing UV with hermit."
 hermit install uv >> "$LOG_FILE"
 
 # Verify installations
-log "Verifying installation locations:"
-log "hermit: $(which hermit)"
-log "uv: $(which uv)"
-log "uvx: $(which uvx)"
+verify_binary "hermit"
+verify_binary "uv"
+verify_binary "uvx"
 
-
-log "Checking for GOOSE_UV_REGISTRY environment variable for custom python/pip/UV registry setup..."
-# Check if GOOSE_UV_REGISTRY is set and accessible
-if [ -n "${GOOSE_UV_REGISTRY:-}" ] && curl -s --head --fail "$GOOSE_UV_REGISTRY" > /dev/null; then
-    log "Checking custom goose registry availability: $GOOSE_UV_REGISTRY"
-    log "$GOOSE_UV_REGISTRY is accessible, setting it as UV_INDEX_URL. Setting UV_NATIVE_TLS to true."
+# Setup custom registry if available
+if [ -n "${GOOSE_UV_REGISTRY:-}" ] && check_url_accessible "$GOOSE_UV_REGISTRY"; then
+    log "Setting custom registry: $GOOSE_UV_REGISTRY"
     export UV_INDEX_URL="$GOOSE_UV_REGISTRY"
     export UV_NATIVE_TLS=true
-else
-    log "Neither GOOSE_UV_REGISTRY nor UV_INDEX_URL is set. Falling back to default configuration."
 fi
 
-# Final step: Execute uvx with passed arguments
+# Execute uvx
 log "Executing 'uvx' command with arguments: $*"
 uvx "$@" || log "Failed to execute 'uvx' with arguments: $*"
 
