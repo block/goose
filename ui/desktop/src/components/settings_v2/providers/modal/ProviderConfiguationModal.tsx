@@ -116,11 +116,13 @@ export default function ProviderConfigurationModal() {
       }
 
       // Call onDelete callback if provided
+      // This should trigger the refreshProviders function
       if (modalProps.onDelete) {
         modalProps.onDelete(currentProvider.name);
       }
 
       // Close the modal
+      // Close the modal after deletion and callback
       closeModal();
     } catch (error) {
       console.error('Failed to delete provider:', error);
