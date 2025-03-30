@@ -143,3 +143,11 @@ export async function replaceWithShims(cmd: string) {
 
   return cmd;
 }
+
+export function removeShims(cmd: string) {
+  const segments = cmd.split('/');
+  // Filter out any empty segments (which can happen with trailing slashes)
+  const nonEmptySegments = segments.filter((segment) => segment.length > 0);
+  // Return the last segment or empty string if there are no segments
+  return nonEmptySegments.length > 0 ? nonEmptySegments[nonEmptySegments.length - 1] : '';
+}

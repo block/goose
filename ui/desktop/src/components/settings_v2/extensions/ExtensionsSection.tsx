@@ -60,7 +60,6 @@ export default function ExtensionsSection() {
       await fetchExtensions(); // Refresh the list after successful toggle
       return true; // Indicate success
     } catch (error) {
-      console.error('Toggle extension failed:', error);
       // Don't refresh the extension list on failure - this allows our visual state rollback to work
       // The actual state in the config hasn't changed anyway
       throw error; // Re-throw to let the ExtensionItem component know it failed
