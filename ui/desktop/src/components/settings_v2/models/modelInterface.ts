@@ -37,5 +37,5 @@ export async function getProviderMetadata(
   if (!matches) {
     throw Error(`No match for provider: ${providerName}`);
   }
-  return matches[0].metadata;
+  return matches.metadata;
 }

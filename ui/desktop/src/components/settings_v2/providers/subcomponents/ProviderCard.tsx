@@ -9,6 +9,7 @@ type ProviderCardProps = {
   provider: ProviderDetails;
   onConfigure: () => void;
   onLaunch: () => void;
+  onDelete: () => void;
   isOnboarding: boolean;
 };
 

@@ -123,7 +123,21 @@ pub async fn remove_config(
 
     let config = Config::global();
 
-    match config.delete(&query.key) {
+    println!("got this");
+    println!("param name");
+    println!("{}", &query.key);
+    println!("param secret");
+    println!("{}", &query.is_secret.to_string());
+
+
+    // Check if the secret flag is true and call the appropriate method
+    let result = if query.is_secret {
+        config.delete_secret(&query.key)
+    } else {
+        config.delete(&query.key)
+    };
+
+    match result {
         Ok(_) => Ok(Json(format!("Removed key {}", query.key))),
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
