@@ -21,7 +21,7 @@ goose is your on-machine AI agent, capable of automating complex development tas
 
 Whether you're prototyping an idea, refining existing code, or managing intricate engineering pipelines, goose adapts to your workflow and executes tasks with precision.
 
-Designed for maximum flexibility, goose works with any LLM and seamlessly integrates with MCP-enabled APIs, making it the ultimate AI-powered assistant for developers who want to move faster and focus on innovation. 
+Designed for maximum flexibility, goose works with any LLM, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation. 
 
 
 # Quick Links
