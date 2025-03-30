@@ -18,7 +18,7 @@ export async function activateExtension({
 }: ActivateExtensionProps): Promise<void> {
   try {
     // AddToAgent
-    await addToAgent(extensionConfig);
+    await addToAgent(extensionConfig, { silent: false, showEscMessage: true });
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
     // add to config with enabled = false
