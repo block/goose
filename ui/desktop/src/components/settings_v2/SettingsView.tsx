@@ -5,6 +5,7 @@ import type { View } from '../../App';
 import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 import { ModeSection } from './mode/ModeSection';
+import SessionSharingSection from './sessions/SessionSharingSection';
 
 export type SettingsViewOptions = {
   extensionId?: string;
@@ -39,6 +40,8 @@ export default function SettingsView({
               <ExtensionsSection />
               {/* Goose Modes */}
               <ModeSection />
+              {/*Session sharing*/}
+              <SessionSharingSection />
             </div>
           </div>
         </div>
