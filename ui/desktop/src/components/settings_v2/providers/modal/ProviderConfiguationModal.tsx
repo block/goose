@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from '../../../../components/Modal';
 import ProviderSetupHeader from './subcomponents/ProviderSetupHeader';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
@@ -26,6 +26,15 @@ export default function ProviderConfigurationModal() {
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && currentProvider) {
+      // Reset form state when the modal opens with a new provider
+      setConfigValues({});
+      setValidationErrors({});
+      setShowDeleteConfirmation(false);
+    }
+  }, [isOpen, currentProvider]);
 
   if (!isOpen || !currentProvider) return null;
 
@@ -120,6 +129,9 @@ export default function ProviderConfigurationModal() {
       if (modalProps.onDelete) {
         modalProps.onDelete(currentProvider.name);
       }
+
+      // Reset the delete confirmation state before closing
+      setShowDeleteConfirmation(false);
 
       // Close the modal
       // Close the modal after deletion and callback

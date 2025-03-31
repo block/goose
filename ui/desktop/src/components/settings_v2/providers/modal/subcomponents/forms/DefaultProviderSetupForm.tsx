@@ -112,8 +112,10 @@ export default function DefaultProviderSetupForm({
                 }))
               }
               placeholder={getPlaceholder(parameter)}
-              className={`w-full h-14 px-4 font-regular rounded-lg border shadow-none ${
-                validationErrors[parameter.name] ? 'border-red-500' : 'border-gray-300'
+              className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+                validationErrors[parameter.name]
+                  ? 'border-2 border-red-500'
+                  : 'border border-gray-300'
               } bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900`}
               required={true}
             />
