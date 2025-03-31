@@ -109,7 +109,15 @@ export default function ExtensionModal({
     setSubmitAttempted(true);
 
     if (isFormValid()) {
-      onSubmit(formData);
+      const dataToSubmit = { ...formData };
+
+      // Convert the timeout to a number if it's a string
+      if (typeof dataToSubmit.timeout === 'string') {
+        dataToSubmit.timeout = Number(dataToSubmit.timeout);
+      }
+
+      // Submit the data with converted timeout
+      onSubmit(dataToSubmit);
       onClose(); // Only close the modal if the form is valid
     } else {
       // Optional: Add some feedback that validation failed (like a toast notification)
