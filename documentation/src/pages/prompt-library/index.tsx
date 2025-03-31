@@ -40,7 +40,7 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({});
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const promptsPerPage = 6;
+  const promptsPerPage = 20;
 
   useEffect(() => {
     const loadPrompts = async () => {

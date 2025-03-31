@@ -119,11 +119,9 @@ export function PromptCard({ prompt }: { prompt: Prompt }) {
                                     <Terminal className="h-4 w-4" />
                                     <h4 className="mx-2">Command</h4>
                                   </button>
-                                  <div className="command-content">
                                     <CodeBlock language="bash">
                                       goose session --with-extension "{extension.command}"
                                     </CodeBlock>
-                                  </div>
                                 </div>
                               </motion.div>
                             )}
