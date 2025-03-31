@@ -136,6 +136,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         });
 
         setModelOptions(formattedModelOptions);
+        setOriginalModelOptions(formattedModelOptions);
       } catch (error) {
         console.error('Failed to load providers:', error);
       }
@@ -158,6 +159,51 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     }
   };
 
+  // Store the original model options in state, initialized from modelOptions
+  const [originalModelOptions, setOriginalModelOptions] = useState(modelOptions);
+
+  const handleInputChange = (inputValue: string) => {
+    if (!provider) return;
+
+    const trimmedInput = inputValue.trim();
+
+    if (trimmedInput === '') {
+      // Reset to original model options when input is cleared
+      setModelOptions([...originalModelOptions]); // Create new array to ensure state update
+      return;
+    }
+
+    // Filter through the original model options to find matches
+    const matchingOptions = originalModelOptions
+      .map((group) => ({
+        options: group.options.filter(
+          (option) =>
+            option.value.toLowerCase().includes(trimmedInput.toLowerCase()) &&
+            option.value !== 'custom' // Exclude the "Use custom model" option from search
+        ),
+      }))
+      .filter((group) => group.options.length > 0);
+
+    if (matchingOptions.length > 0) {
+      // If we found matches in the existing options, show those
+      setModelOptions(matchingOptions);
+    } else {
+      // If no matches, show the "Use: " option
+      const customOption = [
+        {
+          options: [
+            {
+              value: trimmedInput,
+              label: `Use: "${trimmedInput}"`,
+              provider: provider,
+            },
+          ],
+        },
+      ];
+      setModelOptions(customOption);
+    }
+  };
+
   return (
     <div className="z-10">
       <Modal
@@ -174,8 +220,8 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         <div className="flex flex-col items-center gap-8">
           <div className="flex flex-col items-center gap-3">
             <Plus size={24} className="text-textStandard" />
-            <div className="text-textStandard font-medium">Switch models</div>
-            <div className="text-textSubtle text-center">
+            <div className="text-textStandard font-medium text-base">Switch models</div>
+            <div className="text-textSubtle text-center text-md">
               Configure your AI model providers by adding their API keys. Your keys are stored
               securely and encrypted locally.
             </div>
@@ -223,6 +269,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
                     <Select
                       options={filteredModelOptions}
                       onChange={handleModelChange}
+                      onInputChange={handleInputChange} // Added for input handling
                       value={model ? { value: model, label: model } : null}
                       placeholder="Select a model"
                     />
