@@ -24,7 +24,12 @@ export default function Modal({
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (preventBackdropClose) return;
     // Check if the click was on the backdrop and not on the modal content
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+    // Also check if the click target is not part of a Select menu
+    if (
+      modalRef.current &&
+      !modalRef.current.contains(e.target as Node) &&
+      !(e.target as HTMLElement).closest('.select__menu')
+    ) {
       onClose();
     }
   };
@@ -33,7 +38,11 @@ export default function Modal({
   useEffect(() => {
     const handleEscKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        // Don't close if a select menu is open
+        const selectMenu = document.querySelector('.select__menu');
+        if (!selectMenu) {
+          onClose();
+        }
       }
     };
 
@@ -53,7 +62,7 @@ export default function Modal({
     >
       <Card
         ref={modalRef}
-        className="relative w-[500px] max-w-full bg-bgApp rounded-xl my-10  max-h-[90vh] flex flex-col"
+        className="relative w-[500px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col"
       >
         <div className="p-8 max-h-[calc(90vh-180px)] overflow-y-auto">{children}</div>
         {footer && (
