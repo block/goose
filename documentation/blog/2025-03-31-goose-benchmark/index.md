@@ -1,6 +1,6 @@
 ---
 title: "Community-Inspired Benchmarking: The Goose Vibe Check"
-description: "Explore the new Speech MCP server that enables voice-controlled coding and natural conversation with your AI agent"
+description: "See how open source AI models measure up in our first Goose agent benchmark tests"
 authors: 
     - alice
 ---
