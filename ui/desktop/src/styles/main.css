@@ -262,8 +262,9 @@
 
   .bg-inline-code {
     border-radius: 4px;
-    color: rgb(255 67 67);
-    background-color: rgb(255 130 130 / 10%);
+    color: rgb(255 119 43);
+    background-color: var(--background-app);
+    border: 1px solid var(--border-subtle);
     font-family: 'Cash Sans Mono', monospace;
     font-size: 12px;
     font-style: normal;
@@ -286,10 +287,6 @@
 
   .bg-inline-code:after {
     content: '';
-  }
-
-  .dark .bg-inline-code {
-    color: rgba(248, 155, 89, 0.7);
   }
 
   .user-message p {
