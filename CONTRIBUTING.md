@@ -65,6 +65,45 @@ you can talk to goose!
 
 You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
 
+## Creating a fork
+
+To fork the repository:
+
+1. Go to https://github.com/block/goose and click “Fork” (top-right corner).
+2. This creates https://github.com/<your-username>/goose under your GitHub account.
+3. Clone your fork (not the main repo):
+```
+git clone https://github.com/<your-username>/goose.git
+cd goose
+```
+4. Add the main repository as upstream:
+
+```
+git remote add upstream https://github.com/block/goose.git
+```
+
+5. Create a branch in your fork for your changes:
+
+```
+git checkout -b my-feature-branch
+```
+6. Sync your fork with the main repo:
+
+```
+git fetch upstream
+
+# Merge them into your local branch (e.g., 'main' or 'my-feature-branch')
+git checkout main
+git merge upstream/main
+```
+
+7. Push to your fork. Because you’re the owner of the fork, you have permission to push here.
+```
+git push origin my-feature-branch
+```
+
+8. Open a Pull Request from your branch on your fork to block/goose’s main branch.
+
 ## Keeping Your Fork Up-to-Date
 
 To ensure a smooth integration of your contributions, it's important that your fork is kept up-to-date with the main repository. This helps avoid conflicts and allows us to merge your pull requests more quickly. Here’s how you can sync your fork:
