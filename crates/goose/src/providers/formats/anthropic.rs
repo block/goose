@@ -530,6 +530,7 @@ mod tests {
                         }
                     }
                 }),
+                None,
             ),
             Tool::new(
                 "weather",
@@ -543,6 +544,7 @@ mod tests {
                         }
                     }
                 }),
+                None,
             ),
         ];
 

@@ -4,6 +4,7 @@ pub mod storage;
 use anyhow::{Context, Error};
 use base64::Engine;
 use indoc::indoc;
+use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
 use serde_json::{json, Value};
@@ -209,6 +210,13 @@ impl GoogleDriveRouter {
                 }
               },
             }),
+            Some(ToolAnnotations {
+                    title: Some("Search GDrive".to_string()),
+                    read_only_hint: true,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
         );
 
         let read_tool = Tool::new(
@@ -231,6 +239,13 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["uri"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("Read GDrive".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -269,6 +284,13 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["name", "mimeType"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("Upload file to GDrive".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -313,6 +335,13 @@ impl GoogleDriveRouter {
               },
               "required": ["name", "fileType"],
             }),
+            Some(ToolAnnotations {
+                title: Some("Create new file in GDrive".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let move_file_tool = Tool::new(
@@ -338,6 +367,13 @@ impl GoogleDriveRouter {
                   },
               },
               "required": ["fileId", "currentFolderId", "newFolderId"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("Move file".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -373,6 +409,13 @@ impl GoogleDriveRouter {
               },
               "required": ["fileId", "mimeType"],
             }),
+            Some(ToolAnnotations {
+                title: Some("Update a file".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let update_file_tool = Tool::new(
@@ -407,6 +450,13 @@ impl GoogleDriveRouter {
                   }
               },
               "required": ["fileId", "fileType"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("Update a file".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -468,6 +518,7 @@ impl GoogleDriveRouter {
               },
               "required": ["spreadsheetId", "operation"],
             }),
+            None,
         );
 
         let get_comments_tool = Tool::new(
@@ -485,6 +536,13 @@ impl GoogleDriveRouter {
                 }
               },
               "required": ["fileId"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("List file comments".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -507,6 +565,13 @@ impl GoogleDriveRouter {
                 }
               },
               "required": ["fileId", "comment"],
+            }),
+            Some(ToolAnnotations {
+                title: Some("Create file comment".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -538,6 +603,13 @@ impl GoogleDriveRouter {
               },
               "required": ["fileId", "commentId", "content"],
             }),
+            Some(ToolAnnotations {
+                title: Some("Reply to a comment".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let list_drives_tool = Tool::new(
@@ -554,6 +626,13 @@ impl GoogleDriveRouter {
                     "description": "Optional name to search for when listing drives.",
                 }
               },
+            }),
+            Some(ToolAnnotations {
+                title: Some("List shared google drives".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 

@@ -2,6 +2,7 @@
 /// It makes no attempt to handle context limits, and cannot read resources
 use async_trait::async_trait;
 use futures::stream::BoxStream;
+use mcp_core::tool::ToolAnnotations;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -195,6 +196,13 @@ impl Agent for TruncateAgent {
                     "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
             }),
+            Some(ToolAnnotations {
+                title: Some("Read a resource".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let list_resources_tool = Tool::new(
@@ -212,6 +220,13 @@ impl Agent for TruncateAgent {
                 "properties": {
                     "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("List resources".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 

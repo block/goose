@@ -21,7 +21,7 @@ use anyhow::{anyhow, Result};
 use indoc::indoc;
 use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
-use mcp_core::tool::Tool;
+use mcp_core::tool::{Tool, ToolAnnotations};
 use serde_json::{json, Value};
 
 /// Reference implementation of an Agent
@@ -102,6 +102,13 @@ impl Agent for ReferenceAgent {
                     "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
             }),
+            Some(ToolAnnotations {
+                title: Some("Read a resource".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let list_resources_tool = Tool::new(
@@ -119,6 +126,13 @@ impl Agent for ReferenceAgent {
                 "properties": {
                     "extension_name": {"type": "string", "description": "Optional extension name"}
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("List resources".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 

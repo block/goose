@@ -245,7 +245,7 @@ where
         capabilities: ClientCapabilities,
     ) -> Result<InitializeResult, Error> {
         let params = InitializeParams {
-            protocol_version: "2024-11-05".to_string(),
+            protocol_version: "2025-03-26".to_string(),
             client_info: info,
             capabilities,
         };

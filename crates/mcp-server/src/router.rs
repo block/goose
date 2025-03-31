@@ -116,7 +116,7 @@ pub trait Router: Send + Sync + 'static {
     ) -> impl Future<Output = Result<JsonRpcResponse, RouterError>> + Send {
         async move {
             let result = InitializeResult {
-                protocol_version: "2024-11-05".to_string(),
+                protocol_version: "2025-03-26".to_string(),
                 capabilities: self.capabilities().clone(),
                 server_info: Implementation {
                     name: self.name(),

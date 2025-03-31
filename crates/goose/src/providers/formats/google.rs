@@ -351,6 +351,7 @@ mod tests {
             input_schema: json!({
                 "properties": params
             }),
+            annotations: None,
         }
     }
 
@@ -494,6 +495,7 @@ mod tests {
             input_schema: json!({
                 "properties": {}
             }),
+            annotations: None,
         }];
         let result = format_tools(&tools);
         assert_eq!(result.len(), 1);

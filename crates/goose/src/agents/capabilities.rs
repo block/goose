@@ -245,6 +245,7 @@ impl Capabilities {
                         format!("{}__{}", name, tool.name),
                         &tool.description,
                         tool.input_schema,
+                        tool.annotations,
                     ));
                 }
 

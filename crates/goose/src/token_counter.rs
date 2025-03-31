@@ -310,6 +310,7 @@ mod tests {
                 },
                 "required": ["location"]
             }),
+            annotations: None,
         }];
 
         let token_count_without_tools = counter.count_chat_tokens(system_prompt, &messages, &[]);

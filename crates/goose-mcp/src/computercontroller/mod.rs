@@ -13,7 +13,7 @@ use mcp_core::{
     prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
-    tool::Tool,
+    tool::{Tool, ToolAnnotations},
     Content,
 };
 use mcp_server::router::CapabilitiesBuilder;
@@ -73,6 +73,13 @@ impl ComputerControllerRouter {
                         "description": "How to interpret and save the content"
                     }
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Web Scrape".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: true,
             }),
         );
 
@@ -139,6 +146,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         let quick_script_desc = match std::env::consts::OS {
@@ -189,6 +197,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         let cache_tool = Tool::new(
@@ -215,6 +224,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         let pdf_tool = Tool::new(
@@ -241,6 +251,13 @@ impl ComputerControllerRouter {
                         "description": "Operation to perform on the PDF"
                     }
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("PDF process".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
             }),
         );
 
@@ -340,6 +357,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         let make_presentation_tool = Tool::new(
@@ -380,6 +398,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         let xlsx_tool = Tool::new(
@@ -441,6 +460,7 @@ impl ComputerControllerRouter {
                     }
                 }
             }),
+            None,
         );
 
         // choose_app_strategy().cache_dir()

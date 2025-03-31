@@ -17,12 +17,15 @@ use tokio::process::Command;
 use url::Url;
 
 use include_dir::{include_dir, Dir};
-use mcp_core::prompt::{Prompt, PromptArgument, PromptTemplate};
 use mcp_core::{
     handler::{PromptError, ResourceError, ToolError},
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
+};
+use mcp_core::{
+    prompt::{Prompt, PromptArgument, PromptTemplate},
+    tool::ToolAnnotations,
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
@@ -161,6 +164,7 @@ impl DeveloperRouter {
                     "command": {"type": "string"}
                 }
             }),
+            None,
         );
 
         let text_editor_tool = Tool::new(
@@ -199,6 +203,7 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
+            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -212,6 +217,13 @@ impl DeveloperRouter {
                 "type": "object",
                 "required": [],
                 "properties": {}
+            }),
+            Some(ToolAnnotations {
+                title: Some("List available windows".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -241,6 +253,13 @@ impl DeveloperRouter {
                     }
                 }
             }),
+            Some(ToolAnnotations {
+                title: Some("Capture a full screen".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let image_processor_tool = Tool::new(
@@ -262,6 +281,13 @@ impl DeveloperRouter {
                         "description": "Absolute path to the image file to process"
                     }
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Process Image".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
             }),
         );
 
