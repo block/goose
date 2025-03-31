@@ -1,4 +1,4 @@
-import { Download, Terminal, ChevronRight, Info } from "lucide-react";
+import { Download, Terminal, Info } from "lucide-react";
 import Link from "@docusaurus/Link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";

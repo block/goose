@@ -1,5 +1,5 @@
 import Layout from "@theme/Layout";
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, Check, Terminal, Download } from "lucide-react";
+import { ArrowLeft, Terminal, Download } from "lucide-react";
 import Admonition from '@theme/Admonition';
 import CodeBlock from '@theme/CodeBlock';
 import { Button } from "@site/src/components/ui/button";
@@ -8,9 +8,28 @@ import { useLocation } from "@docusaurus/router";
 import { useEffect, useState } from "react";
 import Link from "@docusaurus/Link";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Prompt, Extension } from "@site/src/types/prompt";
+import type { MCPServer } from "@site/src/types/server";
 import { getPromptById } from "@site/src/utils/prompts";
 import ReactMarkdown from 'react-markdown';
+
+import type { Prompt, Extension } from "@site/src/types/prompt";
+import { getGooseInstallLink } from "@site/src/utils/install-links";
+
+function extensionToMCPServer(extension: Extension): MCPServer {
+  return {
+    id: extension.command,
+    name: extension.name,
+    command: extension.command,
+    description: extension.name,
+    is_builtin: extension.is_builtin,
+    link: extension.link || '',
+    installation_notes: extension.installation_notes || '',
+    endorsed: false,
+    environmentVariables: extension.environmentVariables || [],
+    githubStars: 0
+  };
+}
+
 
 function ExtensionList({ extensions }: { extensions: Extension[] }) {
   const [expandedExtension, setExpandedExtension] = useState<string | null>(null);
@@ -87,8 +106,20 @@ function ExtensionDetails({
             className="overflow-hidden"
           >
             <div className="mt-2 bg-background-subtle rounded-md p-3 border border-borderSubtle space-y-3">
+              <a
+                href={getGooseInstallLink(extensionToMCPServer(extension))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-textStandard hover:text-textProminent"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="h-4 w-4" />
+                <span className="mx-2">Install via Desktop</span>
+              </a>
+
+              <div className="border-t border-borderSubtle" />
               <button
-                className="command-toggle"
+                className="command-toggle w-full flex items-center"
               >
                 <Terminal className="h-4 w-4" />
                 <h4 className="mx-2">Command</h4>
