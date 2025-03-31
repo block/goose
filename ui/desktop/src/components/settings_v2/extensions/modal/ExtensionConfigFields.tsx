@@ -1,6 +1,5 @@
 import { Input } from '../../../ui/input';
 import React from 'react';
-import { removeShims } from '../utils';
 
 interface ExtensionConfigFieldsProps {
   type: 'stdio' | 'sse' | 'builtin';
@@ -26,7 +25,7 @@ export default function ExtensionConfigFields({
           <label className="text-sm font-medium mb-2 block text-textStandard">Command</label>
           <div className="relative">
             <Input
-              value={removeShims(full_cmd)}
+              value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
               className={`w-full ${!submitAttempted || isValid ? 'border-borderSubtle' : 'border-red-500'} text-textStandard`}
