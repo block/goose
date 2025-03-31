@@ -117,7 +117,6 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         activeProviders.forEach(({ metadata, name }) => {
           if (metadata.known_models && metadata.known_models.length > 0) {
             formattedModelOptions.push({
-              label: metadata.display_name,
               options: metadata.known_models.map((modelName) => ({
                 value: modelName,
                 label: modelName,
