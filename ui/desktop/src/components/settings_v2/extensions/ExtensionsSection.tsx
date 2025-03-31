@@ -80,6 +80,7 @@ export default function ExtensionsSection() {
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
+    console.log('extensionConfig', extensionConfig);
 
     await updateExtension({
       enabled: formData.enabled,
