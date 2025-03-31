@@ -119,6 +119,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const addExtension = async (name: string, config: ExtensionConfig, enabled: boolean) => {
+    // remove shims if present
     if (config.type == 'stdio') {
       config.cmd = removeShims(config.cmd);
     }

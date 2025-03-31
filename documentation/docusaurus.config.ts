@@ -143,6 +143,11 @@ const config: Config = {
           position: "left",
           label: "Tutorials",
         },
+        {
+          to: "/prompt-library",
+          position: "left",
+          label: "Prompt Library",
+        },
         { to: "/blog", label: "Blog", position: "left" },
 
         {
