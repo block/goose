@@ -123,11 +123,6 @@ pub async fn remove_config(
 
     let config = Config::global();
 
-    println!("got this");
-    println!("param name");
-    println!("{}", &query.key);
-    println!("param secret");
-    println!("{}", &query.is_secret.to_string());
 
 
     // Check if the secret flag is true and call the appropriate method
