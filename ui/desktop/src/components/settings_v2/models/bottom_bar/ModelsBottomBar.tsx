@@ -3,7 +3,7 @@ import { Sliders } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useConfig } from '../../../ConfigContext';
 import { getCurrentModelAndProviderForDisplay } from '../index';
-import { AddModelModal } from './AddModelModal';
+import { AddModelModal } from '../subcomponents/AddModelModal';
 import type { View } from '../../../../App';
 
 interface ModelsBottomBarProps {
