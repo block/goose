@@ -30,7 +30,7 @@ The tool that connects AI agents to different apps and services so they can work
 
 Once set up, your AI agent will automatically use the MCP server for each task. Now whether it's files on your computer, a browser you have open, a Google Sheet of marketing data, or anything else, your AI agent can now use MCP servers to communicate with practically anything you need.
 
-# MCP Servers You Should Try Right Now
+## MCP Servers You Should Try Right Now
 So what MCP servers are out there, and which ones should I try first? With [over 3000 MCP servers](https://glama.ai/mcp/servers) you can connect to, here is your top list of popular MCP servers you should try:
 
 - **[Google Drive](https://github.com/rishipradeep-think41/drive-mcp)**: File access and search capabilities for Google Drive
@@ -44,7 +44,7 @@ So what MCP servers are out there, and which ones should I try first? With [over
 
 This quick list should give you an idea of all the ways you can now use AI agents with your workflow. You can also explore community favorites in [handy MCP directories](https://dev.to/techgirl1908/my-favorite-mcp-directories-573n), or check out these [Goose tutorials](https://block.github.io/goose/docs/category/tutorials) showing you exactly how you can use some of these popular MCP servers with Goose. You can even use [Goose's Tutorial extension](https://block.github.io/goose/docs/tutorials/tutorial-extension) to get extra help walking you through using extensions or building them.
 
-# The Possibilities Are Endless
+## The Possibilities Are Endless
 While some are developed by official providers, a vast majority of MCP servers you see are actually developed by community members! Plus, because MCP is an open standard, anyone can build an MCP server for any resource. You could even use Goose to help you build one!
 
 Hopefully now, instead of spending hours manually gathering data and creating your next marketing report, or manually sorting through your todo-backlog on a Monday, you will use MCP with Goose and have it done for you in minutes.
