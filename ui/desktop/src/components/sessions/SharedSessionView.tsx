@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Globe } from 'lucide-react';
+import { Clock, Globe, MessageSquare, Folder } from 'lucide-react';
 import { type SharedSessionDetails } from '../../sharedSessions';
 import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 
@@ -35,9 +35,26 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
                 <Clock className="w-4 h-4 mr-1" />
                 {new Date(session.messages[0]?.created * 1000).toLocaleString()}
               </span>
-              <span className="flex items-center">
+              {/* <span className="flex items-center">
                 <Globe className="w-4 h-4 mr-1" />
                 {session.base_url}
+              </span> */}
+              <span className="flex items-center">
+                <MessageSquare className="w-4 h-4 mr-1" />
+                {session.message_count} messages
+              </span>
+              {session.total_tokens !== null && (
+                <span className="flex items-center">
+                  {session.total_tokens.toLocaleString()} tokens
+                </span>
+              )}
+            </div>
+          )}
+          {session && (
+            <div className="flex items-center text-sm text-textSubtle mt-1">
+              <span className="flex items-center">
+                <Folder className="w-4 h-4 mr-1" />
+                {session.working_dir}
               </span>
             </div>
           )}
