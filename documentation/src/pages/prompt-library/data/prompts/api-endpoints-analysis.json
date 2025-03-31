@@ -3,6 +3,7 @@
   "title": "Analyze App Endpoints and Interfaces",
   "description": "Review application routing configuration and summarize all external interfaces",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Please analyze the application's routing configuration found in `config/routes.rb` and summarize all external interfaces, including API endpoints, service integrations, and public routes.",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

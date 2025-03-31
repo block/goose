@@ -3,6 +3,7 @@
   "title": "Adapt Social Post for Platform",
   "description": "Convert a social media post to fit different platform requirements and best practices",
   "category": "productivity",
+  "job": "marketing-content",
   "example_prompt": "Please adapt this post for [Target Platform]. Consider:\n\n1. Character limits\n2. Platform-specific features\n3. Format conventions\n4. Hashtag usage\n5. Link formatting\n6. Media recommendations\n7. Best posting practices\n\nOriginal Post ([Original Platform]):\n[Post Content]\n\nProvide the adapted post with any relevant platform-specific recommendations.",
   "extensions": [
     {
@@ -27,7 +28,9 @@
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     }
   ]
 }

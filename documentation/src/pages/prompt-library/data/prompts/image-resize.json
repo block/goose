@@ -3,19 +3,24 @@
   "title": "Resize Image with Aspect Ratio",
   "description": "Resize an image while maintaining aspect ratio and quality.",
   "category": "productivity",
+  "job": "design",
   "example_prompt": "Resize my image {image_path} to be {width}x{height} pixels. Maintain the aspect ratio and image quality.",
   "extensions": [
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     },
     {
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     }
   ]
 }

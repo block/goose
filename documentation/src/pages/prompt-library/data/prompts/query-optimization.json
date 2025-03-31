@@ -3,6 +3,7 @@
   "title": "Optimize Database Query Performance",
   "description": "Refactor a Ruby query to improve database performance by moving operations from memory to SQL",
   "category": "technical",
+  "job": "data-analytics",
   "example_prompt": "The list_records method in app/services/record_service.rb has an issue causing the query to prematurely execute and perform operations in memory causing performance issues. Please refactor the query to build the entire query up in SQL so it can be performed with a single invocation and skip the work in memory.",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

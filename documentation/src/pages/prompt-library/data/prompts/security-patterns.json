@@ -3,6 +3,7 @@
   "title": "Learn Security Vulnerability Patterns",
   "description": "Store and analyze security vulnerability patterns and their relationships",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Goose, learn these security vulnerability patterns and their relationships:\n\n1. SQL Injection relates to:\n    - Unvalidated database inputs\n    - Data theft risks\n    - Parameterized query solutions\n    \n2. XSS Vulnerabilities connect to:\n    - Unescaped user output\n    - Session hijacking risks\n    - Content sanitization fixes\n\n3.Authentication Weaknesses link to:\n    - Session management\n    - Account compromise\n    - JWT-based solutions",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "npx -y @modelcontextprotocol/server-memory",
       "is_builtin": false,
       "environmentVariables": [
+
       ]
     },
     {
@@ -17,6 +19,7 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

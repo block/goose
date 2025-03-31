@@ -3,13 +3,16 @@
   "title": "AI Content Detection Policies",
   "description": "Enforce content policies by detecting AI-generated submissions and ensuring compliance with platform guidelines",
   "category": "business",
+  "job": "marketing-content",
   "example_prompt": "Please analyze the provided content for:\n1. Indicators of AI generation\n2. Policy compliance issues\n3. Required disclosures or missing attributions\n\nProvide a detailed report including:\n- AI detection confidence score\n- Policy violation alerts\n- Recommended actions\n- Suggested improvements for compliance",
   "extensions": [
     {
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     },
     {
       "name": "Google Drive",
@@ -18,12 +21,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
           "required": true
         }
       ]

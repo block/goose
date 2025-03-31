@@ -3,6 +3,7 @@
   "title": "Regulatory Document Change Analysis",
   "description": "Run a comparative analysis between different versions of AML regulatory documents",
   "category": "business",
+  "job": "operations",
   "example_prompt": "Highlight the differences between these two versions of FinCEN's Investment Adviser AML regulations:\n\nProposed version (2015): https://www.federalregister.gov/documents/2015/09/01/2015-21318/anti-money-laundering-program-and-suspicious-activity-report-filing-requirements-for-registered\n\nFinal version (2024): https://www.federalregister.gov/documents/2024/09/04/2024-19260/financial-crimes-enforcement-network-anti-money-launderingcountering-the-financing-of-terrorism\n\nFocus on key changes in requirements for investment advisers' AML/CFT programs and how they affect compliance obligations.",
   "extensions": [
     {

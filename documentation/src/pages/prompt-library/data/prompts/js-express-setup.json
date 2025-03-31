@@ -3,6 +3,7 @@
   "title": "Scaffold JavaScript Boilerplate",
   "description": "Initialize a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Set up a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv. Fetch the latest package versions, generate a README with those versions, and initialize Git",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

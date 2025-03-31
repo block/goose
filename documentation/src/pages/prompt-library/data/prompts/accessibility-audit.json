@@ -3,13 +3,16 @@
   "title": "Website Accessibility Audit",
   "description": "Conduct a comprehensive accessibility audit of a website, including keyboard navigation, color contrast, and ARIA compliance",
   "category": "technical",
+  "job": "design",
   "example_prompt": "Can you check if my website is accessible? Please conduct a full accessibility audit, focusing on the following:\n\n1. Keyboard Navigation: Test all interactive elements (links, buttons, dropdowns, etc.) to ensure they are accessible without a mouse.\n\n2. Color Contrast Analysis: Verify that all text and UI elements meet WCAG contrast ratio standards.\n\n3. Screen Reader Compatibility: Test whether a screen reader can properly interpret content and navigation.\n\n4. ARIA & Semantic HTML Validation: Identify any missing or misused ARIA attributes and ensure proper semantic structure.\n\n5. Error Identification & Screenshots: Provide a comprehensive report with identified issues, along with screenshots if necessary.\n\n6. Fixes & Code Recommendations: Suggest HTML, CSS, or JavaScript changes to resolve any compliance issues.\n\nHere is the website to test: [URL]. I want to ensure that our documentation meets accessibility standards. Please generate a detailed report with steps to fix any issues found.",
   "extensions": [
     {
       "name": "Puppeteer",
       "command": "npx -y @modelcontextprotocol/server-puppeteer",
       "is_builtin": false,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     },
     {
       "name": "Developer",

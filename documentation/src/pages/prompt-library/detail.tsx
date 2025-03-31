@@ -211,11 +211,9 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
 
                   <div>
                     <h2 className="text-2xl font-medium mb-4">Example Prompt</h2>
-                    <div className="command-content">
                       <CodeBlock language="markdown">
                         {prompt.example_prompt}
                       </CodeBlock>
-                    </div>
                   </div>
 
                   <div>

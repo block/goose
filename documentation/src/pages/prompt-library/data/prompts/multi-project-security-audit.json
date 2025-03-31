@@ -3,19 +3,23 @@
   "title": "Multi-Project Security Audit",
   "description": "Perform comprehensive security analysis across multiple projects to identify and fix vulnerabilities",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Please analyze these codebases for security issues:\n\n1. Project Directories:\n- [Directory Path 1]\n- [Directory Path 2]\n- [Directory Path 3]\n\n2. Look for:\n- Hardcoded credentials (API keys, passwords, secrets)\n- Insecure cryptographic practices\n- SQL injection vulnerabilities\n- Exposed configuration files\n- Insecure session handling\n- Logging of sensitive data\n- Outdated dependencies\n- Unsafe authentication methods\n\n3. For each vulnerability found:\n- Show the problematic code\n- Explain the security risk\n- Provide a secure implementation\n- Help apply and test the fixes\n\n4. Create a detailed security report including:\n- Critical findings by project\n- Risk severity levels\n- File locations and snippets\n- Applied fixes and improvements\n- Verification steps taken",
   "extensions": [
     {
       "name": "Filesystem",
       "command": "npx -y @modelcontextprotocol/server-filesystem",
       "is_builtin": false,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     },
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

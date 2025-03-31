@@ -3,6 +3,7 @@
   "title": "Check Product Availability in Regions",
   "description": "Research which countries and regions a product is available in",
   "category": "business",
+  "job": "project-management",
   "featured": true,
   "example_prompt": "List ISO 3166-1 country codes where {product_name} is sold. Return JSON containing:\ncountry_codes: List of the ISO-3166-1 country codes that are valid for this device\ndevice_model: The model you have performed the lookup for\nis_north_america: Whether or not the specified device is expected to acquired easily in north america",
   "extensions": [

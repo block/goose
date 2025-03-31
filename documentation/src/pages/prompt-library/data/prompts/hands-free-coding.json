@@ -3,6 +3,7 @@
   "title": "Hands-free Coding",
   "description": "Use your voice to code",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "I'd like to speak instead of typing",
   "extensions": [
     {
@@ -10,13 +11,16 @@
       "command": "uvx -p 3.10.14 speech-mcp@latest",
       "is_builtin": false,
       "installation_notes": "[PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone",
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     },
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

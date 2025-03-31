@@ -3,6 +3,7 @@
   "title": "Upgrade Java Project",
   "description": "Upgrade Java project to latest LTS version and refactor using newer features",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Using the JetBrains IDE tools, upgrade this project to use the latest Java LTS version and refactor the codebase to use newer Java features where beneficial.",
   "extensions": [
     {
@@ -10,7 +11,7 @@
       "command": "npx -y @jetbrains/mcp-proxy",
       "is_builtin": false,
       "environmentVariables": [
-    
+
       ]
     },
     {
@@ -18,6 +19,7 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

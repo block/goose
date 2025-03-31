@@ -3,6 +3,7 @@
   "title": "Control Computer Settings",
   "description": "Automate system settings while conducting parallel research tasks",
   "category": "productivity",
+  "job": "operations",
   "example_prompt": "Goose, I need to decompress while researching AI models for tomorrow's meeting. Can you create a relaxing environment and help me research?\n\n1. Play classical music in [your preferred app]\n2. Dim screen brightness (2 levels)\n3. Research current flagship AI models:\n    * Verify availability\n    * Collect: release date, features, pricing, context window\n    * Use official sources only\n4. Create \"ai-models-comparison.csv\" on desktop with collected data\n5. Launch Numbers and open the CSV file\n6. Reset brightness and close Safari",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     }
   ]

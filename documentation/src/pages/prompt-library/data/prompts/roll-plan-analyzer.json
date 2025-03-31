@@ -3,6 +3,7 @@
   "title": "Analyze Production Change ROLL Plans",
   "description": "Analyze and validate infrastructure change ROLL plans for production environments",
   "category": "technical",
+  "job": "project-management",
   "example_prompt": "You are an expert in cloud infrastructure, security, and reliability engineering. Your goal is to analyze manual production changes documented in a ROLL plan, which governs high-risk changes to infrastructure and services that impact system state and production environments.\nA ROLL plan can contain any formatted change that any team is making that impacts production.\nI will provide a reference ROLL plan named\nROLL - SAMPLE.xml, which is a past real-world ROLL plan exported from JIRA. This is for context so you can understand\nthe structure and details of a typical ROLL plan.\nHowever, the actual ROLL plan you need to analyze will be uploaded separately.",
   "extensions": [
     {
@@ -10,13 +11,16 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     },
     {
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     }
   ]
 }

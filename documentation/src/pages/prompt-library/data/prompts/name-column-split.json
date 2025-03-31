@@ -3,6 +3,7 @@
   "title": "Clean Spreadsheet Data",
   "description": "Automatically organize messy data by splitting and reformatting columns",
   "category": "productivity",
+  "job": "data-analytics",
   "example_prompt": "I'll help you split the names in Column C into separate First Name and Last Name columns. Let me analyze and modify your spreadsheet:\n\n1. First, I'll check the current structure of your spreadsheet\n2. Then I'll create a script to:\n   - Read the full names from Column C\n   - Split each name into first and last components\n   - Keep the first name in Column C\n   - Add the last names in Column D\n3. Finally, I'll save the changes back to your file\n\nPlease provide the path to your Excel file and I'll help you split the names.",
   "extensions": [
     {
@@ -10,6 +11,7 @@
       "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": [
+
       ]
     },
     {
@@ -19,12 +21,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
           "required": true
         }
       ]

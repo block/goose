@@ -3,6 +3,7 @@
   "title": "Marketing Budget Review Meeting Prep",
   "description": "Prepare for marketing budget review meeting by analyzing Google Drive documents",
   "category": "business",
+  "job": "marketing-content",
   "example_prompt": "I have an important marketing budget review meeting in 30 minutes and I need your help getting prepared. I have several documents in my Google Drive from our previous meetings and planning sessions. Could you help me by:\n\n1. Finding all relevant documents about our marketing budget and performance\n2. Giving me a quick summary of our Q1 performance\n3. Highlighting the key decisions we need to make about the marketing automation tool and video production\n4. Identifying any outstanding action items from our last meeting",
   "extensions": [
     {
@@ -13,12 +14,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
           "required": true
         }
       ]
@@ -27,7 +28,9 @@
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": []
+      "environmentVariables": [
+
+      ]
     }
   ]
 }

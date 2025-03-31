@@ -3,6 +3,7 @@
   "title": "Make a Phone Call",
   "description": "Have goose place a phone call",
   "category": "productivity",
+  "job": "operations",
   "featured": true,
   "example_prompt": "Please call the number [phone number] and tell a joke",
   "extensions": [

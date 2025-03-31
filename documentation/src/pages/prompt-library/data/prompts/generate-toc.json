@@ -3,6 +3,7 @@
   "title": "Generate Table of Contents for Repo",
   "description": "Generate a logically organized table of contents for a CONTRIBUTING.md file",
   "category": "technical",
+  "job": "engineering",
   "example_prompt": "Analyze the CONTRIBUTING.md file and create a well-structured table of contents. Include all major sections and subsections, using consistent formatting and logical organization.",
   "extensions": [
     {
