@@ -166,28 +166,22 @@ export default function ProviderConfigurationModal() {
       </div>
 
       {/* Contains information used to set up each provider */}
-      <FormComponent
-        configValues={configValues}
-        setConfigValues={setConfigValues}
-        provider={currentProvider}
-        validationErrors={validationErrors}
-        {...(modalProps.formProps || {})} // Spread any custom form props
-      />
-      {/* Hide the form when showing delete confirmation */}
-      {!showDeleteConfirmation && (
+      {/* Only show the form when NOT in delete confirmation mode */}
+      {!showDeleteConfirmation ? (
         <>
           {/* Contains information used to set up each provider */}
           <FormComponent
             configValues={configValues}
             setConfigValues={setConfigValues}
             provider={currentProvider}
+            validationErrors={validationErrors}
             {...(modalProps.formProps || {})} // Spread any custom form props
           />
 
           {currentProvider.metadata.config_keys &&
             currentProvider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
         </>
-      )}
+      ) : null}
     </Modal>
   );
 }
