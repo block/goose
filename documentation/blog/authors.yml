@@ -55,3 +55,12 @@ angie:
     linkedin: angiejones
     github: angiejones
     x: techgirl1908
+
+alice:
+  name: Alice Hau
+  title: Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/110418948?v=4
+  page: true
+  socials:
+    linkedin: alicehau
+    github: alicehau
