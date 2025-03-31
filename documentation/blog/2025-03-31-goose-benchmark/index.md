@@ -331,7 +331,7 @@ For runs that successfully created a working flappy bird game with pygame, here 
 
 
 
-<ImageCarousel id="flappy" images={[
+<ImageCarousel id="flappy" width="40%" images={[
 
   require('./flappy_bird_carousel/claude-3-5-haiku.gif').default,
   require('./flappy_bird_carousel/claude-3-5-sonnet-2.gif').default,
@@ -356,7 +356,7 @@ For runs that successfully created an index.html for the Wiki page task, here’
 
 
 
-<ImageCarousel id="wiki" images={[
+<ImageCarousel id="wiki" width="80%" images={[
 
   require('./wiki_pages_carousel/gemma3.27b-toolshim-mistral-nemo.png').default,
   require('./wiki_pages_carousel/claude-3.5-haiku.png').default,

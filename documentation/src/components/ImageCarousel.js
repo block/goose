@@ -6,18 +6,23 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-const ImageCarousel = ({ images, id }) => {
+const ImageCarousel = ({ images, id, width = 100% }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
 
   const getCurrentImageName = () => {
     const currentImage = images[activeIndex];
-    const imagePath = typeof currentImage === 'string' ? currentImage : (currentImage?.src || '');
+    // Get the source path as a string
+    const imagePath = typeof currentImage === 'string' ? currentImage : (currentImage?.toString() || '');
     
-    // Extract filename from path and remove extension
-    const filename = imagePath.split('/').pop() || '';
-    const lastDotIndex = filename.lastIndexOf('.');
+    // Try to extract the actual filename from the path by finding the last part of the path that matches a model name pattern
+    const matches = imagePath.match(/\/([^\/]+)\.(gif|png|jpg|jpeg)/) 
+                   
+    if (matches && matches[1]) {
+      return matches[1];
+    }
     
-    return lastDotIndex !== -1 ? filename.substring(0, lastDotIndex) : filename;
+    // Last resort fallback
+    return `Image ${activeIndex + 1}`;
   };
 
   return (
@@ -31,7 +36,7 @@ const ImageCarousel = ({ images, id }) => {
         pagination={{ clickable: true }}
         modules={[Navigation, Pagination]}
         className={`swiper-container-${id}`}  // Unique class for each carousel
-        style={{ width: '100%' }}
+        style={{ width: width }}
         onSlideChange={(swiper) => setActiveIndex(swiper.activeIndex)}
       >
         {images.map((src, index) => (
