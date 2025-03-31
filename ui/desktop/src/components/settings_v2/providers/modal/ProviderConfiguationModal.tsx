@@ -21,6 +21,7 @@ const customFormsMap = {
 
 export default function ProviderConfigurationModal() {
   const { upsert } = useConfig();
+  const [validationErrors, setValidationErrors] = useState({});
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
 
@@ -35,6 +36,31 @@ export default function ProviderConfigurationModal() {
   const handleSubmitForm = async (e) => {
     e.preventDefault();
     console.log('Form submitted for:', currentProvider.name);
+
+    // Reset previous validation errors
+    setValidationErrors({});
+
+    // Validation logic
+    const parameters = currentProvider.metadata.config_keys || [];
+    const errors = {};
+
+    // Check required fields
+    parameters.forEach((parameter) => {
+      if (
+        parameter.required &&
+        (configValues[parameter.name] === undefined ||
+          configValues[parameter.name] === null ||
+          configValues[parameter.name] === '')
+      ) {
+        errors[parameter.name] = `${parameter.name} is required`;
+      }
+    });
+
+    // If there are validation errors, stop the submission
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return; // Stop the submission process
+    }
 
     try {
       // Wait for the submission to complete
@@ -79,6 +105,7 @@ export default function ProviderConfigurationModal() {
         configValues={configValues}
         setConfigValues={setConfigValues}
         provider={currentProvider}
+        validationErrors={validationErrors}
         {...(modalProps.formProps || {})} // Spread any custom form props
       />
 

@@ -6,12 +6,14 @@ interface DefaultProviderSetupFormProps {
   configValues: Record<string, any>;
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   provider: any;
+  validationErrors: any;
 }
 
 export default function DefaultProviderSetupForm({
   configValues,
   setConfigValues,
   provider,
+  validationErrors,
 }: DefaultProviderSetupFormProps) {
   const parameters = provider.metadata.config_keys || [];
   const [isLoading, setIsLoading] = useState(true);
@@ -107,7 +109,9 @@ export default function DefaultProviderSetupForm({
                 }))
               }
               placeholder={getPlaceholder(parameter)}
-              className="w-full h-14 px-4 font-regular rounded-lg border shadow-none border-gray-300 bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900"
+              className={`w-full h-14 px-4 font-regular rounded-lg border shadow-none ${
+                validationErrors[parameter.name] ? 'border-red-500' : 'border-gray-300'
+              } bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900`}
               required={true}
             />
           </div>
