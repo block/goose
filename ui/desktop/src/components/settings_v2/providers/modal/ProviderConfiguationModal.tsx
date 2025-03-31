@@ -11,6 +11,7 @@ import OllamaSubmitHandler from './subcomponents/handlers/OllamaSubmitHandler';
 import OllamaForm from './subcomponents/forms/OllamaForm';
 import { useConfig } from '../../../ConfigContext';
 import { AlertTriangle } from 'lucide-react';
+import { getCurrentModelAndProvider } from '../../models'; // Import the utility
 
 const customSubmitHandlerMap = {
   provider_name: OllamaSubmitHandler, // example
@@ -22,10 +23,11 @@ const customFormsMap = {
 
 export default function ProviderConfigurationModal() {
   const [validationErrors, setValidationErrors] = useState({});
-  const { upsert, remove } = useConfig();
+  const { upsert, remove, read } = useConfig(); // Add read to the destructured values
   const { isOpen, currentProvider, modalProps, closeModal } = useProviderModal();
   const [configValues, setConfigValues] = useState({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [isActiveProvider, setIsActiveProvider] = useState(false); // New state for tracking active provider
 
   useEffect(() => {
     if (isOpen && currentProvider) {
@@ -33,6 +35,7 @@ export default function ProviderConfigurationModal() {
       setConfigValues({});
       setValidationErrors({});
       setShowDeleteConfirmation(false);
+      setIsActiveProvider(false); // Reset active provider state
     }
   }, [isOpen, currentProvider]);
 
@@ -43,8 +46,11 @@ export default function ProviderConfigurationModal() {
     ? `Delete configuration for ${currentProvider.metadata.display_name}`
     : `Configure ${currentProvider.metadata.display_name}`;
 
+  // Modify description text to show warning if it's the active provider
   const descriptionText = showDeleteConfirmation
-    ? 'This will permanently delete the current provider configuration.'
+    ? isActiveProvider
+      ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
+      : 'This will permanently delete the current provider configuration.'
     : `Add your API key(s) for this provider to integrate into Goose`;
 
   const SubmitHandler = customSubmitHandlerMap[currentProvider.name] || DefaultSubmitHandler;
@@ -99,6 +105,7 @@ export default function ProviderConfigurationModal() {
   const handleCancel = () => {
     // Reset delete confirmation state
     setShowDeleteConfirmation(false);
+    setIsActiveProvider(false);
 
     // Use custom cancel handler if provided
     if (modalProps.onCancel) {
@@ -108,11 +115,31 @@ export default function ProviderConfigurationModal() {
     closeModal();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    // Check if this is the currently active provider
+    try {
+      const providerModel = await getCurrentModelAndProvider({ readFromConfig: read });
+      if (currentProvider.name === providerModel.provider) {
+        // It's the active provider - set state and show warning
+        setIsActiveProvider(true);
+        setShowDeleteConfirmation(true);
+        return; // Exit early - don't allow actual deletion
+      }
+    } catch (error) {
+      console.error('Failed to check current provider:', error);
+    }
+
+    // If we get here, it's not the active provider
+    setIsActiveProvider(false);
     setShowDeleteConfirmation(true);
   };
 
   const handleConfirmDelete = async () => {
+    // Don't proceed if this is the active provider
+    if (isActiveProvider) {
+      return;
+    }
+
     try {
       // Remove the provider configuration
       // get the keys
@@ -132,6 +159,7 @@ export default function ProviderConfigurationModal() {
 
       // Reset the delete confirmation state before closing
       setShowDeleteConfirmation(false);
+      setIsActiveProvider(false);
 
       // Close the modal
       // Close the modal after deletion and callback
@@ -141,10 +169,16 @@ export default function ProviderConfigurationModal() {
       // Keep modal open if there's an error
     }
   };
+
   // Function to determine which icon to display
   const getModalIcon = () => {
     if (showDeleteConfirmation) {
-      return <AlertTriangle className="text-red-500" size={24} />;
+      return (
+        <AlertTriangle
+          className={isActiveProvider ? 'text-yellow-500' : 'text-red-500'}
+          size={24}
+        />
+      );
     }
     return <ProviderLogo providerName={currentProvider.name} />;
   };
@@ -159,9 +193,13 @@ export default function ProviderConfigurationModal() {
           onDelete={handleDelete}
           showDeleteConfirmation={showDeleteConfirmation}
           onConfirmDelete={handleConfirmDelete}
-          onCancelDelete={() => setShowDeleteConfirmation(false)}
-          canDelete={isConfigured}
+          onCancelDelete={() => {
+            setShowDeleteConfirmation(false);
+            setIsActiveProvider(false);
+          }}
+          canDelete={isConfigured && !isActiveProvider} // Disable delete button for active provider
           providerName={currentProvider.metadata.display_name}
+          isActiveProvider={isActiveProvider} // Pass this to actions for button state
         />
       }
     >

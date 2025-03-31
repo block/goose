@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '../../../../ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;
@@ -11,6 +11,7 @@ interface ProviderSetupActionsProps {
   onCancelDelete?: () => void;
   canDelete?: boolean;
   providerName?: string;
+  isActiveProvider?: boolean; // Made optional with default false
 }
 
 /**
@@ -26,9 +27,35 @@ export default function ProviderSetupActions({
   onCancelDelete,
   canDelete,
   providerName,
+  isActiveProvider = false, // Default value provided
 }: ProviderSetupActionsProps) {
   // If we're showing delete confirmation, render the delete confirmation buttons
   if (showDeleteConfirmation) {
+    // Check if this is the active provider
+    if (isActiveProvider) {
+      return (
+        <>
+          <div className="w-full px-6 py-4 bg-yellow-600/20 border-t border-yellow-500/30">
+            <p className="text-yellow-500 text-sm mb-2 flex items-start">
+              <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+              <span>
+                You cannot delete {providerName} while it's currently in use. Please switch to a
+                different model before deleting this provider.
+              </span>
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            onClick={onCancelDelete}
+            className="w-full h-[60px] rounded-none hover:bg-bgSubtle text-textSubtle hover:text-textStandard text-md font-regular"
+          >
+            Ok
+          </Button>
+        </>
+      );
+    }
+
+    // Normal delete confirmation
     return (
       <>
         <div className="w-full px-6 py-4 bg-red-900/20 border-t border-red-500/30">
