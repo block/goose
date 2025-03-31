@@ -1,5 +1,5 @@
 import Layout from "@theme/Layout";
-import { ArrowLeft, Terminal, Download } from "lucide-react";
+import { ArrowLeft, Terminal, Download, Code } from "lucide-react";
 import Admonition from '@theme/Admonition';
 import CodeBlock from '@theme/CodeBlock';
 import { Button } from "@site/src/components/ui/button";
@@ -124,10 +124,10 @@ function ExtensionDetails({
                 <Terminal className="h-4 w-4" />
                 <h4 className="mx-2">Command</h4>
               </button>
-              <div className="command-content">
-                <code>
+              <div>
+                <CodeBlock language="bash">
                   goose session --with-extension "{extension.command}"
-                </code>
+                </CodeBlock>
               </div>
 
               {extension.installation_notes && (

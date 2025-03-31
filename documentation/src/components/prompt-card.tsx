@@ -1,6 +1,7 @@
 import { Download, Terminal, Info } from "lucide-react";
 import Link from "@docusaurus/Link";
 import { useState } from "react";
+import CodeBlock from '@theme/CodeBlock';
 import { motion, AnimatePresence } from "framer-motion";
 import { getGooseInstallLink } from "@site/src/utils/install-links";
 import type { MCPServer } from "@site/src/types/server";
@@ -119,9 +120,9 @@ export function PromptCard({ prompt }: { prompt: Prompt }) {
                                     <h4 className="mx-2">Command</h4>
                                   </button>
                                   <div className="command-content">
-                                    <code>
+                                    <CodeBlock language="bash">
                                       goose session --with-extension "{extension.command}"
-                                    </code>
+                                    </CodeBlock>
                                   </div>
                                 </div>
                               </motion.div>
