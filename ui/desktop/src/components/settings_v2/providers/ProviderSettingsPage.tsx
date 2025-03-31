@@ -4,7 +4,7 @@ import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
-import { initializeAgent } from '../../../agent/';
+import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
 
 interface ProviderSettingsProps {
@@ -13,7 +13,7 @@ interface ProviderSettingsProps {
 }
 
 export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
-  const { getProviders, upsert } = useConfig();
+  const { getProviders, upsert, getExtensions, addExtension } = useConfig();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
@@ -69,13 +69,16 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         );
 
         // initialize agent
-        await initializeAgent({ provider: provider.name, model });
+        await initializeSystem(provider.name, model, {
+          getExtensions,
+          addExtension,
+        });
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
       }
       onClose();
     },
-    [initializeAgent, onClose, upsert]
+    [onClose, upsert]
   );
 
   return (

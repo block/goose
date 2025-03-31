@@ -21,6 +21,8 @@ import type {
 } from '../api/types.gen';
 import { removeShims } from './settings_v2/extensions/utils';
 
+export type { ExtensionConfig } from '../api/types.gen';
+
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
   enabled: boolean;

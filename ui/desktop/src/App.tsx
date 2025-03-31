@@ -28,14 +28,8 @@ import ProviderSettings from './components/settings_v2/providers/ProviderSetting
 import { useChat } from './hooks/useChat';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { FixedExtensionEntry, useConfig } from './components/ConfigContext';
-import {
-  initializeBuiltInExtensions,
-  syncBuiltInExtensions,
-  addExtensionFromDeepLink as addExtensionFromDeepLinkV2,
-  addToAgentOnStartup,
-} from './components/settings_v2/extensions';
-import { extractExtensionConfig } from './components/settings_v2/extensions/utils';
+import { useConfig } from './components/ConfigContext';
+import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
 
 // Views and their options
 export type View =
@@ -105,25 +99,10 @@ export default function App() {
           setView('chat');
 
           try {
-            await initializeSystem(provider, model);
-
-            // Initialize or sync built-in extensions into config.yaml
-            let refreshedExtensions = await getExtensions(true);
-
-            if (refreshedExtensions.length === 0) {
-              await initializeBuiltInExtensions(addExtension);
-              refreshedExtensions = await getExtensions(true);
-            } else {
-              await syncBuiltInExtensions(refreshedExtensions, addExtension);
-            }
-
-            // Add enabled extensions to agent
-            for (const extensionEntry of refreshedExtensions) {
-              if (extensionEntry.enabled) {
-                const extensionConfig = extractExtensionConfig(extensionEntry);
-                await addToAgentOnStartup({ addToConfig: addExtension, extensionConfig });
-              }
-            }
+            await initializeSystem(provider, model, {
+              getExtensions,
+              addExtension,
+            });
           } catch (error) {
             console.error('Error in alpha initialization:', error);
             setFatalError(`System initialization error: ${error.message || 'Unknown error'}`);

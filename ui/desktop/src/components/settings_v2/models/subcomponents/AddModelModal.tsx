@@ -7,7 +7,7 @@ import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
-import { changeModel as switchModel } from '../index';
+import { changeModel } from '../index';
 import type { View } from '../../../../App';
 
 const ModalButtons = ({ onSubmit, onCancel, isValid, validationErrors }) => (
@@ -36,7 +36,7 @@ type AddModelModalProps = {
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders, upsert } = useConfig();
+  const { getProviders, upsert, getExtensions, addExtension } = useConfig();
   const [providerOptions, setProviderOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
   const [provider, setProvider] = useState<string | null>(null);
@@ -72,12 +72,18 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     return formIsValid;
   };
 
-  const changeModel = async () => {
+  const onSubmit = async () => {
     setAttemptedSubmit(true);
     const isFormValid = validateForm();
 
     if (isFormValid) {
-      await switchModel({ model: model, provider: provider, writeToConfig: upsert });
+      await changeModel({
+        model: model,
+        provider: provider,
+        writeToConfig: upsert,
+        getExtensions,
+        addExtension,
+      });
       onClose();
     }
   };
@@ -159,7 +165,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         onClose={onClose}
         footer={
           <ModalButtons
-            onSubmit={changeModel}
+            onSubmit={onSubmit}
             onCancel={onClose}
             isValid={isValid}
             validationErrors={validationErrors}
