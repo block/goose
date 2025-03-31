@@ -123,8 +123,6 @@ pub async fn remove_config(
 
     let config = Config::global();
 
-
-
     // Check if the secret flag is true and call the appropriate method
     let result = if query.is_secret {
         config.delete_secret(&query.key)
