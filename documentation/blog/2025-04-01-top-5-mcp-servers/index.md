@@ -34,7 +34,7 @@ Hey Goose, this pull request https://github.com/block/goose/pull/1949, has a lot
 
 ## Knowledge Graph Memory: Context on Steroids
 
-The [Knowledge Graph Memory](docs/tutorials/knowledge-graph-mcp) extension is like giving Goose a photographic memory of your project or data. Like the name implies, it creates a graph of any information fed into it, connecting the dots between different pieces of information or as I like to use it for - documentation. 
+The [Knowledge Graph Memory](/docs/tutorials/knowledge-graph-mcp) extension is like giving Goose a photographic memory of your project or data. Like the name implies, it creates a graph of any information fed into it, connecting the dots between different pieces of information or as I like to use it for - documentation. 
 
 If I'm working on a specific project or library and I don't want any hallucinations, I am able to feed Goose with the right context and it will be able to answer questions about the project or library with the right context.
 
@@ -48,7 +48,7 @@ I'm currently in a project called Goose, read through the documentation in `docu
 
 ## Fetch Extension: The Web in =our Hands
 
-I had a slightly hard time deciding between the [Tavily Web Search Extension](/docs/tutorials/tavily-mcp.md) and The [Fetch Extension](/docs/tutorials/fetch-mcp) because while I do use them both to access the web, the Fetch extension works more like default for me. With the example above using the Knowledge graph, I'm able to get information from the internet to give Goose additional context to work with. 
+I had a slightly hard time deciding between the [Tavily Web Search Extension](/docs/tutorials/tavily-mcp) and The [Fetch Extension](/docs/tutorials/fetch-mcp) because while I do use them both to access the web, the Fetch extension works more like default for me. With the example above using the Knowledge graph, I'm able to get information from the internet to give Goose additional context to work with. 
 
 :::note
 The Tavily Web Search Extension has deep research capabilities and is great for finding specific information, while the Fetch Extension is more about general web access and data retrieval.
@@ -56,14 +56,14 @@ The Tavily Web Search Extension has deep research capabilities and is great for 
 
 ## Memory Extension: My Habits and Preferences
 
-I use the [Memory Extension](docs/tutorials/memory-mcp) to remind Goose about my general preferences as I work - to default to JavaScript or Node when trying out new prototypes, if I prefer one naming convention or the other - maybe even how I like my coffee :D.
+I use the [Memory Extension](/docs/tutorials/memory-mcp) to remind Goose about my general preferences as I work - to default to JavaScript or Node when trying out new prototypes, if I prefer one naming convention or the other - maybe even how I like my coffee :D.
 
 This works differently from the Knowledge Graph extension even though they both store information locally. When combined with the Knowledge Graph, it can also help maintain a clear trail of technical decisions and their rationale. For example I got stuck on a code migration and asked Goose to remember where we stopped, what we've tried so far, and what we want to do next for when I start a new session.
 
 
 ## VS Code Extension: Your Favorite Editor, Connected
 
-One of the biggest points in conversations with people especially around vibe coding, is finding ways to track what changes are being made. While version control is always recommended, sometimes I want to be able to stop or change direction before going too far. The [VS Code Extension](docs/tutorials/vscode-mcp) alongside other features, allows me to preview the diff of my code changes before I commit them. 
+One of the biggest points in conversations with people especially around vibe coding, is finding ways to track what changes are being made. While version control is always recommended, sometimes I want to be able to stop or change direction before going too far. The [VS Code Extension](/docs/tutorials/vscode-mcp) alongside other features, allows me to preview the diff of my code changes before I commit them. 
 
 I can choose to accept or refuse these changes, or tell Goose to try something else before any actual changes are made.
 
