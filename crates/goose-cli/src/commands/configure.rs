@@ -5,6 +5,7 @@ use goose::config::extensions::name_to_key;
 use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
 use goose::message::Message;
 use goose::providers::{create, providers};
+use mcp_core::tool::ToolAnnotations;
 use mcp_core::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -348,6 +349,13 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                 "properties": {
                     "location": {"type": "string"}
                 }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Get weather".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
         vec![sample_tool]

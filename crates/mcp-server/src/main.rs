@@ -2,6 +2,7 @@ use anyhow::Result;
 use mcp_core::content::Content;
 use mcp_core::handler::{PromptError, ResourceError};
 use mcp_core::prompt::{Prompt, PromptArgument};
+use mcp_core::tool::ToolAnnotations;
 use mcp_core::{handler::ToolError, protocol::ServerCapabilities, resource::Resource, tool::Tool};
 use mcp_server::router::{CapabilitiesBuilder, RouterService};
 use mcp_server::{ByteTransport, Router, Server};
@@ -76,6 +77,13 @@ impl Router for CounterRouter {
                     "properties": {},
                     "required": []
                 }),
+                Some(ToolAnnotations {
+                    title: Some("Increment Tool".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
             ),
             Tool::new(
                 "decrement".to_string(),
@@ -85,6 +93,13 @@ impl Router for CounterRouter {
                     "properties": {},
                     "required": []
                 }),
+                Some(ToolAnnotations {
+                    title: Some("Decrement Tool".to_string()),
+                    read_only_hint: false,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
             ),
             Tool::new(
                 "get_value".to_string(),
@@ -93,6 +108,13 @@ impl Router for CounterRouter {
                     "type": "object",
                     "properties": {},
                     "required": []
+                }),
+                Some(ToolAnnotations {
+                    title: Some("Get Value Tool".to_string()),
+                    read_only_hint: true,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
                 }),
             ),
         ]

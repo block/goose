@@ -127,6 +127,7 @@ impl ProviderTester {
                     }
                 }
             }),
+            None,
         );
 
         let message = Message::user().with_text("What's the weather like in San Francisco?");

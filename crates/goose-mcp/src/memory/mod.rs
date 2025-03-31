@@ -16,7 +16,7 @@ use mcp_core::{
     prompt::Prompt,
     protocol::ServerCapabilities,
     resource::Resource,
-    tool::{Tool, ToolCall},
+    tool::{Tool, ToolAnnotations, ToolCall},
     Content,
 };
 use mcp_server::router::CapabilitiesBuilder;
@@ -52,6 +52,13 @@ impl MemoryRouter {
                 },
                 "required": ["category", "data", "is_global"]
             }),
+            Some(ToolAnnotations {
+                title: Some("Remember Memory".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: true,
+                open_world_hint: false,
+            }),
         );
 
         let retrieve_memories = Tool::new(
@@ -64,6 +71,13 @@ impl MemoryRouter {
                     "is_global": {"type": "boolean"}
                 },
                 "required": ["category", "is_global"]
+            }),
+            Some(ToolAnnotations {
+                title: Some("Retrieve Memory".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 
@@ -78,6 +92,13 @@ impl MemoryRouter {
                 },
                 "required": ["category", "is_global"]
             }),
+            Some(ToolAnnotations {
+                title: Some("Remove Memory Category".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
         );
 
         let remove_specific_memory = Tool::new(
@@ -91,6 +112,13 @@ impl MemoryRouter {
                     "is_global": {"type": "boolean"}
                 },
                 "required": ["category", "memory_content", "is_global"]
+            }),
+            Some(ToolAnnotations {
+                title: Some("Remove Specific Memory".to_string()),
+                read_only_hint: false,
+                destructive_hint: true,
+                idempotent_hint: false,
+                open_world_hint: false,
             }),
         );
 

@@ -2,6 +2,7 @@ use crate::agents::capabilities::Capabilities;
 use crate::message::{Message, MessageContent, ToolRequest};
 use chrono::Utc;
 use indoc::indoc;
+use mcp_core::tool::ToolAnnotations;
 use mcp_core::{tool::Tool, TextContent};
 use serde_json::{json, Value};
 
@@ -50,6 +51,13 @@ fn create_read_only_tool() -> Tool {
             },
             "required": []
         }),
+        Some(ToolAnnotations {
+                title: Some("Check tool operation".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
     )
 }
 

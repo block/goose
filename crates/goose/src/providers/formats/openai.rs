@@ -550,6 +550,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let spec = format_tools(&[tool])?;
@@ -641,6 +642,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let tool2 = Tool::new(
@@ -656,6 +658,7 @@ mod tests {
                 },
                 "required": ["input"]
             }),
+            None,
         );
 
         let result = format_tools(&[tool1, tool2]);

@@ -3,6 +3,70 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Additional properties describing a tool to clients.
+///
+/// NOTE: all properties in ToolAnnotations are **hints**.
+/// They are not guaranteed to provide a faithful description of
+/// tool behavior (including descriptive properties like `title`).
+///
+/// Clients should never make tool use decisions based on ToolAnnotations
+/// received from untrusted servers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolAnnotations {
+    /// A human-readable title for the tool.
+    pub title: Option<String>,
+
+    /// If true, the tool does not modify its environment.
+    ///
+    /// Default: false
+    #[serde(default)]
+    pub read_only_hint: bool,
+
+    /// If true, the tool may perform destructive updates to its environment.
+    /// If false, the tool performs only additive updates.
+    ///
+    /// (This property is meaningful only when `read_only_hint == false`)
+    ///
+    /// Default: true
+    #[serde(default = "default_true")]
+    pub destructive_hint: bool,
+
+    /// If true, calling the tool repeatedly with the same arguments
+    /// will have no additional effect on its environment.
+    ///
+    /// (This property is meaningful only when `read_only_hint == false`)
+    ///
+    /// Default: false
+    #[serde(default)]
+    pub idempotent_hint: bool,
+
+    /// If true, this tool may interact with an "open world" of external
+    /// entities. If false, the tool's domain of interaction is closed.
+    /// For example, the world of a web search tool is open, whereas that
+    /// of a memory tool is not.
+    ///
+    /// Default: true
+    #[serde(default = "default_true")]
+    pub open_world_hint: bool,
+}
+
+impl Default for ToolAnnotations {
+    fn default() -> Self {
+        ToolAnnotations {
+            title: None,
+            read_only_hint: false,
+            destructive_hint: true,
+            idempotent_hint: false,
+            open_world_hint: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// A tool that can be used by a model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,11 +77,18 @@ pub struct Tool {
     pub description: String,
     /// A JSON Schema object defining the expected parameters for the tool
     pub input_schema: Value,
+    /// Optional additional tool information.
+    pub annotations: Option<ToolAnnotations>,
 }
 
 impl Tool {
     /// Create a new tool with the given name and description
-    pub fn new<N, D>(name: N, description: D, input_schema: Value) -> Self
+    pub fn new<N, D>(
+        name: N,
+        description: D,
+        input_schema: Value,
+        annotations: Option<ToolAnnotations>,
+    ) -> Self
     where
         N: Into<String>,
         D: Into<String>,
@@ -26,6 +97,7 @@ impl Tool {
             name: name.into(),
             description: description.into(),
             input_schema,
+            annotations,
         }
     }
 }

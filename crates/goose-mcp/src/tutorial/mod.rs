@@ -10,7 +10,7 @@ use mcp_core::{
     protocol::ServerCapabilities,
     resource::Resource,
     role::Role,
-    tool::Tool,
+    tool::{Tool, ToolAnnotations},
 };
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
@@ -45,6 +45,13 @@ impl TutorialRouter {
                     }
                 }
             }),
+            Some(ToolAnnotations {
+                    title: Some("Load Tutorial".to_string()),
+                    read_only_hint: true,
+                    destructive_hint: false,
+                    idempotent_hint: false,
+                    open_world_hint: false,
+                }),
         );
 
         // Get base instructions and available tutorials
