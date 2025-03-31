@@ -64,7 +64,7 @@ export function BaseModelsList({
     await changeModel({ model: modelName, provider: providerName, writeToConfig: upsert });
   };
 
-  // And then update the call in handleRadioChange:
+  // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
     if (selectedModel === model.name) {
       console.log(`Model "${model.name}" is already active.`);
@@ -75,7 +75,6 @@ export function BaseModelsList({
     setSelectedModel(model.name);
     setSelectedProvider(model.provider);
 
-    // Use the model parameter directly
     try {
       await handleModelSelection(model.name, model.provider);
     } catch (error) {

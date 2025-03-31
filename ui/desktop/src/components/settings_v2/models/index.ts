@@ -1,6 +1,8 @@
 import { initializeAgent } from '../../../agent/index';
 import { toastError, toastSuccess } from '../../../toasts';
 import { ProviderDetails } from '@/src/api';
+import { getProviderMetadata } from './modelInterface';
+import { ProviderMetadata } from '../../../api';
 
 // titles
 const CHANGE_MODEL_TOAST_TITLE = 'Model selected';
@@ -137,19 +139,20 @@ export async function getCurrentModelAndProviderForDisplay({
   const gooseModel = modelProvider.model;
   const gooseProvider = modelProvider.provider;
 
-  const providers = await getProviders(false);
-
   // lookup display name
-  const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+  let metadata: ProviderMetadata;
 
-  if (providerDetailsList.length != 1) {
+  try {
+    metadata = await getProviderMetadata(gooseProvider, getProviders);
+  } catch (error) {
     toastError({
       title: UNKNOWN_PROVIDER_TITLE,
       msg: UNKNOWN_PROVIDER_MSG,
+      traceback: error,
     });
     return { model: gooseModel, provider: gooseProvider };
   }
-  const providerDisplayName = providerDetailsList[0].metadata.display_name;
+  const providerDisplayName = metadata.display_name;
 
   return { model: gooseModel, provider: providerDisplayName };
 }
