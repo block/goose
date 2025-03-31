@@ -1,10 +1,9 @@
 {
-  "id": "data-model-design",
+  "id": "developer-data-model-design",
   "title": "Design and Validate Data Model",
-  "description": "Design and optimize database models for better performance and scalability",
+  "description": "Transform requirements into a concrete data model implementation with validation",
   "category": "technical",
-  "job": "data-analytics",
-  "example_prompt": "Help me optimize this database model for our analytics system. Consider query performance, data relationships, and indexing strategies. Include recommendations for partitioning and caching.",
+  "example_prompt": "I need help designing and prototyping a data model:\n1. Here's my verbal description of the data model requirements: We're building a task management system for a software development team. We need to track:\n- Projects with multiple tasks\n- Task assignments to team members\n- Task dependencies\n- Time estimates and actual time spent\n- Task status changes and history\n- Comments and attachments on tasks\n- Sprint/milestone assignments\n\n2. Can you help me transform this into a concrete implementation?\n\n3. Let's validate this against the following use cases:\n- Team lead creates a new project and adds initial tasks\n- Developer updates task status and logs time\n- QA adds a blocking issue that depends on another task\n- Manager generates sprint velocity report\n- Team member adds comments and attachments to tasks\n- System needs to track task history for auditing\n- Tasks need to be easily searchable by various criteria\n\n4. We'll need to be able to iterate on this design based on our findings",
   "extensions": [
     {
       "name": "Developer",

@@ -1,10 +1,9 @@
 {
-  "id": "api-endpoints-analysis",
+  "id": "dev-api-endpoints-analysis",
   "title": "Analyze App Endpoints and Interfaces",
-  "description": "Analyze API endpoint performance and usage patterns",
+  "description": "Review application routing configuration and summarize all external interfaces",
   "category": "technical",
-  "job": "data-analytics",
-  "example_prompt": "Analyze our API endpoints' performance metrics for the last month. Identify high-traffic endpoints, response times, error rates, and usage patterns. Suggest optimization opportunities.",
+  "example_prompt": "Please analyze the application's routing configuration found in `config/routes.rb` and summarize all external interfaces, including API endpoints, service integrations, and public routes.",
   "extensions": [
     {
       "name": "Developer",

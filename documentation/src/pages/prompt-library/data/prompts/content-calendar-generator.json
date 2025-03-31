@@ -3,15 +3,25 @@
   "title": "Content Calendar Generator",
   "description": "Generate a content calendar with social media posts, blog topics, and email newsletters",
   "category": "productivity",
-  "job": "marketing-content",
+  "featured": true,
   "example_prompt": "Help me create a content calendar for the next month. I need:\n\n1. Social media posts (3 per week)\n2. Blog post topics (1 per week)\n3. Email newsletter ideas (2 per month)\n\nOur target audience is developers and tech professionals. Focus on topics around AI, developer tools, and productivity. Include suggested posting times and content types (image, video, text).",
   "extensions": [
     {
-      "name": "Developer",
-      "command": "developer",
-      "is_builtin": true,
+      "name": "Google Drive",
+      "command": "npx -y @modelcontextprotocol/server-gdrive",
+      "is_builtin": false,
+      "link": "https://block.github.io/goose/v1/extensions/google-drive",
       "environmentVariables": [
-
+        {
+          "name": "GDRIVE_OAUTH_PATH",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json",
+          "required": true
+        },
+        {
+          "name": "GDRIVE_CREDENTIALS_PATH",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json",
+          "required": true
+        }
       ]
     }
   ]

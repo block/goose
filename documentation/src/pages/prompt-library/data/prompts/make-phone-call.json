@@ -1,10 +1,10 @@
 {
-  "id": "make-phone-call",
+  "id": "voyp-make-call",
   "title": "Make a Phone Call",
-  "description": "Set up automated phone calls with custom messages",
+  "description": "Have goose place a phone call",
   "category": "productivity",
-  "job": "operations",
-  "example_prompt": "Help me set up an automated phone call system for our on-call rotation. Include custom messages for different alert levels and proper logging.",
+  "featured": true,
+  "example_prompt": "Please call the number [phone number] and tell a joke",
   "extensions": [
     {
       "name": "VOYP",

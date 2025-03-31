@@ -1,10 +1,9 @@
 {
-  "id": "generate-toc",
+  "id": "documentation-generate-toc",
   "title": "Generate Table of Contents for Repo",
-  "description": "Generate a table of contents for technical documentation",
+  "description": "Generate a logically organized table of contents for a CONTRIBUTING.md file",
   "category": "technical",
-  "job": "engineering",
-  "example_prompt": "Generate a table of contents for our technical documentation. Include main sections, subsections, and proper markdown formatting. Ensure proper nesting and linking.",
+  "example_prompt": "Analyze the CONTRIBUTING.md file and create a well-structured table of contents. Include all major sections and subsections, using consistent formatting and logical organization.",
   "extensions": [
     {
       "name": "Developer",

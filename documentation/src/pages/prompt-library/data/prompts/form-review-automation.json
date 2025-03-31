@@ -1,18 +1,15 @@
 {
-  "id": "form-review-automation",
+  "id": "operations-form-review-automation",
   "title": "Assign Reviewers to Conference Proposals",
-  "description": "Automate the review of form designs for usability and accessibility",
-  "category": "technical",
-  "job": "design",
-  "example_prompt": "Review this form design for usability and accessibility issues. Check field layouts, error handling, keyboard navigation, and screen reader compatibility. Suggest improvements for better user experience.",
+  "description": "Automatically match incoming conference proposals with relevant track reviewers",
+  "category": "business",
+  "example_prompt": "I need help building an automated monitoring system that will:\n1. Check an Airtable base every 10 minutes for new form submissions\n2. Match each submission with reviewer information stored in a Google Sheet\n3. Send me a notification with the submission details and assigned reviewer(s)\n4. Auto-dismiss the notification after 5 seconds\n\nCan you help me create this system, starting with setting up the necessary connections to Airtable and Google Sheets?",
   "extensions": [
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     },
     {
       "name": "Google Drive",
@@ -21,12 +18,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
           "required": true
         }
       ]

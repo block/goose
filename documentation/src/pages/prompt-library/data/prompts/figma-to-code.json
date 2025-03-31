@@ -1,18 +1,16 @@
 {
-  "id": "figma-to-code",
+  "id": "design-figma-to-code",
   "title": "Convert Designs to Code",
-  "description": "Convert Figma design components into React/CSS code with proper styling and responsiveness",
+  "description": "Convert a Figma design into a web app",
   "category": "technical",
-  "job": "design",
-  "example_prompt": "Convert this Figma component into React code. Include proper styling, maintain design fidelity, and ensure it's responsive. Use Tailwind CSS for styling and follow modern React best practices.",
+  "featured": true,
+  "example_prompt": "Convert my figma design with file ID 7r0mLHWx2rrjwn79mcNVNE into a webpage. Get specific detailed information and styling about each element and components within each frame. Make sure to implement any interactions or animations and use a placeholder div with a gray background for images.\n\nSome elements are centralized, some are duplicated, make sure to get them correct. And ensure correct alignment and spacing between elements.",
   "extensions": [
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     },
     {
       "name": "Figma",

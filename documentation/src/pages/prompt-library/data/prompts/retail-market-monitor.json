@@ -1,10 +1,9 @@
 {
-  "id": "retail-market-monitor",
+  "id": "business-retail-market-monitor",
   "title": "Monitor Top Retailers Market Activity",
-  "description": "Monitor retail market trends and competitor analysis",
+  "description": "Generate and maintain an automated dashboard tracking top retailers' digital presence and market activities",
   "category": "business",
-  "job": "marketing-content",
-  "example_prompt": "Monitor retail market trends and competitor activities. Track pricing changes, promotional strategies, and market share. Generate weekly insights report.",
+  "example_prompt": "1. Search the web for the top 5 most popular retailers.\n2. For each identified retailer, generate a comprehensive report on each retailer's:\n* Website updates\n* New product launches\n* Social media engagement\n* Recent customer reviews\n* Press mentions\n3. Generate an HTML dashboard based on findings for each retailer\n4. Open the dashboard in a browser\n5. Automation Script to pull new results every 30 days",
   "extensions": [
     {
       "name": "Computer Controller",

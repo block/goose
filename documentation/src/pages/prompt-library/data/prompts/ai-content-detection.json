@@ -1,18 +1,15 @@
 {
   "id": "ai-content-detection",
   "title": "AI Content Detection Policies",
-  "description": "Analyze content to detect AI-generated text and suggest improvements for authenticity",
-  "category": "productivity",
-  "job": "marketing-content",
-  "example_prompt": "Analyze this blog post for signs of AI-generated content. Provide suggestions to make it more authentic and human-like while maintaining the key message.",
+  "description": "Enforce content policies by detecting AI-generated submissions and ensuring compliance with platform guidelines",
+  "category": "business",
+  "example_prompt": "Please analyze the provided content for:\n1. Indicators of AI generation\n2. Policy compliance issues\n3. Required disclosures or missing attributions\n\nProvide a detailed report including:\n- AI detection confidence score\n- Policy violation alerts\n- Recommended actions\n- Suggested improvements for compliance",
   "extensions": [
     {
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     }
   ]
 }

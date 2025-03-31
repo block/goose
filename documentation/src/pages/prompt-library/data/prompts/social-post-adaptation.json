@@ -1,18 +1,15 @@
 {
   "id": "social-post-adaptation",
   "title": "Adapt Social Post for Platform",
-  "description": "Adapt content for different social media platforms while maintaining message consistency",
+  "description": "Convert a social media post to fit different platform requirements and best practices",
   "category": "productivity",
-  "job": "marketing-content",
-  "example_prompt": "Adapt this product announcement for different social media platforms. Create versions for Twitter, LinkedIn, and Instagram. Maintain the key message but optimize for each platform's format and audience.",
+  "example_prompt": "Please adapt this post for [Target Platform]. Consider:\n\n1. Character limits\n2. Platform-specific features\n3. Format conventions\n4. Hashtag usage\n5. Link formatting\n6. Media recommendations\n7. Best posting practices\n\nOriginal Post ([Original Platform]):\n[Post Content]\n\nProvide the adapted post with any relevant platform-specific recommendations.",
   "extensions": [
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     }
   ]
 }

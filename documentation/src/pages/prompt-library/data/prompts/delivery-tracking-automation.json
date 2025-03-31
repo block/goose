@@ -1,10 +1,9 @@
 {
-  "id": "delivery-tracking-automation",
+  "id": "ops-delivery-tracking",
   "title": "Real-Time Delivery Route Optimization",
-  "description": "Automate tracking and reporting of delivery pipeline metrics",
-  "category": "technical",
-  "job": "operations",
-  "example_prompt": "Set up automated tracking for our delivery pipeline. Monitor build times, deployment frequency, failure rates, and recovery time. Create dashboards for key metrics.",
+  "description": "Monitor delivery routes and automatically optimize them based on real-time traffic conditions",
+  "category": "business",
+  "example_prompt": "Track the live GPS location of driver ID #{driver_id}. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer's live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.",
   "extensions": [
     {
       "name": "Google Maps",

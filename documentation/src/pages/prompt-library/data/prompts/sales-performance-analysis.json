@@ -1,18 +1,15 @@
 {
   "id": "sales-performance-analysis",
   "title": "Monthly Sales Performance Analysis",
-  "description": "Analyze sales performance metrics and trends",
+  "description": "Analyze monthly sales data to identify top performing stores and significant trends",
   "category": "business",
-  "job": "data-analytics",
-  "example_prompt": "Analyze our sales performance data for the last quarter. Identify trends, top performing products, and areas for improvement. Generate visualizations for key metrics.",
+  "example_prompt": "Please review these two documents named {month1} Orders and {month2} Orders. Can you create insights on top performing stores and any significant movements.",
   "extensions": [
     {
       "name": "Computer Controller",
       "command": "computercontroller",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     },
     {
       "name": "Google Drive",
@@ -21,12 +18,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
           "required": true
         }
       ]

@@ -1,18 +1,15 @@
 {
-  "id": "performance-review-prep",
+  "id": "developer-review-prep",
   "title": "Structure Your Performance Review",
-  "description": "Prepare for performance reviews by analyzing project contributions and impact",
-  "category": "productivity",
-  "job": "project-management",
-  "example_prompt": "Help me prepare for my team's performance reviews. I need to evaluate their contributions to recent projects, identify key achievements, and suggest areas for improvement. Include metrics and specific examples.",
+  "description": "Sort collected feedback into a well-organized performance review",
+  "category": "business",
+  "example_prompt": "Create a web app that will take feedback and sort it into custom performance dimensions to populate a performance evaluation. The app should:\n- Allow users to define their review dimensions (e.g., Leadership, Technical Skills, Innovation)\n- Accept feedback text through input or file upload\n- Sort feedback into the defined dimensions\n- Export the organized feedback for performance reviews",
   "extensions": [
     {
       "name": "Developer",
       "command": "developer",
       "is_builtin": true,
-      "environmentVariables": [
-
-      ]
+      "environmentVariables": []
     },
     {
       "name": "Google Drive",
@@ -21,12 +18,12 @@
       "environmentVariables": [
         {
           "name": "GDRIVE_OAUTH_PATH",
-          "description": "/Users/<username>/.config/gcp-oauth.keys.json / ",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
           "required": true
         },
         {
           "name": "GDRIVE_CREDENTIALS_PATH",
-          "description": "/Users/<username>/.config/.gdrive-server-credentials.json /",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
           "required": true
         }
       ]

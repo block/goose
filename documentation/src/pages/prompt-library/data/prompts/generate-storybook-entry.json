@@ -1,10 +1,9 @@
 {
   "id": "generate-storybook-entry",
   "title": "Generate Storybook Entry from Git Diff",
-  "description": "Create a Storybook entry for a React component including variants and documentation",
+  "description": "Generate a Storybook documentation entry based on component changes in git diff",
   "category": "technical",
-  "job": "engineering",
-  "example_prompt": "Create a Storybook entry for my Button component. Include variants for size (sm, md, lg) and variant (primary, secondary, ghost). Add documentation for props and usage examples.",
+  "example_prompt": "Based on the current git diff, please generate a comprehensive Storybook entry for NavBar component that includes:\n\n1. Component description\n2. Props documentation\n3. Usage examples\n4. Edge cases and variations\n5. Accessibility considerations\n\nPlease format the output in MDX format suitable for Storybook.",
   "extensions": [
     {
       "name": "Developer",
