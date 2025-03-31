@@ -67,6 +67,38 @@ fn default_true() -> bool {
     true
 }
 
+/// Implement builder methods for `ToolAnnotations`
+impl ToolAnnotations {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    pub fn with_read_only(mut self, read_only: bool) -> Self {
+        self.read_only_hint = read_only;
+        self
+    }
+
+    pub fn with_destructive(mut self, destructive: bool) -> Self {
+        self.destructive_hint = destructive;
+        self
+    }
+
+    pub fn with_idempotent(mut self, idempotent: bool) -> Self {
+        self.idempotent_hint = idempotent;
+        self
+    }
+
+    pub fn with_open_world(mut self, open_world: bool) -> Self {
+        self.open_world_hint = open_world;
+        self
+    }
+}
+
 /// A tool that can be used by a model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
