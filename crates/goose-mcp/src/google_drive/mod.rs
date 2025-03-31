@@ -369,9 +369,9 @@ impl GoogleDriveRouter {
               "required": ["fileId", "currentFolderId", "newFolderId"],
             }),
             Some(ToolAnnotations {
-                title: Some("Read GDrive".to_string()),
+                title: Some("Move file".to_string()),
                 read_only_hint: false,
-                destructive_hint: false,
+                destructive_hint: true,
                 idempotent_hint: false,
                 open_world_hint: false,
             }),

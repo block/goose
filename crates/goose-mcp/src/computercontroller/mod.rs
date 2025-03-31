@@ -256,7 +256,7 @@ impl ComputerControllerRouter {
                 title: Some("PDF process".to_string()),
                 read_only_hint: true,
                 destructive_hint: false,
-                idempotent_hint: false,
+                idempotent_hint: true,
                 open_world_hint: false,
             }),
         );

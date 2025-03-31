@@ -203,13 +203,7 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
+            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -289,10 +283,10 @@ impl DeveloperRouter {
                 }
             }),
             Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
+                title: Some("Process Image".to_string()),
                 read_only_hint: true,
                 destructive_hint: false,
-                idempotent_hint: false,
+                idempotent_hint: true,
                 open_world_hint: false,
             }),
         );
