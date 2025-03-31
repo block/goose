@@ -1,7 +1,7 @@
 use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionConfigManager};
+use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -16,6 +16,8 @@ pub async fn build_session(
     extensions: Vec<String>,
     remote_extensions: Vec<String>,
     builtins: Vec<String>,
+    extensions_override: Option<Vec<ExtensionConfig>>,
+    additional_system_prompt: Option<String>,
     debug: bool,
 ) -> Session {
     // Load config and get provider/model
@@ -92,26 +94,30 @@ pub async fn build_session(
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
-    for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
-        if extension.enabled {
-            let config = extension.config.clone();
-            agent
-                .add_extension(config.clone())
-                .await
-                .unwrap_or_else(|e| {
-                    let err = match e {
-                        ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => {
-                            inner
-                        }
-                        _ => e.to_string(),
-                    };
-                    println!("Failed to start extension: {}, {:?}", config.name(), err);
-                    println!(
-                        "Please check extension configuration for {}.",
-                        config.name()
-                    );
-                    process::exit(1);
-                });
+    // If we get extensions_override, only run those extensions and none other
+    let extensions_to_run: Vec<_> = if let Some(extensions) = extensions_override {
+        extensions.into_iter().collect()
+    } else {
+        ExtensionConfigManager::get_all()
+            .expect("should load extensions")
+            .into_iter()
+            .filter(|ext| ext.enabled)
+            .map(|ext| ext.config)
+            .collect()
+    };
+
+    for extension in extensions_to_run {
+        if let Err(e) = agent.add_extension(extension.clone()).await {
+            let err = match e {
+                ExtensionError::Transport(McpClientError::StdioProcessError(inner)) => inner,
+                _ => e.to_string(),
+            };
+            eprintln!("Failed to start extension: {}, {:?}", extension.name(), err);
+            eprintln!(
+                "Please check extension configuration for {}.",
+                extension.name()
+            );
+            process::exit(1);
         }
     }
 
@@ -147,6 +153,10 @@ pub async fn build_session(
         .agent
         .extend_system_prompt(super::prompt::get_cli_prompt())
         .await;
+
+    if let Some(additional_prompt) = additional_system_prompt {
+        session.agent.extend_system_prompt(additional_prompt).await;
+    }
 
     // Only override system prompt if a system override exists
     let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();

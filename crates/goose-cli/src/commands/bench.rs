@@ -36,6 +36,8 @@ pub async fn agent_generator(
         requirements.external,
         requirements.remote,
         requirements.builtin,
+        None,
+        None,
         false,
     )
     .await;

@@ -1,56 +1,49 @@
+/// A truncate agent that truncates the conversation history when it exceeds the model's context limit
+/// It makes no attempt to handle context limits, and cannot read resources
+use async_trait::async_trait;
+use futures::stream::BoxStream;
+use mcp_core::tool::{Tool, ToolAnnotations};
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-
-use anyhow::{anyhow, Result};
-use futures::stream::BoxStream;
-
-use regex::Regex;
-use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use tracing::{debug, error, instrument, warn};
 
-use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::types::ToolResultReceiver;
-use crate::config::{Config, ExtensionConfigManager};
+use super::agent::SessionConfig;
+use super::extension::ToolInfo;
+use super::types::ToolResultReceiver;
+use super::Agent;
+use crate::agents::capabilities::{get_parameter_names, Capabilities};
+use crate::agents::extension::{ExtensionConfig, ExtensionResult};
+use crate::config::{Config, ExtensionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::permission::{
-    detect_read_only_tools, Permission, PermissionConfirmation, ToolPermissionStore,
-};
+use crate::permission::detect_read_only_tools;
+use crate::permission::Permission;
+use crate::permission::PermissionConfirmation;
+use crate::permission::ToolPermissionStore;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
-use crate::recipe::{Author, Recipe};
+use crate::recipe::Author;
+use crate::recipe::Recipe;
+use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
-
-use mcp_core::{
-    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
-};
-
-use crate::agents::platform_tools::{
-    self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
-};
-use crate::agents::prompt_manager::PromptManager;
-use crate::agents::types::SessionConfig;
-
-use super::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
-use super::types::FrontendTool;
+use anyhow::{anyhow, Result};
+use indoc::indoc;
+use mcp_core::{prompt::Prompt, protocol::GetPromptResult, Content, ToolError, ToolResult};
+use serde_json::{json, Value};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
-/// The main goose Agent
-pub struct Agent {
-    provider: Arc<dyn Provider>,
-    extension_manager: Mutex<ExtensionManager>,
-    frontend_tools: HashMap<String, FrontendTool>,
-    frontend_instructions: Option<String>,
-    prompt_manager: PromptManager,
+/// Truncate implementation of an Agent
+pub struct TruncateAgent {
+    capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
@@ -58,95 +51,21 @@ pub struct Agent {
     tool_result_rx: ToolResultReceiver,
 }
 
-impl Agent {
-    pub fn new(provider: Arc<dyn Provider>) -> Self {
+impl TruncateAgent {
+    pub fn new(provider: Box<dyn Provider>) -> Self {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
         Self {
-            provider,
-            extension_manager: Mutex::new(ExtensionManager::new()),
-            frontend_tools: HashMap::new(),
-            frontend_instructions: None,
-            prompt_manager: PromptManager::new(),
+            capabilities: Mutex::new(Capabilities::new(provider)),
             token_counter,
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
         }
-    }
-
-    /// Get a reference count clone to the provider
-    pub fn provider(&self) -> Arc<dyn Provider> {
-        Arc::clone(&self.provider)
-    }
-
-    /// Check if a tool is a frontend tool
-    pub fn is_frontend_tool(&self, name: &str) -> bool {
-        self.frontend_tools.contains_key(name)
-    }
-
-    /// Get a reference to a frontend tool
-    pub fn get_frontend_tool(&self, name: &str) -> Option<&FrontendTool> {
-        self.frontend_tools.get(name)
-    }
-
-    /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
-        let mut tools = self
-            .extension_manager
-            .lock()
-            .await
-            .get_prefixed_tools()
-            .await?;
-
-        // Add frontend tools directly - they don't need prefixing since they're already uniquely named
-        for frontend_tool in self.frontend_tools.values() {
-            tools.push(frontend_tool.tool.clone());
-        }
-
-        Ok(tools)
-    }
-
-    /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(tool_call, extension_manager, request_id), fields(input, output))]
-    async fn create_tool_future(
-        extension_manager: &ExtensionManager,
-        tool_call: mcp_core::tool::ToolCall,
-        is_frontend_tool: bool,
-        request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
-        let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
-            // Check if the tool is read_resource and handle it separately
-            extension_manager
-                .read_resource(tool_call.arguments.clone())
-                .await
-        } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
-            extension_manager
-                .list_resources(tool_call.arguments.clone())
-                .await
-        } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
-            extension_manager.search_available_extensions().await
-        } else if is_frontend_tool {
-            // For frontend tools, return an error indicating we need frontend execution
-            Err(ToolError::ExecutionError(
-                "Frontend tool execution required".to_string(),
-            ))
-        } else {
-            extension_manager
-                .dispatch_tool_call(tool_call.clone())
-                .await
-        };
-
-        debug!(
-            "input" = serde_json::to_string(&tool_call).unwrap(),
-            "output" = serde_json::to_string(&result).unwrap(),
-        );
-
-        (request_id, result)
     }
 
     /// Truncates the messages to fit within the model's context window
@@ -159,7 +78,13 @@ impl Agent {
         tools: &mut Vec<Tool>,
     ) -> anyhow::Result<()> {
         // Model's actual context limit
-        let context_limit = self.provider.get_model_config().context_limit();
+        let context_limit = self
+            .capabilities
+            .lock()
+            .await
+            .provider()
+            .get_model_config()
+            .context_limit();
 
         // Our conservative estimate of the **target** context limit
         // Our token count is an estimate since model providers often don't provide the tokenizer (eg. Claude)
@@ -198,12 +123,21 @@ impl Agent {
         )
     }
 
+    async fn create_tool_future(
+        capabilities: &Capabilities,
+        tool_call: mcp_core::tool::ToolCall,
+        request_id: String,
+    ) -> (String, Result<Vec<Content>, ToolError>) {
+        let output = capabilities.dispatch_tool_call(tool_call).await;
+        (request_id, output)
+    }
+
     async fn enable_extension(
-        extension_manager: &mut ExtensionManager,
+        capabilities: &mut Capabilities,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
+        let config = match ExtensionManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
                 return (
@@ -225,7 +159,7 @@ impl Agent {
             }
         };
 
-        let result = extension_manager
+        let result = capabilities
             .add_extension(config)
             .await
             .map(|_| {
@@ -238,86 +172,58 @@ impl Agent {
 
         (request_id, result)
     }
+}
 
-    pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        match &extension {
-            ExtensionConfig::Frontend {
-                name: _,
-                tools,
-                instructions,
-            } => {
-                // For frontend tools, just store them in the frontend_tools map
-                for tool in tools {
-                    let frontend_tool = FrontendTool {
-                        name: tool.name.clone(),
-                        tool: tool.clone(),
-                    };
-                    self.frontend_tools.insert(tool.name.clone(), frontend_tool);
-                }
-                // Store instructions if provided, using "frontend" as the key
-                if let Some(instructions) = instructions {
-                    self.frontend_instructions = Some(instructions.clone());
-                } else {
-                    // Default frontend instructions if none provided
-                    self.frontend_instructions = Some(
-                        "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string(),
-                    );
-                }
-            }
-            _ => {
-                let mut extension_manager = self.extension_manager.lock().await;
-                let _ = extension_manager.add_extension(extension).await;
-            }
-        };
-
-        Ok(())
+#[async_trait]
+impl Agent for TruncateAgent {
+    async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.add_extension(extension).await
     }
 
-    pub async fn list_tools(&self) -> Vec<Tool> {
-        let mut extension_manager = self.extension_manager.lock().await;
-        extension_manager
-            .get_prefixed_tools()
-            .await
-            .unwrap_or_default()
+    async fn list_tools(&self) -> Vec<Tool> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.get_prefixed_tools().await.unwrap_or_default()
     }
 
-    pub async fn remove_extension(&mut self, name: &str) {
-        let mut extension_manager = self.extension_manager.lock().await;
-        extension_manager
+    async fn remove_extension(&mut self, name: &str) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities
             .remove_extension(name)
             .await
             .expect("Failed to remove extension");
     }
 
-    pub async fn list_extensions(&self) -> Vec<String> {
-        let extension_manager = self.extension_manager.lock().await;
-        extension_manager
+    async fn list_extensions(&self) -> Vec<String> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
             .list_extensions()
             .await
             .expect("Failed to list extensions")
     }
 
+    async fn passthrough(&self, _extension: &str, _request: Value) -> ExtensionResult<Value> {
+        // TODO implement
+        Ok(Value::Null)
+    }
+
     /// Handle a confirmation response for a tool request
-    pub async fn handle_confirmation(
-        &self,
-        request_id: String,
-        confirmation: PermissionConfirmation,
-    ) {
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation) {
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
     }
 
     #[instrument(skip(self, messages, session), fields(user_message))]
-    pub async fn reply(
+    async fn reply(
         &self,
         messages: &[Message],
         session: Option<SessionConfig>,
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut extension_manager = self.extension_manager.lock().await;
-        let mut tools = extension_manager.get_prefixed_tools().await?;
+        let mut capabilities = self.capabilities.lock().await;
+        let mut tools = capabilities.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
 
         // Load settings from config
@@ -326,12 +232,106 @@ impl Agent {
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
-        if extension_manager.supports_resources() {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
+        let read_resource_tool = Tool::new(
+            "platform__read_resource".to_string(),
+            indoc! {r#"
+                Read a resource from an extension.
+
+                Resources allow extensions to share data that provide context to LLMs, such as
+                files, database schemas, or application-specific information. This tool searches for the
+                resource URI in the provided extension, and reads in the resource content. If no extension
+                is provided, the tool will search all extensions for the resource.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "required": ["uri"],
+                "properties": {
+                    "uri": {"type": "string", "description": "Resource URI"},
+                    "extension_name": {"type": "string", "description": "Optional extension name"}
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Read a resource".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
+        let list_resources_tool = Tool::new(
+            "platform__list_resources".to_string(),
+            indoc! {r#"
+                List resources from an extension(s).
+
+                Resources allow extensions to share data that provide context to LLMs, such as
+                files, database schemas, or application-specific information. This tool lists resources
+                in the provided extension, and returns a list for the user to browse. If no extension
+                is provided, the tool will search all extensions for the resource.
+            "#}.to_string(),
+            json!({
+                "type": "object",
+                "properties": {
+                    "extension_name": {"type": "string", "description": "Optional extension name"}
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("List resources".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
+        let search_available_extensions = Tool::new(
+            "platform__search_available_extensions".to_string(),
+            "Searches for additional extensions available to help complete tasks.
+            Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.
+            These extensions might provide the exact tools needed to solve your problem.
+            If you find a relevant one, consider using your tools to enable it.".to_string(),
+            json!({
+                "type": "object",
+                "required": [],
+                "properties": {}
+            }),
+            Some(ToolAnnotations {
+                title: Some("Discover extensions".to_string()),
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
+        let enable_extension_tool = Tool::new(
+            "platform__enable_extension".to_string(),
+            "Enable extensions to help complete tasks.
+            Enable an extension by providing the extension name.
+            "
+            .to_string(),
+            json!({
+                "type": "object",
+                "required": ["extension_name"],
+                "properties": {
+                    "extension_name": {"type": "string", "description": "The name of the extension to enable"}
+                }
+            }),
+            Some(ToolAnnotations {
+                title: Some("Enable extensions".to_string()),
+                read_only_hint: false,
+                destructive_hint: false,
+                idempotent_hint: false,
+                open_world_hint: false,
+            }),
+        );
+
+        if capabilities.supports_resources() {
+            tools.push(read_resource_tool);
+            tools.push(list_resources_tool);
         }
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::enable_extension_tool());
+        tools.push(search_available_extensions);
+        tools.push(enable_extension_tool);
 
         let (tools_with_readonly_annotation, tools_without_annotation): (Vec<String>, Vec<String>) =
             tools.iter().fold((vec![], vec![]), |mut acc, tool| {
@@ -348,11 +348,8 @@ impl Agent {
                 acc
             });
 
-        let config = self.provider.get_model_config();
-        let extensions_info = extension_manager.get_extensions_info().await;
-        let mut system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
+        let config = capabilities.provider().get_model_config();
+        let mut system_prompt = capabilities.get_system_prompt().await;
         let mut toolshim_tools = vec![];
         if config.toolshim {
             // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
@@ -375,7 +372,7 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _reply_guard = reply_span.enter();
             loop {
-                match self.provider().complete(
+                match capabilities.provider().complete(
                     &system_prompt,
                     &messages,
                     &tools,
@@ -415,7 +412,7 @@ impl Agent {
                                 if let MessageContent::ToolRequest(req) = c {
                                     // Only filter out frontend tool requests
                                     if let Ok(tool_call) = &req.tool_call {
-                                        return !self.is_frontend_tool(&tool_call.name);
+                                        return !capabilities.is_frontend_tool(&tool_call.name);
                                     }
                                 }
                                 true
@@ -442,7 +439,7 @@ impl Agent {
                         let mut remaining_requests = Vec::new();
                         for request in &tool_requests {
                             if let Ok(tool_call) = request.tool_call.clone() {
-                                if self.is_frontend_tool(&tool_call.name) {
+                                if capabilities.is_frontend_tool(&tool_call.name) {
                                     // Send frontend tool request and wait for response
                                     yield Message::assistant().with_frontend_tool_request(
                                         request.id.clone(),
@@ -465,7 +462,7 @@ impl Agent {
                             .into_iter()
                             .partition(|req| {
                                 req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
+                                    .map(|call| call.name == "platform__enable_extension")
                                     .unwrap_or(false)
                             });
 
@@ -473,7 +470,7 @@ impl Agent {
                             .into_iter()
                             .partition(|req| {
                                 req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME)
+                                    .map(|call| call.name == "platform__search_available_extensions")
                                     .unwrap_or(false)
                             });
 
@@ -518,7 +515,7 @@ impl Agent {
                             }
                             // Only check read-only status for tools needing confirmation
                             if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
-                                detected_read_only_tools = detect_read_only_tools(self.provider(), llm_detect_candidates.clone()).await;
+                                detected_read_only_tools = detect_read_only_tools(&capabilities, llm_detect_candidates.clone()).await;
                                 // Remove install extensions from read-only tools
                                 if !enable_extension_requests.is_empty() {
                                     detected_read_only_tools.retain(|tool_name| {
@@ -555,7 +552,7 @@ impl Agent {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("")
                                                     .to_string();
-                                                let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
+                                                let install_result = Self::enable_extension(&mut capabilities, extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
                                             }
                                             break;
@@ -567,10 +564,9 @@ impl Agent {
                             // Process read-only tools
                             for request in &needs_confirmation {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
                                     // Skip confirmation if the tool_call.name is in the read_only_tools list
                                     if detected_read_only_tools.contains(&tool_call.name) {
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
                                         tool_futures.push(tool_future);
                                     } else {
                                         let confirmation = Message::user().with_tool_confirmation_request(
@@ -588,7 +584,7 @@ impl Agent {
                                                 let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                                 if confirmed {
                                                     // Add this tool call to the futures collection
-                                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                                    let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
                                                     tool_futures.push(tool_future);
                                                 } else {
                                                     // User declined - add declined response
@@ -628,9 +624,8 @@ impl Agent {
 
                             // Update system prompt and tools if all installations were successful
                             if all_successful {
-                                let extensions_info = extension_manager.get_extensions_info().await;
-                                system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
-                                tools = extension_manager.get_prefixed_tools().await?;
+                                system_prompt = capabilities.get_system_prompt().await;
+                                tools = capabilities.get_prefixed_tools().await?;
                             }
                         }
 
@@ -642,8 +637,7 @@ impl Agent {
                             for request in non_enable_extension_requests.iter().chain(search_extension_requests.iter()) {
                                 if processed_ids.insert(request.id.clone()) {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
                                         tool_futures.push(tool_future);
                                     }
                                 }
@@ -665,7 +659,7 @@ impl Agent {
                             let non_search_non_enable_extension_requests = non_enable_extension_requests.iter()
                                 .filter(|req| {
                                     if let Ok(tool_call) = &req.tool_call {
-                                        tool_call.name != PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
+                                        tool_call.name != "platform__search_available_extensions"
                                     } else {
                                         true
                                     }
@@ -709,7 +703,7 @@ impl Agent {
                         let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
 
                         // release the lock before truncation to prevent deadlock
-                        drop(extension_manager);
+                        drop(capabilities);
 
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
@@ -718,7 +712,7 @@ impl Agent {
 
 
                         // Re-acquire the lock
-                        extension_manager = self.extension_manager.lock().await;
+                        capabilities = self.capabilities.lock().await;
 
                         // Retry the loop after truncation
                         continue;
@@ -737,29 +731,29 @@ impl Agent {
         }))
     }
 
-    /// Extend the system prompt with one line of additional instruction
-    pub async fn extend_system_prompt(&mut self, instruction: String) {
-        self.prompt_manager.add_system_prompt_extra(instruction);
+    async fn extend_system_prompt(&mut self, extension: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.add_system_prompt_extension(extension);
     }
 
-    /// Override the system prompt with a custom template
-    pub async fn override_system_prompt(&mut self, template: String) {
-        self.prompt_manager.set_system_prompt_override(template);
+    async fn override_system_prompt(&mut self, template: String) {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.set_system_prompt_override(template);
     }
 
-    pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
-        let extension_manager = self.extension_manager.lock().await;
-        extension_manager
+    async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities
             .list_prompts()
             .await
             .expect("Failed to list prompts")
     }
 
-    pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
-        let extension_manager = self.extension_manager.lock().await;
+    async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+        let capabilities = self.capabilities.lock().await;
 
         // First find which extension has this prompt
-        let prompts = extension_manager
+        let prompts = capabilities
             .list_prompts()
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
@@ -769,7 +763,7 @@ impl Agent {
             .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
             .map(|(extension, _)| extension)
         {
-            return extension_manager
+            return capabilities
                 .get_prompt(extension, name, arguments)
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
@@ -778,9 +772,9 @@ impl Agent {
         Err(anyhow!("Prompt '{}' not found", name))
     }
 
-    pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let mut extension_manager = self.extension_manager.lock().await;
-        let tools = extension_manager.get_prefixed_tools().await?;
+    async fn get_plan_prompt(&self) -> anyhow::Result<String> {
+        let mut capabilities = self.capabilities.lock().await;
+        let tools = capabilities.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
             .map(|tool| {
@@ -793,33 +787,32 @@ impl Agent {
             })
             .collect();
 
-        let plan_prompt = extension_manager.get_planning_prompt(tools_info).await;
+        let plan_prompt = capabilities.get_planning_prompt(tools_info).await;
 
         Ok(plan_prompt)
     }
 
-    pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
+    async fn provider(&self) -> Arc<Box<dyn Provider>> {
+        let capabilities = self.capabilities.lock().await;
+        capabilities.provider()
+    }
+
+    async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             tracing::error!("Failed to send tool result: {}", e);
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
-        let mut extension_manager = self.extension_manager.lock().await;
-        let extensions_info = extension_manager.get_extensions_info().await;
-        let system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
-
-        let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
-        let tools = extension_manager.get_prefixed_tools().await?;
+    async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
+        let mut capabilities = self.capabilities.lock().await;
+        let system_prompt = capabilities.get_system_prompt().await;
+        let recipe_prompt = capabilities.get_recipe_prompt().await;
+        let provider = capabilities.provider();
+        let tools = capabilities.get_prefixed_tools().await?;
 
         messages.push(Message::user().with_text(recipe_prompt));
 
-        let (result, _usage) = self
-            .provider
-            .complete(&system_prompt, &messages, &tools)
-            .await?;
+        let (result, _usage) = provider.complete(&system_prompt, &messages, &tools).await?;
 
         let content = result.as_concat_text();
 
@@ -889,7 +882,7 @@ impl Agent {
                 (instructions, activities)
             };
 
-        let extensions = ExtensionConfigManager::get_all().unwrap_or_default();
+        let extensions = ExtensionManager::get_all().unwrap_or_default();
         let extension_configs: Vec<_> = extensions
             .iter()
             .filter(|e| e.enabled)
@@ -916,3 +909,5 @@ impl Agent {
         Ok(recipe)
     }
 }
+
+register_agent!("truncate", TruncateAgent);
