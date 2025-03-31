@@ -87,7 +87,7 @@ git remote add upstream https://github.com/block/goose.git
 ```
 git checkout -b my-feature-branch
 ```
-6. Sync your fork with the main repo (any time you need updates -- this is what that link you included was about):
+6. Sync your fork with the main repo:
 
 ```
 git fetch upstream
