@@ -1,6 +1,6 @@
 ---
 title: "Securing the Model Context Protocol"
-description: Before you plug your agent into just any MCP server, here's how to check if it's actually safe.
+description: Building secure and capable AI integrations with Model Context Protocol (MCP) at Block.
 authors: 
     - alex
 ---
@@ -177,11 +177,11 @@ We’re excited to work on making this protocol more secure for users and develo
   <meta property="og:title" content="Securing the Model Context Protocol" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/31/securing-mcp" />
-  <meta property="og:description" content="Before you plug your AI agent into just any MCP server, here's how to check if it's actually safe." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/mcpsafety-87eb7ace7163a5edbe068ff75b79a199.png" />
+  <meta property="og:description" content="Building secure and capable AI integrations with Model Context Protocol (MCP) at Block." />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/securing-mcp-5e475e91c0e621afa33e30b3d89ef065.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Securing the Model Context Protocol" />
-  <meta name="twitter:description" content="Before you plug your agent into just any MCP server, here's how to check if it's actually safe." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/mcpsafety-87eb7ace7163a5edbe068ff75b79a199.png" />
+  <meta name="twitter:description" content="Building secure and capable AI integrations with Model Context Protocol (MCP) at Block." />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/securing-mcp-5e475e91c0e621afa33e30b3d89ef065.png" />
 </head>
