@@ -141,11 +141,6 @@ export default function ProviderConfigurationModal() {
       // Keep modal open if there's an error
     }
   };
-
-  const handleCancelDelete = () => {
-    setShowDeleteConfirmation(false);
-  };
-
   // Function to determine which icon to display
   const getModalIcon = () => {
     if (showDeleteConfirmation) {
@@ -164,7 +159,7 @@ export default function ProviderConfigurationModal() {
           onDelete={handleDelete}
           showDeleteConfirmation={showDeleteConfirmation}
           onConfirmDelete={handleConfirmDelete}
-          onCancelDelete={handleCancelDelete}
+          onCancelDelete={() => setShowDeleteConfirmation(false)}
           canDelete={isConfigured}
           providerName={currentProvider.metadata.display_name}
         />
