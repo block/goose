@@ -216,6 +216,15 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
                       </CodeBlock>
                   </div>
 
+                  {prompt.example_result && (
+                    <div>
+                      <h2 className="text-2xl font-medium mb-4">Example Result</h2>
+                      <CodeBlock language="markdown">
+                        {prompt.example_result}
+                      </CodeBlock>
+                    </div>
+                  )}
+
                   <div>
                     <h2 className="text-2xl font-medium mb-4">Recommended Extensions</h2>
                     <ExtensionList extensions={prompt.extensions} />
