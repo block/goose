@@ -300,3 +300,9 @@ html[data-theme="light"] .hide-in-light {
 .iconExternalLink_nPIU {
   margin-left: 8px !important;
 }
+
+.carousel-image {
+  width: 100%;      /* Make the image fill the width */
+  object-fit: cover; /* Ensure the image covers the area while maintaining aspect ratio */
+  border-radius: 8px; /* Optional: rounded corners */
+}

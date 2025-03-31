@@ -4,6 +4,7 @@ import { ProviderDetails } from '../../../../api/types.gen';
 interface ModalProps {
   onSubmit?: (values: any) => void;
   onCancel?: () => void;
+  onDelete?: (values: any) => void;
   formProps?: any;
 }
 

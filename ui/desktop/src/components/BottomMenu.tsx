@@ -6,7 +6,7 @@ import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../App';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from './settings_v2/models/subcomponents/ModelsBottomBar';
+import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
 
 export default function BottomMenu({
   hasMessages,

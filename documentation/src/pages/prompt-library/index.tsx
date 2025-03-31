@@ -112,7 +112,7 @@ export default function HomePage() {
         <div className="search-container mb-6 md:mb-8">
           <input
             className="bg-bgApp font-light text-textProminent placeholder-textPlaceholder w-full px-3 py-2 md:py-3 text-2xl md:text-[40px] leading-tight md:leading-[52px] border-b border-borderSubtle focus:outline-none focus:ring-purple-500 focus:border-borderProminent caret-[#FF4F00] pl-0"
-            placeholder="Search prompts..."
+            placeholder="Search for prompts by keywords"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);

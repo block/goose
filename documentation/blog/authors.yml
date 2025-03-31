@@ -65,3 +65,11 @@ alex:
     linkedin: alex-rosenzweig
     github: shellz-n-stuff
 
+alice:
+  name: Alice Hau
+  title: Machine Learning Engineer
+  image_url: https://avatars.githubusercontent.com/u/110418948?v=4
+  page: true
+  socials:
+    linkedin: alice-hau
+    github: alicehau

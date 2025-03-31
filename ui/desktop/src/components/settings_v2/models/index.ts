@@ -1,6 +1,9 @@
-import { initializeAgent } from '../../../agent/index';
+import { initializeSystem } from '../../../utils/providerUtils';
 import { toastError, toastSuccess } from '../../../toasts';
 import { ProviderDetails } from '@/src/api';
+import { getProviderMetadata } from './modelInterface';
+import { ProviderMetadata } from '../../../api';
+import type { ExtensionConfig, FixedExtensionEntry } from '../../ConfigContext';
 
 // titles
 const CHANGE_MODEL_TOAST_TITLE = 'Model selected';
@@ -21,12 +24,23 @@ interface changeModelProps {
   model: string;
   provider: string;
   writeToConfig: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
+  getExtensions?: (b: boolean) => Promise<FixedExtensionEntry[]>;
+  addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
 }
 
 // TODO: error handling
-export async function changeModel({ model, provider, writeToConfig }: changeModelProps) {
+export async function changeModel({
+  model,
+  provider,
+  writeToConfig,
+  getExtensions,
+  addExtension,
+}: changeModelProps) {
   try {
-    await initializeAgent({ model: model, provider: provider });
+    await initializeSystem(provider, model, {
+      getExtensions,
+      addExtension,
+    });
   } catch (error) {
     console.error(`Failed to change model at agent step -- ${model} ${provider}`);
     toastError({
@@ -55,49 +69,6 @@ export async function changeModel({ model, provider, writeToConfig }: changeMode
     toastSuccess({
       title: CHANGE_MODEL_TOAST_TITLE,
       msg: `${SWITCH_MODEL_SUCCESS_MSG} -- using ${model} from ${provider}`,
-    });
-  }
-}
-
-interface startAgentFromConfigProps {
-  readFromConfig: (key: string, is_secret: boolean) => Promise<unknown>;
-}
-
-// starts agent with the values for GOOSE_PROVIDER and GOOSE_MODEL that are in the config
-export async function startAgentFromConfig({ readFromConfig }: startAgentFromConfigProps) {
-  let modelProvider: { model: string; provider: string };
-
-  // read from config
-  try {
-    modelProvider = await getCurrentModelAndProvider({ readFromConfig: readFromConfig });
-  } catch (error) {
-    toastError({
-      title: START_AGENT_TITLE,
-      msg: CONFIG_READ_MODEL_ERROR_MSG,
-      traceback: error,
-    });
-    return;
-  }
-
-  const model = modelProvider.model;
-  const provider = modelProvider.provider;
-
-  console.log(`Starting agent with GOOSE_MODEL=${model} and GOOSE_PROVIDER=${provider}`);
-
-  try {
-    await initializeAgent({ model: model, provider: provider });
-  } catch (error) {
-    console.error(`Failed to change model at agent step -- ${model} ${provider}`);
-    toastError({
-      title: CHANGE_MODEL_TOAST_TITLE,
-      msg: SWITCH_MODEL_AGENT_ERROR_MSG,
-      traceback: error,
-    });
-    return;
-  } finally {
-    toastSuccess({
-      title: CHANGE_MODEL_TOAST_TITLE,
-      msg: `${INITIALIZE_SYSTEM_WITH_MODEL_SUCCESS_MSG} with ${model} from ${provider}`,
     });
   }
 }
@@ -137,19 +108,20 @@ export async function getCurrentModelAndProviderForDisplay({
   const gooseModel = modelProvider.model;
   const gooseProvider = modelProvider.provider;
 
-  const providers = await getProviders(false);
-
   // lookup display name
-  const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+  let metadata: ProviderMetadata;
 
-  if (providerDetailsList.length != 1) {
+  try {
+    metadata = await getProviderMetadata(gooseProvider, getProviders);
+  } catch (error) {
     toastError({
       title: UNKNOWN_PROVIDER_TITLE,
       msg: UNKNOWN_PROVIDER_MSG,
+      traceback: error,
     });
     return { model: gooseModel, provider: gooseProvider };
   }
-  const providerDisplayName = providerDetailsList[0].metadata.display_name;
+  const providerDisplayName = metadata.display_name;
 
   return { model: gooseModel, provider: providerDisplayName };
 }

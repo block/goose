@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { View } from '../../App';
+import { useConfig } from '../ConfigContext';
 
 interface VersionInfo {
   current_version: string;
@@ -85,6 +86,7 @@ export default function MoreMenu({
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { remove } = useConfig();
   const [versions, setVersions] = useState<VersionInfo | null>(null);
   const [showVersions, setShowVersions] = useState(false);
   const [useSystemTheme, setUseSystemTheme] = useState(
@@ -254,30 +256,36 @@ export default function MoreMenu({
                 <span className="text-textSubtle ml-1">⌘,</span>
               </MenuButton>
 
-              <MenuButton
-                onClick={() => {
-                  localStorage.removeItem('GOOSE_PROVIDER');
-                  setOpen(false);
-                  window.electron.createChatWindow();
-                }}
-                danger
-                subtitle="Clear selected model and restart"
-                icon={<Refresh className="w-4 h-4 text-textStandard" />}
-                className="border-b-0"
-              >
-                Reset provider and model
-              </MenuButton>
-
               {process.env.ALPHA && (
                 <MenuButton
-                  onClick={() => {
+                  onClick={async () => {
+                    await remove('GOOSE_PROVIDER', false);
+                    await remove('GOOSE_MODEL', false);
                     setOpen(false);
-                    setView('alphaConfigureProviders');
+                    window.electron.createChatWindow();
                   }}
-                  className="text-indigo-800"
-                  subtitle="Preview the new provider configuration interface"
+                  danger
+                  subtitle="Clear selected model and restart (alpha)"
+                  icon={<Refresh className="w-4 h-4 text-textStandard" />}
+                  className="border-b-0"
                 >
-                  See new providers grid
+                  Reset provider and model
+                </MenuButton>
+              )}
+
+              {!process.env.ALPHA && (
+                <MenuButton
+                  onClick={() => {
+                    localStorage.removeItem('GOOSE_PROVIDER');
+                    setOpen(false);
+                    window.electron.createChatWindow();
+                  }}
+                  danger
+                  subtitle="Clear selected model and restart"
+                  icon={<Refresh className="w-4 h-4 text-textStandard" />}
+                  className="border-b-0"
+                >
+                  Reset provider and model
                 </MenuButton>
               )}
             </div>
