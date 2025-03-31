@@ -6,7 +6,7 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-const ImageCarousel = ({ images, id, width = 100% }) => {
+const ImageCarousel = ({ images, id, width = '100%' }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
 
   const getCurrentImageName = () => {
