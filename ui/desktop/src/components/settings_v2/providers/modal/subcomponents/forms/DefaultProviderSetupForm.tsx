@@ -13,11 +13,13 @@ export default function DefaultProviderSetupForm({
   configValues,
   setConfigValues,
   provider,
-  validationErrors,
+  validationErrors = {},
 }: DefaultProviderSetupFormProps) {
   const parameters = provider.metadata.config_keys || [];
   const [isLoading, setIsLoading] = useState(true);
   const { read } = useConfig();
+
+  console.log('configValues default form', configValues);
 
   // Initialize values when the component mounts or provider changes
   useEffect(() => {
@@ -66,8 +68,8 @@ export default function DefaultProviderSetupForm({
       setIsLoading(false);
     };
 
-    loadConfigValues();
-  }, [provider.name, parameters, setConfigValues, read]);
+    loadConfigValues().then();
+  }, []);
 
   // Filter parameters to only show required ones
   const requiredParameters = useMemo(() => {
@@ -89,6 +91,7 @@ export default function DefaultProviderSetupForm({
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
 
+  console.log('required params', requiredParameters);
   return (
     <div className="mt-4 space-y-4">
       {requiredParameters.length === 0 ? (
@@ -109,8 +112,10 @@ export default function DefaultProviderSetupForm({
                 }))
               }
               placeholder={getPlaceholder(parameter)}
-              className={`w-full h-14 px-4 font-regular rounded-lg border shadow-none ${
-                validationErrors[parameter.name] ? 'border-red-500' : 'border-gray-300'
+              className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+                validationErrors[parameter.name]
+                  ? 'border-2 border-red-500'
+                  : 'border border-gray-300'
               } bg-white text-lg placeholder:text-gray-400 font-regular text-gray-900`}
               required={true}
             />
