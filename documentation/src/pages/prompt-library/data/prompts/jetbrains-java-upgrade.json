@@ -1,6 +1,6 @@
 {
   "id": "jetbrains-java-upgrade",
-  "title": "JetBrains Java Version Upgrade",
+  "title": "Upgrade Java Project",
   "description": "Upgrade Java version in JetBrains IDE projects",
   "category": "technical",
   "job": "engineering",

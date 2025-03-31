@@ -1,6 +1,6 @@
 {
   "id": "generate-storybook-entry",
-  "title": "Generate Storybook Component Entry",
+  "title": "Generate Storybook Entry from Git Diff",
   "description": "Create a Storybook entry for a React component including variants and documentation",
   "category": "technical",
   "job": "engineering",

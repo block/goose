@@ -1,6 +1,6 @@
 {
   "id": "incident-analysis",
-  "title": "Incident Analysis and Response",
+  "title": "Analyze PagerDuty Incident Patterns",
   "description": "Analyze system incidents and create comprehensive response plans",
   "category": "technical",
   "job": "operations",

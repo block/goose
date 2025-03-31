@@ -1,6 +1,6 @@
 {
   "id": "image-resize",
-  "title": "Batch Image Resizing",
+  "title": "Resize Image with Aspect Ratio",
   "description": "Resize multiple images to specific dimensions while maintaining aspect ratio",
   "category": "technical",
   "job": "design",

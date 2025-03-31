@@ -1,6 +1,6 @@
 {
   "id": "roll-plan-analyzer",
-  "title": "Release Rollout Plan Analysis",
+  "title": "Analyze Production Change ROLL Plans",
   "description": "Analyze and optimize release rollout plans",
   "category": "technical",
   "job": "project-management",

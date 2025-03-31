@@ -1,6 +1,6 @@
 {
   "id": "figma-to-code",
-  "title": "Convert Figma Design to Code",
+  "title": "Convert Designs to Code",
   "description": "Convert Figma design components into React/CSS code with proper styling and responsiveness",
   "category": "technical",
   "job": "design",

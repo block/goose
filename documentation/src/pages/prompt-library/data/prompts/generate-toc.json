@@ -1,6 +1,6 @@
 {
   "id": "generate-toc",
-  "title": "Documentation TOC Generator",
+  "title": "Generate Table of Contents for Repo",
   "description": "Generate a table of contents for technical documentation",
   "category": "technical",
   "job": "engineering",

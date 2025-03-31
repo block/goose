@@ -1,6 +1,6 @@
 {
   "id": "name-column-split",
-  "title": "Name Column Data Splitting",
+  "title": "Clean Excel Data",
   "description": "Split name columns into first, middle, and last names",
   "category": "technical",
   "job": "data-analytics",
