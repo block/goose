@@ -217,7 +217,7 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
                   </div>
 
                   <div>
-                    <h2 className="text-2xl font-medium mb-4">Required Extensions</h2>
+                    <h2 className="text-2xl font-medium mb-4">Recommended Extensions</h2>
                     <ExtensionList extensions={prompt.extensions} />
                   </div>
                 </div>
