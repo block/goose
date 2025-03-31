@@ -6,8 +6,8 @@
   "example_prompt": "I need help building an automated monitoring system that will:\n1. Check an Airtable base every 10 minutes for new form submissions\n2. Match each submission with reviewer information stored in a Google Sheet\n3. Send me a notification with the submission details and assigned reviewer(s)\n4. Auto-dismiss the notification after 5 seconds\n\nCan you help me create this system, starting with setting up the necessary connections to Airtable and Google Sheets?",
   "extensions": [
     {
-      "name": "Developer",
-      "command": "developer",
+      "name": "Computer Controller",
+      "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": []
     },

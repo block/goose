@@ -10,6 +10,13 @@
       "command": "npx -y @modelcontextprotocol/server-filesystem",
       "is_builtin": false,
       "environmentVariables": []
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+      ]
     }
   ]
 }

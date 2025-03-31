@@ -11,6 +11,13 @@
       "is_builtin": false,
       "installation_notes": "[PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone",
       "environmentVariables": []
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
+      ]
     }
   ]
 }

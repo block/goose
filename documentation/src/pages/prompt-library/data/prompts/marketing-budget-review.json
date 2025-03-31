@@ -22,6 +22,12 @@
           "required": true
         }
       ]
+    },
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": []
     }
   ]
 }

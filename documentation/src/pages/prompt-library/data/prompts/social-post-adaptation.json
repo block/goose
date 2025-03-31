@@ -6,8 +6,26 @@
   "example_prompt": "Please adapt this post for [Target Platform]. Consider:\n\n1. Character limits\n2. Platform-specific features\n3. Format conventions\n4. Hashtag usage\n5. Link formatting\n6. Media recommendations\n7. Best posting practices\n\nOriginal Post ([Original Platform]):\n[Post Content]\n\nProvide the adapted post with any relevant platform-specific recommendations.",
   "extensions": [
     {
-      "name": "Developer",
-      "command": "developer",
+      "name": "Google Drive",
+      "command": "npx -y @modelcontextprotocol/server-gdrive",
+      "is_builtin": false,
+      "link": "https://block.github.io/goose/v1/extensions/google-drive",
+      "environmentVariables": [
+        {
+          "name": "GDRIVE_OAUTH_PATH",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json",
+          "required": true
+        },
+        {
+          "name": "GDRIVE_CREDENTIALS_PATH",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": []
     }

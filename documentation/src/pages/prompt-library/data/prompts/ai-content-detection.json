@@ -10,6 +10,23 @@
       "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": []
+    },
+    {
+      "name": "Google Drive",
+      "command": "npx -y @modelcontextprotocol/server-gdrive",
+      "is_builtin": false,
+      "environmentVariables": [
+        {
+          "name": "GDRIVE_OAUTH_PATH",
+          "description": "/Users/<username>/.config/gcp-oauth.keys.json \/ ",
+          "required": true
+        },
+        {
+          "name": "GDRIVE_CREDENTIALS_PATH",
+          "description": "/Users/<username>/.config/.gdrive-server-credentials.json \/",
+          "required": true
+        }
+      ]
     }
   ]
 }

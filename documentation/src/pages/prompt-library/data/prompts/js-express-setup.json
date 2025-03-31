@@ -10,16 +10,6 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "project_name",
-          "description": "Name of the project",
-          "required": true
-        },
-        {
-          "name": "project_path",
-          "description": "Path where to create the project",
-          "required": true
-        }
       ]
     }
   ]

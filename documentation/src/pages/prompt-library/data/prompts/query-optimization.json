@@ -10,16 +10,6 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "file_path",
-          "description": "Path to the Ruby file containing the query (e.g., app/services/record_service.rb)",
-          "required": true
-        },
-        {
-          "name": "method_name",
-          "description": "Name of the method to optimize (e.g., list_records)",
-          "required": true
-        }
       ]
     }
   ]

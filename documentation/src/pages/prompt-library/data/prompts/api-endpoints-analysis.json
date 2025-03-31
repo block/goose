@@ -10,16 +10,6 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "config_path",
-          "description": "Path to the routing configuration file (e.g., routes.rb, urls.py, routes.js)",
-          "required": true
-        },
-        {
-          "name": "framework",
-          "description": "The web framework being used (e.g., Rails, Django, Express)",
-          "required": false
-        }
       ]
     }
   ]

@@ -10,17 +10,13 @@
       "command": "developer",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "roll_plan_path",
-          "description": "Path to the ROLL plan XML file to analyze",
-          "required": true
-        },
-        {
-          "name": "reference_plan_path",
-          "description": "Path to the reference ROLL plan XML file (optional)",
-          "required": false
-        }
       ]
+    },
+    {
+      "name": "Computer Controller",
+      "command": "computercontroller",
+      "is_builtin": true,
+      "environmentVariables": []
     }
   ]
 }

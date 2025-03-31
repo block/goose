@@ -10,16 +10,6 @@
       "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "music_app",
-          "description": "Preferred music application (e.g., Spotify, Apple Music)",
-          "required": true
-        },
-        {
-          "name": "csv_filename",
-          "description": "Name for the CSV file to store research results",
-          "required": false
-        }
       ]
     }
   ]

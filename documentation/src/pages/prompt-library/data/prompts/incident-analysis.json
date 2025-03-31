@@ -11,16 +11,14 @@
       "command": "computercontroller",
       "is_builtin": true,
       "environmentVariables": [
-        {
-          "name": "data_file",
-          "description": "Path to the PagerDuty incident activity CSV file",
-          "required": true
-        },
-        {
-          "name": "time_period",
-          "description": "Time period to analyze (e.g., 'last 30 days', 'last quarter')",
-          "required": false
-        }
+
+      ]
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
       ]
     }
   ]

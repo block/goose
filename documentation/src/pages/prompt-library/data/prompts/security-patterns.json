@@ -10,11 +10,13 @@
       "command": "npx -y @modelcontextprotocol/server-memory",
       "is_builtin": false,
       "environmentVariables": [
-        {
-          "name": "domain",
-          "description": "Security domain to focus on (e.g., 'web', 'mobile', 'api')",
-          "required": false
-        }
+      ]
+    },
+    {
+      "name": "Developer",
+      "command": "developer",
+      "is_builtin": true,
+      "environmentVariables": [
       ]
     }
   ]
