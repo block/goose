@@ -86,11 +86,11 @@ What are your favorite MCP servers? How do you use them together? Share your exp
   <meta property="og:title" content="Top 5 MCP Servers I Use as a Developer with Goose Extensions" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/01/top-5-mcp-servers" />
-  <meta property="og:description" content="A developer's journey through the essential MCP servers that transform daily coding workflows with Goose" />
+  <meta property="og:description" content="These 5 MCP servers help me automate my workflow and make me a better developer." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/mcp-servers-cover-6994acb4dec5a3b33d10ea61f7609e4b.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Top 5 MCP Servers I Use as a Developer with Goose Extensions" />
-  <meta name="twitter:description" content="A developer's journey through the essential MCP servers that transform daily coding workflows with Goose" />
+  <meta name="twitter:description" content="These 5 MCP servers help me automate my workflow and make me a better developer." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/mcp-servers-cover-6994acb4dec5a3b33d10ea61f7609e4b.png" />
 </head>
