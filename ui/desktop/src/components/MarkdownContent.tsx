@@ -101,18 +101,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
           ${className}`}
         components={{
           a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-          code({
-            node,
-            children,
-            inlinecode,
-            ...props
-          }: {
-            node: any;
-            className?: string;
-            children: React.ReactNode;
-            inlinecode?: string;
-            [key: string]: any;
-          }) {
+          code({ node, className, children, inlinecode, ...props }) {
             const match = /language-(\w+)/.exec(className || 'language-text');
             return inlinecode == 'false' && match ? (
               <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
