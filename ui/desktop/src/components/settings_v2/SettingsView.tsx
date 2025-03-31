@@ -4,6 +4,7 @@ import BackButton from '../ui/BackButton';
 import type { View } from '../../App';
 import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
+import { ModeSection } from './mode/ModeSection';
 
 export type SettingsViewOptions = {
   extensionId?: string;
@@ -36,6 +37,8 @@ export default function SettingsView({
               <ModelsSection setView={setView} />
               {/* Extensions Section */}
               <ExtensionsSection />
+              {/* Goose Modes */}
+              <ModeSection />
             </div>
           </div>
         </div>
