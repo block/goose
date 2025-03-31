@@ -6,22 +6,16 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 
-const ImageCarousel = ({ images, id, width = '100%' }) => {
+const ImageCarousel = ({ images, id, width = '100%', names = [] }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
 
+  // Get the current image name from the names array if available
   const getCurrentImageName = () => {
-    const currentImage = images[activeIndex];
-    // Get the source path as a string
-    const imagePath = typeof currentImage === 'string' ? currentImage : (currentImage?.toString() || '');
-    
-    // Try to extract the actual filename from the path by finding the last part of the path that matches a model name pattern
-    const matches = imagePath.match(/\/([^\/]+)\.(gif|png|jpg|jpeg)/) 
-                   
-    if (matches && matches[1]) {
-      return matches[1];
+    if (Array.isArray(names) && names.length > activeIndex && names[activeIndex]) {
+      return names[activeIndex];
     }
     
-    // Last resort fallback
+    // Fallback to default naming
     return `Image ${activeIndex + 1}`;
   };
 

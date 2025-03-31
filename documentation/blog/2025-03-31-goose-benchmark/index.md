@@ -345,8 +345,21 @@ For runs that successfully created a working flappy bird game with pygame, here 
   require('./flappy_bird_carousel/o3-mini.gif').default,
   require('./flappy_bird_carousel/qwen2.5-coder-32b.gif').default,
   require('./flappy_bird_carousel/qwq.gif').default,
-
-]} />
+ ]}
+ names={[
+    "claude-3-5-haiku",
+    "claude-3-5-sonnet-2",
+    "claude-3-7-sonnet",
+    "deepseek-chat-v3-0324",
+    "deepseek-r1-toolshim-mistral-nemo",
+    "gpt-4-5-preview",
+    "gpt-4o-mini",
+    "gpt-4o",
+    "o1",
+    "o3-mini",
+    "qwen2.5-coder-32b",
+    "qwq"
+  ]} />
 
 
 ### Wiki Pages
@@ -358,29 +371,52 @@ For runs that successfully created an index.html for the Wiki page task, here’
 
 <ImageCarousel id="wiki" width="80%" images={[
 
-  require('./wiki_pages_carousel/gemma3.27b-toolshim-mistral-nemo.png').default,
-  require('./wiki_pages_carousel/claude-3.5-haiku.png').default,
-  require('./wiki_pages_carousel/claude-3.5-sonnet-2.png').default,
-  require('./wiki_pages_carousel/claude-3.7-sonnet.png').default,
-  require('./wiki_pages_carousel/deepseek-chat-v3-0324.png').default,
-  require('./wiki_pages_carousel/deepseek-r1-distill-llama-70b-toolshim-mistral-nemo.png').default,
-  require('./wiki_pages_carousel/gpt-4.5-preview.png').default,
-  require('./wiki_pages_carousel/gpt-4o-mini.png').default,
-  require('./wiki_pages_carousel/gpt-4o.png').default,
-  require('./wiki_pages_carousel/llama3.3.70b-instruct-q4_K_M.png').default,
-  require('./wiki_pages_carousel/llama3.3.70b-instruct-q8_0.png').default,
-  require('./wiki_pages_carousel/mistral-nemo_index.png').default,
-  require('./wiki_pages_carousel/o1.png').default,
-  require('./wiki_pages_carousel/o3-mini.png').default,
-  require('./wiki_pages_carousel/phi4-toolshim-mistral-nemo.png').default,
-  require('./wiki_pages_carousel/phi4-toolshim-qwen2.5-coder7b.png').default,
-  require('./wiki_pages_carousel/qwen2.5-coder.14b.png').default,
-  require('./wiki_pages_carousel/qwen2.5-coder.32b.png').default,
-  require('./wiki_pages_carousel/qwen2.5.14b.png').default,
-  require('./wiki_pages_carousel/qwen2.5.32b.png').default,
-  require('./wiki_pages_carousel/qwq.png').default
-
-]} />
+   require('./wiki_pages_carousel/gemma3.27b-toolshim-mistral-nemo.png').default,
+   require('./wiki_pages_carousel/claude-3.5-haiku.png').default,
+   require('./wiki_pages_carousel/claude-3.5-sonnet-2.png').default,
+   require('./wiki_pages_carousel/claude-3.7-sonnet.png').default,
+   require('./wiki_pages_carousel/deepseek-chat-v3-0324.png').default,
+   require('./wiki_pages_carousel/deepseek-r1-distill-llama-70b-toolshim-mistral-nemo.png').default,
+   require('./wiki_pages_carousel/gpt-4.5-preview.png').default,
+   require('./wiki_pages_carousel/gpt-4o-mini.png').default,
+   require('./wiki_pages_carousel/gpt-4o.png').default,
+   require('./wiki_pages_carousel/llama3.3.70b-instruct-q4_K_M.png').default,
+   require('./wiki_pages_carousel/llama3.3.70b-instruct-q8_0.png').default,
+   require('./wiki_pages_carousel/mistral-nemo_index.png').default,
+   require('./wiki_pages_carousel/o1.png').default,
+   require('./wiki_pages_carousel/o3-mini.png').default,
+   require('./wiki_pages_carousel/phi4-toolshim-mistral-nemo.png').default,
+   require('./wiki_pages_carousel/phi4-toolshim-qwen2.5-coder7b.png').default,
+   require('./wiki_pages_carousel/qwen2.5-coder.14b.png').default,
+   require('./wiki_pages_carousel/qwen2.5-coder.32b.png').default,
+   require('./wiki_pages_carousel/qwen2.5.14b.png').default,
+   require('./wiki_pages_carousel/qwen2.5.32b.png').default,
+   require('./wiki_pages_carousel/qwq.png').default
+   ]} 
+   
+   names={[
+   "gemma3.27b-toolshim-mistral-nemo",
+   "claude-3.5-haiku",
+   "claude-3.5-sonnet-2",
+   "claude-3.7-sonnet",
+   "deepseek-chat-v3-0324",
+   "deepseek-r1-distill-llama-70b-toolshim-mistral-nemo",
+   "gpt-4.5-preview",
+   "gpt-4o-mini",
+   "gpt-4o",
+   "llama3.3.70b-instruct-q4_K_M",
+   "llama3.3.70b-instruct-q8_0",
+   "mistral-nemo",
+   "o1",
+   "o3-mini",
+   "phi4-toolshim-mistral-nemo",
+   "phi4-toolshim-qwen2.5-coder7b",
+   "qwen2.5-coder.14b",
+   "qwen2.5-coder.32b",
+   "qwen2.5.14b",
+   "qwen2.5.32b",
+   "qwq"
+   ]}/>
 
 
 <head>
