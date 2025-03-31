@@ -18,7 +18,14 @@ export default function SessionSharingSection() {
 
   // Only load saved config from localStorage if the env variable is not provided.
   useEffect(() => {
-    if (!envBaseUrlShare) {
+    if (envBaseUrlShare) {
+      // If env variable is set, save the forced configuration to localStorage
+      const forcedConfig = {
+        enabled: true,
+        baseUrl: envBaseUrlShare,
+      };
+      localStorage.setItem('session_sharing_config', JSON.stringify(forcedConfig));
+    } else {
       const savedSessionConfig = localStorage.getItem('session_sharing_config');
       if (savedSessionConfig) {
         try {
