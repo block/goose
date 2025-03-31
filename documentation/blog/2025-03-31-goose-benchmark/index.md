@@ -29,31 +29,38 @@ Thank you to the Ollama team for their help and support in our experimentation c
 
 | Rank | Model | Average Eval Score | Inference Provider |
 |------|-------|-------------------|-------------------|
-| 1 | claude-3-sonnet | 0.95 | databricks/bedrock |
-| 2 | claude-3-sonnet | 0.93 | databricks/bedrock |
-| 3 | claude-3-haiku | 0.91 | databricks/bedrock |
-| 4 | o1 | 0.89 | databricks/bedrock |
-| 5 | gpt-4o | 0.87 | databricks/bedrock |
-| 6 | qwen-coder-b | 0.85 | ollama |
-| 7 | o1-mini | 0.83 | databricks/bedrock |
-| 8 | qwq | 0.81 | ollama |
-| 9 | gpt-4o-mini | 0.79 | databricks/bedrock |
-| 10 | deepseek-chat-v1 | 0.77 | openrouter |
-| 11 | gpt-4-preview | 0.75 | databricks |
-| 12 | qwen-7b | 0.73 | ollama |
-| 13 | qwen-7b | 0.71 | ollama |
-| 14 | qwen-coder-b | 0.69 | ollama |
-| 15 | deepseek-r1-toolshim-mistral-nemo | 0.67 | openrouter |
-| 16 | llama2-70b-instruct-q_K_M | 0.65 | ollama |
-| 17 | phi-toolshim-mistral-nemo | 0.63 | ollama |
-| 18 | phi-mistral-nemo | 0.61 | ollama |
-| 19 | gemma-7b-toolshim-mistral-nemo | 0.59 | ollama |
-| 20 | deepseek-r1-toolshim-qwen-coder-b | 0.57 | openrouter |
-| 21 | llama2-70b-instruct-q_B | 0.55 | ollama |
-| 22 | deepseek-r1-7b-toolshim-mistral-nemo | 0.53 | openrouter |
-| 23 | deepseek-r1-distill-llama2-b-toolshim-mistral-nemo | 0.51 | ollama |
-| 24 | phi-toolshim-qwen-coder-b | 0.49 | ollama |
-| 25 | mistral-nemo | 0.47 | ollama |
+| 1 | claude-3-5-sonnet-2 | 1.00 | databricks (bedrock) |
+| 2 | claude-3-7-sonnet | 0.94 | databricks (bedrock) |
+| 3 | claude-3-5-haiku | 0.91 | databricks (bedrock) |
+| 4 | o1 | 0.81 | databricks (bedrock) |
+| 4 | gpt-4o | 0.81 | databricks (bedrock) |
+| 6 | qwen2.5-coder:32b | 0.8 | ollama |
+| 7 | o3-mini | 0.79 | databricks (bedrock) |
+| 8 | qwq | 0.77 | ollama |
+| 9 | gpt-4o-mini | 0.74 | databricks (bedrock) |
+| 10 | deepseek-chat-v3-0324 | 0.73 | openrouter |
+| 11 | gpt-4-5-preview | 0.67 | databricks |
+| 12 | qwen2.5:32b | 0.64 | ollama |
+| 13 | qwen2.5:14b | 0.62 | ollama |
+| 14 | qwen2.5-coder:14b | 0.51 | ollama |
+| 15 | deepseek-r1-toolshim-mistral-nemo* | 0.48 | openrouter |
+| 16 | llama3.3:70b-instruct-q4_K_M | 0.47 | ollama |
+| 17 | phi4-toolshim-mistral-nemo* | 0.46 | ollama |
+| 18 | phi4-mistral-nemo | 0.45 | ollama |
+| 19 | gemma3:27b-toolshim-mistral-nemo* | 0.43 | ollama |
+| 20 | deepseek-r1-toolshim-qwen2.5-coder7b* | 0.42 | openrouter |
+| 21 | llama3.3:70b-instruct-q8_0 | 0.41 | ollama |
+| 22 | deepseek-r1:14b-toolshim-mistral-nemo* | 0.37 | openrouter |
+| 23 | deepseek-r1-distill-llama-70b-toolshim-mistral-nemo* | 0.36 | ollama |
+| 24 | phi4-toolshim-qwen2.5-coder7b* | 0.3 | ollama |
+| 25 | mistral-nemo | 0.27 | ollama |
+| 26 | deepseek-r1-distill-llama-70b-toolshim-qwen2.5-coder7b* | 0.26 | openrouter |
+| 27 | llama3.2 | 0.25 | ollama |
+| 28 | gemma3:27b-toolshim-qwen2.5-coder7b* | 0.24 | ollama |
+| 29 | deepseek-r1:14b-toolshim-qwen2.5-coder7b* | 0.22 | ollama |
+| 29 | gemma3:12b-toolshim-qwen2.5-coder7b* | 0.22 | ollama |
+| 31 | mistral | 0.17 | ollama |
+| 32 | gemma3:12b-toolshim-mistral-nemo* | 0.15 | ollama |
 
 > _Models with 'toolshim' in their name indicate a Goose configuration using both a primary model and a secondary local Ollama model to interpret the primary model's response into appropriate tools for Goose to invoke. Low performance may be indicative of the shim performance rather than the base model itself. We use toolshims for select models because all evaluations in this experiment require tool use capabilities, but not all models in our experiment natively support tool calling._
 
@@ -112,9 +119,9 @@ Thank you to the Ollama team for their help and support in our experimentation c
 
 1. **Closed models currently lead**: Closed source models like Claude and GPT models still generally lead open source alternatives in agentic tasks.
 
-2. **Promising open challengers**: Models like the Qwen series and DeepSeek v1 show significant promise among open source alternatives, but they have not yet reached the consistency and reliability of closed models across all tasks.
+2. **Promising open challengers**: Models like the Qwen series and DeepSeek-v3 show significant promise among open source alternatives, but they have not yet reached the consistency and reliability of closed models across all tasks.
 
-3. **Token efficiency matters**: Some open models can achieve good performance while using fewer tokens, which can translate to faster task completion times and potentially lower cost. Claude-3-sonnet exhibits strong performance alongside claude-3-sonnet, but at much greater token usage.
+3. **Token efficiency matters**: Some open models can achieve good performance while using fewer tokens, which can translate to faster task completion times and potentially lower cost. Claude-3-7-sonnet exhibits strong performance alongside claude-3-5-sonnet-2, but at much greater token usage.
 
 4. **Tool calling is crucial but not as reliable in open source models today**: Effective tool calling remains a significant differentiator in agentic model performance. Open source models still struggle with generating structured tool calls reliably, limiting their effectiveness on complex tasks.
 
@@ -165,7 +172,7 @@ Each evaluation is scored on a mix of criteria tailored to the specific task:
 
 1. **Tool Call Execution**: Did the model make the correct tool calls to complete the task?
 
-2. **LLM as a Judge** (where applicable): Some evaluations used GPT-4o to assess response quality on a 0-3 scale:
+2. **LLM as a Judge** (where applicable): Some evaluations used GPT-4o to assess response quality on a 0-2 scale. In these cases, we generated 3 GPT-4o assessments, took the most common score among them, and ran a fourth assessment if needed to break a tie to get the final score.
    - 0 points: Incorrect or fundamentally flawed
    - 1 point: Partially correct, but with issues
    - 2 points: Fully correct and well executed
