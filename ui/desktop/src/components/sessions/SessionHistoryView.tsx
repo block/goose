@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, MessageSquare, Folder, Share, Copy, Check, LoaderCircle } from 'lucide-react';
+import {
+  Calendar,
+  MessageSquareText,
+  Folder,
+  Share2,
+  Sparkles,
+  Copy,
+  Check,
+  Target,
+  LoaderCircle,
+} from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
-import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
+import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
 import { createSharedSession } from '../../sharedSessions';
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/modal';
 import { Button } from '../ui/button';
@@ -107,27 +117,30 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandardInverse">
+          <h1 className="text-lg text-textStandardInverse">
             {session.metadata.description || session.session_id}
           </h1>
-          <div className="flex items-center text-sm text-textSubtleInverse mt-2 space-x-4">
+          <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
-              <Clock className="w-4 h-4 mr-1" />
-              {new Date(session.messages[0]?.created * 1000).toLocaleString()}
+              <Calendar className="w-4 h-4 mr-1" />
+              {formatDate(session.messages[0]?.created)}
             </span>
+            <span className="flex items-center">
+              <MessageSquareText className="w-4 h-4 mr-1" />
+              {session.metadata.message_count}
+            </span>
+            {session.metadata.total_tokens !== null && (
+              <span className="flex items-center">
+                <Target className="w-4 h-4 mr-1" />
+                {session.metadata.total_tokens.toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center text-sm text-textSubtle space-x-5">
             <span className="flex items-center">
               <Folder className="w-4 h-4 mr-1" />
               {session.metadata.working_dir}
             </span>
-            <span className="flex items-center">
-              <MessageSquare className="w-4 h-4 mr-1" />
-              {session.metadata.message_count} messages
-            </span>
-            {session.metadata.total_tokens !== null && (
-              <span className="flex items-center">
-                {session.metadata.total_tokens.toLocaleString()} tokens
-              </span>
-            )}
           </div>
         </div>
 
@@ -135,30 +148,30 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           <button
             onClick={handleShare}
             disabled={!canShare || isSharing}
-            className={`flex items-center text-textStandardInverse px-3 py-1 border rounded-md ${
+            className={`flex items-center text-textStandardInverse px-2 py-1 ${
               canShare
-                ? 'border-primary hover:font-bold hover:scale-105 transition-all duration-150'
-                : 'border-gray-300 cursor-not-allowed opacity-50'
+                ? 'hover:font-bold hover:scale-110 transition-all duration-150'
+                : 'cursor-not-allowed opacity-50'
             }`}
           >
             {isSharing ? (
               <>
-                <LoaderCircle className="w-5 h-5 animate-spin mr-2" />
+                <LoaderCircle className="w-7 h-7 animate-spin mr-2" />
                 <span>Sharing...</span>
               </>
             ) : (
               <>
-                <Share className="w-5 h-5" />
+                <Share2 className="w-7 h-7" />
               </>
             )}
           </button>
 
-          <span
+          <button
             onClick={onResume}
-            className="text-md cursor-pointer text-textStandardInverse hover:font-bold hover:scale-105 transition-all duration-150"
+            className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
           >
-            Resume Session
-          </span>
+            <Sparkles className="w-7 h-7" />
+          </button>
         </div>
       </SessionHeaderCard>
 
