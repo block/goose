@@ -90,6 +90,10 @@ export default function Input({
       }
     }
 
+    if (newIndex == historyIndex) {
+      return;
+    }
+
     // Update index and value
     setHistoryIndex(newIndex);
     if (newIndex === -1) {
