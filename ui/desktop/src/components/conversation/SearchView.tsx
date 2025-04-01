@@ -102,26 +102,39 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
     const marks = containerRef.current.querySelectorAll('mark');
     const mark = marks[index] as HTMLElement;
+    if (!mark) return;
 
-    if (mark) {
-      // Update highlight
-      marks.forEach((m) => m.classList.remove('current'));
-      mark.classList.add('current');
+    // Update highlight
+    marks.forEach((m) => m.classList.remove('current'));
+    mark.classList.add('current');
 
-      // Calculate position to center the mark in the viewport
-      const markRect = mark.getBoundingClientRect();
-      const viewportRect = mark
-        .closest('[data-radix-scroll-area-viewport]')
-        ?.getBoundingClientRect();
+    // Find the viewport element
+    const viewport = mark.closest('[data-radix-scroll-area-viewport]') as HTMLElement;
+    if (!viewport) return;
 
-      if (viewportRect) {
-        const targetPosition = mark.offsetTop - viewportRect.height / 2 + markRect.height / 2;
-        scrollAreaRef.current.scrollToPosition({
-          top: targetPosition,
-          behavior: 'smooth',
-        });
-      }
-    }
+    // Get measurements
+    const viewportRect = viewport.getBoundingClientRect();
+    const markRect = mark.getBoundingClientRect();
+    const currentScrollTop = viewport.scrollTop;
+
+    // Calculate how far the element is from the top of the viewport
+    const elementRelativeToViewport = markRect.top - viewportRect.top;
+
+    // Calculate the new scroll position that would center the element
+    const targetPosition =
+      currentScrollTop + elementRelativeToViewport - (viewportRect.height - markRect.height) / 2;
+
+    // Ensure we don't scroll past the bottom
+    const maxScroll = viewport.scrollHeight - viewport.clientHeight;
+    const finalPosition = Math.max(0, Math.min(targetPosition, maxScroll));
+
+    // Use requestAnimationFrame to ensure DOM measurements are accurate
+    requestAnimationFrame(() => {
+      scrollAreaRef.current?.scrollToPosition({
+        top: finalPosition,
+        behavior: 'smooth',
+      });
+    });
   };
 
   const clearHighlights = () => {
