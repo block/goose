@@ -26,7 +26,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandardInverse">
+          <h1 className="text-lg text-textStandardInverse">
             {session ? session.description : 'Shared Session'}
           </h1>
           <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
