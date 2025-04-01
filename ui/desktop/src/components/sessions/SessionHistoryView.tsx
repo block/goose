@@ -107,10 +107,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandard">
+          <h1 className="text-lg font-bold text-textStandardInverse">
             {session.metadata.description || session.session_id}
           </h1>
-          <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
+          <div className="flex items-center text-sm text-textSubtleInverse mt-2 space-x-4">
             <span className="flex items-center">
               <Clock className="w-4 h-4 mr-1" />
               {new Date(session.messages[0]?.created * 1000).toLocaleString()}
@@ -135,9 +135,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           <button
             onClick={handleShare}
             disabled={!canShare || isSharing}
-            className={`flex items-center text-textStandard px-3 py-1 border rounded-md ${
+            className={`flex items-center text-textStandardInverse px-3 py-1 border rounded-md ${
               canShare
-                ? 'border-primary hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150'
+                ? 'border-primary hover:font-bold hover:scale-105 transition-all duration-150'
                 : 'border-gray-300 cursor-not-allowed opacity-50'
             }`}
           >
@@ -155,7 +155,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
           <span
             onClick={onResume}
-            className="text-md cursor-pointer text-textStandard hover:font-bold hover:scale-105 transition-all duration-150"
+            className="text-md cursor-pointer text-textStandardInverse hover:font-bold hover:scale-105 transition-all duration-150"
           >
             Resume Session
           </span>

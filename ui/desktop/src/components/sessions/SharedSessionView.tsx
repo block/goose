@@ -20,17 +20,17 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
 }) => {
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <div className="relative flex items-center h-[36px] w-full bg-bgAppInverse"></div>
 
       {/* Top Row - back, info (fixed) */}
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandard">
+          <h1 className="text-lg font-bold text-textStandardInverse">
             {session ? session.description : 'Shared Session'}
           </h1>
           {session && (
-            <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
+            <div className="flex items-center text-sm text-textSubtleInverse mt-2 space-x-4">
               <span className="flex items-center">
                 <Clock className="w-4 h-4 mr-1" />
                 {new Date(session.messages[0]?.created * 1000).toLocaleString()}
@@ -51,7 +51,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
             </div>
           )}
           {session && (
-            <div className="flex items-center text-sm text-textSubtle mt-1">
+            <div className="flex items-center text-sm text-textSubtleInverse mt-1">
               <span className="flex items-center">
                 <Folder className="w-4 h-4 mr-1" />
                 {session.working_dir}

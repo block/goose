@@ -50,8 +50,12 @@ export interface SessionHeaderCardProps {
  */
 export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, children }) => {
   return (
-    <Card className="px-8 pt-6 pb-4 bg-bgSecondary flex items-center">
-      <BackButton showText={false} onClick={onBack} className="text-textStandard" />
+    <Card className="px-8 pt-6 pb-4 bg-bgAppInverse text-textProminentInverse flex items-center">
+      <BackButton
+        showText={false}
+        onClick={onBack}
+        className="text-textStandardInverse hover:text-textProminentInverse"
+      />
       {children}
     </Card>
   );
