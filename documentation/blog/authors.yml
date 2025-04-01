@@ -56,6 +56,15 @@ angie:
     github: angiejones
     x: techgirl1908
 
+alex:
+  name: Alex Rosenzweig
+  title: Staff Security Engineer
+  image_url: https://media.licdn.com/dms/image/v2/C5103AQGrOYDDHn8z6g/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1520985744775?e=1749081600&v=beta&t=krNAyF8rFRnInDfEZcO2TlLOHXWKMzt-fJdkgHVfFNs
+  page: true
+  socials:
+    linkedin: alex-rosenzweig
+    github: shellz-n-stuff
+
 alice:
   name: Alice Hau
   title: Machine Learning Engineer
