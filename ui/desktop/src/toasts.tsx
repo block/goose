@@ -1,5 +1,6 @@
 import { toast, ToastOptions } from 'react-toastify';
 import React from 'react';
+import { Button } from './components/ui/button';
 
 export interface ToastServiceOptions {
   silent?: boolean;
@@ -123,12 +124,12 @@ export function toastError({ title, msg, traceback, toastOptions }: ToastErrorPr
       </div>
       <div className="flex-none flex items-center">
         {traceback ? (
-          <button
-            className="text-textProminentInverse font-medium"
+          <Button
+            className="text-textProminentInverse font-medium rt-variant-outline dark:bg-gray-300 bg-slate"
             onClick={() => navigator.clipboard.writeText(traceback)}
           >
             Copy error
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>,

@@ -11,7 +11,7 @@ export {
 } from './extension-manager';
 
 // Export built-in extension functions
-export { syncBuiltInExtensions, initializeBuiltInExtensions } from './built-in';
+export { syncBundledExtensions, initializeBundledExtensions } from './bundled-extensions';
 
 // Export deeplink handling
 export { addExtensionFromDeepLink } from './deeplink';

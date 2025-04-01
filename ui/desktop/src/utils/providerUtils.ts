@@ -5,8 +5,8 @@ import { Model } from '../components/settings/models/ModelContext';
 import { gooseModels } from '../components/settings/models/GooseModels';
 import { initializeAgent } from '../agent';
 import {
-  initializeBuiltInExtensions,
-  syncBuiltInExtensions,
+  initializeBundledExtensions,
+  syncBundledExtensions,
   addToAgentOnStartup,
 } from '../components/settings_v2/extensions';
 import { extractExtensionConfig } from '../components/settings_v2/extensions/utils';
@@ -128,10 +128,10 @@ export const initializeSystem = async (
       let refreshedExtensions = await options.getExtensions(false);
 
       if (refreshedExtensions.length === 0) {
-        await initializeBuiltInExtensions(options.addExtension);
+        await initializeBundledExtensions(options.addExtension);
         refreshedExtensions = await options.getExtensions(false);
       } else {
-        await syncBuiltInExtensions(refreshedExtensions, options.addExtension);
+        await syncBundledExtensions(refreshedExtensions, options.addExtension);
       }
 
       // Add enabled extensions to agent

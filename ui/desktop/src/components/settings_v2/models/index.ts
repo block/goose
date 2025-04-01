@@ -8,13 +8,13 @@ import type { ExtensionConfig, FixedExtensionEntry } from '../../ConfigContext';
 // titles
 const CHANGE_MODEL_TOAST_TITLE = 'Model selected';
 const START_AGENT_TITLE = 'Initialize agent';
-const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
+export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
 
 // errors
 const SWITCH_MODEL_AGENT_ERROR_MSG = 'Failed to start agent with selected model';
 const CONFIG_UPDATE_ERROR_MSG = 'Failed to update configuration settings';
 const CONFIG_READ_MODEL_ERROR_MSG = 'Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config';
-const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
+export const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
 // success
 const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
@@ -114,11 +114,6 @@ export async function getCurrentModelAndProviderForDisplay({
   try {
     metadata = await getProviderMetadata(gooseProvider, getProviders);
   } catch (error) {
-    toastError({
-      title: UNKNOWN_PROVIDER_TITLE,
-      msg: UNKNOWN_PROVIDER_MSG,
-      traceback: error,
-    });
     return { model: gooseModel, provider: gooseProvider };
   }
   const providerDisplayName = metadata.display_name;

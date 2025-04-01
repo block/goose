@@ -9,6 +9,7 @@ import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
+import { toastService } from '../../toasts';
 
 interface VersionInfo {
   current_version: string;
@@ -262,7 +263,7 @@ export default function MoreMenu({
                     await remove('GOOSE_PROVIDER', false);
                     await remove('GOOSE_MODEL', false);
                     setOpen(false);
-                    window.electron.createChatWindow();
+                    setView('welcome');
                   }}
                   danger
                   subtitle="Clear selected model and restart (alpha)"

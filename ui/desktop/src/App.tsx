@@ -63,7 +63,7 @@ export default function App() {
     view: 'welcome',
     viewOptions: {},
   });
-  const { getExtensions, addExtension, read } = useConfig();
+  const { getExtensions, addExtension, read, upsert } = useConfig();
   const initAttemptedRef = useRef(false);
 
   // Utility function to extract the command from the link
@@ -91,6 +91,7 @@ export default function App() {
     const initializeApp = async () => {
       try {
         const config = window.electron.getConfig();
+
         const provider = config.GOOSE_PROVIDER ?? (await read('GOOSE_PROVIDER', false));
         const model = config.GOOSE_MODEL ?? (await read('GOOSE_MODEL', false));
 
