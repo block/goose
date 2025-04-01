@@ -79,6 +79,59 @@ async fn add_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // If this is a Stdio extension that uses npx, check for Node.js installation
+    if let ExtensionConfigRequest::Stdio { cmd, .. } = &request {
+        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+            // Check if Node.js is installed in standard locations
+            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+
+            if !node_exists {
+                // Get the directory containing npx.cmd
+                let cmd_path = std::path::Path::new(&cmd);
+                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                // Run the Node.js installer script
+                let install_script = script_dir.join("install-node.cmd");
+
+                if install_script.exists() {
+                    eprintln!("Installing Node.js...");
+                    let output = std::process::Command::new(&install_script)
+                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                        .output()
+                        .map_err(|e| {
+                            eprintln!("Failed to run Node.js installer: {}", e);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        })?;
+
+                    if !output.status.success() {
+                        eprintln!(
+                            "Failed to install Node.js: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                        return Ok(Json(ExtensionResponse {
+                            error: true,
+                            message: Some(format!(
+                                "Failed to install Node.js: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            )),
+                        }));
+                    }
+                    eprintln!("Node.js installation completed");
+                } else {
+                    eprintln!(
+                        "Node.js installer script not found at: {}",
+                        install_script.display()
+                    );
+                    return Ok(Json(ExtensionResponse {
+                        error: true,
+                        message: Some("Node.js installer script not found".to_string()),
+                    }));
+                }
+            }
+        }
+    }
+
     // Load the configuration
     let config = Config::global();
 

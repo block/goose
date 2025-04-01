@@ -111,17 +111,34 @@ make-ui:
 make-ui-windows:
     @just release-windows
     #!/usr/bin/env sh
+    set -e
     if [ -f "./target/x86_64-pc-windows-gnu/release/goosed.exe" ]; then \
-        echo "Copying Windows binary and DLLs to ui/desktop/src/bin..."; \
-        mkdir -p ./ui/desktop/src/bin; \
-        cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/; \
-        cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/; \
-        echo "Building Windows package..."; \
-        cd ui/desktop && \
-        npm run bundle:windows && \
-        mkdir -p out/Goose-win32-x64/resources/bin && \
-        cp -f src/bin/goosed.exe out/Goose-win32-x64/resources/bin/ && \
-        cp -f src/bin/*.dll out/Goose-win32-x64/resources/bin/; \
+        echo "Cleaning destination directory..." && \
+        rm -rf ./ui/desktop/src/bin && \
+        mkdir -p ./ui/desktop/src/bin && \
+        echo "Copying Windows binary and DLLs..." && \
+        cp -f ./target/x86_64-pc-windows-gnu/release/goosed.exe ./ui/desktop/src/bin/ && \
+        cp -f ./target/x86_64-pc-windows-gnu/release/*.dll ./ui/desktop/src/bin/ && \
+        if [ -d "./ui/desktop/src/platform/windows/bin" ]; then \
+            echo "Copying Windows platform files..." && \
+            for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do \
+                if [ -f "$file" ] && [ "$(basename "$file")" != "goosed.exe" ]; then \
+                    cp -f "$file" ./ui/desktop/src/bin/; \
+                fi; \
+            done && \
+            if [ -d "./ui/desktop/src/platform/windows/bin/goose-npm" ]; then \
+                echo "Setting up npm environment..." && \
+                rsync -a --delete ./ui/desktop/src/platform/windows/bin/goose-npm/ ./ui/desktop/src/bin/goose-npm/; \
+            fi && \
+            echo "Windows-specific files copied successfully"; \
+        fi && \
+        echo "Starting Windows package build..." && \
+        (cd ui/desktop && echo "In desktop directory, running npm bundle:windows..." && npm run bundle:windows) && \
+        echo "Creating resources directory..." && \
+        (cd ui/desktop && mkdir -p out/Goose-win32-x64/resources/bin) && \
+        echo "Copying final binaries..." && \
+        (cd ui/desktop && rsync -av src/bin/ out/Goose-win32-x64/resources/bin/) && \
+        echo "Windows package build complete!"; \
     else \
         echo "Windows binary not found."; \
         exit 1; \
