@@ -146,11 +146,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           searchResults={searchResults}
         />
       )}
-      <div
-        className={`transition-transform ${isSearchVisible ? 'translate-y-[52px] pb-[52px]' : 'translate-y-0'}`}
-      >
-        {children}
-      </div>
+      {children}
     </div>
   );
 };
