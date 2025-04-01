@@ -35,19 +35,14 @@ impl Evaluation for SquirrelCensus {
     ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
         println!("SquirrelCensus - run");
 
-        // Get the path to the squirrel data file
-        let squirrel_data_path = match work_dir.fs_get("./assets/squirrel-data.csv".to_string()) {
+        let _squirrel_data_path = match work_dir.fs_get("./assets/squirrel-data.csv".to_string()) {
             Ok(file) => file,
             Err(_) => return Err(anyhow::anyhow!("Could not find squirrel-data.csv file")),
         };
 
-        println!("squirrel_data_path: {:?}", squirrel_data_path);
-
-        // Collect baseline metrics (execution time, token usage, tool calls)
         let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
-            format!(
-                "Create a Python script called analyze_squirrels.py that analyzes the CSV file at {}. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.
+                "Create a Python script called analyze_squirrels.py that analyzes the CSV file at squirrel-data.csv. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.
 
 The script should use pandas to answer these specific questions:
 1. Which area (Area column) has the most squirrels spotted? For this area, what is the most common Primary Fur Color of squirrels?
@@ -61,9 +56,7 @@ The script should:
   [PARK_RESULT] <park_name> - <count> squirrels spotted
   [PARK_COLOR] Most common fur color: <color> (<color_count> squirrels)
 
-After writing the script, run it using python3 and show the results. Do not ask for confirmation or further instructions. Remember to use your tools if applicable.", 
-                squirrel_data_path.display()
-            )
+After writing the script, run it using python3 and show the results. Do not ask for confirmation or further instructions. Remember to use your tools if applicable.".to_string(), 
         ).await;
 
         // Convert HashMap to Vec for our metrics
