@@ -387,11 +387,10 @@ export default function ChatView({
             activities={botConfig?.activities || null}
           />
         ) : (
-          /* padding needs to be passed into the container inside ScrollArea to avoid pushing the scrollbar out */
-          <ScrollArea ref={scrollRef} className="flex-1" paddingX={4} autoScroll>
-            <SearchView className="mt-[16px]" scrollAreaRef={scrollRef}>
+          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+            <SearchView scrollAreaRef={scrollRef}>
               {filteredMessages.map((message, index) => (
-                <div key={message.id || index} className="mt-[16px] message-content">
+                <div key={message.id || index} className="mt-4 px-4">
                   {isUserMessage(message) ? (
                     <UserMessage message={message} />
                   ) : (
