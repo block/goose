@@ -58,11 +58,7 @@ export async function extensionApiCall(
     if (data.error) {
       const errorMessage = `Error ${action.type} extension: ${data.message || 'Unknown error'}`;
       toastService.dismiss(toastId);
-      toastService.error({
-        title: extensionName,
-        msg: errorMessage,
-        traceback: data.message || 'Unknown error',
-      });
+      // Rely on the global error catch to show the copyable error toast here
       throw new Error(errorMessage);
     }
 
