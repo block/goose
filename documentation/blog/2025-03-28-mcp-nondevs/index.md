@@ -24,18 +24,51 @@ That's exactly where MCP comes in. Best part is, you don't need to be a develope
 ## MCP Servers You Should Try Right Now
 So what can you connect your AI agent to? MCP Servers! MCP servers give your agent access to your tools. With [over 3000 MCP servers](https://glama.ai/mcp/servers) you can connect to, here is your top list of popular MCP servers you should try:
 
-- **[Google Drive](https://github.com/rishipradeep-think41/drive-mcp)**: File access and search capabilities for Google Drive
-- **[Slack](https://github.com/modelcontextprotocol/servers/tree/main/src/slack)**: Channel management and messaging capabilities
-- **[Google Maps](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps)**: Location services, directions, and place details
-- **[Tavily Web Search](https://github.com/RamXX/mcp-tavily)**: Web and local search using Tavily's Search API
-- **[Asana](https://github.com/roychri/mcp-server-asana)**: View asana tasks, projects, workspaces, and/or comments
-- **[Speech](https://github.com/Kvadratni/speech-mcp)**: Real-time voice interaction, audio/video transcription, text-to-speech conversion and more
-- **[Git](https://github.com/modelcontextprotocol/servers/tree/main/src/git)**: Tools to read, search, and manipulate Git repositories
-- **[Fetch](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch)**: Web content fetching and conversion for efficient LLM usage
+- **[Google Drive](https://block.github.io/goose/docs/tutorials/google-drive-mcp)**: File access and search capabilities for Google Drive
+- **[YouTube Transcript](https://block.github.io/goose/docs/tutorials/youtube-transcript)**: Fetch and work with YouTube video transcripts
+- **[Google Maps](https://block.github.io/goose/docs/tutorials/google-maps-mcp)**: Location services, directions, and place details
+- **[Tavily Web Search](https://block.github.io/goose/docs/tutorials/tavily-mcp)**: Web and local search using Tavily's Search API
+- **[Asana](https://block.github.io/goose/docs/tutorials/asana-mcp)**: View asana tasks, projects, workspaces, and/or comments
+- **[Speech](https://block.github.io/goose/docs/tutorials/speech-mcp)**: Real-time voice interaction, audio/video transcription, text-to-speech conversion and more
+- **[GitHub](https://block.github.io/goose/docs/tutorials/github-mcp)**: Tools to read, search, and manage Git repositories
+- **[Fetch](https://block.github.io/goose/docs/tutorials/fetch-mcp)**: Web content fetching and conversion for efficient LLM usage
 
 This quick list should give you an idea of all the ways you can now use AI agents with your workflow. You can also explore community favorites in [handy MCP directories](https://dev.to/techgirl1908/my-favorite-mcp-directories-573n), and learn [how to check MCP servers are safe](https://block.github.io/goose/blog/2025/03/26/mcp-security) before installing.
 
 You can also check out these [Goose tutorials](https://block.github.io/goose/docs/category/tutorials), showing you exactly how you can use some of these popular MCP servers with Goose, or use [Goose's Tutorial extension](https://block.github.io/goose/docs/tutorials/tutorial-extension) to get extra help walking you through using or building extensions.
+
+## Example MCP Prompts
+Now that you've caught a glimpse of some of the MCP servers that out there, how do you make sure you're using MCPs with AI agents the best you can? This is where prompts come in.
+
+Prompts are ultimately the text you input when interacting with an AI assistant, and prompts can range from super simple questions to detailed instructions! Here are some example prompts you can ask an AI agent like Goose right now that use some of the MCP servers mentioned above:
+
+### Google Maps
+```
+Google Maps: Track the live GPS location of driver ID #{driver_id}. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer's live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.
+```
+### YouTube Transcript
+```
+YouTube Transcript: Get the transcript from this youtube video [link to video]. Then, summarize it into a blog post.
+```
+### Google Drive
+```
+I have an important marketing budget review meeting in 30 minutes and I need your help getting prepared. I have several documents in my Google Drive from our previous meetings and planning sessions. Could you help me by:
+
+1. Finding all relevant documents about our marketing budget and performance
+2. Giving me a quick summary of our Q1 performance
+3. Highlighting the key decisions we need to make about the marketing automation tool and video production
+4. Identifying any outstanding action items from our last meeting
+```
+### Asana
+```
+Asana: Create a new task in my Asana workspace called 'Review Q4 metrics' and set the due date to next Friday. Then, find all tasks assigned to me that are due this week and summarize them.
+```
+### GitHub
+```
+GitHub: Create a new branch called hello-world in my angiejones/goose-demo repository. Update the README.md file to say "this was written by goose" and commit it. Open a pull request with your changes.
+```
+
+To see more examples just like this, along with the results you can get, check out this [Prompt Library](https://block.github.io/goose/prompt-library)! This is your central directory for discovering and using effective prompts with Goose.
 
 ## The Possibilities Are Endless
 While some are developed by official providers, a vast majority of MCP servers you see are actually developed by community members! Plus, because MCP is an open standard, anyone can build an MCP server for any resource. You could even use Goose to help you build one!
