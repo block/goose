@@ -235,6 +235,18 @@ impl Agent for TruncateAgent {
             tools.push(list_resources_tool);
         }
 
+        let tools_with_readonly_annotation: Vec<String> = tools
+            .iter()
+            .filter_map(|tool| {
+                if let Some(annotations) = &tool.annotations {
+                    if annotations.read_only_hint {
+                        return Some(tool.name.clone());
+                    }
+                }
+                None
+            })
+            .collect();
+
         let config = capabilities.provider().get_model_config();
         let mut system_prompt = capabilities.get_system_prompt().await;
         let mut toolshim_tools = vec![];
@@ -319,7 +331,7 @@ impl Agent for TruncateAgent {
                                 for request in tool_requests.iter() {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         if let Some(allowed) = store.check_permission(request) {
-                                            if allowed {
+                                            if allowed || tools_with_readonly_annotation.contains(&tool_call.name) {
                                                 // Instead of executing immediately, collect approved tools
                                                 approved_tools.push((request.id.clone(), tool_call));
                                             } else {
