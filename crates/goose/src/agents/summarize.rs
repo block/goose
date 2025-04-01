@@ -25,6 +25,7 @@ use crate::providers::errors::ProviderError;
 use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
+use crate::tool_output_limiter::ToolOutputLimiter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
@@ -42,6 +43,7 @@ pub struct SummarizeAgent {
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
+    tool_output_limiter: ToolOutputLimiter,
 }
 
 impl SummarizeAgent {
@@ -52,9 +54,10 @@ impl SummarizeAgent {
 
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
-            token_counter,
+            token_counter: token_counter.clone(),
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
+            tool_output_limiter: ToolOutputLimiter::new(token_counter),
         }
     }
 
@@ -127,6 +130,25 @@ impl SummarizeAgent {
             Ok(())
         }
     }
+    
+    async fn create_tool_future(
+        capabilities: &Capabilities,
+        tool_call: mcp_core::tool::ToolCall,
+        request_id: String,
+        limiter: &ToolOutputLimiter,
+        context_limit: usize,
+    ) -> (String, Result<Vec<Content>, mcp_core::ToolError>) {
+        let output = capabilities.dispatch_tool_call(tool_call.clone()).await;
+        
+        match output {
+            Ok(content) => {
+                // Apply size limiting to the successful output
+                let limited_content = limiter.limit_tool_output(&tool_call, content, context_limit);
+                (request_id, Ok(limited_content))
+            },
+            Err(err) => (request_id, Err(err)),
+        }
+    }
 }
 
 #[async_trait]
@@ -175,6 +197,9 @@ impl Agent for SummarizeAgent {
         let mut capabilities = self.capabilities.lock().await;
         let mut tools = capabilities.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
+        
+        // Get context limit early for tool output limiting
+        let context_limit = capabilities.provider().get_model_config().context_limit();
 
         // Load settings from config
         let config = Config::global();
@@ -303,11 +328,17 @@ impl Agent for SummarizeAgent {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
                                         if read_only_tools.contains(&tool_call.name) {
-                                            let output = capabilities.dispatch_tool_call(tool_call).await;
-                                                    message_tool_response = message_tool_response.with_tool_response(
-                                                        request.id.clone(),
-                                                        output,
-                                                    );
+                                            let (request_id, output) = Self::create_tool_future(
+                                                &capabilities, 
+                                                tool_call, 
+                                                request.id.clone(),
+                                                &self.tool_output_limiter,
+                                                context_limit
+                                            ).await;
+                                            message_tool_response = message_tool_response.with_tool_response(
+                                                request_id,
+                                                output,
+                                            );
                                         } else {
                                             let confirmation = Message::user().with_tool_confirmation_request(
                                                 request.id.clone(),
@@ -324,9 +355,15 @@ impl Agent for SummarizeAgent {
                                                 if req_id == request.id {
                                                     if confirmed {
                                                         // User approved - dispatch the tool call
-                                                        let output = capabilities.dispatch_tool_call(tool_call).await;
-                                                        message_tool_response = message_tool_response.with_tool_response(
+                                                        let (request_id, output) = Self::create_tool_future(
+                                                            &capabilities, 
+                                                            tool_call, 
                                                             request.id.clone(),
+                                                            &self.tool_output_limiter,
+                                                            context_limit
+                                                        ).await;
+                                                        message_tool_response = message_tool_response.with_tool_response(
+                                                            request_id,
                                                             output,
                                                         );
                                                     } else {
@@ -368,10 +405,14 @@ impl Agent for SummarizeAgent {
                                 let mut tool_futures = Vec::new();
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        tool_futures.push(async {
-                                            let output = capabilities.dispatch_tool_call(tool_call).await;
-                                            (request.id.clone(), output)
-                                        });
+                                        let tool_future = Self::create_tool_future(
+                                            &capabilities, 
+                                            tool_call, 
+                                            request.id.clone(),
+                                            &self.tool_output_limiter,
+                                            context_limit
+                                        );
+                                        tool_futures.push(tool_future);
                                     }
                                 }
                                 // Wait for all tool calls to complete
