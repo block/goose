@@ -76,7 +76,7 @@ export async function extensionApiCall(
   } catch (error) {
     // Final catch-all error handler
     toastService.dismiss(toastId);
-    const msg = error.length < 100 ? error : `Failed to ${action.presentTense} extension`;
+    const msg = error.length < 70 ? error : `Failed to ${action.presentTense} extension`;
     toastService.error({
       title: extensionName,
       msg: msg,
