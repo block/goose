@@ -5,6 +5,7 @@ interface BackButtonProps {
   onClick?: () => void; // Mark onClick as optional
   className?: string;
   textSize?: 'sm' | 'base' | 'md' | 'lg';
+  iconSize?: 'w-3 h-3' | 'w-4 h-4' | 'w-5 h-5' | 'w-6 h-6' | 'w-7 h-7';
   showText?: boolean; // Add new prop
 }
 
@@ -12,6 +13,7 @@ const BackButton: React.FC<BackButtonProps> = ({
   onClick,
   className = '',
   textSize = 'sm',
+  iconSize = 'w-3 h-3',
   showText = true,
 }) => {
   const handleExit = () => {
@@ -29,7 +31,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       onClick={handleExit}
       className={`flex items-center text-${textSize} text-textSubtle group hover:text-textStandard ${className}`}
     >
-      <Back className="w-3 h-3 group-hover:-translate-x-1 transition-all mr-1" />
+      <Back className={`${iconSize} group-hover:-translate-x-1 transition-all mr-1`} />
       {showText && <span>Exit</span>}
     </button>
   );
