@@ -430,7 +430,9 @@ mod tests {
         // Insert some problematic JSON-like content between long text
         let long_text = format!(
             "Start_of_message\n{}{}SOME_MIDDLE_TEXT{}End_of_message",
-            "A".repeat(100_000), "\"}]\n", "A".repeat(100_000)
+            "A".repeat(100_000),
+            "\"}]\n",
+            "A".repeat(100_000)
         );
 
         let special_chars = vec![
@@ -544,7 +546,4 @@ mod tests {
 
         Ok(())
     }
-
-
 }
-
