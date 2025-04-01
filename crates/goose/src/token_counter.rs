@@ -12,6 +12,7 @@ use crate::message::Message;
 static TOKENIZER_FILES: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../tokenizer_files");
 
 /// The `TokenCounter` now stores exactly one `Tokenizer`.
+#[derive(Clone)]
 pub struct TokenCounter {
     tokenizer: Tokenizer,
 }

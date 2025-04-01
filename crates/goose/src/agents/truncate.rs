@@ -26,6 +26,7 @@ use crate::providers::toolshim::{
 use crate::register_agent;
 use crate::session;
 use crate::token_counter::TokenCounter;
+use crate::tool_output_limiter::ToolOutputLimiter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
@@ -44,6 +45,7 @@ pub struct TruncateAgent {
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
     confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
+    tool_output_limiter: ToolOutputLimiter,
 }
 
 impl TruncateAgent {
@@ -54,9 +56,10 @@ impl TruncateAgent {
 
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
-            token_counter,
+            token_counter: token_counter.clone(),
             confirmation_tx: tx,
             confirmation_rx: Mutex::new(rx),
+            tool_output_limiter: ToolOutputLimiter::new(token_counter),
         }
     }
 
@@ -119,9 +122,19 @@ impl TruncateAgent {
         capabilities: &Capabilities,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
+        limiter: &ToolOutputLimiter,
+        context_limit: usize,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let output = capabilities.dispatch_tool_call(tool_call).await;
-        (request_id, output)
+        let output = capabilities.dispatch_tool_call(tool_call.clone()).await;
+        
+        match output {
+            Ok(content) => {
+                // Apply size limiting to the successful output
+                let limited_content = limiter.limit_tool_output(&tool_call, content, context_limit);
+                (request_id, Ok(limited_content))
+            },
+            Err(err) => (request_id, Err(err)),
+        }
     }
 }
 
@@ -171,6 +184,9 @@ impl Agent for TruncateAgent {
         let mut capabilities = self.capabilities.lock().await;
         let mut tools = capabilities.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
+        
+        // Get context limit early for tool output limiting
+        let context_limit = capabilities.provider().get_model_config().context_limit();
 
         // Load settings from config
         let config = Config::global();
@@ -343,7 +359,13 @@ impl Agent for TruncateAgent {
 
                                 // Add pre-approved tools
                                 for (request_id, tool_call) in approved_tools {
-                                    let tool_future = Self::create_tool_future(&capabilities, tool_call, request_id.clone());
+                                    let tool_future = Self::create_tool_future(
+                                        &capabilities, 
+                                        tool_call, 
+                                        request_id.clone(),
+                                        &self.tool_output_limiter,
+                                        context_limit
+                                    );
                                     tool_futures.push(tool_future);
                                 }
 
@@ -352,7 +374,13 @@ impl Agent for TruncateAgent {
                                     if let Ok(tool_call) = request.tool_call.clone() {
                                         // Skip confirmation if the tool_call.name is in the read_only_tools list
                                         if read_only_tools.contains(&tool_call.name) {
-                                            let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                            let tool_future = Self::create_tool_future(
+                                                &capabilities, 
+                                                tool_call, 
+                                                request.id.clone(),
+                                                &self.tool_output_limiter,
+                                                context_limit
+                                            );
                                             tool_futures.push(tool_future);
                                         } else {
                                             let confirmation = Message::user().with_tool_confirmation_request(
@@ -373,7 +401,13 @@ impl Agent for TruncateAgent {
 
                                                     if confirmed {
                                                         // Add this tool call to the futures collection
-                                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                                        let tool_future = Self::create_tool_future(
+                                                            &capabilities, 
+                                                            tool_call, 
+                                                            request.id.clone(),
+                                                            &self.tool_output_limiter,
+                                                            context_limit
+                                                        );
                                                         tool_futures.push(tool_future);
                                                     } else {
                                                         // User declined - add declined response
@@ -423,7 +457,13 @@ impl Agent for TruncateAgent {
                                 let mut tool_futures = Vec::new();
                                 for request in &tool_requests {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());
+                                        let tool_future = Self::create_tool_future(
+                                            &capabilities, 
+                                            tool_call, 
+                                            request.id.clone(),
+                                            &self.tool_output_limiter,
+                                            context_limit
+                                        );
                                         tool_futures.push(tool_future);
                                     }
                                 }

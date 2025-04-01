@@ -7,5 +7,6 @@ pub mod prompt_template;
 pub mod providers;
 pub mod session;
 pub mod token_counter;
+pub mod tool_output_limiter;
 pub mod tracing;
 pub mod truncate;
