@@ -9,7 +9,7 @@ import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
-import { toastService } from '../../toasts';
+import { settingsV2Enabled } from '../../flags';
 
 interface VersionInfo {
   current_version: string;
@@ -257,7 +257,7 @@ export default function MoreMenu({
                 <span className="text-textSubtle ml-1">⌘,</span>
               </MenuButton>
 
-              {process.env.ALPHA && (
+              {settingsV2Enabled && (
                 <MenuButton
                   onClick={async () => {
                     await remove('GOOSE_PROVIDER', false);
@@ -274,7 +274,7 @@ export default function MoreMenu({
                 </MenuButton>
               )}
 
-              {!process.env.ALPHA && (
+              {!settingsV2Enabled && (
                 <MenuButton
                   onClick={() => {
                     localStorage.removeItem('GOOSE_PROVIDER');

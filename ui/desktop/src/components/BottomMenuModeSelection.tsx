@@ -7,6 +7,7 @@ import {
   ModeSelectionItem,
 } from './settings/basic/ModeSelectionItem';
 import { useConfig } from './ConfigContext';
+import { settingsV2Enabled } from '../flags';
 
 export const BottomMenuModeSelection = () => {
   const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
@@ -18,7 +19,7 @@ export const BottomMenuModeSelection = () => {
   useEffect(() => {
     const fetchCurrentMode = async () => {
       try {
-        if (!process.env.ALPHA) {
+        if (!settingsV2Enabled) {
           const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
             method: 'GET',
             headers: {
@@ -85,7 +86,7 @@ export const BottomMenuModeSelection = () => {
       return;
     }
 
-    if (!process.env.ALPHA) {
+    if (!settingsV2Enabled) {
       const storeResponse = await fetch(getApiUrl('/configs/store'), {
         method: 'POST',
         headers: {
