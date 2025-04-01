@@ -30,7 +30,7 @@ This allows you to set for example GOOSE_PROVIDER__TYPE to be "databricks" by de
 
 # Runninng with goosed server from source
 
-Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env.
+Set `VITE_START_EMBEDDED_SERVER=yes` to no in `.env`.
 Run `cargo run -p goose-server` from parent dir.
 `npm run start` will then run against this.
 You can try server directly with `./test.sh`
