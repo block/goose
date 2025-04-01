@@ -6,6 +6,7 @@ import EnvVarsSection from './EnvVarsSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
+import ExtensionTimeoutField from './ExtensionTimeoutField';
 
 interface ExtensionModalProps {
   title: string;
@@ -84,9 +85,23 @@ export default function ExtensionModal({
     );
   };
 
+  const isTimeoutValid = () => {
+    // Check if timeout is not undefined, null, or empty string
+    if (formData.timeout === undefined || formData.timeout === null) {
+      return false;
+    }
+
+    // Convert to number if it's a string
+    const timeoutValue =
+      typeof formData.timeout === 'string' ? Number(formData.timeout) : formData.timeout;
+
+    // Check if it's a valid number (not NaN) and is a positive number
+    return !isNaN(timeoutValue) && timeoutValue > 0;
+  };
+
   // Form validation
   const isFormValid = () => {
-    return isNameValid() && isConfigValid() && isEnvVarsValid();
+    return isNameValid() && isConfigValid() && isEnvVarsValid() && isTimeoutValid();
   };
 
   // Handle submit with validation
@@ -94,9 +109,20 @@ export default function ExtensionModal({
     setSubmitAttempted(true);
 
     if (isFormValid()) {
-      onSubmit(formData);
+      const dataToSubmit = { ...formData };
+
+      // Convert the timeout to a number if it's a string
+      if (typeof dataToSubmit.timeout === 'string') {
+        dataToSubmit.timeout = Number(dataToSubmit.timeout);
+      }
+
+      // Submit the data with converted timeout
+      onSubmit(dataToSubmit);
+      onClose(); // Only close the modal if the form is valid
+    } else {
+      // Optional: Add some feedback that validation failed (like a toast notification)
+      console.log('Form validation failed');
     }
-    onClose();
   };
 
   // Create footer buttons based on current state
@@ -186,7 +212,7 @@ export default function ExtensionModal({
           />
 
           {/* Divider */}
-          <hr className="border-t border-borderSubtle mb-6" />
+          <hr className="border-t border-borderSubtle mb-4" />
 
           {/* Command */}
           <div className="mb-6">
@@ -198,10 +224,16 @@ export default function ExtensionModal({
               submitAttempted={submitAttempted}
               isValid={isConfigValid()}
             />
+            <div className="mb-4" />
+            <ExtensionTimeoutField
+              timeout={formData.timeout}
+              onChange={(key, value) => setFormData({ ...formData, [key]: value })}
+              submitAttempted={submitAttempted}
+            />
           </div>
 
           {/* Divider */}
-          <hr className="border-t border-borderSubtle mb-6" />
+          <hr className="border-t border-borderSubtle mb-4" />
 
           {/* Environment Variables */}
           <div className="mb-6">

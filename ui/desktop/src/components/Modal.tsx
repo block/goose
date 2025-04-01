@@ -46,23 +46,29 @@ export default function Modal({
       }
     };
 
-    // Add event listener
+    // Add event listener for Escape key
     document.addEventListener('keydown', handleEscKey);
+
+    // Add overflow-hidden to body to prevent scrolling background
+    document.body.style.overflow = 'hidden';
 
     // Clean up
     return () => {
       document.removeEventListener('keydown', handleEscKey);
+      // Restore body scrolling when modal closes
+      document.body.style.overflow = '';
     };
   }, [onClose]);
 
   return (
     <div
-      className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] flex items-center justify-center p-4 z-[9999]"
       onClick={handleBackdropClick}
+      style={{ isolation: 'isolate' }} /* Creates a new stacking context */
     >
       <Card
         ref={modalRef}
-        className="relative w-[500px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col"
+        className="relative w-[500px] max-w-full bg-bgApp rounded-xl my-10 max-h-[90vh] flex flex-col shadow-xl z-[10000]"
       >
         <div className="p-8 max-h-[calc(90vh-180px)] overflow-y-auto">{children}</div>
         {footer && (
