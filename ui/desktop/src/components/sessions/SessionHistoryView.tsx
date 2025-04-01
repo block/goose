@@ -224,7 +224,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               type="button"
               variant="ghost"
               onClick={() => setIsShareModalOpen(false)}
-              className="w-full h-[60px] border-t dark:border-gray-600 text-lg text-textStandard hover:bg-gray-100 hover:dark:bg-gray-600"
+              className="w-full h-[60px] border-t rounded-b-lg dark:border-gray-600 text-lg text-textStandard hover:bg-gray-100 hover:dark:bg-gray-600"
             >
               Cancel
             </Button>
