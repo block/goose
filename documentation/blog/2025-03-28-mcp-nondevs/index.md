@@ -22,7 +22,7 @@ Now there are AI agents, or AI assistants, that can take actions and make decisi
 That's exactly where MCP comes in. Best part is, you don't need to be a developer to start using them! MCP essentially allows you to give AI agents access to your external systems without having to code. You can think of MCP as the connector for a system and your AI agent, or like the USB-C of AI integrations.
 
 ## MCP Servers You Should Try Right Now
-So what MCP servers are out there, and which ones should I try first? With [over 3000 MCP servers](https://glama.ai/mcp/servers) you can connect to, here is your top list of popular MCP servers you should try:
+So what can you connect your AI agent to? MCP Servers! MCP servers give your agent access to your tools. With [over 3000 MCP servers](https://glama.ai/mcp/servers) you can connect to, here is your top list of popular MCP servers you should try:
 
 - **[Google Drive](https://github.com/rishipradeep-think41/drive-mcp)**: File access and search capabilities for Google Drive
 - **[Slack](https://github.com/modelcontextprotocol/servers/tree/main/src/slack)**: Channel management and messaging capabilities
