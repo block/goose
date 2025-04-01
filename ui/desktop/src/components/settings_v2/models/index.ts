@@ -104,7 +104,6 @@ export async function getCurrentModelAndProviderForDisplay({
   readFromConfig,
   getProviders,
 }: getCurrentModelAndProviderForDisplayProps) {
-  console.log('getting name an title for display');
   const modelProvider = await getCurrentModelAndProvider({ readFromConfig: readFromConfig });
   const gooseModel = modelProvider.model;
   const gooseProvider = modelProvider.provider;
