@@ -10,11 +10,11 @@ pub struct ShellConfig {
 impl Default for ShellConfig {
     fn default() -> Self {
         if cfg!(windows) {
-            // Use cmd.exe for simpler command execution
+            // Execute PowerShell commands directly
             Self {
-                executable: "cmd.exe".to_string(),
-                arg: "/C".to_string(),
-                redirect_syntax: "2>&1".to_string(), // cmd.exe also supports this syntax
+                executable: "powershell.exe".to_string(),
+                arg: "-NoProfile -NonInteractive -Command".to_string(),
+                redirect_syntax: "2>&1".to_string(),
             }
         } else {
             Self {
@@ -32,8 +32,13 @@ pub fn get_shell_config() -> ShellConfig {
 
 pub fn format_command_for_platform(command: &str) -> String {
     let config = get_shell_config();
-    // For all shells, no braces needed
-    format!("{} {}", command, config.redirect_syntax)
+    if cfg!(windows) {
+        // For PowerShell, wrap the command in braces to handle special characters
+        format!("{{ {} }} {}", command, config.redirect_syntax)
+    } else {
+        // For other shells, no braces needed
+        format!("{} {}", command, config.redirect_syntax)
+    }
 }
 
 pub fn expand_path(path_str: &str) -> String {
