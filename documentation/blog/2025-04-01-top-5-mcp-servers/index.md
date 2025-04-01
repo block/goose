@@ -1,5 +1,5 @@
 ---
-title: "Top 5 MCP Servers I Use as a Developer with Goose Extensions"
+title: "Top 5 MCP Servers I Use as a Developer with Goose"
 description: "These 5 MCP servers help me automate my workflow and make me a better developer."
 date: 2025-03-31
 authors: 
@@ -10,7 +10,7 @@ authors:
 
 As a developer, finding the right tools that seamlessly work together can feel like discovering a superpower. And when you have a working process, it can sometimes be difficult to try out new tools.
 
-With the introduction of MCPs, AI agents like Goose is able to plug in to my existing tools and the only thing that changes with my workflow, is the much welcomed automation that comes with it. I still do the same things I do, but backed by AI, I can now do them faster and with more confidence.
+With the introduction of MCPs, AI agents like Goose are able to plug in to my existing tools, and the only thing that changes with my workflow is that much welcomed automation that comes with it. I still do the same things I do, but backed by AI, I can now do them faster and with more confidence.
 
 Today, I'm excited to share not just my favorite MCP servers, but the ones I actually use almost everyday with real applications that you can probably relate to as well.
 
@@ -22,7 +22,7 @@ You can ask Goose `"What can I do with xxxx Extension?"` to get a list of all th
 
 ## GitHub MCP Server: Everything GitHub
 
-The [GitHub MCP Server](/docs/tutorials/github-mcp) comes with quite a lot of functionality. It can help you create issues, pull requests, repositories, and branches. My most frequent use case for the GitHub MCP for reviewing and understanding pull requests.
+The [GitHub MCP Server](/docs/tutorials/github-mcp) comes with quite a lot of functionality. It can help you create issues, pull requests, repositories, and branches. My most frequent use case for the GitHub MCP is reviewing and understanding pull requests.
 
 For cases when it's a large pull request, or I don't understand what is going on, I can pass the PR to Goose, giving it the right context to make me understand and then act on the pull request. I'm even able to create a documentation update or changelog update from the file changes in the PR. This is definitely one of my favorite things. 
 
@@ -46,7 +46,7 @@ E.g
 I'm currently in a project called Goose, read through the documentation in `documentation/docs/` folder and store key information in the knowledge graph. Use it for reference anytime I ask you about Goose.
 ```
 
-## Fetch Extension: The Web in =our Hands
+## Fetch Extension: The Web in our Hands
 
 I had a slightly hard time deciding between the [Tavily Web Search Extension](/docs/tutorials/tavily-mcp) and The [Fetch Extension](/docs/tutorials/fetch-mcp) because while I do use them both to access the web, the Fetch extension works more like default for me. With the example above using the Knowledge graph, I'm able to get information from the internet to give Goose additional context to work with. 
 
@@ -70,7 +70,7 @@ I can choose to accept or refuse these changes, or tell Goose to try something e
 
 ## The Power of Integration
 
-As mentioned at the beginning of this post, the best thing about these MCP servers is how they plug me into my existing workflow. I am able to:
+As mentioned at the beginning of this post, the best thing about these MCP servers is how they plug into my existing workflow. I am able to:
 
 - Start a new session on Goose which opens the current folder as a project in VS Code.
 - I am able to start work on any changes and get any context I need from either the Knowledge Graph or from the internet using the Fetch extension.
