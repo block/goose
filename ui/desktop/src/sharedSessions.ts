@@ -90,6 +90,11 @@ export async function createSharedSession(
     });
 
     if (!response.ok) {
+      if (response.status === 302) {
+        throw new Error(
+          `Failed to create shared session. Please check that you are connected to VPN - ${response.status} ${response.statusText}`
+        );
+      }
       throw new Error(`Failed to create shared session: ${response.status} ${response.statusText}`);
     }
 
