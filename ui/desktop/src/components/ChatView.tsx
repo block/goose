@@ -442,8 +442,7 @@ export default function ChatView({
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            value={_input}
-            onValueChange={_setInput}
+            initialValue={_input}
           />
           <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>

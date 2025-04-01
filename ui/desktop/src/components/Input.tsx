@@ -8,8 +8,7 @@ interface InputProps {
   isLoading?: boolean;
   onStop?: () => void;
   commandHistory?: string[];
-  value?: string;
-  onValueChange?: (value: string) => void;
+  initialValue?: string;
 }
 
 export default function Input({
@@ -17,19 +16,17 @@ export default function Input({
   isLoading = false,
   onStop,
   commandHistory = [],
-  value: controlledValue,
-  onValueChange,
+  initialValue = '',
 }: InputProps) {
-  const [internalValue, setInternalValue] = useState('');
-  // Use controlled value if provided, otherwise use internal state
-  const value = controlledValue !== undefined ? controlledValue : internalValue;
-  const setValue = (newValue: string) => {
-    if (controlledValue !== undefined && onValueChange) {
-      onValueChange(newValue);
-    } else {
-      setInternalValue(newValue);
+  const [value, setValue] = useState(initialValue);
+
+  // Update internal value when initialValue changes
+  useEffect(() => {
+    if (initialValue) {
+      setValue(initialValue);
     }
-  };
+  }, [initialValue]);
+
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -40,7 +37,7 @@ export default function Input({
     if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
-  }, [value]);
+  }, []);
 
   const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
@@ -157,6 +154,12 @@ export default function Input({
     }
   };
 
+  const handleStop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onStop();
+  };
+
   return (
     <form
       onSubmit={onFormSubmit}
@@ -194,11 +197,7 @@ export default function Input({
           type="button"
           size="icon"
           variant="ghost"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onStop();
-          }}
+          onClick={handleStop}
           className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
         >
           <Stop size={24} />
