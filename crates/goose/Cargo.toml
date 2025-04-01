@@ -53,7 +53,7 @@ lazy_static = "1.5"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 wiremock = "0.6.0"
-keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service"] }
+keyring = { version = "3.6.1", features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
 ctor = "0.2.7"
 paste = "1.0"
 serde_yaml = "0.9.34"
