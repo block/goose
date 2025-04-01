@@ -1,10 +1,11 @@
 services:
-  goose-cli:
-    build:
-      context: ../../..
-      dockerfile: documentation/docs/docker/Dockerfile
-      args:
-        USER_ID: ${UID:-1000}
+  auto-triage:
+    #build:
+    #  context: ../../..
+    #  dockerfile: documentation/docs/docker/Dockerfile
+    #  args:
+    #    USER_ID: ${UID:-1000}
+    image: auto-triage-agent-fix-libssl:latest
     volumes:
       # Mount user's directory with read-write access
       - ../../..:/root/workspace
@@ -22,11 +23,11 @@ services:
       - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Goose User}
       - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-goose@example.com}
       # Set GOOGLE_API_KEY to your own API key
-      - GOOGLE_API_KEY="XXX"
+      #- GOOGLE_API_KEY="XXX"
       - GOOSE_PROVIDER=google
       - GOOSE_MODEL=gemini-2.0-flash-exp
       - DBUS_SESSION_BUS_ADDRESS
-      - GNOME_KEYRING_CONTROL
+      #- GNOME_KEYRING_CONTROL
       - SSH_AUTH_SOCK
     stdin_open: true
     tty: true

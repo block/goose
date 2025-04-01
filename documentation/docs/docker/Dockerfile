@@ -19,8 +19,8 @@ COPY . .
 # Build the project
 RUN cargo build --release
 
-# Runtime stage
-FROM ubuntu:22.04
+# Runtime stage.  Change from 22.04 to 20.04 to fix the libssl 1.1 not found error when starting the container
+FROM ubuntu:20.04
 
 # Configure non-interactive installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y \
     libsecret-1-0 \
     libsecret-tools \
     # Other dependencies
-    libssl3 \
+    libssl1.1 \
     libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
