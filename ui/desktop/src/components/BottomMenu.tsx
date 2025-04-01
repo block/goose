@@ -5,6 +5,7 @@ import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View } from '../App';
+import { settingsV2Enabled } from '../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
 
@@ -78,7 +79,7 @@ export default function BottomMenu({
       <BottomMenuModeSelection />
 
       {/* Model Selector Dropdown */}
-      {process.env.ALPHA ? (
+      {settingsV2Enabled ? (
         <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
       ) : (
         <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>

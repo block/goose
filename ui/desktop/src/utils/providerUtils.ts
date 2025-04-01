@@ -4,6 +4,7 @@ import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
 import { gooseModels } from '../components/settings/models/GooseModels';
 import { initializeAgent } from '../agent';
+import { settingsV2Enabled } from '../flags';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -85,7 +86,7 @@ export const initializeSystem = async (
     await initializeAgent({ provider, model });
 
     // This will go away after the release of settings v2 as this is now handled in config.yaml
-    if (!process.env.ALPHA) {
+    if (!settingsV2Enabled) {
       // Sync the model state with React
       const syncedModel = syncModelWithAgent(provider, model);
       console.log('Model synced with React state:', syncedModel);
@@ -118,7 +119,7 @@ export const initializeSystem = async (
       }
     }
 
-    if (process.env.ALPHA) {
+    if (settingsV2Enabled) {
       if (!options?.getExtensions || !options?.addExtension) {
         console.warn('Extension helpers not provided in alpha mode');
         return;
