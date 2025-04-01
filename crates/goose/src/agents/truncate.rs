@@ -377,7 +377,10 @@ impl Agent for TruncateAgent {
                                                         // User declined - add declined response
                                                         message_tool_response = message_tool_response.with_tool_response(
                                                             request.id.clone(),
-                                                            Ok(vec![Content::text("User declined to run this tool. Don't try to make the same tool call again. If there is no other ways to do it, it is ok to stop.")]),
+                                                            Ok(vec![Content::text(
+                                                                "User declined to run this tool. \
+                                                                DO NOT try to make the same tool call again. \
+                                                                If there is no other ways to do it, just explain and STOP.")]),
                                                         );
                                                     }
                                                     break; // Exit the loop once the matching `req_id` is found
