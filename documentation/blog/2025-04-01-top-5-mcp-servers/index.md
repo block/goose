@@ -22,7 +22,7 @@ You can ask Goose `"What can I do with xxxx Extension?"` to get a list of all th
 
 ## GitHub MCP Server: Everything GitHub
 
-The [GitHub MCP Server](/docs/tutorials/github-mcp) comes with quite a lot of functionality. Can help you create issues, pull requests, repositories, branches etc but what I use it for the most is in reviewing and understanding pull requests.
+The [GitHub MCP Server](/docs/tutorials/github-mcp) comes with quite a lot of functionality. It can help you create issues, pull requests, repositories, and branches. My most frequent use case for the GitHub MCP for reviewing and understanding pull requests.
 
 For cases when it's a large pull request, or I don't understand what is going on, I can pass the PR to Goose, giving it the right context to make me understand and then act on the pull request. I'm even able to create a documentation update or changelog update from the file changes in the PR. This is definitely one of my favorite things. 
 
