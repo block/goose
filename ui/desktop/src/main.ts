@@ -133,7 +133,6 @@ const getSharingUrl = () => {
 const getVersion = () => {
   // checks app env for sharing url
   loadShellEnv(app.isPackaged); // will try to take it from the zshrc file
-  // if GOOSE_BASE_URL_SHARE is found, we will set process.env.GOOSE_BASE_URL_SHARE, otherwise we return what it is set
   // to in the env at bundle time
   return process.env.GOOSE_VERSION;
 };
