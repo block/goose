@@ -22,6 +22,7 @@ use mcp_core::{
     protocol::ServerCapabilities,
     resource::Resource,
     tool::Tool,
+    Content,
 };
 use mcp_core::{
     prompt::{Prompt, PromptArgument, PromptTemplate},
@@ -30,7 +31,6 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::content::Content;
 use mcp_core::role::Role;
 
 use self::shell::{
@@ -507,7 +507,8 @@ impl DeveloperRouter {
             .await
             .map_err(|e| ToolError::ExecutionError(e.to_string()))?;
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        let output_str = stdout_str;
 
         // Check the character count of the output
         const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
