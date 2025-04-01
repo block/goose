@@ -130,5 +130,17 @@
     "endorsed": true,
     "githubStars": 1,
     "environmentVariables": []
+  },
+  {
+    "id": "vscode",
+    "name": "VSCode",
+    "description": "Provides a VSCode IDE integration for development workflows",
+    "command": "npx vscode-mcp-server",
+    "link": "https://github.com/block/vscode-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "githubStars": 27,
+    "environmentVariables": []
   }
 ]
