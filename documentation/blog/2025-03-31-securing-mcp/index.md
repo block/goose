@@ -122,7 +122,7 @@ With the evolution of Agents performing actions on behalf of users we will need 
 
 Having consistent mechanisms for identifying usage in this manner allows companies to protect users from integrations with malicious agents and protect their platforms from attacks by unwanted agentic tooling.
 
-The model context protocol itself has a specification for [OAuth that at the time of writing is a draft](https://spec.modelcontextprotocol.io/specification/draft/basic/authorization/). 
+The model context protocol itself has a specification for [OAuth that at the time of writing was a draft, but has since been released here](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/authorization/). 
 
 This flow considers the following steps:
 
