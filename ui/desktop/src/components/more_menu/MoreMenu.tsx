@@ -263,7 +263,6 @@ export default function MoreMenu({
                     await remove('GOOSE_PROVIDER', false);
                     await remove('GOOSE_MODEL', false);
                     setOpen(false);
-                    toastService.configure({ silent: true });
                     setView('welcome');
                   }}
                   danger
