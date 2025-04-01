@@ -32,19 +32,21 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault();
-        setIsSearchVisible(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  // temporarily disabling search for launch until issue https://github.com/block/goose/issues/1984 is resolved
+  //
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+  //       e.preventDefault();
+  //       setIsSearchVisible(true);
+  //     }
+  //   };
+  //
+  //   window.addEventListener('keydown', handleKeyDown);
+  //   return () => {
+  //     window.removeEventListener('keydown', handleKeyDown);
+  //   };
+  // }, []);
 
   const handleSearch = (term: string, caseSensitive: boolean) => {
     if (!term) {
