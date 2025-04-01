@@ -133,9 +133,12 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                               <MessageSquare className="w-3 h-3 mr-1" />
                               <span>{session.metadata.message_count}</span>
                             </div>
-                            {session.metadata.total_tokens !== null && (
+                            {(session.metadata.input_tokens !== null || session.metadata.output_tokens !== null) && (
                               <div className="flex items-center">
-                                <span>{session.metadata.total_tokens.toLocaleString()} tokens</span>
+                                <span>
+                                  {session.metadata.input_tokens !== null ? session.metadata.input_tokens.toLocaleString() : 0} ↓ / 
+                                  {session.metadata.output_tokens !== null ? session.metadata.output_tokens.toLocaleString() : 0} ↑
+                                </span>
                               </div>
                             )}
                           </div>

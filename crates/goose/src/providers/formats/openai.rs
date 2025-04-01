@@ -267,14 +267,23 @@ pub fn get_usage(data: &Value) -> Result<Usage, ProviderError> {
         .and_then(|v| v.as_i64())
         .map(|v| v as i32);
 
-    let total_tokens = usage
-        .get("total_tokens")
-        .and_then(|v| v.as_i64())
-        .map(|v| v as i32)
-        .or_else(|| match (input_tokens, output_tokens) {
-            (Some(input), Some(output)) => Some(input + output),
-            _ => None,
-        });
+    // If we have both input and output tokens, calculate total tokens as the sum
+    // If we don't have both but have total_tokens, use it
+    // Otherwise, total_tokens will be None
+    let total_tokens = match (input_tokens, output_tokens) {
+        (Some(input), Some(output)) => Some(input + output),
+        _ => usage
+            .get("total_tokens")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+    };
+
+    // If we have total_tokens but don't have output_tokens, and we have input_tokens,
+    // we can calculate output_tokens
+    let output_tokens = match (input_tokens, output_tokens, total_tokens) {
+        (Some(input), None, Some(total)) => Some(total - input),
+        _ => output_tokens,
+    };
 
     Ok(Usage::new(input_tokens, output_tokens, total_tokens))
 }
@@ -915,6 +924,51 @@ mod tests {
             assert_eq!(obj.get(key).unwrap(), value);
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_usage() -> anyhow::Result<()> {
+        // Test with complete usage data
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 50,
+                "completion_tokens": 30,
+                "total_tokens": 80
+            }
+        });
+        
+        let usage = get_usage(&response)?;
+        assert_eq!(usage.input_tokens, Some(50));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(80));
+        
+        // Test with missing completion_tokens but having total_tokens
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 50,
+                "total_tokens": 80
+            }
+        });
+        
+        let usage = get_usage(&response)?;
+        assert_eq!(usage.input_tokens, Some(50));
+        assert_eq!(usage.output_tokens, Some(30)); // Should be calculated from total - input
+        assert_eq!(usage.total_tokens, Some(80));
+        
+        // Test with missing total_tokens but having input and output
+        let response = json!({
+            "usage": {
+                "prompt_tokens": 50,
+                "completion_tokens": 30
+            }
+        });
+        
+        let usage = get_usage(&response)?;
+        assert_eq!(usage.input_tokens, Some(50));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(80)); // Should be calculated from input + output
+        
         Ok(())
     }
 }

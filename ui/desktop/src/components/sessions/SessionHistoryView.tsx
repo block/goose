@@ -123,9 +123,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               <MessageSquare className="w-4 h-4 mr-1" />
               {session.metadata.message_count} messages
             </span>
-            {session.metadata.total_tokens !== null && (
+            {(session.metadata.input_tokens !== null || session.metadata.output_tokens !== null) && (
               <span className="flex items-center">
-                {session.metadata.total_tokens.toLocaleString()} tokens
+                <span>{session.metadata.input_tokens !== null ? session.metadata.input_tokens.toLocaleString() : 0}</span> 
+                <span className="mx-1">↓ /</span>
+                <span>{session.metadata.output_tokens !== null ? session.metadata.output_tokens.toLocaleString() : 0}</span>
+                <span className="ml-1">↑</span>
               </span>
             )}
           </div>

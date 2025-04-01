@@ -4,7 +4,8 @@ import { Message } from './types/message';
 export interface SessionMetadata {
   description: string;
   message_count: number;
-  total_tokens: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   working_dir: string; // Required in type, but may be missing in old sessions
 }
 
@@ -13,7 +14,8 @@ export function ensureWorkingDir(metadata: Partial<SessionMetadata>): SessionMet
   return {
     description: metadata.description || '',
     message_count: metadata.message_count || 0,
-    total_tokens: metadata.total_tokens || null,
+    input_tokens: metadata.input_tokens || null,
+    output_tokens: metadata.output_tokens || null,
     working_dir: metadata.working_dir || process.env.HOME || '',
   };
 }

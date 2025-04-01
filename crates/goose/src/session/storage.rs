@@ -25,8 +25,10 @@ pub struct SessionMetadata {
     pub description: String,
     /// Number of messages in the session
     pub message_count: usize,
-    /// The total number of tokens used in the session. Retrieved from the provider's last usage.
-    pub total_tokens: Option<i32>,
+    /// The number of input tokens used in the session. Retrieved from the provider's last usage.
+    pub input_tokens: Option<i32>,
+    /// The number of output tokens used in the session. Retrieved from the provider's last usage.
+    pub output_tokens: Option<i32>,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -40,15 +42,25 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             description: String,
             message_count: usize,
             total_tokens: Option<i32>,
+            input_tokens: Option<i32>,
+            output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
         }
 
         let helper = Helper::deserialize(deserializer)?;
 
+        // Handle backward compatibility with sessions that only have total_tokens
+        let (input_tokens, output_tokens) = match (helper.input_tokens, helper.output_tokens, helper.total_tokens) {
+            (Some(input), Some(output), _) => (Some(input), Some(output)),
+            (None, None, Some(total)) => (Some(total / 2), Some(total / 2)), // Approximate split for old sessions
+            _ => (None, None),
+        };
+
         Ok(SessionMetadata {
             description: helper.description,
             message_count: helper.message_count,
-            total_tokens: helper.total_tokens,
+            input_tokens,
+            output_tokens,
             working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
         })
     }
@@ -60,7 +72,8 @@ impl SessionMetadata {
             working_dir,
             description: String::new(),
             message_count: 0,
-            total_tokens: None,
+            input_tokens: None,
+            output_tokens: None,
         }
     }
 }
