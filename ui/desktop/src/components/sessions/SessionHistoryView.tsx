@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Calendar,
-  MessageSquareText,
-  Folder,
-  Share2,
-  Sparkles,
-  Copy,
-  Check,
-  Target,
-  LoaderCircle,
-} from 'lucide-react';
+import { Clock, MessageSquare, Folder, Share, Copy, Check, LoaderCircle } from 'lucide-react';
 import { type SessionDetails } from '../../sessions';
-import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
+import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
 import { createSharedSession } from '../../sharedSessions';
-import { Modal, ModalContent } from '../ui/modal';
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalFooter } from '../ui/modal';
 import { Button } from '../ui/button';
 import { toast } from 'react-toastify';
 
@@ -117,45 +107,27 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg text-textStandardInverse">
+          <h1 className="text-lg font-bold text-textStandard">
             {session.metadata.description || session.session_id}
           </h1>
-          <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
+          <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
             <span className="flex items-center">
-              <Calendar className="w-4 h-4 mr-1" />
-              {formatDate(session.messages[0]?.created)}
+              <Clock className="w-4 h-4 mr-1" />
+              {new Date(session.messages[0]?.created * 1000).toLocaleString()}
             </span>
-            <span className="flex items-center">
-              <MessageSquareText className="w-4 h-4 mr-1" />
-              {session.metadata.message_count}
-            </span>
-            {session.metadata.total_tokens !== null && (
-              <span className="flex items-center">
-                <Target className="w-4 h-4 mr-1" />
-                {session.metadata.total_tokens.toLocaleString()}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center text-sm text-textSubtle space-x-5">
             <span className="flex items-center">
               <Folder className="w-4 h-4 mr-1" />
               {session.metadata.working_dir}
             </span>
-<<<<<<< HEAD
             <span className="flex items-center">
               <MessageSquare className="w-4 h-4 mr-1" />
               {session.metadata.message_count} messages
             </span>
-            {(session.metadata.input_tokens !== null || session.metadata.output_tokens !== null) && (
+            {session.metadata.total_tokens !== null && (
               <span className="flex items-center">
-                <span>{session.metadata.input_tokens !== null ? session.metadata.input_tokens.toLocaleString() : 0}</span> 
-                <span className="mx-1">↓ /</span>
-                <span>{session.metadata.output_tokens !== null ? session.metadata.output_tokens.toLocaleString() : 0}</span>
-                <span className="ml-1">↑</span>
+                {session.metadata.total_tokens.toLocaleString()} tokens
               </span>
             )}
-=======
->>>>>>> upstream/main
           </div>
         </div>
 
@@ -163,30 +135,30 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           <button
             onClick={handleShare}
             disabled={!canShare || isSharing}
-            className={`flex items-center text-textStandardInverse px-2 py-1 ${
+            className={`flex items-center text-textStandard px-3 py-1 border rounded-md ${
               canShare
-                ? 'hover:font-bold hover:scale-110 transition-all duration-150'
-                : 'cursor-not-allowed opacity-50'
+                ? 'border-primary hover:text-primary hover:font-bold hover:scale-105 transition-all duration-150'
+                : 'border-gray-300 cursor-not-allowed opacity-50'
             }`}
           >
             {isSharing ? (
               <>
-                <LoaderCircle className="w-7 h-7 animate-spin mr-2" />
+                <LoaderCircle className="w-5 h-5 animate-spin mr-2" />
                 <span>Sharing...</span>
               </>
             ) : (
               <>
-                <Share2 className="w-7 h-7" />
+                <Share className="w-5 h-5" />
               </>
             )}
           </button>
 
-          <button
+          <span
             onClick={onResume}
-            className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
+            className="text-md cursor-pointer text-textStandard hover:font-bold hover:scale-105 transition-all duration-150"
           >
-            <Sparkles className="w-7 h-7" />
-          </button>
+            Resume Session
+          </span>
         </div>
       </SessionHeaderCard>
 
@@ -199,31 +171,18 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
       {/* Share Link Modal */}
       <Modal open={isShareModalOpen} onOpenChange={setIsShareModalOpen}>
-        <ModalContent className="sm:max-w-md p-0 bg-bgApp dark:bg-bgApp dark:border-borderSubtle">
-          {/* Share Icon */}
-          <div className="flex justify-center mt-4">
-            <Share2 className="w-6 h-6 text-textStandard" />
-          </div>
-
-          {/* Centered Title */}
-          <div className="mt-2 px-6 text-center">
-            <h2 className="text-lg font-semibold text-textStandard">Share Session (beta)</h2>
-          </div>
-
-          {/* Description & Link */}
-          <div className="px-6 flex flex-col gap-4 mt-2">
-            <p className="text-sm text-center text-textSubtle">
-              Share this session link to give others a read only view of your goose chat.
-            </p>
-
-            <div className="relative rounded-lg border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
-              <code className="text-sm text-textStandard dark:text-textStandardInverse overflow-x-hidden break-all pr-8 w-full">
-                {shareLink}
-              </code>
+        <ModalContent className="sm:max-w-md dark:bg-black">
+          <ModalHeader>
+            <ModalTitle className="text-textStandard">Share Session</ModalTitle>
+          </ModalHeader>
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 p-2 rounded-md overflow-x-auto">
+                <code className="text-sm text-textStandard">{shareLink}</code>
+              </div>
               <Button
-                size="icon"
-                variant="ghost"
-                className="absolute right-2 top-1/2 -translate-y-1/2"
+                size="sm"
+                className="flex-shrink-0"
                 onClick={handleCopyLink}
                 disabled={isCopied}
               >
@@ -231,19 +190,22 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 <span className="sr-only">Copy</span>
               </Button>
             </div>
+            <p className="text-sm text-textSubtle">
+              Share this link with others to give them access to this session.
+              <br />
+              They will need to have Goose installed and session sharing configured.
+            </p>
           </div>
-
-          {/* Footer */}
-          <div>
+          <ModalFooter className="sm:justify-start">
             <Button
               type="button"
               variant="ghost"
               onClick={() => setIsShareModalOpen(false)}
-              className="w-full h-[60px] border-t rounded-b-lg dark:border-gray-600 text-lg text-textStandard hover:bg-gray-100 hover:dark:bg-gray-600"
+              className="hover:text-textStandard border border-borderSubtle text-textStandard hover:bg-bgSubtle"
             >
-              Cancel
+              Close
             </Button>
-          </div>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </div>

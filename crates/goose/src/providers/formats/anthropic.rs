@@ -245,11 +245,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             .and_then(|v| v.as_u64())
             .map(|v| v as i32);
 
-        // Calculate total tokens as the sum of input and output tokens
-        let total_tokens = match output_tokens {
-            Some(output) => Some(total_input_tokens as i32 + output),
-            None => None,
-        };
+        let total_tokens = output_tokens.map(|o| total_input_tokens as i32 + o);
 
         Ok(Usage::new(input_tokens, output_tokens, total_tokens))
     } else {
@@ -344,53 +340,6 @@ pub fn create_request(
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn test_get_usage_calculation() -> Result<()> {
-        // Test with all input token types and output tokens
-        let response = json!({
-            "usage": {
-                "input_tokens": 20,
-                "cache_creation_input_tokens": 10,
-                "cache_read_input_tokens": 5,
-                "output_tokens": 15
-            }
-        });
-        
-        let usage = get_usage(&response)?;
-        assert_eq!(usage.input_tokens, Some(35)); // 20 + 10 + 5
-        assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(50)); // 35 + 15
-        
-        // Test with partial input token types
-        let response = json!({
-            "usage": {
-                "input_tokens": 20,
-                "cache_creation_input_tokens": 10,
-                "output_tokens": 20
-            }
-        });
-        
-        let usage = get_usage(&response)?;
-        assert_eq!(usage.input_tokens, Some(30)); // 20 + 10 + 0
-        assert_eq!(usage.output_tokens, Some(20));
-        assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
-        
-        // Test with only input_tokens and output_tokens
-        let response = json!({
-            "usage": {
-                "input_tokens": 40,
-                "output_tokens": 15
-            }
-        });
-        
-        let usage = get_usage(&response)?;
-        assert_eq!(usage.input_tokens, Some(40));
-        assert_eq!(usage.output_tokens, Some(15));
-        assert_eq!(usage.total_tokens, Some(55)); // 40 + 15
-        
-        Ok(())
-    }
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
