@@ -12,10 +12,13 @@ export interface ScrollAreaHandle {
 
 interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
   autoScroll?: boolean;
+  /* padding needs to be passed into the container inside ScrollArea to avoid pushing the scrollbar out */
+  paddingX?: number;
+  paddingY?: number;
 }
 
 const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
-  ({ className, children, autoScroll = false, ...props }, ref) => {
+  ({ className, children, autoScroll = false, paddingX, paddingY, ...props }, ref) => {
     const rootRef = React.useRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>>(null);
     const viewportRef = React.useRef<HTMLDivElement>(null);
     const viewportEndRef = React.useRef<HTMLDivElement>(null);
@@ -104,8 +107,10 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
           ref={viewportRef}
           className="h-full w-full rounded-[inherit] [&>div]:!block"
         >
-          {children}
-          {autoScroll && <div ref={viewportEndRef} style={{ height: '1px' }} />}
+          <div className={cn(paddingX ? `px-${paddingX}` : '', paddingY ? `py-${paddingY}` : '')}>
+            {children}
+            {autoScroll && <div ref={viewportEndRef} style={{ height: '1px' }} />}
+          </div>
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar />
         <ScrollAreaPrimitive.Corner />
