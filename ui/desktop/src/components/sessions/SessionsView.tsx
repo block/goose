@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { ViewConfig } from '../../App';
 import { fetchSessionDetails, type SessionDetails } from '../../sessions';
-import { fetchSharedSessionDetails } from '../../sharedSessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
-import { Card } from '../ui/card';
-import { Input } from '../ui/input';
-import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
-import { ScrollArea } from '../ui/scroll-area';
+import { toastError } from '../../toasts';
 
 interface SessionsViewProps {
   setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
@@ -34,6 +29,12 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
       setError('Failed to load session details. Please try again later.');
       // Keep the selected session null if there's an error
       setSelectedSession(null);
+
+      toastError({
+        title: 'Failed to load session. The file may be corrupted.',
+        msg: 'Please try again later.',
+        traceback: err,
+      });
     } finally {
       setIsLoadingSession(false);
     }
