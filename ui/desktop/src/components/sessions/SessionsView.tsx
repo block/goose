@@ -1,14 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ViewConfig } from '../../App';
 import { fetchSessionDetails, type SessionDetails } from '../../sessions';
-import { fetchSharedSessionDetails } from '../../sharedSessions';
+import { importSessionFromFile } from '../../sessionFiles';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
-import { Card } from '../ui/card';
-import { Input } from '../ui/input';
 import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
-import { ScrollArea } from '../ui/scroll-area';
+import { toast } from 'react-toastify';
 
 interface SessionsViewProps {
   setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
@@ -75,6 +72,31 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
     }
   };
 
+  // File input reference for importing sessions
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file import
+  const handleImportSession = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedSession = await importSessionFromFile(file);
+      setSelectedSession(importedSession);
+      toast.success('Session imported successfully!');
+    } catch (error) {
+      console.error('Failed to import session:', error);
+      toast.error(
+        `Failed to import session: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // If a session is selected, show the session history view
   // Otherwise, show the sessions list view with a button to test shared sessions
   return selectedSession ? (
@@ -89,6 +111,25 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
   ) : (
     <>
       <SessionListView setView={setView} onSelectSession={handleSelectSession} />
+
+      {/* Hidden file input for importing sessions */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportSession}
+        accept=".egg"
+        style={{ display: 'none' }}
+      />
+
+      {/* Import button */}
+      <div className="fixed bottom-8 right-8">
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          className="bg-indigo-500 hover:bg-indigo-600 text-white"
+        >
+          Import from File
+        </Button>
+      </div>
     </>
   );
 };
