@@ -10,6 +10,31 @@ import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../typ
 import { type Message } from '../../types/message';
 
 /**
+ * Format a timestamp into a human-readable date string
+ */
+export const formatDate = (timestamp: number) => {
+  const date = new Date(timestamp * 1000);
+
+  const getOrdinal = (n: number) => {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  const hours = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const month = date.toLocaleString('en-US', { month: 'short' });
+  const day = getOrdinal(date.getDate());
+  const year = date.getFullYear();
+
+  return `${hours}, ${month} ${day}, ${year}`;
+};
+
+/**
  * Get tool responses map from messages
  */
 export const getToolResponsesMap = (
@@ -50,8 +75,13 @@ export interface SessionHeaderCardProps {
  */
 export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, children }) => {
   return (
-    <Card className="px-8 pt-6 pb-4 bg-bgSecondary flex items-center">
-      <BackButton showText={false} onClick={onBack} className="text-textStandard" />
+    <Card className="rounded-none px-8 pt-6 pb-4 bg-bgAppInverse text-textProminentInverse flex items-center">
+      <BackButton
+        showText={false}
+        onClick={onBack}
+        iconSize="w-7 h-7"
+        className="text-textProminentInverse hover:text-textProminentInverse"
+      />
       {children}
     </Card>
   );

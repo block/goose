@@ -1,7 +1,7 @@
 import React from 'react';
-import { Clock, Globe, MessageSquare, Folder } from 'lucide-react';
+import { Calendar, MessageSquareText, Folder, Target } from 'lucide-react';
 import { type SharedSessionDetails } from '../../sharedSessions';
-import { SessionHeaderCard, SessionMessages } from './SessionViewComponents';
+import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
 
 interface SharedSessionViewProps {
   session: SharedSessionDetails | null;
@@ -20,44 +20,37 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
 }) => {
   return (
     <div className="h-screen w-full">
-      <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
+      <div className="relative flex items-center h-[36px] w-full"></div>
 
       {/* Top Row - back, info (fixed) */}
       <SessionHeaderCard onBack={onBack}>
         {/* Session info row */}
         <div className="ml-8">
-          <h1 className="text-lg font-bold text-textStandard">
+          <h1 className="text-lg text-textStandardInverse">
             {session ? session.description : 'Shared Session'}
           </h1>
-          {session && (
-            <div className="flex items-center text-sm text-textSubtle mt-2 space-x-4">
+          <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
+            <span className="flex items-center">
+              <Calendar className="w-4 h-4 mr-1" />
+              {formatDate(session.messages[0]?.created)}
+            </span>
+            <span className="flex items-center">
+              <MessageSquareText className="w-4 h-4 mr-1" />
+              {session.message_count}
+            </span>
+            {session.total_tokens !== null && (
               <span className="flex items-center">
-                <Clock className="w-4 h-4 mr-1" />
-                {new Date(session.messages[0]?.created * 1000).toLocaleString()}
+                <Target className="w-4 h-4 mr-1" />
+                {session.total_tokens.toLocaleString()}
               </span>
-              {/* <span className="flex items-center">
-                <Globe className="w-4 h-4 mr-1" />
-                {session.base_url}
-              </span> */}
-              <span className="flex items-center">
-                <MessageSquare className="w-4 h-4 mr-1" />
-                {session.message_count} messages
-              </span>
-              {session.total_tokens !== null && (
-                <span className="flex items-center">
-                  {session.total_tokens.toLocaleString()} tokens
-                </span>
-              )}
-            </div>
-          )}
-          {session && (
-            <div className="flex items-center text-sm text-textSubtle mt-1">
-              <span className="flex items-center">
-                <Folder className="w-4 h-4 mr-1" />
-                {session.working_dir}
-              </span>
-            </div>
-          )}
+            )}
+          </div>
+          <div className="flex items-center text-sm text-textSubtle space-x-5">
+            <span className="flex items-center">
+              <Folder className="w-4 h-4 mr-1" />
+              {session.working_dir}
+            </span>
+          </div>
         </div>
       </SessionHeaderCard>
 

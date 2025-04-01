@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ViewConfig } from '../../App';
 import {
-  MessageSquare,
+  MessageSquareText,
+  Target,
   LoaderCircle,
   AlertCircle,
   Calendar,
@@ -46,7 +47,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
 
   // Format date to be more readable
   // eg. "10:39 PM, Feb 28, 2025"
-  const formatDate = (dateString: string) => {
+  const formatDateString = (dateString: string) => {
     try {
       const date = new Date(dateString);
       const time = new Intl.DateTimeFormat('en-US', {
@@ -114,7 +115,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                         <div className="flex gap-3">
                           <div className="flex items-center text-textSubtle text-sm">
                             <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                            <span className="truncate">{formatDate(session.modified)}</span>
+                            <span className="truncate">{formatDateString(session.modified)}</span>
                           </div>
                           <div className="flex items-center text-textSubtle text-sm">
                             <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -130,12 +131,13 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                           </div>
                           <div className="flex items-center mt-1 space-x-3 text-sm text-textSubtle">
                             <div className="flex items-center">
-                              <MessageSquare className="w-3 h-3 mr-1" />
+                              <MessageSquareText className="w-3 h-3 mr-1" />
                               <span>{session.metadata.message_count}</span>
                             </div>
                             {session.metadata.total_tokens !== null && (
                               <div className="flex items-center">
-                                <span>{session.metadata.total_tokens.toLocaleString()} tokens</span>
+                                <Target className="w-3 h-3 mr-1" />
+                                <span>{session.metadata.total_tokens.toLocaleString()}</span>
                               </div>
                             )}
                           </div>
@@ -148,7 +150,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-textSubtle">
-                <MessageSquare className="h-12 w-12 mb-4" />
+                <MessageSquareText className="h-12 w-12 mb-4" />
                 <p className="text-lg mb-2">No chat sessions found</p>
                 <p className="text-sm">Your chat history will appear here</p>
               </div>
