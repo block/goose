@@ -17,7 +17,7 @@ Today, I'm excited to share not just my favorite MCP servers, but the ones I act
 <!--truncate-->
 
 :::tip
-You can ask Goose `"What can I do with xxxx Extension?"` to get a list of all the features and example use cases you can try out. 
+You can ask Goose what you can do with an extension to get a list of all the features and example use cases you can try out. 
 :::
 
 ## GitHub MCP Server: Everything GitHub
