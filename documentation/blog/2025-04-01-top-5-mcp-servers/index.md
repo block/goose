@@ -73,10 +73,10 @@ I can choose to accept or refuse these changes, or tell Goose to try something e
 As mentioned at the beginning of this post, the best thing about these MCP servers is how they plug into my existing workflow. I am able to:
 
 - Start a new session on Goose which opens the current folder as a project in VS Code.
-- I am able to start work on any changes and get any context I need from either the Knowledge Graph or from the internet using the Fetch extension.
+- Start work on any changes and get any context I need from either the Knowledge Graph or from the internet using the Fetch extension.
 - Any attempts at making changes takes my preferences from the Memory extension into account.
 - I can then review these changes right in VS Code and either accept or reject them.
-- Before completing the task by asking Goose to create a pull request for me. 
+- And complete the task by asking Goose to create a pull request for me. 
 
 This is a simplified example of how I use these extensions together - I may not use all of them in every session, but having them available sure makes my workflow much smoother.
 
