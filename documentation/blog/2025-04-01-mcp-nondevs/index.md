@@ -1,6 +1,6 @@
 ---
 title: "MCP Explained for Non-Developers"
-description: Learn what MCP or Model Context Protocol is and how anyone can use it to save time on tasks.
+description: Learn what Model Context Protocol (MCP) is and how anyone can use it to save time on tasks.
 authors: 
     - tania
 ---
@@ -81,11 +81,11 @@ Hopefully now, instead of spending hours manually gathering data and creating yo
   <meta property="og:title" content="MCP Explained for Non-Developers" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/01/mcp-nondevs" />
-  <meta property="og:description" content="Learn what MCP or Model Context Protocol is and how anyone can use it to save time on tasks." />
+  <meta property="og:description" content="Learn what Model Context Protocol (MCP) is and how anyone can use it to save time on tasks." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/mcp_nondevs-5ce7f39de923cab01de6e14e5dc06744.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="MCP Explained for Non-Developers" />
-  <meta name="twitter:description" content="Learn what MCP or Model Context Protocol is and how anyone can use it to save time on tasks." />
+  <meta name="twitter:description" content="Learn what Model Context Protocol (MCP) is and how anyone can use it to save time on tasks." />
   <meta name="twitter:image" content="http://block.github.io/goose/assets/images/mcp_nondevs-5ce7f39de923cab01de6e14e5dc06744.png" />
 </head>
