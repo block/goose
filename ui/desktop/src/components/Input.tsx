@@ -8,8 +8,7 @@ interface InputProps {
   isLoading?: boolean;
   onStop?: () => void;
   commandHistory?: string[];
-  value?: string;
-  onValueChange?: (value: string) => void;
+  initialValue?: string;
 }
 
 export default function Input({
@@ -17,19 +16,17 @@ export default function Input({
   isLoading = false,
   onStop,
   commandHistory = [],
-  value: controlledValue,
-  onValueChange,
+  initialValue = '',
 }: InputProps) {
-  const [internalValue, setInternalValue] = useState('');
-  // Use controlled value if provided, otherwise use internal state
-  const value = controlledValue !== undefined ? controlledValue : internalValue;
-  const setValue = (newValue: string) => {
-    if (controlledValue !== undefined && onValueChange) {
-      onValueChange(newValue);
-    } else {
-      setInternalValue(newValue);
+  const [value, setValue] = useState(initialValue);
+
+  // Update internal value when initialValue changes
+  useEffect(() => {
+    if (initialValue) {
+      setValue(initialValue);
     }
-  };
+  }, [initialValue]);
+
   // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -40,7 +37,7 @@ export default function Input({
     if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
-  }, [value]);
+  }, []);
 
   const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
