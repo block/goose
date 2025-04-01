@@ -11,6 +11,7 @@ import ErrorScreen from './components/ErrorScreen';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
 import { toastService } from './toasts';
+import { settingsV2Enabled } from './flags';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails } from './sessions';
@@ -75,7 +76,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!process.env.ALPHA) {
+    if (!settingsV2Enabled) {
       return;
     }
 
@@ -86,7 +87,7 @@ export default function App() {
     }
     initAttemptedRef.current = true;
 
-    console.log(`Initializing app in alpha mode...`);
+    console.log(`Initializing app with settings v2`);
 
     const initializeApp = async () => {
       try {
@@ -265,7 +266,7 @@ export default function App() {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
       setModalVisible(false); // Dismiss modal immediately
       try {
-        if (process.env.ALPHA) {
+        if (settingsV2Enabled) {
           await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
         } else {
           await addExtensionFromDeepLink(pendingLink, setView);
@@ -292,11 +293,11 @@ export default function App() {
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
   useEffect(() => {
-    if (process.env.ALPHA) {
+    if (settingsV2Enabled) {
       return;
     }
 
-    console.log(`Initializing app in non-alpha mode...`);
+    console.log(`Initializing app with settings v1`);
 
     // Attempt to detect config for a stored provider
     const detectStoredProvider = () => {
@@ -405,7 +406,7 @@ export default function App() {
         <div className="titlebar-drag-region" />
         <div>
           {view === 'welcome' &&
-            (process.env.ALPHA ? (
+            (settingsV2Enabled ? (
               <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />
             ) : (
               <WelcomeView
@@ -415,7 +416,7 @@ export default function App() {
               />
             ))}
           {view === 'settings' &&
-            (process.env.ALPHA ? (
+            (settingsV2Enabled ? (
               <SettingsViewV2
                 onClose={() => {
                   setView('chat');
