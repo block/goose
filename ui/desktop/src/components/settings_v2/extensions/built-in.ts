@@ -7,12 +7,16 @@ import { nameToKey } from './utils';
 type BuiltinExtension = {
   id: string;
   name: string;
-  display_name: string;
-  description: string;
+  display_name?: string;
+  description?: string;
   enabled: boolean;
-  type: 'builtin';
+  type: 'builtin' | 'stdio' | 'sse';
+  cmd?: string;
+  args?: string[];
+  uri?: string;
   envs?: { [key: string]: string };
   timeout?: number;
+  allow_configure?: boolean;
 };
 
 /**
@@ -33,7 +37,6 @@ export async function syncBuiltInExtensions(
 
     // Create a set of existing extension IDs for quick lookup
     const existingExtensionKeys = new Set(existingExtensions.map((ext) => nameToKey(ext.name)));
-    console.log('existing extension ids', existingExtensionKeys);
 
     // Cast the imported JSON data to the expected type
     const builtinExtensions = builtInExtensionsData as BuiltinExtension[];
@@ -46,18 +49,39 @@ export async function syncBuiltInExtensions(
       // Only add if the extension doesn't already exist -- use the id
       if (!existingExtensionKeys.has(builtinExt.id)) {
         console.log(`Adding built-in extension: ${builtinExt.id}`);
-
-        // Convert to the ExtensionConfig format
-        const extConfig: ExtensionConfig = {
-          name: builtinExt.name,
-          display_name: builtinExt.display_name,
-          type: 'builtin',
-          timeout: builtinExt.timeout ?? 300,
-        };
-
+        let extConfig: ExtensionConfig;
+        switch (builtinExt.type) {
+          case 'builtin':
+            extConfig = {
+              name: builtinExt.name,
+              display_name: builtinExt.display_name,
+              type: builtinExt.type,
+              timeout: builtinExt.timeout ?? 300,
+            };
+            break;
+          case 'stdio':
+            extConfig = {
+              name: builtinExt.name,
+              description: builtinExt.description,
+              type: builtinExt.type,
+              timeout: builtinExt.timeout,
+              cmd: builtinExt.cmd,
+              args: builtinExt.args,
+              envs: builtinExt.envs,
+            };
+            break;
+          case 'sse':
+            extConfig = {
+              name: builtinExt.name,
+              description: builtinExt.description,
+              type: builtinExt.type,
+              timeout: builtinExt.timeout,
+              uri: builtinExt.uri,
+            };
+        }
         // Add the extension with its default enabled state
         try {
-          await addExtensionFn(nameToKey(builtinExt.name), extConfig, builtinExt.enabled);
+          await addExtensionFn(builtinExt.name, extConfig, builtinExt.enabled);
           addedCount++;
         } catch (error) {
           console.error(`Failed to add built-in extension ${builtinExt.name}:`, error);

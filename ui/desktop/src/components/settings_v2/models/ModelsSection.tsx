@@ -4,12 +4,11 @@ import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
 import { toastError } from '../../../toasts';
 
+import { UNKNOWN_PROVIDER_MSG, UNKNOWN_PROVIDER_TITLE } from './index';
+
 interface ModelsSectionProps {
   setView: (view: View) => void;
 }
-
-const UNKNOWN_PROVIDER_TITLE = 'Provider name error';
-const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
 export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);

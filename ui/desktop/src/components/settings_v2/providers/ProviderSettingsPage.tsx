@@ -6,6 +6,8 @@ import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
+import { toastService } from '../../../toasts';
+import { toast } from 'react-toastify';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -56,7 +58,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       const provider_name = provider.name;
       const model = provider.metadata.default_model;
 
-      console.log(`Launching with provider: ${provider.name}`);
       try {
         // update the config
         // set GOOSE_PROVIDER in the config file
@@ -76,6 +77,11 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       } catch (error) {
         console.error(`Failed to initialize with provider ${provider_name}:`, error);
       }
+      toastService.configure({ silent: false });
+      toastService.success({
+        title: 'Success!',
+        msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the lower right corner.`,
+      });
       onClose();
     },
     [onClose, upsert]
