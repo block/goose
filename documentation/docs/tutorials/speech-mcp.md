@@ -7,6 +7,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://youtube.com/embed/rurAp_WzOiY" />
+
+
 This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadratni/speech-mcp) as a Goose extension to enable real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation.
 
 :::tip TLDR
