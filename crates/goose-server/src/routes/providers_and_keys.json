@@ -20,7 +20,7 @@
     "gcp_vertex_ai": {
         "name": "GCP Vertex AI",
         "description": "Use Vertex AI platform models",
-        "models": ["claude-3-5-haiku@20241022", "claude-3-5-sonnet@20240620", "claude-3-5-sonnet-v2@20241022", "claude-3-7-sonnet@20250219", "gemini-1.5-pro-002", "gemini-2.0-flash-001", "gemini-2.0-pro-exp-02-05"],
+        "models": ["claude-3-5-haiku@20241022", "claude-3-5-sonnet@20240620", "claude-3-5-sonnet-v2@20241022", "claude-3-7-sonnet@20250219", "gemini-1.5-pro-002", "gemini-2.0-flash-001", "gemini-2.0-pro-exp-02-05", "gemini-2.5-pro-exp-03-25"],
         "required_keys": ["GCP_PROJECT_ID", "GCP_LOCATION"]
     },
     "google": {

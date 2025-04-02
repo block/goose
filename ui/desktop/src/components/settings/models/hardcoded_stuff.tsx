@@ -34,6 +34,7 @@ export const gcp_vertex_ai_models = [
   'gemini-1.5-pro-002',
   'gemini-2.0-flash-001',
   'gemini-2.0-pro-exp-02-05',
+  'gemini-2.5-pro-exp-03-25',
 ];
 
 export const default_models = {
