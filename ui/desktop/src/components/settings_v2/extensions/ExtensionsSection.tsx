@@ -86,8 +86,12 @@ export default function ExtensionsSection() {
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
     });
-    handleModalClose();
+
+    // First refresh the extensions list
     await fetchExtensions();
+
+    // Then close the modal after data is refreshed
+    handleModalClose();
   };
 
   const handleDeleteExtension = async (name: string) => {
