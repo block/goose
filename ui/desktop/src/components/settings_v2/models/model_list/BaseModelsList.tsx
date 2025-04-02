@@ -63,32 +63,36 @@ export function BaseModelsList({
       }
     };
 
-    initializeCurrentModel();
+    initializeCurrentModel().then();
 
     return () => {
       isMounted = false;
     };
   }, [read]);
 
-  const handleModelSelection = async (modelName: string, providerName: string) => {
-    await changeModel({ model: selectedModel, writeToConfig: upsert });
+  const handleModelSelection = async (model: Model) => {
+    // Fix: Use the model parameter that's passed in
+    await changeModel({ model: model, writeToConfig: upsert });
   };
 
   // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
-    if (selectedModel.name === model.name && selectedModel.provider === model.provider) {
+    // Check if the selected model is already active
+    if (
+      selectedModel &&
+      selectedModel.name === model.name &&
+      selectedModel.provider === model.provider
+    ) {
       console.log(`Model "${model.name}" is already active.`);
       return;
     }
 
-    const providerMetaData = await getProviderMetadata(model.provider, getProviders);
-    const providerDisplayName = providerMetaData.display_name;
-
-    // Update local state immediately for UI feedback and add in display name
-    setSelectedModel({ ...model, alias: providerDisplayName });
-
     try {
-      await handleModelSelection(model.name, model.provider);
+      // Fix: First save the model to config, then update local state
+      await handleModelSelection(model);
+
+      // Update local state after successful save
+      setSelectedModel(model);
     } catch (error) {
       console.error('Error selecting model:', error);
     }
@@ -104,7 +108,10 @@ export function BaseModelsList({
       {modelList.map((model) =>
         renderItem({
           model,
-          isSelected: selectedModel === model,
+          isSelected:
+            selectedModel &&
+            selectedModel.name === model.name &&
+            selectedModel.provider === model.provider,
           onSelect: () => handleRadioChange(model),
         })
       )}
