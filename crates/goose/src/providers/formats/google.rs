@@ -422,7 +422,7 @@ mod tests {
         let tool_result: Vec<Content> = vec![
             Content::text("Hello"),
             Content::text("World"),
-            Content::text("This is a test."),
+            Content::embedded_text("test_uri", "This is a test."),
         ];
 
         let messages = vec![set_up_tool_response_message("response_id", tool_result)];
