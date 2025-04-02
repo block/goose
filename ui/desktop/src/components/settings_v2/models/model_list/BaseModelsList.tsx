@@ -41,23 +41,17 @@ export function BaseModelsList({
       try {
         const result = await getCurrentModelAndProvider({ readFromConfig: read });
         if (isMounted) {
-          console.log(modelList);
-          console.log(result);
           // try to look up the model in the modelList
           let currentModel: Model;
           const match = modelList.find(
             (model) => model.name == result.model && model.provider == result.provider
           );
-          console.log(match);
           // no matches so just create a model object (maybe user updated config.yaml from CLI usage, manual editing etc)
           if (!match) {
-            console.log('no match');
             currentModel = { name: result.model, provider: result.provider };
           } else {
-            console.log('found match');
             currentModel = match;
           }
-          console.log('setting current model as', currentModel);
           setSelectedModel(currentModel);
           setIsInitialized(true);
         }
