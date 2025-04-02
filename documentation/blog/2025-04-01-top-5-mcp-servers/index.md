@@ -1,7 +1,7 @@
 ---
 title: "Top 5 MCP Servers I Use as a Developer with Goose"
 description: "These 5 MCP servers help me automate my workflow and make me a better developer."
-date: 2025-03-31
+date: 2025-04-02
 authors: 
     - adewale
 ---
