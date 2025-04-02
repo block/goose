@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import Model, { getProviderMetadata } from '../modelInterface';
+import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
 import { changeModel, getCurrentModelAndProvider } from '../index';
 import { useConfig } from '../../../ConfigContext';
+import { toastInfo } from '../../../../toasts';
 
 interface ModelRadioListProps {
   renderItem: (props: {
@@ -29,7 +30,7 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { read, upsert, getProviders } = useConfig();
+  const { read, upsert, getExtensions, addExtension } = useConfig();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -71,8 +72,7 @@ export function BaseModelsList({
   }, [read]);
 
   const handleModelSelection = async (model: Model) => {
-    // Fix: Use the model parameter that's passed in
-    await changeModel({ model: model, writeToConfig: upsert });
+    await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });
   };
 
   // Updated to work with CustomRadio
@@ -83,7 +83,11 @@ export function BaseModelsList({
       selectedModel.name === model.name &&
       selectedModel.provider === model.provider
     ) {
-      console.log(`Model "${model.name}" is already active.`);
+      toastInfo({
+        title: 'No change',
+        msg: `Model "${model.name}" is already active.`,
+      });
+
       return;
     }
 
