@@ -22,9 +22,16 @@ set -eu
 #   ** other provider specific environment variables (eg. DATABRICKS_HOST)
 ##############################################################################
 
-# --- 1) Check for curl ---
+# --- 1) Check for dependencies ---
+# Check for curl
 if ! command -v curl >/dev/null 2>&1; then
   echo "Error: 'curl' is required to download Goose. Please install curl and try again."
+  exit 1
+fi
+
+# Check for bzip2
+if ! command -v bzip2 >/dev/null 2>&1; then
+  echo "Error: 'bzip2' is required to download Goose. Please install bzip2 and try again."
   exit 1
 fi
 
