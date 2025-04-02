@@ -41,17 +41,23 @@ export function BaseModelsList({
       try {
         const result = await getCurrentModelAndProvider({ readFromConfig: read });
         if (isMounted) {
+          console.log(modelList);
+          console.log(result);
           // try to look up the model in the modelList
           let currentModel: Model;
           const match = modelList.find(
             (model) => model.name == result.model && model.provider == result.provider
           );
+          console.log(match);
           // no matches so just create a model object (maybe user updated config.yaml from CLI usage, manual editing etc)
           if (!match) {
+            console.log('no match');
             currentModel = { name: result.model, provider: result.provider };
           } else {
+            console.log('found match');
             currentModel = match;
           }
+          console.log('setting current model as', currentModel);
           setSelectedModel(currentModel);
           setIsInitialized(true);
         }
@@ -63,32 +69,36 @@ export function BaseModelsList({
       }
     };
 
-    initializeCurrentModel();
+    initializeCurrentModel().then();
 
     return () => {
       isMounted = false;
     };
   }, [read]);
 
-  const handleModelSelection = async (modelName: string, providerName: string) => {
-    await changeModel({ model: selectedModel, writeToConfig: upsert });
+  const handleModelSelection = async (model: Model) => {
+    // Fix: Use the model parameter that's passed in
+    await changeModel({ model: model, writeToConfig: upsert });
   };
 
   // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
-    if (selectedModel.name === model.name && selectedModel.provider === model.provider) {
+    // Check if the selected model is already active
+    if (
+      selectedModel &&
+      selectedModel.name === model.name &&
+      selectedModel.provider === model.provider
+    ) {
       console.log(`Model "${model.name}" is already active.`);
       return;
     }
 
-    const providerMetaData = await getProviderMetadata(model.provider, getProviders);
-    const providerDisplayName = providerMetaData.display_name;
-
-    // Update local state immediately for UI feedback and add in display name
-    setSelectedModel({ ...model, alias: providerDisplayName });
-
     try {
-      await handleModelSelection(model.name, model.provider);
+      // Fix: First save the model to config, then update local state
+      await handleModelSelection(model);
+
+      // Update local state after successful save
+      setSelectedModel(model);
     } catch (error) {
       console.error('Error selecting model:', error);
     }
@@ -104,7 +114,10 @@ export function BaseModelsList({
       {modelList.map((model) =>
         renderItem({
           model,
-          isSelected: selectedModel === model,
+          isSelected:
+            selectedModel &&
+            selectedModel.name === model.name &&
+            selectedModel.provider === model.provider,
           onSelect: () => handleRadioChange(model),
         })
       )}
