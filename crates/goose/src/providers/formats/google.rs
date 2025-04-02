@@ -83,6 +83,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     .iter()
                                     .filter_map(|c| match c {
                                         Content::Text(t) => Some(t.text.clone()),
+                                        Content::Resource(r) => Some(r.get_text()),
                                         _ => None,
                                     })
                                     .collect::<Vec<_>>()
