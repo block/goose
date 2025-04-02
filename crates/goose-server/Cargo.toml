@@ -35,7 +35,6 @@ serde_yaml = "0.9.34"
 axum-extra = "0.10.0"
 utoipa = { version = "4.1", features = ["axum_extras"] }
 dirs = "6.0.0"
-reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking"], default-features = false }
 
 [[bin]]
 name = "goosed"
