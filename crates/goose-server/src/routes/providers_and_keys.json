@@ -9,7 +9,7 @@
         "name": "Anthropic",
         "description": "Use Claude and other Anthropic models",
         "models": ["claude-3.5-sonnet-2"],
-        "required_keys": ["ANTHROPIC_API_KEY"]
+        "required_keys": ["ANTHROPIC_API_KEY", "ANTHROPIC_HOST"]
     },
     "databricks": {
         "name": "Databricks",

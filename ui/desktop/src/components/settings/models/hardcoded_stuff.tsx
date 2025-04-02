@@ -58,7 +58,7 @@ export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];
 
 export const required_keys = {
   OpenAI: ['OPENAI_API_KEY', 'OPENAI_HOST', 'OPENAI_BASE_PATH'],
-  Anthropic: ['ANTHROPIC_API_KEY'],
+  Anthropic: ['ANTHROPIC_API_KEY', 'ANTHROPIC_HOST'],
   Databricks: ['DATABRICKS_HOST'],
   Groq: ['GROQ_API_KEY'],
   Ollama: ['OLLAMA_HOST'],
@@ -75,6 +75,7 @@ export const required_keys = {
 };
 
 export const default_key_value = {
+  ANTHROPIC_HOST: 'https://api.anthropic.com',
   OPENAI_HOST: 'https://api.openai.com',
   OPENAI_BASE_PATH: 'v1/chat/completions',
   OLLAMA_HOST: 'localhost',
