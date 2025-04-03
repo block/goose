@@ -838,7 +838,7 @@ impl DeveloperRouter {
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
             // Check if this matches Mac screenshot pattern:
             // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM)(?: \(\d+\))?\.png$")
+            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
                 .ok()
                 .and_then(|re| re.captures(filename))
             {
