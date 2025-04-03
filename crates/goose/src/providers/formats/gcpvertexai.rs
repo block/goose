@@ -71,7 +71,7 @@ pub enum GcpVertexAIModel {
 }
 
 /// Represents available versions of the Claude model for Goose.
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClaudeVersion {
     /// Claude 3.5 Sonnet initial version
     Sonnet35,
@@ -81,10 +81,12 @@ pub enum ClaudeVersion {
     Sonnet37,
     /// Claude 3.5 Haiku
     Haiku35,
+    /// Generic Claude model for custom or new versions
+    Generic(String),
 }
 
 /// Represents available versions of the Gemini model for Goose.
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GeminiVersion {
     /// Gemini 1.5 Pro version
     Pro15,
@@ -92,6 +94,10 @@ pub enum GeminiVersion {
     Flash20,
     /// Gemini 2.0 Pro Experimental version
     Pro20Exp,
+    /// Gemini 2.5 Pro Experimental version
+    Pro25Exp,
+    /// Generic Gemini model for custom or new versions
+    Generic(String),
 }
 
 impl fmt::Display for GcpVertexAIModel {
@@ -102,11 +108,14 @@ impl fmt::Display for GcpVertexAIModel {
                 ClaudeVersion::Sonnet35V2 => "claude-3-5-sonnet-v2@20241022",
                 ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
                 ClaudeVersion::Haiku35 => "claude-3-5-haiku@20241022",
+                ClaudeVersion::Generic(name) => name,
             },
             Self::Gemini(version) => match version {
                 GeminiVersion::Pro15 => "gemini-1.5-pro-002",
                 GeminiVersion::Flash20 => "gemini-2.0-flash-001",
                 GeminiVersion::Pro20Exp => "gemini-2.0-pro-exp-02-05",
+                GeminiVersion::Pro25Exp => "gemini-2.5-pro-exp-03-25",
+                GeminiVersion::Generic(name) => name,
             },
         };
         write!(f, "{model_id}")
@@ -131,6 +140,7 @@ impl TryFrom<&str> for GcpVertexAIModel {
     type Error = ModelError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
+        // Known models
         match s {
             "claude-3-5-sonnet@20240620" => Ok(Self::Claude(ClaudeVersion::Sonnet35)),
             "claude-3-5-sonnet-v2@20241022" => Ok(Self::Claude(ClaudeVersion::Sonnet35V2)),
@@ -139,6 +149,14 @@ impl TryFrom<&str> for GcpVertexAIModel {
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
             "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
             "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
+            "gemini-2.5-pro-exp-03-25" => Ok(Self::Gemini(GeminiVersion::Pro25Exp)),
+            // Generic models based on prefix matching
+            _ if s.starts_with("claude-") => {
+                Ok(Self::Claude(ClaudeVersion::Generic(s.to_string())))
+            }
+            _ if s.starts_with("gemini-") => {
+                Ok(Self::Gemini(GeminiVersion::Generic(s.to_string())))
+            }
             _ => Err(ModelError::UnsupportedModel(s.to_string())),
         }
     }
@@ -325,6 +343,7 @@ mod tests {
             "gemini-1.5-pro-002",
             "gemini-2.0-flash-001",
             "gemini-2.0-pro-exp-02-05",
+            "gemini-2.5-pro-exp-03-25",
         ];
 
         for model_id in valid_models {
@@ -346,6 +365,7 @@ mod tests {
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
             ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),
+            ("gemini-2.5-pro-exp-03-25", GcpLocation::Iowa),
         ];
 
         for (model_id, expected_location) in test_cases {
@@ -362,6 +382,45 @@ mod tests {
                 expected_location,
                 "RequestContext for {model_id} should have default location {expected_location:?}",
             );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_generic_model_parsing() -> Result<()> {
+        // Test generic Claude models
+        let claude_models = [
+            "claude-3-8-apex@20250301",
+            "claude-new-version",
+            "claude-experimental",
+        ];
+
+        for model_id in claude_models {
+            let model = GcpVertexAIModel::try_from(model_id)?;
+            match model {
+                GcpVertexAIModel::Claude(ClaudeVersion::Generic(ref name)) => {
+                    assert_eq!(name, model_id);
+                }
+                _ => panic!("Expected Claude generic model for {model_id}"),
+            }
+            assert_eq!(model.to_string(), model_id);
+            assert_eq!(model.known_location(), GcpLocation::Ohio);
+        }
+
+        // Test generic Gemini models
+        let gemini_models = ["gemini-3-pro", "gemini-2.5-flash", "gemini-experimental"];
+
+        for model_id in gemini_models {
+            let model = GcpVertexAIModel::try_from(model_id)?;
+            match model {
+                GcpVertexAIModel::Gemini(GeminiVersion::Generic(ref name)) => {
+                    assert_eq!(name, model_id);
+                }
+                _ => panic!("Expected Gemini generic model for {model_id}"),
+            }
+            assert_eq!(model.to_string(), model_id);
+            assert_eq!(model.known_location(), GcpLocation::Iowa);
         }
 
         Ok(())

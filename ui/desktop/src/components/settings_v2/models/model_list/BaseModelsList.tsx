@@ -3,6 +3,7 @@ import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
 import { changeModel, getCurrentModelAndProvider } from '../index';
 import { useConfig } from '../../../ConfigContext';
+import { toastInfo } from '../../../../toasts';
 
 interface ModelRadioListProps {
   renderItem: (props: {
@@ -14,6 +15,7 @@ interface ModelRadioListProps {
   providedModelList?: Model[];
 }
 
+// renders a model list and handles changing models when user clicks on them
 export function BaseModelsList({
   renderItem,
   className = '',
@@ -28,9 +30,8 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { read, upsert } = useConfig();
-  const [selectedModel, setSelectedModel] = useState<string | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const { read, upsert, getExtensions, addExtension } = useConfig();
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Load current model/provider once on component mount
@@ -41,8 +42,18 @@ export function BaseModelsList({
       try {
         const result = await getCurrentModelAndProvider({ readFromConfig: read });
         if (isMounted) {
-          setSelectedModel(result.model);
-          setSelectedProvider(result.provider);
+          // try to look up the model in the modelList
+          let currentModel: Model;
+          const match = modelList.find(
+            (model) => model.name == result.model && model.provider == result.provider
+          );
+          // no matches so just create a model object (maybe user updated config.yaml from CLI usage, manual editing etc)
+          if (!match) {
+            currentModel = { name: result.model, provider: result.provider };
+          } else {
+            currentModel = match;
+          }
+          setSelectedModel(currentModel);
           setIsInitialized(true);
         }
       } catch (error) {
@@ -53,30 +64,39 @@ export function BaseModelsList({
       }
     };
 
-    initializeCurrentModel();
+    initializeCurrentModel().then();
 
     return () => {
       isMounted = false;
     };
   }, [read]);
 
-  const handleModelSelection = async (modelName: string, providerName: string) => {
-    await changeModel({ model: modelName, provider: providerName, writeToConfig: upsert });
+  const handleModelSelection = async (model: Model) => {
+    await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });
   };
 
   // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
-    if (selectedModel === model.name) {
-      console.log(`Model "${model.name}" is already active.`);
+    // Check if the selected model is already active
+    if (
+      selectedModel &&
+      selectedModel.name === model.name &&
+      selectedModel.provider === model.provider
+    ) {
+      toastInfo({
+        title: 'No change',
+        msg: `Model "${model.name}" is already active.`,
+      });
+
       return;
     }
 
-    // Update local state immediately for UI feedback
-    setSelectedModel(model.name);
-    setSelectedProvider(model.provider);
-
     try {
-      await handleModelSelection(model.name, model.provider);
+      // Fix: First save the model to config, then update local state
+      await handleModelSelection(model);
+
+      // Update local state after successful save
+      setSelectedModel(model);
     } catch (error) {
       console.error('Error selecting model:', error);
     }
@@ -92,7 +112,10 @@ export function BaseModelsList({
       {modelList.map((model) =>
         renderItem({
           model,
-          isSelected: selectedModel === model.name,
+          isSelected:
+            selectedModel &&
+            selectedModel.name === model.name &&
+            selectedModel.provider === model.provider,
           onSelect: () => handleRadioChange(model),
         })
       )}

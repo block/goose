@@ -9,6 +9,7 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { changeModel } from '../index';
 import type { View } from '../../../../App';
+import Model, { getProviderMetadata } from '../modelInterface';
 
 const ModalButtons = ({ onSubmit, onCancel, isValid, validationErrors }) => (
   <div>
@@ -77,9 +78,11 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     const isFormValid = validateForm();
 
     if (isFormValid) {
+      const providerMetaData = await getProviderMetadata(provider, getProviders);
+      const providerDisplayName = providerMetaData.display_name;
+
       await changeModel({
-        model: model,
-        provider: provider,
+        model: { name: model, provider: provider, subtext: providerDisplayName } as Model, // pass in a Model object
         writeToConfig: upsert,
         getExtensions,
         addExtension,

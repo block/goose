@@ -8,10 +8,6 @@ import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Check, Copy } from './icons';
 import { visit } from 'unist-util-visit';
 
-const UrlTransform = {
-  a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-};
-
 function rehypeinlineCodeProperty() {
   return function (tree) {
     if (!tree) return;
@@ -86,7 +82,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeinlineCodeProperty, rehypeRaw]}
-        className={`prose prose-xs dark:prose-invert w-full max-w-full word-break
+        className={`prose prose-sm text-textStandard dark:prose-invert w-full max-w-full word-break
           prose-pre:p-0 prose-pre:m-0 !p-0
           prose-code:break-all prose-code:whitespace-pre-wrap
           prose-table:table prose-table:w-full
@@ -94,9 +90,17 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
           prose-td:border prose-td:border-borderSubtle prose-td:p-2
           prose-th:border prose-th:border-borderSubtle prose-th:p-2
           prose-thead:bg-bgSubtle
+          prose-h1:text-2xl prose-h1:font-medium prose-h1:mb-5 prose-h1:mt-5
+          prose-h2:text-xl prose-h2:font-medium prose-h2:mb-4 prose-h2:mt-4
+          prose-h3:text-lg prose-h3:font-medium prose-h3:mb-3 prose-h3:mt-3
+          prose-p:mt-0 prose-p:mb-2
+          prose-ol:my-2
+          prose-ul:mt-0 prose-ul:mb-3
+          prose-li:m-0
+
           ${className}`}
         components={{
-          ...UrlTransform,
+          a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
           code({ node, className, children, inlinecode, ...props }) {
             const match = /language-(\w+)/.exec(className || 'language-text');
             return inlinecode == 'false' && match ? (
@@ -104,16 +108,11 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
             ) : (
               <code
                 {...props}
-                className={`${className} break-all bg-inline-code dark:bg-inline-code-dark whitespace-pre-wrap`}
+                className={`break-all bg-inline-code dark:bg-inline-code-dark whitespace-pre-wrap`}
               >
                 {children}
               </code>
             );
-          },
-          // h3: 'div',
-          h3(props) {
-            const { node, ...rest } = props;
-            return <div className="text-textStandard text-sm" {...rest} />;
           },
         }}
       >
