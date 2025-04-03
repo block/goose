@@ -63,7 +63,7 @@ impl Resource {
             Some(n) => n,
             None => url
                 .path_segments()
-                .and_then(|segments| segments.last())
+                .and_then(|mut segments| segments.next_back())
                 .unwrap_or("unnamed")
                 .to_string(),
         };
