@@ -75,8 +75,10 @@ check_bzip2_needed() {
   fi
 }
 
+set +e
 check_bzip2_needed
 bzip_status=$?
+set -e
 
 case $bzip_status in
   0)
