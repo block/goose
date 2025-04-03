@@ -29,11 +29,71 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-# Check for bzip2
-if ! command -v bzip2 >/dev/null 2>&1; then
-  echo "Error: 'bzip2' is required to download Goose. Please install bzip2 and try again."
+# Check for tar
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: 'tar' is required to download Goose. Please install tar and try again."
   exit 1
 fi
+
+# Check for bzip2 if tar needs it
+check_bzip2_needed() {
+  tar_info="$(tar --version 2>&1)"
+
+  if echo "$tar_info" | grep -qi 'bsdtar'; then
+    # tar has native bzip2 support (uses libbz2 internally). 
+    return 0
+  elif echo "$tar_info" | grep -qi 'GNU tar'; then
+    # bzip2 is required 
+    if ! command -v bzip2 >/dev/null 2>&1; then
+      # bzip2 needs to be installed  
+      return 1
+    else
+      # bzip is already installed
+      return 0
+    fi
+  else
+    # Fallback: check if tar is linked to libbz2
+    if command -v ldd >/dev/null 2>&1; then
+      if ldd "$(command -v tar)" 2>/dev/null | grep -q 'libbz2'; then
+        # tar is linked with libbz2 (has native bzip2 support)
+        return 0
+      fi
+    elif command -v otool >/dev/null 2>&1; then
+      if otool -L "$(command -v tar)" | grep -q 'libbz2'; then
+        # tar is linked with libbz2 (has native bzip2 support)
+        return 0
+      fi
+    fi
+    # Could not determine if tar has native bzip2 support
+    if ! command -v bzip2 >/dev/null 2>&1; then
+      # bzip2 MAY be required, and is not installed
+      return 2
+    else
+      # bzip2 is already installed
+      return 0
+    fi
+  fi
+}
+
+check_bzip2_needed
+bzip_status=$?
+
+case $bzip_status in
+  0)
+    # All good — nothing to do
+    ;;
+  1)
+    echo "Error: 'bzip2' is required to download Goose. Please install bzip2 and try again."
+    exit 1
+    ;;
+  2)
+    echo "Warning: Could not determine if 'bzip2' is required. You MAY encounter extraction issues. Proceeding anyway..."
+    ;;
+  *)
+    echo "Error: Unexpected return code from function check_bzip2_needed: $bzip_status"
+    exit 1
+    ;;
+esac
 
 # --- 2) Variables ---
 REPO="block/goose"
