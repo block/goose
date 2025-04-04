@@ -599,6 +599,15 @@ impl Session {
                                 // Get confirmation from user
                                 let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
                                 self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
+                            } else if let Some(MessageContent::EnableExtensionRequest(enable_extension_request)) = message.content.first() {
+                                output::hide_thinking();
+
+                                let prompt = "Goose would like to install the following extension, do you approve?".to_string();
+                                let confirmed = cliclack::select(prompt)
+                                    .item(true, "Yes, for this session", "Enable the extension for this session")
+                                    .item(false, "No", "Do not enable the extension")
+                                    .interact()?;
+                                self.agent.handle_confirmation(enable_extension_request.id.clone(), confirmed).await;
                             }
                             // otherwise we have a model/tool to render
                             else {

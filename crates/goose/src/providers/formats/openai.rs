@@ -147,6 +147,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::EnableExtensionRequest(_) => {
+                    // Skip enable extension requests
+                }
                 MessageContent::Image(image) => {
                     // Handle direct image content
                     converted["content"] = json!([convert_image(image, image_format)]);
