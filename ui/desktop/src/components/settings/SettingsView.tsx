@@ -18,7 +18,6 @@ import { ModeSelection } from './basic/ModeSelection';
 import SessionSharingSection from './session/SessionSharingSection';
 import { toastSuccess } from '../../toasts';
 
-
 const EXTENSIONS_DESCRIPTION =
   'The Model Context Protocol (MCP) is a system that allows AI models to securely connect with local or remote resources using standard server setups. It works like a client-server setup and expands AI capabilities using three main components: Prompts, Resources, and Tools.';
 
@@ -96,8 +95,24 @@ export default function SettingsView({
     const handleSettingsUpdate = (_: any) => {
       const saved = localStorage.getItem('user_settings');
       if (saved) {
-        let currentSettings = JSON.parse(saved);
-        setSettings(currentSettings);
+        try {
+          let currentSettings = JSON.parse(saved);
+
+          // Ensure built-in extensions are included
+          BUILT_IN_EXTENSIONS.forEach((builtIn) => {
+            const exists = currentSettings.extensions.some(
+              (ext: FullExtensionConfig) => ext.id === builtIn.id
+            );
+            if (!exists) {
+              currentSettings.extensions.push(builtIn);
+            }
+          });
+
+          setSettings(currentSettings);
+          console.log('Updated settings state');
+        } catch (error) {
+          console.error('Error parsing settings:', error);
+        }
       }
     };
 

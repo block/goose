@@ -13,9 +13,9 @@ use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 
 /// Enum representing the different types of extension configuration requests.
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
-enum ExtensionConfigRequest {
+pub enum ExtensionConfigRequest {
     /// Server-Sent Events (SSE) extension.
     #[serde(rename = "sse")]
     Sse {
@@ -57,14 +57,37 @@ enum ExtensionConfigRequest {
 ///
 /// - `error`: Indicates whether an error occurred (`true`) or not (`false`).
 /// - `message`: Provides detailed error information when `error` is `true`.
-#[derive(Serialize)]
-struct ExtensionResponse {
-    error: bool,
-    message: Option<String>,
+#[derive(Serialize, Debug)]
+pub struct ExtensionResponse {
+    pub error: bool,
+    pub message: Option<String>,
+}
+
+/// Internal function that handles extension addition with a pre-locked agent
+pub async fn add_extension_internal(
+    agent: &mut Box<dyn goose::agents::Agent>,
+    extension_config: ExtensionConfig,
+) -> Result<ExtensionResponse, StatusCode> {
+    match agent.add_extension(extension_config).await {
+        Ok(_) => Ok(ExtensionResponse {
+            error: false,
+            message: None,
+        }),
+        Err(e) => {
+            eprintln!("Failed to add extension configuration: {:?}", e);
+            Ok(ExtensionResponse {
+                error: true,
+                message: Some(format!(
+                    "Failed to add extension configuration, error: {:?}",
+                    e
+                )),
+            })
+        }
+    }
 }
 
 /// Handler for adding a new extension configuration.
-async fn add_extension(
+pub async fn add_extension(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(request): Json<ExtensionConfigRequest>,
@@ -79,12 +102,6 @@ async fn add_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // Load the configuration
-    let config = Config::global();
-
-    // Initialize a vector to collect any missing keys.
-    let mut missing_keys = Vec::new();
-
     // Construct ExtensionConfig with Envs populated from keyring based on provided env_keys.
     let extension_config: ExtensionConfig = match request {
         ExtensionConfigRequest::Sse {
@@ -94,6 +111,11 @@ async fn add_extension(
             timeout,
         } => {
             let mut env_map = HashMap::new();
+            let mut missing_keys = Vec::new();
+            
+            // Load the configuration
+            let config = Config::global();
+            
             for key in env_keys {
                 match config.get_secret(&key) {
                     Ok(value) => {
@@ -143,6 +165,11 @@ async fn add_extension(
             }
 
             let mut env_map = HashMap::new();
+            let mut missing_keys = Vec::new();
+            
+            // Load the configuration
+            let config = Config::global();
+            
             for key in env_keys {
                 match config.get_secret(&key) {
                     Ok(value) => {
@@ -187,25 +214,10 @@ async fn add_extension(
     // Acquire a lock on the agent and attempt to add the extension.
     let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
-    let response = agent.add_extension(extension_config).await;
+    
+    let response = add_extension_internal(agent, extension_config).await?;
 
-    // Respond with the result.
-    match response {
-        Ok(_) => Ok(Json(ExtensionResponse {
-            error: false,
-            message: None,
-        })),
-        Err(e) => {
-            eprintln!("Failed to add extension configuration: {:?}", e);
-            Ok(Json(ExtensionResponse {
-                error: true,
-                message: Some(format!(
-                    "Failed to add extension configuration, error: {:?}",
-                    e
-                )),
-            }))
-        }
-    }
+    Ok(Json(response))
 }
 
 /// Handler for removing an extension by name

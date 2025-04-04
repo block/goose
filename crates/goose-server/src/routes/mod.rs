@@ -3,6 +3,7 @@ pub mod agent;
 pub mod config_management;
 pub mod configs;
 pub mod extension;
+pub mod gooseling;
 pub mod health;
 pub mod reply;
 pub mod session;
@@ -18,5 +19,6 @@ pub fn configure(state: crate::state::AppState) -> Router {
         .merge(extension::routes(state.clone()))
         .merge(configs::routes(state.clone()))
         .merge(config_management::routes(state.clone()))
+        .merge(gooseling::routes(state.clone()))
         .merge(session::routes(state))
 }

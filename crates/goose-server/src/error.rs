@@ -1,4 +1,24 @@
 use thiserror::Error;
+use axum::{response::{IntoResponse, Response}, http::StatusCode};
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("No agent has been initialized")]
+    NoAgent,
+    #[error("Agent error: {0}")]
+    Agent(#[from] anyhow::Error),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let status = match self {
+            Self::NoAgent => StatusCode::PRECONDITION_REQUIRED,
+            Self::Agent(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        
+        (status, self.to_string()).into_response()
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {

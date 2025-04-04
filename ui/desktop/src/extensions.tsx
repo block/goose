@@ -61,7 +61,8 @@ function sanitizeName(name: string) {
 
 export async function addExtension(
   extension: FullExtensionConfig,
-  silent: boolean = false
+  silent: boolean = false,
+  skipReInit: boolean = false
 ): Promise<Response> {
   try {
     // Create the config based on the extension type

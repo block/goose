@@ -28,15 +28,15 @@ struct ExtendPromptResponse {
 }
 
 #[derive(Deserialize)]
-struct CreateAgentRequest {
-    version: Option<String>,
-    provider: String,
-    model: Option<String>,
+pub struct CreateAgentRequest {
+    pub version: Option<String>,
+    pub provider: String,
+    pub model: Option<String>,
 }
 
 #[derive(Serialize)]
-struct CreateAgentResponse {
-    version: String,
+pub struct CreateAgentResponse {
+    pub version: String,
 }
 
 #[derive(Deserialize)]
@@ -95,8 +95,7 @@ async fn extend_prompt(
     }
 }
 
-#[axum::debug_handler]
-async fn create_agent(
+pub async fn create_agent(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<CreateAgentRequest>,

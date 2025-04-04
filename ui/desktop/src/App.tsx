@@ -24,6 +24,7 @@ import MoreModelsView from './components/settings/models/MoreModelsView';
 import ConfigureProvidersView from './components/settings/providers/ConfigureProvidersView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
+import GooselingEditor from './components/GooselingEditor';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
 import { useChat } from './hooks/useChat';
 
@@ -42,7 +43,8 @@ export type View =
   | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions'
-  | 'sharedSession';
+  | 'sharedSession'
+  | 'gooselingEditor';
 
 export type ViewConfig = {
   view: View;
@@ -291,6 +293,16 @@ export default function App() {
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
   useEffect(() => {
+    // Check for view type in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewType = urlParams.get('view');
+    const botConfig = window.appConfig.get('botConfig');
+
+    if (viewType === 'gooselingEditor' && botConfig) {
+      setView('gooselingEditor', { gooseling: botConfig });
+      return;
+    }
+
     if (process.env.ALPHA) {
       return;
     }
@@ -458,6 +470,9 @@ export default function App() {
             />
           )}
           {view === 'sessions' && <SessionsView setView={setView} />}
+          {view === 'gooselingEditor' && (
+            <GooselingEditor gooseling={viewOptions.gooseling} setView={setView} />
+          )}
           {view === 'sharedSession' && (
             <SharedSessionView
               session={viewOptions.sessionDetails}

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 /// Shared application state
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct AppState {
     pub agent: Arc<RwLock<Option<Box<dyn Agent>>>>,
