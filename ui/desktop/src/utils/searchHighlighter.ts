@@ -256,7 +256,8 @@ export class SearchHighlighter {
 
       // Only scroll if explicitly requested (e.g., when navigating)
       if (shouldScroll) {
-        this.scrollToMatch(wrappedIndex);
+        // Ensure we call scrollToMatch with the correct index
+        setTimeout(() => this.scrollToMatch(wrappedIndex), 0);
       }
     }
   }
