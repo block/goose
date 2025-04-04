@@ -96,11 +96,17 @@ fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Extracting $FILE to temporary directory..."
-if ! tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log; then
+set +e  # Disable immediate exit on error
+tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
+tar_exit_code=$?
+set -e  # Re-enable immediate exit on error
+
+if [ $tar_exit_code -ne 0 ]; then
   if grep -q "bzip2" tar_error.log; then
     echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed."
   else
-    echo "Error: Failed to extract $FILE. Please check the tar command and try again."
+    echo "Error: Failed to extract $FILE. See details below:"
+    cat tar_error.log
   fi
   rm tar_error.log
   exit 1
