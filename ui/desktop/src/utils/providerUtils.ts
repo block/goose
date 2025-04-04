@@ -1,5 +1,5 @@
 import { getApiUrl, getSecretKey } from '../config';
-import { loadAndAddStoredExtensions } from '../extensions';
+import { FullExtensionConfig, loadAndAddStoredExtensions } from '../extensions';
 import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
 import { gooseModels } from '../components/settings/models/GooseModels';
@@ -59,7 +59,7 @@ Some extensions are builtin, such as Developer and Memory, while
 `;
 
 // Desktop-specific system prompt extension when a bot is in play
-const desktopPromptBot = `You are a helpful agent. 
+const desktopPromptBot = `You are a helpful agent.
 You are being accessed through the Goose Desktop application, pre configured with instructions as requested by a human.
 
 The user is interacting with you through a graphical user interface with the following features:
@@ -124,6 +124,56 @@ export const initializeSystem = async (
         console.warn('Extension helpers not provided in alpha mode');
         return;
       }
+
+      // NOTE: this logic can be removed eventually when enough versions have passed
+      // on startup, check local configVersion; if missing or < 2, run
+      // migration to merge extensions into config.yaml.
+      // after migration, set configVersion to 2.
+      const configVersion = localStorage.getItem('configVersion');
+      // migrate if we configVersion doesn't exist, or is a lower version than current
+      const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 2;
+
+      console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
+      //TODO: move logic into separate function
+      if (shouldMigrateExtensions) {
+        console.log('need to perform extension migration');
+
+        const userSettingsStr = localStorage.getItem('user_settings');
+        let localStorageExtensions: FullExtensionConfig[] = [];
+
+        try {
+          if (userSettingsStr) {
+            const userSettings = JSON.parse(userSettingsStr);
+            localStorageExtensions = userSettings.extensions ?? [];
+          }
+        } catch (error) {
+          console.error('Failed to parse user settings:', error);
+        }
+
+        for (const extension of localStorageExtensions) {
+          // addExtension should add it to the config file, it returns a
+          // Void so unsure how to check for errors
+
+          // NOTE: skip migrating builtin types since there was a format change
+          // instead we rely on initializeBundledExtensions & syncBundledExtensions
+          // to handle updating / creating the new builtins to the config.yaml
+          // For all other extension types we migrate them to config.yaml
+          if (extension.type !== 'builtin') {
+            console.log(`Migrating extension ${extension.name} to config.yaml`);
+            await options.addExtension(extension.name, extension, extension.enabled);
+          }
+        }
+
+        // set migration as complete
+        localStorage.setItem('configVersion', '2');
+      }
+
+      /* NOTE:
+       * If we've migrated and this is a version update, refreshedExtensions should be > 0
+       *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
+       * Otherwise if the user has never opened goose - refreshedExtensions will be 0
+       *  and we want to fall into the case to initializeBundledExtensions.
+       */
 
       // Initialize or sync built-in extensions into config.yaml
       let refreshedExtensions = await options.getExtensions(false);
