@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum Permission {
     AlwaysAllow,
     AllowOnce,
-    AlwaysDeny,
+    DenyOnce,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

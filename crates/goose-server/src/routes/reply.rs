@@ -392,7 +392,7 @@ async fn confirm_handler(
     let permission = if request.confirmed {
         Permission::AllowOnce
     } else {
-        Permission::AlwaysDeny
+        Permission::DenyOnce
     };
     agent
         .handle_confirmation(

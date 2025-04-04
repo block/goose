@@ -604,7 +604,7 @@ impl Session {
                                 let permission = if confirmed {
                                     Permission::AllowOnce
                                 } else {
-                                    Permission::AlwaysDeny
+                                    Permission::DenyOnce
                                 };
                                 self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
                                     principal_name: "tool_name_placeholder".to_string(),
