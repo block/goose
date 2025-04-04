@@ -28,9 +28,9 @@ const ModalHelpText = () => (
       the communication with Goose.
     </p>
     <p>
-      Please make sure "Developer" extension is enabled in the settings page. This extension is
-      required to use .goosehints. You'll need to restart your session for .goosehints updates to
-      take effect.
+      Please make sure <span className="font-bold">Developer</span> extension is enabled in the
+      settings page. This extension is required to use .goosehints. You'll need to restart your
+      session for .goosehints updates to take effect.
     </p>
     <p>
       See{' '}
