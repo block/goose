@@ -1,4 +1,4 @@
-mod base;
+pub mod base;
 mod experiments;
 pub mod extensions;
 
