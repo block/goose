@@ -276,8 +276,8 @@ impl Config {
     /// Get a configuration value (non-secret).
     ///
     /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
-    /// 2. Configuration file
+    /// 1. Configuration file
+    /// 2. Environment variable with the exact key name
     ///
     /// The value will be deserialized into the requested type. This works with
     /// both simple types (String, i32, etc.) and complex types that implement
@@ -290,7 +290,13 @@ impl Config {
     /// - The value cannot be deserialized into the requested type
     /// - There is an error reading the config file
     pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
+        // First check our stored values
+        let values = self.load_values()?;
+        if let Some(value) = values.get(key) {
+            return Ok(serde_json::from_value(value.clone())?);
+        }
+
+        // Then check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
             // Parse the environment variable value into a serde_json::Value
@@ -298,14 +304,8 @@ impl Config {
             return Ok(serde_json::from_value(value)?);
         }
 
-        // Load current values from file
-        let values = self.load_values()?;
-
-        // Then check our stored values
-        values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_json::from_value(v.clone())?))
+        // If not found in either place, return error
+        Err(ConfigError::NotFound(key.to_string()))
     }
 
     /// Set a configuration value in the config file (non-secret).
@@ -351,8 +351,8 @@ impl Config {
     /// Get a secret value.
     ///
     /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
-    /// 2. System keyring
+    /// 1. System keyring
+    /// 2. Environment variable with the exact key name
     ///
     /// The value will be deserialized into the requested type. This works with
     /// both simple types (String, i32, etc.) and complex types that implement
@@ -365,19 +365,21 @@ impl Config {
     /// - The value cannot be deserialized into the requested type
     /// - There is an error accessing the keyring
     pub fn get_secret<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
-        // First check environment variables (convert to uppercase)
+        // First check keyring
+        let values = self.load_secrets()?;
+        if let Some(value) = values.get(key) {
+            return Ok(serde_json::from_value(value.clone())?);
+        }
+
+        // Then check environment variables (convert to uppercase)
         let env_key = key.to_uppercase();
         if let Ok(val) = env::var(&env_key) {
             let value: Value = serde_json::from_str(&val).unwrap_or(Value::String(val));
             return Ok(serde_json::from_value(value)?);
         }
 
-        // Then check keyring
-        let values = self.load_secrets()?;
-        values
-            .get(key)
-            .ok_or_else(|| ConfigError::NotFound(key.to_string()))
-            .and_then(|v| Ok(serde_json::from_value(v.clone())?))
+        // If not found in either place, return error
+        Err(ConfigError::NotFound(key.to_string()))
     }
 
     /// Set a secret value in the system keyring.
