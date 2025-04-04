@@ -1,7 +1,8 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
     collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, write_response_to_file,
-    BenchAgent, Evaluation, EvaluationMetric, ExtensionRequirements,
+    EvalMetricValue, Evaluation, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -23,20 +24,20 @@ impl BlogSummary {
 impl Evaluation for BlogSummary {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         println!("BlogSummary - run");
 
         // Collect baseline metrics (execution time, token usage, tool calls)
         let (response, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "What are the top 5 most counterintuitive insights from this blog post? Format your response in Markdown with 5 numbered points (1. 2. 3. 4. 5.) https://huyenchip.com/2025/01/07/agents.html".to_string()
         ).await;
 
         // Write response to file and get the text content
         let response_text =
-            match write_response_to_file(&response, work_dir, "blog_summary_output.txt") {
+            match write_response_to_file(&response, run_loc, "blog_summary_output.txt") {
                 Ok(text) => text,
                 Err(e) => {
                     println!("Warning: Failed to write blog summary output: {}", e);
@@ -54,14 +55,14 @@ impl Evaluation for BlogSummary {
         let has_markdown_list = self.check_markdown_numbered_list(&response_text);
         metrics.push((
             "valid_markdown_format".to_string(),
-            EvaluationMetric::Boolean(has_markdown_list),
+            EvalMetricValue::Boolean(has_markdown_list),
         ));
 
         // Check if the fetch tool was used
         let used_fetch_tool = crate::eval_suites::used_tool(&response, "fetch");
         metrics.push((
             "used_fetch_tool".to_string(),
-            EvaluationMetric::Boolean(used_fetch_tool),
+            EvalMetricValue::Boolean(used_fetch_tool),
         ));
 
         // Copy the session file to the current working directory

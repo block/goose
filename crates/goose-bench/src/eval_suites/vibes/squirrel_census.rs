@@ -1,7 +1,8 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
-    EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, EvalMetricValue,
+    Evaluation, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -30,13 +31,13 @@ impl SquirrelCensus {
 impl Evaluation for SquirrelCensus {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         println!("SquirrelCensus - run");
 
         // Get the path to the squirrel data file
-        let squirrel_data_path = match work_dir.fs_get("./assets/squirrel-data.csv".to_string()) {
+        let squirrel_data_path = match run_loc.fs_get("./assets/squirrel-data.csv".to_string()) {
             Ok(file) => file,
             Err(_) => return Err(anyhow::anyhow!("Could not find squirrel-data.csv file")),
         };
@@ -45,7 +46,7 @@ impl Evaluation for SquirrelCensus {
 
         // Collect baseline metrics (execution time, token usage, tool calls)
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             format!(
                 "Create a Python script called analyze_squirrels.py that analyzes the CSV file at {}. Do not ask for any clarification or further instructions - proceed with the implementation as specified below.
 
@@ -141,15 +142,15 @@ After writing the script, run it using python3 and show the results. Do not ask 
 
         metrics.push((
             "wrote_script".to_string(),
-            EvaluationMetric::Boolean(wrote_script),
+            EvalMetricValue::Boolean(wrote_script),
         ));
         metrics.push((
             "ran_script".to_string(),
-            EvaluationMetric::Boolean(ran_script),
+            EvalMetricValue::Boolean(ran_script),
         ));
         metrics.push((
             "correct_results".to_string(),
-            EvaluationMetric::Boolean(correct_results),
+            EvalMetricValue::Boolean(correct_results),
         ));
 
         // Copy the session file to the current working directory

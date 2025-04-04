@@ -12,8 +12,8 @@ use tracing_subscriber::{
 };
 
 use goose::tracing::langfuse_layer;
+use goose_bench::bench_session::BenchAgentError;
 use goose_bench::error_capture::ErrorCaptureLayer;
-use goose_bench::eval_suites::BenchAgentError;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
