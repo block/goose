@@ -18,8 +18,8 @@ use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::permission::detect_read_only_tools;
-use crate::permission::ToolPermission;
-use crate::permission::ToolPermissionConfirmation;
+use crate::permission::Permission;
+use crate::permission::PermissionConfirmation;
 use crate::permission::ToolPermissionStore;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
@@ -44,8 +44,8 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 pub struct TruncateAgent {
     capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, ToolPermissionConfirmation)>,
-    confirmation_rx: Mutex<mpsc::Receiver<(String, ToolPermissionConfirmation)>>,
+    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     tool_result_rx: ToolResultReceiver,
 }
@@ -161,16 +161,8 @@ impl Agent for TruncateAgent {
     }
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(
-        &self,
-        request_id: String,
-        tool_confirmation: ToolPermissionConfirmation,
-    ) {
-        if let Err(e) = self
-            .confirmation_tx
-            .send((request_id, tool_confirmation))
-            .await
-        {
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation) {
+        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
     }
@@ -444,7 +436,7 @@ impl Agent for TruncateAgent {
                                             while let Some((req_id, tool_confirmation)) = rx.recv().await {
                                                 if req_id == request.id {
                                                     // Store the user's response with 30-day expiration
-                                                    let confirmed = tool_confirmation.permission == ToolPermission::AllowOnce || tool_confirmation.permission == ToolPermission::AlwaysAllow;
+                                                    let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                                     if confirmed {
                                                         // Add this tool call to the futures collection
                                                         let tool_future = Self::create_tool_future(&capabilities, tool_call, request.id.clone());

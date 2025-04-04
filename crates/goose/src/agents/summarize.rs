@@ -20,8 +20,8 @@ use crate::config::Config;
 use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
 use crate::permission::detect_read_only_tools;
-use crate::permission::ToolPermission;
-use crate::permission::ToolPermissionConfirmation;
+use crate::permission::Permission;
+use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
@@ -40,8 +40,8 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 pub struct SummarizeAgent {
     capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, ToolPermissionConfirmation)>,
-    confirmation_rx: Mutex<mpsc::Receiver<(String, ToolPermissionConfirmation)>>,
+    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
 }
 
@@ -161,16 +161,8 @@ impl Agent for SummarizeAgent {
     }
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(
-        &self,
-        request_id: String,
-        tool_confirmation: ToolPermissionConfirmation,
-    ) {
-        if let Err(e) = self
-            .confirmation_tx
-            .send((request_id, tool_confirmation))
-            .await
-        {
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation) {
+        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
     }
@@ -333,7 +325,7 @@ impl Agent for SummarizeAgent {
                                             // Loop the recv until we have a matched req_id due to potential duplicate messages.
                                             while let Some((req_id, tool_confirmation)) = rx.recv().await {
                                                 if req_id == request.id {
-                                                    if tool_confirmation.permission == ToolPermission::AllowOnce || tool_confirmation.permission == ToolPermission::AlwaysAllow {
+                                                    if tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow {
                                                         // User approved - dispatch the tool call
                                                         let output = capabilities.dispatch_tool_call(tool_call).await;
                                                         message_tool_response = message_tool_response.with_tool_response(

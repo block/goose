@@ -15,7 +15,7 @@ use super::Agent;
 use crate::agents::capabilities::Capabilities;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::message::{Message, ToolRequest};
-use crate::permission::ToolPermissionConfirmation;
+use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::token_counter::TokenCounter;
 use crate::{register_agent, session};
@@ -77,7 +77,7 @@ impl Agent for ReferenceAgent {
     async fn handle_confirmation(
         &self,
         _request_id: String,
-        _tool_confirmation: ToolPermissionConfirmation,
+        _confirmation: PermissionConfirmation,
     ) {
         // TODO implement
     }

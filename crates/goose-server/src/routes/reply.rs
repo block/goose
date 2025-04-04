@@ -11,9 +11,10 @@ use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::SessionConfig,
     message::{Message, MessageContent},
+    permission::permission::PrincipalType,
 };
 use goose::{
-    permission::{ToolPermission, ToolPermissionConfirmation},
+    permission::{Permission, PermissionConfirmation},
     session,
 };
 use mcp_core::{role::Role, Content, ToolResult};
@@ -389,15 +390,16 @@ async fn confirm_handler(
     let agent = agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
     let permission = if request.confirmed {
-        ToolPermission::AllowOnce
+        Permission::AllowOnce
     } else {
-        ToolPermission::AlwaysDeny
+        Permission::AlwaysDeny
     };
     agent
         .handle_confirmation(
             request.id.clone(),
-            ToolPermissionConfirmation {
-                tool_name: "tool_name_placeholder".to_string(),
+            PermissionConfirmation {
+                principal_name: "tool_name_placeholder".to_string(),
+                principal_type: PrincipalType::Tool,
                 permission,
             },
         )

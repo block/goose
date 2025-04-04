@@ -6,8 +6,9 @@ mod prompt;
 mod thinking;
 
 pub use builder::build_session;
-use goose::permission::ToolPermission;
-use goose::permission::ToolPermissionConfirmation;
+use goose::permission::permission::PrincipalType;
+use goose::permission::Permission;
+use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
@@ -601,12 +602,13 @@ impl Session {
                                 // Get confirmation from user
                                 let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
                                 let permission = if confirmed {
-                                    ToolPermission::AllowOnce
+                                    Permission::AllowOnce
                                 } else {
-                                    ToolPermission::AlwaysDeny
+                                    Permission::AlwaysDeny
                                 };
-                                self.agent.handle_confirmation(confirmation.id.clone(), ToolPermissionConfirmation {
-                                    tool_name: "tool_name_placeholder".to_string(),
+                                self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                    principal_name: "tool_name_placeholder".to_string(),
+                                    principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
                             }
