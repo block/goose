@@ -1,7 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import Stop from './ui/Stop';
-import { Attach, Send } from './icons';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -19,119 +16,22 @@ export default function Input({
   initialValue = '',
 }: InputProps) {
   const [value, setValue] = useState(initialValue);
-
-  // Update internal value when initialValue changes
-  useEffect(() => {
-    if (initialValue) {
-      setValue(initialValue);
-    }
-  }, [initialValue]);
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
-  const [isComposing, setIsComposing] = useState(false);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [savedInput, setSavedInput] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textAreaRef.current) {
-      textAreaRef.current.focus();
+      textAreaRef.current.style.height = '0px';
+      const scrollHeight = textAreaRef.current.scrollHeight;
+      textAreaRef.current.style.height = Math.min(scrollHeight, 240) + 'px';
     }
-  }, []);
+  }, [value]);
 
-  const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
-    useEffect(() => {
-      if (textAreaRef) {
-        textAreaRef.style.height = '0px'; // Reset height
-        const scrollHeight = textAreaRef.scrollHeight;
-        textAreaRef.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-      }
-    }, [textAreaRef, value]);
-  };
-
-  const minHeight = '1rem';
-  const maxHeight = 10 * 24;
-
-  useAutosizeTextArea(textAreaRef.current, value);
-
-  const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = evt.target.value;
-    setValue(val);
-  };
-
-  // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
-    setIsComposing(true);
-  };
-
-  const handleCompositionEnd = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
-    setIsComposing(false);
-  };
-
-  const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    evt.preventDefault();
-
-    // Save current input if we're just starting to navigate history
-    if (historyIndex === -1) {
-      setSavedInput(value);
-    }
-
-    // Calculate new history index
-    let newIndex = historyIndex;
-    if (evt.key === 'ArrowUp') {
-      // Move backwards through history
-      if (historyIndex < commandHistory.length - 1) {
-        newIndex = historyIndex + 1;
-      }
-    } else {
-      // Move forwards through history
-      if (historyIndex > -1) {
-        newIndex = historyIndex - 1;
-      }
-    }
-
-    if (newIndex == historyIndex) {
-      return;
-    }
-
-    // Update index and value
-    setHistoryIndex(newIndex);
-    if (newIndex === -1) {
-      // Restore saved input when going past the end of history
-      setValue(savedInput);
-    } else {
-      setValue(commandHistory[newIndex] || '');
-    }
-  };
-
-  const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle command history navigation
-    if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
-      handleHistoryNavigation(evt);
-      return;
-    }
-
-    if (evt.key === 'Enter') {
-      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
-      if (evt.shiftKey || isComposing) {
-        // Allow line break for Shift+Enter, or during IME composition
-        return;
-      }
-      if (evt.altKey) {
-        setValue(value + '\n');
-        return;
-      }
-
-      // Prevent default Enter behavior when loading or when not loading but has content
-      // So it won't trigger a new line
-      evt.preventDefault();
-
-      // Only submit if not loading and has content
-      if (!isLoading && value.trim()) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (value.trim() && !isLoading) {
         handleSubmit(new CustomEvent('submit', { detail: { value } }));
         setValue('');
-        setHistoryIndex(-1);
-        setSavedInput('');
       }
     }
   };
@@ -141,81 +41,50 @@ export default function Input({
     if (value.trim() && !isLoading) {
       handleSubmit(new CustomEvent('submit', { detail: { value } }));
       setValue('');
-      setHistoryIndex(-1);
-      setSavedInput('');
-    }
-  };
-
-  const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      // Append the path to existing text, with a space if there's existing text
-      setValue((prev) => {
-        const currentText = prev.trim();
-        return currentText ? `${currentText} ${path}` : path;
-      });
-      textAreaRef.current?.focus();
     }
   };
 
   return (
-    <form
-      onSubmit={onFormSubmit}
-      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle"
-    >
+    <form className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle" onSubmit={onFormSubmit}>
       <textarea
-        autoFocus
         id="dynamic-textarea"
         placeholder="What can goose help with?   ⌘↑/⌘↓"
+        rows={1}
         value={value}
-        onChange={handleChange}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
+        onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         ref={textAreaRef}
-        rows={1}
-        style={{
-          minHeight: `${minHeight}px`,
-          maxHeight: `${maxHeight}px`,
-          overflowY: 'auto',
-        }}
         className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
+        style={{
+          maxHeight: '240px',
+          overflowY: 'auto',
+          height: '24px'
+        }}
       />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        onClick={handleFileSelect}
-        className="absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard"
-      >
-        <Attach />
-      </Button>
       {isLoading ? (
-        <Button
+        <button
           type="button"
-          size="icon"
-          variant="ghost"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onStop();
+            onStop?.();
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 hover:bg-accent h-9 w-9 absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
         >
-          <Stop size={24} />
-        </Button>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="6" width="12" height="12" fill="currentColor" rx="1" />
+          </svg>
+        </button>
       ) : (
-        <Button
+        <button
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-6 [&_svg]:shrink-0 hover:bg-accent h-9 w-9 absolute right-2 top-1/2 -translate-y-1/2 hover:text-textStandard text-textSubtle cursor-not-allowed"
           type="submit"
-          size="icon"
-          variant="ghost"
-          disabled={!value.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-            !value.trim() ? 'text-textSubtle cursor-not-allowed' : ''
-          }`}
+          disabled={!value.trim() || isLoading}
         >
-          <Send />
-        </Button>
+          <svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path fillRule="evenodd" clipRule="evenodd" d="M20.707 3.293a1 1 0 0 1 .25.994l-5.4 18a1 1 0 0 1-1.886.084l-3.44-8.602-8.602-3.44a1 1 0 0 1 .084-1.887l18-5.4a1 1 0 0 1 .994.25Zm-8.534 9.948 2.292 5.729L18.509 5.49 5.03 9.535l5.73 2.292 1.333-1.334a1 1 0 0 1 1.414 1.414l-1.334 1.334Z" fill="currentColor"/>
+          </svg>
+        </button>
       )}
     </form>
   );
