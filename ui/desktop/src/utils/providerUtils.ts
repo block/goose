@@ -73,6 +73,55 @@ You can also validate your output after you have generated it to ensure it meets
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
 
+/**
+ * Migrates extensions from localStorage to config.yaml (settings v2)
+ * This function handles the migration from settings v1 to v2 by:
+ * 1. Reading extensions from localStorage
+ * 2. Adding non-builtin extensions to config.yaml
+ * 3. Marking the migration as complete
+ *
+ * NOTE: This logic can be removed eventually when enough versions have passed
+ * We leave the existing user settings in localStorage, in case users downgrade
+ * or things need to be reverted.
+ *
+ * @param addExtension Function to add extension to config.yaml
+ */
+export const migrateExtensionsToSettingsV2 = async (
+  addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
+) => {
+  console.log('need to perform extension migration');
+
+  const userSettingsStr = localStorage.getItem('user_settings');
+  let localStorageExtensions: FullExtensionConfig[] = [];
+
+  try {
+    if (userSettingsStr) {
+      const userSettings = JSON.parse(userSettingsStr);
+      localStorageExtensions = userSettings.extensions ?? [];
+    }
+  } catch (error) {
+    console.error('Failed to parse user settings:', error);
+  }
+
+  for (const extension of localStorageExtensions) {
+    // NOTE: skip migrating builtin types since there was a format change
+    // instead we rely on initializeBundledExtensions & syncBundledExtensions
+    // to handle updating / creating the new builtins to the config.yaml
+    // For all other extension types we migrate them to config.yaml
+    if (extension.type !== 'builtin') {
+      console.log(`Migrating extension ${extension.name} to config.yaml`);
+      try {
+        await addExtension(extension.name, extension, extension.enabled);
+      } catch (err) {
+        console.error(`Failed to migrate extension ${extension.name}:`, err);
+      }
+    }
+  }
+
+  // set migration as complete
+  localStorage.setItem('configVersion', '2');
+};
+
 export const initializeSystem = async (
   provider: string,
   model: string,
@@ -125,47 +174,14 @@ export const initializeSystem = async (
         return;
       }
 
-      // NOTE: this logic can be removed eventually when enough versions have passed
-      // on startup, check local configVersion; if missing or < 2, run
-      // migration to merge extensions into config.yaml.
-      // after migration, set configVersion to 2.
+      // NOTE: remove when we want to stop migration logic
+      // Check if we need to migrate extensions from localStorage to config.yaml
       const configVersion = localStorage.getItem('configVersion');
-      // migrate if we configVersion doesn't exist, or is a lower version than current
       const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 2;
 
       console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
-      //TODO: move logic into separate function
       if (shouldMigrateExtensions) {
-        console.log('need to perform extension migration');
-
-        const userSettingsStr = localStorage.getItem('user_settings');
-        let localStorageExtensions: FullExtensionConfig[] = [];
-
-        try {
-          if (userSettingsStr) {
-            const userSettings = JSON.parse(userSettingsStr);
-            localStorageExtensions = userSettings.extensions ?? [];
-          }
-        } catch (error) {
-          console.error('Failed to parse user settings:', error);
-        }
-
-        for (const extension of localStorageExtensions) {
-          // addExtension should add it to the config file, it returns a
-          // Void so unsure how to check for errors
-
-          // NOTE: skip migrating builtin types since there was a format change
-          // instead we rely on initializeBundledExtensions & syncBundledExtensions
-          // to handle updating / creating the new builtins to the config.yaml
-          // For all other extension types we migrate them to config.yaml
-          if (extension.type !== 'builtin') {
-            console.log(`Migrating extension ${extension.name} to config.yaml`);
-            await options.addExtension(extension.name, extension, extension.enabled);
-          }
-        }
-
-        // set migration as complete
-        localStorage.setItem('configVersion', '2');
+        await migrateExtensionsToSettingsV2(options.addExtension);
       }
 
       /* NOTE:
