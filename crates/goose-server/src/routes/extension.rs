@@ -8,6 +8,7 @@ use goose::{
 };
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
+use tracing;
 
 /// Enum representing the different types of extension configuration requests.
 #[derive(Deserialize)]
@@ -48,6 +49,16 @@ enum ExtensionConfigRequest {
         display_name: Option<String>,
         timeout: Option<u64>,
     },
+    /// Frontend extension that provides tools to be executed by the frontend.
+    #[serde(rename = "frontend")]
+    Frontend {
+        /// The name to identify this extension
+        name: String,
+        /// The tools provided by this extension
+        tools: Vec<mcp_core::tool::Tool>,
+        /// Optional instructions for using the tools
+        instructions: Option<String>,
+    },
 }
 
 /// Response structure for adding an extension.
@@ -64,8 +75,26 @@ struct ExtensionResponse {
 async fn add_extension(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<ExtensionConfigRequest>,
+    raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
+    // Log the raw request for debugging
+    tracing::info!(
+        "Received extension request: {}",
+        serde_json::to_string_pretty(&raw.0).unwrap()
+    );
+
+    // Try to parse into our enum
+    let request: ExtensionConfigRequest = match serde_json::from_value(raw.0.clone()) {
+        Ok(req) => req,
+        Err(e) => {
+            tracing::error!("Failed to parse extension request: {}", e);
+            tracing::error!(
+                "Raw request was: {}",
+                serde_json::to_string_pretty(&raw.0).unwrap()
+            );
+            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        }
+    };
     // Verify the presence and validity of the secret key.
     let secret_key = headers
         .get("X-Secret-Key")
@@ -166,6 +195,15 @@ async fn add_extension(
             name,
             display_name,
             timeout,
+        },
+        ExtensionConfigRequest::Frontend {
+            name,
+            tools,
+            instructions,
+        } => ExtensionConfig::Frontend {
+            name,
+            tools,
+            instructions,
         },
     };
 

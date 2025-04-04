@@ -173,10 +173,8 @@ pub async fn get_config(
     let config = Config::global();
     let value = if let Ok(config_value) = config.get_param::<String>(&query.key) {
         Some(config_value)
-    } else if let Ok(env_value) = std::env::var(&query.key) {
-        Some(env_value)
     } else {
-        None
+        std::env::var(&query.key).ok()
     };
 
     // Return the value

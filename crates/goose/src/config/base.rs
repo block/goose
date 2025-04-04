@@ -68,7 +68,9 @@ impl From<keyring::Error> for ConfigError {
 ///
 /// Secrets are loaded with the following precedence:
 /// 1. Environment variables (exact key match)
-/// 2. System keyring
+/// 2. System keyring (which can be disabled with GOOSE_DISABLE_KEYRING)
+/// 3. If the keyring is disabled, secrets are stored in a secrets file
+///    (~/.config/goose/secrets.yaml by default)
 ///
 /// # Examples
 ///
@@ -98,7 +100,12 @@ impl From<keyring::Error> for ConfigError {
 /// For Goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
 pub struct Config {
     config_path: PathBuf,
-    keyring_service: String,
+    secrets: SecretStorage,
+}
+
+enum SecretStorage {
+    Keyring { service: String },
+    File { path: PathBuf },
 }
 
 // Global instance
@@ -116,9 +123,18 @@ impl Default for Config {
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
         let config_path = config_dir.join("config.yaml");
+
+        let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
+            Ok(_) => SecretStorage::File {
+                path: config_dir.join("secrets.yaml"),
+            },
+            Err(_) => SecretStorage::Keyring {
+                service: KEYRING_SERVICE.to_string(),
+            },
+        };
         Config {
             config_path,
-            keyring_service: KEYRING_SERVICE.to_string(),
+            secrets,
         }
     }
 }
@@ -139,7 +155,25 @@ impl Config {
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
-            keyring_service: service.to_string(),
+            secrets: SecretStorage::Keyring {
+                service: service.to_string(),
+            },
+        })
+    }
+
+    /// Create a new configuration instance with custom paths
+    ///
+    /// This is primarily useful for testing or for applications that need
+    /// to manage multiple configuration files.
+    pub fn new_with_file_secrets<P1: AsRef<Path>, P2: AsRef<Path>>(
+        config_path: P1,
+        secrets_path: P2,
+    ) -> Result<Self, ConfigError> {
+        Ok(Config {
+            config_path: config_path.as_ref().to_path_buf(),
+            secrets: SecretStorage::File {
+                path: secrets_path.as_ref().to_path_buf(),
+            },
         })
     }
 
@@ -192,15 +226,32 @@ impl Config {
 
     // Load current secrets from the keyring
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
 
-        match entry.get_password() {
-            Ok(content) => {
-                let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                Ok(values)
+                match entry.get_password() {
+                    Ok(content) => {
+                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                        Ok(values)
+                    }
+                    Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
+                    Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+                }
             }
-            Err(keyring::Error::NoEntry) => Ok(HashMap::new()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
+            SecretStorage::File { path } => {
+                if path.exists() {
+                    let file_content = std::fs::read_to_string(path)?;
+                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+                    let json_value: Value = serde_json::to_value(yaml_value)?;
+                    match json_value {
+                        Value::Object(map) => Ok(map.into_iter().collect()),
+                        _ => Ok(HashMap::new()),
+                    }
+                } else {
+                    Ok(HashMap::new())
+                }
+            }
         }
     }
 
@@ -347,9 +398,17 @@ impl Config {
         let mut values = self.load_secrets()?;
         values.insert(key.to_string(), value);
 
-        let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let json_value = serde_json::to_string(&values)?;
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
+                entry.set_password(&json_value)?;
+            }
+            SecretStorage::File { path } => {
+                let yaml_value = serde_yaml::to_string(&values)?;
+                std::fs::write(path, yaml_value)?;
+            }
+        };
         Ok(())
     }
 
@@ -367,9 +426,17 @@ impl Config {
         let mut values = self.load_secrets()?;
         values.remove(key);
 
-        let json_value = serde_json::to_string(&values)?;
-        let entry = Entry::new(&self.keyring_service, KEYRING_USERNAME)?;
-        entry.set_password(&json_value)?;
+        match &self.secrets {
+            SecretStorage::Keyring { service } => {
+                let json_value = serde_json::to_string(&values)?;
+                let entry = Entry::new(service, KEYRING_USERNAME)?;
+                entry.set_password(&json_value)?;
+            }
+            SecretStorage::File { path } => {
+                let yaml_value = serde_yaml::to_string(&values)?;
+                std::fs::write(path, yaml_value)?;
+            }
+        };
         Ok(())
     }
 }
@@ -474,6 +541,25 @@ mod tests {
         config.delete("key")?;
 
         let result: Result<String, ConfigError> = config.get_param("key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_based_secrets_management() -> Result<(), ConfigError> {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
+
+        config.set_secret("key", Value::String("value".to_string()))?;
+
+        let value: String = config.get_secret("key")?;
+        assert_eq!(value, "value");
+
+        config.delete_secret("key")?;
+
+        let result: Result<String, ConfigError> = config.get_secret("key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
         Ok(())

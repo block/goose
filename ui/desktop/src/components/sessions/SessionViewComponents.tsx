@@ -80,7 +80,7 @@ export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, ch
         showText={false}
         onClick={onBack}
         iconSize="w-7 h-7"
-        className="text-textProminentInverse hover:text-textProminentInverse"
+        className="!text-textProminentInverse dark:!text-textStandardInverse"
       />
       {children}
     </Card>

@@ -84,6 +84,9 @@
           "400": {
             "description": "Invalid request"
           },
+          "422": {
+            "description": "Could not serialize config.yaml"
+          },
           "500": {
             "description": "Internal server error"
           }

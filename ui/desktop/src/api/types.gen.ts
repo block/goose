@@ -179,6 +179,10 @@ export type AddExtensionErrors = {
      */
     400: unknown;
     /**
+     * Could not serialize config.yaml
+     */
+    422: unknown;
+    /**
      * Internal server error
      */
     500: unknown;

@@ -89,7 +89,7 @@ impl ToolPermissionStore {
             records
                 .iter()
                 .filter(|record| record.expiry.is_none_or(|exp| exp > Utc::now().timestamp()))
-                .last()
+                .next_back()
                 .map(|record| record.allowed)
         })
     }
