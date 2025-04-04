@@ -8,10 +8,13 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::session;
 use goose::{
     agents::SessionConfig,
     message::{Message, MessageContent},
+};
+use goose::{
+    permission::{ToolPermission, ToolPermissionConfirmation},
+    session,
 };
 use mcp_core::{role::Role, Content, ToolResult};
 use serde::{Deserialize, Serialize};
@@ -385,8 +388,19 @@ async fn confirm_handler(
     let agent = state.agent.clone();
     let agent = agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let permission = if request.confirmed {
+        ToolPermission::AllowOnce
+    } else {
+        ToolPermission::AlwaysDeny
+    };
     agent
-        .handle_confirmation(request.id.clone(), request.confirmed)
+        .handle_confirmation(
+            request.id.clone(),
+            ToolPermissionConfirmation {
+                tool_name: "tool_name_placeholder".to_string(),
+                permission,
+            },
+        )
         .await;
     Ok(Json(Value::Object(serde_json::Map::new())))
 }
