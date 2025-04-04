@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use mcp_client::client::Error as ClientError;
+use mcp_core::tool::Tool;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -155,7 +156,7 @@ pub enum ExtensionConfig {
         /// The name used to identify this extension
         name: String,
         /// The tools provided by the frontend
-        tools: Vec<mcp_core::tool::Tool>,
+        tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
     },

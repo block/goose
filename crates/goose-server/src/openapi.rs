@@ -5,6 +5,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::ExtensionEntry;
 use goose::providers::base::ConfigKey;
 use goose::providers::base::ProviderMetadata;
+use mcp_core::tool::{Tool, ToolAnnotations};
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
@@ -32,6 +33,8 @@ use goose::providers::base::ProviderMetadata;
         ExtensionConfig,
         ConfigKey,
         Envs,
+        Tool,
+        ToolAnnotations,
     ))
 )]
 pub struct ApiDoc;
