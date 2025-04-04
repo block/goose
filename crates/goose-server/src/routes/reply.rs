@@ -11,7 +11,7 @@ use futures::{stream::StreamExt, Stream};
 use goose::{
     agents::SessionConfig,
     message::{Message, MessageContent},
-    permission::permission::PrincipalType,
+    permission::permission_confirmation::PrincipalType,
 };
 use goose::{
     permission::{Permission, PermissionConfirmation},

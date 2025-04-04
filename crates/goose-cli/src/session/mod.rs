@@ -6,7 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::build_session;
-use goose::permission::permission::PrincipalType;
+use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
