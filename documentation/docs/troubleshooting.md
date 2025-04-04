@@ -243,6 +243,9 @@ This likely means that the local host address is not accessible from WSL.
     ```
     http://172.24.80.1:11434
     ```
+    
+If you still encounter a `failed to connect` error, you can try using WSL's [Mirrored Networking](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking) setting if you using Windows 11 22H2 or higher 
+
 ---
 ### Need Further Help? 
 If you have questions, run into issues, or just need to brainstorm ideas join the [Discord Community][discord]!
