@@ -377,10 +377,10 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let update_tool = Tool::new(
-            "update".to_string(),
+        let update_file_tool = Tool::new(
+            "update_file".to_string(),
             indoc! {r#"
-                Update a Google Drive file with new content.
+                Update a normal non-Google file (not Document, Spreadsheet, and Slides) in Google Drive with new content.
             "#}
             .to_string(),
             json!({
@@ -410,7 +410,7 @@ impl GoogleDriveRouter {
               "required": ["fileId", "mimeType"],
             }),
             Some(ToolAnnotations {
-                title: Some("Update a file".to_string()),
+                title: Some("Update a non-Google file".to_string()),
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -418,8 +418,8 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let update_file_tool = Tool::new(
-            "update_file".to_string(),
+        let update_google_file_tool = Tool::new(
+            "update_google_file".to_string(),
             indoc! {r#"
                 Update a Google file (Document, Spreadsheet, or Slides) in Google Drive.
             "#}
@@ -452,7 +452,7 @@ impl GoogleDriveRouter {
               "required": ["fileId", "fileType"],
             }),
             Some(ToolAnnotations {
-                title: Some("Update a file".to_string()),
+                title: Some("Update a Google file".to_string()),
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -645,7 +645,8 @@ impl GoogleDriveRouter {
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
             3. sheets_tool - Work with Google Sheets data using various operations
             4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
-            5. update_file - Update existing Google Workspace files
+            5. update_google_file - Update existing Google Workspace files (Docs, Sheets, or Slides)
+            6. update_file - Update existing normal non-Google Workspace files
 
             ## Available Tools
 
@@ -741,8 +742,8 @@ impl GoogleDriveRouter {
                 upload_tool,
                 create_file_tool,
                 move_file_tool,
-                update_tool,
                 update_file_tool,
+                update_google_file_tool,
                 sheets_tool,
                 get_comments_tool,
                 create_comment_tool,
@@ -1855,7 +1856,7 @@ impl GoogleDriveRouter {
         }
     }
 
-    async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn update_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
                 .get("fileId")
@@ -1906,7 +1907,7 @@ impl GoogleDriveRouter {
         .await
     }
 
-    async fn update_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn update_google_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         // Extract common parameters
         let file_id =
             params
@@ -2257,8 +2258,8 @@ impl Router for GoogleDriveRouter {
                 "upload" => this.upload(arguments).await,
                 "create_file" => this.create_file(arguments).await,
                 "move_file" => this.move_file(arguments).await,
-                "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
+                "update_google_file" => this.update_google_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "create_comment" => this.create_comment(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
