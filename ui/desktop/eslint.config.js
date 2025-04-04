@@ -86,6 +86,10 @@ module.exports = [
         React: 'readonly',
         handleAction: 'readonly',
         requestAnimationFrame: 'readonly',
+        ResizeObserver: 'readonly',
+        MutationObserver: 'readonly',
+        NodeFilter: 'readonly',
+        Text: 'readonly',
       },
     },
     plugins: {
