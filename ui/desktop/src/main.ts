@@ -113,7 +113,7 @@ const getGooseProvider = () => {
   //{env-macro-start}//
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
-  return [process.env.GOOSE_PROVIDER, process.env.GOOSE_MODEL];
+  return [process.env.GOOSE_DEFAULT_PROVIDER, process.env.GOOSE_DEFAULT_MODEL];
 };
 
 const generateSecretKey = () => {
@@ -144,8 +144,8 @@ let sharingUrl = getSharingUrl();
 let gooseVersion = getVersion();
 
 let appConfig = {
-  GOOSE_PROVIDER: provider,
-  GOOSE_MODEL: model,
+  GOOSE_DEFAULT_PROVIDER: provider,
+  GOOSE_DEFAULT_MODEL: model,
   GOOSE_API_HOST: 'http://127.0.0.1',
   GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',

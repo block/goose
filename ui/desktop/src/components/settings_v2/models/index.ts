@@ -74,10 +74,12 @@ export async function changeModel({
 
 interface getCurrentModelAndProviderProps {
   readFromConfig: (key: string, is_secret: boolean) => Promise<unknown>;
+  writeToConfig?: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
 }
 
 export async function getCurrentModelAndProvider({
   readFromConfig,
+  writeToConfig,
 }: getCurrentModelAndProviderProps) {
   let model: string;
   let provider: string;
@@ -89,6 +91,26 @@ export async function getCurrentModelAndProvider({
   } catch (error) {
     console.error(`Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config`);
     throw error;
+  }
+  if (!model || !provider) {
+    console.log('[getCurrentModelAndProvider] Checking app environment as fallback');
+    return getFallbackModelAndProvider(writeToConfig);
+  }
+  return { model: model, provider: provider };
+}
+
+export async function getFallbackModelAndProvider(
+  writeToConfig: (key: string, value: unknown, is_secret: boolean) => Promise<void>
+) {
+  const provider = window.appConfig.get('GOOSE_DEFAULT_PROVIDER');
+  const model = window.appConfig.get('GOOSE_DEFAULT_MODEL');
+  if (provider && model && writeToConfig) {
+    try {
+      await writeToConfig('GOOSE_MODEL', model, false);
+      await writeToConfig('GOOSE_PROVIDER', provider, false);
+    } catch (error) {
+      console.error('[getFallbackModelAndProvider] Failed to write to config', error);
+    }
   }
   return { model: model, provider: provider };
 }

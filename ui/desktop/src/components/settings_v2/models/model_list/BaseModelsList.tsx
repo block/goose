@@ -40,7 +40,10 @@ export function BaseModelsList({
 
     const initializeCurrentModel = async () => {
       try {
-        const result = await getCurrentModelAndProvider({ readFromConfig: read });
+        const result = await getCurrentModelAndProvider({
+          readFromConfig: read,
+          writeToConfig: upsert,
+        });
         if (isMounted) {
           // try to look up the model in the modelList
           let currentModel: Model;
