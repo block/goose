@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getApiUrl, getSecretKey } from '../config';
-import { ChevronDown, ChevronUp } from './icons';
+import { Settings, AutoMode, ChatMode } from './icons';
 import {
   all_goose_modes,
   filterGooseModes,
@@ -86,60 +86,63 @@ export const BottomMenuModeSelection = () => {
       return;
     }
 
-    if (!settingsV2Enabled) {
-      const storeResponse = await fetch(getApiUrl('/configs/store'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
-        },
-        body: JSON.stringify({
-          key: 'GOOSE_MODE',
-          value: newMode,
-          isSecret: false,
-        }),
-      });
+    try {
+      if (!settingsV2Enabled) {
+        const storeResponse = await fetch(getApiUrl('/configs/store'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+          body: JSON.stringify({
+            key: 'GOOSE_MODE',
+            value: newMode,
+            isSecret: false,
+          }),
+        });
 
-      if (!storeResponse.ok) {
-        const errorText = await storeResponse.text();
-        console.error('Store response error:', errorText);
-        throw new Error(`Failed to store new goose mode: ${newMode}`);
+        if (!storeResponse.ok) {
+          const errorText = await storeResponse.text();
+          console.error('Store response error:', errorText);
+          throw new Error(`Failed to store new goose mode: ${newMode}`);
+        }
+      } else {
+        await upsert('GOOSE_MODE', newMode, false);
       }
+
       if (gooseMode.includes('approve')) {
         setPreviousApproveModel(gooseMode);
       }
       setGooseMode(newMode);
-    } else {
-      await upsert('GOOSE_MODE', newMode, false);
-      if (gooseMode.includes('approve')) {
-        setPreviousApproveModel(gooseMode);
-      }
-      setGooseMode(newMode);
+      setIsGooseModeMenuOpen(false); // Close the menu after selection
+    } catch (error) {
+      console.error('Error changing mode:', error);
     }
   };
 
-  function getValueByKey(key) {
-    const mode = all_goose_modes.find((mode) => mode.key === key);
-    return mode ? mode.label : 'auto';
-  }
+  const getIconForMode = () => {
+    switch (gooseMode) {
+      case 'auto':
+        return <AutoMode className="text-textSubtle hover:text-textStandard w-4 h-4" />;
+      case 'chat':
+        return <ChatMode className="text-textSubtle hover:text-textStandard w-4 h-4" />;
+      default:
+        return <Settings className="text-textSubtle hover:text-textStandard w-4 h-4" />;
+    }
+  };
 
   return (
-    <div className="relative flex items-center ml-6" ref={gooseModeDropdownRef}>
+    <div className="relative flex items-center min-w-[24px]" ref={gooseModeDropdownRef}>
       <div
         className="flex items-center cursor-pointer"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
-        <span className="truncate w-[170px]">Goose Mode: {getValueByKey(gooseMode)}</span>
-        {isGooseModeMenuOpen ? (
-          <ChevronDown className="w-4 h-4 ml-1" />
-        ) : (
-          <ChevronUp className="w-4 h-4 ml-1" />
-        )}
+        {getIconForMode()}
       </div>
 
       {/* Dropdown Menu */}
       {isGooseModeMenuOpen && (
-        <div className="absolute bottom-[24px] right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
+        <div className="absolute bottom-[24px] left-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle z-50 shadow-lg">
           <div>
             {filterGooseModes(gooseMode, all_goose_modes, previousApproveModel).map((mode) => (
               <ModeSelectionItem

@@ -19,12 +19,16 @@ import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
 import { Gear } from './Gear';
+import AutoMode from './AutoMode';
+import ChatMode from './ChatMode';
 
 export {
   ArrowDown,
   ArrowUp,
   Attach,
+  AutoMode,
   Back,
+  ChatMode,
   ChatSmart,
   Check,
   ChevronDown,

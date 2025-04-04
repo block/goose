@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
-import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
 import Input from './Input';
@@ -32,13 +31,11 @@ import {
 export interface ChatType {
   id: string;
   title: string;
-  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
-  // anything before this index should not render any buttons, but anything after should
   messageHistoryIndex: number;
   messages: Message[];
 }
 
-export default function ChatView({
+function ChatView({
   chat,
   setChat,
   setView,
@@ -79,11 +76,6 @@ export default function ChatView({
     onFinish: async (message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
-      // Disabled askAi calls to save costs
-      // const messageText = getTextContent(message);
-      // const fetchResponses = await askAi(messageText);
-      // setMessageMetadata((prev) => ({ ...prev, [message.id || '']: fetchResponses }));
-
       const timeSinceLastInteraction = Date.now() - lastInteractionTime;
       window.electron.logInfo('last interaction:' + lastInteractionTime);
       if (timeSinceLastInteraction > 60000) {
@@ -97,123 +89,16 @@ export default function ChatView({
     onToolCall: (toolCall) => {
       // Handle tool calls if needed
       console.log('Tool call received:', toolCall);
-      // Implement tool call handling logic here
     },
   });
 
-  // Listen for make-agent-from-chat event
-  useEffect(() => {
-    const handleMakeAgent = async () => {
-      window.electron.logInfo('Making agent from chat...');
-
-      // Log all messages for now
-      window.electron.logInfo('Current messages:');
-      chat.messages.forEach((message, index) => {
-        const role = isUserMessage(message) ? 'user' : 'assistant';
-        const content = isUserMessage(message) ? message.text : getTextContent(message);
-        window.electron.logInfo(`Message ${index} (${role}): ${content}`);
-      });
-
-      // Inject a question into the chat to generate instructions
-      const instructionsPrompt =
-        'Based on our conversation so far, could you create:\n' +
-        "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with. Pay special attention if any output styles or formats are requested (and make it clear), and note any non standard tools used or required.\n" +
-        '2. A list of 3-5 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
-        "Format your response with clear headings for 'Instructions:' and 'Activities:' sections." +
-        'For example, perhaps we have been discussing fruit and you might write:\n\n' +
-        'Instructions:\nUsing web searches we find pictures of fruit, and always check what language to reply in.' +
-        'Activities:\nShow pics of apples, say a random fruit, share a fruit fact';
-
-      // Set waiting state to true before adding the prompt
-      setWaitingForAgentResponse(true);
-
-      // Add the prompt as a user message
-      append(createUserMessage(instructionsPrompt));
-
-      window.electron.logInfo('Injected instructions prompt into chat');
-    };
-
-    window.addEventListener('make-agent-from-chat', handleMakeAgent);
-
-    return () => {
-      window.removeEventListener('make-agent-from-chat', handleMakeAgent);
-    };
-  }, [append, chat.messages, setWaitingForAgentResponse]);
-
-  // Listen for new messages and process agent response
-  useEffect(() => {
-    // Only process if we're waiting for an agent response
-    if (!waitingForAgentResponse || messages.length === 0) {
-      return;
-    }
-
-    // Get the last message
-    const lastMessage = messages[messages.length - 1];
-
-    // Check if it's an assistant message (response to our prompt)
-    if (lastMessage.role === 'assistant') {
-      // Extract the content
-      const content = getTextContent(lastMessage);
-
-      // Process the agent's response
-      if (content) {
-        window.electron.logInfo('Received agent response:');
-        window.electron.logInfo(content);
-
-        // Parse the response to extract instructions and activities
-        const instructionsMatch = content.match(/Instructions:(.*?)(?=Activities:|$)/s);
-        const activitiesMatch = content.match(/Activities:(.*?)$/s);
-
-        const instructions = instructionsMatch ? instructionsMatch[1].trim() : '';
-        const activitiesText = activitiesMatch ? activitiesMatch[1].trim() : '';
-
-        // Parse activities into an array
-        const activities = activitiesText
-          .split(/\n+/)
-          .map((line) => line.replace(/^[•\-*\d]+\.?\s*/, '').trim())
-          .filter((activity) => activity.length > 0);
-
-        // Create a bot config object
-        const generatedConfig = {
-          id: `bot-${Date.now()}`,
-          name: 'Custom Bot',
-          description: 'Bot created from chat',
-          instructions: instructions,
-          activities: activities,
-        };
-
-        window.electron.logInfo('Extracted bot config:');
-        window.electron.logInfo(JSON.stringify(generatedConfig, null, 2));
-
-        // Store the generated bot config
-        setGeneratedBotConfig(generatedConfig);
-
-        // Show the modal with the generated bot config
-        setshowShareableBotModal(true);
-
-        window.electron.logInfo('Generated bot config for agent creation');
-
-        // Reset waiting state
-        setWaitingForAgentResponse(false);
-      }
-    }
-  }, [messages, waitingForAgentResponse, setshowShareableBotModal, setGeneratedBotConfig]);
-
-  // Leaving these in for easy debugging of different message states
-
-  // One message with a tool call and no text content
-  // const messages = [{"role":"assistant","created":1742484893,"content":[{"type":"toolRequest","id":"call_udVcu3crnFdx2k5FzlAjk5dI","toolCall":{"status":"success","value":{"name":"developer__text_editor","arguments":{"command":"write","file_text":"Hello, this is a test file.\nLet's see if this works properly.","path":"/Users/alexhancock/Development/testfile.txt"}}}}]}];
-
-  // One message with text content and tool calls
-  // const messages = [{"role":"assistant","created":1742484388,"content":[{"type":"text","text":"Sure, let's break this down into two steps:\n\n1. **Write content to a `.txt` file.**\n2. **Read the content from the `.txt` file.**\n\nLet's start by writing some example content to a `.txt` file. I'll create a file named `example.txt` and write a sample sentence into it. Then I'll read the content back. \n\n### Sample Content\nWe'll write the following content into the `example.txt` file:\n\n```\nHello World! This is an example text file.\n```\n\nLet's proceed with this task."},{"type":"toolRequest","id":"call_CmvAsxMxiWVKZvONZvnz4QCE","toolCall":{"status":"success","value":{"name":"developer__text_editor","arguments":{"command":"write","file_text":"Hello World! This is an example text file.","path":"/Users/alexhancock/Development/example.txt"}}}}]}];
-
-  // Update chat messages when they change and save to sessionStorage
+  // Update chat messages when they change
   useEffect(() => {
     setChat((prevChat) => {
       const updatedChat = { ...prevChat, messages };
       return updatedChat;
     });
-  }, [messages]);
+  }, [messages, setChat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -234,10 +119,6 @@ export default function ChatView({
       }
     }
   };
-
-  if (error) {
-    console.log('Error:', error);
-  }
 
   const onStopGoose = () => {
     stop();
@@ -267,9 +148,6 @@ export default function ChatView({
       } else {
         setMessages([]);
       }
-      // Interruption occured after a tool has completed, but no assistant reply
-      // handle his if we want to popup a message too the user
-      // } else if (lastMessage && isUserMessage(lastMessage) && isToolResponse) {
     } else if (!isUserMessage(lastMessage)) {
       // the last message was an assistant message
       // check if we have any tool requests or tool confirmation requests
@@ -328,8 +206,7 @@ export default function ChatView({
     }
   };
 
-  // Filter out standalone tool response messages for rendering
-  // They will be shown as part of the tool invocation in the assistant message
+  // Filter out standalone tool response messages
   const filteredMessages = messages.filter((message) => {
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
@@ -372,7 +249,7 @@ export default function ChatView({
         return history;
       }, [])
       .reverse();
-  }, [filteredMessages, isUserMessage]);
+  }, [filteredMessages]);
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -380,77 +257,92 @@ export default function ChatView({
         <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
 
-      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-black mt-0 border-none relative overflow-hidden">
         {messages.length === 0 ? (
-          <Splash
-            append={(text) => append(createUserMessage(text))}
-            activities={botConfig?.activities || null}
-          />
+          <>
+            <Splash
+              append={(text) => append(createUserMessage(text))}
+              activities={botConfig?.activities || null}
+            />
+            <div className="absolute bottom-0 left-0 right-0 px-8 pb-4 bg-transparent">
+              <Input
+                handleSubmit={handleSubmit}
+                isLoading={isLoading}
+                onStop={onStopGoose}
+                commandHistory={commandHistory}
+                initialValue={_input}
+                hasMessages={hasMessages}
+                setView={setView}
+              />
+            </div>
+          </>
         ) : (
-          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-            <SearchView scrollAreaRef={scrollRef}>
-              {filteredMessages.map((message, index) => (
-                <div key={message.id || index} className="mt-4 px-4">
-                  {isUserMessage(message) ? (
-                    <UserMessage message={message} />
-                  ) : (
-                    <GooseMessage
-                      messageHistoryIndex={chat?.messageHistoryIndex}
-                      message={message}
-                      messages={messages}
-                      metadata={messageMetadata[message.id || '']}
-                      append={(text) => append(createUserMessage(text))}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
+          <>
+            <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
+              <div className="min-h-full pb-32">
+                <SearchView scrollAreaRef={scrollRef}>
+                  {filteredMessages.map((message, index) => (
+                    <div key={message.id || index} className="mt-4 px-4">
+                      {isUserMessage(message) ? (
+                        <UserMessage message={message} />
+                      ) : (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          metadata={messageMetadata[message.id || '']}
+                          append={(text) => append(createUserMessage(text))}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </SearchView>
+                {error && (
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                      {error.message || 'Honk! Goose experienced an error while responding'}
+                    </div>
+                    <div
+                      className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                      onClick={async () => {
+                        const lastUserMessage = messages.reduceRight(
+                          (found, m) => found || (m.role === 'user' ? m : null),
+                          null as Message | null
+                        );
+                        if (lastUserMessage) {
+                          append(lastUserMessage);
+                        }
                       }}
-                    />
-                  )}
-                </div>
-              ))}
-            </SearchView>
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                </div>
-                <div
-                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                  onClick={async () => {
-                    // Find the last user message
-                    const lastUserMessage = messages.reduceRight(
-                      (found, m) => found || (m.role === 'user' ? m : null),
-                      null as Message | null
-                    );
-                    if (lastUserMessage) {
-                      append(lastUserMessage);
-                    }
-                  }}
-                >
-                  Retry Last Message
-                </div>
+                    >
+                      Retry Last Message
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            <div className="block h-16" />
-          </ScrollArea>
-        )}
+            </ScrollArea>
 
-        <div className="relative">
-          {isLoading && <LoadingGoose />}
-          <Input
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={_input}
-          />
-          <BottomMenu hasMessages={hasMessages} setView={setView} />
-        </div>
+            <div className="absolute bottom-0 left-0 right-0 px-8 pb-4 bg-transparent">
+              {isLoading && <LoadingGoose />}
+              <Input
+                handleSubmit={handleSubmit}
+                isLoading={isLoading}
+                onStop={onStopGoose}
+                commandHistory={commandHistory}
+                initialValue={_input}
+                hasMessages={hasMessages}
+                setView={setView}
+              />
+            </div>
+          </>
+        )}
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
 
-      {/* Deep Link Modal */}
       {showShareableBotModal && generatedBotConfig && (
         <DeepLinkModal
           botConfig={generatedBotConfig}
@@ -467,3 +359,5 @@ export default function ChatView({
     </div>
   );
 }
+
+export default ChatView;
