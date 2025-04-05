@@ -12,7 +12,6 @@ use tracing::{debug, error, instrument, warn};
 
 use super::agent::SessionConfig;
 use super::capabilities::get_parameter_names;
-use super::detect_read_only_tools;
 use super::extension::ToolInfo;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
@@ -20,6 +19,9 @@ use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
 use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
+use crate::permission::detect_read_only_tools;
+use crate::permission::Permission;
+use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
@@ -38,8 +40,8 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 pub struct SummarizeAgent {
     capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
-    confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
+    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
 }
 
@@ -159,8 +161,8 @@ impl Agent for SummarizeAgent {
     }
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(&self, request_id: String, confirmed: bool) {
-        if let Err(e) = self.confirmation_tx.send((request_id, confirmed)).await {
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation) {
+        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
     }
@@ -321,9 +323,9 @@ impl Agent for SummarizeAgent {
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
                                             // Loop the recv until we have a matched req_id due to potential duplicate messages.
-                                            while let Some((req_id, confirmed)) = rx.recv().await {
+                                            while let Some((req_id, tool_confirmation)) = rx.recv().await {
                                                 if req_id == request.id {
-                                                    if confirmed {
+                                                    if tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow {
                                                         // User approved - dispatch the tool call
                                                         let output = capabilities.dispatch_tool_call(tool_call).await;
                                                         message_tool_response = message_tool_response.with_tool_response(

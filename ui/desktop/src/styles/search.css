@@ -1,14 +1,15 @@
 /* Search highlight styles */
-mark {
+.search-highlight {
   background-color: rgba(255, 213, 0, 0.5);
   color: var(--text-standard);
   padding: 0;
   border-radius: 2px;
 }
 
-mark.current {
+.search-highlight.current {
   background-color: rgba(252, 213, 3, 0.6);
   box-shadow: inset 0 0 0 1px var(--text-prominent);
+  z-index: 2;
 }
 
 @keyframes expandDown {

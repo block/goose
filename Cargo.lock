@@ -2480,6 +2480,7 @@ dependencies = [
  "mcp-core",
  "mcp-server",
  "once_cell",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -3572,6 +3573,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "url",
+ "utoipa",
 ]
 
 [[package]]
@@ -4789,6 +4791,7 @@ dependencies = [
  "cookie",
  "cookie_store",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.8",
