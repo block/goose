@@ -22,11 +22,19 @@ set -eu
 #   ** other provider specific environment variables (eg. DATABRICKS_HOST)
 ##############################################################################
 
-# --- 1) Check for curl ---
+# --- 1) Check for dependencies ---
+# Check for curl
 if ! command -v curl >/dev/null 2>&1; then
   echo "Error: 'curl' is required to download Goose. Please install curl and try again."
   exit 1
 fi
+
+# Check for tar
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Error: 'tar' is required to download Goose. Please install tar and try again."
+  exit 1
+fi
+
 
 # --- 2) Variables ---
 REPO="block/goose"
@@ -88,7 +96,24 @@ fi
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Extracting $FILE to temporary directory..."
-tar -xjf "$FILE" -C "$TMP_DIR"
+set +e  # Disable immediate exit on error
+tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
+tar_exit_code=$?
+set -e  # Re-enable immediate exit on error
+
+# Check for tar errors
+if [ $tar_exit_code -ne 0 ]; then
+  if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
+    echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed. See details below:"
+  else
+    echo "Error: Failed to extract $FILE. See details below:"
+  fi
+  cat tar_error.log
+  rm tar_error.log
+  exit 1
+fi
+rm tar_error.log
+
 rm "$FILE" # clean up the downloaded tarball
 
 # Make binary executable
