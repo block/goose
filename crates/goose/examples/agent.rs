@@ -3,21 +3,23 @@ use futures::StreamExt;
 use goose::agents::{AgentFactory, ExtensionConfig};
 use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::message::Message;
-use goose::providers::databricks::DatabricksProvider;
+use goose::providers::githubcopilot::GithubCopilotProvider;
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+
     // Setup a model provider from env vars
     let _ = dotenv();
 
-    let provider = Box::new(DatabricksProvider::default());
+    let provider = Box::new(GithubCopilotProvider::default());
 
     // Setup an agent with the developer extension
     let mut agent = AgentFactory::create("reference", provider).expect("default should exist");
 
     let config = ExtensionConfig::stdio(
-        "developer",
-        "./target/debug/developer",
+        "mcp-server",
+        "./target/debug/mcp-server",
         DEFAULT_EXTENSION_DESCRIPTION,
         DEFAULT_EXTENSION_TIMEOUT,
     );
