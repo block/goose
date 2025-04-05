@@ -43,6 +43,39 @@ export async function activateExtension({
   }
 }
 
+type RetryOptions = {
+  retries?: number;
+  delayMs?: number;
+  shouldRetry?: (error: unknown, attempt: number) => boolean;
+  backoffFactor?: number; // multiplier for exponential backoff
+};
+
+async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const { retries = 3, delayMs = 1000, backoffFactor = 1.5, shouldRetry = () => true } = options;
+
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retries) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      attempt++;
+
+      if (attempt > retries || !shouldRetry(err, attempt)) {
+        break;
+      }
+
+      const waitTime = delayMs * Math.pow(backoffFactor, attempt - 1);
+      console.warn(`Retry attempt ${attempt} failed. Retrying in ${waitTime}ms...`, err);
+      await new Promise((res) => setTimeout(res, waitTime));
+    }
+  }
+
+  throw lastError;
+}
+
 interface AddToAgentOnStartupProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
@@ -55,56 +88,36 @@ export async function addToAgentOnStartup({
   addToConfig,
   extensionConfig,
 }: AddToAgentOnStartupProps): Promise<void> {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000; // 1 second delay between retries
+  try {
+    await retryWithBackoff(
+      () => addToAgent(extensionConfig, { silent: true, showEscMessage: false }),
+      {
+        retries: 3,
+        delayMs: 1000,
+        shouldRetry: (error: any) =>
+          error.message &&
+          (error.message.includes('428') ||
+            error.message.includes('Precondition Required') ||
+            error.message.includes('Agent is not initialized')),
+      }
+    );
+  } catch (finalError) {
+    toastService.configure({ silent: false });
+    toastService.error({
+      title: extensionConfig.name,
+      msg: 'Extension failed to start and will be disabled.',
+      traceback: finalError,
+    });
 
-  let retries = 0;
-
-  while (retries <= MAX_RETRIES) {
     try {
-      // Use silent mode for startup
-      await addToAgent(extensionConfig, { silent: true, showEscMessage: false });
-      // If successful, break out of the retry loop
-      break;
-    } catch (error) {
-      console.log(`Attempt ${retries + 1} failed when adding extension to agent:`, error);
-
-      // Check if this is a 428 error (agent not initialized)
-      const is428Error =
-        error.message &&
-        (error.message.includes('428') ||
-          error.message.includes('Precondition Required') ||
-          error.message.includes('Agent is not initialized'));
-
-      // retry adding a few times if agent is spinning up
-      if (is428Error && retries < MAX_RETRIES) {
-        // This is a 428 error and we have retries left
-        retries++;
-        console.log(
-          `Agent not initialized yet. Retrying in ${RETRY_DELAY}ms... (${retries}/${MAX_RETRIES})`
-        );
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-        continue;
-      }
-
-      // Either not a 428 error or we've exhausted retries
-      console.error('Failed to add to agent after retries or due to other error:', error);
-
-      // update config with enabled = false because we weren't able to install the extension
-      try {
-        await toggleExtension({
-          toggle: 'toggleOff',
-          extensionConfig,
-          addToConfig,
-          toastOptions: { silent: true }, // on startup, let extensions fail silently
-        });
-      } catch (toggleError) {
-        console.error('Failed to toggle extension off after agent error:', toggleError);
-      }
-
-      // Rethrow the error to inform the caller
-      throw error;
+      await toggleExtension({
+        toggle: 'toggleOff',
+        extensionConfig,
+        addToConfig,
+        toastOptions: { silent: true },
+      });
+    } catch (toggleErr) {
+      console.error('Failed to toggle off after error:', toggleErr);
     }
   }
 }
