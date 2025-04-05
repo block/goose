@@ -6,7 +6,7 @@ import {
 } from '../../components/ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
-import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
+import { FolderOpen, Moon, Sliders, Sun, Clock } from 'lucide-react';
 import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
@@ -243,6 +243,20 @@ export default function MoreMenu({
                 icon={<Send className="w-4 h-4" />}
               >
                 Make Agent from this session
+              </MenuButton>
+
+              {/* Schedule Task */}
+              <MenuButton
+                onClick={() => {
+                  setOpen(false);
+                  // Signal to ChatView that we want to schedule a task
+                  window.electron.logInfo('Schedule Task button clicked');
+                  window.dispatchEvent(new CustomEvent('schedule-task'));
+                }}
+                subtitle="Schedule the last command to run repeatedly"
+                icon={<Clock className="w-4 h-4" />}
+              >
+                Schedule Task
               </MenuButton>
 
               <MenuButton
