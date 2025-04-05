@@ -101,17 +101,19 @@ tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
 tar_exit_code=$?
 set -e  # Re-enable immediate exit on error
 
+# Check for tar errors
 if [ $tar_exit_code -ne 0 ]; then
-  if grep -q "bzip2" tar_error.log; then
-    echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed."
+  if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
+    echo "Error: Failed to extract $FILE. 'bzip2' is required but not installed. See details below:"
   else
     echo "Error: Failed to extract $FILE. See details below:"
-    cat tar_error.log
   fi
+  cat tar_error.log
   rm tar_error.log
   exit 1
 fi
 rm tar_error.log
+
 rm "$FILE" # clean up the downloaded tarball
 
 # Make binary executable
