@@ -28,7 +28,20 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Run the agent server
-    Agent,
+    /// 
+    /// The server can be configured to bind to a specific host/interface and port in three ways:
+    /// 1. Command-line arguments: --host and --port (if provided)
+    /// 2. Environment variables: GOOSE__HOST and GOOSE__PORT (if CLI args not provided)
+    /// 3. Default values: 127.0.0.1:3000 (if neither CLI args nor env vars are provided)
+    Agent {
+        /// Host or IP address to bind the server to
+        #[arg(long)]
+        host: Option<String>,
+        
+        /// Port the server should listen on
+        #[arg(long)]
+        port: Option<u16>,
+    },
     /// Run the MCP server
     Mcp {
         /// Name of the MCP server type
@@ -41,8 +54,8 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Agent => {
-            commands::agent::run().await?;
+        Commands::Agent { host, port } => {
+            commands::agent::run(host.as_deref(), *port).await?;
         }
         Commands::Mcp { name } => {
             commands::mcp::run(name).await?;
