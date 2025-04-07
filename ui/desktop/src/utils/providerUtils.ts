@@ -1,5 +1,5 @@
 import { getApiUrl, getSecretKey } from '../config';
-import { loadAndAddStoredExtensions } from '../extensions';
+import { FullExtensionConfig, loadAndAddStoredExtensions } from '../extensions';
 import { GOOSE_PROVIDER, GOOSE_MODEL } from '../env_vars';
 import { Model } from '../components/settings/models/ModelContext';
 import { gooseModels } from '../components/settings/models/GooseModels';
@@ -12,6 +12,9 @@ import {
 } from '../components/settings_v2/extensions';
 import { extractExtensionConfig } from '../components/settings_v2/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
+// TODO: remove when removing migration logic
+import { toastService } from '../toasts';
+import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
 
 export function getStoredProvider(config: any): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
@@ -59,7 +62,7 @@ Some extensions are builtin, such as Developer and Memory, while
 `;
 
 // Desktop-specific system prompt extension when a bot is in play
-const desktopPromptBot = `You are a helpful agent. 
+const desktopPromptBot = `You are a helpful agent.
 You are being accessed through the Goose Desktop application, pre configured with instructions as requested by a human.
 
 The user is interacting with you through a graphical user interface with the following features:
@@ -72,6 +75,79 @@ It is VERY IMPORTANT that you take note of the provided instructions, also check
 You can also validate your output after you have generated it to ensure it meets the requirements of the user.
 There may be (but not always) some tools mentioned in the instructions which you can check are available to this instance of goose (and try to help the user if they are not or find alternatives).
 `;
+
+/**
+ * Migrates extensions from localStorage to config.yaml (settings v2)
+ * This function handles the migration from settings v1 to v2 by:
+ * 1. Reading extensions from localStorage
+ * 2. Adding non-builtin extensions to config.yaml
+ * 3. Marking the migration as complete
+ *
+ * NOTE: This logic can be removed eventually when enough versions have passed
+ * We leave the existing user settings in localStorage, in case users downgrade
+ * or things need to be reverted.
+ *
+ * @param addExtension Function to add extension to config.yaml
+ */
+export const migrateExtensionsToSettingsV2 = async () => {
+  console.log('need to perform extension migration');
+
+  const userSettingsStr = localStorage.getItem('user_settings');
+  let localStorageExtensions: FullExtensionConfig[] = [];
+
+  try {
+    if (userSettingsStr) {
+      const userSettings = JSON.parse(userSettingsStr);
+      localStorageExtensions = userSettings.extensions ?? [];
+    }
+  } catch (error) {
+    console.error('Failed to parse user settings:', error);
+  }
+
+  const migrationErrors: { name: string; error: unknown }[] = [];
+
+  for (const extension of localStorageExtensions) {
+    // NOTE: skip migrating builtin types since there was a format change
+    // instead we rely on initializeBundledExtensions & syncBundledExtensions
+    // to handle updating / creating the new builtins to the config.yaml
+    // For all other extension types we migrate them to config.yaml
+    if (extension.type !== 'builtin') {
+      console.log(`Migrating extension ${extension.name} to config.yaml`);
+      try {
+        // manually import apiAddExtension to set throwOnError true
+        const query: ExtensionQuery = {
+          name: extension.name,
+          config: extension,
+          enabled: extension.enabled,
+        };
+        await apiAddExtension({
+          body: query,
+          throwOnError: true,
+        });
+      } catch (err) {
+        console.error(`Failed to migrate extension ${extension.name}:`, err);
+        migrationErrors.push({
+          name: extension.name,
+          error: `failed migration with ${JSON.stringify(err)}`,
+        });
+      }
+    }
+  }
+
+  if (migrationErrors.length === 0) {
+    localStorage.setItem('configVersion', '2');
+    console.log('Extension migration complete. Config version set to 2.');
+  } else {
+    const errorSummaryStr = migrationErrors
+      .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
+      .join('\n');
+    toastService.error({
+      title: 'Config Migration Error',
+      msg: 'There was a problem updating your config file',
+      traceback: errorSummaryStr,
+    });
+  }
+};
 
 export const initializeSystem = async (
   provider: string,
@@ -124,6 +200,23 @@ export const initializeSystem = async (
         console.warn('Extension helpers not provided in alpha mode');
         return;
       }
+
+      // NOTE: remove when we want to stop migration logic
+      // Check if we need to migrate extensions from localStorage to config.yaml
+      const configVersion = localStorage.getItem('configVersion');
+      const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 2;
+
+      console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
+      if (shouldMigrateExtensions) {
+        await migrateExtensionsToSettingsV2();
+      }
+
+      /* NOTE:
+       * If we've migrated and this is a version update, refreshedExtensions should be > 0
+       *  and we'll want to syncBundledExtensions to ensure any new extensions are added.
+       * Otherwise if the user has never opened goose - refreshedExtensions will be 0
+       *  and we want to fall into the case to initializeBundledExtensions.
+       */
 
       // Initialize or sync built-in extensions into config.yaml
       let refreshedExtensions = await options.getExtensions(false);
