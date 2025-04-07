@@ -12,6 +12,9 @@ import {
 } from '../components/settings_v2/extensions';
 import { extractExtensionConfig } from '../components/settings_v2/extensions/utils';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
+// TODO: remove when removing migration logic
+import { toastService } from '../toasts';
+import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
 
 export function getStoredProvider(config: any): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
@@ -86,9 +89,7 @@ There may be (but not always) some tools mentioned in the instructions which you
  *
  * @param addExtension Function to add extension to config.yaml
  */
-export const migrateExtensionsToSettingsV2 = async (
-  addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
-) => {
+export const migrateExtensionsToSettingsV2 = async () => {
   console.log('need to perform extension migration');
 
   const userSettingsStr = localStorage.getItem('user_settings');
@@ -103,6 +104,8 @@ export const migrateExtensionsToSettingsV2 = async (
     console.error('Failed to parse user settings:', error);
   }
 
+  const migrationErrors: { name: string; error: unknown }[] = [];
+
   for (const extension of localStorageExtensions) {
     // NOTE: skip migrating builtin types since there was a format change
     // instead we rely on initializeBundledExtensions & syncBundledExtensions
@@ -111,15 +114,39 @@ export const migrateExtensionsToSettingsV2 = async (
     if (extension.type !== 'builtin') {
       console.log(`Migrating extension ${extension.name} to config.yaml`);
       try {
-        await addExtension(extension.name, extension, extension.enabled);
+        // manually import apiAddExtension to set throwOnError true
+        const query: ExtensionQuery = {
+          name: extension.name,
+          config: extension,
+          enabled: extension.enabled,
+        };
+        await apiAddExtension({
+          body: query,
+          throwOnError: true,
+        });
       } catch (err) {
         console.error(`Failed to migrate extension ${extension.name}:`, err);
+        migrationErrors.push({
+          name: extension.name,
+          error: `failed migration with ${JSON.stringify(err)}`,
+        });
       }
     }
   }
 
-  // set migration as complete
-  localStorage.setItem('configVersion', '2');
+  if (migrationErrors.length === 0) {
+    localStorage.setItem('configVersion', '2');
+    console.log('Extension migration complete. Config version set to 2.');
+  } else {
+    const errorSummaryStr = migrationErrors
+      .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
+      .join('\n');
+    toastService.error({
+      title: 'Config Migration Error',
+      msg: 'Extension failed to start and will be disabled.',
+      traceback: errorSummaryStr,
+    });
+  }
 };
 
 export const initializeSystem = async (
@@ -181,7 +208,7 @@ export const initializeSystem = async (
 
       console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
       if (shouldMigrateExtensions) {
-        await migrateExtensionsToSettingsV2(options.addExtension);
+        await migrateExtensionsToSettingsV2();
       }
 
       /* NOTE:
