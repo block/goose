@@ -143,7 +143,7 @@ export const migrateExtensionsToSettingsV2 = async () => {
       .join('\n');
     toastService.error({
       title: 'Config Migration Error',
-      msg: 'Extension failed to start and will be disabled.',
+      msg: 'There was a problem updating your config file',
       traceback: errorSummaryStr,
     });
   }
