@@ -240,6 +240,10 @@
       background: var(--dark-grey-60);
     }
   }
+
+  body {
+    background-color: var(--background-app);
+  }
 }
 
 @layer components {
