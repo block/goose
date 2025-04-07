@@ -12,7 +12,7 @@ use super::extension::{ExtensionConfig, ExtensionResult};
 use crate::providers::base::Provider;
 use crate::session;
 use crate::{message::Message, permission::PermissionConfirmation};
-use mcp_core::{prompt::Prompt, protocol::GetPromptResult, Content, ToolResult, Tool};
+use mcp_core::{prompt::Prompt, protocol::GetPromptResult, Content, Tool, ToolResult};
 
 /// Session configuration for an agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
