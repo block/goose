@@ -1,6 +1,7 @@
-import React, { useState, useEffect, PropsWithChildren } from 'react';
+import React, { useState, useEffect, PropsWithChildren, useCallback } from 'react';
 import { SearchBar } from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
+import { debounce } from 'lodash';
 import '../../styles/search.css';
 
 /**
@@ -14,6 +15,7 @@ interface SearchViewProps {
 /**
  * SearchView wraps content in a searchable container with a search bar that appears
  * when Cmd/Ctrl+F is pressed. Supports case-sensitive search and result navigation.
+ * Features debounced search for better performance with large content.
  */
 export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   className = '',
@@ -27,14 +29,38 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   const highlighterRef = React.useRef<SearchHighlighter | null>(null);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const lastSearchRef = React.useRef<{ term: string; caseSensitive: boolean }>({
+    term: '',
+    caseSensitive: false,
+  });
 
-  // Clean up highlighter on unmount
+  // Create debounced highlight function
+  const debouncedHighlight = useCallback(
+    debounce((term: string, caseSensitive: boolean, highlighter: SearchHighlighter) => {
+      const highlights = highlighter.highlight(term, caseSensitive);
+      const count = highlights.length;
+
+      if (count > 0) {
+        setSearchResults({
+          currentIndex: 1,
+          count,
+        });
+        highlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
+      } else {
+        setSearchResults(null);
+      }
+    }, 150),
+    []
+  );
+
+  // Clean up highlighter and debounced functions on unmount
   useEffect(() => {
     return () => {
       if (highlighterRef.current) {
         highlighterRef.current.destroy();
         highlighterRef.current = null;
       }
+      debouncedHighlight.cancel();
     };
   }, []);
 
@@ -54,10 +80,14 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   /**
    * Handles the search operation when a user enters a search term.
+   * Uses debouncing to prevent excessive highlighting operations.
    * @param term - The text to search for
    * @param caseSensitive - Whether to perform a case-sensitive search
    */
   const handleSearch = (term: string, caseSensitive: boolean) => {
+    // Store the latest search parameters
+    lastSearchRef.current = { term, caseSensitive };
+
     if (!term) {
       setSearchResults(null);
       if (highlighterRef.current) {
@@ -71,29 +101,25 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
     if (!highlighterRef.current) {
       highlighterRef.current = new SearchHighlighter(container, (count) => {
-        if (count > 0) {
-          setSearchResults((prev) => ({
-            currentIndex: prev?.currentIndex || 1,
-            count,
-          }));
-        } else {
-          setSearchResults(null);
+        // Only update if this is still the latest search
+        if (
+          lastSearchRef.current.term === term &&
+          lastSearchRef.current.caseSensitive === caseSensitive
+        ) {
+          if (count > 0) {
+            setSearchResults((prev) => ({
+              currentIndex: prev?.currentIndex || 1,
+              count,
+            }));
+          } else {
+            setSearchResults(null);
+          }
         }
       });
     }
 
-    const highlights = highlighterRef.current.highlight(term, caseSensitive);
-    const count = highlights.length;
-
-    if (count > 0) {
-      setSearchResults({
-        currentIndex: 1,
-        count,
-      });
-      highlighterRef.current.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
-    } else {
-      setSearchResults(null);
-    }
+    // Debounce the highlight operation
+    debouncedHighlight(term, caseSensitive, highlighterRef.current);
   };
 
   /**
@@ -127,7 +153,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   };
 
   /**
-   * Closes the search interface and clears all highlights.
+   * Closes the search interface and cleans up highlights.
    */
   const handleCloseSearch = () => {
     setIsSearchVisible(false);
@@ -135,6 +161,8 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     if (highlighterRef.current) {
       highlighterRef.current.clearHighlights();
     }
+    // Cancel any pending highlight operations
+    debouncedHighlight.cancel();
   };
 
   return (
