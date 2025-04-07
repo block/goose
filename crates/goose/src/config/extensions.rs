@@ -55,7 +55,13 @@ impl ExtensionManager {
         };
 
         // Return all entries whether or not they are enabled
-        Ok(extensions.get(key).map(|entry| entry.config.clone()))
+        Ok(extensions.get(key).and_then(|entry| {
+            if entry.enabled {
+                Some(entry.config.clone())
+            } else {
+                None
+            }
+        }))
     }
 
     pub fn get_config_by_name(name: &str) -> Result<Option<ExtensionConfig>> {

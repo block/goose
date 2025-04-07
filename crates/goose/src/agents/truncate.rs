@@ -158,7 +158,7 @@ impl TruncateAgent {
         let result = capabilities
             .add_extension(config)
             .await
-            .map(|_| vec![Content::text("Extension installed successfully")])
+            .map(|_| vec![Content::text(format!("The extension '{}' has been installed successfully", extension_name))])
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
         (request_id, result)
@@ -600,11 +600,21 @@ impl Agent for TruncateAgent {
                                     output,
                                 );
                             }
+                            
+                            // Check if any install results had errors before processing them
+                            let all_successful = !install_results.iter().any(|(_, result)| result.is_err());
+                            
                             for (request_id, output) in install_results {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request_id,
                                     output
                                 );
+                            }
+                            
+                            // Update system prompt and tools if all installations were successful
+                            if all_successful {
+                                system_prompt = capabilities.get_system_prompt().await;
+                                tools = capabilities.get_prefixed_tools().await?;
                             }
                         }
 
