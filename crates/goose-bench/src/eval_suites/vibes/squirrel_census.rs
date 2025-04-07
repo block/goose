@@ -170,6 +170,7 @@ After writing the script, run it using python3 and show the results. Do not ask 
         ExtensionRequirements {
             builtin: vec!["developer".to_string()],
             external: Vec::new(),
+            remote: Vec::new(),
         }
     }
 }

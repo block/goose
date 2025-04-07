@@ -27,6 +27,7 @@ pub enum EvaluationMetric {
 pub struct ExtensionRequirements {
     pub builtin: Vec<String>,
     pub external: Vec<String>,
+    pub remote: Vec<String>,
 }
 
 #[async_trait]
@@ -54,6 +55,7 @@ pub trait Evaluation: Send + Sync {
         ExtensionRequirements {
             builtin: Vec::new(),
             external: Vec::new(),
+            remote: Vec::new(),
         }
     }
 }

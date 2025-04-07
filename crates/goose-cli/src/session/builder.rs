@@ -14,6 +14,7 @@ pub async fn build_session(
     identifier: Option<Identifier>,
     resume: bool,
     extensions: Vec<String>,
+    remote_extensions: Vec<String>,
     builtins: Vec<String>,
     debug: bool,
 ) -> Session {
@@ -121,6 +122,14 @@ pub async fn build_session(
     // Add extensions if provided
     for extension_str in extensions {
         if let Err(e) = session.add_extension(extension_str).await {
+            eprintln!("Failed to start extension: {}", e);
+            process::exit(1);
+        }
+    }
+
+    // Add remote extensions if provided
+    for extension_str in remote_extensions {
+        if let Err(e) = session.add_remote_extension(extension_str).await {
             eprintln!("Failed to start extension: {}", e);
             process::exit(1);
         }
