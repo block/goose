@@ -619,8 +619,16 @@ impl Session {
                                     .item(true, "Yes, for this session", "Enable the extension for this session")
                                     .item(false, "No", "Do not enable the extension")
                                     .interact()?;
-                                // TODO: Use PermissionConfirmation struct
-                                self.agent.handle_confirmation(enable_extension_request.id.clone(), confirmed).await;
+                                let permission = if confirmed {
+                                    Permission::AllowOnce
+                                } else {
+                                    Permission::DenyOnce
+                                };
+                                self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
+                                    principal_name: "extension_name_placeholder".to_string(),
+                                    principal_type: PrincipalType::Extension,
+                                    permission,
+                                },).await;
                             }
                             // otherwise we have a model/tool to render
                             else {

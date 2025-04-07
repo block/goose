@@ -15,7 +15,6 @@ use super::types::ToolResultReceiver;
 use super::Agent;
 use crate::agents::capabilities::{get_parameter_names, Capabilities};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult};
-use crate::agents::ToolPermissionStore;
 use crate::config::{Config, ExtensionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::permission::detect_read_only_tools;
@@ -160,7 +159,12 @@ impl TruncateAgent {
         let result = capabilities
             .add_extension(config)
             .await
-            .map(|_| vec![Content::text(format!("The extension '{}' has been installed successfully", extension_name))])
+            .map(|_| {
+                vec![Content::text(format!(
+                    "The extension '{}' has been installed successfully",
+                    extension_name
+                ))]
+            })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
         (request_id, result)
@@ -533,9 +537,9 @@ impl Agent for TruncateAgent {
                                     yield confirmation;
 
                                     let mut rx = self.confirmation_rx.lock().await;
-                                    while let Some((req_id, confirmed)) = rx.recv().await {
+                                    while let Some((req_id, extension_confirmation)) = rx.recv().await {
                                         if req_id == request.id {
-                                            if confirmed {
+                                            if extension_confirmation.permission == Permission::AllowOnce || extension_confirmation.permission == Permission::AlwaysAllow {
                                                 let extension_name = tool_call.arguments.get("extension_name")
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("")
@@ -569,9 +573,6 @@ impl Agent for TruncateAgent {
                                         let mut rx = self.confirmation_rx.lock().await;
                                         while let Some((req_id, tool_confirmation)) = rx.recv().await {
                                             if req_id == request.id {
-                                                // Store the user's response with 30-day expiration
-                                                let mut store = ToolPermissionStore::load()?;
-                                                store.record_permission(request, confirmed, Some(Duration::from_secs(30 * 24 * 60 * 60)))?;
                                                 let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                                 if confirmed {
                                                     // Add this tool call to the futures collection
@@ -602,17 +603,17 @@ impl Agent for TruncateAgent {
                                     output,
                                 );
                             }
-                            
+
                             // Check if any install results had errors before processing them
                             let all_successful = !install_results.iter().any(|(_, result)| result.is_err());
-                            
+
                             for (request_id, output) in install_results {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request_id,
                                     output
                                 );
                             }
-                            
+
                             // Update system prompt and tools if all installations were successful
                             if all_successful {
                                 system_prompt = capabilities.get_system_prompt().await;

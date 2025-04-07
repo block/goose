@@ -54,7 +54,6 @@ impl ExtensionManager {
             Err(e) => return Err(e.into()),
         };
 
-        // Return all entries whether or not they are enabled
         Ok(extensions.get(key).and_then(|entry| {
             if entry.enabled {
                 Some(entry.config.clone())
