@@ -70,7 +70,7 @@ impl Default for PermissionManager {
 impl PermissionManager {
     /// Returns the global instance of the PermissionManager, initializing it if necessary.
     pub fn global() -> &'static PermissionManager {
-        GLOBAL_PERMISSION_MANAGER.get_or_init(PermissionManager::default)
+        GLOBAL_PERMISSION_MANAGER.get_or_init(|| PermissionManager::default())
     }
 
     /// Creates a new `PermissionManager` with a specified config path.
@@ -150,18 +150,12 @@ impl PermissionManager {
     /// Helper function to update a permission level for a specific tool in a given permission category.
     fn update_permission(&mut self, name: &str, principal_name: &str, level: PermissionLevel) {
         // Get or create a new PermissionConfig for the specified category
-        let permission_config = self.permission_map.entry(name.to_string()).or_default();
+        let permission_config = self
+            .permission_map
+            .entry(name.to_string())
+            .or_insert(PermissionConfig::default());
 
-        // Remove the principal from all existing lists to avoid duplicates
-        permission_config
-            .always_allow
-            .retain(|p| p != principal_name);
-        permission_config.ask_before.retain(|p| p != principal_name);
-        permission_config
-            .never_allow
-            .retain(|p| p != principal_name);
-
-        // Add the principal to the appropriate list
+        // Add the tool to the appropriate permission level list
         match level {
             PermissionLevel::AlwaysAllow => permission_config
                 .always_allow
