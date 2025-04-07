@@ -146,7 +146,7 @@
   {
     "id": "pieces",
     "name": "Pieces for Developers",
-    "description": "Provides access to your Pieces Long-Term Memory",
+    "description": "Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this.",
     "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
     "link": "https://pieces.app",
     "installation_notes": "You need to install Pieces first, and have this running.",
