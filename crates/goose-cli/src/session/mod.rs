@@ -6,6 +6,9 @@ mod prompt;
 mod thinking;
 
 pub use builder::build_session;
+use goose::permission::permission_confirmation::PrincipalType;
+use goose::permission::Permission;
+use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
@@ -629,7 +632,34 @@ impl Session {
 
                                 // Get confirmation from user
                                 let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
-                                self.agent.handle_confirmation(confirmation.id.clone(), confirmed).await;
+                                let permission = if confirmed {
+                                    Permission::AllowOnce
+                                } else {
+                                    Permission::DenyOnce
+                                };
+                                self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                    principal_name: "tool_name_placeholder".to_string(),
+                                    principal_type: PrincipalType::Tool,
+                                    permission,
+                                },).await;
+                            } else if let Some(MessageContent::EnableExtensionRequest(enable_extension_request)) = message.content.first() {
+                                output::hide_thinking();
+
+                                let prompt = "Goose would like to install the following extension, do you approve?".to_string();
+                                let confirmed = cliclack::select(prompt)
+                                    .item(true, "Yes, for this session", "Enable the extension for this session")
+                                    .item(false, "No", "Do not enable the extension")
+                                    .interact()?;
+                                let permission = if confirmed {
+                                    Permission::AllowOnce
+                                } else {
+                                    Permission::DenyOnce
+                                };
+                                self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
+                                    principal_name: "extension_name_placeholder".to_string(),
+                                    principal_type: PrincipalType::Extension,
+                                    permission,
+                                },).await;
                             }
                             // otherwise we have a model/tool to render
                             else {

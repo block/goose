@@ -55,6 +55,14 @@ interface ConfigProviderProps {
   children: React.ReactNode;
 }
 
+export class MalformedConfigError extends Error {
+  constructor() {
+    super('Check contents of ~/.config/goose/config.yaml');
+    this.name = 'MalformedConfigError';
+    Object.setPrototypeOf(this, MalformedConfigError.prototype);
+  }
+}
+
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
@@ -160,10 +168,20 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   };
 
   const getExtensions = async (forceRefresh = false): Promise<FixedExtensionEntry[]> => {
+    // If a refresh is forced, or we don't have providers yet
     if (forceRefresh || extensionsList.length === 0) {
-      // If a refresh is forced, or we don't have providers yet
-      const response = await apiGetExtensions();
-      const extensionResponse: ExtensionResponse = response.data;
+      const result = await apiGetExtensions();
+
+      if (result.response.status === 422) {
+        throw new MalformedConfigError();
+      }
+
+      if (result.error && !result.data) {
+        console.log(result.error);
+        return;
+      }
+
+      const extensionResponse: ExtensionResponse = result.data;
       setExtensionsList(extensionResponse.extensions);
       return extensionResponse.extensions;
     }

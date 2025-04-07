@@ -118,7 +118,10 @@ export default function ProviderConfigurationModal() {
   const handleDelete = async () => {
     // Check if this is the currently active provider
     try {
-      const providerModel = await getCurrentModelAndProvider({ readFromConfig: read });
+      const providerModel = await getCurrentModelAndProvider({
+        readFromConfig: read,
+        writeToConfig: upsert,
+      });
       if (currentProvider.name === providerModel.provider) {
         // It's the active provider - set state and show warning
         setIsActiveProvider(true);

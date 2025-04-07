@@ -73,9 +73,15 @@ export default function ExtensionsSection() {
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
     const extensionConfig = createExtensionConfig(formData);
-    await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-    handleModalClose();
-    await fetchExtensions();
+    try {
+      await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
+    } catch (error) {
+      // Even if activation fails, the extension is added as disabled, so we want to show it
+      console.error('Failed to activate extension:', error);
+    } finally {
+      handleModalClose();
+      await fetchExtensions();
+    }
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
