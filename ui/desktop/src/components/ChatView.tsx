@@ -13,6 +13,8 @@ import UserMessage from './UserMessage';
 import Splash from './Splash';
 import { SearchView } from './conversation/SearchView';
 import { DeepLinkModal } from './ui/DeepLinkModal';
+import { ScheduleTaskModal } from './ui/ScheduleTaskModal';
+import { Clock } from 'lucide-react';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
 import { BotConfig } from '../botConfig';
@@ -55,6 +57,13 @@ export default function ChatView({
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
   const [showShareableBotModal, setshowShareableBotModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduledTask, setScheduledTask] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [scheduledTaskInfo, setScheduledTaskInfo] = useState<{
+    duration: number;
+    interval: number;
+    startTime: number;
+  } | null>(null);
   const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
@@ -139,6 +148,86 @@ export default function ChatView({
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
   }, [append, chat.messages, setWaitingForAgentResponse]);
+
+  // Listen for schedule-task event
+  useEffect(() => {
+    const handleScheduleTask = () => {
+      window.electron.logInfo('Opening schedule task modal...');
+      setShowScheduleModal(true);
+    };
+
+    window.addEventListener('schedule-task', handleScheduleTask);
+
+    return () => {
+      window.removeEventListener('schedule-task', handleScheduleTask);
+    };
+  }, []);
+
+  // Handle scheduled task
+  const handleScheduleTask = (duration: number, interval: number) => {
+    // Clear any existing scheduled task
+    if (scheduledTask) {
+      clearInterval(scheduledTask);
+      setScheduledTask(null);
+    }
+
+    // Convert minutes to milliseconds
+    const durationMs = duration * 60 * 1000;
+    const intervalMs = interval * 60 * 1000;
+    const startTime = Date.now();
+    const endTime = startTime + durationMs;
+
+    window.electron.logInfo(`Scheduling task every ${interval} minutes for ${duration} minutes`);
+
+    // Show notification that task is scheduled
+    window.electron.showNotification({
+      title: 'Task Scheduled',
+      body: `Will run every ${interval} minutes for ${duration} minutes.`,
+    });
+
+    // Store task info for display
+    setScheduledTaskInfo({
+      duration,
+      interval,
+      startTime,
+    });
+
+    // Create the interval
+    const task = setInterval(() => {
+      // Check if we've exceeded the duration
+      if (Date.now() > endTime) {
+        clearInterval(task);
+        setScheduledTask(null);
+        setScheduledTaskInfo(null);
+        window.electron.showNotification({
+          title: 'Scheduled Task Complete',
+          body: 'The scheduled task has completed its duration.',
+        });
+        return;
+      }
+
+      // Execute the task - send a simple message to repeat the last task
+      window.electron.logInfo(`Executing scheduled task`);
+      append(createUserMessage('please do that task again'));
+
+      // Show notification
+      window.electron.showNotification({
+        title: 'Scheduled Task Executed',
+        body: 'Requested to repeat the last task',
+      });
+    }, intervalMs);
+
+    setScheduledTask(task);
+  };
+
+  // Cleanup scheduled task on unmount
+  useEffect(() => {
+    return () => {
+      if (scheduledTask) {
+        clearInterval(scheduledTask);
+      }
+    };
+  }, [scheduledTask]);
 
   // Listen for new messages and process agent response
   useEffect(() => {
@@ -381,6 +470,31 @@ export default function ChatView({
       </div>
 
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+        {scheduledTaskInfo && (
+          <div className="flex items-center justify-center py-1 px-4 bg-blue-500/10 border-b border-blue-500/20 text-sm">
+            <Clock className="w-4 h-4 mr-2 text-blue-500" />
+            <span>
+              Task scheduled: Running every {scheduledTaskInfo.interval} minutes for{' '}
+              {scheduledTaskInfo.duration} minutes.{' '}
+              <button
+                className="text-blue-500 hover:underline ml-2"
+                onClick={() => {
+                  if (scheduledTask) {
+                    clearInterval(scheduledTask);
+                    setScheduledTask(null);
+                    setScheduledTaskInfo(null);
+                    window.electron.showNotification({
+                      title: 'Scheduled Task Cancelled',
+                      body: 'The scheduled task has been cancelled.',
+                    });
+                  }
+                }}
+              >
+                Cancel
+              </button>
+            </span>
+          </div>
+        )}
         {messages.length === 0 ? (
           <Splash
             append={(text) => append(createUserMessage(text))}
@@ -462,6 +576,14 @@ export default function ChatView({
             setshowShareableBotModal(false);
             setGeneratedBotConfig(null);
           }}
+        />
+      )}
+
+      {/* Schedule Task Modal */}
+      {showScheduleModal && (
+        <ScheduleTaskModal
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={handleScheduleTask}
         />
       )}
     </div>
