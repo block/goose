@@ -627,9 +627,12 @@ app.whenReady().then(async () => {
     log.info('from renderer:', info);
   });
 
-  ipcMain.on('reload-app', () => {
-    app.relaunch();
-    app.exit(0);
+  ipcMain.on('reload-app', (event) => {
+    // Get the window that sent the event
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (window) {
+      window.reload();
+    }
   });
 
   let powerSaveBlockerId: number | null = null;
