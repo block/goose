@@ -152,7 +152,16 @@ impl PermissionManager {
         // Get or create a new PermissionConfig for the specified category
         let permission_config = self.permission_map.entry(name.to_string()).or_default();
 
-        // Add the tool to the appropriate permission level list
+        // Remove the principal from all existing lists to avoid duplicates
+        permission_config
+            .always_allow
+            .retain(|p| p != principal_name);
+        permission_config.ask_before.retain(|p| p != principal_name);
+        permission_config
+            .never_allow
+            .retain(|p| p != principal_name);
+
+        // Add the principal to the appropriate list
         match level {
             PermissionLevel::AlwaysAllow => permission_config
                 .always_allow
