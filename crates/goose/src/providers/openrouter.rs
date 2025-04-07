@@ -96,18 +96,20 @@ impl OpenRouterProvider {
                 .and_then(|m| m.as_str())
                 .unwrap_or("Unknown OpenRouter error");
 
-            let error_code = error_obj
-                .get("code")
-                .and_then(|c| c.as_str())
-                .unwrap_or("unknown");
+            let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
+
+            // Check for context length errors in the error message
+            if error_code == 400 && error_message.contains("maximum context length") {
+                return Err(ProviderError::ContextLengthExceeded(
+                    error_message.to_string(),
+                ));
+            }
 
             // Return appropriate error based on the OpenRouter error code
             match error_code {
-                "401" | "403" => {
-                    return Err(ProviderError::Authentication(error_message.to_string()))
-                }
-                "429" => return Err(ProviderError::RateLimitExceeded(error_message.to_string())),
-                "500" | "503" => return Err(ProviderError::ServerError(error_message.to_string())),
+                401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
+                429 => return Err(ProviderError::RateLimitExceeded(error_message.to_string())),
+                500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
                 _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
             }
         }
