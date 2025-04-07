@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getTools } from '../api';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
+import { TooltipWrapper } from './settings_v2/providers/subcomponents/buttons/TooltipWrapper';
+[TooltipWrapper];
 
 const SUGGESTED_MAX_TOOLS = 15;
 
@@ -40,7 +42,12 @@ export default function ToolCount() {
   } else {
     return (
       <div>
-        <ExclamationTriangleIcon color={'orange'} />
+        <TooltipWrapper
+          tooltipContent={`Too many tools can degrade goose's performance. Consider turning a few extensions off. Tool count: ${toolCount}`}
+          className="max-w-[200px] text-wrap whitespace-normal"
+        >
+          <ExclamationTriangleIcon color={'orange'} />
+        </TooltipWrapper>
       </div>
     );
   }
