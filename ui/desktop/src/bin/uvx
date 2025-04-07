@@ -87,3 +87,4 @@ log "Executing 'uvx' command with arguments: $*"
 uvx "$@" || log "Failed to execute 'uvx' with arguments: $*"
 
 log "uvx setup script completed successfully."
+ 
