@@ -7,10 +7,10 @@ use axum::{
 };
 use goose::config::Config;
 use goose::{agents::AgentFactory, model::ModelConfig, providers};
+use mcp_core::Tool;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use mcp_core::Tool;
 
 #[derive(Serialize)]
 struct VersionsResponse {
