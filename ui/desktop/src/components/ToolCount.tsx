@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getTools } from '../api';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
-import { TooltipWrapper } from './settings_v2/providers/subcomponents/buttons/TooltipWrapper';
-[TooltipWrapper];
+import { HammerIcon } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const SUGGESTED_MAX_TOOLS = 15;
 
@@ -34,20 +34,46 @@ export default function ToolCount() {
   }
 
   if (toolCount === null) {
-    return <div>Loading...</div>;
+    return <div>...</div>;
   }
 
   if (toolCount < SUGGESTED_MAX_TOOLS) {
-    return <div></div>;
+    return (
+      <div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex items-center justify-center p-0 border-0 bg-transparent cursor-pointer">
+              <HammerIcon size={16} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="p-3 w-auto" side="top">
+            <div className="space-y-1">
+              <p className="text-sm text-black dark:text-white">Tool count: {toolCount}</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
   } else {
     return (
       <div>
-        <TooltipWrapper
-          tooltipContent={`Too many tools can degrade goose's performance. Consider turning a few extensions off. Tool count: ${toolCount}`}
-          className="max-w-[200px] text-wrap whitespace-normal"
-        >
-          <ExclamationTriangleIcon color={'orange'} />
-        </TooltipWrapper>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="flex items-center justify-center p-0 border-0 bg-transparent cursor-pointer">
+              <ExclamationTriangleIcon color="orange" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="p-3" side="top">
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium">Warning: High Tool Count</h4>
+              <p className="text-xs text-black dark:text-white">
+                Too many tools can degrade goose's performance. Consider turning a few extensions
+                off.
+              </p>
+              <p className="text-xs font-medium">Tool count: {toolCount}</p>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     );
   }
