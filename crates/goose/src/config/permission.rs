@@ -151,7 +151,16 @@ impl PermissionManager {
         // Get or create a new PermissionConfig for the specified category
         let permission_config = self.permission_map.entry(name.to_string()).or_default();
 
-        // Add the tool to the appropriate permission level list
+        // Remove the principal from all existing lists to avoid duplicates
+        permission_config
+            .always_allow
+            .retain(|p| p != principal_name);
+        permission_config.ask_before.retain(|p| p != principal_name);
+        permission_config
+            .never_allow
+            .retain(|p| p != principal_name);
+
+        // Add the principal to the appropriate list
         match level {
             PermissionLevel::AlwaysAllow => permission_config
                 .always_allow
@@ -237,5 +246,30 @@ mod tests {
             manager.get_user_permission("tool6"),
             Some(PermissionLevel::NeverAllow)
         );
+    }
+
+    #[test]
+    fn test_permission_update_replaces_existing_level() {
+        let mut manager = create_test_permission_manager();
+
+        // Initially AlwaysAllow
+        manager.update_user_permission("tool7", PermissionLevel::AlwaysAllow);
+        assert_eq!(
+            manager.get_user_permission("tool7"),
+            Some(PermissionLevel::AlwaysAllow)
+        );
+
+        // Now change to NeverAllow
+        manager.update_user_permission("tool7", PermissionLevel::NeverAllow);
+        assert_eq!(
+            manager.get_user_permission("tool7"),
+            Some(PermissionLevel::NeverAllow)
+        );
+
+        // Ensure it's removed from other levels
+        let config = manager.permission_map.get(USER_PERMISSION).unwrap();
+        assert!(!config.always_allow.contains(&"tool7".to_string()));
+        assert!(!config.ask_before.contains(&"tool7".to_string()));
+        assert!(config.never_allow.contains(&"tool7".to_string()));
     }
 }
