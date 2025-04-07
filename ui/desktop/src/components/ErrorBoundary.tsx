@@ -1,4 +1,6 @@
 import React from 'react';
+import { Button } from './ui/button';
+import { AlertTriangle } from 'lucide-react';
 
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
@@ -12,17 +14,48 @@ window.addEventListener('error', (event) => {
   );
 });
 
+export function ErrorUI({ error }) {
+  return (
+    <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center gap-6 bg-background">
+      <div className="flex flex-col items-center gap-4 max-w-[600px] text-center px-6">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-2">
+          <AlertTriangle className="w-8 h-8 text-destructive" />
+        </div>
+
+        <h1 className="text-2xl font-semibold text-foreground">
+          Honk!
+        </h1>
+
+        <p className="text-base text-textSubtle mb-2">
+          An error occurred.
+        </p>
+
+        <pre className="text-destructive text-sm p-4 bg-muted rounded-lg w-full overflow-auto border border-border">
+          {error.message}
+        </pre>
+
+        <Button
+          className="flex items-center gap-2 flex-1 justify-center text-white dark:text-textSubtle bg-black dark:bg-white hover:bg-subtle"
+          onClick={() => window.electron.reloadApp()}
+        >
+          Reload
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { error: Error, hasError: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(_: Error) {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -32,13 +65,8 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-background">
-          <h1 className="text-xl font-semibold text-foreground">Something went wrong.</h1>
-        </div>
-      );
+      return <ErrorUI error={this.state.error} />
     }
-
     return this.props.children;
   }
 }

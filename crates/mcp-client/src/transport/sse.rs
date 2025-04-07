@@ -210,8 +210,13 @@ impl SseActor {
         }
 
         // mpsc channel closed => no more outgoing messages
-        tracing::error!("SseActor: outgoing message loop ended. Clearing pending requests.");
-        pending_requests.clear().await;
+        let pending = pending_requests.len().await;
+        if pending > 0 {
+            tracing::error!("SSE stream ended or encountered an error with {pending} unfulfilled pending requests.");
+            pending_requests.clear().await;
+        } else {
+            tracing::info!("SseActor shutdown cleanly. No pending requests.");
+        }
     }
 }
 

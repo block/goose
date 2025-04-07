@@ -118,6 +118,14 @@ impl PendingRequests {
     pub async fn clear(&self) {
         self.requests.write().await.clear();
     }
+
+    pub async fn len(&self) -> usize {
+        self.requests.read().await.len()
+    }
+
+    pub async fn is_empty(&self) -> bool {
+        self.len().await == 0
+    }
 }
 
 pub mod stdio;

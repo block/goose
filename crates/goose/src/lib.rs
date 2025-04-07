@@ -3,6 +3,7 @@ pub mod config;
 pub mod memory_condense;
 pub mod message;
 pub mod model;
+pub mod permission;
 pub mod prompt_template;
 pub mod providers;
 pub mod session;
