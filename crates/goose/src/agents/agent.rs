@@ -9,12 +9,10 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use super::extension::{ExtensionConfig, ExtensionResult};
-use crate::message::Message;
 use crate::providers::base::Provider;
 use crate::session;
-use mcp_core::prompt::Prompt;
-use mcp_core::protocol::GetPromptResult;
-use mcp_core::Tool;
+use crate::{message::Message, permission::PermissionConfirmation};
+use mcp_core::{prompt::Prompt, protocol::GetPromptResult, Content, ToolResult, Tool};
 
 /// Session configuration for an agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,7 +53,7 @@ pub trait Agent: Send + Sync {
     async fn extend_system_prompt(&mut self, extension: String);
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(&self, request_id: String, confirmed: bool);
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation);
 
     /// Override the system prompt with custom text
     async fn override_system_prompt(&mut self, template: String);
@@ -72,4 +70,7 @@ pub trait Agent: Send + Sync {
 
     /// Get a reference to the provider used by this agent
     async fn provider(&self) -> Arc<Box<dyn Provider>>;
+
+    /// Handle a tool result from the frontend
+    async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>);
 }

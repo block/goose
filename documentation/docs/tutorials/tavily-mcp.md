@@ -85,7 +85,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │
     // highlight-start
     ◆  What command should be run?
-    │  uvx mcp-tavily
+    │  npx -y tavily-mcp
     // highlight-end
     └ 
   ```  
@@ -104,7 +104,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │  tavily
     │
     ◇  What command should be run?
-    │  uvx mcp-tavily
+    │  npx -y tavily-mcp
     │
     // highlight-start
     ◆  Please set the timeout for this tool (in secs):

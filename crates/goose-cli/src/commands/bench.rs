@@ -85,6 +85,7 @@ async fn run_eval(
         None,
         false,
         requirements.external,
+        requirements.remote,
         requirements.builtin,
         false,
     )

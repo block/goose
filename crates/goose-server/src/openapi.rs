@@ -35,7 +35,7 @@ use mcp_core::tool::{Tool, ToolAnnotations};
         ConfigKey,
         Envs,
         Tool,
-    ToolAnnotations,
+        ToolAnnotations,
     ))
 )]
 pub struct ApiDoc;

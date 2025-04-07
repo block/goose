@@ -116,6 +116,9 @@
           "400": {
             "description": "Invalid request"
           },
+          "422": {
+            "description": "Could not serialize config.yaml"
+          },
           "500": {
             "description": "Internal server error"
           }
@@ -450,6 +453,39 @@
                 "type": "string",
                 "enum": [
                   "builtin"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Frontend-provided tools that will be called through the frontend",
+            "required": [
+              "name",
+              "tools",
+              "type"
+            ],
+            "properties": {
+              "instructions": {
+                "type": "string",
+                "description": "Instructions for how to use these tools",
+                "nullable": true
+              },
+              "name": {
+                "type": "string",
+                "description": "The name used to identify this extension"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Tool"
+                },
+                "description": "The tools provided by the frontend"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "frontend"
                 ]
               }
             }

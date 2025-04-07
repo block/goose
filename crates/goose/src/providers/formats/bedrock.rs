@@ -31,6 +31,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }
+        MessageContent::EnableExtensionRequest(_enable_extension_request) => {
+            bedrock::ContentBlock::Text("".to_string())
+        }
         MessageContent::Image(_) => {
             bail!("Image content is not supported by Bedrock provider yet")
         }
@@ -43,6 +46,21 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             bedrock::ContentBlock::Text("".to_string())
         }
         MessageContent::ToolRequest(tool_req) => {
+            let tool_use_id = tool_req.id.to_string();
+            let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .name(call.name.to_string())
+                    .input(to_bedrock_json(&call.arguments))
+                    .build()
+            } else {
+                bedrock::ToolUseBlock::builder()
+                    .tool_use_id(tool_use_id)
+                    .build()
+            }?;
+            bedrock::ContentBlock::ToolUse(tool_use)
+        }
+        MessageContent::FrontendToolRequest(tool_req) => {
             let tool_use_id = tool_req.id.to_string();
             let tool_use = if let Ok(call) = tool_req.tool_call.as_ref() {
                 bedrock::ToolUseBlock::builder()

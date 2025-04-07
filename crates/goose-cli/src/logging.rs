@@ -183,7 +183,6 @@ mod tests {
     use std::env;
     use tempfile::TempDir;
     use test_case::test_case;
-    use tokio::runtime::Runtime;
 
     fn setup_temp_home() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -209,12 +208,11 @@ mod tests {
         assert!(path_components.iter().any(|c| c.as_os_str() == "cli"));
     }
 
+    #[tokio::test]
     #[test_case(Some("test_session"), true ; "with session name and error capture")]
     #[test_case(Some("test_session"), false ; "with session name without error capture")]
     #[test_case(None, false ; "without session name")]
-    fn test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
-        let _rt = Runtime::new().unwrap();
-
+    async fn test_log_file_name(session_name: Option<&str>, _with_error_capture: bool) {
         // Create a unique test directory for each test
         let test_name = session_name.unwrap_or("no_session");
         let random_suffix = std::time::SystemTime::now()

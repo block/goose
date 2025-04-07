@@ -52,6 +52,20 @@ export type ExtensionConfig = {
     name: string;
     timeout?: number | null;
     type: 'builtin';
+} | {
+    /**
+     * Instructions for how to use these tools
+     */
+    instructions?: string | null;
+    /**
+     * The name used to identify this extension
+     */
+    name: string;
+    /**
+     * The tools provided by the frontend
+     */
+    tools: Array<Tool>;
+    type: 'frontend';
 };
 
 export type ExtensionEntry = ExtensionConfig & {
@@ -278,6 +292,10 @@ export type AddExtensionErrors = {
      * Invalid request
      */
     400: unknown;
+    /**
+     * Could not serialize config.yaml
+     */
+    422: unknown;
     /**
      * Internal server error
      */

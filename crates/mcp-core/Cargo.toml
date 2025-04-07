@@ -15,6 +15,5 @@ url = "2.5"
 base64 = "0.21"
 utoipa = "4.1"
 
-
 [dev-dependencies]
 tempfile = "3.8"

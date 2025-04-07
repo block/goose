@@ -30,7 +30,7 @@ serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"
 etcetera = "0.8.0"
 reqwest = { version = "0.12.9", features = [
-        "rustls-tls",
+        "rustls-tls-native-roots",
         "json",
         "cookies",
         "gzip",
