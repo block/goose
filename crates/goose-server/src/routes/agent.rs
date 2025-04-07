@@ -10,6 +10,7 @@ use goose::{agents::AgentFactory, model::ModelConfig, providers};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
+use mcp_core::Tool;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -163,11 +164,46 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
     Json(response)
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/tools",
+    responses(
+        (status = 200, description = "Tools retrieved successfully", body = Vec<Tool>),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn get_tools(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Tool>>, StatusCode> {
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let mut agent = state.agent.write().await;
+    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let response = agent.list_tools().await;
+
+    // Map the response to the expected return type
+    match response {
+        Ok(tools) => Ok(Json(tools)),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
+        .route("/agent/tools", get(get_tools))
         .route("/agent", post(create_agent))
         .with_state(state)
 }

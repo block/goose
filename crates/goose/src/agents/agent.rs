@@ -14,6 +14,7 @@ use crate::providers::base::Provider;
 use crate::session;
 use mcp_core::prompt::Prompt;
 use mcp_core::protocol::GetPromptResult;
+use mcp_core::Tool;
 
 /// Session configuration for an agent
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +44,9 @@ pub trait Agent: Send + Sync {
     /// List all extensions
     // TODO this needs to also include status so we can tell if extensions are dropped
     async fn list_extensions(&self) -> Vec<String>;
+
+    /// List the tools this agent has access to
+    async fn list_tools(&self) -> Vec<Tool>;
 
     /// Pass through a JSON-RPC request to a specific extension
     async fn passthrough(&self, extension: &str, request: Value) -> ExtensionResult<Value>;

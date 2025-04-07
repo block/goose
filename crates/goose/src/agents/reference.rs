@@ -47,6 +47,11 @@ impl Agent for ReferenceAgent {
         capabilities.add_extension(extension).await
     }
 
+    async fn list_tools(&mut self) -> Vec<Tool> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.get_prefixed_tools()
+    }
+
     async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities
