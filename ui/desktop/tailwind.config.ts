@@ -9,6 +9,9 @@ export default {
         sans: ['Cash Sans', 'sans-serif'],
         mono: ['Cash Sans Mono', 'monospace'],
       },
+      boxShadow: {
+        'tooltip': '0 4px 32px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.1)',
+      },
       keyframes: {
         shimmer: {
           '0%': { backgroundPosition: '200% 0' },
@@ -44,10 +47,20 @@ export default {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
+        in: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        out: {
+          '0%': { opacity: '1', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scale(0.95)' },
+        },
       },
       animation: {
         'shimmer-pulse': 'shimmer 4s ease-in-out infinite',
         'gradient-loader': 'loader 750ms ease-in-out infinite',
+        'in': 'in 0.2s ease-out',
+        'out': 'out 0.2s ease-in',
       },
       colors: {
         bgApp: 'var(--background-app)',
@@ -56,6 +69,8 @@ export default {
         bgProminent: 'var(--background-prominent)',
         bgAppInverse: 'var(--background-app-inverse)',
         bgStandardInverse: 'var(--background-standard-inverse)',
+        popover: 'var(--background-app)',
+        'popover-foreground': 'var(--text-standard)',
 
         borderSubtle: 'var(--border-subtle)',
         borderStandard: 'var(--border-standard)',
