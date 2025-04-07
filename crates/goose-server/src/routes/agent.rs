@@ -7,6 +7,7 @@ use axum::{
 };
 use goose::config::Config;
 use goose::{agents::AgentFactory, model::ModelConfig, providers};
+use mcp_core::Tool;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -163,11 +164,45 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
     Json(response)
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/tools",
+    responses(
+        (status = 200, description = "Tools retrieved successfully", body = Vec<Tool>),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn get_tools(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<Tool>>, StatusCode> {
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let mut agent = state.agent.write().await;
+    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+
+    // Since list_tools() now returns Vec<Tool> directly, not a Result
+    let tools = agent.list_tools().await;
+
+    // Return the tools directly
+    Ok(Json(tools))
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
+        .route("/agent/tools", get(get_tools))
         .route("/agent", post(create_agent))
         .with_state(state)
 }

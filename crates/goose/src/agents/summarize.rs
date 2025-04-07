@@ -139,6 +139,11 @@ impl Agent for SummarizeAgent {
         capabilities.add_extension(extension).await
     }
 
+    async fn list_tools(&self) -> Vec<Tool> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.get_prefixed_tools().await.unwrap_or_default()
+    }
+
     async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities

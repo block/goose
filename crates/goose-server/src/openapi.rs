@@ -18,7 +18,8 @@ use mcp_core::tool::{Tool, ToolAnnotations};
         super::routes::config_management::remove_extension,
         super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
-        super::routes::config_management::providers
+        super::routes::config_management::providers,
+        super::routes::agent::get_tools,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,

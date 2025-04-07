@@ -210,6 +210,37 @@ export type UpsertConfigQuery = {
     value: unknown;
 };
 
+export type GetToolsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agent/tools';
+};
+
+export type GetToolsErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetToolsResponses = {
+    /**
+     * Tools retrieved successfully
+     */
+    200: Array<Tool>;
+};
+
+export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
+
 export type ReadAllConfigData = {
     body?: never;
     path?: never;
