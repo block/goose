@@ -3,6 +3,7 @@ export interface MCPServer {
   name: string;
   description: string;
   command: string;
+  url: string;
   link: string;
   installation_notes: string;
   is_builtin: boolean;

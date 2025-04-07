@@ -142,5 +142,17 @@
     "endorsed": false,
     "githubStars": 27,
     "environmentVariables": []
+  },
+  {
+    "id": "pieces",
+    "name": "Pieces for Developers",
+    "description": "Provides access to your Pieces Long-Term Memory",
+    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "link": "https://pieces.app",
+    "installation_notes": "You need to install Pieces first, and have this running.",
+    "is_builtin": false,
+    "endorsed": false,
+    "githubStars": 0,
+    "environmentVariables": []
   }
 ]
