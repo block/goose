@@ -10,6 +10,7 @@ mod gcpauth;
 pub mod gcpvertexai;
 pub mod google;
 pub mod groq;
+pub mod huggingface;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;

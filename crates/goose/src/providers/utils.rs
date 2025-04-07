@@ -65,14 +65,15 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
             tracing::debug!(
                 "{}", format!("Provider request failed with status: {}. Payload: {:?}", status, payload)
             );
-            if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(payload) {
+            println!("ERROR PAYLOAD: {:?}", payload);
+            if let Ok(err_resp) = from_value::<OpenAIErrorResponse>(payload.clone()) {
                 let err = err_resp.error;
                 if err.is_context_length_exceeded() {
                     return Err(ProviderError::ContextLengthExceeded(err.message.unwrap_or("Unknown error".to_string())));
                 }
                 return Err(ProviderError::RequestFailed(format!("{} (status {})", err, status.as_u16())));
             }
-            Err(ProviderError::RequestFailed(format!("Unknown error (status {})", status)))
+            Err(ProviderError::RequestFailed(format!("Unknown error (status {}): {:?}", status, payload)))
         }
         StatusCode::TOO_MANY_REQUESTS => {
             Err(ProviderError::RateLimitExceeded(format!("{:?}", payload)))
