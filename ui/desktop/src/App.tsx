@@ -93,8 +93,8 @@ export default function App() {
       try {
         const config = window.electron.getConfig();
 
-        const provider = config.GOOSE_PROVIDER ?? (await read('GOOSE_PROVIDER', false));
-        const model = config.GOOSE_MODEL ?? (await read('GOOSE_MODEL', false));
+        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
         if (provider && model) {
           setView('chat');
