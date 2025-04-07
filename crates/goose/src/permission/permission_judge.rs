@@ -1,10 +1,13 @@
 use crate::agents::capabilities::Capabilities;
+use crate::config::permission::PermissionLevel;
+use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::{tool::Tool, TextContent};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -136,6 +139,100 @@ pub async fn detect_read_only_tools(
     }
 }
 
+// Define return structure
+pub struct PermissionCheckResult {
+    pub approved: Vec<ToolRequest>,
+    pub needs_approval: Vec<ToolRequest>,
+    pub denied: Vec<ToolRequest>,
+}
+
+pub async fn check_tool_permissions(
+    remaining_requests: Vec<ToolRequest>,
+    mode: &str,
+    tools_with_readonly_annotation: HashSet<String>,
+    tools_without_annotation: HashSet<String>,
+    permission_manager: &mut PermissionManager,
+    capabilities: &Capabilities,
+) -> PermissionCheckResult {
+    let mut approved = vec![];
+    let mut needs_approval = vec![];
+    let mut denied = vec![];
+    let mut llm_detect_candidates = vec![];
+
+    for request in remaining_requests {
+        if let Ok(tool_call) = request.tool_call.clone() {
+            // 1. Check user-defined permission
+            if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
+                match level {
+                    PermissionLevel::AlwaysAllow => approved.push(request),
+                    PermissionLevel::AskBefore => needs_approval.push(request),
+                    PermissionLevel::NeverAllow => denied.push(request),
+                }
+                continue;
+            }
+
+            // 2. Fallback based on mode
+            match mode {
+                "manual_approve" => {
+                    needs_approval.push(request);
+                }
+                "smart_approve" => {
+                    if let Some(level) =
+                        permission_manager.get_smart_approve_permission(&tool_call.name)
+                    {
+                        match level {
+                            PermissionLevel::AlwaysAllow => approved.push(request),
+                            PermissionLevel::AskBefore => needs_approval.push(request),
+                            PermissionLevel::NeverAllow => denied.push(request),
+                        }
+                        continue;
+                    }
+
+                    if tools_with_readonly_annotation.contains(&tool_call.name) {
+                        approved.push(request);
+                    } else if tools_without_annotation.contains(&tool_call.name) {
+                        llm_detect_candidates.push(request);
+                    } else {
+                        needs_approval.push(request);
+                    }
+                }
+                _ => {
+                    needs_approval.push(request);
+                }
+            }
+        }
+    }
+
+    // 3. LLM detect
+    if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
+        let detected_readonly_tools =
+            detect_read_only_tools(capabilities, llm_detect_candidates.iter().collect()).await;
+        for request in llm_detect_candidates {
+            if let Ok(tool_call) = request.tool_call.clone() {
+                if detected_readonly_tools.contains(&tool_call.name) {
+                    approved.push(request);
+                    permission_manager.update_smart_approve_permission(
+                        &tool_call.name,
+                        PermissionLevel::AlwaysAllow,
+                    );
+                } else {
+                    needs_approval.push(request);
+                    permission_manager.update_smart_approve_permission(
+                        &tool_call.name,
+                        PermissionLevel::AskBefore,
+                    );
+                }
+            }
+        }
+    }
+
+    PermissionCheckResult {
+        approved,
+        needs_approval,
+        denied,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +245,7 @@ mod tests {
     use mcp_core::ToolCall;
     use mcp_core::{tool::Tool, Role, ToolResult};
     use serde_json::json;
+    use tempfile::NamedTempFile;
 
     #[derive(Clone)]
     struct MockProvider {
@@ -269,5 +367,61 @@ mod tests {
         let capabilities = create_mock_capabilities();
         let result = detect_read_only_tools(&capabilities, vec![]).await;
         assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_check_tool_permissions() {
+        // Setup mocks
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        let mut permission_manager = PermissionManager::new(temp_path);
+        let capabilities = create_mock_capabilities();
+
+        let tools_with_readonly_annotation: HashSet<String> =
+            vec!["file_reader".to_string()].into_iter().collect();
+        let tools_without_annotation: HashSet<String> =
+            vec!["data_fetcher".to_string()].into_iter().collect();
+
+        permission_manager.update_user_permission("file_reader", PermissionLevel::AlwaysAllow);
+        permission_manager
+            .update_smart_approve_permission("data_fetcher", PermissionLevel::AskBefore);
+
+        let tool_request_1 = ToolRequest {
+            id: "tool_1".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "file_reader".to_string(),
+                arguments: serde_json::json!({"path": "/path/to/file"}),
+            }),
+        };
+
+        let tool_request_2 = ToolRequest {
+            id: "tool_2".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "data_fetcher".to_string(),
+                arguments: serde_json::json!({"url": "http://example.com"}),
+            }),
+        };
+
+        let remaining_requests = vec![tool_request_1, tool_request_2];
+
+        // Call the function under test
+        let result = check_tool_permissions(
+            remaining_requests,
+            "smart_approve",
+            tools_with_readonly_annotation,
+            tools_without_annotation,
+            &mut permission_manager,
+            &capabilities,
+        )
+        .await;
+
+        // Validate the result
+        assert_eq!(result.approved.len(), 1); // file_reader should be approved
+        assert_eq!(result.needs_approval.len(), 1); // data_fetcher should need approval
+        assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
+
+        // Ensure the right tools are in the approved and needs_approval lists
+        assert!(result.approved.iter().any(|req| req.id == "tool_1"));
+        assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
     }
 }
