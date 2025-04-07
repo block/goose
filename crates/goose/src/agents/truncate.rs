@@ -305,7 +305,7 @@ impl Agent for TruncateAgent {
             }),
             Some(ToolAnnotations {
                 title: Some("Enable extensions".to_string()),
-                read_only_hint: true,
+                read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
                 open_world_hint: false,
