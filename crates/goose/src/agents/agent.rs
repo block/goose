@@ -9,9 +9,9 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use super::extension::{ExtensionConfig, ExtensionResult};
-use crate::message::Message;
 use crate::providers::base::Provider;
 use crate::session;
+use crate::{message::Message, permission::PermissionConfirmation};
 use mcp_core::{prompt::Prompt, protocol::GetPromptResult, Content, ToolResult};
 
 /// Session configuration for an agent
@@ -50,7 +50,7 @@ pub trait Agent: Send + Sync {
     async fn extend_system_prompt(&mut self, extension: String);
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(&self, request_id: String, confirmed: bool);
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation);
 
     /// Override the system prompt with custom text
     async fn override_system_prompt(&mut self, template: String);

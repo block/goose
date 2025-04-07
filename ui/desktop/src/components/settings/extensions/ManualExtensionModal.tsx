@@ -130,8 +130,8 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0">
+    <div className="fixed flex items-center justify-center inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm">
+      <Card className="w-[500px] bg-bgApp rounded-xl overflow-hidden shadow-none p-[16px] pt-[24px] pb-0 max-h-[90vh] overflow-y-auto">
         <div className="px-4 pb-0 space-y-8">
           <div className="flex">
             <h2 className="text-2xl font-regular text-textStandard">Add custom extension</h2>
@@ -247,23 +247,24 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 {envVars.length > 0 && (
                   <div className="space-y-2">
                     {envVars.map((envVar) => (
-                      <div
-                        key={envVar.key}
-                        className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 p-2 rounded"
-                      >
-                        <div className="flex-1">
-                          <span className="text-sm font-medium">{envVar.key}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                            = {envVar.value}
-                          </span>
+                      <div key={envVar.key} className="flex items-center justify-between gap-1">
+                        <div className="flex-1 whitespace-nowrap overflow-x-auto bg-gray-100 dark:bg-gray-700 p-2 rounded">
+                          <div className="flex-1">
+                            <span className="text-sm font-medium">{envVar.key}</span>
+                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                              = {envVar.value}
+                            </span>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEnvVar(envVar.key)}
-                          className="text-red-500 hover:text-red-700 ml-2"
-                        >
-                          Remove
-                        </button>
+                        <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEnvVar(envVar.key)}
+                            className="text-red-500 hover:text-red-700 ml-2"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

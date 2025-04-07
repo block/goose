@@ -51,18 +51,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      onNavigate?.('prev');
+      handleNavigate('prev', event);
     } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      onNavigate?.('next');
+      handleNavigate('next', event);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       handleClose();
     }
   };
 
-  const handleNavigate = (direction: 'next' | 'prev') => {
+  const handleNavigate = (direction: 'next' | 'prev', e?: React.MouseEvent | KeyboardEvent) => {
+    e?.preventDefault();
     onNavigate?.(direction);
     inputRef.current?.focus();
   };
@@ -123,7 +122,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           </button>
 
           <button
-            onClick={() => handleNavigate('prev')}
+            onClick={(e) => handleNavigate('prev', e)}
             className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
             title="Previous (↑)"
             disabled={!searchResults || searchResults.count === 0}
@@ -131,7 +130,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <ArrowUp className="h-5 w-5" />
           </button>
           <button
-            onClick={() => handleNavigate('next')}
+            onClick={(e) => handleNavigate('next', e)}
             className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
             title="Next (↓)"
             disabled={!searchResults || searchResults.count === 0}

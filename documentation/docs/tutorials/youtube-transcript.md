@@ -7,6 +7,8 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/N38u7hZqZJg" />
+
 This tutorial covers how to add the [YouTube Transcript MCP Server](https://github.com/jkawamoto/mcp-youtube-transcript) as a Goose extension to enable fetching and working with YouTube video transcripts.
 
 :::tip TLDR
