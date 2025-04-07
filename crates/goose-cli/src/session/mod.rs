@@ -172,6 +172,37 @@ impl Session {
         Ok(())
     }
 
+    /// Add a remote extension to the session
+    ///
+    /// # Arguments
+    /// * `extension_url` - URL of the server
+    pub async fn add_remote_extension(&mut self, extension_url: String) -> Result<()> {
+        let name: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(8)
+            .map(char::from)
+            .collect();
+
+        let config = ExtensionConfig::Sse {
+            name,
+            uri: extension_url,
+            envs: Envs::new(HashMap::new()),
+            description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
+            // TODO: should set timeout
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+        };
+
+        self.agent
+            .add_extension(config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+
+        // Invalidate the completion cache when a new extension is added
+        self.invalidate_completion_cache().await;
+
+        Ok(())
+    }
+
     /// Add a builtin extension to the session
     ///
     /// # Arguments
