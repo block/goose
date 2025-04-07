@@ -5,6 +5,7 @@ const { resolve } = require('path');
 let cfg = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
+  executableName: 'goose-app',
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
