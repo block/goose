@@ -2,6 +2,7 @@
 /// Tool calls represent requests from the client to execute one
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 
 /// Additional properties describing a tool to clients.
 ///
@@ -11,7 +12,7 @@ use serde_json::Value;
 ///
 /// Clients should never make tool use decisions based on ToolAnnotations
 /// received from untrusted servers.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolAnnotations {
     /// A human-readable title for the tool.
@@ -100,7 +101,7 @@ impl ToolAnnotations {
 }
 
 /// A tool that can be used by a model.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Tool {
     /// The name of the tool

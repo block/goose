@@ -189,13 +189,12 @@ async fn get_tools(
 
     let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
-    let response = agent.list_tools().await;
 
-    // Map the response to the expected return type
-    match response {
-        Ok(tools) => Ok(Json(tools)),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    // Since list_tools() now returns Vec<Tool> directly, not a Result
+    let tools = agent.list_tools().await;
+
+    // Return the tools directly
+    Ok(Json(tools))
 }
 
 pub fn routes(state: AppState) -> Router {
