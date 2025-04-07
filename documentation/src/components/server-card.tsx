@@ -1,4 +1,4 @@
-import { Star, Download, Terminal, ChevronRight, Info, Link as LucideLink } from "lucide-react";
+import { Star, Download, Terminal, ChevronRight, Info } from "lucide-react";
 import { Badge } from "@site/src/components/ui/badge";
 import { Button } from "@site/src/components/ui/button";
 import type { MCPServer } from "@site/src/types/server";
@@ -106,8 +106,8 @@ export function ServerCard({ server }: { server: MCPServer }) {
                     onClick={() => setIsCommandVisible(!isCommandVisible)}
                     className="command-toggle"
                   >
-                    <LucideLink className="h-4 w-4" />
-                    <h4 className="mx-2">&nbsp;URL</h4>
+                    <Terminal className="h-4 w-4" />
+                    <h4 className="mx-2">Command</h4>
                     <ChevronRight
                     className={`ml-auto transition-transform ${
                       isCommandVisible ? "rotate-90" : ""
@@ -127,7 +127,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                       }}
                     >
                       <code>
-                      {`goose session --with-extension "${server.url}"`}
+                      {`goose session --with-remote-extension "${server.url}"`}
                       </code>
                     </motion.div>
                     )}
@@ -138,14 +138,16 @@ export function ServerCard({ server }: { server: MCPServer }) {
             </div>
 
             <div className="card-footer">
-              <Link
-                to={server.link}
-                className="card-stats"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Star className="h-4 w-4" />
-                <span>{server.githubStars} on Github</span>
-              </Link>
+                {server.githubStars !== undefined && (
+                <Link
+                  to={server.link}
+                  className="card-stats"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Star className="h-4 w-4" />
+                  <span>{server.githubStars} on Github</span>
+                </Link>
+                )}
               <div className="card-action">
                 {server.is_builtin ? (
                   <div

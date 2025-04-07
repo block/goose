@@ -152,7 +152,6 @@
     "installation_notes": "You need to install Pieces first, and have this running.",
     "is_builtin": false,
     "endorsed": false,
-    "githubStars": 0,
     "environmentVariables": []
   }
 ]
