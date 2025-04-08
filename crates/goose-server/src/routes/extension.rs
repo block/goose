@@ -109,6 +109,7 @@ async fn add_extension(
     }
 
     // If this is a Stdio extension that uses npx, check for Node.js installation
+    #[cfg(target_os = "windows")]
     if let ExtensionConfigRequest::Stdio { cmd, .. } = &request {
         if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
             // Check if Node.js is installed in standard locations
