@@ -179,6 +179,25 @@ impl PermissionManager {
             .expect("Failed to serialize permission config");
         fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
     }
+
+    /// Removes all entries where the principal name starts with the given extension name.
+    pub fn remove_extension(&mut self, extension_name: &str) {
+        for permission_config in self.permission_map.values_mut() {
+            permission_config
+                .always_allow
+                .retain(|p| !p.starts_with(extension_name));
+            permission_config
+                .ask_before
+                .retain(|p| !p.starts_with(extension_name));
+            permission_config
+                .never_allow
+                .retain(|p| !p.starts_with(extension_name));
+        }
+
+        let yaml_content = serde_yaml::to_string(&self.permission_map)
+            .expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+    }
 }
 
 #[cfg(test)]
@@ -272,5 +291,27 @@ mod tests {
         assert!(!config.always_allow.contains(&"tool7".to_string()));
         assert!(!config.ask_before.contains(&"tool7".to_string()));
         assert!(config.never_allow.contains(&"tool7".to_string()));
+    }
+
+    #[test]
+    fn test_remove_extension() {
+        let mut manager = create_test_permission_manager();
+        manager.update_user_permission("prefix__tool1", PermissionLevel::AlwaysAllow);
+        manager.update_user_permission("nonprefix__tool2", PermissionLevel::AlwaysAllow);
+        manager.update_user_permission("prefix__tool3", PermissionLevel::AskBefore);
+
+        // Remove entries starting with "prefix"
+        manager.remove_extension("prefix");
+
+        let config = manager.permission_map.get(USER_PERMISSION).unwrap();
+
+        // Verify entries with "prefix" are removed
+        assert!(!config.always_allow.contains(&"prefix__tool1".to_string()));
+        assert!(!config.ask_before.contains(&"prefix__tool3".to_string()));
+
+        // Verify other entries remain
+        assert!(config
+            .always_allow
+            .contains(&"nonprefix__tool2".to_string()));
     }
 }
