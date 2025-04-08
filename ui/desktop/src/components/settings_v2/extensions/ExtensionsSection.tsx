@@ -114,8 +114,8 @@ export default function ExtensionsSection() {
 
   return (
     <section id="extensions">
-      <div className="flex justify-between items-center mb-6 px-8">
-        <h1 className="text-3xl font-medium text-textStandard">Extensions</h1>
+      <div className="flex justify-between items-center mb-4 px-8">
+        <h2 className="text-xl font-medium text-textStandard">Extensions</h2>
       </div>
       <div className="px-8">
         <p className="text-sm text-textStandard mb-6">
@@ -131,14 +131,14 @@ export default function ExtensionsSection() {
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-white dark:text-textSubtle bg-black dark:bg-white hover:bg-subtle"
+            className="flex items-center gap-2 justify-center text-white dark:text-textSubtle bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
             Add custom extension
           </Button>
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-white dark:bg-black hover:bg-subtle dark:border dark:border-gray-500 dark:hover:border-gray-400"
+            className="flex items-center gap-2 justify-center text-textStandard bg-bgApp border border-borderSubtle hover:border-borderProminent hover:bg-bgApp [&>svg]:!size-4"
             onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
           >
             <GPSIcon size={18} />

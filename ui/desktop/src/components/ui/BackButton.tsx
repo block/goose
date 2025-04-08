@@ -32,7 +32,7 @@ const BackButton: React.FC<BackButtonProps> = ({
       className={`flex items-center text-${textSize} text-textSubtle group hover:text-textStandard ${className}`}
     >
       <Back className={`${iconSize} group-hover:-translate-x-1 transition-all mr-1`} />
-      {showText && <span>Exit</span>}
+      {showText && <span>Back</span>}
     </button>
   );
 };
