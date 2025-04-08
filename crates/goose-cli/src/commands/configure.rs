@@ -972,7 +972,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         if let Some((extension_name, _tool_name)) = tool.name.split_once("__") {
             tools_by_extension
                 .entry(extension_name.to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(tool);
         }
     }
