@@ -1,11 +1,14 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation, ExtensionRequirements};
+use crate::eval_suites::{
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
+    ExtensionRequirements,
+};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
 use serde_json::{self, Value};
-use crate::bench_session::BenchAgent;
 
 #[derive(Debug)]
 pub struct SimpleRepoCloneTest {}
@@ -20,15 +23,15 @@ impl SimpleRepoCloneTest {
 impl Evaluation for SimpleRepoCloneTest {
     async fn run(
         &self,
-        mut agent: &mut BenchAgent,
+        agent: &mut BenchAgent,
         _work_dir: &mut BenchmarkWorkDir,
     ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         // Send the prompt to clone the repo and add a test
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Clone the Git repository https://github.com/michaelneale/mcp-read-pdf to a temporary location. \
             Then add a new test file that verifies the PDF reading functionality. The test should \
-            check if the PDF content can be read and processed correctly.".to_string()
+            check if the PDF content can be read and processed correctly.".to_string(),
         ).await;
 
         // Convert HashMap to Vec for our metrics
