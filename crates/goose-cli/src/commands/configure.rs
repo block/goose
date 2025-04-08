@@ -2,7 +2,9 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
-use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
+use goose::config::{
+    Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager, PermissionManager,
+};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use mcp_core::tool::ToolAnnotations;
@@ -738,6 +740,8 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
 
     for name in selected {
         ExtensionManager::remove(&name_to_key(name))?;
+        let mut permission_manager = PermissionManager::default();
+        permission_manager.remove_extension(&name_to_key(name));
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 

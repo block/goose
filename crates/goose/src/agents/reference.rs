@@ -53,6 +53,11 @@ impl Agent for ReferenceAgent {
         capabilities.add_extension(extension).await
     }
 
+    async fn list_tools(&self) -> Vec<Tool> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.get_prefixed_tools().await.unwrap_or_default()
+    }
+
     async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities
@@ -284,7 +289,14 @@ impl Agent for ReferenceAgent {
         let tools = capabilities.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
-            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .map(|tool| {
+                ToolInfo::new(
+                    &tool.name,
+                    &tool.description,
+                    get_parameter_names(&tool),
+                    None,
+                )
+            })
             .collect();
 
         let plan_prompt = capabilities.get_planning_prompt(tools_info).await;

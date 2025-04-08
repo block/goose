@@ -1,12 +1,15 @@
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
     Json, Router,
 };
-use goose::config::Config;
-use goose::{agents::AgentFactory, model::ModelConfig, providers};
+use goose::{agents::AgentFactory, config::PermissionManager, model::ModelConfig, providers};
+use goose::{
+    agents::{capabilities::get_parameter_names, extension::ToolInfo},
+    config::Config,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -59,6 +62,11 @@ struct ProviderDetails {
 struct ProviderList {
     id: String,
     details: ProviderDetails,
+}
+
+#[derive(Deserialize)]
+pub struct GetToolsQuery {
+    extension_name: Option<String>,
 }
 
 async fn get_versions() -> Json<VersionsResponse> {
@@ -163,11 +171,68 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
     Json(response)
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/tools",
+    params(
+        ("extension_name" = Option<String>, Query, description = "Optional extension name to filter tools")
+    ),
+    responses(
+        (status = 200, description = "Tools retrieved successfully", body = Vec<Tool>),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn get_tools(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<GetToolsQuery>,
+) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let mut agent = state.agent.write().await;
+    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let permission_manager = PermissionManager::default();
+
+    let tools = agent
+        .list_tools()
+        .await
+        .into_iter()
+        .filter(|tool| {
+            // Apply the filter only if the extension name is present in the query
+            if let Some(extension_name) = &query.extension_name {
+                tool.name.starts_with(extension_name)
+            } else {
+                true
+            }
+        })
+        .map(|tool| {
+            ToolInfo::new(
+                &tool.name,
+                &tool.description,
+                get_parameter_names(&tool),
+                permission_manager.get_user_permission(&tool.name),
+            )
+        })
+        .collect();
+
+    Ok(Json(tools))
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
+        .route("/agent/tools", get(get_tools))
         .route("/agent", post(create_agent))
         .with_state(state)
 }

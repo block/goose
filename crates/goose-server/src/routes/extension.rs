@@ -108,6 +108,60 @@ async fn add_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // If this is a Stdio extension that uses npx, check for Node.js installation
+    #[cfg(target_os = "windows")]
+    if let ExtensionConfigRequest::Stdio { cmd, .. } = &request {
+        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+            // Check if Node.js is installed in standard locations
+            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+
+            if !node_exists {
+                // Get the directory containing npx.cmd
+                let cmd_path = std::path::Path::new(&cmd);
+                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                // Run the Node.js installer script
+                let install_script = script_dir.join("install-node.cmd");
+
+                if install_script.exists() {
+                    eprintln!("Installing Node.js...");
+                    let output = std::process::Command::new(&install_script)
+                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                        .output()
+                        .map_err(|e| {
+                            eprintln!("Failed to run Node.js installer: {}", e);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        })?;
+
+                    if !output.status.success() {
+                        eprintln!(
+                            "Failed to install Node.js: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                        return Ok(Json(ExtensionResponse {
+                            error: true,
+                            message: Some(format!(
+                                "Failed to install Node.js: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            )),
+                        }));
+                    }
+                    eprintln!("Node.js installation completed");
+                } else {
+                    eprintln!(
+                        "Node.js installer script not found at: {}",
+                        install_script.display()
+                    );
+                    return Ok(Json(ExtensionResponse {
+                        error: true,
+                        message: Some("Node.js installer script not found".to_string()),
+                    }));
+                }
+            }
+        }
+    }
+
     // Load the configuration
     let config = Config::global();
 
@@ -419,20 +473,41 @@ fn is_command_allowed_with_allowlist(
 
         // Check against the allowlist
         Some(extensions) => {
-            // Strip out the Goose.app/Contents/Resources/bin/ prefix if present
+            // Strip out the Goose app resources/bin prefix if present (handle both macOS and Windows paths)
             let mut cmd_to_check = cmd.to_string();
+            let mut is_goose_path = false;
 
-            // Check if the command path contains Goose.app/Contents/Resources/bin/
+            // Check for macOS-style Goose.app path
             if cmd_to_check.contains("Goose.app/Contents/Resources/bin/") {
-                // Find the position of "Goose.app/Contents/Resources/bin/"
                 if let Some(idx) = cmd_to_check.find("Goose.app/Contents/Resources/bin/") {
-                    // Extract only the part after "Goose.app/Contents/Resources/bin/"
                     cmd_to_check = cmd_to_check
                         [(idx + "Goose.app/Contents/Resources/bin/".len())..]
                         .to_string();
+                    is_goose_path = true;
                 }
-            } else {
-                // Only apply the path check if we're not dealing with a Goose.app path
+            }
+            // Check for Windows-style Goose path with resources\bin
+            else if cmd_to_check.to_lowercase().contains("\\resources\\bin\\")
+                || cmd_to_check.contains("/resources/bin/")
+            {
+                // Also handle forward slashes
+                if let Some(idx) = cmd_to_check
+                    .to_lowercase()
+                    .rfind("\\resources\\bin\\")
+                    .or_else(|| cmd_to_check.rfind("/resources/bin/"))
+                {
+                    let path_len = if cmd_to_check.contains("/resources/bin/") {
+                        "/resources/bin/".len()
+                    } else {
+                        "\\resources\\bin\\".len()
+                    };
+                    cmd_to_check = cmd_to_check[(idx + path_len)..].to_string();
+                    is_goose_path = true;
+                }
+            }
+
+            // Only check current directory for non-Goose paths
+            if !is_goose_path {
                 // Check that the command exists as a peer command to current executable directory
                 // Only apply this check if the command includes a path separator
                 let current_exe = std::env::current_exe().unwrap();
@@ -815,6 +890,79 @@ mod tests {
             "goosed-extra",
             &allowlist
         ));
+    }
+
+    #[test]
+    fn test_windows_paths() {
+        let allowlist = create_test_allowlist(&["uvx mcp_snowflake", "uvx mcp_test"]);
+
+        // Test various Windows path formats
+        let test_paths = vec![
+            // Standard Windows path
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources\bin\uvx.exe",
+            // Path with different casing
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\Resources\Bin\uvx.exe",
+            // Path with forward slashes
+            r"C:/Users/MaxNovich/Downloads/Goose-1.0.17/resources/bin/uvx.exe",
+            // Path with spaces
+            r"C:\Program Files\Goose 1.0.17\resources\bin\uvx.exe",
+            // Path with version numbers
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\resources\bin\uvx.exe",
+        ];
+
+        for path in test_paths {
+            // Test with @latest version
+            let cmd = format!("{} mcp_snowflake@latest", path);
+            assert!(
+                is_command_allowed_with_allowlist(&cmd, &allowlist),
+                "Failed for path: {}",
+                path
+            );
+
+            // Test with specific version
+            let cmd_version = format!("{} mcp_test@1.2.3", path);
+            assert!(
+                is_command_allowed_with_allowlist(&cmd_version, &allowlist),
+                "Failed for path with version: {}",
+                path
+            );
+        }
+
+        // Test invalid paths that should be rejected
+        let invalid_paths = vec![
+            // Path without resources\bin
+            r"C:\Users\MaxNovich\Downloads\uvx.exe",
+            // Path with modified resources\bin
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources_modified\bin\uvx.exe",
+            // Path with extra components
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources\bin\extra\uvx.exe",
+        ];
+
+        for path in invalid_paths {
+            let cmd = format!("{} mcp_snowflake@latest", path);
+            assert!(
+                !is_command_allowed_with_allowlist(&cmd, &allowlist),
+                "Should have rejected path: {}",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_windows_uvx_path() {
+        let allowlist = create_test_allowlist(&["uvx mcp_snowflake"]);
+
+        // Test Windows-style path with uvx.exe
+        let windows_path = r"C:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\resources\bin\uvx.exe";
+        let cmd = format!("{} mcp_snowflake@latest", windows_path);
+
+        // This should be allowed because it's a valid uvx command in the Goose resources/bin directory
+        assert!(is_command_allowed_with_allowlist(&cmd, &allowlist));
+
+        // Test with different casing and backslashes
+        let windows_path_alt = r"c:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Resources\Bin\uvx.exe";
+        let cmd_alt = format!("{} mcp_snowflake@latest", windows_path_alt);
+        assert!(is_command_allowed_with_allowlist(&cmd_alt, &allowlist));
     }
 
     #[test]
