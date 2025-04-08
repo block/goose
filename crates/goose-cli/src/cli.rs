@@ -173,6 +173,16 @@ enum Command {
         )]
         extension: Vec<String>,
 
+        /// Add remote extensions with a URL
+        #[arg(
+            long = "with-remote-extension",
+            value_name = "URL",
+            help = "Add remote extensions (can be specified multiple times)",
+            long_help = "Add remote extensions from a URL. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        remote_extension: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -248,6 +258,16 @@ enum Command {
         )]
         extension: Vec<String>,
 
+        /// Add remote extensions
+        #[arg(
+            long = "with-remote-extension",
+            value_name = "URL",
+            help = "Add remote extensions (can be specified multiple times)",
+            long_help = "Add remote extensions. Can be specified multiple times. Format: 'url...'",
+            action = clap::ArgAction::Append
+        )]
+        remote_extension: Vec<String>,
+
         /// Add builtin extensions by name
         #[arg(
             long = "with-builtin",
@@ -313,6 +333,7 @@ pub async fn cli() -> Result<()> {
             resume,
             debug,
             extension,
+            remote_extension,
             builtin,
         }) => {
             return match command {
@@ -326,6 +347,7 @@ pub async fn cli() -> Result<()> {
                         identifier.map(extract_identifier),
                         resume,
                         extension,
+                        remote_extension,
                         builtin,
                         debug,
                     )
@@ -347,6 +369,7 @@ pub async fn cli() -> Result<()> {
             resume,
             debug,
             extension,
+            remote_extension,
             builtin,
         }) => {
             let contents = match (instructions, input_text) {
@@ -375,6 +398,7 @@ pub async fn cli() -> Result<()> {
                 identifier.map(extract_identifier),
                 resume,
                 extension,
+                remote_extension,
                 builtin,
                 debug,
             )
@@ -422,7 +446,7 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let mut session = build_session(None, false, vec![], vec![], false).await;
+                let mut session = build_session(None, false, vec![], vec![], vec![], false).await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,

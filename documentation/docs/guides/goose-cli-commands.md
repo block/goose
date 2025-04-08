@@ -79,6 +79,24 @@ goose configure
     goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
     ```
 
+- Start a session with the specified remote extension over SSE
+
+     **Options:**
+
+     **`--with-remote-extension <url>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-remote-extension <url>
+    ```
+
+    **Examples:**
+
+    ```bash
+    goose session --with-remote-extension "http://localhost:8080/sse"
+    ```
+
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
     **Options:**

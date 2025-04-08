@@ -388,7 +388,7 @@ export default function ChatView({
           />
         ) : (
           <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-            <SearchView scrollAreaRef={scrollRef}>
+            <SearchView>
               {filteredMessages.map((message, index) => (
                 <div key={message.id || index} className="mt-4 px-4">
                   {isUserMessage(message) ? (

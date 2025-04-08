@@ -5,6 +5,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::ExtensionEntry;
 use goose::providers::base::ConfigKey;
 use goose::providers::base::ProviderMetadata;
+use mcp_core::tool::{Tool, ToolAnnotations};
 
 #[allow(dead_code)] // Used by utoipa for OpenAPI generation
 #[derive(OpenApi)]
@@ -17,7 +18,8 @@ use goose::providers::base::ProviderMetadata;
         super::routes::config_management::remove_extension,
         super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
-        super::routes::config_management::providers
+        super::routes::config_management::providers,
+        super::routes::agent::get_tools,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -32,6 +34,8 @@ use goose::providers::base::ProviderMetadata;
         ExtensionConfig,
         ConfigKey,
         Envs,
+        Tool,
+        ToolAnnotations,
     ))
 )]
 pub struct ApiDoc;

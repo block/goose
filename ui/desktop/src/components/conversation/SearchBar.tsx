@@ -1,6 +1,7 @@
-import React, { useEffect, KeyboardEvent, useState } from 'react';
+import React, { useEffect, KeyboardEvent, useState, useCallback } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
+import { debounce } from 'lodash';
 
 /**
  * Props for the SearchBar component
@@ -27,6 +28,7 @@ interface SearchBarProps {
  * - Navigation between results with arrows
  * - Keyboard shortcuts (↑/↓ for navigation, Esc to close)
  * - Smooth animations for enter/exit
+ * - Debounced search for better performance
  */
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
@@ -35,46 +37,63 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   searchResults,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [displayTerm, setDisplayTerm] = useState(''); // For immediate visual feedback
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
+  // Create debounced search function
+  const debouncedSearch = useCallback(
+    debounce((term: string, caseSensitive: boolean) => {
+      onSearch(term, caseSensitive);
+    }, 150),
+    []
+  );
+
   useEffect(() => {
     inputRef.current?.focus();
+
+    // Cleanup debounced function
+    return () => {
+      debouncedSearch.cancel();
+    };
   }, []);
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    setSearchTerm(value);
-    onSearch(value, caseSensitive);
+    setDisplayTerm(value); // Update display immediately
+    setSearchTerm(value); // Update actual term
+    debouncedSearch(value, caseSensitive);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      onNavigate?.('prev');
+      handleNavigate('prev', event);
     } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      onNavigate?.('next');
+      handleNavigate('next', event);
     } else if (event.key === 'Escape') {
       event.preventDefault();
       handleClose();
     }
   };
 
-  const handleNavigate = (direction: 'next' | 'prev') => {
+  const handleNavigate = (direction: 'next' | 'prev', e?: React.MouseEvent | KeyboardEvent) => {
+    e?.preventDefault();
     onNavigate?.(direction);
     inputRef.current?.focus();
   };
 
   const toggleCaseSensitive = () => {
-    setCaseSensitive(!caseSensitive);
-    onSearch(searchTerm, !caseSensitive);
+    const newCaseSensitive = !caseSensitive;
+    setCaseSensitive(newCaseSensitive);
+    // Immediately trigger a new search with updated case sensitivity
+    debouncedSearch(searchTerm, newCaseSensitive);
     inputRef.current?.focus();
   };
 
   const handleClose = () => {
     setIsExiting(true);
+    debouncedSearch.cancel(); // Cancel any pending searches
     setTimeout(() => {
       onClose();
     }, 150); // Match animation duration
@@ -94,7 +113,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               ref={inputRef}
               id="search-input"
               type="text"
-              value={searchTerm}
+              value={displayTerm}
               onChange={handleSearch}
               onKeyDown={handleKeyDown}
               placeholder="Search conversation..."
@@ -123,7 +142,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           </button>
 
           <button
-            onClick={() => handleNavigate('prev')}
+            onClick={(e) => handleNavigate('prev', e)}
             className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
             title="Previous (↑)"
             disabled={!searchResults || searchResults.count === 0}
@@ -131,7 +150,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <ArrowUp className="h-5 w-5" />
           </button>
           <button
-            onClick={() => handleNavigate('next')}
+            onClick={(e) => handleNavigate('next', e)}
             className={`p-1 text-textSubtleInverse ${!searchResults || searchResults.count === 0 ? '' : 'hover:text-textStandardInverse'}`}
             title="Next (↓)"
             disabled={!searchResults || searchResults.count === 0}

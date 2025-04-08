@@ -179,6 +179,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::EnableExtensionRequest(_) => {
+                    // Skip enable extension requests
+                }
                 MessageContent::Image(image) => {
                     // Handle direct image content
                     content_array.push(json!({
@@ -187,6 +190,27 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             "url": convert_image(image, image_format)
                         }
                     }));
+                }
+                MessageContent::FrontendToolRequest(req) => {
+                    // Frontend tool requests are converted to text messages
+                    if let Ok(tool_call) = &req.tool_call {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": format!(
+                                "Frontend tool request: {} ({})",
+                                tool_call.name,
+                                serde_json::to_string_pretty(&tool_call.arguments).unwrap()
+                            )
+                        }));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": format!(
+                                "Frontend tool request error: {}",
+                                req.tool_call.as_ref().unwrap_err()
+                            )
+                        }));
+                    }
                 }
             }
         }

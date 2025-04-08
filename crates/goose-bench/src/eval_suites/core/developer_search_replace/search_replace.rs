@@ -103,6 +103,7 @@ impl Evaluation for DeveloperSearchReplace {
         ExtensionRequirements {
             builtin: vec!["developer".to_string()],
             external: Vec::new(),
+            remote: Vec::new(),
         }
     }
 }

@@ -60,6 +60,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::EnableExtensionRequest(_enable_extension_request) => {
+                    // Skip enable extension requests
+                }
                 MessageContent::Thinking(thinking) => {
                     content.push(json!({
                         "type": "thinking",
@@ -74,6 +77,16 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }));
                 }
                 MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
+                MessageContent::FrontendToolRequest(tool_request) => {
+                    if let Ok(tool_call) = &tool_request.tool_call {
+                        content.push(json!({
+                            "type": "tool_use",
+                            "id": tool_request.id,
+                            "name": tool_call.name,
+                            "input": tool_call.arguments
+                        }));
+                    }
+                }
             }
         }
 

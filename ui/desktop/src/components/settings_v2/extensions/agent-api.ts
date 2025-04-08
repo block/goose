@@ -140,6 +140,8 @@ export async function addToAgent(
       extension.cmd = await replaceWithShims(extension.cmd);
     }
 
+    extension.name = sanitizeName(extension.name);
+
     return await extensionApiCall('/extensions/add', extension, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
@@ -162,9 +164,13 @@ export async function removeFromAgent(
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
-    return await extensionApiCall('/extensions/remove', name, options);
+    return await extensionApiCall('/extensions/remove', sanitizeName(name), options);
   } catch (error) {
     console.error(`Failed to remove extension ${name} from agent:`, error);
     throw error;
   }
+}
+
+function sanitizeName(name: string) {
+  return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
 }

@@ -83,6 +83,7 @@ impl Evaluation for MemoryRememberMemory {
         ExtensionRequirements {
             builtin: vec!["memory".to_string()],
             external: Vec::new(),
+            remote: Vec::new(),
         }
     }
 }

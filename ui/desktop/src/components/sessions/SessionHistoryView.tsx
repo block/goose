@@ -147,6 +147,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <div className="ml-auto flex items-center space-x-4">
           <button
             onClick={handleShare}
+            title="Share Session"
             disabled={!canShare || isSharing}
             className={`flex items-center text-textStandardInverse px-2 py-1 ${
               canShare
@@ -168,6 +169,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
           <button
             onClick={onResume}
+            title="Resume Session"
             className="flex items-center text-textStandardInverse px-2 py-1 hover:font-bold hover:scale-110 transition-all duration-150"
           >
             <Sparkles className="w-7 h-7" />

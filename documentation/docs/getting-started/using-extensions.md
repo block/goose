@@ -376,7 +376,7 @@ goose session --with-builtin developer --with-builtin computercontroller
 To enable an extension while starting a session, run the following command:
 
 ```bash
-goose session --with-extension "{extension command}" --with-extension "{antoher extension command}"
+goose session --with-extension "{extension command}" --with-extension "{another extension command}"
 ```
 
 For example, to start a session with the [Fetch extension](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch), you'd run:
@@ -404,9 +404,22 @@ goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
 :::
 
+### Remote Extensions over SSE
+
+To enable a remote extension over SSE while starting a session, run the following command:
+
+```bash
+goose session --with-remote-extension "{extension URL}" --with-remote-extension "{another extension URL}"
+```
+
+For example, to start a session with a remote extension running on localhost on port 8080, you'd run:
+
+```bash
+goose session --with-remote-extension "http://localhost:8080/sse"
+```
 
 ## Developing Extensions
-Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
+Goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
 [extensions-directory]: https://block.github.io/goose/v1/extensions
