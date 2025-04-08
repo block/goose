@@ -1,7 +1,11 @@
 use cliclack::spinner;
 use console::style;
+use goose::agents::capabilities::get_parameter_names;
+use goose::agents::extension::ToolInfo;
+use goose::agents::AgentFactory;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
+use goose::config::permission::PermissionLevel;
 use goose::config::{
     Config, ConfigError, ExperimentManager, ExtensionConfigManager, ExtensionEntry,
     PermissionManager,
@@ -185,7 +189,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             .item(
                 "settings",
                 "Goose Settings",
-                "Set the Goose Mode, Tool Output, Experiment and more",
+                "Set the Goose Mode, Tool Output, Tool Permissions, Experiment and more",
             )
             .interact()?;
 
@@ -193,7 +197,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
             "toggle" => toggle_extensions_dialog(),
             "add" => configure_extensions_dialog(),
             "remove" => remove_extension_dialog(),
-            "settings" => configure_settings_dialog(),
+            "settings" => configure_settings_dialog().await.and(Ok(())),
             "providers" => configure_provider_dialog().await.and(Ok(())),
             _ => unreachable!(),
         }
@@ -749,9 +753,14 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
+pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "Goose Mode", "Configure Goose mode")
+        .item(
+            "tool_permission",
+            "Tool Permission",
+            "Set permission for individual tool of enabled extensions",
+        )
         .item(
             "tool_output",
             "Tool Output",
@@ -767,6 +776,9 @@ pub fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
+        }
+        "tool_permission" => {
+            configure_tool_permissions_dialog().await.and(Ok(()))?;
         }
         "tool_output" => {
             configure_tool_output_dialog()?;
@@ -901,5 +913,151 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
     }
 
     cliclack::outro("Experiments settings updated successfully")?;
+    Ok(())
+}
+
+pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
+    // Load config and get provider/model
+    let config = Config::global();
+
+    let provider_name: String = config
+        .get_param("GOOSE_PROVIDER")
+        .expect("No provider configured. Please set model provider first");
+
+    let model: String = config
+        .get_param("GOOSE_MODEL")
+        .expect("No model configured. Please set model first");
+    let model_config = goose::model::ModelConfig::new(model.clone());
+    let provider =
+        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
+
+    // Create the agent
+    let mut agent = AgentFactory::create(&AgentFactory::configured_version(), provider)
+        .expect("Failed to create agent");
+    for extension in ExtensionManager::get_all().expect("should load extensions") {
+        if extension.enabled {
+            let config = extension.config.clone();
+            agent
+                .add_extension(config.clone())
+                .await
+                .unwrap_or_else(|_| {
+                    println!(
+                        "{} Failed to check extension: {}",
+                        style("Error").red().italic(),
+                        config.name()
+                    );
+                });
+        }
+    }
+
+    let mut permission_manager = PermissionManager::default();
+    // Fetch the list of tools grouped by extension
+    let tools: Vec<ToolInfo> = agent
+        .list_tools()
+        .await
+        .into_iter()
+        .map(|tool| {
+            ToolInfo::new(
+                &tool.name,
+                &tool.description,
+                get_parameter_names(&tool),
+                permission_manager.get_user_permission(&tool.name),
+            )
+        })
+        .collect();
+
+    let mut tools_by_extension: HashMap<String, Vec<ToolInfo>> = HashMap::new();
+
+    for tool in tools {
+        if let Some((extension_name, _tool_name)) = tool.name.split_once("__") {
+            tools_by_extension
+                .entry(extension_name.to_string())
+                .or_insert_with(Vec::new)
+                .push(tool);
+        }
+    }
+
+    // Ask the user to choose an extension
+    let extension_name = cliclack::select("Choose an extension to configure tools")
+        .items(
+            &tools_by_extension
+                .keys()
+                .map(|ext| (ext.clone(), ext.clone(), ""))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    // Fetch tools for the selected extension
+    let selected_tools = tools_by_extension.get(&extension_name).unwrap();
+
+    let tool_name = cliclack::select("Choose a tool to update permission")
+        .items(
+            &selected_tools
+                .iter()
+                .map(|tool| (tool.name.clone(), tool.name.clone(), &tool.description))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    // Find the selected tool
+    let tool = selected_tools
+        .iter()
+        .find(|tool| tool.name == tool_name)
+        .unwrap();
+
+    // Display tool description and current permission level
+    let current_permission = match tool.permission {
+        Some(PermissionLevel::AlwaysAllow) => "Always Allow",
+        Some(PermissionLevel::AskBefore) => "Ask Before",
+        Some(PermissionLevel::NeverAllow) => "Never Allow",
+        None => "Not Set",
+    };
+
+    cliclack::outro(format!(
+        "Configuring tool: {}, Current permission level: {}",
+        tool.name, current_permission
+    ))?;
+
+    // Allow user to set the permission level
+    let permission = cliclack::select(&format!("Set permission level for tool {}", tool.name))
+        .item(
+            "always_allow",
+            "Always Allow",
+            "Allow this tool to execute without asking",
+        )
+        .item(
+            "ask_before",
+            "Ask Before",
+            "Prompt before executing this tool",
+        )
+        .item(
+            "never_allow",
+            "Never Allow",
+            "Prevent this tool from executing",
+        )
+        .interact()?;
+
+    let permission_label = match permission {
+        "always_allow" => "Always Allow",
+        "ask_before" => "Ask Before",
+        "never_allow" => "Never Allow",
+        _ => unreachable!(),
+    };
+
+    // Update the permission level in the configuration
+    let new_permission = match permission {
+        "always_allow" => PermissionLevel::AlwaysAllow,
+        "ask_before" => PermissionLevel::AskBefore,
+        "never_allow" => PermissionLevel::NeverAllow,
+        _ => unreachable!(),
+    };
+
+    permission_manager.update_user_permission(&tool.name, new_permission);
+
+    cliclack::outro(&format!(
+        "Updated permission level for tool {} to {}.",
+        tool.name, permission_label
+    ))?;
+
     Ok(())
 }
