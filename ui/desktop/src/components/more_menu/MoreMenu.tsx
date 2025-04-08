@@ -1,15 +1,11 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverPortal,
-  PopoverTrigger,
-} from '../../components/ui/popover';
+import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
-import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
+import { useTheme } from '../ThemeContext';
+import { ViewOptions, View } from '../../types/views';
 
 interface VersionInfo {
   current_version: string;
@@ -58,7 +54,7 @@ interface DarkModeToggleProps {
 
 const DarkModeToggle: React.FC<DarkModeToggleProps> = ({ isDarkMode, onToggle }) => (
   <button
-    className="flex items-center min-h-[64px] justify-between px-4 py-3 hover:bg-bgSubtle border-b border-borderSubtle"
+    className="flex items-center min-h-[64px] w-full justify-between px-4 py-3 hover:bg-bgSubtle border-b border-borderSubtle"
     onClick={onToggle}
   >
     <div className="flex flex-col items-start">
@@ -83,24 +79,15 @@ export default function MoreMenu({
   setView,
   setIsGoosehintsModalOpen,
 }: {
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
-  const [versions, setVersions] = useState<VersionInfo | null>(null);
-  const [showVersions, setShowVersions] = useState(false);
-  const [useSystemTheme, setUseSystemTheme] = useState(
-    () => localStorage.getItem('use_system_theme') === 'true'
-  );
-  const [isDarkMode, setDarkMode] = useState(() => {
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (useSystemTheme) {
-      return systemPrefersDark;
-    }
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme ? savedTheme === 'dark' : systemPrefersDark;
-  });
+  const { isDarkMode, setDarkMode } = useTheme();
+  // todo: not used?
+  const [_versions, _setVersions] = useState<VersionInfo | null>(null);
+  const [_showVersions, _setShowVersions] = useState(false);
 
   useEffect(() => {
     // Fetch available versions when the menu opens
@@ -112,7 +99,8 @@ export default function MoreMenu({
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
-        setVersions(data);
+        // todo: not used
+        _setVersions(data);
       } catch (error) {
         console.error('Failed to fetch versions:', error);
       }
@@ -123,46 +111,8 @@ export default function MoreMenu({
     }
   }, [open]);
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    // Handler for system theme changes
-    const handleThemeChange = (e: { matches: boolean }) => {
-      if (useSystemTheme) {
-        setDarkMode(e.matches);
-      }
-    };
-
-    // Add listener for system theme changes
-    mediaQuery.addEventListener('change', handleThemeChange);
-
-    // Initial setup
-    if (useSystemTheme) {
-      setDarkMode(mediaQuery.matches);
-    } else {
-      const savedTheme = localStorage.getItem('theme');
-      setDarkMode(savedTheme ? savedTheme === 'dark' : mediaQuery.matches);
-    }
-
-    // Cleanup
-    return () => mediaQuery.removeEventListener('change', handleThemeChange);
-  }, [useSystemTheme]);
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    if (!useSystemTheme) {
-      localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    }
-  }, [isDarkMode, useSystemTheme]);
-
   const toggleTheme = () => {
-    if (!useSystemTheme) {
-      setDarkMode(!isDarkMode);
-    }
+    setDarkMode(!isDarkMode);
   };
 
   return (

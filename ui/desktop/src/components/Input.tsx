@@ -60,11 +60,11 @@ export default function Input({
   };
 
   // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionStart = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
   };
 
-  const handleCompositionEnd = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionEnd = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
   };
 

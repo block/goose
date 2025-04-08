@@ -1,10 +1,9 @@
 import { Input } from '../../../ui/input';
-import Select from 'react-select';
-import React, { useState } from 'react';
+import React from 'react';
 
 interface ExtensionTimeoutFieldProps {
   timeout: number;
-  onChange: (key: string, value: any) => void;
+  onChange: (key: string, value: string | number) => void;
   submitAttempted: boolean;
 }
 

@@ -18,7 +18,8 @@ export default function BottomMenu({
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
-  const { recentModels } = useRecentModels(); // Get recent models
+  // todo: recentModels not used?
+  const { _recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside

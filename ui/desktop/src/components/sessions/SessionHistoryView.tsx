@@ -10,7 +10,7 @@ import {
   Target,
   LoaderCircle,
 } from 'lucide-react';
-import { type SessionDetails } from '../../sessions';
+import { SessionDetails } from '../../types/sessions';
 import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
 import { createSharedSession } from '../../sharedSessions';
 import { Modal, ModalContent } from '../ui/modal';
@@ -39,7 +39,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
+  // todo: shareError never used?
+  const [_shareError, setShareError] = useState<string | null>(null);
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -58,6 +59,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   const handleShare = async () => {
     setIsSharing(true);
+
+    // todo: shareError never used?
     setShareError(null);
 
     try {
@@ -87,6 +90,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       setIsShareModalOpen(true);
     } catch (error) {
       console.error('Error sharing session:', error);
+      // todo: shareError never used?
       setShareError(error instanceof Error ? error.message : 'Unknown error occurred');
       toast.error(
         `Failed to share session: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -118,12 +122,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         {/* Session info row */}
         <div className="ml-8">
           <h1 className="text-lg text-textStandardInverse">
-            {session.metadata.description || session.session_id}
+            {session.metadata.description || session.id}
           </h1>
           <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
               <Calendar className="w-4 h-4 mr-1" />
-              {formatDate(session.messages[0]?.created)}
+              {formatDate(session.created)}
             </span>
             <span className="flex items-center">
               <MessageSquareText className="w-4 h-4 mr-1" />

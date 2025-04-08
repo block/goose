@@ -3,13 +3,13 @@ import {
   session,
   BrowserWindow,
   dialog,
-  globalShortcut,
   ipcMain,
   Menu,
   MenuItem,
   Notification,
   powerSaveBlocker,
   Tray,
+  App,
 } from 'electron';
 import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
@@ -41,8 +41,8 @@ app.setAsDefaultProtocolClient('goose');
 
 // Triggered when the user opens "goose://..." links
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null; // Store deep link if sent before React is ready
-app.on('open-url', async (event, url) => {
+let pendingDeepLink: string | null = null; // Store deep link if sent before React is ready
+app.on('open-url', async (_event, url) => {
   pendingDeepLink = url;
 
   // Parse the URL to determine the type
@@ -156,13 +156,21 @@ let appConfig = {
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
+interface BotConfig {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  activities: string[];
+}
+
 const createChat = async (
-  app,
+  app: App,
   query?: string,
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  botConfig?: any // Bot configuration
+  botConfig?: BotConfig
 ) => {
   // Apply current environment settings before creating chat
   updateEnvironmentVariables(envToggles);
@@ -202,7 +210,7 @@ const createChat = async (
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Open all links in external browser
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      require('electron').shell.openExternal(url);
+      electron.shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
@@ -246,15 +254,15 @@ const createChat = async (
   }
 
   // Set up local keyboard shortcuts that only work when the window is focused
-  mainWindow.webContents.on('before-input-event', (event, input) => {
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
     if (input.key === 'r' && input.meta) {
       mainWindow.reload();
-      event.preventDefault();
+      _event.preventDefault();
     }
 
     if (input.key === 'i' && input.alt && input.meta) {
       mainWindow.webContents.openDevTools();
-      event.preventDefault();
+      _event.preventDefault();
     }
   });
 
@@ -342,7 +350,10 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     if (replaceWindow) {
-      BrowserWindow.getFocusedWindow().close();
+      const focusedWindow = BrowserWindow.getFocusedWindow();
+      if (focusedWindow) {
+        focusedWindow.close();
+      }
     }
     createChat(app, undefined, result.filePaths[0]);
   }
@@ -366,7 +377,7 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
-ipcMain.on('react-ready', (event) => {
+ipcMain.on('react-ready', () => {
   console.log('React ready event received');
 
   if (pendingDeepLink) {
@@ -432,11 +443,11 @@ ipcMain.handle('check-ollama', async () => {
 });
 
 // Handle binary path requests
-ipcMain.handle('get-binary-path', (event, binaryName) => {
+ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
-ipcMain.handle('read-file', (event, filePath) => {
+ipcMain.handle('read-file', (_event, filePath) => {
   return new Promise((resolve) => {
     exec(`cat ${filePath}`, (error, stdout, stderr) => {
       if (error) {
@@ -452,7 +463,7 @@ ipcMain.handle('read-file', (event, filePath) => {
   });
 });
 
-ipcMain.handle('write-file', (event, filePath, content) => {
+ipcMain.handle('write-file', (_event, filePath, content) => {
   return new Promise((resolve) => {
     const command = `cat << 'EOT' > ${filePath}
 ${content}
@@ -498,25 +509,27 @@ app.whenReady().then(async () => {
   const menu = Menu.getApplicationMenu();
 
   // App menu
-  const appMenu = menu.items.find((item) => item.label === 'Goose');
-  // add Settings to app menu after About
-  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-  appMenu.submenu.insert(
-    1,
-    new MenuItem({
-      label: 'Settings',
-      accelerator: 'CmdOrCtrl+,',
-      click() {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
-      },
-    })
-  );
-  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  const appMenu = menu?.items.find((item) => item.label === 'Goose');
+  if (appMenu?.submenu) {
+    // add Settings to app menu after About
+    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+    appMenu.submenu.insert(
+      1,
+      new MenuItem({
+        label: 'Settings',
+        accelerator: 'CmdOrCtrl+,',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+        },
+      })
+    );
+    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  }
 
   // Add Environment menu items to View menu
-  const viewMenu = menu.items.find((item) => item.label === 'View');
-  if (viewMenu) {
+  const viewMenu = menu?.items.find((item) => item.label === 'View');
+  if (viewMenu?.submenu) {
     viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
     viewMenu.submenu.append(
       new MenuItem({
@@ -534,31 +547,31 @@ app.whenReady().then(async () => {
 
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
-  // open goose to specific dir and set that as its working space
-  fileMenu.submenu.append(
-    new MenuItem({
-      label: 'Open Directory...',
-      accelerator: 'CmdOrCtrl+O',
-      click() {
-        openDirectoryDialog();
-      },
-    })
-  );
-
-  // Add Recent Files submenu
-  const recentFilesSubmenu = buildRecentFilesMenu();
-  if (recentFilesSubmenu.length > 0) {
-    fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+  if (fileMenu?.submenu) {
+    // open goose to specific dir and set that as its working space
     fileMenu.submenu.append(
       new MenuItem({
-        label: 'Recent Directories',
-        submenu: recentFilesSubmenu,
+        label: 'Open Directory...',
+        accelerator: 'CmdOrCtrl+O',
+        click() {
+          openDirectoryDialog();
+        },
       })
     );
-  }
 
-  // Add menu items to File menu
-  if (fileMenu && fileMenu.submenu) {
+    // Add Recent Files submenu
+    const recentFilesSubmenu = buildRecentFilesMenu();
+    if (recentFilesSubmenu.length > 0) {
+      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Recent Directories',
+          submenu: recentFilesSubmenu,
+        })
+      );
+    }
+
+    // Add menu items to File menu
     fileMenu.submenu.append(
       new MenuItem({
         label: 'New Chat Window',
@@ -598,7 +611,9 @@ app.whenReady().then(async () => {
     );
   }
 
-  Menu.setApplicationMenu(menu);
+  if (menu) {
+    Menu.setApplicationMenu(menu);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -606,7 +621,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
+  ipcMain.on('create-chat-window', (_event, query, dir, version, resumeSessionId, botConfig) => {
     if (!dir?.trim()) {
       const recentDirs = loadRecentDirs();
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
@@ -614,16 +629,16 @@ app.whenReady().then(async () => {
     createChat(app, query, dir, version, resumeSessionId, botConfig);
   });
 
-  ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
+  ipcMain.on('directory-chooser', (_event, replace: boolean = false) => {
     openDirectoryDialog(replace);
   });
 
-  ipcMain.on('notify', (event, data) => {
+  ipcMain.on('notify', (_event, data) => {
     console.log('NOTIFY', data);
     new Notification({ title: data.title, body: data.body }).show();
   });
 
-  ipcMain.on('logInfo', (_, info) => {
+  ipcMain.on('logInfo', (_event, info) => {
     log.info('from renderer:', info);
   });
 
@@ -659,12 +674,12 @@ app.whenReady().then(async () => {
   });
 
   // Handle binary path requests
-  ipcMain.handle('get-binary-path', (event, binaryName) => {
+  ipcMain.handle('get-binary-path', (_event, binaryName) => {
     return getBinaryPath(app, binaryName);
   });
 
   // Handle metadata fetching from main process
-  ipcMain.handle('fetch-metadata', async (_, url) => {
+  ipcMain.handle('fetch-metadata', async (_event, url) => {
     try {
       const response = await fetch(url, {
         headers: {
@@ -683,7 +698,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('open-in-chrome', (_, url) => {
+  ipcMain.on('open-in-chrome', (_event, url) => {
     // On macOS, use the 'open' command with Chrome
     if (process.platform === 'darwin') {
       spawn('open', ['-a', 'Google Chrome', url]);

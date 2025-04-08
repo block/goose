@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { IpcRendererEvent } from 'electron';
 import { addExtensionFromDeepLink } from './extensions';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { getStoredModel } from './utils/providerUtils';
@@ -14,8 +15,6 @@ import { toastService } from './toasts';
 import { settingsV2Enabled } from './flags';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
-import { SessionDetails } from './sessions';
-import { SharedSessionDetails } from './sharedSessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -32,28 +31,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
 
-// Views and their options
-export type View =
-  | 'welcome'
-  | 'chat'
-  | 'settings'
-  | 'moreModels'
-  | 'configureProviders'
-  | 'configPage'
-  | 'ConfigureProviders'
-  | 'settingsV2'
-  | 'sessions'
-  | 'sharedSession';
-
-export type ViewConfig = {
-  view: View;
-  viewOptions?:
-    | SettingsViewOptions
-    | {
-        resumedSession?: SessionDetails;
-      }
-    | Record<string, any>;
-};
+import { View, ViewConfig, ViewOptionsBase } from './types/views';
 
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -65,6 +43,8 @@ export default function App() {
     viewOptions: {},
   });
   const { getExtensions, addExtension, read } = useConfig();
+  const { switchModel } = useModel();
+  const { addRecentModel } = useRecentModels();
   const initAttemptedRef = useRef(false);
 
   // Utility function to extract the command from the link
@@ -75,73 +55,102 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
-  useEffect(() => {
-    if (!settingsV2Enabled) {
-      return;
-    }
-
-    // Guard against multiple initialization attempts
-    if (initAttemptedRef.current) {
-      console.log('Initialization already attempted, skipping...');
-      return;
-    }
-    initAttemptedRef.current = true;
-
-    console.log(`Initializing app with settings v2`);
-
-    const initializeApp = async () => {
-      try {
-        const config = window.electron.getConfig();
-
-        const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
-        const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
-
-        if (provider && model) {
-          setView('chat');
-
-          try {
-            await initializeSystem(provider, model, {
-              getExtensions,
-              addExtension,
-            });
-          } catch (error) {
-            console.error('Error in initialization:', error);
-
-            // propagate the error upward so the global ErrorUI shows in cases
-            // where going through welcome/onboarding wouldn't address the issue
-            if (error instanceof MalformedConfigError) {
-              throw error;
-            }
-
-            setView('welcome');
-          }
-        } else {
-          console.log('Missing required configuration, showing onboarding');
-          setView('welcome');
-        }
-      } catch (error) {
-        setFatalError(`${error.message || 'Unknown error'}`);
-        setView('welcome');
-      }
-
-      // Reset toast service after initialization
-      toastService.configure({ silent: false });
-    };
-
-    initializeApp().catch((error) => {
-      console.error('Unhandled error in initialization:', error);
-      setFatalError(`${error.message || 'Unknown error'}`);
-    });
-  }, []);
-
-  const setView = (view: View, viewOptions: Record<any, any> = {}) => {
+  const setView = (view: View, viewOptions: ViewOptionsBase = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
     setInternalView({ view, viewOptions });
   };
 
+  // Single initialization effect that handles both v1 and v2 settings
+  useEffect(() => {
+    // Guard against multiple initialization attempts
+    if (initAttemptedRef.current) {
+      return;
+    }
+    initAttemptedRef.current = true;
+
+    const initializeApp = async () => {
+      try {
+        const config = window.electron.getConfig();
+        console.log('Loaded config:', JSON.stringify(config));
+
+        if (settingsV2Enabled) {
+          console.log('Initializing app with settings v2');
+          const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
+          const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
+
+          if (provider && model) {
+            try {
+              await initializeSystem(provider, model, {
+                getExtensions,
+                addExtension,
+              });
+              setView('chat');
+            } catch (error) {
+              console.error('Error in initialization:', error);
+              if (error instanceof MalformedConfigError) {
+                throw error;
+              }
+              setView('welcome');
+            }
+          } else {
+            console.log('Missing required configuration, showing onboarding');
+            setView('welcome');
+          }
+        } else {
+          console.log('Initializing app with settings v1');
+          const storedProvider = getStoredProvider(config);
+          console.log('Stored provider:', storedProvider);
+
+          if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
+            console.log('using GOOSE_PROVIDER and GOOSE_MODEL from config');
+            await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+            setView('chat');
+            return;
+          }
+
+          if (storedProvider) {
+            const storedModel = getStoredModel();
+            try {
+              await initializeSystem(storedProvider, storedModel);
+              console.log('Setup using locally stored provider:', storedProvider);
+              console.log('Setup using locally stored model:', storedModel);
+
+              if (!storedModel) {
+                const modelName = getDefaultModel(storedProvider.toLowerCase());
+                const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
+                switchModel(model);
+                addRecentModel(model);
+              }
+              setView('chat');
+            } catch (error) {
+              console.error('Failed to initialize with stored provider:', error);
+              setFatalError(
+                `Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+              );
+              setView('welcome');
+            }
+          } else {
+            setView('welcome');
+          }
+        }
+
+        // Reset toast service after initialization
+        toastService.configure({ silent: false });
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+        setView('welcome');
+      }
+    };
+
+    initializeApp().catch((error) => {
+      console.error('Unhandled error in initialization:', error);
+      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+    });
+  }, [addRecentModel, switchModel, read, getExtensions, addExtension]);
+
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const [sharedSession, setSharedSession] = useState<SharedSessionDetails | null>(null);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
@@ -152,13 +161,15 @@ export default function App() {
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
-      setFatalError(`React ready notification failed: ${error.message}`);
+      setFatalError(
+        `React ready notification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }, []);
 
   // Handle shared session deep links
   useEffect(() => {
-    const handleOpenSharedSession = async (_: any, link: string) => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, link: string) => {
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
@@ -190,7 +201,7 @@ export default function App() {
         try {
           const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
           console.log(`Creating new chat window with working dir: ${workingDir}`);
-          window.electron.createChatWindow(undefined, workingDir);
+          window.electron.createChatWindow(undefined, workingDir as string);
         } catch (error) {
           console.error('Error creating new window:', error);
         }
@@ -205,7 +216,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up fatal error handler');
-    const handleFatalError = (_: any, errorMessage: string) => {
+    const handleFatalError = (_event: IpcRendererEvent, errorMessage: string) => {
       console.error('Encountered a fatal error: ', errorMessage);
       // Log additional context that might help diagnose the issue
       console.error('Current view:', view);
@@ -221,7 +232,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up view change handler');
-    const handleSetView = (_, newView) => {
+    const handleSetView = (_event: IpcRendererEvent, newView: View) => {
       console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
@@ -239,10 +250,9 @@ export default function App() {
     }
   }, [view]);
 
-  // TODO: modify
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = (_: any, link: string) => {
+    const handleAddExtension = (_event: IpcRendererEvent, link: string) => {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -264,7 +274,6 @@ export default function App() {
     };
   }, []);
 
-  // TODO: modify
   const handleConfirm = async () => {
     if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
@@ -285,88 +294,11 @@ export default function App() {
     }
   };
 
-  // TODO: modify
   const handleCancel = () => {
     console.log('Cancelled extension installation.');
     setModalVisible(false);
     setPendingLink(null);
   };
-
-  // TODO: remove
-  const { switchModel } = useModel(); // TODO: remove
-  const { addRecentModel } = useRecentModels(); // TODO: remove
-
-  useEffect(() => {
-    if (settingsV2Enabled) {
-      return;
-    }
-
-    console.log(`Initializing app with settings v1`);
-
-    // Attempt to detect config for a stored provider
-    const detectStoredProvider = () => {
-      try {
-        const config = window.electron.getConfig();
-        console.log('Loaded config:', JSON.stringify(config));
-
-        const storedProvider = getStoredProvider(config);
-        console.log('Stored provider:', storedProvider);
-
-        if (storedProvider) {
-          setView('chat');
-        } else {
-          setView('welcome');
-        }
-      } catch (err) {
-        console.error('DETECTION ERROR:', err);
-        setFatalError(`Config detection error: ${err.message || 'Unknown error'}`);
-      }
-    };
-
-    // Initialize system if we have a stored provider
-    const setupStoredProvider = async () => {
-      try {
-        const config = window.electron.getConfig();
-
-        if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
-          console.log('using GOOSE_PROVIDER and GOOSE_MODEL from config');
-          await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
-          return;
-        }
-
-        const storedProvider = getStoredProvider(config);
-        const storedModel = getStoredModel();
-
-        if (storedProvider) {
-          try {
-            await initializeSystem(storedProvider, storedModel);
-            console.log('Setup using locally stored provider:', storedProvider);
-            console.log('Setup using locally stored model:', storedModel);
-
-            if (!storedModel) {
-              const modelName = getDefaultModel(storedProvider.toLowerCase());
-              const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
-              switchModel(model);
-              addRecentModel(model);
-            }
-          } catch (error) {
-            console.error('Failed to initialize with stored provider:', error);
-            setFatalError(`Initialization failed: ${error.message || 'Unknown error'}`);
-          }
-        }
-      } catch (err) {
-        console.error('SETUP ERROR:', err);
-        setFatalError(`Setup error: ${err.message || 'Unknown error'}`);
-      }
-    };
-
-    // Execute the functions with better error handling
-    detectStoredProvider();
-    setupStoredProvider().catch((err) => {
-      console.error('ASYNC SETUP ERROR:', err);
-      setFatalError(`Async setup error: ${err.message || 'Unknown error'}`);
-    });
-  }, []);
 
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
@@ -465,12 +397,12 @@ export default function App() {
           {view === 'sessions' && <SessionsView setView={setView} />}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions.sessionDetails}
+              session={viewOptions?.sessionDetails}
               isLoading={isLoadingSharedSession}
-              error={viewOptions.error || sharedSessionError}
+              error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}
               onRetry={async () => {
-                if (viewOptions.shareToken && viewOptions.baseUrl) {
+                if (viewOptions?.shareToken && viewOptions?.baseUrl) {
                   setIsLoadingSharedSession(true);
                   try {
                     await openSharedSessionFromDeepLink(
@@ -491,7 +423,7 @@ export default function App() {
       </div>
       {isGoosehintsModalOpen && (
         <GoosehintsModal
-          directory={window.appConfig.get('GOOSE_WORKING_DIR')}
+          directory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}

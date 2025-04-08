@@ -15,11 +15,12 @@ export type SettingsViewOptions = {
 export default function SettingsView({
   onClose,
   setView,
-  viewOptions,
+  // todo: viewOptions not used?
+  // viewOptions,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
-  viewOptions: SettingsViewOptions;
+  // viewOptions: SettingsViewOptions;
 }) {
   return (
     <div className="h-screen w-full">

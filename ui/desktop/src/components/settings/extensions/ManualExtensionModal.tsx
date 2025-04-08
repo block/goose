@@ -3,7 +3,6 @@ import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { FullExtensionConfig, DEFAULT_EXTENSION_TIMEOUT } from '../../../extensions';
-import { toast } from 'react-toastify';
 import Select from 'react-select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 import { getApiUrl, getSecretKey } from '../../../config';

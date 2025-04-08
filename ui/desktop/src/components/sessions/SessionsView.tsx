@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { ViewConfig } from '../../App';
-import { fetchSessionDetails, type SessionDetails } from '../../sessions';
+import { View, ViewOptionsBase } from '../../types/views';
+import { SessionDetails } from '../../types/sessions';
+import { fetchSessionDetails } from '../../sessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { toastError } from '../../toasts';
 
 interface SessionsViewProps {
-  setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptionsBase) => void;
 }
 
 const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
@@ -52,16 +53,11 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
       if (workingDir) {
         console.log(
-          `Resuming session with ID: ${selectedSession.session_id}, in working dir: ${workingDir}`
+          `Resuming session with ID: ${selectedSession.id}, in working dir: ${workingDir}`
         );
 
         // Create a new chat window with the working directory and session ID
-        window.electron.createChatWindow(
-          undefined,
-          workingDir,
-          undefined,
-          selectedSession.session_id
-        );
+        window.electron.createChatWindow(undefined, workingDir, undefined, selectedSession.id);
       } else {
         // Fallback if no working directory is found
         console.error('No working directory found in session metadata');
@@ -72,7 +68,7 @@ const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {
 
   const handleRetryLoadSession = () => {
     if (selectedSession) {
-      loadSessionDetails(selectedSession.session_id);
+      loadSessionDetails(selectedSession.id);
     }
   };
 

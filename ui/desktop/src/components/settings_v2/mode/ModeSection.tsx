@@ -1,10 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { all_goose_modes, filterGooseModes, ModeSelectionItem } from './ModeSelectionItem';
-import ExtensionList from '@/src/components/settings_v2/extensions/subcomponents/ExtensionList';
-import { Button } from '@/src/components/ui/button';
-import { Plus } from 'lucide-react';
-import { GPSIcon } from '@/src/components/ui/icons';
 
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
