@@ -70,7 +70,7 @@ Each evaluation entry in the `evals` array specifies:
 
 ### Quick Start
 
-1. The benchmarking system includes several evaluation suites.\nRun the following to see a listing of every valid selector:
+1. The benchmarking system includes several evaluation suites. Run the following to see a listing of every valid selector:
 ```bash
 $> goose bench selectors
 ```
