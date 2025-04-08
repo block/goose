@@ -489,7 +489,14 @@ impl Agent for SummarizeAgent {
         let tools = capabilities.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
-            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .map(|tool| {
+                ToolInfo::new(
+                    &tool.name,
+                    &tool.description,
+                    get_parameter_names(&tool),
+                    None,
+                )
+            })
             .collect();
 
         let plan_prompt = capabilities.get_planning_prompt(tools_info).await;

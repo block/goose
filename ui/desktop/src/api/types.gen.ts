@@ -84,6 +84,11 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+/**
+ * Enum representing the possible permission levels for a tool.
+ */
+export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
 export type ProviderDetails = {
     /**
      * Indicates whether the provider is fully configured
@@ -204,6 +209,16 @@ export type ToolAnnotations = {
     title?: string | null;
 };
 
+/**
+ * Information about the tool used for building prompts
+ */
+export type ToolInfo = {
+    description: string;
+    name: string;
+    parameters: Array<string>;
+    permission?: PermissionLevel | null;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -213,7 +228,12 @@ export type UpsertConfigQuery = {
 export type GetToolsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Optional extension name to filter tools
+         */
+        extension_name?: string | null;
+    };
     url: '/agent/tools';
 };
 
