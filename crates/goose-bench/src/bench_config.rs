@@ -5,10 +5,17 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct BenchToolShimOpt {
+    pub use_tool_shim: bool,
+    pub tool_shim_model: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BenchModel {
     pub provider: String,
     pub name: String,
     pub parallel_safe: bool,
+    pub tool_shim: Option<BenchToolShimOpt>,
 }
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BenchEval {
@@ -17,17 +24,11 @@ pub struct BenchEval {
     pub parallel_safe: bool,
 }
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct BenchToolShimOpt {
-    pub use_tool_shim: bool,
-    pub tool_shim_model: Option<String>,
-}
-#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BenchRunConfig {
     pub models: Vec<BenchModel>,
     pub evals: Vec<BenchEval>,
     pub include_dirs: Vec<PathBuf>,
     pub repeat: Option<usize>,
-    pub tool_shim: Option<BenchToolShimOpt>,
     pub run_id: Option<String>,
     pub eval_result_filename: String,
     pub run_summary_filename: String,
@@ -42,11 +43,16 @@ impl Default for BenchRunConfig {
                     provider: "databricks".to_string(),
                     name: "goose".to_string(),
                     parallel_safe: true,
+                    tool_shim: Some(BenchToolShimOpt {
+                        use_tool_shim: false,
+                        tool_shim_model: None,
+                    }),
                 },
                 BenchModel {
                     provider: "databricks".to_string(),
                     name: "goose-claude-3-5-sonnet".to_string(),
                     parallel_safe: true,
+                    tool_shim: None,
                 },
             ],
             evals: vec![BenchEval {
@@ -56,10 +62,6 @@ impl Default for BenchRunConfig {
             }],
             include_dirs: vec![],
             repeat: Some(2),
-            tool_shim: Some(BenchToolShimOpt {
-                use_tool_shim: false,
-                tool_shim_model: None,
-            }),
             run_id: None,
             eval_result_filename: "eval-results.json".to_string(),
             run_summary_filename: "run-results-summary.json".to_string(),

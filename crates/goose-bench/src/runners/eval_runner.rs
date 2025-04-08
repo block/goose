@@ -29,7 +29,7 @@ impl EvalRunner {
         // construct work-dir name to have a shim component only if shim configured to be used
         let work_dir_name_shim = {
             let mut shim_name = "".to_string();
-            if let Some(shim_opt) = &config.tool_shim {
+            if let Some(shim_opt) = &goose_model.tool_shim {
                 if shim_opt.use_tool_shim {
                     let shim_model = if let Some(shim_model) = &shim_opt.tool_shim_model {
                         shim_model.clone()

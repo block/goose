@@ -217,8 +217,10 @@ impl ModelRunner {
 
     fn toolshim_envs(&self) -> Vec<(String, String)> {
         // read tool-shim preference from config, set respective env vars accordingly
+        let model = self.config.models.first().unwrap();
+
         let mut shim_envs: Vec<(String, String)> = Vec::new();
-        if let Some(shim_opt) = &self.config.tool_shim {
+        if let Some(shim_opt) = &model.tool_shim {
             if shim_opt.use_tool_shim {
                 shim_envs.push(("GOOSE_TOOLSHIM".to_string(), "true".to_string()));
                 if let Some(shim_model) = &shim_opt.tool_shim_model {
