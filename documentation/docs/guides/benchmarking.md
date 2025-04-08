@@ -72,14 +72,14 @@ Each evaluation entry in the `evals` array specifies:
 
 1. The benchmarking system includes several evaluation suites. Run the following to see a listing of every valid selector:
 ```bash
-$> goose bench selectors
+goose bench selectors
 ```
 
 2. Create a basic configuration file:
 
 ```bash
-$> goose bench init-config -n bench-config.json
-$> cat bench-config.json
+goose bench init-config -n bench-config.json
+cat bench-config.json
 {
   "models": [
     {
@@ -162,4 +162,6 @@ RUST_LOG=debug goose bench bench-config.json
 
 ### Tool Shimming
 
-Tool shimming allows you to use a non-tool-capable models by feeding results of model-A into a tool-capable model-B, for model-B to format into a valid MCP-compliant tool-call:
+Tool shimming allows you to use a non-tool-capable models with Goose, provided Ollama is installed on the system.
+
+See this guide for important details on [tool shimming](docs/guides/experimental-features)
