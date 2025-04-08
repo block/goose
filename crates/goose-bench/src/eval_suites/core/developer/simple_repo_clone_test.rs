@@ -1,13 +1,11 @@
 use crate::bench_work_dir::BenchmarkWorkDir;
-use crate::eval_suites::{
-    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
-    ExtensionRequirements,
-};
+use crate::eval_suites::{collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation, ExtensionRequirements};
 use crate::register_evaluation;
 use async_trait::async_trait;
 use goose::message::MessageContent;
 use mcp_core::role::Role;
 use serde_json::{self, Value};
+use crate::bench_session::BenchAgent;
 
 #[derive(Debug)]
 pub struct SimpleRepoCloneTest {}
@@ -22,9 +20,9 @@ impl SimpleRepoCloneTest {
 impl Evaluation for SimpleRepoCloneTest {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
+        mut agent: &mut BenchAgent,
         _work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         // Send the prompt to clone the repo and add a test
         let (messages, perf_metrics) = collect_baseline_metrics(
             &mut agent,
@@ -177,23 +175,23 @@ impl Evaluation for SimpleRepoCloneTest {
         // Add metrics
         metrics.push((
             "Git repo cloned".to_string(),
-            EvaluationMetric::Boolean(git_clone_executed),
+            EvalMetricValue::Boolean(git_clone_executed),
         ));
         metrics.push((
             "Repository explored".to_string(),
-            EvaluationMetric::Boolean(repo_explored),
+            EvalMetricValue::Boolean(repo_explored),
         ));
         metrics.push((
             "Test file added".to_string(),
-            EvaluationMetric::Boolean(test_added),
+            EvalMetricValue::Boolean(test_added),
         ));
         metrics.push((
             "Test executed".to_string(),
-            EvaluationMetric::Boolean(test_executed),
+            EvalMetricValue::Boolean(test_executed),
         ));
         metrics.push((
             "Complete task".to_string(),
-            EvaluationMetric::Boolean(git_clone_executed && test_added),
+            EvalMetricValue::Boolean(git_clone_executed && test_added),
         ));
 
         Ok(metrics)
