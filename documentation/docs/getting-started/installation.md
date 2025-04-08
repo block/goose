@@ -11,7 +11,7 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
 
 # Install Goose
 
-<SupportedEnvironments />
+<SupportedEnvironments /> 
 
 <Tabs>
   <TabItem value="mac" label="macOS" default>
@@ -50,7 +50,7 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
           2. Run the executable file to launch the Goose desktop application.
 
           :::tip Updating Goose
-          It's best to keep Goose updated. To update, reperform installation steps.
+          It's best to keep Goose updated by periodically running the installation steps again.
           :::
         </div>
         <h3>Option 2: Install via Homebrew</h3>

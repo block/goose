@@ -79,6 +79,24 @@ goose configure
     goose session --with-extension "GITHUB_PERSONAL_ACCESS_TOKEN=<YOUR_TOKEN> npx -y @modelcontextprotocol/server-github"
     ```
 
+- Start a session with the specified remote extension over SSE
+
+     **Options:**
+
+     **`--with-remote-extension <url>`**
+
+     **Usage:**
+
+    ```bash
+    goose session --with-remote-extension <url>
+    ```
+
+    **Examples:**
+
+    ```bash
+    goose session --with-remote-extension "http://localhost:8080/sse"
+    ```
+
 - Start a session with the specified [built-in extension](/docs/getting-started/using-extensions#built-in-extensions) enabled (e.g. 'developer')
 
     **Options:**
@@ -212,6 +230,16 @@ Used to show the available implementations of the agent loop itself
 
 ```bash
 goose agents
+```
+
+### bench
+
+Used to evaluate system-configuration across a range of practical tasks. See the [detailed guide](/docs/guides/benchmarking) for more information.
+
+**Usage:**
+
+```bash
+goose bench ...etc.
 ```
 
 ---

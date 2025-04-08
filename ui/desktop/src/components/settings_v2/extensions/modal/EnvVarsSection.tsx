@@ -30,6 +30,7 @@ export default function EnvVarsSection({
   const handleAdd = () => {
     const keyEmpty = !newKey.trim();
     const valueEmpty = !newValue.trim();
+    const keyHasSpaces = newKey.includes(' ');
 
     if (keyEmpty || valueEmpty) {
       setInvalidFields({
@@ -37,6 +38,15 @@ export default function EnvVarsSection({
         value: valueEmpty,
       });
       setValidationError('Both variable name and value must be entered');
+      return;
+    }
+
+    if (keyHasSpaces) {
+      setInvalidFields({
+        key: true,
+        value: false,
+      });
+      setValidationError('Variable name cannot contain spaces');
       return;
     }
 
