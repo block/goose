@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 
 use crate::config;
 use crate::config::extensions::name_to_key;
+use crate::config::permission::PermissionLevel;
 
 /// Errors from Extension operation
 #[derive(Error, Debug)]
@@ -277,19 +278,26 @@ impl ExtensionInfo {
 }
 
 /// Information about the tool used for building prompts
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct ToolInfo {
     name: String,
     description: String,
     parameters: Vec<String>,
+    permission: Option<PermissionLevel>,
 }
 
 impl ToolInfo {
-    pub fn new(name: &str, description: &str, parameters: Vec<String>) -> Self {
+    pub fn new(
+        name: &str,
+        description: &str,
+        parameters: Vec<String>,
+        permission: Option<PermissionLevel>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             parameters,
+            permission,
         }
     }
 }

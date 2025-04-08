@@ -19,6 +19,18 @@
           "super::routes::agent"
         ],
         "operationId": "get_tools",
+        "parameters": [
+          {
+            "name": "extension_name",
+            "in": "query",
+            "description": "Optional extension name to filter tools",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Tools retrieved successfully",
@@ -547,6 +559,15 @@
           }
         }
       },
+      "PermissionLevel": {
+        "type": "string",
+        "description": "Enum representing the possible permission levels for a tool.",
+        "enum": [
+          "always_allow",
+          "ask_before",
+          "never_allow"
+        ]
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -684,6 +705,37 @@
           "title": {
             "type": "string",
             "description": "A human-readable title for the tool.",
+            "nullable": true
+          }
+        }
+      },
+      "ToolInfo": {
+        "type": "object",
+        "description": "Information about the tool used for building prompts",
+        "required": [
+          "name",
+          "description",
+          "parameters"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permission": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PermissionLevel"
+              }
+            ],
             "nullable": true
           }
         }
