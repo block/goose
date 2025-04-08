@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { getActiveProviders } from './utils';
-import GooseLogo from '../../GooseLogo';
+import SuspenseLoader from '../../../suspense-loader';
 
 // Create a context for active keys
 const ActiveKeysContext = createContext<
@@ -34,14 +34,7 @@ export const ActiveKeysProvider = ({ children }: { children: ReactNode }) => {
   // Provide active keys and ability to update them
   return (
     <ActiveKeysContext.Provider value={{ activeKeys, setActiveKeys }}>
-      {!isLoading ? (
-        children
-      ) : (
-        <div className="flex flex-col gap-4 items-center justify-center w-screen h-screen overflow-hidden bg-bgApp text-textProminent">
-          <GooseLogo hover={false} />
-          <span className="text-lg">Loading...</span>
-        </div>
-      )}
+      {!isLoading ? children : <SuspenseLoader />}
     </ActiveKeysContext.Provider>
   );
 };
