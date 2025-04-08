@@ -49,7 +49,7 @@ export function ConfigureApproveMode({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-10">
       <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-0">
         <div className="px-4 pb-0 space-y-6">
           <div className="p-[16px] pt-[24px] pb-0">
