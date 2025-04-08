@@ -1118,6 +1118,14 @@ impl GoogleDriveRouter {
 
         let drive_uri = uri.replace("gdrive:///", "");
 
+        // Validation: check for / path separators as invalid uris
+        if drive_uri.contains('/') {
+            return Err(ToolError::InvalidParameters(format!(
+                "The uri '{}' conatins extra '/'. Only the base URI is allowed.",
+                uri
+            )));
+        }
+
         let include_images = params
             .get("includeImages")
             .and_then(|i| i.as_bool())
