@@ -1,6 +1,5 @@
 use super::APP_STRATEGY;
 use etcetera::{choose_app_strategy, AppStrategy};
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -30,9 +29,6 @@ pub struct PermissionManager {
     config_path: PathBuf, // Path to the permission configuration file
     permission_map: HashMap<String, PermissionConfig>, // Mapping of permission names to configurations
 }
-
-// Global singleton for the PermissionManager
-static GLOBAL_PERMISSION_MANAGER: OnceCell<PermissionManager> = OnceCell::new();
 
 // Constants representing specific permission categories
 const USER_PERMISSION: &str = "user";
@@ -68,11 +64,6 @@ impl Default for PermissionManager {
 }
 
 impl PermissionManager {
-    /// Returns the global instance of the PermissionManager, initializing it if necessary.
-    pub fn global() -> &'static PermissionManager {
-        GLOBAL_PERMISSION_MANAGER.get_or_init(PermissionManager::default)
-    }
-
     /// Creates a new `PermissionManager` with a specified config path.
     pub fn new<P: AsRef<Path>>(config_path: P) -> Self {
         let config_path = config_path.as_ref().to_path_buf();

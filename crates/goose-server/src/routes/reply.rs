@@ -398,7 +398,6 @@ async fn confirm_handler(
         .handle_confirmation(
             request.id.clone(),
             PermissionConfirmation {
-                principal_name: "tool_name_placeholder".to_string(),
                 principal_type: PrincipalType::Tool,
                 permission,
             },
