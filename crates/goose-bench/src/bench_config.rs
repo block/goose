@@ -14,6 +14,7 @@ pub struct BenchModel {
 pub struct BenchEval {
     pub selector: String,
     pub post_process_cmd: Option<PathBuf>,
+    pub parallel_safe: bool,
 }
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct BenchToolShimOpt {
@@ -30,6 +31,7 @@ pub struct BenchRunConfig {
     pub run_id: Option<String>,
     pub eval_result_filename: String,
     pub run_summary_filename: String,
+    pub env_file: Option<PathBuf>,
 }
 
 impl Default for BenchRunConfig {
@@ -50,6 +52,7 @@ impl Default for BenchRunConfig {
             evals: vec![BenchEval {
                 selector: "core".into(),
                 post_process_cmd: None,
+                parallel_safe: true, // Default to true
             }],
             include_dirs: vec![],
             repeat: Some(2),
@@ -60,6 +63,7 @@ impl Default for BenchRunConfig {
             run_id: None,
             eval_result_filename: "eval-results.json".to_string(),
             run_summary_filename: "run-results-summary.json".to_string(),
+            env_file: None,
         }
     }
 }

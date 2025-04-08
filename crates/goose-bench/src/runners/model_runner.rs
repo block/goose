@@ -5,6 +5,7 @@ use crate::runners::eval_runner::EvalRunner;
 use crate::utilities::{await_process_exits, parallel_bench_cmd, union_hashmaps};
 use std::collections::HashMap;
 use std::fs::read_to_string;
+use std::io::{self, BufRead};
 use std::path::PathBuf;
 use std::process::Child;
 use std::thread;
@@ -49,6 +50,34 @@ impl ModelRunner {
         Ok(())
     }
 
+    fn load_env_file(&self, path: &PathBuf) -> anyhow::Result<Vec<(String, String)>> {
+        let file = std::fs::File::open(path)?;
+        let reader = io::BufReader::new(file);
+        let mut env_vars = Vec::new();
+
+        for line in reader.lines() {
+            let line = line?;
+            // Skip empty lines and comments
+            if line.trim().is_empty() || line.trim_start().starts_with('#') {
+                continue;
+            }
+
+            // Split on first '=' only
+            if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim().to_string();
+                // Remove quotes if present
+                let value = value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string();
+                env_vars.push((key, value));
+            }
+        }
+
+        Ok(env_vars)
+    }
+
     fn run_benchmark(
         &mut self,
         model: &BenchModel,
@@ -57,23 +86,58 @@ impl ModelRunner {
     ) -> anyhow::Result<()> {
         let mut results_handles = HashMap::<String, Vec<Child>>::new();
 
+        // Load environment variables from file if specified
         let mut envs = self.toolshim_envs();
-        envs.push((model.clone().name, model.clone().provider));
+        if let Some(env_file) = &self.config.env_file {
+            let env_vars = self.load_env_file(env_file)?;
+            envs.extend(env_vars);
+        }
+        envs.push(("GOOSE_MODEL".to_string(), model.clone().name));
+        envs.push(("GOOSE_PROVIDER".to_string(), model.clone().provider));
+
+        // Only run in parallel if the model is parallel_safe
+        let run_parallel = model.parallel_safe;
 
         for (suite, evals) in suites.iter() {
             results_handles.insert((*suite).clone(), Vec::new());
 
-            // launch single suite's evals in parallel
-            for eval_selector in evals {
+            // Group evaluations by parallel_safe
+            let mut parallel_evals = Vec::new();
+            let mut sequential_evals = Vec::new();
+
+            for eval in evals {
+                if eval.parallel_safe && run_parallel {
+                    parallel_evals.push(eval);
+                } else {
+                    sequential_evals.push(eval);
+                }
+            }
+
+            // Run parallel-safe evaluations in parallel
+            if !parallel_evals.is_empty() {
+                for eval_selector in &parallel_evals {
+                    self.config.run_id = Some(run_id.clone());
+                    self.config.evals = vec![(*eval_selector).clone()];
+                    let cfg = self.config.to_string()?;
+                    let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
+                    results_handles.get_mut(suite).unwrap().push(handle);
+                }
+            }
+
+            // Run non-parallel-safe evaluations sequentially
+            for eval_selector in &sequential_evals {
                 self.config.run_id = Some(run_id.clone());
                 self.config.evals = vec![(*eval_selector).clone()];
                 let cfg = self.config.to_string()?;
                 let handle = parallel_bench_cmd("exec-eval".to_string(), cfg, envs.clone());
-                results_handles.get_mut(suite).unwrap().push(handle);
+
+                // Wait for this process to complete before starting the next one
+                let mut child_procs = vec![handle];
+                await_process_exits(&mut child_procs, Vec::new());
             }
         }
 
-        // await all suite's evals
+        // Wait for any remaining parallel processes to complete
         for (_, child_procs) in results_handles.iter_mut() {
             await_process_exits(child_procs, Vec::new());
         }
