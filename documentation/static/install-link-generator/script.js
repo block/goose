@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleGeneratedLink(link, true);
                 return;
             }
-            
+
             // Handle custom extension
             const cmd = urlParams.get('cmd');
             if (!cmd) {
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tab.addEventListener('click', () => {
             tabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            
+
             document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
             });
@@ -194,6 +194,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 `arg=${encodeURIComponent(server.id)}`,
                 `description=${encodeURIComponent(server.id)}`
             ].join('&');
+            return `goose://extension?${queryParams}`;
+        }
+
+        // Handle the case where the command is a URL
+        if (server.url) {
+            const queryParams = [
+                `url=${encodeURIComponent(server.url)}`,
+                `id=${encodeURIComponent(server.id)}`,
+                `name=${encodeURIComponent(server.name)}`,
+                `description=${encodeURIComponent(server.description)}`,
+                ...server.environmentVariables
+                    .filter((env) => env.required)
+                    .map(
+                        (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
+                    ),
+            ].join("&");
+
             return `goose://extension?${queryParams}`;
         }
 

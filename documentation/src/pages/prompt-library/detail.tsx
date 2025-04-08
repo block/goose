@@ -1,7 +1,7 @@
 import Layout from "@theme/Layout";
 import { ArrowLeft, Terminal, Download, Code } from "lucide-react";
-import Admonition from '@theme/Admonition';
-import CodeBlock from '@theme/CodeBlock';
+import Admonition from "@theme/Admonition";
+import CodeBlock from "@theme/CodeBlock";
 import { Button } from "@site/src/components/ui/button";
 import { Badge } from "@site/src/components/ui/badge";
 import { useLocation } from "@docusaurus/router";
@@ -10,7 +10,7 @@ import Link from "@docusaurus/Link";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MCPServer } from "@site/src/types/server";
 import { getPromptById } from "@site/src/utils/prompts";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
 
 import type { Prompt, Extension } from "@site/src/types/prompt";
 import { getGooseInstallLink } from "@site/src/utils/install-links";
@@ -20,26 +20,32 @@ function extensionToMCPServer(extension: Extension): MCPServer {
     id: extension.command,
     name: extension.name,
     command: extension.command,
+    url: extension.url,
     description: extension.name,
     is_builtin: extension.is_builtin,
-    link: extension.link || '',
-    installation_notes: extension.installation_notes || '',
+    link: extension.link || "",
+    installation_notes: extension.installation_notes || "",
     endorsed: false,
     environmentVariables: extension.environmentVariables || [],
-    githubStars: 0
+    githubStars: 0,
   };
 }
 
-
 function ExtensionList({ extensions }: { extensions: Extension[] }) {
-  const [expandedExtension, setExpandedExtension] = useState<string | null>(null);
+  const [expandedExtension, setExpandedExtension] = useState<string | null>(
+    null
+  );
 
   const hasExpandedExtension = expandedExtension !== null;
 
   return (
-    <div className={`flex gap-3 ${hasExpandedExtension ? 'flex-col' : 'flex-wrap'}`}>
+    <div
+      className={`flex gap-3 ${
+        hasExpandedExtension ? "flex-col" : "flex-wrap"
+      }`}
+    >
       {extensions.map((extension) => (
-        <ExtensionDetails 
+        <ExtensionDetails
           key={extension.name}
           extension={extension}
           isExpanded={expandedExtension === extension.name}
@@ -52,41 +58,43 @@ function ExtensionList({ extensions }: { extensions: Extension[] }) {
   );
 }
 
-function ExtensionDetails({ 
+function ExtensionDetails({
   extension,
   isExpanded,
-  onToggle
-}: { 
+  onToggle,
+}: {
   extension: Extension;
   isExpanded: boolean;
   onToggle: (expanded: boolean) => void;
 }) {
   return (
     <div className="flex flex-col">
-      <div 
+      <div
         className={`
           inline-flex items-center h-9 px-4 rounded-full 
           bg-background-subtle border border-borderSubtle
           transition-all duration-150 ease-in-out
           hover:bg-background-standard hover:border-borderStandard
-          group ${extension.is_builtin ? 'cursor-help' : 'cursor-pointer'}
-          ${isExpanded ? 'bg-background-standard border-borderStandard' : ''}
+          group ${extension.is_builtin ? "cursor-help" : "cursor-pointer"}
+          ${isExpanded ? "bg-background-standard border-borderStandard" : ""}
         `}
         onClick={() => {
           if (!extension.is_builtin) {
             onToggle(!isExpanded);
           }
         }}
-        title={extension.is_builtin ? "Built-in extension - can be enabled in settings" : "Click to see installation options"}
+        title={
+          extension.is_builtin
+            ? "Built-in extension - can be enabled in settings"
+            : "Click to see installation options"
+        }
       >
         <span className="text-sm text-textStandard group-hover:text-textProminent">
           {extension.name}
         </span>
         {extension.is_builtin ? (
           <div className="inline-flex items-center ml-2">
-            <span className="text-sm text-textSubtle">
-              Built-in
-            </span>
+            <span className="text-sm text-textSubtle">Built-in</span>
           </div>
         ) : (
           <span className="ml-2 text-textSubtle">
@@ -118,23 +126,29 @@ function ExtensionDetails({
               </a>
 
               <div className="border-t border-borderSubtle" />
-              <button
-                className="command-toggle w-full flex items-center"
-              >
+              <button className="command-toggle w-full flex items-center">
                 <Terminal className="h-4 w-4" />
                 <h4 className="mx-2">Command</h4>
               </button>
               <div>
-                <CodeBlock language="bash">
-                  goose session --with-extension "{extension.command}"
-                </CodeBlock>
+                {extension.url ? (
+                  <CodeBlock language="bash">
+                    goose session --with-remote-extension "{extension.url}"
+                  </CodeBlock>
+                ) : (
+                  <CodeBlock language="bash">
+                    goose session --with-extension "{extension.command}"
+                  </CodeBlock>
+                )}
               </div>
 
               {extension.installation_notes && (
                 <>
                   <div className="border-t border-borderSubtle" />
                   <div>
-                    <div className="text-sm font-medium mb-2">Installation Notes</div>
+                    <div className="text-sm font-medium mb-2">
+                      Installation Notes
+                    </div>
                     <div className="text-sm text-textSubtle">
                       <ReactMarkdown>
                         {extension.installation_notes}
@@ -144,27 +158,33 @@ function ExtensionDetails({
                 </>
               )}
 
-              {extension.environmentVariables && extension.environmentVariables.length > 0 && (
-                <>
-                  <div className="border-t border-borderSubtle" />
-                  <div>
-                    <div className="text-sm font-medium mb-2">Environment Variables</div>
-                    {extension.environmentVariables.map((env) => (
-                      <div key={env.name} className="mb-2 last:mb-0">
-                        <code className="text-sm">{env.name}</code>
-                        <div className="text-sm text-textSubtle mt-1">
-                          {env.description}
-                          {env.required && (
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              Required
-                            </Badge>
-                          )}
-                        </div>
+              {extension.environmentVariables &&
+                extension.environmentVariables.length > 0 && (
+                  <>
+                    <div className="border-t border-borderSubtle" />
+                    <div>
+                      <div className="text-sm font-medium mb-2">
+                        Environment Variables
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
+                      {extension.environmentVariables.map((env) => (
+                        <div key={env.name} className="mb-2 last:mb-0">
+                          <code className="text-sm">{env.name}</code>
+                          <div className="text-sm text-textSubtle mt-1">
+                            {env.description}
+                            {env.required && (
+                              <Badge
+                                variant="secondary"
+                                className="ml-2 text-xs"
+                              >
+                                Required
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
             </div>
           </motion.div>
         )}
@@ -181,9 +201,7 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
           <div className="flex gap-8">
             <div>
               <Link to="/prompt-library" className="no-underline">
-                <Button
-                  className="flex items-center gap-2 hover:cursor-pointer"
-                >
+                <Button className="flex items-center gap-2 hover:cursor-pointer">
                   <ArrowLeft className="h-4 w-4" />
                   Back
                 </Button>
@@ -204,21 +222,25 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
                       {prompt.description}
                     </p>
                   </div>
-                  
+
                   <Admonition type="info">
                     Results may vary depending on the model and context.
                   </Admonition>
 
                   <div>
-                    <h2 className="text-2xl font-medium mb-4">Example Prompt</h2>
-                      <CodeBlock language="markdown">
-                        {prompt.example_prompt}
-                      </CodeBlock>
+                    <h2 className="text-2xl font-medium mb-4">
+                      Example Prompt
+                    </h2>
+                    <CodeBlock language="markdown">
+                      {prompt.example_prompt}
+                    </CodeBlock>
                   </div>
 
                   {prompt.example_result && (
                     <div>
-                      <h2 className="text-2xl font-medium mb-4">Example Result</h2>
+                      <h2 className="text-2xl font-medium mb-4">
+                        Example Result
+                      </h2>
                       <CodeBlock language="markdown">
                         {prompt.example_result}
                       </CodeBlock>
@@ -226,7 +248,9 @@ function PromptDetail({ prompt }: { prompt: Prompt }) {
                   )}
 
                   <div>
-                    <h2 className="text-2xl font-medium mb-4">Recommended Extensions</h2>
+                    <h2 className="text-2xl font-medium mb-4">
+                      Recommended Extensions
+                    </h2>
                     <ExtensionList extensions={prompt.extensions} />
                   </div>
                 </div>
@@ -250,7 +274,7 @@ export default function DetailPage(): JSX.Element {
       try {
         setLoading(true);
         setError(null);
-        
+
         // Get the ID from the query parameter
         const params = new URLSearchParams(location.search);
         const id = params.get("id");
@@ -284,9 +308,7 @@ export default function DetailPage(): JSX.Element {
             <div className="flex gap-8">
               <div>
                 <Link to="/prompt-library" className="no-underline">
-                  <Button
-                    className="flex items-center gap-2 hover:text-textProminent hover:cursor-pointer"
-                  >
+                  <Button className="flex items-center gap-2 hover:text-textProminent hover:cursor-pointer">
                     <ArrowLeft className="h-4 w-4" />
                     Back
                   </Button>
