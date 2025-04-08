@@ -24,7 +24,10 @@ export default function UserMessage({ message }: UserMessageProps) {
         <div className="flex flex-col group">
           <div className="flex bg-slate text-white rounded-xl rounded-br-none py-2 px-3">
             <div ref={contentRef}>
-              <MarkdownContent content={textContent} className="text-white prose-a:text-white" />
+              <MarkdownContent
+                content={textContent}
+                className="text-white prose-a:text-white user-message"
+              />
             </div>
           </div>
           <div className="flex justify-end">

@@ -5,34 +5,34 @@
 /* Cash Sans */
 
 @font-face {
-  font-family: Cash Sans;
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
-    format('woff2');
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Regular.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Regular.woff)
+      format('woff');
   font-weight: 400;
   font-style: normal;
 }
 
 @font-face {
-  font-family: Cash Sans;
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
-    format('woff2');
+  font-family: 'Cash Sans';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Medium.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSans-Medium.woff) format('woff');
   font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
-  font-family: Cash Sans;
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Semibold.woff2)
-    format('woff2');
-  font-weight: 600;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: Cash Sans;
-  src: url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSans-Bold.woff2)
-    format('woff2');
-  font-weight: 700;
+  font-family: 'Cash Sans Mono';
+  src:
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff2/CashSansMono-Regular.woff2)
+      format('woff2'),
+    url(https://cash-f.squarecdn.com/static/fonts/cashsans/woff/CashSansMono-Regular.woff)
+      format('woff');
+  font-weight: 400;
   font-style: normal;
 }
 
@@ -249,6 +249,7 @@
     word-wrap: break-word;
     word-break: break-word;
   }
+
   .titlebar-drag-region {
     -webkit-app-region: drag;
     height: 32px;
@@ -265,8 +266,10 @@
 
   .bg-inline-code {
     border-radius: 4px;
-    color: rgba(255, 130, 130, 0.85);
-    font-family: 'Square Sans Mono';
+    color: rgb(255 119 43);
+    background-color: var(--background-app);
+    border: 1px solid var(--border-subtle);
+    font-family: 'Cash Sans Mono', monospace;
     font-size: 12px;
     font-style: normal;
     font-weight: 400;
@@ -290,7 +293,7 @@
     content: '';
   }
 
-  .dark .bg-inline-code {
-    color: rgba(248, 155, 89, 0.7);
+  .user-message p {
+    margin-bottom: 0 !important;
   }
 }

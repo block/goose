@@ -228,6 +228,11 @@ impl GoogleDriveRouter {
             indoc! {r#"
                 Read a file from google drive using the file uri.
                 Optionally include base64 encoded images, false by default.
+
+                Example extracting URIs from URLs:
+                Given "https://docs.google.com/document/d/1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc/edit?tab=t.0#heading=h.5v419d3h97tr"
+                Pass in "gdrive:///1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc"
+                Do not include any other path parameters.
             "#}
             .to_string(),
             json!({
@@ -381,10 +386,10 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let update_tool = Tool::new(
-            "update".to_string(),
+        let update_file_tool = Tool::new(
+            "update_file".to_string(),
             indoc! {r#"
-                Update a Google Drive file with new content.
+                Update a normal non-Google file (not Document, Spreadsheet, and Slides) in Google Drive with new content.
             "#}
             .to_string(),
             json!({
@@ -414,7 +419,7 @@ impl GoogleDriveRouter {
               "required": ["fileId", "mimeType"],
             }),
             Some(ToolAnnotations {
-                title: Some("Update a file".to_string()),
+                title: Some("Update a non-Google file".to_string()),
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -422,8 +427,8 @@ impl GoogleDriveRouter {
             }),
         );
 
-        let update_file_tool = Tool::new(
-            "update_file".to_string(),
+        let update_google_file_tool = Tool::new(
+            "update_google_file".to_string(),
             indoc! {r#"
                 Update a Google file (Document, Spreadsheet, or Slides) in Google Drive.
             "#}
@@ -456,7 +461,7 @@ impl GoogleDriveRouter {
               "required": ["fileId", "fileType"],
             }),
             Some(ToolAnnotations {
-                title: Some("Update a file".to_string()),
+                title: Some("Update a Google file".to_string()),
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -699,9 +704,11 @@ impl GoogleDriveRouter {
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
             3. sheets_tool - Work with Google Sheets data using various operations
-            4. docs_tool - Work with Google Docs data using various operations
-            5. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
-            6. update_file - Update existing Google Workspace files
+            4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
+            5. update_google_file - Update existing Google Workspace files (Docs, Sheets, or Slides)
+            6. update_file - Update existing normal non-Google Workspace files
+            7. docs_tool - Work with Google Docs data using various operations
+
 
             ## Available Tools
 
@@ -713,6 +720,19 @@ impl GoogleDriveRouter {
             ### 2. Read File Tool
             Read a file's contents using its ID, and optionally include images as base64 encoded data.
             The default is to exclude images, to include images set includeImages to true in the query.
+
+            Example mappings for Google Drive resources to `gdrive:///$URI` format:
+            - Google Document File:
+              Example URL: https://docs.google.com/document/d/1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc/edit?tab=t.0#heading=h.5v419d3h97tr
+              URI Format: gdrive:///1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc
+
+            - Google Sheet:
+              Example URL: https://docs.google.com/spreadsheets/d/1J5KHqWsGFzweuiQboX7dlm8Ejv90Po16ocEBahzCt4W/edit?gid=1249300797#gid=1249300797
+              URI Format: gdrive:///1J5KHqWsGFzweuiQboX7dlm8Ejv90Po16ocEBahzCt4W
+
+            - Google Slides:
+              Example URL: https://docs.google.com/presentation/d/1zXWqsGpHJEu40oqb1omh68sW9liu7EKFBCdnPaJVoQ5et/edit#slide=id.p1
+              URI Format: gdrive:///1zXWqsGpHJEu40oqb1omh68sW9liu7EKFBCdnPaJVoQ5et
 
             Images take up a large amount of context, this should only be used if a
             user explicity needs the image data.
@@ -816,8 +836,8 @@ impl GoogleDriveRouter {
                 upload_tool,
                 create_file_tool,
                 move_file_tool,
-                update_tool,
                 update_file_tool,
+                update_google_file_tool,
                 sheets_tool,
                 docs_tool,
                 get_comments_tool,
@@ -1175,6 +1195,14 @@ impl GoogleDriveRouter {
                 ))?;
 
         let drive_uri = uri.replace("gdrive:///", "");
+
+        // Validation: check for / path separators as invalid uris
+        if drive_uri.contains('/') {
+            return Err(ToolError::InvalidParameters(format!(
+                "The uri '{}' conatins extra '/'. Only the base URI is allowed.",
+                uri
+            )));
+        }
 
         let include_images = params
             .get("includeImages")
@@ -1932,7 +1960,7 @@ impl GoogleDriveRouter {
         }
     }
 
-    async fn update(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn update_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
                 .get("fileId")
@@ -1983,7 +2011,7 @@ impl GoogleDriveRouter {
         .await
     }
 
-    async fn update_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+    async fn update_google_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         // Extract common parameters
         let file_id =
             params
@@ -2714,8 +2742,8 @@ impl Router for GoogleDriveRouter {
                 "upload" => this.upload(arguments).await,
                 "create_file" => this.create_file(arguments).await,
                 "move_file" => this.move_file(arguments).await,
-                "update" => this.update(arguments).await,
                 "update_file" => this.update_file(arguments).await,
+                "update_google_file" => this.update_google_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
                 "docs_tool" => this.docs_tool(arguments).await,
                 "create_comment" => this.create_comment(arguments).await,

@@ -2,6 +2,8 @@ node_modules
 .vite/
 out
 src/bin/goosed
-/src/bin/goosed.exe
+src/bin/goose-npm/
+/src/bin/*.exe
+/src/bin/*.cmd
 /playwright-report/
 /test-results/

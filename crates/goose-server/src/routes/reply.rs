@@ -8,14 +8,18 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::session;
 use goose::{
     agents::SessionConfig,
     message::{Message, MessageContent},
+    permission::permission_confirmation::PrincipalType,
 };
-
-use mcp_core::role::Role;
+use goose::{
+    permission::{Permission, PermissionConfirmation},
+    session,
+};
+use mcp_core::{role::Role, Content, ToolResult};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use serde_json::Value;
 use std::{
     convert::Infallible,
@@ -385,10 +389,68 @@ async fn confirm_handler(
     let agent = state.agent.clone();
     let agent = agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let permission = if request.confirmed {
+        Permission::AllowOnce
+    } else {
+        Permission::DenyOnce
+    };
     agent
-        .handle_confirmation(request.id.clone(), request.confirmed)
+        .handle_confirmation(
+            request.id.clone(),
+            PermissionConfirmation {
+                principal_name: "tool_name_placeholder".to_string(),
+                principal_type: PrincipalType::Tool,
+                permission,
+            },
+        )
         .await;
     Ok(Json(Value::Object(serde_json::Map::new())))
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolResultRequest {
+    id: String,
+    result: ToolResult<Vec<Content>>,
+}
+
+async fn submit_tool_result(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    raw: axum::extract::Json<serde_json::Value>,
+) -> Result<Json<Value>, StatusCode> {
+    // Log the raw request for debugging
+    tracing::info!(
+        "Received tool result request: {}",
+        serde_json::to_string_pretty(&raw.0).unwrap()
+    );
+
+    // Try to parse into our struct
+    let payload: ToolResultRequest = match serde_json::from_value(raw.0.clone()) {
+        Ok(req) => req,
+        Err(e) => {
+            tracing::error!("Failed to parse tool result request: {}", e);
+            tracing::error!(
+                "Raw request was: {}",
+                serde_json::to_string_pretty(&raw.0).unwrap()
+            );
+            return Err(StatusCode::UNPROCESSABLE_ENTITY);
+        }
+    };
+
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let agent = state.agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    agent.handle_tool_result(payload.id, payload.result).await;
+    Ok(Json(json!({"status": "ok"})))
 }
 
 // Configure routes for this module
@@ -397,6 +459,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
         .route("/confirm", post(confirm_handler))
+        .route("/tool_result", post(submit_tool_result))
         .with_state(state)
 }
 

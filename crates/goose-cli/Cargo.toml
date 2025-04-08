@@ -24,13 +24,13 @@ console = "0.15.8"
 bat = "0.24.0"
 anyhow = "1.0"
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 futures = "0.3"
 serde = { version = "1.0", features = ["derive"] }  # For serialization
 serde_yaml = "0.9"
 etcetera = "0.8.0"
 reqwest = { version = "0.12.9", features = [
-        "rustls-tls",
+        "rustls-tls-native-roots",
         "json",
         "cookies",
         "gzip",
@@ -59,4 +59,4 @@ winapi = { version = "0.3", features = ["wincred"] }
 tempfile = "3"
 temp-env = { version = "0.3.6", features = ["async_closure"] }
 test-case = "3.3"
-tokio = { version = "1.0", features = ["rt", "macros"] }
+tokio = { version = "1.43", features = ["rt", "macros"] }

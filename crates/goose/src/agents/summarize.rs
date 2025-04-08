@@ -12,7 +12,6 @@ use tracing::{debug, error, instrument, warn};
 
 use super::agent::SessionConfig;
 use super::capabilities::get_parameter_names;
-use super::detect_read_only_tools;
 use super::extension::ToolInfo;
 use super::Agent;
 use crate::agents::capabilities::Capabilities;
@@ -20,6 +19,9 @@ use crate::agents::extension::{ExtensionConfig, ExtensionResult};
 use crate::config::Config;
 use crate::memory_condense::condense_messages;
 use crate::message::{Message, ToolRequest};
+use crate::permission::detect_read_only_tools;
+use crate::permission::Permission;
+use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::register_agent;
@@ -28,9 +30,7 @@ use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use anyhow::{anyhow, Result};
 use indoc::indoc;
-use mcp_core::prompt::Prompt;
-use mcp_core::protocol::GetPromptResult;
-use mcp_core::{tool::Tool, Content};
+use mcp_core::{prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolResult};
 use serde_json::{json, Value};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
@@ -40,21 +40,24 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 pub struct SummarizeAgent {
     capabilities: Mutex<Capabilities>,
     token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, bool)>, // (request_id, confirmed)
-    confirmation_rx: Mutex<mpsc::Receiver<(String, bool)>>,
+    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
+    tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
 }
 
 impl SummarizeAgent {
     pub fn new(provider: Box<dyn Provider>) -> Self {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
-        // Create channel with buffer size 32 (adjust if needed)
-        let (tx, rx) = mpsc::channel(32);
+        // Create channels with buffer size 32 (adjust if needed)
+        let (confirm_tx, confirm_rx) = mpsc::channel(32);
+        let (tool_tx, _tool_rx) = mpsc::channel(32);
 
         Self {
             capabilities: Mutex::new(Capabilities::new(provider)),
             token_counter,
-            confirmation_tx: tx,
-            confirmation_rx: Mutex::new(rx),
+            confirmation_tx: confirm_tx,
+            confirmation_rx: Mutex::new(confirm_rx),
+            tool_result_tx: tool_tx,
         }
     }
 
@@ -136,6 +139,11 @@ impl Agent for SummarizeAgent {
         capabilities.add_extension(extension).await
     }
 
+    async fn list_tools(&self) -> Vec<Tool> {
+        let mut capabilities = self.capabilities.lock().await;
+        capabilities.get_prefixed_tools().await.unwrap_or_default()
+    }
+
     async fn remove_extension(&mut self, name: &str) {
         let mut capabilities = self.capabilities.lock().await;
         capabilities
@@ -158,8 +166,8 @@ impl Agent for SummarizeAgent {
     }
 
     /// Handle a confirmation response for a tool request
-    async fn handle_confirmation(&self, request_id: String, confirmed: bool) {
-        if let Err(e) = self.confirmation_tx.send((request_id, confirmed)).await {
+    async fn handle_confirmation(&self, request_id: String, confirmation: PermissionConfirmation) {
+        if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
     }
@@ -320,9 +328,9 @@ impl Agent for SummarizeAgent {
                                             // Wait for confirmation response through the channel
                                             let mut rx = self.confirmation_rx.lock().await;
                                             // Loop the recv until we have a matched req_id due to potential duplicate messages.
-                                            while let Some((req_id, confirmed)) = rx.recv().await {
+                                            while let Some((req_id, tool_confirmation)) = rx.recv().await {
                                                 if req_id == request.id {
-                                                    if confirmed {
+                                                    if tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow {
                                                         // User approved - dispatch the tool call
                                                         let output = capabilities.dispatch_tool_call(tool_call).await;
                                                         message_tool_response = message_tool_response.with_tool_response(
@@ -481,7 +489,14 @@ impl Agent for SummarizeAgent {
         let tools = capabilities.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
-            .map(|tool| ToolInfo::new(&tool.name, &tool.description, get_parameter_names(&tool)))
+            .map(|tool| {
+                ToolInfo::new(
+                    &tool.name,
+                    &tool.description,
+                    get_parameter_names(&tool),
+                    None,
+                )
+            })
             .collect();
 
         let plan_prompt = capabilities.get_planning_prompt(tools_info).await;
@@ -492,6 +507,12 @@ impl Agent for SummarizeAgent {
     async fn provider(&self) -> Arc<Box<dyn Provider>> {
         let capabilities = self.capabilities.lock().await;
         capabilities.provider()
+    }
+
+    async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
+        if let Err(e) = self.tool_result_tx.send((id, result)).await {
+            tracing::error!("Failed to send tool result: {}", e);
+        }
     }
 }
 

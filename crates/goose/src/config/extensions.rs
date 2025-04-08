@@ -63,6 +63,22 @@ impl ExtensionManager {
         }))
     }
 
+    pub fn get_config_by_name(name: &str) -> Result<Option<ExtensionConfig>> {
+        let config = Config::global();
+
+        // Try to get the extension entry
+        let extensions: HashMap<String, ExtensionEntry> = match config.get_param("extensions") {
+            Ok(exts) => exts,
+            Err(super::ConfigError::NotFound(_)) => HashMap::new(),
+            Err(_) => HashMap::new(),
+        };
+
+        Ok(extensions
+            .values()
+            .find(|entry| entry.config.name() == name)
+            .map(|entry| entry.config.clone()))
+    }
+
     /// Set or update an extension configuration
     pub fn set(entry: ExtensionEntry) -> Result<()> {
         let config = Config::global();
@@ -109,8 +125,7 @@ impl ExtensionManager {
     /// Get all extensions and their configurations
     pub fn get_all() -> Result<Vec<ExtensionEntry>> {
         let config = Config::global();
-        let extensions: HashMap<String, ExtensionEntry> =
-            config.get_param("extensions").unwrap_or_default();
+        let extensions: HashMap<String, ExtensionEntry> = config.get_param("extensions")?;
         Ok(Vec::from_iter(extensions.values().cloned()))
     }
 

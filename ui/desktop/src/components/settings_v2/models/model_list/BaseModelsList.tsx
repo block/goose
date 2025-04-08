@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import Model, { getProviderMetadata } from '../modelInterface';
+import Model from '../modelInterface';
 import { useRecentModels } from './recentModels';
 import { changeModel, getCurrentModelAndProvider } from '../index';
 import { useConfig } from '../../../ConfigContext';
+import { toastInfo } from '../../../../toasts';
 
 interface ModelRadioListProps {
   renderItem: (props: {
@@ -29,7 +30,7 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { read, upsert, getProviders } = useConfig();
+  const { read, upsert, getExtensions, addExtension } = useConfig();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -39,7 +40,10 @@ export function BaseModelsList({
 
     const initializeCurrentModel = async () => {
       try {
-        const result = await getCurrentModelAndProvider({ readFromConfig: read });
+        const result = await getCurrentModelAndProvider({
+          readFromConfig: read,
+          writeToConfig: upsert,
+        });
         if (isMounted) {
           // try to look up the model in the modelList
           let currentModel: Model;
@@ -63,32 +67,39 @@ export function BaseModelsList({
       }
     };
 
-    initializeCurrentModel();
+    initializeCurrentModel().then();
 
     return () => {
       isMounted = false;
     };
   }, [read]);
 
-  const handleModelSelection = async (modelName: string, providerName: string) => {
-    await changeModel({ model: selectedModel, writeToConfig: upsert });
+  const handleModelSelection = async (model: Model) => {
+    await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });
   };
 
   // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
-    if (selectedModel.name === model.name && selectedModel.provider === model.provider) {
-      console.log(`Model "${model.name}" is already active.`);
+    // Check if the selected model is already active
+    if (
+      selectedModel &&
+      selectedModel.name === model.name &&
+      selectedModel.provider === model.provider
+    ) {
+      toastInfo({
+        title: 'No change',
+        msg: `Model "${model.name}" is already active.`,
+      });
+
       return;
     }
 
-    const providerMetaData = await getProviderMetadata(model.provider, getProviders);
-    const providerDisplayName = providerMetaData.display_name;
-
-    // Update local state immediately for UI feedback and add in display name
-    setSelectedModel({ ...model, alias: providerDisplayName });
-
     try {
-      await handleModelSelection(model.name, model.provider);
+      // Fix: First save the model to config, then update local state
+      await handleModelSelection(model);
+
+      // Update local state after successful save
+      setSelectedModel(model);
     } catch (error) {
       console.error('Error selecting model:', error);
     }
@@ -104,7 +115,10 @@ export function BaseModelsList({
       {modelList.map((model) =>
         renderItem({
           model,
-          isSelected: selectedModel === model,
+          isSelected:
+            selectedModel &&
+            selectedModel.name === model.name &&
+            selectedModel.provider === model.provider,
           onSelect: () => handleRadioChange(model),
         })
       )}

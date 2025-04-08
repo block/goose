@@ -27,7 +27,11 @@ const ModalHelpText = () => (
       .goosehints is a text file used to provide additional context about your project and improve
       the communication with Goose.
     </p>
-    <p>You'll need to restart your session for .goosehints updates to take effect.</p>
+    <p>
+      Please make sure <span className="font-bold">Developer</span> extension is enabled in the
+      settings page. This extension is required to use .goosehints. You'll need to restart your
+      session for .goosehints updates to take effect.
+    </p>
     <p>
       See{' '}
       <Button
