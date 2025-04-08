@@ -17,51 +17,46 @@ use serde_json::{json, Value};
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages {
-        let mut converted = json!({
+        let converted = json!({
             "role": message.role
         });
 
+        // Accumulate content parts for the current message here
+        let mut current_content_parts = Vec::new();
+        let mut has_content = false; // Flag if we add any text/image content
+
+        // Hold tool calls separately as they go in a different field
+        let mut current_tool_calls = Vec::new();
+
+        // Temporary output for tool responses (handled differently)
         let mut output = Vec::new();
 
         for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Check for image paths in the text
+                        // Check for image paths embedded in text (less relevant for direct image upload but keep logic)
                         if let Some(image_path) = detect_image_path(&text.text) {
-                            // Try to load and convert the image
                             if let Ok(image) = load_image_file(image_path) {
-                                converted["content"] = json!([
-                                    {"type": "text", "text": text.text},
-                                    convert_image(&image, image_format)
-                                ]);
+                                current_content_parts.push(json!({ "type": "text", "text": text.text }));
+                                current_content_parts.push(convert_image(&image, image_format));
                             } else {
                                 // If image loading fails, just use the text
-                                converted["content"] = json!(text.text);
+                                current_content_parts.push(json!({ "type": "text", "text": text.text }));
                             }
                         } else {
-                            converted["content"] = json!(text.text);
+                            // Regular text content
+                            current_content_parts.push(json!({ "type": "text", "text": text.text }));
                         }
+                        has_content = true;
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
-                }
-                MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
-                    continue;
-                }
+                MessageContent::Thinking(_) => continue,
+                MessageContent::RedactedThinking(_) => continue,
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let tool_calls = converted
-                            .as_object_mut()
-                            .unwrap()
-                            .entry("tool_calls")
-                            .or_insert(json!([]));
-
-                        tool_calls.as_array_mut().unwrap().push(json!({
+                        current_tool_calls.push(json!({
                             "id": request.id,
                             "type": "function",
                             "function": {
@@ -71,14 +66,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                     Err(e) => {
-                        output.push(json!({
+                        // If a request itself is bad, maybe add an error message?
+                        // For now, mimicking old behavior of pushing to output
+                         output.push(json!({
                             "role": "tool",
-                            "content": format!("Error: {}", e),
+                            "content": format!("Error processing tool request: {}", e),
                             "tool_call_id": request.id
                         }));
                     }
                 },
                 MessageContent::ToolResponse(response) => {
+                     // Tool responses become separate messages in the output list
                     match &response.tool_result {
                         Ok(contents) => {
                             // Send only contents with no audience or with Assistant in the audience
@@ -93,56 +91,55 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 .collect();
 
                             // Process all content, replacing images with placeholder text
-                            let mut tool_content = Vec::new();
+                            let mut tool_content_parts = Vec::new();
                             let mut image_messages = Vec::new();
 
-                            for content in abridged {
-                                match content {
+                            for content_part in abridged {
+                                match content_part {
                                     Content::Image(image) => {
                                         // Add placeholder text in the tool response
-                                        tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
-
+                                        tool_content_parts.push(Content::text("This tool result included an image that is uploaded in the next message."));
                                         // Create a separate image message
                                         image_messages.push(json!({
                                             "role": "user",
-                                            "content": [convert_image(&image, image_format)]
+                                            "content": [convert_image(&image, image_format)] // Array for content
                                         }));
                                     }
                                     Content::Resource(resource) => {
-                                        tool_content.push(Content::text(resource.get_text()));
+                                        tool_content_parts.push(Content::text(resource.get_text()));
                                     }
                                     _ => {
-                                        tool_content.push(content);
+                                        tool_content_parts.push(content_part);
                                     }
                                 }
                             }
-                            let tool_response_content: Value = json!(tool_content
+                            let tool_response_text: Value = json!(tool_content_parts
                                 .iter()
                                 .map(|content| match content {
                                     Content::Text(text) => text.text.clone(),
-                                    _ => String::new(),
+                                    _ => String::new(), // Or handle other types if needed
                                 })
                                 .collect::<Vec<String>>()
-                                .join(" "));
+                                .join("\n")); // Join with newline maybe?
 
-                            // First add the tool response with all content
                             output.push(json!({
                                 "role": "tool",
-                                "content": tool_response_content,
+                                "content": tool_response_text,
                                 "tool_call_id": response.id
                             }));
-                            // Then add any image messages that need to follow
+                            // Then add any separate image messages
                             output.extend(image_messages);
+
                         }
                         Err(e) => {
-                            // A tool result error is shown as output so the model can interpret the error message
-                            output.push(json!({
+                             output.push(json!({
                                 "role": "tool",
                                 "content": format!("The tool call returned the following error:\n{}", e),
                                 "tool_call_id": response.id
                             }));
                         }
                     }
+<<<<<<< HEAD
                 }
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
@@ -150,20 +147,20 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::EnableExtensionRequest(_) => {
                     // Skip enable extension requests
                 }
+=======
+                },
+                MessageContent::ToolConfirmationRequest(_) => continue,
+>>>>>>> 666e8e8de (feat(chat): Implement multi-modal image input)
                 MessageContent::Image(image) => {
-                    // Handle direct image content
-                    converted["content"] = json!([convert_image(image, image_format)]);
+                    // Add converted image to the parts list for this message
+                    current_content_parts.push(convert_image(image, image_format));
+                    has_content = true;
                 }
+                // Added missing FrontendToolRequest handling similar to ToolRequest
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
-                        let tool_calls = converted
-                            .as_object_mut()
-                            .unwrap()
-                            .entry("tool_calls")
-                            .or_insert(json!([]));
-
-                        tool_calls.as_array_mut().unwrap().push(json!({
+                        current_tool_calls.push(json!({
                             "id": request.id,
                             "type": "function",
                             "function": {
@@ -173,9 +170,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }));
                     }
                     Err(e) => {
-                        output.push(json!({
+                         output.push(json!({
                             "role": "tool",
-                            "content": format!("Error: {}", e),
+                            "content": format!("Error processing frontend tool request: {}", e),
                             "tool_call_id": request.id
                         }));
                     }
@@ -183,9 +180,28 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             }
         }
 
-        if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
-            output.insert(0, converted);
+        // After processing all content parts for the message:
+        let mut message_to_add = converted; // Start with role
+        let mut should_add = false;
+
+        // If there was text or image content, add it as an array
+        if has_content {
+            message_to_add["content"] = json!(current_content_parts);
+            should_add = true;
         }
+
+        // If there were tool calls, add them
+        if !current_tool_calls.is_empty() {
+            message_to_add["tool_calls"] = json!(current_tool_calls);
+            should_add = true;
+        }
+
+        // Add the main message object to the output if it had content/tools
+        if should_add {
+            output.insert(0, message_to_add);
+        }
+
+        // Extend the final spec with this message and any tool responses
         messages_spec.extend(output);
     }
 

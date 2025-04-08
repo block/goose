@@ -27,12 +27,19 @@ pub enum ImageFormat {
 /// Convert an image content into an image json based on format
 pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value {
     match image_format {
-        ImageFormat::OpenAi => json!({
-            "type": "image_url",
-            "image_url": {
-                "url": format!("data:{};base64,{}", image.mime_type, image.data)
-            }
-        }),
+        ImageFormat::OpenAi => {
+            // Check if data already starts with "data:", if so, use it directly.
+            // Otherwise, format it.
+            let image_url = if image.data.starts_with("data:") {
+                image.data.clone()
+            } else {
+                format!("data:{};base64,{}", image.mime_type, image.data)
+            };
+            json!({
+                "type": "image_url",
+                "image_url": { "url": image_url }
+            })
+        }
         ImageFormat::Anthropic => json!({
             "type": "image",
             "source": {

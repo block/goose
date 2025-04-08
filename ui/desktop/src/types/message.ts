@@ -83,12 +83,36 @@ export interface Message {
 }
 
 // Helper functions to create messages
-export function createUserMessage(text: string): Message {
+export function createUserMessage(text: string, imagesBase64?: string[]): Message {
+  const contentParts: MessageContent[] = [];
+
+  // Add text part if text exists
+  if (text?.trim()) {
+    contentParts.push({ type: 'text', text: text.trim() });
+  }
+
+  // Add image parts if images exist
+  if (imagesBase64 && imagesBase64.length > 0) {
+    for (const imageBase64 of imagesBase64) {
+      if (imageBase64) {
+        // Ensure string is not empty/null
+        // Basic image type detection (can be enhanced)
+        const mimeType = imageBase64.substring(5, imageBase64.indexOf(';')) || 'image/png';
+        contentParts.push({ type: 'image', data: imageBase64, mimeType });
+      }
+    }
+  }
+
+  // Ensure there's at least one part (should be guaranteed by Input's disabled logic)
+  if (contentParts.length === 0) {
+    contentParts.push({ type: 'text', text: '' }); // Fallback empty text
+  }
+
   return {
     id: generateId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
+    content: contentParts,
   };
 }
 
