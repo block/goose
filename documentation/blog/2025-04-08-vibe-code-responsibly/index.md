@@ -137,7 +137,7 @@ Here’s how folks vibe code with Goose:
 
 ## Final Thoughts
 
-VVibe coding isn't inherently wrong. It's marks a new chapter in how we build, and it opens the door for everyone. But experienced developers have a responsibility to define what smart, safe vibe coding looks like. Goose gives us the tools to set that standard, so the whole community can code creatively without sacrificing quality.
+Vibe coding isn't inherently wrong. It's marks a new chapter in how we build, and it opens the door for everyone. But experienced developers have a responsibility to define what smart, safe vibe coding looks like. Goose gives us the tools to set that standard, so the whole community can code creatively without sacrificing quality.
 
 Download [Goose](https://block.github.io/goose/docs/getting-started/installation/), and start vibe coding with intention today!
 
