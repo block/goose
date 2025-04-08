@@ -1,6 +1,6 @@
 ---
 title: "How to Vibe Code Responsibly (with Goose)"
-description: Vibe coding feels magical until it isn't. Learn how to flow with Goose while protecting your code, your team, and your future self..
+description: Vibe coding feels magical until it isn't. Learn how to flow with Goose while protecting your code, your team, and your future self.
 authors: 
     - rizel
 ---
