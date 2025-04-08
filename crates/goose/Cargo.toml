@@ -8,7 +8,7 @@ repository.workspace = true
 description.workspace = true
 
 [build-dependencies]
-tokio = { version = "1.36", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
@@ -29,7 +29,7 @@ reqwest = { version = "0.12.9", features = [
         "http2",
         "stream"
     ], default-features = false }
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
@@ -82,7 +82,7 @@ tempfile = "3.15.0"
 serial_test = "3.2.0"
 mockall = "0.13.1"
 wiremock = "0.6.0"
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.43", features = ["full"] }
 
 [[example]]
 name = "agent"

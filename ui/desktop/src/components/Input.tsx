@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import Stop from './ui/Stop';
 import { Attach, Send } from './icons';
+import { debounce } from 'lodash';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -18,12 +19,14 @@ export default function Input({
   commandHistory = [],
   initialValue = '',
 }: InputProps) {
-  const [value, setValue] = useState(initialValue);
+  const [_value, setValue] = useState(initialValue);
+  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
 
   // Update internal value when initialValue changes
   useEffect(() => {
     if (initialValue) {
       setValue(initialValue);
+      setDisplayValue(initialValue);
     }
   }, [initialValue]);
 
@@ -39,12 +42,28 @@ export default function Input({
     }
   }, []);
 
+  // Debounced function to update actual value
+  const debouncedSetValue = useCallback(
+    debounce((val: string) => {
+      setValue(val);
+    }, 150),
+    []
+  );
+
+  // Debounced autosize function
+  const debouncedAutosize = useCallback(
+    debounce((textArea: HTMLTextAreaElement, value: string) => {
+      textArea.style.height = '0px'; // Reset height
+      const scrollHeight = textArea.scrollHeight;
+      textArea.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+    }, 150),
+    []
+  );
+
   const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
     useEffect(() => {
       if (textAreaRef) {
-        textAreaRef.style.height = '0px'; // Reset height
-        const scrollHeight = textAreaRef.scrollHeight;
-        textAreaRef.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+        debouncedAutosize(textAreaRef, value);
       }
     }, [textAreaRef, value]);
   };
@@ -52,12 +71,21 @@ export default function Input({
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
-  useAutosizeTextArea(textAreaRef.current, value);
+  useAutosizeTextArea(textAreaRef.current, displayValue);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
-    setValue(val);
+    setDisplayValue(val); // Update display immediately
+    debouncedSetValue(val); // Debounce the actual state update
   };
+
+  // Cleanup debounced functions on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSetValue.cancel();
+      debouncedAutosize.cancel();
+    };
+  }, []);
 
   // Handlers for composition events, which are crucial for proper IME behavior
   const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
@@ -73,7 +101,7 @@ export default function Input({
 
     // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
-      setSavedInput(value);
+      setSavedInput(displayValue);
     }
 
     // Calculate new history index
@@ -98,8 +126,10 @@ export default function Input({
     setHistoryIndex(newIndex);
     if (newIndex === -1) {
       // Restore saved input when going past the end of history
+      setDisplayValue(savedInput);
       setValue(savedInput);
     } else {
+      setDisplayValue(commandHistory[newIndex] || '');
       setValue(commandHistory[newIndex] || '');
     }
   };
@@ -118,7 +148,9 @@ export default function Input({
         return;
       }
       if (evt.altKey) {
-        setValue(value + '\n');
+        const newValue = displayValue + '\n';
+        setDisplayValue(newValue);
+        setValue(newValue);
         return;
       }
 
@@ -127,8 +159,9 @@ export default function Input({
       evt.preventDefault();
 
       // Only submit if not loading and has content
-      if (!isLoading && value.trim()) {
-        handleSubmit(new CustomEvent('submit', { detail: { value } }));
+      if (!isLoading && displayValue.trim()) {
+        handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
+        setDisplayValue('');
         setValue('');
         setHistoryIndex(-1);
         setSavedInput('');
@@ -138,8 +171,9 @@ export default function Input({
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim() && !isLoading) {
-      handleSubmit(new CustomEvent('submit', { detail: { value } }));
+    if (displayValue.trim() && !isLoading) {
+      handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
+      setDisplayValue('');
       setValue('');
       setHistoryIndex(-1);
       setSavedInput('');
@@ -150,10 +184,9 @@ export default function Input({
     const path = await window.electron.selectFileOrDirectory();
     if (path) {
       // Append the path to existing text, with a space if there's existing text
-      setValue((prev) => {
-        const currentText = prev.trim();
-        return currentText ? `${currentText} ${path}` : path;
-      });
+      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+      setDisplayValue(newValue);
+      setValue(newValue);
       textAreaRef.current?.focus();
     }
   };
@@ -167,7 +200,7 @@ export default function Input({
         autoFocus
         id="dynamic-textarea"
         placeholder="What can goose help with?   ⌘↑/⌘↓"
-        value={value}
+        value={displayValue}
         onChange={handleChange}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
@@ -209,9 +242,9 @@ export default function Input({
           type="submit"
           size="icon"
           variant="ghost"
-          disabled={!value.trim()}
+          disabled={!displayValue.trim()}
           className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-            !value.trim() ? 'text-textSubtle cursor-not-allowed' : ''
+            !displayValue.trim() ? 'text-textSubtle cursor-not-allowed' : ''
           }`}
         >
           <Send />
