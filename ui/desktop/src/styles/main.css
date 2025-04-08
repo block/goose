@@ -300,4 +300,8 @@
   .user-message p {
     margin-bottom: 0 !important;
   }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
 }
