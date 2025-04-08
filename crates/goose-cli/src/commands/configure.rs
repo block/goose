@@ -1019,7 +1019,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
     ))?;
 
     // Allow user to set the permission level
-    let permission = cliclack::select(&format!("Set permission level for tool {}", tool.name))
+    let permission = cliclack::select(format!("Set permission level for tool {}", tool.name))
         .item(
             "always_allow",
             "Always Allow",
@@ -1054,7 +1054,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     permission_manager.update_user_permission(&tool.name, new_permission);
 
-    cliclack::outro(&format!(
+    cliclack::outro(format!(
         "Updated permission level for tool {} to {}.",
         tool.name, permission_label
     ))?;
