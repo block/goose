@@ -82,7 +82,7 @@ export default function SessionSharingSection() {
   return (
     <section id="session-sharing">
       {/*Title*/}
-      <div className="flex justify-between items-center mb-4 px-8">
+      <div className="flex justify-between items-center mb-2 px-8">
         <h2 className="text-xl font-medium text-textStandard">Session sharing</h2>
       </div>
 

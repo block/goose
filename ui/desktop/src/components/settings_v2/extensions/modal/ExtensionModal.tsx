@@ -159,7 +159,7 @@ export default function ExtensionModal({
       {modalType === 'edit' && onDelete && (
         <Button
           onClick={() => setShowDeleteConfirmation(true)}
-          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md"
+          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md [&>svg]:!size-4"
         >
           <Trash2 className="h-4 w-4 mr-2" /> Delete Extension
         </Button>

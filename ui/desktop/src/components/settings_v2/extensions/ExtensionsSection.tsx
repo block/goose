@@ -113,11 +113,11 @@ export default function ExtensionsSection() {
   };
 
   return (
-    <section id="extensions">
-      <div className="flex justify-between items-center mb-4 px-8">
+    <section id="extensions" className="px-8">
+      <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-medium text-textStandard">Extensions</h2>
       </div>
-      <div className="px-8">
+      <div className="border-b border-borderSubtle pb-8">
         <p className="text-sm text-textStandard mb-6">
           These extensions use the Model Context Protocol (MCP). They can expand Goose's
           capabilities using three main components: Prompts, Resources, and Tools.
@@ -145,32 +145,32 @@ export default function ExtensionsSection() {
             Visit Extensions
           </Button>
         </div>
+
+        {/* Modal for updating an existing extension */}
+        {isModalOpen && selectedExtension && (
+          <ExtensionModal
+            title="Update Extension"
+            initialData={extensionToFormData(selectedExtension)}
+            onClose={handleModalClose}
+            onSubmit={handleUpdateExtension}
+            onDelete={handleDeleteExtension}
+            submitLabel="Save Changes"
+            modalType={'edit'}
+          />
+        )}
+
+        {/* Modal for adding a new extension */}
+        {isAddModalOpen && (
+          <ExtensionModal
+            title="Add New Extension"
+            initialData={getDefaultFormData()}
+            onClose={handleModalClose}
+            onSubmit={handleAddExtension}
+            submitLabel="Add Extension"
+            modalType={'add'}
+          />
+        )}
       </div>
-
-      {/* Modal for updating an existing extension */}
-      {isModalOpen && selectedExtension && (
-        <ExtensionModal
-          title="Update Extension"
-          initialData={extensionToFormData(selectedExtension)}
-          onClose={handleModalClose}
-          onSubmit={handleUpdateExtension}
-          onDelete={handleDeleteExtension}
-          submitLabel="Save Changes"
-          modalType={'edit'}
-        />
-      )}
-
-      {/* Modal for adding a new extension */}
-      {isAddModalOpen && (
-        <ExtensionModal
-          title="Add New Extension"
-          initialData={getDefaultFormData()}
-          onClose={handleModalClose}
-          onSubmit={handleAddExtension}
-          submitLabel="Add Extension"
-          modalType={'add'}
-        />
-      )}
     </section>
   );
 }
