@@ -3,7 +3,8 @@ sidebar_position: 7
 ---
 # Benchmarking with Goose
 
-The Goose benchmarking system allows you to evaluate goose performance on complex tasks with one or more system configurations. This guide covers how to use the `goose bench` command to run benchmarks and analyze results.
+The Goose benchmarking system allows you to evaluate goose performance on complex tasks with one or more system configurations.<br></br>
+This guide covers how to use the `goose bench` command to run benchmarks and analyze results.
 
 ## Configuration File
 
@@ -66,11 +67,22 @@ Each evaluation entry in the `evals` array specifies:
 - `run_summary_filename`: Name of the summary results file
 - `env_file`: Optional path to an environment file
 
+##### Mechanics of include_dirs option
+The `include_dirs` config parameter makes the items at all paths listed within the option, available to all evaluations.<br></br>
+It accomplishes this by:
+* copying each included asset into the top-level directory created for each model/provider pair
+* at evaluation run-time
+  * whichever assets is explicitly required by an evaluation gets copied into the eval-specific directory
+  * only if the evaluation-code specifically pulls it in
+  * and only if the evaluation actually is covered by one of the configured selectors and therefore runs
+
 ## Running Benchmarks
 
 ### Quick Start
 
-1. The benchmarking system includes several evaluation suites. Run the following to see a listing of every valid selector:
+1. The benchmarking system includes several evaluation suites.<br></br>
+Run the following to see a listing of every valid selector:
+
 ```bash
 goose bench selectors
 ```
@@ -140,7 +152,18 @@ You can customize runs in several ways:
 
 ## Output and Results
 
-The benchmark generates two main output files:
+The benchmark generates two main output files within a file-hierarchy similar to the following.<br></br>
+Results from running ach model/provider pair are stored within their own directory:
+```bash
+benchmark-${datetime}/
+  ${model}-${provider}[-tool-shim[-${shim-model}]]/
+    run-${i}/
+      ${an-include_dir-asset}
+      run-results-summary.json
+      core/developer/list_files/
+        ${an-include_dir-asset}
+        run-results-summary.json
+```
 
 1. `eval-results.json`: Contains detailed results from each evaluation, including:
    - Individual test case results
@@ -162,6 +185,5 @@ RUST_LOG=debug goose bench bench-config.json
 
 ### Tool Shimming
 
-Tool shimming allows you to use a non-tool-capable models with Goose, provided Ollama is installed on the system.
-
-See this guide for important details on [tool shimming](docs/guides/experimental-features)
+Tool shimming allows you to use a non-tool-capable models with Goose, provided Ollama is installed on the system.<br></br>
+See this guide for important details on [tool shimming](experimental-features).
