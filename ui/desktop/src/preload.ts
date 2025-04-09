@@ -28,7 +28,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace: string) => void;
+  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -68,7 +68,7 @@ const electronAPI: ElectronAPI = {
   reactReady: () => ipcRenderer.send('react-ready'),
   getConfig: () => config,
   hideWindow: () => ipcRenderer.send('hide-window'),
-  directoryChooser: (replace: string) => ipcRenderer.send('directory-chooser', replace),
+  directoryChooser: (replace?: boolean) => ipcRenderer.invoke('directory-chooser', replace),
   createChatWindow: (
     query?: string,
     dir?: string,

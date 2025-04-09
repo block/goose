@@ -274,6 +274,9 @@ const createChat = async (
   return mainWindow;
 };
 
+// Track tray instance
+let tray: Tray | null = null;
+
 const createTray = () => {
   const isDev = process.env.NODE_ENV === 'development';
   let iconPath: string;
@@ -284,7 +287,7 @@ const createTray = () => {
     iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
   }
 
-  const tray = new Tray(iconPath);
+  tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
@@ -294,6 +297,11 @@ const createTray = () => {
 
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
+
+  // On Windows, clicking the tray icon should show the window
+  if (process.platform === 'win32') {
+    tray.on('click', showWindow);
+  }
 };
 
 const showWindow = async () => {
@@ -344,19 +352,18 @@ const buildRecentFilesMenu = () => {
 
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
+    properties: ['openFile', 'openDirectory'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    await createChat(app, undefined, result.filePaths[0]);
     if (replaceWindow) {
-      const focusedWindow = BrowserWindow.getFocusedWindow();
-      if (focusedWindow) {
-        focusedWindow.close();
-      }
+      currentWindow.close();
     }
-    createChat(app, undefined, result.filePaths[0]);
   }
+  return result;
 };
 
 // Global error handler
@@ -399,10 +406,15 @@ ipcMain.on('react-ready', () => {
   }
 });
 
+// Handle directory chooser
+ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
+  return openDirectoryDialog(replace);
+});
+
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -553,9 +565,7 @@ app.whenReady().then(async () => {
       new MenuItem({
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
-        click() {
-          openDirectoryDialog();
-        },
+        click: () => openDirectoryDialog(),
       })
     );
 
@@ -627,10 +637,6 @@ app.whenReady().then(async () => {
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
     createChat(app, query, dir, version, resumeSessionId, botConfig);
-  });
-
-  ipcMain.on('directory-chooser', (_event, replace: boolean = false) => {
-    openDirectoryDialog(replace);
   });
 
   ipcMain.on('notify', (_event, data) => {
@@ -712,9 +718,10 @@ app.whenReady().then(async () => {
   });
 });
 
-// Quit when all windows are closed, except on macOS.
+// Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // Only quit if we're not on macOS or don't have a tray icon
+  if (process.platform !== 'darwin' || !tray) {
     app.quit();
   }
 });

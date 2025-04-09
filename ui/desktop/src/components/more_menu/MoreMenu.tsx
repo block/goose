@@ -193,6 +193,8 @@ export default function MoreMenu({
       <PopoverTrigger asChild>
         <button
           className={`z-[100] absolute top-2 right-4 w-[20px] h-[20px] transition-colors cursor-pointer no-drag hover:text-textProminent ${open ? 'text-textProminent' : 'text-textSubtle'}`}
+          role="button"
+          aria-label="More options"
         >
           <More />
         </button>
