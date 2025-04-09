@@ -1013,29 +1013,27 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         None => "Not Set",
     };
 
-    cliclack::outro(format!(
-        "Configuring tool: {}, Current permission level: {}",
-        tool.name, current_permission
-    ))?;
-
     // Allow user to set the permission level
-    let permission = cliclack::select(format!("Set permission level for tool {}", tool.name))
-        .item(
-            "always_allow",
-            "Always Allow",
-            "Allow this tool to execute without asking",
-        )
-        .item(
-            "ask_before",
-            "Ask Before",
-            "Prompt before executing this tool",
-        )
-        .item(
-            "never_allow",
-            "Never Allow",
-            "Prevent this tool from executing",
-        )
-        .interact()?;
+    let permission = cliclack::select(format!(
+        "Set permission level for tool {}, current permission level: {}",
+        tool.name, current_permission
+    ))
+    .item(
+        "always_allow",
+        "Always Allow",
+        "Allow this tool to execute without asking",
+    )
+    .item(
+        "ask_before",
+        "Ask Before",
+        "Prompt before executing this tool",
+    )
+    .item(
+        "never_allow",
+        "Never Allow",
+        "Prevent this tool from executing",
+    )
+    .interact()?;
 
     let permission_label = match permission {
         "always_allow" => "Always Allow",
