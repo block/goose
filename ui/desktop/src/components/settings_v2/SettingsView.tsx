@@ -15,11 +15,9 @@ export type SettingsViewOptions = {
 export default function SettingsView({
   onClose,
   setView,
-  viewOptions,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
-  viewOptions: SettingsViewOptions;
 }) {
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">

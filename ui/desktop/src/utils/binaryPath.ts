@@ -6,7 +6,7 @@ import log from './logger';
 export const getBinaryPath = (app: Electron.App, binaryName: string): string => {
   const isWindows = process.platform === 'win32';
 
-  const possiblePaths = [];
+  const possiblePaths: string[] = [];
   if (isWindows) {
     addPaths(isWindows, possiblePaths, `${binaryName}.exe`, app);
     addPaths(isWindows, possiblePaths, `${binaryName}.cmd`, app);
@@ -33,7 +33,7 @@ export const getBinaryPath = (app: Electron.App, binaryName: string): string => 
 
 const addPaths = (
   isWindows: boolean,
-  possiblePaths: any[],
+  possiblePaths: string[],
   executableName: string,
   app: Electron.App
 ): void => {

@@ -1,12 +1,12 @@
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
-import React, { useState } from 'react';
+import React from 'react';
 
 interface ExtensionInfoFieldsProps {
   name: string;
   type: 'stdio' | 'sse' | 'builtin';
   description: string;
-  onChange: (key: string, value: any) => void;
+  onChange: (key: string, value: string) => void;
   submitAttempted: boolean;
 }
 

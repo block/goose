@@ -16,7 +16,12 @@ import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigC
 import { toastService } from '../toasts';
 import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
 
-export function getStoredProvider(config: any): string | null {
+interface AppConfig {
+  GOOSE_PROVIDER?: string;
+  [key: string]: unknown;
+}
+
+export function getStoredProvider(config: AppConfig): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
 }
 

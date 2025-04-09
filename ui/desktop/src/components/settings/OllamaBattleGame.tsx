@@ -23,8 +23,10 @@ interface OllamaBattleGameProps {
 }
 
 export function OllamaBattleGame({ onComplete, _requiredKeys }: OllamaBattleGameProps) {
-  // Use type assertion for audioRef to avoid DOM lib dependency
-  const audioRef = useRef<any>(null);
+  // Use Audio element type for audioRef
+  const audioRef = useRef<{ play: () => Promise<void>; pause: () => void; volume: number } | null>(
+    null
+  );
   const [isMuted, setIsMuted] = useState(false);
 
   const [battleState, setBattleState] = useState<BattleState>({

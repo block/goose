@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { IpcRendererEvent } from 'electron';
 import { addExtensionFromDeepLink } from './extensions';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { getStoredModel } from './utils/providerUtils';
@@ -15,7 +16,6 @@ import { settingsV2Enabled } from './flags';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails } from './sessions';
-import { SharedSessionDetails } from './sharedSessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -48,14 +48,15 @@ export type View =
   | 'sharedSession'
   | 'loading';
 
+export type ViewOptions =
+  | SettingsViewOptions
+  | { resumedSession?: SessionDetails }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | Record<string, any>;
+
 export type ViewConfig = {
   view: View;
-  viewOptions?:
-    | SettingsViewOptions
-    | {
-        resumedSession?: SessionDetails;
-      }
-    | Record<string, any>;
+  viewOptions?: ViewOptions;
 };
 
 export default function App() {
@@ -78,6 +79,12 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
+  const setView = (view: View, viewOptions: ViewOptions = {}) => {
+    console.log(`Setting view to: ${view}`, viewOptions);
+    setInternalView({ view, viewOptions });
+  };
+
+  // Single initialization effect that handles both v1 and v2 settings
   useEffect(() => {
     if (!settingsV2Enabled) {
       return;
@@ -126,7 +133,9 @@ export default function App() {
           setView('welcome');
         }
       } catch (error) {
-        setFatalError(`${error.message || 'Unknown error'}`);
+        setFatalError(
+          `Initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
         setView('welcome');
       }
 
@@ -136,18 +145,12 @@ export default function App() {
 
     initializeApp().catch((error) => {
       console.error('Unhandled error in initialization:', error);
-      setFatalError(`${error.message || 'Unknown error'}`);
+      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, []);
-
-  const setView = (view: View, viewOptions: Record<any, any> = {}) => {
-    console.log(`Setting view to: ${view}`, viewOptions);
-    setInternalView({ view, viewOptions });
-  };
+  }, [read, getExtensions, addExtension]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const [sharedSession, setSharedSession] = useState<SharedSessionDetails | null>(null);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });
@@ -158,13 +161,15 @@ export default function App() {
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
-      setFatalError(`React ready notification failed: ${error.message}`);
+      setFatalError(
+        `React ready notification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }, []);
 
   // Handle shared session deep links
   useEffect(() => {
-    const handleOpenSharedSession = async (_: any, link: string) => {
+    const handleOpenSharedSession = async (_event: IpcRendererEvent, link: string) => {
       window.electron.logInfo(`Opening shared session from deep link ${link}`);
       setIsLoadingSharedSession(true);
       setSharedSessionError(null);
@@ -196,7 +201,7 @@ export default function App() {
         try {
           const workingDir = window.appConfig.get('GOOSE_WORKING_DIR');
           console.log(`Creating new chat window with working dir: ${workingDir}`);
-          window.electron.createChatWindow(undefined, workingDir);
+          window.electron.createChatWindow(undefined, workingDir as string);
         } catch (error) {
           console.error('Error creating new window:', error);
         }
@@ -211,7 +216,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up fatal error handler');
-    const handleFatalError = (_: any, errorMessage: string) => {
+    const handleFatalError = (_event: IpcRendererEvent, errorMessage: string) => {
       console.error('Encountered a fatal error: ', errorMessage);
       // Log additional context that might help diagnose the issue
       console.error('Current view:', view);
@@ -227,7 +232,7 @@ export default function App() {
 
   useEffect(() => {
     console.log('Setting up view change handler');
-    const handleSetView = (_, newView) => {
+    const handleSetView = (_event: IpcRendererEvent, newView: View) => {
       console.log(`Received view change request to: ${newView}`);
       setView(newView);
     };
@@ -248,7 +253,7 @@ export default function App() {
   // TODO: modify
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = (_: any, link: string) => {
+    const handleAddExtension = (_event: IpcRendererEvent, link: string) => {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -298,7 +303,8 @@ export default function App() {
     setPendingLink(null);
   };
 
-  // TODO: remove
+  // TODO: remove -- careful removal of these and the useEffect below breaks
+  //  reloading to chat view using stored provider
   const { switchModel } = useModel(); // TODO: remove
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
@@ -323,9 +329,9 @@ export default function App() {
         } else {
           setView('welcome');
         }
-      } catch (err) {
-        console.error('DETECTION ERROR:', err);
-        setFatalError(`Config detection error: ${err.message || 'Unknown error'}`);
+      } catch (error) {
+        console.error('DETECTION ERROR:', error);
+        setFatalError(`Config detection error: ${error.message || 'Unknown error'}`);
       }
     };
 
@@ -360,18 +366,19 @@ export default function App() {
             setFatalError(`Initialization failed: ${error.message || 'Unknown error'}`);
           }
         }
-      } catch (err) {
-        console.error('SETUP ERROR:', err);
-        setFatalError(`Setup error: ${err.message || 'Unknown error'}`);
+      } catch (error) {
+        console.error('SETUP ERROR:', error);
+        setFatalError(`Setup error: ${error.message || 'Unknown error'}`);
       }
     };
 
     // Execute the functions with better error handling
     detectStoredProvider();
-    setupStoredProvider().catch((err) => {
-      console.error('ASYNC SETUP ERROR:', err);
-      setFatalError(`Async setup error: ${err.message || 'Unknown error'}`);
+    setupStoredProvider().catch((error) => {
+      console.error('ASYNC SETUP ERROR:', error);
+      setFatalError(`Async setup error: ${error.message || 'Unknown error'}`);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (fatalError) {
@@ -472,12 +479,12 @@ export default function App() {
           {view === 'sessions' && <SessionsView setView={setView} />}
           {view === 'sharedSession' && (
             <SharedSessionView
-              session={viewOptions.sessionDetails}
+              session={viewOptions?.sessionDetails}
               isLoading={isLoadingSharedSession}
-              error={viewOptions.error || sharedSessionError}
+              error={viewOptions?.error || sharedSessionError}
               onBack={() => setView('sessions')}
               onRetry={async () => {
-                if (viewOptions.shareToken && viewOptions.baseUrl) {
+                if (viewOptions?.shareToken && viewOptions?.baseUrl) {
                   setIsLoadingSharedSession(true);
                   try {
                     await openSharedSessionFromDeepLink(
@@ -498,7 +505,7 @@ export default function App() {
       </div>
       {isGoosehintsModalOpen && (
         <GoosehintsModal
-          directory={window.appConfig.get('GOOSE_WORKING_DIR')}
+          directory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
         />
       )}

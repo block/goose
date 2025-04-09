@@ -44,20 +44,24 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   // Create debounced search function
   const debouncedSearch = useCallback(
-    debounce((term: string, caseSensitive: boolean) => {
-      onSearch(term, caseSensitive);
-    }, 150),
-    []
+    (term: string, isCaseSensitive: boolean) => {
+      debounce((searchTerm: string, caseSensitive: boolean) => {
+        onSearch(searchTerm, caseSensitive);
+      }, 150)(term, isCaseSensitive);
+    },
+    [onSearch]
   );
 
   useEffect(() => {
     inputRef.current?.focus();
-
-    // Cleanup debounced function
-    return () => {
-      debouncedSearch.cancel();
-    };
   }, []);
+
+  // Cleanup debounced function on unmount
+  useEffect(() => {
+    return () => {
+      debouncedSearch.cancel?.();
+    };
+  }, [debouncedSearch]);
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -93,7 +97,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const handleClose = () => {
     setIsExiting(true);
-    debouncedSearch.cancel(); // Cancel any pending searches
+    debouncedSearch.cancel?.(); // Cancel any pending searches
     setTimeout(() => {
       onClose();
     }, 150); // Match animation duration

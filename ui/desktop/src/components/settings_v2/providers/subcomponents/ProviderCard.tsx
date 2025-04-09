@@ -23,7 +23,7 @@ export const ProviderCard = memo(function ProviderCard({
   const providerMetadata: ProviderMetadata | null = provider?.metadata || null;
 
   // Instead of useEffect for logging, use useMemo to memoize the metadata
-  const metadata = useMemo(() => providerMetadata, [provider]);
+  const metadata = useMemo(() => providerMetadata, [providerMetadata]);
 
   if (!metadata) {
     return <div>ProviderCard error: No metadata provided</div>;
