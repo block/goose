@@ -464,64 +464,7 @@ impl Session {
                 }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
-
-                    // name is required
-                    if opts.name.is_empty() {
-                        output::render_error("Prompt name argument is required");
-                        continue;
-                    }
-
-                    if opts.info {
-                        match self.get_prompt_info(&opts.name).await? {
-                            Some(info) => output::render_prompt_info(&info),
-                            None => {
-                                output::render_error(&format!("Prompt '{}' not found", opts.name))
-                            }
-                        }
-                    } else {
-                        // Convert the arguments HashMap to a Value
-                        let arguments = serde_json::to_value(opts.arguments)
-                            .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
-
-                        match self.get_prompt(&opts.name, arguments).await {
-                            Ok(messages) => {
-                                let start_len = self.messages.len();
-                                let mut valid = true;
-                                for (i, prompt_message) in messages.into_iter().enumerate() {
-                                    let msg = Message::from(prompt_message);
-                                    // ensure we get a User - Assistant - User type pattern
-                                    let expected_role = if i % 2 == 0 {
-                                        mcp_core::Role::User
-                                    } else {
-                                        mcp_core::Role::Assistant
-                                    };
-
-                                    if msg.role != expected_role {
-                                        output::render_error(&format!(
-                                            "Expected {:?} message at position {}, but found {:?}",
-                                            expected_role, i, msg.role
-                                        ));
-                                        valid = false;
-                                        // get rid of everything we added to messages
-                                        self.messages.truncate(start_len);
-                                        break;
-                                    }
-
-                                    if msg.role == mcp_core::Role::User {
-                                        output::render_message(&msg, self.debug);
-                                    }
-                                    self.messages.push(msg);
-                                }
-
-                                if valid {
-                                    output::show_thinking();
-                                    self.process_agent_response(true).await?;
-                                    output::hide_thinking();
-                                }
-                            }
-                            Err(e) => output::render_error(&e.to_string()),
-                        }
-                    }
+                    self.handle_prompt_command(opts).await?;
                 }
                 InputResult::Recipe(filepath_opt) => {
                     println!("{}", console::style("Generating Recipe").green());
@@ -530,63 +473,28 @@ impl Session {
                     let recipe = self.agent.create_recipe(self.messages.clone()).await;
                     output::hide_thinking();
 
-                    if let Ok(recipe) = recipe {
-                        // Use provided filepath or default
-                        let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
-                        let path_buf = PathBuf::from(filepath_str);
-
-                        // Create a variable to store the final path that will be accessible outside the closure
-                        let mut path = path_buf.clone();
-
-                        let result: Result<(), String> = (|| {
-                            // Update the final path if it's relative
-                            if path_buf.is_relative() {
-                                // If the path is relative, resolve it relative to the current working directory
-                                let cwd = std::env::current_dir().map_err(|e| {
-                                    format!("Failed to get current directory: {}", e)
-                                })?;
-                                path = cwd.join(&path_buf);
-                            }
-
-                            // Check if parent directory exists
-                            if let Some(parent) = path.parent() {
-                                if !parent.exists() {
-                                    return Err(format!(
-                                        "Directory '{}' does not exist",
-                                        parent.display()
-                                    ));
+                    match recipe {
+                        Ok(recipe) => {
+                            // Use provided filepath or default
+                            let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
+                            match self.save_recipe(&recipe, filepath_str) {
+                                Ok(path) => println!(
+                                    "{}",
+                                    console::style(format!("Saved recipe to {}", path.display()))
+                                        .green()
+                                ),
+                                Err(e) => {
+                                    println!("{}", console::style(e).red());
                                 }
                             }
-
-                            // Try creating the file.
-                            let file = std::fs::File::create(path.as_path()).map_err(|_| {
-                                format!("Failed to create file '{}'", path.display())
-                            })?;
-
-                            // Write YAML.
-                            serde_yaml::to_writer(file, &recipe)
-                                .map_err(|e| format!("Failed to save recipe: {:?}", e))?;
-                            Ok(())
-                        })();
-
-                        // Handle the result.
-                        match result {
-                            Ok(_) => println!(
-                                "{}",
-                                console::style(format!("Saved recipe to {}", path.display()))
-                                    .green()
-                            ),
-                            Err(e) => {
-                                println!("{}", console::style(e).red());
-                                continue;
-                            }
                         }
-                    } else {
-                        println!(
-                            "{}: {:?}",
-                            console::style("Failed to generate recipe").red(),
-                            recipe
-                        );
+                        Err(e) => {
+                            println!(
+                                "{}: {:?}",
+                                console::style("Failed to generate recipe").red(),
+                                e
+                            );
+                        }
                     }
 
                     continue;
@@ -923,6 +831,109 @@ impl Session {
     pub fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
+    }
+
+    /// Handle prompt command execution
+    async fn handle_prompt_command(&mut self, opts: input::PromptCommandOptions) -> Result<()> {
+        // name is required
+        if opts.name.is_empty() {
+            output::render_error("Prompt name argument is required");
+            return Ok(());
+        }
+
+        if opts.info {
+            match self.get_prompt_info(&opts.name).await? {
+                Some(info) => output::render_prompt_info(&info),
+                None => output::render_error(&format!("Prompt '{}' not found", opts.name)),
+            }
+        } else {
+            // Convert the arguments HashMap to a Value
+            let arguments = serde_json::to_value(opts.arguments)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
+
+            match self.get_prompt(&opts.name, arguments).await {
+                Ok(messages) => {
+                    let start_len = self.messages.len();
+                    let mut valid = true;
+                    for (i, prompt_message) in messages.into_iter().enumerate() {
+                        let msg = Message::from(prompt_message);
+                        // ensure we get a User - Assistant - User type pattern
+                        let expected_role = if i % 2 == 0 {
+                            mcp_core::Role::User
+                        } else {
+                            mcp_core::Role::Assistant
+                        };
+
+                        if msg.role != expected_role {
+                            output::render_error(&format!(
+                                "Expected {:?} message at position {}, but found {:?}",
+                                expected_role, i, msg.role
+                            ));
+                            valid = false;
+                            // get rid of everything we added to messages
+                            self.messages.truncate(start_len);
+                            break;
+                        }
+
+                        if msg.role == mcp_core::Role::User {
+                            output::render_message(&msg, self.debug);
+                        }
+                        self.messages.push(msg);
+                    }
+
+                    if valid {
+                        output::show_thinking();
+                        self.process_agent_response(true).await?;
+                        output::hide_thinking();
+                    }
+                }
+                Err(e) => output::render_error(&e.to_string()),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Save a recipe to a file
+    ///
+    /// # Arguments
+    /// * `recipe` - The recipe to save
+    /// * `filepath_str` - The path to save the recipe to
+    ///
+    /// # Returns
+    /// * `Result<PathBuf, String>` - The path the recipe was saved to or an error message
+    fn save_recipe(
+        &self,
+        recipe: &goose::recipe::Recipe,
+        filepath_str: &str,
+    ) -> Result<PathBuf, String> {
+        let path_buf = PathBuf::from(filepath_str);
+        let mut path = path_buf.clone();
+
+        // Update the final path if it's relative
+        if path_buf.is_relative() {
+            // If the path is relative, resolve it relative to the current working directory
+            let cwd = std::env::current_dir()
+                .map_err(|e| format!("Failed to get current directory: {}", e))?;
+            path = cwd.join(&path_buf);
+        }
+
+        // Check if parent directory exists
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                return Err(format!("Directory '{}' does not exist", parent.display()));
+            }
+        }
+
+        // Try creating the file
+        let file = std::fs::File::create(path.as_path())
+            .map_err(|_| format!("Failed to create file '{}'", path.display()))?;
+
+        // Write YAML
+        serde_yaml::to_writer(file, recipe)
+            .map_err(|e| format!("Failed to save recipe: {:?}", e))?;
+
+        Ok(path)
     }
 }
 
