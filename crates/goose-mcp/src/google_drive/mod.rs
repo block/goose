@@ -23,6 +23,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+use google_docs1::{self, Docs};
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
@@ -32,7 +33,6 @@ use google_drive3::{
     DriveHub,
 };
 use google_sheets4::{self, Sheets};
-use google_docs1::{self, Docs};
 use http_body_util::BodyExt;
 
 // Constants for credential storage
@@ -2301,11 +2301,11 @@ impl GoogleDriveRouter {
                     Ok(r) => {
                         let document = r.1;
                         let title = document.title.unwrap_or_default();
-                        
+
                         // Extract the document content as text
                         let mut content = String::new();
                         content.push_str(&format!("# {}\n\n", title));
-                        
+
                         if let Some(body) = document.body {
                             if let Some(content_items) = body.content {
                                 for item in content_items {
@@ -2419,7 +2419,7 @@ impl GoogleDriveRouter {
                 let insert_text_request = google_docs1::api::InsertTextRequest {
                     text: Some(text.to_string()),
                     location: Some(google_docs1::api::Location {
-                        index: Some((end_index - 1).try_into().unwrap()), // -1 because end_index is one past the last character
+                        index: Some(end_index - 1), // -1 because end_index is one past the last character
                         segment_id: None,
                     }),
                     end_of_segment_location: None,
@@ -2450,9 +2450,7 @@ impl GoogleDriveRouter {
                         e
                     ))),
                     Ok(_) => {
-                        Ok(vec![Content::text(format!(
-                            "Successfully appended text to the document."
-                        )).with_priority(0.1)])
+                        Ok(vec![Content::text("Successfully appended text to the document.").with_priority(0.1)])
                     }
                 }
             },
@@ -2558,7 +2556,7 @@ impl GoogleDriveRouter {
                 let insert_text_request = google_docs1::api::InsertTextRequest {
                     text: Some(format!("\n{}", text)),
                     location: Some(google_docs1::api::Location {
-                        index: Some((end_index - 1).try_into().unwrap()), // -1 because end_index is one past the last character
+                        index: Some(end_index - 1), // -1 because end_index is one past the last character
                         segment_id: None,
                     }),
                     end_of_segment_location: None,
@@ -2589,9 +2587,7 @@ impl GoogleDriveRouter {
                         e
                     ))),
                     Ok(_) => {
-                        Ok(vec![Content::text(format!(
-                            "Successfully created a new paragraph."
-                        )).with_priority(0.1)])
+                        Ok(vec![Content::text("Successfully created a new paragraph.").with_priority(0.1)])
                     }
                 }
             },
