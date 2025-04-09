@@ -336,7 +336,7 @@ const buildRecentFilesMenu = () => {
 
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
+    properties: ['openFile', 'openDirectory'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -346,6 +346,7 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
     }
     createChat(app, undefined, result.filePaths[0]);
   }
+  return result;
 };
 
 // Global error handler
@@ -386,6 +387,11 @@ ipcMain.on('react-ready', (event) => {
   } else {
     console.log('No pending deep link to process');
   }
+});
+
+// Handle directory chooser
+ipcMain.handle('directory-chooser', (_, replace: boolean = false) => {
+  return openDirectoryDialog(replace);
 });
 
 // Add file/directory selection handler
@@ -539,9 +545,7 @@ app.whenReady().then(async () => {
     new MenuItem({
       label: 'Open Directory...',
       accelerator: 'CmdOrCtrl+O',
-      click() {
-        openDirectoryDialog();
-      },
+      click: () => openDirectoryDialog(),
     })
   );
 
@@ -612,10 +616,6 @@ app.whenReady().then(async () => {
       dir = recentDirs.length > 0 ? recentDirs[0] : null;
     }
     createChat(app, query, dir, version, resumeSessionId, botConfig);
-  });
-
-  ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
-    openDirectoryDialog(replace);
   });
 
   ipcMain.on('notify', (event, data) => {
