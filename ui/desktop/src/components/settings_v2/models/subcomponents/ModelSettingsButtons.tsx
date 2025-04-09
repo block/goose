@@ -19,7 +19,7 @@ export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsP
         }}
       >
         <Sliders className="rotate-90" />
-        Configure Providers
+        Configure providers
       </Button>
     </div>
   );

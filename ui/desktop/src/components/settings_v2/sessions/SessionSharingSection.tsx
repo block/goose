@@ -103,7 +103,7 @@ export default function SessionSharingSection() {
         <div className="space-y-4">
           {/* Toggle for enabling session sharing */}
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-textStandard cursor-pointer">
+            <label className="text-textStandard cursor-pointer">
               {envBaseUrlShare
                 ? 'Session sharing has already been configured'
                 : 'Enable session sharing'}

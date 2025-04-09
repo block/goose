@@ -11,22 +11,22 @@ export interface GooseMode {
 export const all_goose_modes: GooseMode[] = [
   {
     key: 'auto',
-    label: 'Completely Autonomous',
+    label: 'Completely autonomous',
     description: 'Full file modification capabilities, edit, create, and delete files freely.',
   },
   {
     key: 'approve',
-    label: 'Manual Approval',
+    label: 'Manual approval',
     description: 'All tools, extensions and file modifications will require human approval',
   },
   {
     key: 'smart_approve',
-    label: 'Smart Approval',
+    label: 'Smart approval',
     description: 'Intelligently determine which actions need approval based on risk level ',
   },
   {
     key: 'chat',
-    label: 'Chat Only',
+    label: 'Chat only',
     description: 'Engage with the selected provider without using tools or extensions.',
   },
 ];

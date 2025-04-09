@@ -17,12 +17,12 @@ export function ConfigureApproveMode({
   const approveModes: GooseMode[] = [
     {
       key: 'approve',
-      label: 'Manual Approval',
+      label: 'Manual approval',
       description: 'All tools, extensions and file modifications will require human approval',
     },
     {
       key: 'smart_approve',
-      label: 'Smart Approval',
+      label: 'Smart approval',
       description: 'Intelligently determine which actions need approval based on risk level ',
     },
   ];
@@ -54,7 +54,7 @@ export function ConfigureApproveMode({
         <div className="px-4 pb-0 space-y-6">
           {/* Header */}
           <div className="flex">
-            <h2 className="text-2xl font-regular text-textStandard">Configure Approve Mode</h2>
+            <h2 className="text-2xl font-regular text-textStandard">Configure approve mode</h2>
           </div>
 
           <div className="mt-[24px]">
@@ -87,7 +87,7 @@ export function ConfigureApproveMode({
               onClick={handleModeSubmit}
               className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:bg-bgSubtle text-textStandard dark:border-gray-600 text-base font-regular"
             >
-              {isSubmitting ? 'Saving...' : 'Save Mode'}
+              {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
             <Button
               type="button"

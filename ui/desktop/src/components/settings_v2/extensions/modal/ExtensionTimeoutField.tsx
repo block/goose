@@ -29,25 +29,20 @@ export default function ExtensionTimeoutField({
   return (
     <div className="flex flex-col gap-4 mb-6">
       {/* Row with Timeout and timeout input side by side */}
-      <div className="flex justify-between gap-4">
+      <div className="flex flex-col">
         <div className="flex-1">
           <label className="text-sm font-medium mb-2 block text-textStandard">Timeout</label>
         </div>
 
-        {/* Type Dropdown */}
-        <div className="w-[200px]">
-          <div className="relative">
-            <Input
-              value={timeout}
-              onChange={(e) => onChange('timeout', e.target.value)}
-              defaultValue={300}
-              className={`${!submitAttempted || isTimeoutValid() ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
-            />
-            {submitAttempted && !isTimeoutValid() && (
-              <div className="absolute text-xs text-red-500 mt-1">Timeout </div>
-            )}
-          </div>
-        </div>
+        <Input
+          value={timeout}
+          onChange={(e) => onChange('timeout', e.target.value)}
+          defaultValue={300}
+          className={`${!submitAttempted || isTimeoutValid() ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
+        />
+        {submitAttempted && !isTimeoutValid() && (
+          <div className="absolute text-xs text-red-500 mt-1">Timeout </div>
+        )}
       </div>
     </div>
   );

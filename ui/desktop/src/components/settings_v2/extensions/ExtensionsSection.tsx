@@ -141,8 +141,8 @@ export default function ExtensionsSection() {
             className="flex items-center gap-2 justify-center text-textStandard bg-bgApp border border-borderSubtle hover:border-borderProminent hover:bg-bgApp [&>svg]:!size-4"
             onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
           >
-            <GPSIcon size={18} />
-            Visit Extensions
+            <GPSIcon size={12} />
+            Browse extensions
           </Button>
         </div>
 
@@ -162,7 +162,7 @@ export default function ExtensionsSection() {
         {/* Modal for adding a new extension */}
         {isAddModalOpen && (
           <ExtensionModal
-            title="Add New Extension"
+            title="Add custom extension"
             initialData={getDefaultFormData()}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
