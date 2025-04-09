@@ -78,7 +78,6 @@ export function BaseModelsList({
     await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });
   };
 
-  // Updated to work with CustomRadio
   const handleRadioChange = async (model: Model) => {
     // Check if the selected model is already active
     if (
@@ -90,18 +89,40 @@ export function BaseModelsList({
         title: 'No change',
         msg: `Model "${model.name}" is already active.`,
       });
-
       return;
     }
 
-    try {
-      // Fix: First save the model to config, then update local state
-      await handleModelSelection(model);
+    // OPTIMISTIC UPDATE: Update the UI immediately
+    setSelectedModel(model);
 
-      // Update local state after successful save
-      setSelectedModel(model);
+    try {
+      // Then perform the actual model change
+      await handleModelSelection(model);
     } catch (error) {
       console.error('Error selecting model:', error);
+
+      // If the operation fails, revert to the previous state by simply
+      // re-calling the getCurrentModelAndProvider function
+      try {
+        const result = await getCurrentModelAndProvider({
+          readFromConfig: read,
+          writeToConfig: upsert,
+        });
+
+        const currentModel = modelList.find(
+          (m) => m.name === result.model && m.provider === result.provider
+        ) || { name: result.model, provider: result.provider };
+
+        setSelectedModel(currentModel);
+      } catch (secondError) {
+        console.error('Failed to restore previous model:', secondError);
+      }
+
+      // Show an error toast
+      toastInfo({
+        title: 'Error',
+        msg: `Failed to switch to model "${model.name}".`,
+      });
     }
   };
 
