@@ -44,7 +44,6 @@ fn default_version() -> String {
 ///     instructions: "Act as a helpful assistant".to_string(),
 ///     prompt: None,
 ///     extensions: None,
-///     goosehints: None,
 ///     context: None,
 ///     activities: None,
 ///     author: None,
