@@ -62,14 +62,6 @@ pub fn load_recipe<P: AsRef<Path>>(path: P, log: bool) -> Result<Recipe> {
         );
         println!("{} {}", style("Description:").dim(), &recipe.description);
 
-        // Display activities if available
-        if let Some(activities) = &recipe.activities {
-            println!("\n{}:", style("Activities").dim());
-            for activity in activities {
-                println!("- {}", activity);
-            }
-        }
-
         println!(); // Add a blank line for spacing
     }
 
