@@ -250,7 +250,6 @@ impl ExtensionManager {
                 if client_tools.next_cursor.is_none() {
                     break;
                 }
-                println!("{:?}", tools);
 
                 client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
             }
