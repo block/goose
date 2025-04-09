@@ -190,6 +190,7 @@ const createChat = async (
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
+      spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: [
         JSON.stringify({
