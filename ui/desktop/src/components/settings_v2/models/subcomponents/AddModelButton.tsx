@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '../../../ui/button';
 import { AddModelModal } from './AddModelModal';
-import { Gear } from '../../../icons';
 import type { View } from '../../../../App';
+import { ArrowLeftRight } from 'lucide-react';
 
 interface AddModelButtonProps {
   setView: (view: View) => void;
@@ -14,11 +14,11 @@ export const AddModelButton = ({ setView }: AddModelButtonProps) => {
   return (
     <>
       <Button
-        className="flex items-center gap-2 flex-1 justify-center text-white dark:text-textSubtle bg-black dark:bg-white hover:bg-subtle"
+        className="flex items-center gap-2 justify-center text-white dark:text-textSubtle bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
         onClick={() => setIsAddModelModalOpen(true)}
       >
-        <Gear className="h-4 w-4" />
-        Switch Models
+        <ArrowLeftRight />
+        Switch models
       </Button>
       {isAddModelModalOpen ? (
         <AddModelModal setView={setView} onClose={() => setIsAddModelModalOpen(false)} />
