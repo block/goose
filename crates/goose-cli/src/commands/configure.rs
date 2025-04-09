@@ -70,6 +70,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                         name: "developer".to_string(),
                         display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
                         timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                        bundled: Some(true),
                     },
                 })?;
             }
@@ -509,6 +510,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: extension.clone(),
                     display_name: Some(display_name),
                     timeout: Some(timeout),
+                    bundled: Some(true),
                 },
             })?;
 
@@ -600,6 +602,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     envs: Envs::new(envs),
                     description,
                     timeout: Some(timeout),
+                    bundled: None,
                 },
             })?;
 
@@ -686,6 +689,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     envs: Envs::new(envs),
                     description,
                     timeout: Some(timeout),
+                    bundled: None,
                 },
             })?;
 

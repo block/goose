@@ -33,68 +33,58 @@ export async function syncBundledExtensions(
   addExtensionFn: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>
 ): Promise<void> {
   try {
-    // Create a set of existing extension IDs for quick lookup
-    const existingExtensionKeys = new Set(existingExtensions.map((ext) => nameToKey(ext.name)));
-
     // Cast the imported JSON data to the expected type
     const bundledExtensions = bundledExtensionsData as BundledExtension[];
 
-    // Track how many extensions were added
-    let addedCount = 0;
-
-    // Check each built-in extension
+    // Process each bundled extension
     for (const bundledExt of bundledExtensions) {
-      // Only add if the extension doesn't already exist -- use the id
-      if (!existingExtensionKeys.has(bundledExt.id)) {
-        console.log(`Adding built-in extension: ${bundledExt.id}`);
-        let extConfig: ExtensionConfig;
-        switch (bundledExt.type) {
-          case 'builtin':
-            extConfig = {
-              name: bundledExt.name,
-              display_name: bundledExt.display_name,
-              type: bundledExt.type,
-              timeout: bundledExt.timeout ?? 300,
-            };
-            break;
-          case 'stdio':
-            extConfig = {
-              name: bundledExt.name,
-              description: bundledExt.description,
-              type: bundledExt.type,
-              timeout: bundledExt.timeout,
-              cmd: bundledExt.cmd,
-              args: bundledExt.args,
-              envs: bundledExt.envs,
-            };
-            break;
-          case 'sse':
-            extConfig = {
-              name: bundledExt.name,
-              description: bundledExt.description,
-              type: bundledExt.type,
-              timeout: bundledExt.timeout,
-              uri: bundledExt.uri,
-            };
-        }
-        // Add the extension with its default enabled state
-        try {
-          await addExtensionFn(bundledExt.name, extConfig, bundledExt.enabled);
-          addedCount++;
-        } catch (error) {
-          console.error(`Failed to add built-in extension ${bundledExt.name}:`, error);
-          // Continue with other extensions even if one fails
-        }
-      }
-    }
+      // Find if this extension already exists
+      const existingExt = existingExtensions.find((ext) => nameToKey(ext.name) === bundledExt.id);
 
-    if (addedCount > 0) {
-      console.log(`Added ${addedCount} built-in extensions.`);
-    } else {
-      console.log('All built-in extensions already present.');
+      // Skip if extension exists and is already marked as bundled
+      if (existingExt?.bundled) continue;
+
+      // Create the config for this extension
+      let extConfig: ExtensionConfig;
+      switch (bundledExt.type) {
+        case 'builtin':
+          extConfig = {
+            name: bundledExt.name,
+            display_name: bundledExt.display_name,
+            type: bundledExt.type,
+            timeout: bundledExt.timeout ?? 300,
+            bundled: true,
+          };
+          break;
+        case 'stdio':
+          extConfig = {
+            name: bundledExt.name,
+            description: bundledExt.description,
+            type: bundledExt.type,
+            timeout: bundledExt.timeout,
+            cmd: bundledExt.cmd,
+            args: bundledExt.args,
+            envs: bundledExt.envs,
+            bundled: true,
+          };
+          break;
+        case 'sse':
+          extConfig = {
+            name: bundledExt.name,
+            description: bundledExt.description,
+            type: bundledExt.type,
+            timeout: bundledExt.timeout,
+            uri: bundledExt.uri,
+            bundled: true,
+          };
+      }
+
+      // Add or update the extension, preserving enabled state if it exists
+      const enabled = existingExt ? existingExt.enabled : bundledExt.enabled;
+      await addExtensionFn(bundledExt.name, extConfig, enabled);
     }
   } catch (error) {
-    console.error('Failed to add built-in extensions:', error);
+    console.error('Failed to sync built-in extensions:', error);
     throw error;
   }
 }
