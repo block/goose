@@ -38,7 +38,7 @@ pub enum RunMode {
 }
 
 pub struct Session {
-    agent: Box<dyn Agent>,
+    agent: Agent,
     messages: Vec<Message>,
     session_file: PathBuf,
     // Cache for completion data - using std::sync for thread safety without async
@@ -76,7 +76,7 @@ pub enum PlannerResponseType {
 /// question.
 pub async fn classify_planner_response(
     message_text: String,
-    provider: Arc<Box<dyn Provider>>,
+    provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
@@ -101,7 +101,7 @@ pub async fn classify_planner_response(
 }
 
 impl Session {
-    pub fn new(agent: Box<dyn Agent>, session_file: PathBuf, debug: bool) -> Self {
+    pub fn new(agent: Agent, session_file: PathBuf, debug: bool) -> Self {
         let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
@@ -278,7 +278,7 @@ impl Session {
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
-        let provider = self.agent.provider().await;
+        let provider = self.agent.provider();
 
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
@@ -350,7 +350,7 @@ impl Session {
                             self.messages.push(Message::user().with_text(&content));
 
                             // Get the provider from the agent for description generation
-                            let provider = self.agent.provider().await;
+                            let provider = self.agent.provider();
 
                             // Persist messages with provider for automatic description generation
                             session::persist_messages(
@@ -535,7 +535,7 @@ impl Session {
     async fn plan_with_reasoner_model(
         &mut self,
         plan_messages: Vec<Message>,
-        reasoner: Box<dyn Provider + Send + Sync>,
+        reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
@@ -543,7 +543,7 @@ impl Session {
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await)
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider())
                 .await?;
 
         match planner_response_type {
@@ -857,7 +857,7 @@ impl Session {
     }
 }
 
-fn get_reasoner() -> Result<Box<dyn Provider + Send + Sync>, anyhow::Error> {
+fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 

@@ -262,9 +262,9 @@ impl std::fmt::Display for ExtensionConfig {
 /// Information about the extension used for building prompts
 #[derive(Clone, Debug, Serialize)]
 pub struct ExtensionInfo {
-    name: String,
-    instructions: String,
-    has_resources: bool,
+    pub name: String,
+    pub instructions: String,
+    pub has_resources: bool,
 }
 
 impl ExtensionInfo {

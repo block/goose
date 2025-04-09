@@ -4,13 +4,11 @@ import { Button } from './components/ui/button';
 
 export interface ToastServiceOptions {
   silent?: boolean;
-  showEscMessage?: boolean;
   shouldThrow?: boolean;
 }
 
 export default class ToastService {
   private silent: boolean = false;
-  private showEscMessage: boolean = true;
   private shouldThrow: boolean = false;
 
   // Create a singleton instance
@@ -27,9 +25,7 @@ export default class ToastService {
     if (options.silent !== undefined) {
       this.silent = options.silent;
     }
-    if (options.showEscMessage !== undefined) {
-      this.showEscMessage = options.showEscMessage;
-    }
+
     if (options.shouldThrow !== undefined) {
       this.shouldThrow = options.shouldThrow;
     }
@@ -52,11 +48,6 @@ export default class ToastService {
 
     const toastId = toastLoading({ title, msg });
 
-    if (this.showEscMessage) {
-      toast.info(
-        'Press the ESC key on your keyboard to continue using goose while extension loads'
-      );
-    }
     return toastId;
   }
 

@@ -62,11 +62,11 @@ export const ModeSection = () => {
   }, []);
 
   return (
-    <section id="mode">
-      <div className="flex justify-between items-center mb-6 px-8">
-        <h1 className="text-3xl font-medium text-textStandard">Mode</h1>
+    <section id="mode" className="px-8">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-medium text-textStandard">Mode</h2>
       </div>
-      <div className="px-8">
+      <div className="border-b border-borderSubtle pb-8">
         <p className="text-sm text-textStandard mb-6">
           Configure how Goose interacts with tools and extensions
         </p>

@@ -1,7 +1,7 @@
 use console::style;
 use goose::agents::extension::ExtensionError;
-use goose::agents::AgentFactory;
-use goose::config::{Config, ExtensionManager};
+use goose::agents::Agent;
+use goose::config::{Config, ExtensionConfigManager};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -33,8 +33,7 @@ pub async fn build_session(
         goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = AgentFactory::create(&AgentFactory::configured_version(), provider)
-        .expect("Failed to create agent");
+    let mut agent = Agent::new(provider);
 
     // Handle session file resolution and resuming
     let session_file = if resume {
@@ -93,7 +92,7 @@ pub async fn build_session(
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
-    for extension in ExtensionManager::get_all().expect("should load extensions") {
+    for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
         if extension.enabled {
             let config = extension.config.clone();
             agent

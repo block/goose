@@ -6,7 +6,7 @@ pub mod permission;
 pub use crate::agents::ExtensionConfig;
 pub use base::{Config, ConfigError, APP_STRATEGY};
 pub use experiments::ExperimentManager;
-pub use extensions::{ExtensionEntry, ExtensionManager};
+pub use extensions::{ExtensionConfigManager, ExtensionEntry};
 pub use permission::PermissionManager;
 
 pub use extensions::DEFAULT_DISPLAY_NAME;

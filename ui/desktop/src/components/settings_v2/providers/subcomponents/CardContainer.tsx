@@ -34,7 +34,7 @@ export default function CardContainer({
 }: CardContainerProps) {
   return (
     <div
-      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card 
+      className={`relative h-full p-[1px] overflow-hidden rounded-[9px] group/card 
                  ${
                    grayedOut
                      ? 'bg-borderSubtle hover:bg-gray-700'

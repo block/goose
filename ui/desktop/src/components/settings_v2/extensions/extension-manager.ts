@@ -18,7 +18,7 @@ export async function activateExtension({
 }: ActivateExtensionProps): Promise<void> {
   try {
     // AddToAgent
-    await addToAgent(extensionConfig, { silent: false, showEscMessage: true });
+    await addToAgent(extensionConfig, { silent: false });
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
     // add to config with enabled = false
@@ -89,18 +89,15 @@ export async function addToAgentOnStartup({
   extensionConfig,
 }: AddToAgentOnStartupProps): Promise<void> {
   try {
-    await retryWithBackoff(
-      () => addToAgent(extensionConfig, { silent: true, showEscMessage: false }),
-      {
-        retries: 3,
-        delayMs: 1000,
-        shouldRetry: (error: any) =>
-          error.message &&
-          (error.message.includes('428') ||
-            error.message.includes('Precondition Required') ||
-            error.message.includes('Agent is not initialized')),
-      }
-    );
+    await retryWithBackoff(() => addToAgent(extensionConfig, { silent: true }), {
+      retries: 3,
+      delayMs: 1000,
+      shouldRetry: (error: any) =>
+        error.message &&
+        (error.message.includes('428') ||
+          error.message.includes('Precondition Required') ||
+          error.message.includes('Agent is not initialized')),
+    });
   } catch (finalError) {
     toastService.configure({ silent: false });
     toastService.error({
@@ -190,8 +187,6 @@ export async function toggleExtension({
       // add to agent with toast options
       await addToAgent(extensionConfig, {
         ...toastOptions,
-        // For toggle operations, we want to show toast but no ESC message
-        showEscMessage: false,
       });
     } catch (error) {
       console.error('Error adding extension to agent. Will try to toggle back off.');
