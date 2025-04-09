@@ -65,8 +65,6 @@ function BaseProviderCard({
 }: BaseProviderCardProps) {
   const numRequiredKeys = required_keys[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
-  // todo: not used?
-  // const { activeKeys, setActiveKeys } = useActiveKeys();
 
   return (
     <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">

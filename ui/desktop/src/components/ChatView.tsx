@@ -323,9 +323,6 @@ export default function ChatView({
           content: [],
         };
 
-        // get the last tool's name or just "tool"
-        // todo: lastToolName not used, remove?
-        const _lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
         const notification = 'Interrupted by the user to make a correction';
 
         // generate a response saying it was interrupted for each tool request

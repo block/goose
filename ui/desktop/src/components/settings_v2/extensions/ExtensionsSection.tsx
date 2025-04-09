@@ -17,9 +17,6 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 
 export default function ExtensionsSection() {
   const { getExtensions, addExtension, removeExtension } = useConfig();
-  // todo: loading and error not used?
-  const [_loading, _setLoading] = useState<boolean>(true);
-  const [_error, _setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,13 +24,10 @@ export default function ExtensionsSection() {
   // We don't need errorFormData anymore since we're not reopening modals on failure
 
   const fetchExtensions = useCallback(async () => {
-    _setLoading(true);
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
     const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
     setExtensions(sortedExtensions);
-    _setError(null);
-    _setLoading(false);
   }, [getExtensions]);
 
   useEffect(() => {

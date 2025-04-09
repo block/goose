@@ -16,7 +16,6 @@ import { settingsV2Enabled } from './flags';
 import { extractExtensionName } from './components/settings/extensions/utils';
 import { GoosehintsModal } from './components/GoosehintsModal';
 import { SessionDetails } from './sessions';
-import { SharedSessionDetails } from './sharedSessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
@@ -152,8 +151,6 @@ export default function App() {
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  // todo: not used, remove?
-  const [_sharedSession, _setSharedSession] = useState<SharedSessionDetails | null>(null);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const { chat, setChat } = useChat({ setView, setIsLoadingSession });

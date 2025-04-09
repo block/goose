@@ -6,14 +6,11 @@ export function BaseModal({
   title,
   children,
   actions,
-  // todo: implement onClose
-  // onClose,
 }: {
   isOpen: boolean;
   title: string;
   children: React.ReactNode;
   actions: React.ReactNode; // Buttons for actions
-  // onClose: () => void;
 }) {
   if (!isOpen) return null;
 

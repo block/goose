@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModel } from './settings/models/ModelContext';
-import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
@@ -19,8 +18,6 @@ export default function BottomMenu({
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
-  // todo: recentModels not used?
-  const { _recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside

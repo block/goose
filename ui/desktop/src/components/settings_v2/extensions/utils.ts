@@ -132,7 +132,7 @@ export function combineCmdAndArgs(cmd: string, args: string[]): string {
  */
 export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): ExtensionConfig {
   // todo: enabled not used?
-  const { _enabled, ...extensionConfig } = fixedEntry;
+  const { ...extensionConfig } = fixedEntry;
   return extensionConfig;
 }
 

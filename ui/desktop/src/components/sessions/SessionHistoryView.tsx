@@ -39,8 +39,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const [isSharing, setIsSharing] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
-  // todo: shareError never used?
-  const [_shareError, setShareError] = useState<string | null>(null);
 
   useEffect(() => {
     const savedSessionConfig = localStorage.getItem('session_sharing_config');
@@ -59,9 +57,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
 
   const handleShare = async () => {
     setIsSharing(true);
-
-    // todo: shareError never used?
-    setShareError(null);
 
     try {
       // Get the session sharing configuration from localStorage
@@ -90,8 +85,6 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       setIsShareModalOpen(true);
     } catch (error) {
       console.error('Error sharing session:', error);
-      // todo: shareError never used?
-      setShareError(error instanceof Error ? error.message : 'Unknown error occurred');
       toast.error(
         `Failed to share session: ${error instanceof Error ? error.message : 'Unknown error'}`
       );

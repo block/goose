@@ -6,11 +6,6 @@ import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
 import { ViewOptions, View } from '../../App';
 
-interface VersionInfo {
-  current_version: string;
-  available_versions: string[];
-}
-
 interface MenuButtonProps {
   onClick: () => void;
   children: React.ReactNode;
@@ -105,9 +100,6 @@ export default function MoreMenu({
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
-  // todo: not used
-  const [_versions, _setVersions] = useState<VersionInfo | null>(null);
-  const [_showVersions, _setShowVersions] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
     const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
     if (savedUseSystemTheme) {
@@ -124,28 +116,6 @@ export default function MoreMenu({
     }
     return themeMode === 'dark';
   });
-
-  useEffect(() => {
-    // Fetch available versions when the menu opens
-    const fetchVersions = async () => {
-      try {
-        const port = window.appConfig.get('GOOSE_PORT');
-        const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        // todo: not used
-        _setVersions(data);
-      } catch (error) {
-        console.error('Failed to fetch versions:', error);
-      }
-    };
-
-    if (open) {
-      fetchVersions();
-    }
-  }, [open]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
