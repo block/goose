@@ -23,6 +23,7 @@ export default function ExtensionsSection() {
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // We don't need errorFormData anymore since we're not reopening modals on failure
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -72,38 +73,54 @@ export default function ExtensionsSection() {
   };
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
+    // Close the modal immediately
+    handleModalClose();
+
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
     } catch (error) {
-      // Even if activation fails, the extension is added as disabled, so we want to show it
       console.error('Failed to activate extension:', error);
+      // Even if activation fails, we don't reopen the modal
     } finally {
-      handleModalClose();
+      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
-    const extensionConfig = createExtensionConfig(formData);
-
-    await updateExtension({
-      enabled: formData.enabled,
-      extensionConfig: extensionConfig,
-      addToConfig: addExtension,
-    });
-
-    // First refresh the extensions list
-    await fetchExtensions();
-
-    // Then close the modal after data is refreshed
+    // Close the modal immediately
     handleModalClose();
+
+    const extensionConfig = createExtensionConfig(formData);
+    try {
+      await updateExtension({
+        enabled: formData.enabled,
+        extensionConfig: extensionConfig,
+        addToConfig: addExtension,
+      });
+    } catch (error) {
+      console.error('Failed to update extension:', error);
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
+    }
   };
 
   const handleDeleteExtension = async (name: string) => {
-    await deleteExtension({ name, removeFromConfig: removeExtension });
+    // Close the modal immediately
     handleModalClose();
-    await fetchExtensions();
+
+    try {
+      await deleteExtension({ name, removeFromConfig: removeExtension });
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
+    }
   };
 
   const handleModalClose = () => {
