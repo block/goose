@@ -408,7 +408,7 @@ ipcMain.on('react-ready', () => {
 });
 
 // Handle directory chooser
-ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
+ipcMain.handle('directory-chooser', (_, replace: boolean = false) => {
   return openDirectoryDialog(replace);
 });
 
@@ -567,8 +567,8 @@ app.whenReady().then(async () => {
         label: 'Open Directory...',
         accelerator: 'CmdOrCtrl+O',
         click: () => openDirectoryDialog(),
-      })
-    );
+    })
+  );
 
     // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
