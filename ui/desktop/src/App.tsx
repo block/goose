@@ -2,7 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { addExtensionFromDeepLink } from './extensions';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
-import { initializeSystem } from './utils/providerUtils';
+import { getStoredModel } from './utils/providerUtils';
+import { getStoredProvider, initializeSystem } from './utils/providerUtils';
+import { useModel } from './components/settings/models/ModelContext';
+import { useRecentModels } from './components/settings/models/RecentModels';
+import { createSelectedModel } from './components/settings/models/utils';
+import { getDefaultModel } from './components/settings/models/hardcoded_stuff';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ConfirmationModal } from './components/ui/ConfirmationModal';
 import { ToastContainer } from 'react-toastify';
@@ -298,6 +303,84 @@ export default function App() {
     setModalVisible(false);
     setPendingLink(null);
   };
+
+  // TODO: remove -- careful removal of these and the useEffect below breaks
+  //  reloading to chat view using stored provider
+  const { switchModel } = useModel(); // TODO: remove
+  const { addRecentModel } = useRecentModels(); // TODO: remove
+
+  useEffect(() => {
+    if (settingsV2Enabled) {
+      return;
+    }
+
+    console.log(`Initializing app with settings v1`);
+
+    // Attempt to detect config for a stored provider
+    const detectStoredProvider = () => {
+      try {
+        const config = window.electron.getConfig();
+        console.log('Loaded config:', JSON.stringify(config));
+
+        const storedProvider = getStoredProvider(config);
+        console.log('Stored provider:', storedProvider);
+
+        if (storedProvider) {
+          setView('chat');
+        } else {
+          setView('welcome');
+        }
+      } catch (err) {
+        console.error('DETECTION ERROR:', err);
+        setFatalError(`Config detection error: ${err.message || 'Unknown error'}`);
+      }
+    };
+
+    // Initialize system if we have a stored provider
+    const setupStoredProvider = async () => {
+      try {
+        const config = window.electron.getConfig();
+
+        if (config.GOOSE_PROVIDER && config.GOOSE_MODEL) {
+          console.log('using GOOSE_PROVIDER and GOOSE_MODEL from config');
+          await initializeSystem(config.GOOSE_PROVIDER, config.GOOSE_MODEL);
+          return;
+        }
+
+        const storedProvider = getStoredProvider(config);
+        const storedModel = getStoredModel();
+
+        if (storedProvider) {
+          try {
+            await initializeSystem(storedProvider, storedModel);
+            console.log('Setup using locally stored provider:', storedProvider);
+            console.log('Setup using locally stored model:', storedModel);
+
+            if (!storedModel) {
+              const modelName = getDefaultModel(storedProvider.toLowerCase());
+              const model = createSelectedModel(storedProvider.toLowerCase(), modelName);
+              switchModel(model);
+              addRecentModel(model);
+            }
+          } catch (error) {
+            console.error('Failed to initialize with stored provider:', error);
+            setFatalError(`Initialization failed: ${error.message || 'Unknown error'}`);
+          }
+        }
+      } catch (err) {
+        console.error('SETUP ERROR:', err);
+        setFatalError(`Setup error: ${err.message || 'Unknown error'}`);
+      }
+    };
+
+    // Execute the functions with better error handling
+    detectStoredProvider();
+    setupStoredProvider().catch((err) => {
+      console.error('ASYNC SETUP ERROR:', err);
+      setFatalError(`Async setup error: ${err.message || 'Unknown error'}`);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (fatalError) {
     return <ErrorUI error={new Error(fatalError)} />;
