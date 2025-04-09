@@ -109,6 +109,10 @@ export async function addExtensionFromDeepLink(
   }
 
   const name = parsedUrl.searchParams.get('name')!;
+
+  console.log('Parsed URL:', parsedUrl.toString());
+  console.log('Extension Name:', name);
+
   const parsedTimeout = parsedUrl.searchParams.get('timeout');
   const timeout = parsedTimeout ? parseInt(parsedTimeout, 10) : DEFAULT_EXTENSION_TIMEOUT;
   const description = parsedUrl.searchParams.get('description');
