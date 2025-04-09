@@ -12,7 +12,7 @@ use crate::commands::session::handle_session_list;
 use crate::logging::setup_logging;
 use crate::recipe::load_recipe;
 use crate::session;
-use crate::session::build_session;
+use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -387,16 +387,16 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session = build_session(
-                        identifier.map(extract_identifier),
+                    let mut session = build_session(SessionBuilderConfig {
+                        identifier: identifier.map(extract_identifier),
                         resume,
                         extensions,
                         remote_extensions,
                         builtins,
-                        None,
-                        None,
+                        extensions_override: None,
+                        additional_system_prompt: None,
                         debug,
-                    )
+                    })
                     .await;
                     setup_logging(
                         session.session_file().file_stem().and_then(|s| s.to_str()),
@@ -468,16 +468,16 @@ pub async fn cli() -> Result<()> {
                 }
             };
 
-            let mut session = build_session(
-                identifier.map(extract_identifier),
+            let mut session = build_session(SessionBuilderConfig {
+                identifier: identifier.map(extract_identifier),
                 resume,
                 extensions,
                 remote_extensions,
                 builtins,
-                input_config.extensions_override,
-                input_config.additional_system_prompt,
+                extensions_override: input_config.extensions_override,
+                additional_system_prompt: input_config.additional_system_prompt,
                 debug,
-            )
+            })
             .await;
 
             setup_logging(
@@ -532,8 +532,7 @@ pub async fn cli() -> Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let mut session =
-                    build_session(None, false, vec![], vec![], vec![], None, None, false).await;
+                let mut session = build_session(SessionBuilderConfig::default()).await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,
