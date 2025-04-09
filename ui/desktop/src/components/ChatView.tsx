@@ -4,7 +4,7 @@ import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
 import Input from './Input';
-import { type View } from '../App';
+import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
 import { Card } from './ui/card';
@@ -22,11 +22,9 @@ import {
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
-  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
-  createAssistantMessage,
   EnableExtensionRequestMessageContent,
 } from '../types/message';
 
@@ -39,6 +37,28 @@ export interface ChatType {
   messages: Message[];
 }
 
+interface GeneratedBotConfig {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  activities: string[];
+}
+
+// Helper function to determine if a message is a user message
+const isUserMessage = (message: Message): boolean => {
+  if (message.role === 'assistant') {
+    return false;
+  }
+  if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
+    return false;
+  }
+  if (message.content.every((c) => c.type === 'enableExtensionRequest')) {
+    return false;
+  }  
+  return true;
+};
+
 export default function ChatView({
   chat,
   setChat,
@@ -47,16 +67,17 @@ export default function ChatView({
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
+  // Disabled askAi calls to save costs
+  // const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
   const [hasMessages, setHasMessages] = useState(false);
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
   const [showShareableBotModal, setshowShareableBotModal] = useState(false);
-  const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
+  const [generatedBotConfig, setGeneratedBotConfig] = useState<GeneratedBotConfig | null>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   // Get botConfig directly from appConfig
@@ -77,7 +98,7 @@ export default function ChatView({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
-    onFinish: async (message, _reason) => {
+    onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
       // Disabled askAi calls to save costs
@@ -95,7 +116,7 @@ export default function ChatView({
         });
       }
     },
-    onToolCall: (toolCall) => {
+    onToolCall: (toolCall: string) => {
       // Handle tool calls if needed
       console.log('Tool call received:', toolCall);
       // Implement tool call handling logic here
@@ -214,7 +235,7 @@ export default function ChatView({
       const updatedChat = { ...prevChat, messages };
       return updatedChat;
     });
-  }, [messages]);
+  }, [messages, setChat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -313,8 +334,6 @@ export default function ChatView({
           content: [],
         };
 
-        // get the last tool's name or just "tool"
-        const lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
         const notification = 'Interrupted by the user to make a correction';
 
         // generate a response saying it was interrupted for each tool request
@@ -382,20 +401,6 @@ export default function ChatView({
     return true;
   });
 
-  const isUserMessage = (message: Message) => {
-    if (message.role === 'assistant') {
-      return false;
-    }
-    if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-      return false;
-    }
-    if (message.content.every((c) => c.type === 'enableExtensionRequest')) {
-      return false;
-    }
-
-    return true;
-  };
-
   const commandHistory = useMemo(() => {
     return filteredMessages
       .reduce<string[]>((history, message) => {
@@ -408,7 +413,7 @@ export default function ChatView({
         return history;
       }, [])
       .reverse();
-  }, [filteredMessages, isUserMessage]);
+  }, [filteredMessages]);
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -434,7 +439,7 @@ export default function ChatView({
                       messageHistoryIndex={chat?.messageHistoryIndex}
                       message={message}
                       messages={messages}
-                      metadata={messageMetadata[message.id || '']}
+                      // metadata={messageMetadata[message.id || '']}
                       append={(text) => append(createUserMessage(text))}
                       appendMessage={(newMessage) => {
                         const updatedMessages = [...messages, newMessage];

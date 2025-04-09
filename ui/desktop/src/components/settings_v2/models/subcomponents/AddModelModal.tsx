@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeftRight, ExternalLink, Plus } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { ArrowLeftRight, ExternalLink } from 'lucide-react';
 
 import Modal from '../../../Modal';
 import { Button } from '../../../ui/button';
@@ -11,7 +11,7 @@ import { changeModel } from '../index';
 import type { View } from '../../../../App';
 import Model, { getProviderMetadata } from '../modelInterface';
 
-const ModalButtons = ({ onSubmit, onCancel, isValid, validationErrors }) => (
+const ModalButtons = ({ onSubmit, onCancel, _isValid, _validationErrors }) => (
   <div>
     <Button
       type="submit"
@@ -51,7 +51,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   // Validate form data
-  const validateForm = () => {
+  const validateForm = useCallback(() => {
     const errors = {
       provider: '',
       model: '',
@@ -71,7 +71,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     setValidationErrors(errors);
     setIsValid(formIsValid);
     return formIsValid;
-  };
+  }, [model, provider]);
 
   const onSubmit = async () => {
     setAttemptedSubmit(true);
@@ -96,7 +96,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     if (attemptedSubmit) {
       validateForm();
     }
-  }, [provider, model, attemptedSubmit]);
+  }, [provider, model, attemptedSubmit, validateForm]);
 
   useEffect(() => {
     (async () => {

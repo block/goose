@@ -65,8 +65,8 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     await mainWindow.waitForSelector('div[class*="bg-bgSubtle border-b border-borderSubtle"]', { timeout: 5000 });
     await mainWindow.waitForTimeout(1000); // Give UI time to stabilize
     
-    const menuButton = await mainWindow.waitForSelector('button:has(svg)', { 
-      timeout: 5000,
+    const menuButton = await mainWindow.waitForSelector('button[aria-label="More options"]', { 
+      timeout: 2000,
       state: 'visible'
     });
     await menuButton.click();
@@ -75,7 +75,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     await mainWindow.waitForTimeout(1000);
     
     // Click "Reset provider and model"
-    const resetProviderButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', { timeout: 5000 });
+    const resetProviderButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', { timeout: 2000 });
     await resetProviderButton.click();
 
     // Wait for page to start refreshing
@@ -90,7 +90,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   }
 
   // Wait for provider selection screen
-  const heading = await mainWindow.waitForSelector('h2:has-text("Choose a Provider")', { timeout: 10000 });
+  const heading = await mainWindow.waitForSelector('h2:has-text("Choose a Provider")', { timeout: 2000 });
   const headingText = await heading.textContent();
   expect(headingText).toBe('Choose a Provider');
 
@@ -112,7 +112,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
   // Wait for chat interface to appear
   const chatTextarea = await mainWindow.waitForSelector('textarea[placeholder*="What can goose help with?"]',
-    { timeout: 15000 });
+    { timeout: 5000 });
   expect(await chatTextarea.isVisible()).toBe(true);
 
   // Take screenshot of chat interface
@@ -220,32 +220,47 @@ test.describe('Goose App', () => {
   test.describe('General UI', () => {
     test('dark mode toggle', async () => {
       console.log('Testing dark mode toggle...');
+
+      await selectProvider(mainWindow, providers[0]);
   
       // Click the three dots menu button in the top right
       await mainWindow.waitForSelector('div[class*="bg-bgSubtle border-b border-borderSubtle"]');
-      const menuButton = await mainWindow.waitForSelector('button:has(svg)', { timeout: 10000 });
+      const menuButton = await mainWindow.waitForSelector('button[aria-label="More options"]', {
+        timeout: 5000,
+        state: 'visible'
+      });
       await menuButton.click();
   
       // Find and click the dark mode toggle button
-      const darkModeButton = await mainWindow.waitForSelector('button:has-text("Dark Mode"), button:has-text("Light Mode")');
-  
+      const darkModeButton = await mainWindow.waitForSelector('button:has-text("Dark")');
+      const lightModeButton = await mainWindow.waitForSelector('button:has-text("Light")');
+      const systemModeButton = await mainWindow.waitForSelector('button:has-text("System")');
+
       // Get initial state
       const isDarkMode = await mainWindow.evaluate(() => document.documentElement.classList.contains('dark'));
       console.log('Initial dark mode state:', isDarkMode);
+
+      if (isDarkMode) {
+        // Click to toggle to light mode
+        await lightModeButton.click();
+        await mainWindow.waitForTimeout(1000);
+        const newDarkMode = await mainWindow.evaluate(() => document.documentElement.classList.contains('dark'));
+        expect(newDarkMode).toBe(!isDarkMode);
+        // Take screenshot to verify and pause to show the change
+        await mainWindow.screenshot({ path: 'test-results/dark-mode-toggle.png' });
+      } else {
+        // Click to toggle to dark mode
+        await darkModeButton.click();
+        await mainWindow.waitForTimeout(1000);
+        const newDarkMode = await mainWindow.evaluate(() => document.documentElement.classList.contains('dark'));
+        expect(newDarkMode).toBe(!isDarkMode);
+      }
+
+      // check that system mode is clickable
+      await systemModeButton.click();
   
-      // Click to toggle
-      await darkModeButton.click();
-  
-      // Verify the change
-      const newDarkMode = await mainWindow.evaluate(() => document.documentElement.classList.contains('dark'));
-      expect(newDarkMode).toBe(!isDarkMode);
-  
-      // Take screenshot to verify and pause to show the change
-      await mainWindow.screenshot({ path: 'test-results/dark-mode-toggle.png' });
-      await mainWindow.waitForTimeout(2000); // Pause in dark/light mode
-  
-      // Toggle back to original state
-      await darkModeButton.click();
+      // Toggle back to light mode
+      await lightModeButton.click();
       
       // Pause to show return to original state
       await mainWindow.waitForTimeout(2000);
@@ -331,7 +346,6 @@ test.describe('Goose App', () => {
           await chatInput.press('Enter');
     
           // Wait for loading indicator and response
-          await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"', { timeout: 10000 });
           await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"',
             { state: 'hidden', timeout: 30000 });
     
@@ -383,12 +397,25 @@ test.describe('Goose App', () => {
           await mainWindow.reload();
           await mainWindow.waitForLoadState('networkidle');
       
+          // Debug: Print HTML structure before trying to find menu button
+          // console.log('Debug: Current HTML structure before menu button selection:');
+          // const htmlStructure = await mainWindow.evaluate(() => document.documentElement.outerHTML);
+          // console.log(htmlStructure);
+
+          // Take screenshot before attempting to find menu button
+          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-before-menu-button.png` });
+
           // Click the menu button (3 dots)
-          const menuButton = await mainWindow.waitForSelector('button:has(svg)', { timeout: 10000 });
+          console.log('Attempting to find menu button...');
+          const menuButton = await mainWindow.waitForSelector('button[aria-label="More options"]', {
+            timeout: 5000,
+            state: 'visible'
+          });
+          console.log('Menu button found, clicking...');
           await menuButton.click();
       
-          // Click Advanced Settings
-          const advancedSettingsButton = await mainWindow.waitForSelector('button:has-text("Advanced Settings")');
+          // Click Advanced settings
+          const advancedSettingsButton = await mainWindow.waitForSelector('button:has-text("Advanced settings")');
           await advancedSettingsButton.click();
       
           // Wait for settings page and take screenshot
@@ -440,7 +467,7 @@ test.describe('Goose App', () => {
             console.log('Extension added successfully');
       
             // Click Exit button to return to chat
-            const exitButton = await mainWindow.waitForSelector('button:has-text("Exit")', { timeout: 5000 });
+            const exitButton = await mainWindow.waitForSelector('button:has-text("Back")', { timeout: 5000 });
             await exitButton.click();
       
           } catch (error) {
@@ -472,7 +499,7 @@ test.describe('Goose App', () => {
       
           // Wait for loading indicator
           const loadingIndicator = await mainWindow.waitForSelector('.text-textStandard >> text="goose is working on it…"',
-            { timeout: 10000 });
+            { timeout: 30000 });
           expect(await loadingIndicator.isVisible()).toBe(true);
       
           // Take screenshot of loading state

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -17,39 +17,29 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 
 export default function ExtensionsSection() {
   const { getExtensions, addExtension, removeExtension } = useConfig();
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // We don't need errorFormData anymore since we're not reopening modals on failure
 
-  const fetchExtensions = async () => {
-    setLoading(true);
-    try {
-      const extensionsList = await getExtensions(true); // Force refresh
-      // Sort extensions by name to maintain consistent order
-      const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
-      setExtensions(sortedExtensions);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load extensions');
-      console.error('Error loading extensions:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchExtensions = useCallback(async () => {
+    const extensionsList = await getExtensions(true); // Force refresh
+    // Sort extensions by name to maintain consistent order
+    const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
+    setExtensions(sortedExtensions);
+  }, [getExtensions]);
 
   useEffect(() => {
     fetchExtensions();
-  }, []);
+  }, [fetchExtensions]);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
 
+    // eslint-disable-next-line no-useless-catch
     try {
       await toggleExtension({
         toggle: toggleDirection,

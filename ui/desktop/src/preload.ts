@@ -1,11 +1,32 @@
 import Electron, { contextBridge, ipcRenderer } from 'electron';
 
+interface BotConfig {
+  id: string;
+  name: string;
+  description: string;
+  instructions?: string;
+  activities?: string[];
+  [key: string]: unknown;
+}
+
+interface NotificationData {
+  title: string;
+  body: string;
+}
+
+interface FileResponse {
+  file: string;
+  filePath: string;
+  error: string | null;
+  found: boolean;
+}
+
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 // Define the API types in a single place
 type ElectronAPI = {
   reactReady: () => void;
-  getConfig: () => Record<string, any>;
+  getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
   directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
@@ -13,36 +34,34 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: any
+    botConfig?: BotConfig
   ) => void;
   logInfo: (txt: string) => void;
-  showNotification: (data: any) => void;
+  showNotification: (data: NotificationData) => void;
   openInChrome: (url: string) => void;
-  fetchMetadata: (url: string) => Promise<any>;
+  fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
   selectFileOrDirectory: () => Promise<string>;
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
   getBinaryPath: (binaryName: string) => Promise<string>;
-  readFile: (
-    directory: string
-  ) => Promise<{ file: string; filePath: string; error: string; found: boolean }>;
+  readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
   on: (
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void
+    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
   off: (
     channel: string,
-    callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void
+    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
-  emit: (channel: string, ...args: any[]) => void;
+  emit: (channel: string, ...args: unknown[]) => void;
 };
 
 type AppConfigAPI = {
-  get: (key: string) => any;
-  getAll: () => Record<string, any>;
+  get: (key: string) => unknown;
+  getAll: () => Record<string, unknown>;
 };
 
 const electronAPI: ElectronAPI = {
@@ -55,10 +74,10 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: any
+    botConfig?: BotConfig
   ) => ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, botConfig),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
-  showNotification: (data: any) => ipcRenderer.send('notify', data),
+  showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
@@ -70,13 +89,19 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('write-file', filePath, content),
-  on: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => {
+  on: (
+    channel: string,
+    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+  ) => {
     ipcRenderer.on(channel, callback);
   },
-  off: (channel: string, callback: (event: Electron.IpcRendererEvent, ...args: any[]) => void) => {
+  off: (
+    channel: string,
+    callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
+  ) => {
     ipcRenderer.off(channel, callback);
   },
-  emit: (channel: string, ...args: any[]) => {
+  emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
   },
 };

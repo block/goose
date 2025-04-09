@@ -1,11 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Check, Plus, Settings, X, Rocket } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/Tooltip';
 import { Portal } from '@radix-ui/react-portal';
 import { required_keys } from '../models/hardcoded_stuff';
-import { useActiveKeys } from '../api_keys/ActiveKeysContext';
-import { getActiveProviders } from '../api_keys/utils';
 
 // Common interfaces and helper functions
 interface Provider {
@@ -67,7 +65,6 @@ function BaseProviderCard({
 }: BaseProviderCardProps) {
   const numRequiredKeys = required_keys[name]?.length || 0;
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
-  const { activeKeys, setActiveKeys } = useActiveKeys();
 
   return (
     <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
@@ -112,7 +109,7 @@ function BaseProviderCard({
               </TooltipProvider>
             )}
           </div>
-          <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px] ">
+          <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal scrollbar-thin overflow-y-auto max-h-[54px] ">
             {description}
           </p>
         </div>

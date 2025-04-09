@@ -243,6 +243,7 @@ impl Agent {
                 name: _,
                 tools,
                 instructions,
+                bundled: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
                 for tool in tools {
