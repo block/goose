@@ -1,13 +1,12 @@
 ---
-title: AgentQL Web Data Extension
+title: AgentQL Extension
 description: Add AgentQL MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
+<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
 This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a Goose extension to extract and transform unstructured web content into structured data.
 
