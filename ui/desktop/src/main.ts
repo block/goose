@@ -254,15 +254,15 @@ const createChat = async (
   }
 
   // Set up local keyboard shortcuts that only work when the window is focused
-  mainWindow.webContents.on('before-input-event', (_event, input) => {
+  mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'r' && input.meta) {
       mainWindow.reload();
-      _event.preventDefault();
+      event.preventDefault();
     }
 
     if (input.key === 'i' && input.alt && input.meta) {
       mainWindow.webContents.openDevTools();
-      _event.preventDefault();
+      event.preventDefault();
     }
   });
 
