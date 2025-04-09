@@ -330,9 +330,9 @@ export default function App() {
         } else {
           setView('welcome');
         }
-      } catch (err) {
-        console.error('DETECTION ERROR:', err);
-        setFatalError(`Config detection error: ${err.message || 'Unknown error'}`);
+      } catch (error) {
+        console.error('DETECTION ERROR:', error);
+        setFatalError(`Config detection error: ${error.message || 'Unknown error'}`);
       }
     };
 
@@ -367,17 +367,17 @@ export default function App() {
             setFatalError(`Initialization failed: ${error.message || 'Unknown error'}`);
           }
         }
-      } catch (err) {
-        console.error('SETUP ERROR:', err);
-        setFatalError(`Setup error: ${err.message || 'Unknown error'}`);
+      } catch (error) {
+        console.error('SETUP ERROR:', error);
+        setFatalError(`Setup error: ${error.message || 'Unknown error'}`);
       }
     };
 
     // Execute the functions with better error handling
     detectStoredProvider();
-    setupStoredProvider().catch((err) => {
-      console.error('ASYNC SETUP ERROR:', err);
-      setFatalError(`Async setup error: ${err.message || 'Unknown error'}`);
+    setupStoredProvider().catch((error) => {
+      console.error('ASYNC SETUP ERROR:', error);
+      setFatalError(`Async setup error: ${error.message || 'Unknown error'}`);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
