@@ -23,6 +23,7 @@ use mcp_core::{
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
+use google_docs1::{self, Docs};
 use google_drive3::common::ReadSeek;
 use google_drive3::{
     self,
@@ -58,6 +59,7 @@ pub struct GoogleDriveRouter {
     instructions: String,
     drive: DriveHub<HttpsConnector<HttpConnector>>,
     sheets: Sheets<HttpsConnector<HttpConnector>>,
+    docs: Docs<HttpsConnector<HttpConnector>>,
     credentials_manager: Arc<CredentialsManager>,
 }
 
@@ -65,6 +67,7 @@ impl GoogleDriveRouter {
     async fn google_auth() -> (
         DriveHub<HttpsConnector<HttpConnector>>,
         Sheets<HttpsConnector<HttpConnector>>,
+        Docs<HttpsConnector<HttpConnector>>,
         Arc<CredentialsManager>,
     ) {
         let keyfile_path_str = env::var("GOOGLE_DRIVE_OAUTH_PATH")
@@ -155,10 +158,11 @@ impl GoogleDriveRouter {
                 );
 
                 let drive_hub = DriveHub::new(client.clone(), auth.clone());
-                let sheets_hub = Sheets::new(client, auth);
+                let sheets_hub = Sheets::new(client.clone(), auth.clone());
+                let docs_hub = Docs::new(client, auth);
 
                 // Create and return the DriveHub, Sheets and our PKCE OAuth2 client
-                (drive_hub, sheets_hub, credentials_manager)
+                (drive_hub, sheets_hub, docs_hub, credentials_manager)
             }
             Err(e) => {
                 tracing::error!(
@@ -173,7 +177,7 @@ impl GoogleDriveRouter {
 
     pub async fn new() -> Self {
         // handle auth
-        let (drive, sheets, credentials_manager) = Self::google_auth().await;
+        let (drive, sheets, docs, credentials_manager) = Self::google_auth().await;
 
         let search_tool = Tool::new(
             "search".to_string(),
@@ -526,6 +530,57 @@ impl GoogleDriveRouter {
             None,
         );
 
+        let docs_tool = Tool::new(
+            "docs_tool".to_string(),
+            indoc! {r#"
+                Work with Google Docs data using various operations.
+                Supports operations:
+                - get_document: Get the full document content
+                - insert_text: Insert text at a specific location
+                - append_text: Append text to the end of the document
+                - replace_text: Replace all instances of text
+                - create_paragraph: Create a new paragraph
+                - delete_content: Delete content between positions
+            "#}
+            .to_string(),
+            json!({
+              "type": "object",
+              "properties": {
+                  "documentId": {
+                      "type": "string",
+                      "description": "The ID of the document to work with",
+                  },
+                  "operation": {
+                      "type": "string",
+                      "enum": ["get_document", "insert_text", "append_text", "replace_text", "create_paragraph", "delete_content"],
+                      "description": "The operation to perform on the document",
+                  },
+                  "text": {
+                      "type": "string",
+                      "description": "The text to insert, append, or use for replacement",
+                  },
+                  "replaceText": {
+                      "type": "string",
+                      "description": "The text to be replaced",
+                  },
+                  "position": {
+                      "type": "number",
+                      "description": "The position in the document (index) for operations that require a position",
+                  },
+                  "startPosition": {
+                      "type": "number",
+                      "description": "The start position for delete_content operation",
+                  },
+                  "endPosition": {
+                      "type": "number",
+                      "description": "The end position for delete_content operation",
+                  }
+              },
+              "required": ["documentId", "operation"],
+            }),
+            None,
+        );
+
         let get_comments_tool = Tool::new(
             "get_comments".to_string(),
             indoc! {r#"
@@ -645,13 +700,15 @@ impl GoogleDriveRouter {
             Google Drive MCP Server Instructions
 
             ## Overview
-            The Google Drive MCP server provides tools for interacting with Google Drive files and Google Sheets:
+            The Google Drive MCP server provides tools for interacting with Google Drive files, Google Sheets, and Google Docs:
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
             3. sheets_tool - Work with Google Sheets data using various operations
             4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
             5. update_google_file - Update existing Google Workspace files (Docs, Sheets, or Slides)
             6. update_file - Update existing normal non-Google Workspace files
+            7. docs_tool - Work with Google Docs data using various operations
+
 
             ## Available Tools
 
@@ -699,13 +756,31 @@ impl GoogleDriveRouter {
 
             For update_cell operation, provide the cell reference (e.g., 'Sheet1!A1') and the value to set.
 
-            ### 4. Create File Tool
+            ### 4. Docs Tool
+            Work with Google Docs data using various operations:
+            - get_document: Get the full document content
+            - insert_text: Insert text at a specific location
+            - append_text: Append text to the end of the document
+            - replace_text: Replace all instances of text
+            - create_paragraph: Create a new paragraph
+            - delete_content: Delete content between positions
+
+            Parameters:
+            - documentId: The ID of the document (can be obtained from search results)
+            - operation: The operation to perform (one of the operations listed above)
+            - text: The text to insert, append, or use for replacement
+            - replaceText: The text to be replaced (for replace_text operation)
+            - position: The position in the document (index) for operations that require a position
+            - startPosition: The start position for delete_content operation
+            - endPosition: The end position for delete_content operation
+
+            ### 5. Create File Tool
             Create Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
             - For Google Docs: Converts Markdown text to a Google Document
             - For Google Sheets: Converts CSV text to a Google Spreadsheet
             - For Google Slides: Converts a PowerPoint file to Google Slides (requires a path to the powerpoint file)
 
-            ### 5. Update File Tool
+            ### 6. Update File Tool
             Update existing Google Workspace files (Docs, Sheets, or Slides) in Google Drive.
             - For Google Docs: Updates with new Markdown text
             - For Google Sheets: Updates with new CSV text
@@ -736,6 +811,7 @@ impl GoogleDriveRouter {
             1. First, search for the file you want to read, searching by name.
             2. Then, use the file URI from the search results to read its contents.
             3. For Google Sheets, use the sheets_tool with the appropriate operation.
+            4. For Google Docs, use the docs_tool with the appropriate operation.
 
             ## Best Practices
             1. Always use search first to find the correct file URI
@@ -763,6 +839,7 @@ impl GoogleDriveRouter {
                 update_file_tool,
                 update_google_file_tool,
                 sheets_tool,
+                docs_tool,
                 get_comments_tool,
                 create_comment_tool,
                 reply_tool,
@@ -771,6 +848,7 @@ impl GoogleDriveRouter {
             instructions,
             drive,
             sheets,
+            docs,
             credentials_manager,
         }
     }
@@ -2194,6 +2272,382 @@ impl GoogleDriveRouter {
         }
     }
 
+    async fn docs_tool(&self, params: Value) -> Result<Vec<Content>, ToolError> {
+        let document_id = params.get("documentId").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The documentId is required".to_string()),
+        )?;
+
+        let operation = params.get("operation").and_then(|q| q.as_str()).ok_or(
+            ToolError::InvalidParameters("The operation is required".to_string()),
+        )?;
+
+        match operation {
+            "get_document" => {
+                // Get the document content
+                let result = self
+                    .docs
+                    .documents()
+                    .get(document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs get query, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let document = r.1;
+                        let title = document.title.unwrap_or_default();
+
+                        // Extract the document content as text
+                        let mut content = String::new();
+                        content.push_str(&format!("# {}\n\n", title));
+
+                        if let Some(body) = document.body {
+                            if let Some(content_items) = body.content {
+                                for item in content_items {
+                                    if let Some(paragraph) = item.paragraph {
+                                        if let Some(elements) = paragraph.elements {
+                                            for element in elements {
+                                                if let Some(text_run) = element.text_run {
+                                                    if let Some(text) = text_run.content {
+                                                        content.push_str(&text);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Ok(vec![Content::text(content).with_priority(0.1)])
+                    }
+                }
+            },
+            "insert_text" => {
+                let text = params.get("text").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters("The text parameter is required for insert_text operation".to_string()),
+                )?;
+
+                let position = params.get("position").and_then(|q| q.as_i64()).ok_or(
+                    ToolError::InvalidParameters("The position parameter is required for insert_text operation".to_string()),
+                )?;
+
+                // Create the insert text request
+                let insert_text_request = google_docs1::api::InsertTextRequest {
+                    text: Some(text.to_string()),
+                    location: Some(google_docs1::api::Location {
+                        index: Some(position.try_into().unwrap()),
+                        segment_id: None,
+                    }),
+                    end_of_segment_location: None,
+                };
+
+                // Create the batch update request
+                let batch_update_request = google_docs1::api::BatchUpdateDocumentRequest {
+                    requests: Some(vec![google_docs1::api::Request {
+                        insert_text: Some(insert_text_request),
+                        ..google_docs1::api::Request::default()
+                    }]),
+                    write_control: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .docs
+                    .documents()
+                    .batch_update(batch_update_request, document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs insert_text operation, {}.",
+                        e
+                    ))),
+                    Ok(_) => {
+                        Ok(vec![Content::text(format!(
+                            "Successfully inserted text at position {}.",
+                            position
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
+            "append_text" => {
+                let text = params.get("text").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters("The text parameter is required for append_text operation".to_string()),
+                )?;
+
+                // First, get the document to find the end position
+                let get_result = self
+                    .docs
+                    .documents()
+                    .get(document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                let end_index = match get_result {
+                    Err(e) => {
+                        return Err(ToolError::ExecutionError(format!(
+                            "Failed to get document to determine end position, {}.",
+                            e
+                        )));
+                    },
+                    Ok(r) => {
+                        let document = r.1;
+                        if let Some(body) = document.body {
+                            body.content.and_then(|content| {
+                                content.last().and_then(|last_item| {
+                                    last_item.end_index
+                                })
+                            }).unwrap_or(1) // Default to 1 if we can't determine the end position
+                        } else {
+                            1 // Default to 1 if there's no body
+                        }
+                    }
+                };
+
+                // Create the insert text request at the end position
+                let insert_text_request = google_docs1::api::InsertTextRequest {
+                    text: Some(text.to_string()),
+                    location: Some(google_docs1::api::Location {
+                        index: Some(end_index - 1), // -1 because end_index is one past the last character
+                        segment_id: None,
+                    }),
+                    end_of_segment_location: None,
+                };
+
+                // Create the batch update request
+                let batch_update_request = google_docs1::api::BatchUpdateDocumentRequest {
+                    requests: Some(vec![google_docs1::api::Request {
+                        insert_text: Some(insert_text_request),
+                        ..google_docs1::api::Request::default()
+                    }]),
+                    write_control: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .docs
+                    .documents()
+                    .batch_update(batch_update_request, document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs append_text operation, {}.",
+                        e
+                    ))),
+                    Ok(_) => {
+                        Ok(vec![Content::text("Successfully appended text to the document.").with_priority(0.1)])
+                    }
+                }
+            },
+            "replace_text" => {
+                let text = params.get("text").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters("The text parameter is required for replace_text operation".to_string()),
+                )?;
+
+                let replace_text = params.get("replaceText").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters("The replaceText parameter is required for replace_text operation".to_string()),
+                )?;
+
+                // Create the replace all text request
+                let replace_all_text_request = google_docs1::api::ReplaceAllTextRequest {
+                    contains_text: Some(google_docs1::api::SubstringMatchCriteria {
+                        text: Some(replace_text.to_string()),
+                        match_case: Some(true),
+                    }),
+                    replace_text: Some(text.to_string()),
+                };
+
+                // Create the batch update request
+                let batch_update_request = google_docs1::api::BatchUpdateDocumentRequest {
+                    requests: Some(vec![google_docs1::api::Request {
+                        replace_all_text: Some(replace_all_text_request),
+                        ..google_docs1::api::Request::default()
+                    }]),
+                    write_control: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .docs
+                    .documents()
+                    .batch_update(batch_update_request, document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs replace_text operation, {}.",
+                        e
+                    ))),
+                    Ok(r) => {
+                        let response = r.1;
+                        let replacements = response
+                            .replies
+                            .and_then(|replies| {
+                                replies.first().and_then(|reply| {
+                                    reply.replace_all_text.as_ref().map(|replace_response| {
+                                        replace_response.occurrences_changed.unwrap_or(0)
+                                    })
+                                })
+                            })
+                            .unwrap_or(0);
+
+                        Ok(vec![Content::text(format!(
+                            "Successfully replaced {} occurrences of '{}' with '{}'.",
+                            replacements, replace_text, text
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
+            "create_paragraph" => {
+                let text = params.get("text").and_then(|q| q.as_str()).ok_or(
+                    ToolError::InvalidParameters("The text parameter is required for create_paragraph operation".to_string()),
+                )?;
+
+                // Get the end position of the document
+                let get_result = self
+                    .docs
+                    .documents()
+                    .get(document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                let end_index = match get_result {
+                    Err(e) => {
+                        return Err(ToolError::ExecutionError(format!(
+                            "Failed to get document to determine end position, {}.",
+                            e
+                        )));
+                    },
+                    Ok(r) => {
+                        let document = r.1;
+                        if let Some(body) = document.body {
+                            body.content.and_then(|content| {
+                                content.last().and_then(|last_item| {
+                                    last_item.end_index
+                                })
+                            }).unwrap_or(1) // Default to 1 if we can't determine the end position
+                        } else {
+                            1 // Default to 1 if there's no body
+                        }
+                    }
+                };
+
+                // Create the insert text request with a newline at the end
+                let insert_text_request = google_docs1::api::InsertTextRequest {
+                    text: Some(format!("\n{}", text)),
+                    location: Some(google_docs1::api::Location {
+                        index: Some(end_index - 1), // -1 because end_index is one past the last character
+                        segment_id: None,
+                    }),
+                    end_of_segment_location: None,
+                };
+
+                // Create the batch update request
+                let batch_update_request = google_docs1::api::BatchUpdateDocumentRequest {
+                    requests: Some(vec![google_docs1::api::Request {
+                        insert_text: Some(insert_text_request),
+                        ..google_docs1::api::Request::default()
+                    }]),
+                    write_control: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .docs
+                    .documents()
+                    .batch_update(batch_update_request, document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs create_paragraph operation, {}.",
+                        e
+                    ))),
+                    Ok(_) => {
+                        Ok(vec![Content::text("Successfully created a new paragraph.").with_priority(0.1)])
+                    }
+                }
+            },
+            "delete_content" => {
+                let start_position = params.get("startPosition").and_then(|q| q.as_i64()).ok_or(
+                    ToolError::InvalidParameters("The startPosition parameter is required for delete_content operation".to_string()),
+                )?;
+
+                let end_position = params.get("endPosition").and_then(|q| q.as_i64()).ok_or(
+                    ToolError::InvalidParameters("The endPosition parameter is required for delete_content operation".to_string()),
+                )?;
+
+                // Create the delete content range request
+                let delete_content_range_request = google_docs1::api::DeleteContentRangeRequest {
+                    range: Some(google_docs1::api::Range {
+                        start_index: Some(start_position.try_into().unwrap()),
+                        end_index: Some(end_position.try_into().unwrap()),
+                        segment_id: None,
+                    }),
+                };
+
+                // Create the batch update request
+                let batch_update_request = google_docs1::api::BatchUpdateDocumentRequest {
+                    requests: Some(vec![google_docs1::api::Request {
+                        delete_content_range: Some(delete_content_range_request),
+                        ..google_docs1::api::Request::default()
+                    }]),
+                    write_control: None,
+                };
+
+                // Execute the batch update
+                let result = self
+                    .docs
+                    .documents()
+                    .batch_update(batch_update_request, document_id)
+                    .clear_scopes()
+                    .add_scope(GOOGLE_DRIVE_SCOPES)
+                    .doit()
+                    .await;
+
+                match result {
+                    Err(e) => Err(ToolError::ExecutionError(format!(
+                        "Failed to execute Google Docs delete_content operation, {}.",
+                        e
+                    ))),
+                    Ok(_) => {
+                        Ok(vec![Content::text(format!(
+                            "Successfully deleted content from position {} to {}.",
+                            start_position, end_position
+                        )).with_priority(0.1)])
+                    }
+                }
+            },
+            _ => Err(ToolError::InvalidParameters(format!(
+                "Invalid operation: {}. Supported operations are: get_document, insert_text, append_text, replace_text, create_paragraph, delete_content",
+                operation
+            ))),
+        }
+    }
+
     async fn list_drives(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let query = params.get("name_contains").and_then(|q| q.as_str());
 
@@ -2287,6 +2741,7 @@ impl Router for GoogleDriveRouter {
                 "update_file" => this.update_file(arguments).await,
                 "update_google_file" => this.update_google_file(arguments).await,
                 "sheets_tool" => this.sheets_tool(arguments).await,
+                "docs_tool" => this.docs_tool(arguments).await,
                 "create_comment" => this.create_comment(arguments).await,
                 "get_comments" => this.get_comments(arguments).await,
                 "reply" => this.reply(arguments).await,
@@ -2337,6 +2792,7 @@ impl Clone for GoogleDriveRouter {
             instructions: self.instructions.clone(),
             drive: self.drive.clone(),
             sheets: self.sheets.clone(),
+            docs: self.docs.clone(),
             credentials_manager: self.credentials_manager.clone(),
         }
     }

@@ -2262,6 +2262,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "google-docs1"
+version = "6.0.0+20240613"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8441d3fa1544efacb0fabf88c45ba60d424d718bb13f2a0ce2a6447efb99d14e"
+dependencies = [
+ "chrono",
+ "google-apis-common",
+ "hyper 1.6.0",
+ "hyper-rustls 0.27.5",
+ "hyper-util",
+ "mime",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "tokio",
+ "url",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "google-drive3"
 version = "6.0.0+20240618"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2425,6 +2445,7 @@ dependencies = [
  "chrono",
  "docx-rs",
  "etcetera",
+ "google-docs1",
  "google-drive3",
  "google-sheets4",
  "http-body-util",
@@ -6224,7 +6245,7 @@ dependencies = [
  "sha2",
  "thin-vec",
  "thousands",
- "zip 2.2.3",
+ "zip 2.5.0",
 ]
 
 [[package]]
@@ -7264,18 +7285,16 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.2.3"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b280484c454e74e5fff658bbf7df8fdbe7a07c6b2de4a53def232c15ef138f3a"
+checksum = "27c03817464f64e23f6f37574b4fdc8cf65925b5bfd2b0f2aedf959791941f88"
 dependencies = [
  "arbitrary",
  "crc32fast",
  "crossbeam-utils",
- "displaydoc",
  "flate2",
  "indexmap 2.7.1",
  "memchr",
- "thiserror 2.0.12",
  "zopfli",
 ]
 
