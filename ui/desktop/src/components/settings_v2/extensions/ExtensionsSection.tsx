@@ -23,6 +23,7 @@ export default function ExtensionsSection() {
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [errorFormData, setErrorFormData] = useState<ExtensionFormData | null>(null);
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -72,44 +73,67 @@ export default function ExtensionsSection() {
   };
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
+    // Close the modal immediately
+    handleModalClose();
+
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-    } catch (error) {
-      // Even if activation fails, the extension is added as disabled, so we want to show it
-      console.error('Failed to activate extension:', error);
-    } finally {
-      handleModalClose();
+      // If successful, refresh the extensions list
       await fetchExtensions();
+    } catch (error) {
+      console.error('Failed to activate extension:', error);
+      // If activation fails, reopen the modal with the previously entered data
+      setErrorFormData(formData);
+      setIsAddModalOpen(true);
     }
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
-    const extensionConfig = createExtensionConfig(formData);
-
-    await updateExtension({
-      enabled: formData.enabled,
-      extensionConfig: extensionConfig,
-      addToConfig: addExtension,
-    });
-
-    // First refresh the extensions list
-    await fetchExtensions();
-
-    // Then close the modal after data is refreshed
+    // Close the modal immediately
     handleModalClose();
+
+    const extensionConfig = createExtensionConfig(formData);
+    try {
+      await updateExtension({
+        enabled: formData.enabled,
+        extensionConfig: extensionConfig,
+        addToConfig: addExtension,
+      });
+      // If successful, refresh the extensions list
+      await fetchExtensions();
+    } catch (error) {
+      console.error('Failed to update extension:', error);
+      // If update fails, reopen the modal with the previously entered data
+      setErrorFormData(formData);
+      setIsModalOpen(true);
+      setSelectedExtension((prevSelected) => prevSelected); // Keep the same selected extension
+    }
   };
 
   const handleDeleteExtension = async (name: string) => {
-    await deleteExtension({ name, removeFromConfig: removeExtension });
+    // Close the modal immediately
     handleModalClose();
-    await fetchExtensions();
+
+    try {
+      await deleteExtension({ name, removeFromConfig: removeExtension });
+      await fetchExtensions();
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
+      // If deletion fails, reopen the modal
+      setIsModalOpen(true);
+      setSelectedExtension((prevSelected) => prevSelected); // Keep the same selected extension
+    }
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setIsAddModalOpen(false);
-    setSelectedExtension(null);
+    setErrorFormData(null);
+    // Only clear selected extension when truly closing the modal, not when processing
+    if (!errorFormData) {
+      setSelectedExtension(null);
+    }
   };
 
   return (
@@ -150,7 +174,7 @@ export default function ExtensionsSection() {
         {isModalOpen && selectedExtension && (
           <ExtensionModal
             title="Update Extension"
-            initialData={extensionToFormData(selectedExtension)}
+            initialData={errorFormData || extensionToFormData(selectedExtension)}
             onClose={handleModalClose}
             onSubmit={handleUpdateExtension}
             onDelete={handleDeleteExtension}
@@ -163,7 +187,7 @@ export default function ExtensionsSection() {
         {isAddModalOpen && (
           <ExtensionModal
             title="Add custom extension"
-            initialData={getDefaultFormData()}
+            initialData={errorFormData || getDefaultFormData()}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
             submitLabel="Add Extension"
