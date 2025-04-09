@@ -1,5 +1,5 @@
 import { Input } from '../../../ui/input';
-import Select from 'react-select';
+import { Select } from '../../../ui/Select';
 import React, { useState } from 'react';
 
 interface ExtensionInfoFieldsProps {
