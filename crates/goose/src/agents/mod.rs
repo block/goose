@@ -9,5 +9,5 @@ mod types;
 
 pub use agent::{Agent, SessionConfig};
 pub use capabilities::Capabilities;
-pub use extension::ExtensionConfig;
+pub use extension::{ExtensionConfig, ExtensionResult};
 pub use factory::{register_agent, AgentFactory};
