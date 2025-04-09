@@ -125,7 +125,9 @@ impl ExtensionManager {
     /// Get all extensions and their configurations
     pub fn get_all() -> Result<Vec<ExtensionEntry>> {
         let config = Config::global();
-        let extensions: HashMap<String, ExtensionEntry> = config.get_param("extensions")?;
+        let extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
         Ok(Vec::from_iter(extensions.values().cloned()))
     }
 
