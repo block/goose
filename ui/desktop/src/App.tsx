@@ -31,6 +31,7 @@ import { useChat } from './hooks/useChat';
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
+import { initConfig } from './api/sdk.gen';
 
 // Views and their options
 export type View =
@@ -91,6 +92,9 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
+        // Initialize config first
+        await initConfig();
+
         const config = window.electron.getConfig();
 
         const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;

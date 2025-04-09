@@ -1,8 +1,10 @@
 // src/lib.rs or tests/truncate_agent_tests.rs
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use futures::StreamExt;
-use goose::agents::AgentFactory;
+use goose::agents::Agent;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::base::Provider;
@@ -65,18 +67,18 @@ impl ProviderType {
         }
     }
 
-    fn create_provider(&self, model_config: ModelConfig) -> Result<Box<dyn Provider>> {
+    fn create_provider(&self, model_config: ModelConfig) -> Result<Arc<dyn Provider>> {
         Ok(match self {
-            ProviderType::Azure => Box::new(AzureProvider::from_env(model_config)?),
-            ProviderType::OpenAi => Box::new(OpenAiProvider::from_env(model_config)?),
-            ProviderType::Anthropic => Box::new(AnthropicProvider::from_env(model_config)?),
-            ProviderType::Bedrock => Box::new(BedrockProvider::from_env(model_config)?),
-            ProviderType::Databricks => Box::new(DatabricksProvider::from_env(model_config)?),
-            ProviderType::GcpVertexAI => Box::new(GcpVertexAIProvider::from_env(model_config)?),
-            ProviderType::Google => Box::new(GoogleProvider::from_env(model_config)?),
-            ProviderType::Groq => Box::new(GroqProvider::from_env(model_config)?),
-            ProviderType::Ollama => Box::new(OllamaProvider::from_env(model_config)?),
-            ProviderType::OpenRouter => Box::new(OpenRouterProvider::from_env(model_config)?),
+            ProviderType::Azure => Arc::new(AzureProvider::from_env(model_config)?),
+            ProviderType::OpenAi => Arc::new(OpenAiProvider::from_env(model_config)?),
+            ProviderType::Anthropic => Arc::new(AnthropicProvider::from_env(model_config)?),
+            ProviderType::Bedrock => Arc::new(BedrockProvider::from_env(model_config)?),
+            ProviderType::Databricks => Arc::new(DatabricksProvider::from_env(model_config)?),
+            ProviderType::GcpVertexAI => Arc::new(GcpVertexAIProvider::from_env(model_config)?),
+            ProviderType::Google => Arc::new(GoogleProvider::from_env(model_config)?),
+            ProviderType::Groq => Arc::new(GroqProvider::from_env(model_config)?),
+            ProviderType::Ollama => Arc::new(OllamaProvider::from_env(model_config)?),
+            ProviderType::OpenRouter => Arc::new(OpenRouterProvider::from_env(model_config)?),
         })
     }
 }
@@ -108,7 +110,7 @@ async fn run_truncate_test(
         .with_temperature(Some(0.0));
     let provider = provider_type.create_provider(model_config)?;
 
-    let agent = AgentFactory::create("truncate", provider).unwrap();
+    let agent = Agent::new(provider);
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
     let messages = vec![
@@ -185,7 +187,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_openai() -> Result<()> {
+    async fn test_agent_with_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenAi,
             model: "o3-mini-low",
@@ -195,7 +197,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_azure() -> Result<()> {
+    async fn test_agent_with_azure() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Azure,
             model: "gpt-4o-mini",
@@ -205,7 +207,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_anthropic() -> Result<()> {
+    async fn test_agent_with_anthropic() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Anthropic,
             model: "claude-3-5-haiku-latest",
@@ -215,7 +217,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_bedrock() -> Result<()> {
+    async fn test_agent_with_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Bedrock,
             model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -225,7 +227,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_databricks() -> Result<()> {
+    async fn test_agent_with_databricks() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
             model: "databricks-meta-llama-3-3-70b-instruct",
@@ -235,7 +237,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_databricks_bedrock() -> Result<()> {
+    async fn test_agent_with_databricks_bedrock() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
             model: "claude-3-5-sonnet-2",
@@ -245,7 +247,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_databricks_openai() -> Result<()> {
+    async fn test_agent_with_databricks_openai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Databricks,
             model: "gpt-4o-mini",
@@ -255,7 +257,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_google() -> Result<()> {
+    async fn test_agent_with_google() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Google,
             model: "gemini-2.0-flash-exp",
@@ -265,7 +267,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_groq() -> Result<()> {
+    async fn test_agent_with_groq() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Groq,
             model: "gemma2-9b-it",
@@ -275,7 +277,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_openrouter() -> Result<()> {
+    async fn test_agent_with_openrouter() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::OpenRouter,
             model: "deepseek/deepseek-r1",
@@ -285,7 +287,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_ollama() -> Result<()> {
+    async fn test_agent_with_ollama() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::Ollama,
             model: "llama3.2",
@@ -295,7 +297,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_truncate_agent_with_gcpvertexai() -> Result<()> {
+    async fn test_agent_with_gcpvertexai() -> Result<()> {
         run_test_with_config(TestConfig {
             provider_type: ProviderType::GcpVertexAI,
             model: "claude-3-5-sonnet-v2@20241022",
