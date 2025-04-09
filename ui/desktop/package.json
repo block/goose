@@ -21,7 +21,7 @@
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
     "lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "lint:check": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:check": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "prepare": "cd ../.. && husky install",
