@@ -12,7 +12,6 @@ import {
   getToolConfirmationContent,
   createToolErrorResponseMessage,
   getEnableExtensionContent,
-  getEnableExtensionRequests,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
@@ -42,7 +41,6 @@ export default function GooseMessage({
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
-  const enableExtensionRequests = getEnableExtensionRequests(message);
 
   // Extract URLs under a few conditions
   // 1. The message is purely text
@@ -107,6 +105,9 @@ export default function GooseMessage({
     hasToolConfirmation,
     toolConfirmationContent,
     appendMessage,
+    hasEnableExtension,
+    // Only include enableExtensionContent if it exists
+    enableExtensionContent?.id,
   ]);
 
   return (

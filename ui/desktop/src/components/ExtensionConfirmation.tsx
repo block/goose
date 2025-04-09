@@ -56,7 +56,7 @@ export default function ExtensionConfirmation({
             <span className="ml-2 text-textStandard">
               {isClicked
                 ? 'Extension enablement is not available'
-                : `${snakeToTitleCase(extensionName.substring(extensionName.lastIndexOf('__') + 2))} is ${status}`}
+                : `${snakeToTitleCase(extensionName.includes('__') ? extensionName.split('__').pop() : extensionName)} is ${status}`}
             </span>
           </div>
         </div>
