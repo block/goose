@@ -8,6 +8,7 @@ mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
+pub mod githubcopilot;
 pub mod google;
 pub mod groq;
 pub mod oauth;
