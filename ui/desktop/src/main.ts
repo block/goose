@@ -391,7 +391,7 @@ ipcMain.on('react-ready', (event) => {
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
