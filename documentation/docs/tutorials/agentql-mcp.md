@@ -112,10 +112,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ```  
 
-  6. Obtain an AgentQL API Key and paste it in.
-  :::info
-  You can get your API key by signing up at [agentql.dev](https://agentql.dev) and navigating to your account settings.
-  :::
+  6. Obtain an [AgentQL API Key](https://dev.agentql.com/api-keys) and paste it in.
 
    ```sh
     ┌   goose-configure 
@@ -153,9 +150,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL%20Web%20Data&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
   2. Press `Yes` to confirm the installation
-  3. Obtain an [AGENTQL_API_KEY](https://agentql.dev) and paste it in
+  3. Obtain an [AGENTQL_API_KEY](https://dev.agentql.com/api-keys) and paste it in
   4. Click `Save Configuration`
   5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
@@ -163,7 +160,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use the AgentQL extension to gather data and structure data tech conferences to help plan speaking engagements. 
+Let's use the AgentQL extension to gather and structure tech conference data to help plan speaking engagements. 
 
 :::info LLM
 Anthropic's Claude 3.5 Sonnet was used for this task.
@@ -172,11 +169,13 @@ Anthropic's Claude 3.5 Sonnet was used for this task.
 ### Goose Prompt
 
 ```
-I'm a tech conference speaker planning my 2025-2026 submissions. Extract for major community conferences from 2022-2025:
+I'm a tech conference speaker planning my 2025-2026 submissions. 
 
+Extract for developer conferences (attendance > 500) occurring between 2022-2024:
 - Conference name
 - Conference dates
 - CFP timeline 
+
 To identify:
 - Consistent monthly patterns
 - Whether conferences stick to same months yearly
@@ -188,82 +187,101 @@ Structure results as JSON
 
 ### Goose Output
 
-```json
+```
+I'll help you analyze conference patterns using the web data extraction tool. Let me break this down into a few queries to get comprehensive data.
+
+─── extract-web-data | agentql ──────────────────────────
+prompt: ...
+url: ...
+
+Let me get some historical data to compare patterns:
+
+─── extract-web-data | agentql ──────────────────────────
+prompt: ....
+url: ....
+
+Based on my research and the available data, I'll provide an analysis of major tech conference patterns. Here's the structured JSON with my findings:
+
 {
-  "conference_patterns": {
-    "major_annual_conferences": {
-      "Q1_conferences": {
-        "typical_months": ["February", "March"],
-        "notable_events": [
-          "DeveloperWeek",
-          "Microsoft MVP Summit"
-        ],
-        "cfp_patterns": {
-          "typical_open": "4-5 months before",
-          "typical_close": "2-3 months before",
-          "consistency": "High"
+  "analysis": {
+    "major_conference_patterns": {
+      "timing_consistency": {
+        "spring_events": {
+          "typical_months": ["March", "April", "May"],
+          "notable_conferences": [
+            "Google I/O",
+            "Microsoft Build",
+            "DevOpsDays (various locations)"
+          ],
+          "cfp_patterns": "Usually opens 4-6 months before event, closes 2-3 months before"
+        },
+        "fall_events": {
+          "typical_months": ["September", "October", "November"],
+          "notable_conferences": [
+            "AWS re:Invent",
+            "KubeCon + CloudNativeCon"
+          ],
+          "cfp_patterns": "Usually opens 6-8 months before event, closes 4-5 months before"
         }
       },
-      "Q2_conferences": {
-        "typical_months": ["April", "May", "June"],
-        "notable_events": [
-          "Google I/O",
-          "Microsoft Build",
-          "PyCon US",
-          "DevOpsDays (various locations)"
-        ],
-        "cfp_patterns": {
-          "typical_open": "6 months before",
-          "typical_close": "3-4 months before",
-          "consistency": "Very High"
-        }
-      },
-      "Q3_conferences": {
-        "typical_months": ["July", "August", "September"],
-        "notable_events": [
-          "DEF CON",
-          "Black Hat",
-          "Strange Loop"
-        ],
-        "cfp_patterns": {
-          "typical_open": "7-8 months before",
-          "typical_close": "4-5 months before",
-          "consistency": "Medium"
-        }
-      },
-      "Q4_conferences": {
-        "typical_months": ["October", "November", "December"],
-        "notable_events": [
-          "AWS re:Invent",
-          "KubeCon + CloudNativeCon",
-          "Microsoft Ignite"
-        ],
-        "cfp_patterns": {
-          "typical_open": "6-7 months before",
-          "typical_close": "4 months before",
-          "consistency": "High"
-        }
+      "observed_trends": {
+        "timing_consistency": "High - Most major conferences maintain consistent months year-over-year",
+        "cfp_windows": {
+          "typical_duration": "6-12 weeks",
+          "advance_notice": "4-8 months before event",
+          "variation": "Regional events tend to have shorter CFP windows (4-6 weeks)"
+        },
+        "recent_shifts": [
+          "Increased hybrid/virtual options post-2022",
+          "More regional editions of major conferences",
+          "Earlier CFP deadlines for larger events"
+        ]
       }
     },
-    "key_observations": {
-      "timing_consistency": [
-        "Most major conferences maintain consistent months year-over-year",
-        "Q2 (April-June) has highest concentration of developer conferences",
-        "Q4 has most cloud/infrastructure focused events"
-      ],
-      "cfp_trends": [
-        "Larger conferences typically open CFPs 6-8 months before event",
-        "Most CFPs close 3-4 months before conference date",
-        "Regional/smaller events often have shorter CFP windows (2-3 months)",
-        "Virtual/hybrid options remain common post-2023"
-      ],
-      "recent_shifts": [
-        "More hybrid attendance options",
-        "Longer CFP review periods",
-        "Earlier announcements of conference dates",
-        "More regional satellite events for major conferences"
-      ]
+    "recommendations_for_2025_2026": {
+      "spring_submissions": {
+        "prepare_by": "September-October of previous year",
+        "submit_during": "November-December of previous year"
+      },
+      "fall_submissions": {
+        "prepare_by": "February-March",
+        "submit_during": "March-April"
+      }
     }
   }
 }
+
+
+Key Insights for Your Planning:
+
+1. **Monthly Patterns**:
+   - Spring conference season: March-May
+   - Fall conference season: September-November
+   - Summer tends to be lighter for major tech conferences
+   - December-January typically quiet except for regional events
+
+2. **Year-to-Year Consistency**:
+   - Major conferences (AWS re:Invent, KubeCon, Google I/O) are very consistent with their timing
+   - Regional versions of major conferences (like DevOpsDays) show more date flexibility
+   - Most maintain the same quarter/season year over year
+
+3. **CFP Windows**:
+   - Larger conferences: 6-8 months before event
+   - Regional conferences: 3-4 months before event
+   - Trend toward longer review periods for major conferences
+   - Many now have rolling or multi-phase CFP processes
+
+4. **Recent Shifts**:
+   - Earlier CFP deadlines compared to pre-2022
+   - More hybrid/virtual components
+   - Increased number of regional editions of major conferences
+   - Longer review periods for submissions
+
+For 2025-2026 planning, I recommend:
+- Start preparing fall 2025 submissions by February-March 2025
+- Start preparing spring 2026 submissions by September-October 2025
+- Consider regional versions of major conferences as they often have later deadlines
+- Keep track of multi-track conferences as they might have different CFP deadlines for different tracks
+
+Would you like me to focus on any specific aspect of these patterns or provide more detailed information about particular conferences?
 ```
