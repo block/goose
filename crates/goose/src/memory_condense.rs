@@ -1,7 +1,8 @@
-use crate::agents::Capabilities;
 use crate::message::Message;
+use crate::providers::base::Provider;
 use crate::token_counter::TokenCounter;
 use anyhow::{anyhow, Result};
+use std::sync::Arc;
 use tracing::debug;
 
 const SYSTEM_PROMPT: &str = "You are good at summarizing.";
@@ -12,17 +13,13 @@ fn create_summarize_request(messages: &[Message]) -> Vec<Message> {
     ]
 }
 async fn single_request(
-    capabilities: &Capabilities,
+    provider: &Arc<dyn Provider>,
     messages: &[Message],
 ) -> Result<Message, anyhow::Error> {
-    Ok(capabilities
-        .provider()
-        .complete(SYSTEM_PROMPT, messages, &[])
-        .await?
-        .0)
+    Ok(provider.complete(SYSTEM_PROMPT, messages, &[]).await?.0)
 }
 async fn memory_condense(
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
     token_counter: &TokenCounter,
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
@@ -67,9 +64,7 @@ async fn memory_condense(
 
         diff = -(current_tokens as isize);
         let request = create_summarize_request(&batch);
-        let response_text = single_request(capabilities, &request)
-            .await?
-            .as_concat_text();
+        let response_text = single_request(&provider, &request).await?.as_concat_text();
 
         // Ensure the conversation starts with a User message
         let curr_messages = vec![
@@ -95,8 +90,9 @@ async fn memory_condense(
     }
 }
 
+/// TODO: currently not used. we will add this is a feature flag under context mgmt
 pub async fn condense_messages(
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
     token_counter: &TokenCounter,
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
@@ -108,7 +104,7 @@ pub async fn condense_messages(
     // The compressor should determine whether we need to compress the messages or not. This
     // function just checks if the limit is satisfied.
     memory_condense(
-        capabilities,
+        provider,
         token_counter,
         messages,
         token_counts,

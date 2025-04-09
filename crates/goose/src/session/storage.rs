@@ -243,7 +243,7 @@ pub fn read_metadata(session_file: &Path) -> Result<SessionMetadata> {
 pub async fn persist_messages(
     session_file: &Path,
     messages: &[Message],
-    provider: Option<Arc<Box<dyn Provider>>>,
+    provider: Option<Arc<dyn Provider>>,
 ) -> Result<()> {
     // Count user messages
     let user_message_count = messages
@@ -255,7 +255,7 @@ pub async fn persist_messages(
     match provider {
         Some(provider) if user_message_count < 4 => {
             //generate_description is responsible for writing the messages
-            generate_description(session_file, messages, provider.as_ref().as_ref()).await
+            generate_description(session_file, messages, provider).await
         }
         _ => {
             // Read existing metadata
@@ -298,7 +298,7 @@ pub fn save_messages_with_metadata(
 pub async fn generate_description(
     session_file: &Path,
     messages: &[Message],
-    provider: &dyn Provider,
+    provider: Arc<dyn Provider>,
 ) -> Result<()> {
     // Create a special message asking for a 3-word description
     let mut description_prompt = "Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description".to_string();

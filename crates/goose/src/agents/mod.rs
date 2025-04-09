@@ -1,13 +1,12 @@
 mod agent;
-pub mod capabilities;
 pub mod extension;
-mod factory;
-mod reference;
-mod summarize;
-mod truncate;
+pub mod extension_manager;
+pub mod platform_tools;
+pub mod prompt_manager;
 mod types;
 
-pub use agent::{Agent, SessionConfig};
-pub use capabilities::Capabilities;
-pub use extension::{ExtensionConfig, ExtensionResult};
-pub use factory::{register_agent, AgentFactory};
+pub use agent::Agent;
+pub use extension::ExtensionConfig;
+pub use extension_manager::ExtensionManager;
+pub use prompt_manager::PromptManager;
+pub use types::{FrontendTool, SessionConfig};
