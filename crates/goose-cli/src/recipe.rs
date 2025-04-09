@@ -9,6 +9,7 @@ use goose::recipe::Recipe;
 /// # Arguments
 ///
 /// * `path` - Path to the recipe file (YAML or JSON)
+/// * `log`  - whether to log information about the recipe or not
 ///
 /// # Returns
 ///

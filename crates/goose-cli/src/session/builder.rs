@@ -10,16 +10,27 @@ use std::process;
 use super::output;
 use super::Session;
 
-/// Configuration struct for building a session
-#[derive(Default)]
+/// Configuration for building a new Goose session
+///
+/// This struct contains all the parameters needed to create a new session,
+/// including session identification, extension configuration, and debug settings.
+#[derive(Default, Clone, Debug)]
 pub struct SessionBuilderConfig {
+    /// Optional identifier for the session (name or path)
     pub identifier: Option<Identifier>,
+    /// Whether to resume an existing session
     pub resume: bool,
+    /// List of stdio extension commands to add
     pub extensions: Vec<String>,
+    /// List of remote extension commands to add
     pub remote_extensions: Vec<String>,
+    /// List of builtin extension commands to add
     pub builtins: Vec<String>,
+    /// List of extensions to enable, enable only this set and ignore configured ones
     pub extensions_override: Option<Vec<ExtensionConfig>>,
+    /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
+    /// Enable debug printing
     pub debug: bool,
 }
 

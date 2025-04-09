@@ -12,7 +12,7 @@ use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
@@ -906,32 +906,33 @@ impl Session {
         &self,
         recipe: &goose::recipe::Recipe,
         filepath_str: &str,
-    ) -> Result<PathBuf, String> {
+    ) -> anyhow::Result<PathBuf> {
         let path_buf = PathBuf::from(filepath_str);
         let mut path = path_buf.clone();
 
         // Update the final path if it's relative
         if path_buf.is_relative() {
             // If the path is relative, resolve it relative to the current working directory
-            let cwd = std::env::current_dir()
-                .map_err(|e| format!("Failed to get current directory: {}", e))?;
+            let cwd = std::env::current_dir().context("Failed to get current directory")?;
             path = cwd.join(&path_buf);
         }
 
         // Check if parent directory exists
         if let Some(parent) = path.parent() {
             if !parent.exists() {
-                return Err(format!("Directory '{}' does not exist", parent.display()));
+                return Err(anyhow::anyhow!(
+                    "Directory '{}' does not exist",
+                    parent.display()
+                ));
             }
         }
 
         // Try creating the file
         let file = std::fs::File::create(path.as_path())
-            .map_err(|_| format!("Failed to create file '{}'", path.display()))?;
+            .context(format!("Failed to create file '{}'", path.display()))?;
 
         // Write YAML
-        serde_yaml::to_writer(file, recipe)
-            .map_err(|e| format!("Failed to save recipe: {:?}", e))?;
+        serde_yaml::to_writer(file, recipe).context("Failed to save recipe")?;
 
         Ok(path)
     }
