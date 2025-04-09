@@ -19,6 +19,7 @@ import { SharedSessionDetails } from './sharedSessions';
 
 import WelcomeView from './components/WelcomeView';
 import ChatView from './components/ChatView';
+import SuspenseLoader from './suspense-loader';
 import SettingsView, { type SettingsViewOptions } from './components/settings/SettingsView';
 import SettingsViewV2 from './components/settings_v2/SettingsView';
 import MoreModelsView from './components/settings/models/MoreModelsView';
@@ -44,7 +45,8 @@ export type View =
   | 'ConfigureProviders'
   | 'settingsV2'
   | 'sessions'
-  | 'sharedSession';
+  | 'sharedSession'
+  | 'loading';
 
 export type ViewConfig = {
   view: View;
@@ -62,7 +64,7 @@ export default function App() {
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>({
-    view: 'welcome',
+    view: 'loading',
     viewOptions: {},
   });
   const { getExtensions, addExtension, read } = useConfig();
@@ -412,6 +414,7 @@ export default function App() {
       <div className="relative w-screen h-screen overflow-hidden bg-bgApp flex flex-col">
         <div className="titlebar-drag-region" />
         <div>
+          {view === 'loading' && <SuspenseLoader />}
           {view === 'welcome' &&
             (settingsV2Enabled ? (
               <ProviderSettings onClose={() => setView('chat')} isOnboarding={true} />

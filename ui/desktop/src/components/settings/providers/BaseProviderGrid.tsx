@@ -112,7 +112,7 @@ function BaseProviderCard({
               </TooltipProvider>
             )}
           </div>
-          <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px] ">
+          <p className="text-xs text-textSubtle mt-1.5 mb-3 leading-normal scrollbar-thin overflow-y-auto max-h-[54px] ">
             {description}
           </p>
         </div>
