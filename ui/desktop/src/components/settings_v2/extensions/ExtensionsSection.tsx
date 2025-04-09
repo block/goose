@@ -23,7 +23,7 @@ export default function ExtensionsSection() {
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [errorFormData, setErrorFormData] = useState<ExtensionFormData | null>(null);
+  // We don't need errorFormData anymore since we're not reopening modals on failure
 
   const fetchExtensions = async () => {
     setLoading(true);
@@ -79,13 +79,12 @@ export default function ExtensionsSection() {
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
-      // If successful, refresh the extensions list
-      await fetchExtensions();
     } catch (error) {
       console.error('Failed to activate extension:', error);
-      // If activation fails, reopen the modal with the previously entered data
-      setErrorFormData(formData);
-      setIsAddModalOpen(true);
+      // Even if activation fails, we don't reopen the modal
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
     }
   };
 
@@ -100,14 +99,12 @@ export default function ExtensionsSection() {
         extensionConfig: extensionConfig,
         addToConfig: addExtension,
       });
-      // If successful, refresh the extensions list
-      await fetchExtensions();
     } catch (error) {
       console.error('Failed to update extension:', error);
-      // If update fails, reopen the modal with the previously entered data
-      setErrorFormData(formData);
-      setIsModalOpen(true);
-      setSelectedExtension((prevSelected) => prevSelected); // Keep the same selected extension
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
     }
   };
 
@@ -117,23 +114,19 @@ export default function ExtensionsSection() {
 
     try {
       await deleteExtension({ name, removeFromConfig: removeExtension });
-      await fetchExtensions();
     } catch (error) {
       console.error('Failed to delete extension:', error);
-      // If deletion fails, reopen the modal
-      setIsModalOpen(true);
-      setSelectedExtension((prevSelected) => prevSelected); // Keep the same selected extension
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
     }
   };
 
   const handleModalClose = () => {
     setIsModalOpen(false);
     setIsAddModalOpen(false);
-    setErrorFormData(null);
-    // Only clear selected extension when truly closing the modal, not when processing
-    if (!errorFormData) {
-      setSelectedExtension(null);
-    }
+    setSelectedExtension(null);
   };
 
   return (
@@ -174,7 +167,7 @@ export default function ExtensionsSection() {
         {isModalOpen && selectedExtension && (
           <ExtensionModal
             title="Update Extension"
-            initialData={errorFormData || extensionToFormData(selectedExtension)}
+            initialData={extensionToFormData(selectedExtension)}
             onClose={handleModalClose}
             onSubmit={handleUpdateExtension}
             onDelete={handleDeleteExtension}
@@ -187,7 +180,7 @@ export default function ExtensionsSection() {
         {isAddModalOpen && (
           <ExtensionModal
             title="Add custom extension"
-            initialData={errorFormData || getDefaultFormData()}
+            initialData={getDefaultFormData()}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
             submitLabel="Add Extension"
