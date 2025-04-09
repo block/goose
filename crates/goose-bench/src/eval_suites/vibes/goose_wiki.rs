@@ -1,7 +1,8 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
-    EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, EvalMetricValue,
+    Evaluation, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -21,14 +22,14 @@ impl GooseWiki {
 impl Evaluation for GooseWiki {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        _: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        _run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         println!("GooseWiki - run");
 
         // Collect baseline metrics (execution time, token usage, tool calls)
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Create a Wikipedia-style web page about Goose (Block's AI agent) in a new index.html file. The page should be a complete, well-structured HTML document with proper head and body sections. Use heading tags (h1, h2, h3) to organize the content into clear sections. Include comprehensive information about Goose organized in a way similar to how Wikipedia presents technical topics. Remember to use your tools if applicable.".to_string()
         ).await;
 
@@ -71,7 +72,7 @@ impl Evaluation for GooseWiki {
 
         metrics.push((
             "created_valid_html".to_string(),
-            EvaluationMetric::Boolean(valid_tool_call),
+            EvalMetricValue::Boolean(valid_tool_call),
         ));
 
         // Copy the session file to the current working directory
