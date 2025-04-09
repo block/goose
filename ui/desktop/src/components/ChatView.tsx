@@ -342,8 +342,9 @@ export default function ChatView({
         (c) => c.type === 'toolConfirmationRequest'
       );
 
+      const hasEnableExtension = message.content.every((c) => c.type === 'enableExtensionRequest');
       // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
+      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation || hasEnableExtension;
     }
 
     return true;
@@ -353,10 +354,13 @@ export default function ChatView({
     if (message.role === 'assistant') {
       return false;
     }
-
     if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
       return false;
     }
+    if (message.content.every((c) => c.type === 'enableExtensionRequest')) {
+      return false;
+    }
+
     return true;
   };
 

@@ -68,12 +68,56 @@ export interface ToolConfirmationRequestMessageContent {
   prompt?: string;
 }
 
+export interface EnableExtensionCall {
+  name: string;
+  arguments: Record<string, unknown>;
+  extensionName: string;
+}
+
+export interface EnableExtensionCallResult<T> {
+  status: 'success' | 'error';
+  value?: T;
+  error?: string;
+}
+
+export interface EnableExtensionRequest {
+  id: string;
+  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
+}
+
+export interface EnableExtensionResponse {
+  id: string;
+  extensionResult: EnableExtensionCallResult<Content[]>;
+}
+
+export interface EnableExtensionConfirmationRequest {
+  id: string;
+  extensionName: string;
+  arguments: Record<string, unknown>;
+  prompt?: string;
+}
+
+export interface EnableExtensionRequestMessageContent {
+  type: 'enableExtensionRequest';
+  id: string;
+  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
+  extensionName: string;
+}
+
+export interface EnableExtensionResponseMessageContent {
+  type: 'enableExtensionResponse';
+  id: string;
+  extensionResult: EnableExtensionCallResult<Content[]>;
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
-  | ToolConfirmationRequestMessageContent;
+  | ToolConfirmationRequestMessageContent
+  | EnableExtensionRequestMessageContent
+  | EnableExtensionResponseMessageContent;
 
 export interface Message {
   id?: string;
@@ -162,6 +206,24 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
   };
 }
 
+export function createEnableExtensionErrorResponseMessage(id: string, error: string): Message {
+  return {
+    id: generateId(),
+    role: 'user',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'enableExtensionResponse',
+        id,
+        extensionResult: {
+          status: 'error',
+          error,
+        },
+      },
+    ],
+  };
+}
+
 // Generate a unique ID for messages
 function generateId(): string {
   return Math.random().toString(36).substring(2, 10);
@@ -187,6 +249,15 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
+export function getEnableExtensionRequests(
+  message: Message
+): EnableExtensionRequestMessageContent[] {
+  return message.content.filter(
+    (content): content is EnableExtensionRequestMessageContent =>
+      content.type === 'enableExtensionRequest'
+  );
+}
+
 export function getToolConfirmationContent(
   message: Message
 ): ToolConfirmationRequestMessageContent {
@@ -196,12 +267,29 @@ export function getToolConfirmationContent(
   );
 }
 
+export function getEnableExtensionContent(message: Message): EnableExtensionRequestMessageContent {
+  return message.content.find(
+    (content): content is EnableExtensionRequestMessageContent =>
+      content.type === 'enableExtensionRequest'
+  );
+}
+
 export function hasCompletedToolCalls(message: Message): boolean {
   const toolRequests = getToolRequests(message);
   if (toolRequests.length === 0) return false;
 
   // For now, we'll assume all tool calls are completed when this is checked
   // In a real implementation, you'd need to check if all tool requests have responses
+  // by looking through subsequent messages
+  return true;
+}
+
+export function hasCompletedEnableExtensionCalls(message: Message): boolean {
+  const extensionRequests = getEnableExtensionRequests(message);
+  if (extensionRequests.length === 0) return false;
+
+  // For now, we'll assume all extension calls are completed when this is checked
+  // In a real implementation, you'd need to check if all extension requests have responses
   // by looking through subsequent messages
   return true;
 }

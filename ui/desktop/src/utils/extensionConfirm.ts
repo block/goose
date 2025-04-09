@@ -1,6 +1,6 @@
 import { getApiUrl, getSecretKey } from '../config';
 
-export async function ConfirmToolRequest(requesyId: string, confirmed: boolean) {
+export async function ConfirmExtensionRequest(requestId: string, confirmed: boolean) {
   try {
     const response = await fetch(getApiUrl('/confirm'), {
       method: 'POST',
@@ -9,18 +9,18 @@ export async function ConfirmToolRequest(requesyId: string, confirmed: boolean) 
         'X-Secret-Key': getSecretKey(),
       },
       body: JSON.stringify({
-        id: requesyId,
+        id: requestId,
         confirmed,
-        principal_type: 'Tool',
+        principal_type: 'Extension',
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Delete response error: ', errorText);
-      throw new Error('Failed to confirm tool');
+      throw new Error('Failed to confirm extension enablement');
     }
   } catch (error) {
-    console.error('Error confirm tool: ', error);
+    console.error('Error confirming extension enablement: ', error);
   }
 }
