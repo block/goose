@@ -130,6 +130,9 @@ pub enum ExtensionConfig {
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -142,6 +145,9 @@ pub enum ExtensionConfig {
         envs: Envs,
         timeout: Option<u64>,
         description: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -150,6 +156,9 @@ pub enum ExtensionConfig {
         name: String,
         display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -160,6 +169,9 @@ pub enum ExtensionConfig {
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
 }
 
@@ -169,6 +181,7 @@ impl Default for ExtensionConfig {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: Some(true),
         }
     }
 }
@@ -181,6 +194,7 @@ impl ExtensionConfig {
             envs: Envs::default(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -197,6 +211,7 @@ impl ExtensionConfig {
             envs: Envs::default(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -212,6 +227,7 @@ impl ExtensionConfig {
                 envs,
                 timeout,
                 description,
+                bundled,
                 ..
             } => Self::Stdio {
                 name,
@@ -220,6 +236,7 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                bundled,
             },
             other => other,
         }

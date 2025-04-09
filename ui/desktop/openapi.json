@@ -390,6 +390,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "description": {
                 "type": "string",
                 "nullable": true
@@ -434,6 +439,11 @@
                   "type": "string"
                 }
               },
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "cmd": {
                 "type": "string"
               },
@@ -470,6 +480,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "display_name": {
                 "type": "string",
                 "nullable": true
@@ -501,6 +516,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "instructions": {
                 "type": "string",
                 "description": "Instructions for how to use these tools",

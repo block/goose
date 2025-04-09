@@ -159,6 +159,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -190,6 +191,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -214,6 +216,7 @@ impl Session {
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                bundled: None,
             };
             self.agent
                 .add_extension(config)
@@ -628,17 +631,15 @@ impl Session {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you approve?".to_string();
+                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
 
                                 // Get confirmation from user
-                                let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
-                                let permission = if confirmed {
-                                    Permission::AllowOnce
-                                } else {
-                                    Permission::DenyOnce
-                                };
+                                let permission = cliclack::select(prompt)
+                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                    .interact()?;
                                 self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
-                                    principal_name: "tool_name_placeholder".to_string(),
                                     principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
@@ -656,7 +657,6 @@ impl Session {
                                     Permission::DenyOnce
                                 };
                                 self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
-                                    principal_name: "extension_name_placeholder".to_string(),
                                     principal_type: PrincipalType::Extension,
                                     permission,
                                 },).await;
