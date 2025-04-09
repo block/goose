@@ -40,6 +40,13 @@ if (started) app.quit();
 app.setAsDefaultProtocolClient('goose');
 
 const gotTheLock = app.requestSingleInstanceLock();
+// Triggered when the user opens "goose://..." links
+let firstOpenWindow: BrowserWindow;
+let pendingDeepLink = null; // Store deep link if sent before React is ready
+let pendingGooselingConfig = null; // Store gooseling config if sent before React is ready
+app.on('open-url', async (event, url) => {
+  // event.preventDefault();
+  console.log('[main] Received deep link:', url);
 
 if (!gotTheLock) {
   app.quit();
@@ -79,12 +86,15 @@ async function handleProtocolUrl(url: string) {
   if (!url) return;
 
   pendingDeepLink = url;
-  const parsedUrl = new URL(url);
 
+  const parsedUrl = new URL(url);
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  if (parsedUrl.hostname !== 'bot') {
+  pendingDeepLink = url;
+
+  if (parsedUrl.hostname !== 'bot' && parsedUrl.hostname !== 'recipe') {
+    // For non URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
@@ -116,9 +126,10 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-shared-session', pendingDeepLink);
-  } else if (parsedUrl.hostname === 'bot') {
+    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     let botConfig = null;
+<<<<<<< HEAD
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
@@ -164,9 +175,41 @@ app.on('open-url', async (event, url) => {
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
+||||||| parent of c3aa813bb (feat: add recipes, a custom goose agent configuration)
+
+    // Extract bot config if it's a bot (miniagent) URL
+    if (parsedUrl.hostname === 'bot') {
+      const configParam = parsedUrl.searchParams.get('config');
+      if (configParam) {
+        try {
+          botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        } catch (e) {
+          console.error('Failed to parse bot config:', e);
+        }
+=======
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        console.log('Parsed bot config:', botConfig);
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+>>>>>>> c3aa813bb (feat: add recipes, a custom goose agent configuration)
       }
       firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
     }
+
+    // Always create a new window for bot URLs, with recipeEditor view for recipe
+    const viewType = parsedUrl.hostname === 'recipe' ? 'recipeEditor' : undefined;
+    firstOpenWindow = await createChat(
+      app,
+      undefined,
+      openDir,
+      undefined,
+      undefined,
+      botConfig,
+      viewType
+    );
   }
 });
 
@@ -221,6 +264,7 @@ const getVersion = () => {
 };
 
 let [provider, model] = getGooseProvider();
+console.log('[main] Got provider and model:', { provider, model });
 
 let sharingUrl = getSharingUrl();
 
@@ -234,6 +278,8 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   secretKey: generateSecretKey(),
 };
+
+console.log('[main] Created appConfig:', appConfig);
 
 // Track windows by ID
 let windowCounter = 0;
@@ -253,12 +299,42 @@ const createChat = async (
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  botConfig?: BotConfig
+  botConfig?: any, // Bot configuration
+  viewType?: string // View type
 ) => {
-  // Apply current environment settings before creating chat
-  updateEnvironmentVariables(envToggles);
+  // Initialize variables for process and configuration
+  let port = 0;
+  let working_dir = '';
+  let goosedProcess = null;
 
-  const [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+  if (viewType === 'recipeEditor') {
+    // For recipeEditor, get the port from existing windows' config
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      // Get the config from localStorage through an existing window
+      try {
+        const result = await existingWindows[0].webContents.executeJavaScript(
+          `localStorage.getItem('gooseConfig')`
+        );
+        if (result) {
+          const config = JSON.parse(result);
+          port = config.GOOSE_PORT;
+          working_dir = config.GOOSE_WORKING_DIR;
+        }
+      } catch (e) {
+        console.error('Failed to get config from localStorage:', e);
+      }
+    }
+    if (port === 0) {
+      console.error('No existing Goose process found for recipeEditor');
+      throw new Error('Cannot create recipeEditor window: No existing Goose process found');
+    }
+  } else {
+    // Apply current environment settings before creating chat
+    updateEnvironmentVariables(envToggles);
+    // Start new Goosed process for regular windows
+    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
+  }
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -279,7 +355,7 @@ const createChat = async (
         JSON.stringify({
           ...appConfig,
           GOOSE_PORT: port,
-          GOOSE_WORKING_DIR: working_dir,
+          GOOSE_WORKGIN_DIR: working_dir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
@@ -289,6 +365,26 @@ const createChat = async (
       partition: 'persist:goose', // Add this line to ensure persistence
     },
   });
+
+  // Store config in localStorage for future windows
+  const windowConfig = {
+    ...appConfig,
+    GOOSE_PORT: port,
+    GOOSE_WORKING_DIR: working_dir,
+    REQUEST_DIR: dir,
+    GOOSE_BASE_URL_SHARE: sharingUrl,
+    botConfig: botConfig,
+  };
+
+  // We need to wait for the window to load before we can access localStorage
+  mainWindow.webContents.on('did-finish-load', () => {
+    const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
+    mainWindow.webContents.executeJavaScript(`
+      localStorage.setItem('gooseConfig', '${configStr}')
+    `);
+  });
+
+  console.log('[main] Creating window with config:', windowConfig);
 
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -311,6 +407,13 @@ const createChat = async (
     queryParams = queryParams
       ? `${queryParams}&resumeSessionId=${encodeURIComponent(resumeSessionId)}`
       : `?resumeSessionId=${encodeURIComponent(resumeSessionId)}`;
+  }
+
+  // Add view type to query params if provided
+  if (viewType) {
+    queryParams = queryParams
+      ? `${queryParams}&view=${encodeURIComponent(viewType)}`
+      : `?view=${encodeURIComponent(viewType)}`;
   }
 
   const primaryDisplay = electron.screen.getPrimaryDisplay();
@@ -351,9 +454,12 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
+  // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    goosedProcess.kill();
+    if (goosedProcess) {
+      goosedProcess.kill();
+    }
   });
   return mainWindow;
 };
@@ -477,6 +583,10 @@ ipcMain.on('react-ready', () => {
   } else {
     console.log('No pending deep link to process');
   }
+
+  // We don't need to handle pending deep links here anymore
+  // since we're handling them in the window creation flow
+  console.log('[main] React ready - window is prepared for deep links');
 });
 
 // Handle directory chooser
@@ -704,13 +814,21 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('create-chat-window', (_event, query, dir, version, resumeSessionId, botConfig) => {
-    if (!dir?.trim()) {
-      const recentDirs = loadRecentDirs();
-      dir = recentDirs.length > 0 ? recentDirs[0] : null;
+  ipcMain.on(
+    'create-chat-window',
+    (_, query, dir, version, resumeSessionId, botConfig, viewType) => {
+      if (!dir?.trim()) {
+        const recentDirs = loadRecentDirs();
+        dir = recentDirs.length > 0 ? recentDirs[0] : null;
+      }
+
+      // Log the botConfig for debugging
+      console.log('Creating chat window with botConfig:', botConfig);
+
+      // Pass botConfig as part of viewOptions when viewType is recipeEditor
+      createChat(app, query, dir, version, resumeSessionId, botConfig, viewType);
     }
-    createChat(app, query, dir, version, resumeSessionId, botConfig);
-  });
+  );
 
   ipcMain.on('notify', (_event, data) => {
     console.log('NOTIFY', data);

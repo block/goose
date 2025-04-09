@@ -27,7 +27,9 @@ import ConfigureProvidersView from './components/settings/providers/ConfigurePro
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import ProviderSettings from './components/settings_v2/providers/ProviderSettingsPage';
+import RecipeEditor from './components/RecipeEditor';
 import { useChat } from './hooks/useChat';
+import { addExtension as addExtensionDirect, FullExtensionConfig } from './extensions';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
@@ -46,7 +48,9 @@ export type View =
   | 'settingsV2'
   | 'sessions'
   | 'sharedSession'
-  | 'loading';
+  | 'loading'
+  | 'recipeEditor';
+
 
 export type ViewOptions =
   | SettingsViewOptions
@@ -59,16 +63,42 @@ export type ViewConfig = {
   viewOptions?: ViewOptions;
 };
 
+const getInitialView = (): ViewConfig => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewFromUrl = urlParams.get('view');
+  const windowConfig = window.electron.getConfig();
+
+  if (viewFromUrl === 'recipeEditor' && windowConfig?.botConfig) {
+    return {
+      view: 'recipeEditor',
+      viewOptions: {
+        config: windowConfig.botConfig,
+      },
+    };
+  }
+
+  // Any other URL-specified view
+  if (viewFromUrl) {
+    return {
+      view: viewFromUrl as View,
+      viewOptions: {},
+    };
+  }
+
+  // Default case
+  return {
+    view: 'welcome',
+    viewOptions: {},
+  };
+};
+
 export default function App() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
-  const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>({
-    view: 'loading',
-    viewOptions: {},
-  });
-  const { getExtensions, addExtension, read } = useConfig();
+  const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
+  const { getExtensions, addExtension: addExtensionToConfig, read } = useConfig();
   const initAttemptedRef = useRef(false);
 
   // Utility function to extract the command from the link
@@ -90,7 +120,125 @@ export default function App() {
     setInternalView({ view, viewOptions });
   };
 
-  // Single initialization effect that handles both v1 and v2 settings
+  const disableAllStoredExtensions = () => {
+    const userSettingsStr = localStorage.getItem('user_settings');
+    if (!userSettingsStr) return;
+
+    try {
+      const userSettings = JSON.parse(userSettingsStr);
+      // Store original state before modifying
+      localStorage.setItem('user_settings_backup', userSettingsStr);
+      console.log('Backing up user_settings');
+
+      // Disable all extensions
+      userSettings.extensions = userSettings.extensions.map((ext) => ({
+        ...ext,
+        enabled: false,
+      }));
+
+      localStorage.setItem('user_settings', JSON.stringify(userSettings));
+      console.log('Disabled all stored extensions');
+      window.electron.emit('settings-updated');
+    } catch (error) {
+      console.error('Error disabling stored extensions:', error);
+    }
+  };
+
+  // Function to restore original extension states for new non-recipe windows
+  const restoreOriginalExtensionStates = () => {
+    const backupStr = localStorage.getItem('user_settings_backup');
+    if (backupStr) {
+      localStorage.setItem('user_settings', backupStr);
+      console.log('Restored original extension states');
+    }
+  };
+
+  const updateUserSettingsWithConfig = (extensions: FullExtensionConfig[]) => {
+    try {
+      const userSettingsStr = localStorage.getItem('user_settings');
+      const userSettings = userSettingsStr ? JSON.parse(userSettingsStr) : { extensions: [] };
+
+      // For each extension in the passed in config
+      extensions.forEach((newExtension) => {
+        // Find if this extension already exists
+        const existingIndex = userSettings.extensions.findIndex(
+          (ext) => ext.id === newExtension.id
+        );
+
+        if (existingIndex !== -1) {
+          // Extension exists - just set its enabled to true
+          userSettings.extensions[existingIndex].enabled = true;
+        } else {
+          // Extension is new - add it to the array
+          userSettings.extensions.push({
+            ...newExtension,
+            enabled: true,
+          });
+        }
+      });
+
+      localStorage.setItem('user_settings', JSON.stringify(userSettings));
+      console.log('Updated user settings with new/enabled extensions:', userSettings.extensions);
+
+      // Notify any listeners (like the settings page) that settings have changed
+      window.electron.emit('settings-updated');
+    } catch (error) {
+      console.error('Error updating user settings:', error);
+    }
+  };
+
+  const enableBotConfigExtensions = async (extensions: FullExtensionConfig[]) => {
+    if (!extensions?.length) {
+      console.log('No extensions to enable from bot config');
+      return;
+    }
+
+    console.log(`Enabling ${extensions.length} extensions from bot config:`, extensions);
+
+    disableAllStoredExtensions();
+
+    // Wait for initial server readiness
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    for (const extension of extensions) {
+      try {
+        console.log(`Enabling extension: ${extension.name}`);
+        const extensionConfig = {
+          ...extension,
+          enabled: true,
+        };
+
+        // Try to add the extension
+        const response = await addExtensionDirect(extensionConfig, false);
+
+        if (!response.ok) {
+          console.error(
+            `Failed to enable extension ${extension.name}: Server returned ${response.status}`
+          );
+          // If it's a 428, retry once
+          if (response.status === 428) {
+            console.log('Server not ready, waiting and will retry...');
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            try {
+              await addExtensionDirect(extensionConfig, true);
+              console.log(`Successfully enabled extension ${extension.name} on retry`);
+            } catch (retryError) {
+              console.error(`Failed to enable extension ${extension.name} on retry:`, retryError);
+            }
+          }
+          continue;
+        }
+        updateUserSettingsWithConfig(extensions);
+
+        console.log(`Successfully enabled extension: ${extension.name}`);
+      } catch (error) {
+        console.error(`Failed to enable extension ${extension.name}:`, error);
+      }
+    }
+
+    console.log('Finished enabling bot config extensions');
+  };
+
   useEffect(() => {
     if (!settingsV2Enabled) {
       return;
@@ -121,7 +269,7 @@ export default function App() {
           try {
             await initializeSystem(provider, model, {
               getExtensions,
-              addExtension,
+              addExtensionToConfig,
             });
           } catch (error) {
             console.error('Error in initialization:', error);
@@ -243,6 +391,24 @@ export default function App() {
       setView(newView);
     };
 
+    // Get initial view and config
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewFromUrl = urlParams.get('view');
+    if (viewFromUrl) {
+      // Get the config from the electron window config
+      const windowConfig = window.electron.getConfig();
+
+      if (viewFromUrl === 'recipeEditor') {
+        const initialViewOptions = {
+          botConfig: windowConfig?.botConfig,
+          view: viewFromUrl,
+        };
+        setView(viewFromUrl, initialViewOptions);
+      } else {
+        setView(viewFromUrl);
+      }
+    }
+
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
   }, []);
@@ -250,7 +416,7 @@ export default function App() {
   // Add cleanup for session states when view changes
   useEffect(() => {
     console.log(`View changed to: ${view}`);
-    if (view !== 'chat') {
+    if (view !== 'chat' && view !== 'recipeEditor') {
       console.log('Not in chat view, clearing loading session state');
       setIsLoadingSession(false);
     }
@@ -291,7 +457,7 @@ export default function App() {
       setModalVisible(false); // Dismiss modal immediately
       try {
         if (settingsV2Enabled) {
-          await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
+          await addExtensionFromDeepLinkV2(pendingLink, addExtensionToConfig, setView);
         } else {
           await addExtensionFromDeepLink(pendingLink, setView);
         }
@@ -318,8 +484,36 @@ export default function App() {
   const { addRecentModel } = useRecentModels(); // TODO: remove
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewType = urlParams.get('view');
+    const botConfig = window.appConfig.get('botConfig');
+    
     if (settingsV2Enabled) {
       return;
+    }
+
+    console.log(`Initializing app with settings v1`);
+
+    // Handle bot config extensions first
+    if (botConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+      console.log('Found extensions in bot config:', botConfig.extensions);
+      enableBotConfigExtensions(botConfig.extensions);
+    }
+
+    // If we have a specific view type in the URL, use that and skip provider detection
+    if (viewType) {
+      if (viewType === 'recipeEditor' && botConfig) {
+        console.log('Setting view to recipeEditor with config:', botConfig);
+        setView('recipeEditor', { config: botConfig });
+      } else {
+        setView(viewType as View);
+      }
+      return;
+    }
+
+    // if not in any of the states above (in a regular chat)
+    if (!botConfig) {
+      restoreOriginalExtensionStates();
     }
 
     console.log(`Initializing app with settings v1`);
@@ -507,6 +701,27 @@ export default function App() {
                     setIsLoadingSharedSession(false);
                   }
                 }
+              }}
+            />
+          )}
+          {view === 'recipeEditor' && (
+            <RecipeEditor
+              key={viewOptions?.config ? 'with-config' : 'no-config'}
+              config={viewOptions?.config || window.electron.getConfig().botConfig}
+              onClose={() => setView('chat')}
+              setView={setView}
+              onSave={(config) => {
+                console.log('Saving recipe config:', config);
+                window.electron.createChatWindow(
+                  undefined,
+                  undefined,
+                  undefined,
+                  undefined,
+                  config,
+                  'recipeEditor',
+                  { config }
+                );
+                setView('chat');
               }}
             />
           )}
