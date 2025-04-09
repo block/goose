@@ -94,11 +94,6 @@ export default function ChatView({
         });
       }
     },
-    onToolCall: (toolCall) => {
-      // Handle tool calls if needed
-      console.log('Tool call received:', toolCall);
-      // Implement tool call handling logic here
-    },
   });
 
   // Listen for make-agent-from-chat event
@@ -110,7 +105,7 @@ export default function ChatView({
       window.electron.logInfo('Current messages:');
       chat.messages.forEach((message, index) => {
         const role = isUserMessage(message) ? 'user' : 'assistant';
-        const content = isUserMessage(message) ? message.text : getTextContent(message);
+        const content = getTextContent(message);
         window.electron.logInfo(`Message ${index} (${role}): ${content}`);
       });
 
@@ -161,8 +156,8 @@ export default function ChatView({
         window.electron.logInfo(content);
 
         // Parse the response to extract instructions and activities
-        const instructionsMatch = content.match(/Instructions:(.*?)(?=Activities:|$)/s);
-        const activitiesMatch = content.match(/Activities:(.*?)$/s);
+        const instructionsMatch = content.match(/Instructions:([\s\S]*?)(?=Activities:|$)/);
+        const activitiesMatch = content.match(/Activities:([\s\S]*?)$/);
 
         const instructions = instructionsMatch ? instructionsMatch[1].trim() : '';
         const activitiesText = activitiesMatch ? activitiesMatch[1].trim() : '';
@@ -209,11 +204,11 @@ export default function ChatView({
 
   // Update chat messages when they change and save to sessionStorage
   useEffect(() => {
-    setChat((prevChat) => {
-      const updatedChat = { ...prevChat, messages };
-      return updatedChat;
-    });
-  }, [messages]);
+    // Directly set state using current chat and updated messages
+    // Avoid function update form to resolve typing issue
+    setChat({ ...chat, messages: messages });
+    // Add chat and setChat to dependency array as they are used/referenced
+  }, [messages, chat, setChat]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -222,13 +217,30 @@ export default function ChatView({
   }, [messages]);
 
   // Handle submit
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (
+    e: React.FormEvent | CustomEvent<{ value?: string; images?: string[] }>
+  ) => {
     window.electron.startPowerSaveBlocker();
-    const customEvent = e as CustomEvent;
-    const content = customEvent.detail?.value || '';
-    if (content.trim()) {
-      setLastInteractionTime(Date.now());
-      append(createUserMessage(content));
+    setLastInteractionTime(Date.now());
+
+    // Keep using plural 'images' for clarity
+    let eventDetail: { value?: string; images?: string[] } | null = null;
+
+    // Check if it's a CustomEvent with detail
+    if (e instanceof CustomEvent && e.detail) {
+      eventDetail = e.detail;
+    }
+
+    // Check if we have either text value OR images array has items
+    if (eventDetail?.value?.trim() || (eventDetail?.images && eventDetail.images.length > 0)) {
+      const textToSend = eventDetail.value?.trim() || '';
+      const imagesToSend = eventDetail.images; // Pass the array
+
+      // Call the modified createUserMessage (needs update in next step)
+      const userMessage = createUserMessage(textToSend, imagesToSend);
+      // Log the exact structure being appended
+      append(userMessage);
+
       if (scrollRef.current?.scrollToBottom) {
         scrollRef.current.scrollToBottom();
       }
