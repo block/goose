@@ -266,6 +266,9 @@ const createChat = async (
   return mainWindow;
 };
 
+// Track tray instance
+let tray: Tray | null = null;
+
 const createTray = () => {
   const isDev = process.env.NODE_ENV === 'development';
   let iconPath: string;
@@ -276,7 +279,7 @@ const createTray = () => {
     iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
   }
 
-  const tray = new Tray(iconPath);
+  tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
@@ -286,6 +289,11 @@ const createTray = () => {
 
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
+
+  // On Windows, clicking the tray icon should show the window
+  if (process.platform === 'win32') {
+    tray.on('click', showWindow);
+  }
 };
 
 const showWindow = async () => {
@@ -341,10 +349,11 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    const newWindow = await createChat(app, undefined, result.filePaths[0]);
     if (replaceWindow) {
-      BrowserWindow.getFocusedWindow().close();
+      currentWindow.close();
     }
-    createChat(app, undefined, result.filePaths[0]);
   }
   return result;
 };
@@ -697,9 +706,10 @@ app.whenReady().then(async () => {
   });
 });
 
-// Quit when all windows are closed, except on macOS.
+// Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // Only quit if we're not on macOS or don't have a tray icon
+  if (process.platform !== 'darwin' || !tray) {
     app.quit();
   }
 });
