@@ -2,7 +2,9 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
-use goose::config::{Config, ConfigError, ExperimentManager, ExtensionEntry, ExtensionManager};
+use goose::config::{
+    Config, ConfigError, ExperimentManager, ExtensionConfigManager, ExtensionEntry,
+};
 use goose::message::Message;
 use goose::providers::{create, providers};
 use mcp_core::tool::ToolAnnotations;
@@ -61,7 +63,7 @@ pub async fn handle_configure() -> Result<(), Box<dyn Error>> {
                 );
                 // Since we are setting up for the first time, we'll also enable the developer system
                 // This operation is best-effort and errors are ignored
-                ExtensionManager::set(ExtensionEntry {
+                ExtensionConfigManager::set(ExtensionEntry {
                     enabled: true,
                     config: ExtensionConfig::Builtin {
                         name: "developer".to_string(),
@@ -390,7 +392,7 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 /// Configure extensions that can be used with goose
 /// Dialog for toggling which extensions are enabled/disabled
 pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
-    let extensions = ExtensionManager::get_all()?;
+    let extensions = ExtensionConfigManager::get_all()?;
 
     if extensions.is_empty() {
         cliclack::outro(
@@ -428,7 +430,7 @@ pub fn toggle_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Update enabled status for each extension
     for name in extension_status.iter().map(|(name, _)| name) {
-        ExtensionManager::set_enabled(
+        ExtensionConfigManager::set_enabled(
             &name_to_key(name),
             selected.iter().any(|s| s.as_str() == name),
         )?;
@@ -500,7 +502,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 
             let display_name = get_display_name(&extension);
 
-            ExtensionManager::set(ExtensionEntry {
+            ExtensionConfigManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Builtin {
                     name: extension.clone(),
@@ -512,7 +514,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
         }
         "stdio" => {
-            let extensions = ExtensionManager::get_all_names()?;
+            let extensions = ExtensionConfigManager::get_all_names()?;
             let name: String = cliclack::input("What would you like to call this extension?")
                 .placeholder("my-extension")
                 .validate(move |input: &String| {
@@ -588,7 +590,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            ExtensionManager::set(ExtensionEntry {
+            ExtensionConfigManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Stdio {
                     name: name.clone(),
@@ -603,7 +605,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
         "sse" => {
-            let extensions = ExtensionManager::get_all_names()?;
+            let extensions = ExtensionConfigManager::get_all_names()?;
             let name: String = cliclack::input("What would you like to call this extension?")
                 .placeholder("my-remote-extension")
                 .validate(move |input: &String| {
@@ -675,7 +677,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 }
             }
 
-            ExtensionManager::set(ExtensionEntry {
+            ExtensionConfigManager::set(ExtensionEntry {
                 enabled: true,
                 config: ExtensionConfig::Sse {
                     name: name.clone(),
@@ -695,7 +697,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
-    let extensions = ExtensionManager::get_all()?;
+    let extensions = ExtensionConfigManager::get_all()?;
 
     // Create a list of extension names and their enabled status
     let extension_status: Vec<(String, bool)> = extensions
@@ -737,7 +739,7 @@ pub fn remove_extension_dialog() -> Result<(), Box<dyn Error>> {
         .interact()?;
 
     for name in selected {
-        ExtensionManager::remove(&name_to_key(name))?;
+        ExtensionConfigManager::remove(&name_to_key(name))?;
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 

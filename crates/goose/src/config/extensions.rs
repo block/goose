@@ -25,9 +25,9 @@ pub fn name_to_key(name: &str) -> String {
 }
 
 /// Extension configuration management
-pub struct ExtensionManager;
+pub struct ExtensionConfigManager;
 
-impl ExtensionManager {
+impl ExtensionConfigManager {
     /// Get the extension configuration if enabled -- uses key
     pub fn get_config(key: &str) -> Result<Option<ExtensionConfig>> {
         let config = Config::global();

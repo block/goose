@@ -1,19 +1,17 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
-use indoc::indoc;
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+
+use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, instrument, warn};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::mcp::{get_parameter_names, McpManager};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::types::ToolResultReceiver;
-use crate::config::{Config, ExtensionManager};
+use crate::config::{Config, ExtensionConfigManager};
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::permission::{
     detect_read_only_tools, Permission, PermissionConfirmation, ToolPermissionStore,
@@ -28,28 +26,29 @@ use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 
 use mcp_core::{
-    prompt::Prompt,
-    protocol::GetPromptResult,
-    tool::{Tool, ToolAnnotations},
-    Content, ToolError, ToolResult,
+    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
+
+use crate::agents::platform_tools::{
+    self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+};
+use crate::agents::prompt_manager::PromptManager;
+use crate::agents::types::SessionConfig;
+
+use super::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
+use super::types::FrontendTool;
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
-/// Session configuration for an agent
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionConfig {
-    /// Unique identifier for the session
-    pub id: session::Identifier,
-    /// Working directory for the session
-    pub working_dir: PathBuf,
-}
-
-/// Truncate implementation of an Agent
+/// The main goose Agent
 pub struct Agent {
     provider: Arc<dyn Provider>,
-    mcp_manager: Mutex<McpManager>,
+    extension_manager: Mutex<ExtensionManager>,
+    frontend_tools: HashMap<String, FrontendTool>,
+    frontend_instructions: Option<String>,
+    prompt_manager: PromptManager,
     token_counter: TokenCounter,
     confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
@@ -66,7 +65,10 @@ impl Agent {
 
         Self {
             provider,
-            mcp_manager: Mutex::new(McpManager::new()),
+            extension_manager: Mutex::new(ExtensionManager::new()),
+            frontend_tools: HashMap::new(),
+            frontend_instructions: None,
+            prompt_manager: PromptManager::new(),
             token_counter,
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
@@ -78,6 +80,71 @@ impl Agent {
     /// Get a reference count clone to the provider
     pub fn provider(&self) -> Arc<dyn Provider> {
         Arc::clone(&self.provider)
+    }
+
+    /// Check if a tool is a frontend tool
+    pub fn is_frontend_tool(&self, name: &str) -> bool {
+        self.frontend_tools.contains_key(name)
+    }
+
+    /// Get a reference to a frontend tool
+    pub fn get_frontend_tool(&self, name: &str) -> Option<&FrontendTool> {
+        self.frontend_tools.get(name)
+    }
+
+    /// Get all tools from all clients with proper prefixing
+    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
+        let mut tools = self
+            .extension_manager
+            .lock()
+            .await
+            .get_prefixed_tools()
+            .await?;
+
+        // Add frontend tools directly - they don't need prefixing since they're already uniquely named
+        for frontend_tool in self.frontend_tools.values() {
+            tools.push(frontend_tool.tool.clone());
+        }
+
+        Ok(tools)
+    }
+
+    /// Dispatch a single tool call to the appropriate client
+    #[instrument(skip(tool_call, extension_manager, request_id), fields(input, output))]
+    async fn create_tool_future(
+        extension_manager: &ExtensionManager,
+        tool_call: mcp_core::tool::ToolCall,
+        is_frontend_tool: bool,
+        request_id: String,
+    ) -> (String, Result<Vec<Content>, ToolError>) {
+        let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
+            // Check if the tool is read_resource and handle it separately
+            extension_manager
+                .read_resource(tool_call.arguments.clone())
+                .await
+        } else if tool_call.name == PLATFORM_LIST_RESOURCES_TOOL_NAME {
+            extension_manager
+                .list_resources(tool_call.arguments.clone())
+                .await
+        } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
+            extension_manager.search_available_extensions().await
+        } else if is_frontend_tool {
+            // For frontend tools, return an error indicating we need frontend execution
+            Err(ToolError::ExecutionError(
+                "Frontend tool execution required".to_string(),
+            ))
+        } else {
+            extension_manager
+                .dispatch_tool_call(tool_call.clone())
+                .await
+        };
+
+        debug!(
+            "input" = serde_json::to_string(&tool_call).unwrap(),
+            "output" = serde_json::to_string(&result).unwrap(),
+        );
+
+        (request_id, result)
     }
 
     /// Truncates the messages to fit within the model's context window
@@ -129,21 +196,12 @@ impl Agent {
         )
     }
 
-    async fn create_tool_future(
-        mcp_manager: &McpManager,
-        tool_call: mcp_core::tool::ToolCall,
-        request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
-        let output = mcp_manager.dispatch_tool_call(tool_call).await;
-        (request_id, output)
-    }
-
     async fn enable_extension(
-        mcp_manager: &mut McpManager,
+        extension_manager: &mut ExtensionManager,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let config = match ExtensionManager::get_config_by_name(&extension_name) {
+        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
                 return (
@@ -165,7 +223,7 @@ impl Agent {
             }
         };
 
-        let result = mcp_manager
+        let result = extension_manager
             .add_extension(config)
             .await
             .map(|_| {
@@ -182,26 +240,53 @@ impl Agent {
     // Previously, the agent trait was implemented here but now they're methods in the Agent struct
 
     pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager.add_extension(extension).await
+        match &extension {
+            ExtensionConfig::Frontend {
+                name: _,
+                tools,
+                instructions,
+            } => {
+                // For frontend tools, just store them in the frontend_tools map
+                for tool in tools {
+                    let frontend_tool = FrontendTool {
+                        name: tool.name.clone(),
+                        tool: tool.clone(),
+                    };
+                    self.frontend_tools.insert(tool.name.clone(), frontend_tool);
+                }
+                // Store instructions if provided, using "frontend" as the key
+                if let Some(instructions) = instructions {
+                    self.frontend_instructions = Some(instructions.clone());
+                }
+            }
+            _ => {
+                let mut extension_manager = self.extension_manager.lock().await;
+                let _ = extension_manager.add_extension(extension).await;
+            }
+        };
+
+        Ok(())
     }
 
     pub async fn list_tools(&self) -> Vec<Tool> {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager.get_prefixed_tools().await.unwrap_or_default()
+        let mut extension_manager = self.extension_manager.lock().await;
+        extension_manager
+            .get_prefixed_tools()
+            .await
+            .unwrap_or_default()
     }
 
     pub async fn remove_extension(&mut self, name: &str) {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager
+        let mut extension_manager = self.extension_manager.lock().await;
+        extension_manager
             .remove_extension(name)
             .await
             .expect("Failed to remove extension");
     }
 
     pub async fn list_extensions(&self) -> Vec<String> {
-        let mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager
+        let extension_manager = self.extension_manager.lock().await;
+        extension_manager
             .list_extensions()
             .await
             .expect("Failed to list extensions")
@@ -226,8 +311,8 @@ impl Agent {
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        let mut tools = mcp_manager.get_prefixed_tools().await?;
+        let mut extension_manager = self.extension_manager.lock().await;
+        let mut tools = extension_manager.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
 
         // Load settings from config
@@ -236,106 +321,12 @@ impl Agent {
 
         // we add in the 2 resource tools if any extensions support resources
         // TODO: make sure there is no collision with another extension's tool name
-        let read_resource_tool = Tool::new(
-                "platform__read_resource".to_string(),
-                indoc! {r#"
-                    Read a resource from an extension.
-    
-                    Resources allow extensions to share data that provide context to LLMs, such as
-                    files, database schemas, or application-specific information. This tool searches for the
-                    resource URI in the provided extension, and reads in the resource content. If no extension
-                    is provided, the tool will search all extensions for the resource.
-                "#}.to_string(),
-                json!({
-                    "type": "object",
-                    "required": ["uri"],
-                    "properties": {
-                        "uri": {"type": "string", "description": "Resource URI"},
-                        "extension_name": {"type": "string", "description": "Optional extension name"}
-                    }
-                }),
-                Some(ToolAnnotations {
-                    title: Some("Read a resource".to_string()),
-                    read_only_hint: true,
-                    destructive_hint: false,
-                    idempotent_hint: false,
-                    open_world_hint: false,
-                }),
-            );
-
-        let list_resources_tool = Tool::new(
-                "platform__list_resources".to_string(),
-                indoc! {r#"
-                    List resources from an extension(s).
-    
-                    Resources allow extensions to share data that provide context to LLMs, such as
-                    files, database schemas, or application-specific information. This tool lists resources
-                    in the provided extension, and returns a list for the user to browse. If no extension
-                    is provided, the tool will search all extensions for the resource.
-                "#}.to_string(),
-                json!({
-                    "type": "object",
-                    "properties": {
-                        "extension_name": {"type": "string", "description": "Optional extension name"}
-                    }
-                }),
-                Some(ToolAnnotations {
-                    title: Some("List resources".to_string()),
-                    read_only_hint: true,
-                    destructive_hint: false,
-                    idempotent_hint: false,
-                    open_world_hint: false,
-                }),
-            );
-
-        let search_available_extensions = Tool::new(
-                "platform__search_available_extensions".to_string(),
-                "Searches for additional extensions available to help complete tasks.
-                Use this tool when you're unable to find a specific feature or functionality you need to complete your task, or when standard approaches aren't working.
-                These extensions might provide the exact tools needed to solve your problem.
-                If you find a relevant one, consider using your tools to enable it.".to_string(),
-                json!({
-                    "type": "object",
-                    "required": [],
-                    "properties": {}
-                }),
-                Some(ToolAnnotations {
-                    title: Some("Discover extensions".to_string()),
-                    read_only_hint: true,
-                    destructive_hint: false,
-                    idempotent_hint: false,
-                    open_world_hint: false,
-                }),
-            );
-
-        let enable_extension_tool = Tool::new(
-            "platform__enable_extension".to_string(),
-            "Enable extensions to help complete tasks.
-                Enable an extension by providing the extension name.
-                "
-            .to_string(),
-            json!({
-                "type": "object",
-                "required": ["extension_name"],
-                "properties": {
-                    "extension_name": {"type": "string", "description": "The name of the extension to enable"}
-                }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Enable extensions".to_string()),
-                read_only_hint: false,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
-
-        if mcp_manager.supports_resources() {
-            tools.push(read_resource_tool);
-            tools.push(list_resources_tool);
+        if extension_manager.supports_resources() {
+            tools.push(platform_tools::read_resource_tool());
+            tools.push(platform_tools::list_resources_tool());
         }
-        tools.push(search_available_extensions);
-        tools.push(enable_extension_tool);
+        tools.push(platform_tools::search_available_extensions_tool());
+        tools.push(platform_tools::enable_extension_tool());
 
         let (tools_with_readonly_annotation, tools_without_annotation): (Vec<String>, Vec<String>) =
             tools.iter().fold((vec![], vec![]), |mut acc, tool| {
@@ -353,7 +344,10 @@ impl Agent {
             });
 
         let config = self.provider.get_model_config();
-        let mut system_prompt = mcp_manager.get_system_prompt().await;
+        let extensions_info = extension_manager.get_extensions_info().await;
+        let mut system_prompt = self
+            .prompt_manager
+            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
         let mut toolshim_tools = vec![];
         if config.toolshim {
             // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
@@ -416,7 +410,7 @@ impl Agent {
                                 if let MessageContent::ToolRequest(req) = c {
                                     // Only filter out frontend tool requests
                                     if let Ok(tool_call) = &req.tool_call {
-                                        return !mcp_manager.is_frontend_tool(&tool_call.name);
+                                        return !self.is_frontend_tool(&tool_call.name);
                                     }
                                 }
                                 true
@@ -443,7 +437,7 @@ impl Agent {
                         let mut remaining_requests = Vec::new();
                         for request in &tool_requests {
                             if let Ok(tool_call) = request.tool_call.clone() {
-                                if mcp_manager.is_frontend_tool(&tool_call.name) {
+                                if self.is_frontend_tool(&tool_call.name) {
                                     // Send frontend tool request and wait for response
                                     yield Message::assistant().with_frontend_tool_request(
                                         request.id.clone(),
@@ -466,7 +460,7 @@ impl Agent {
                             .into_iter()
                             .partition(|req| {
                                 req.tool_call.as_ref()
-                                    .map(|call| call.name == "platform__enable_extension")
+                                    .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
                                     .unwrap_or(false)
                             });
 
@@ -474,7 +468,7 @@ impl Agent {
                             .into_iter()
                             .partition(|req| {
                                 req.tool_call.as_ref()
-                                    .map(|call| call.name == "platform__search_available_extensions")
+                                    .map(|call| call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME)
                                     .unwrap_or(false)
                             });
 
@@ -556,7 +550,7 @@ impl Agent {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("")
                                                     .to_string();
-                                                let install_result = Self::enable_extension(&mut mcp_manager, extension_name, request.id.clone()).await;
+                                                let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
                                             }
                                             break;
@@ -568,9 +562,10 @@ impl Agent {
                             // Process read-only tools
                             for request in &needs_confirmation {
                                 if let Ok(tool_call) = request.tool_call.clone() {
+                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
                                     // Skip confirmation if the tool_call.name is in the read_only_tools list
                                     if detected_read_only_tools.contains(&tool_call.name) {
-                                        let tool_future = Self::create_tool_future(&mcp_manager, tool_call, request.id.clone());
+                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
                                         tool_futures.push(tool_future);
                                     } else {
                                         let confirmation = Message::user().with_tool_confirmation_request(
@@ -588,7 +583,7 @@ impl Agent {
                                                 let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                                 if confirmed {
                                                     // Add this tool call to the futures collection
-                                                    let tool_future = Self::create_tool_future(&mcp_manager, tool_call, request.id.clone());
+                                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
                                                     tool_futures.push(tool_future);
                                                 } else {
                                                     // User declined - add declined response
@@ -628,8 +623,9 @@ impl Agent {
 
                             // Update system prompt and tools if all installations were successful
                             if all_successful {
-                                system_prompt = mcp_manager.get_system_prompt().await;
-                                tools = mcp_manager.get_prefixed_tools().await?;
+                                let extensions_info = extension_manager.get_extensions_info().await;
+                                system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
+                                tools = extension_manager.get_prefixed_tools().await?;
                             }
                         }
 
@@ -641,7 +637,8 @@ impl Agent {
                             for request in non_enable_extension_requests.iter().chain(search_extension_requests.iter()) {
                                 if processed_ids.insert(request.id.clone()) {
                                     if let Ok(tool_call) = request.tool_call.clone() {
-                                        let tool_future = Self::create_tool_future(&mcp_manager, tool_call, request.id.clone());
+                                        let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
+                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
                                         tool_futures.push(tool_future);
                                     }
                                 }
@@ -663,7 +660,7 @@ impl Agent {
                             let non_search_non_enable_extension_requests = non_enable_extension_requests.iter()
                                 .filter(|req| {
                                     if let Ok(tool_call) = &req.tool_call {
-                                        tool_call.name != "platform__search_available_extensions"
+                                        tool_call.name != PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
                                     } else {
                                         true
                                     }
@@ -707,7 +704,7 @@ impl Agent {
                         let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
 
                         // release the lock before truncation to prevent deadlock
-                        drop(mcp_manager);
+                        drop(extension_manager);
 
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
@@ -716,7 +713,7 @@ impl Agent {
 
 
                         // Re-acquire the lock
-                        mcp_manager = self.mcp_manager.lock().await;
+                        extension_manager = self.extension_manager.lock().await;
 
                         // Retry the loop after truncation
                         continue;
@@ -735,29 +732,29 @@ impl Agent {
         }))
     }
 
-    pub async fn extend_system_prompt(&mut self, extension: String) {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager.add_system_prompt_extension(extension);
+    /// Extend the system prompt with one line of additional instruction
+    pub async fn extend_system_prompt(&mut self, instruction: String) {
+        self.prompt_manager.add_system_prompt_extra(instruction);
     }
 
+    /// Override the system prompt with a custom template
     pub async fn override_system_prompt(&mut self, template: String) {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager.set_system_prompt_override(template);
+        self.prompt_manager.set_system_prompt_override(template);
     }
 
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
-        let mcp_manager = self.mcp_manager.lock().await;
-        mcp_manager
+        let extension_manager = self.extension_manager.lock().await;
+        extension_manager
             .list_prompts()
             .await
             .expect("Failed to list prompts")
     }
 
     pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
-        let mcp_manager = self.mcp_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
 
         // First find which extension has this prompt
-        let prompts = mcp_manager
+        let prompts = extension_manager
             .list_prompts()
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
@@ -767,7 +764,7 @@ impl Agent {
             .find(|(_, prompt_list)| prompt_list.iter().any(|p| p.name == name))
             .map(|(extension, _)| extension)
         {
-            return mcp_manager
+            return extension_manager
                 .get_prompt(extension, name, arguments)
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
@@ -777,8 +774,8 @@ impl Agent {
     }
 
     pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let mut mcp_manager = self.mcp_manager.lock().await;
-        let tools = mcp_manager.get_prefixed_tools().await?;
+        let mut extension_manager = self.extension_manager.lock().await;
+        let tools = extension_manager.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
             .map(|tool| {
@@ -791,7 +788,7 @@ impl Agent {
             })
             .collect();
 
-        let plan_prompt = mcp_manager.get_planning_prompt(tools_info).await;
+        let plan_prompt = extension_manager.get_planning_prompt(tools_info).await;
 
         Ok(plan_prompt)
     }

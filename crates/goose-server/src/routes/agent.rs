@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::agents::{extension::ToolInfo, mcp::get_parameter_names};
+use goose::agents::{extension::ToolInfo, extension_manager::get_parameter_names};
 use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::{agents::Agent, model::ModelConfig, providers};

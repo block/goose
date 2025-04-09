@@ -1,7 +1,7 @@
 use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
-use goose::config::{Config, ExtensionManager};
+use goose::config::{Config, ExtensionConfigManager};
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -92,7 +92,7 @@ pub async fn build_session(
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
-    for extension in ExtensionManager::get_all().expect("should load extensions") {
+    for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
         if extension.enabled {
             let config = extension.config.clone();
             agent
