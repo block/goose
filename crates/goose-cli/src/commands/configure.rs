@@ -1,7 +1,7 @@
 use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
-use goose::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
