@@ -297,10 +297,10 @@ impl ExtensionInfo {
 /// Information about the tool used for building prompts
 #[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct ToolInfo {
-    name: String,
-    description: String,
-    parameters: Vec<String>,
-    permission: Option<PermissionLevel>,
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<PermissionLevel>,
 }
 
 impl ToolInfo {
