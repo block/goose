@@ -44,7 +44,7 @@ pub fn get_input(
     let input = match editor.readline(&prompt) {
         Ok(text) => text,
         Err(e) => match e {
-            rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Exit),
+            rustyline::error::ReadlineError::Interrupted => return Ok(InputResult::Retry),
             _ => return Err(e.into()),
         },
     };
