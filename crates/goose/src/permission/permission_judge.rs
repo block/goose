@@ -1,13 +1,14 @@
-use crate::agents::capabilities::Capabilities;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
+use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
 use mcp_core::{tool::Tool, TextContent};
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -113,7 +114,7 @@ fn extract_read_only_tools(response: &Message) -> Option<Vec<String>> {
 
 /// Executes the read-only tools detection and returns the list of tools with read-only operations.
 pub async fn detect_read_only_tools(
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
     tool_requests: Vec<&ToolRequest>,
 ) -> Vec<String> {
     if tool_requests.is_empty() {
@@ -122,8 +123,7 @@ pub async fn detect_read_only_tools(
     let tool = create_read_only_tool();
     let check_messages = create_check_messages(tool_requests);
 
-    let res = capabilities
-        .provider()
+    let res = provider
         .complete(
             "You are a good analyst and can detect operations whether they have read-only operations.",
             &check_messages,
@@ -152,7 +152,7 @@ pub async fn check_tool_permissions(
     tools_with_readonly_annotation: HashSet<String>,
     tools_without_annotation: HashSet<String>,
     permission_manager: &mut PermissionManager,
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
 ) -> PermissionCheckResult {
     let mut approved = vec![];
     let mut needs_approval = vec![];
@@ -206,7 +206,7 @@ pub async fn check_tool_permissions(
     // 3. LLM detect
     if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
         let detected_readonly_tools =
-            detect_read_only_tools(capabilities, llm_detect_candidates.iter().collect()).await;
+            detect_read_only_tools(provider, llm_detect_candidates.iter().collect()).await;
         for request in llm_detect_candidates {
             if let Ok(tool_call) = request.tool_call.clone() {
                 if detected_readonly_tools.contains(&tool_call.name) {
@@ -236,7 +236,6 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::capabilities::Capabilities;
     use crate::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -287,12 +286,12 @@ mod tests {
         }
     }
 
-    fn create_mock_capabilities() -> Capabilities {
+    fn create_mock_provider() -> Arc<dyn Provider> {
         let mock_model_config =
             ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
-        Capabilities::new(Box::new(MockProvider {
+        Arc::new(MockProvider {
             model_config: mock_model_config,
-        }))
+        })
     }
 
     #[tokio::test]
@@ -349,7 +348,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_read_only_tools() {
-        let capabilities = create_mock_capabilities();
+        let provider = create_mock_provider();
         let tool_request = ToolRequest {
             id: "tool_1".to_string(),
             tool_call: ToolResult::Ok(ToolCall {
@@ -358,14 +357,14 @@ mod tests {
             }),
         };
 
-        let result = detect_read_only_tools(&capabilities, vec![&tool_request]).await;
+        let result = detect_read_only_tools(provider, vec![&tool_request]).await;
         assert_eq!(result, vec!["file_reader", "data_fetcher"]);
     }
 
     #[tokio::test]
     async fn test_detect_read_only_tools_empty_requests() {
-        let capabilities = create_mock_capabilities();
-        let result = detect_read_only_tools(&capabilities, vec![]).await;
+        let provider = create_mock_provider();
+        let result = detect_read_only_tools(provider, vec![]).await;
         assert!(result.is_empty());
     }
 
@@ -375,7 +374,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path();
         let mut permission_manager = PermissionManager::new(temp_path);
-        let capabilities = create_mock_capabilities();
+        let provider = create_mock_provider();
 
         let tools_with_readonly_annotation: HashSet<String> =
             vec!["file_reader".to_string()].into_iter().collect();
@@ -411,7 +410,7 @@ mod tests {
             tools_with_readonly_annotation,
             tools_without_annotation,
             &mut permission_manager,
-            &capabilities,
+            provider,
         )
         .await;
 

@@ -153,7 +153,7 @@ async fn handler(
         };
 
         // Get the provider first, before starting the reply stream
-        let provider = agent.provider().await;
+        let provider = agent.provider();
 
         let mut stream = match agent
             .reply(
@@ -294,7 +294,7 @@ async fn ask_handler(
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     // Get the provider first, before starting the reply stream
-    let provider = agent.provider().await;
+    let provider = agent.provider();
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
@@ -467,7 +467,7 @@ pub fn routes(state: AppState) -> Router {
 mod tests {
     use super::*;
     use goose::{
-        agents::AgentFactory,
+        agents::Agent,
         model::ModelConfig,
         providers::{
             base::{Provider, ProviderUsage, Usage},
@@ -518,10 +518,10 @@ mod tests {
         async fn test_ask_endpoint() {
             // Create a mock app state with mock provider
             let mock_model_config = ModelConfig::new("test-model".to_string());
-            let mock_provider = Box::new(MockProvider {
+            let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = AgentFactory::create("reference", mock_provider).unwrap();
+            let agent = Agent::new(mock_provider);
             let state = AppState {
                 config: Arc::new(Mutex::new(HashMap::new())),
                 agent: Arc::new(RwLock::new(Some(agent))),

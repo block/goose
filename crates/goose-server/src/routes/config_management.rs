@@ -8,7 +8,7 @@ use axum::{
 use goose::agents::ExtensionConfig;
 use goose::config::extensions::name_to_key;
 use goose::config::Config;
-use goose::config::{ExtensionEntry, ExtensionManager};
+use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
@@ -184,7 +184,7 @@ pub async fn get_extensions(
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    match ExtensionManager::get_all() {
+    match ExtensionConfigManager::get_all() {
         Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
         Err(err) => {
             // Return UNPROCESSABLE_ENTITY only for DeserializeError, INTERNAL_SERVER_ERROR for everything else
@@ -219,13 +219,13 @@ pub async fn add_extension(
     verify_secret_key(&headers, &state)?;
 
     // Get existing extensions to check if this is an update
-    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let extensions =
+        ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
-    // Use ExtensionManager to set the extension
-    match ExtensionManager::set(ExtensionEntry {
+    match ExtensionConfigManager::set(ExtensionEntry {
         enabled: extension_query.enabled,
         config: extension_query.config,
     }) {
@@ -257,8 +257,7 @@ pub async fn remove_extension(
     verify_secret_key(&headers, &state)?;
 
     let key = name_to_key(&name);
-    // Use ExtensionManager to remove the extension
-    match ExtensionManager::remove(&key) {
+    match ExtensionConfigManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
         Err(_) => Err(StatusCode::NOT_FOUND),
     }

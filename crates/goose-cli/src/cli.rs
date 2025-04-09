@@ -3,7 +3,6 @@ use clap::{Args, Parser, Subcommand};
 
 use goose::config::Config;
 
-use crate::commands::agent_version::AgentCommand;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
@@ -279,9 +278,6 @@ enum Command {
         builtin: Vec<String>,
     },
 
-    /// List available agent versions
-    Agents(AgentCommand),
-
     /// Update the Goose CLI version
     #[command(about = "Update the goose CLI version")]
     Update {
@@ -415,10 +411,6 @@ pub async fn cli() -> Result<()> {
                 session.headless(contents).await?;
             }
 
-            return Ok(());
-        }
-        Some(Command::Agents(cmd)) => {
-            cmd.run()?;
             return Ok(());
         }
         Some(Command::Update {
