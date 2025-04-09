@@ -1,8 +1,8 @@
 use cliclack::spinner;
 use console::style;
-use goose::agents::capabilities::get_parameter_names;
 use goose::agents::extension::ToolInfo;
-use goose::agents::AgentFactory;
+use goose::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
 use goose::config::permission::PermissionLevel;
@@ -932,9 +932,8 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = AgentFactory::create(&AgentFactory::configured_version(), provider)
-        .expect("Failed to create agent");
-    for extension in ExtensionManager::get_all().expect("should load extensions") {
+    let mut agent = Agent::new(provider);
+    for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
         if extension.enabled {
             let config = extension.config.clone();
             agent
