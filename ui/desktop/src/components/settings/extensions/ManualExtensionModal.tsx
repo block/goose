@@ -3,8 +3,7 @@ import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { FullExtensionConfig, DEFAULT_EXTENSION_TIMEOUT } from '../../../extensions';
-import { toast } from 'react-toastify';
-import Select from 'react-select';
+import { Select } from '../../ui/Select';
 import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastError } from '../../../toasts';
@@ -147,8 +146,6 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                   onChange={(option) =>
                     setFormData({ ...formData, type: option?.value as FullExtensionConfig['type'] })
                   }
-                  styles={createDarkSelectStyles()}
-                  theme={darkSelectTheme}
                 />
               </div>
 

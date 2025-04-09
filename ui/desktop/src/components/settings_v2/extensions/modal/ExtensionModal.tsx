@@ -131,7 +131,7 @@ export default function ExtensionModal({
     <>
       <div className="w-full px-6 py-4 bg-red-900/20 border-t border-red-500/30">
         <p className="text-red-400 text-sm mb-2">
-          Are you sure you want to delete "{formData.name}"? This action cannot be undone.
+          Are you sure you want to remove "{formData.name}"? This action cannot be undone.
         </p>
       </div>
       <Button
@@ -143,7 +143,7 @@ export default function ExtensionModal({
         }}
         className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
       >
-        <Trash2 className="h-4 w-4 mr-2" /> Confirm Delete
+        <Trash2 className="h-4 w-4 mr-2" /> Confirm removal
       </Button>
       <Button
         onClick={() => setShowDeleteConfirmation(false)}
@@ -159,9 +159,9 @@ export default function ExtensionModal({
       {modalType === 'edit' && onDelete && (
         <Button
           onClick={() => setShowDeleteConfirmation(true)}
-          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md"
+          className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-red-500 font-medium text-md [&>svg]:!size-4"
         >
-          <Trash2 className="h-4 w-4 mr-2" /> Delete Extension
+          <Trash2 className="h-4 w-4 mr-2" /> Remove extension
         </Button>
       )}
       <Button

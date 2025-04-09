@@ -1,6 +1,7 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
     ExtensionRequirements,
 };
 use crate::register_evaluation;
@@ -22,15 +23,15 @@ impl SimpleRepoCloneTest {
 impl Evaluation for SimpleRepoCloneTest {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
+        agent: &mut BenchAgent,
         _work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         // Send the prompt to clone the repo and add a test
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Clone the Git repository https://github.com/michaelneale/mcp-read-pdf to a temporary location. \
             Then add a new test file that verifies the PDF reading functionality. The test should \
-            check if the PDF content can be read and processed correctly.".to_string()
+            check if the PDF content can be read and processed correctly.".to_string(),
         ).await;
 
         // Convert HashMap to Vec for our metrics
@@ -177,23 +178,23 @@ impl Evaluation for SimpleRepoCloneTest {
         // Add metrics
         metrics.push((
             "Git repo cloned".to_string(),
-            EvaluationMetric::Boolean(git_clone_executed),
+            EvalMetricValue::Boolean(git_clone_executed),
         ));
         metrics.push((
             "Repository explored".to_string(),
-            EvaluationMetric::Boolean(repo_explored),
+            EvalMetricValue::Boolean(repo_explored),
         ));
         metrics.push((
             "Test file added".to_string(),
-            EvaluationMetric::Boolean(test_added),
+            EvalMetricValue::Boolean(test_added),
         ));
         metrics.push((
             "Test executed".to_string(),
-            EvaluationMetric::Boolean(test_executed),
+            EvalMetricValue::Boolean(test_executed),
         ));
         metrics.push((
             "Complete task".to_string(),
-            EvaluationMetric::Boolean(git_clone_executed && test_added),
+            EvalMetricValue::Boolean(git_clone_executed && test_added),
         ));
 
         Ok(metrics)

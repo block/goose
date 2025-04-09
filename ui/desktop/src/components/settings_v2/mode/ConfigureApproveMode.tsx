@@ -17,12 +17,12 @@ export function ConfigureApproveMode({
   const approveModes: GooseMode[] = [
     {
       key: 'approve',
-      label: 'Manual Approval',
+      label: 'Manual approval',
       description: 'All tools, extensions and file modifications will require human approval',
     },
     {
       key: 'smart_approve',
-      label: 'Smart Approval',
+      label: 'Smart approval',
       description: 'Intelligently determine which actions need approval based on risk level ',
     },
   ];
@@ -49,60 +49,57 @@ export function ConfigureApproveMode({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-10">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-0">
+    <div className="fixed inset-0 bg-black/30">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-bgApp rounded-xl overflow-hidden p-[16px] pt-[24px] pb-0">
         <div className="px-4 pb-0 space-y-6">
-          <div className="p-[16px] pt-[24px] pb-0">
-            {/* Header */}
-            <div className="flex">
-              <h2 className="text-2xl font-regular dark:text-white text-gray-900">
-                Configure Approve Mode
-              </h2>
-            </div>
+          {/* Header */}
+          <div className="flex">
+            <h2 className="text-2xl font-regular text-textStandard">Configure approve mode</h2>
+          </div>
 
-            <div className="mt-[24px]">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                Approve requests can either be given to all tool requests or determine which actions
-                may need integration
-              </p>
-              <div className="space-y-4">
-                {approveModes.map((mode) => (
-                  <ModeSelectionItem
-                    key={mode.key}
-                    mode={mode}
-                    showDescription={true}
-                    currentMode={approveMode}
-                    isApproveModeConfigure={true}
-                    handleModeChange={(newMode) => {
-                      setApproveMode(newMode);
-                    }}
-                  />
-                ))}
-              </div>
+          <div className="mt-[24px]">
+            <p className="text-sm text-textSubtle mb-6">
+              Approve requests can either be given to all tool requests or determine which actions
+              may need integration
+            </p>
+            <div className="space-y-4">
+              {approveModes.map((mode) => (
+                <ModeSelectionItem
+                  key={mode.key}
+                  mode={mode}
+                  showDescription={true}
+                  currentMode={approveMode}
+                  isApproveModeConfigure={true}
+                  handleModeChange={(newMode) => {
+                    setApproveMode(newMode);
+                  }}
+                />
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-[8px] ml-[-24px] mr-[-24px] pt-[16px]">
-          <Button
-            type="submit"
-            variant="ghost"
-            disabled={isSubmitting}
-            onClick={handleModeSubmit}
-            className="w-full h-[60px] rounded-none border-t text-lg hover:bg-gray-50 dark:hover:text-black dark:text-white dark:border-gray-600 font-regular"
-          >
-            {isSubmitting ? 'Saving...' : 'Save Mode'}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isSubmitting}
-            onClick={onClose}
-            className="w-full h-[60px] rounded-none border-t text-gray-400 dark:hover:text-black hover:bg-gray-50 dark:border-gray-600 text-lg font-regular"
-          >
-            Cancel
-          </Button>
+          {/* Actions */}
+          <div className="mt-[8px] ml-[-32px] mr-[-32px] pt-[16px]">
+            <Button
+              type="submit"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={handleModeSubmit}
+              className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:bg-bgSubtle text-textStandard dark:border-gray-600 text-base font-regular"
+            >
+              {isSubmitting ? 'Saving...' : 'Save'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="w-full h-[60px] rounded-none border-t border-borderSubtle text-textSubtle hover:bg-bgSubtle dark:border-gray-600 text-base font-regular"
+            >
+              Cancel
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

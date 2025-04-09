@@ -9,7 +9,7 @@ pub enum Permission {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum PrincipalType {
-    Extention,
+    Extension,
     Tool,
 }
 

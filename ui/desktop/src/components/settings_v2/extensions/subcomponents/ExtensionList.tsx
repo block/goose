@@ -13,7 +13,7 @@ interface ExtensionListProps {
 
 export default function ExtensionList({ extensions, onToggle, onConfigure }: ExtensionListProps) {
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-2 mb-2">
       {extensions.map((extension) => (
         <ExtensionItem
           key={extension.name}
