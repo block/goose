@@ -1,5 +1,3 @@
-import { Model } from './ModelContext';
-
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
 
 export const anthropic_models = [

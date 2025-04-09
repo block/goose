@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Model from '../modelInterface';
 
 const MAX_RECENT_MODELS = 3;

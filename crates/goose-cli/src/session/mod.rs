@@ -159,6 +159,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -190,6 +191,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -214,6 +216,7 @@ impl Session {
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                bundled: None,
             };
             self.agent
                 .add_extension(config)

@@ -1,26 +1,26 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Buffer } from 'buffer';
 import Copy from '../icons/Copy';
-import Modal from '../Modal';
-import { Card } from '../ui/card';
+import { Card } from './card';
+
+interface BotConfig {
+  instructions?: string;
+  activities?: string[];
+  [key: string]: unknown;
+}
 
 interface DeepLinkModalProps {
-  botConfig: any;
+  botConfig: BotConfig;
   onClose: () => void;
-  onOpen: () => void;
 }
 
 // Function to generate a deep link from a bot config
-export function generateDeepLink(botConfig: any): string {
+export function generateDeepLink(botConfig: BotConfig): string {
   const configBase64 = Buffer.from(JSON.stringify(botConfig)).toString('base64');
   return `goose://bot?config=${configBase64}`;
 }
 
-export function DeepLinkModal({
-  botConfig: initialBotConfig,
-  onClose,
-  onOpen,
-}: DeepLinkModalProps) {
+export function DeepLinkModal({ botConfig: initialBotConfig, onClose }: DeepLinkModalProps) {
   // Create editable state for the bot config
   const [botConfig, setBotConfig] = useState(initialBotConfig);
   const [instructions, setInstructions] = useState(initialBotConfig.instructions || '');
@@ -61,7 +61,7 @@ export function DeepLinkModal({
       instructions,
       activities,
     });
-  }, [instructions, activities]);
+  }, [instructions, activities, botConfig]);
 
   // Handle adding a new activity
   const handleAddActivity = () => {

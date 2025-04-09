@@ -1,11 +1,19 @@
 import React, { createContext, useContext, useState } from 'react';
 import { ProviderDetails } from '../../../../api/types.gen';
 
+interface FormValues {
+  [key: string]: string | number | boolean | null;
+}
+
 interface ModalProps {
-  onSubmit?: (values: any) => void;
+  onSubmit?: (values: FormValues) => void;
   onCancel?: () => void;
-  onDelete?: (values: any) => void;
-  formProps?: any;
+  onDelete?: (values: FormValues) => void;
+  formProps?: {
+    initialValues?: FormValues;
+    validationSchema?: object;
+    [key: string]: unknown;
+  };
 }
 
 interface ProviderModalContextType {

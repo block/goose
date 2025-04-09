@@ -1,20 +1,10 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverPortal,
-  PopoverTrigger,
-} from '../../components/ui/popover';
+import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
-import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
-
-interface VersionInfo {
-  current_version: string;
-  available_versions: string[];
-}
+import { ViewOptions, View } from '../../App';
 
 interface MenuButtonProps {
   onClick: () => void;
@@ -105,13 +95,11 @@ export default function MoreMenu({
   setView,
   setIsGoosehintsModalOpen,
 }: {
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
-  const [versions, setVersions] = useState<VersionInfo | null>(null);
-  const [showVersions, setShowVersions] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
     const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
     if (savedUseSystemTheme) {
@@ -128,27 +116,6 @@ export default function MoreMenu({
     }
     return themeMode === 'dark';
   });
-
-  useEffect(() => {
-    // Fetch available versions when the menu opens
-    const fetchVersions = async () => {
-      try {
-        const port = window.appConfig.get('GOOSE_PORT');
-        const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setVersions(data);
-      } catch (error) {
-        console.error('Failed to fetch versions:', error);
-      }
-    };
-
-    if (open) {
-      fetchVersions();
-    }
-  }, [open]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -196,6 +163,8 @@ export default function MoreMenu({
       <PopoverTrigger asChild>
         <button
           className={`z-[100] absolute top-2 right-4 w-[20px] h-[20px] transition-colors cursor-pointer no-drag hover:text-textProminent ${open ? 'text-textProminent' : 'text-textSubtle'}`}
+          role="button"
+          aria-label="More options"
         >
           <More />
         </button>

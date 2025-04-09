@@ -7,6 +7,46 @@ interface ActivateExtensionProps {
   extensionConfig: ExtensionConfig;
 }
 
+type ExtensionError = {
+  message?: string;
+  code?: number;
+  name?: string;
+  stack?: string;
+};
+
+type RetryOptions = {
+  retries?: number;
+  delayMs?: number;
+  shouldRetry?: (error: ExtensionError, attempt: number) => boolean;
+  backoffFactor?: number; // multiplier for exponential backoff
+};
+
+async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const { retries = 3, delayMs = 1000, backoffFactor = 1.5, shouldRetry = () => true } = options;
+
+  let attempt = 0;
+  let lastError: ExtensionError;
+
+  while (attempt <= retries) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err as ExtensionError;
+      attempt++;
+
+      if (attempt > retries || !shouldRetry(lastError, attempt)) {
+        break;
+      }
+
+      const waitTime = delayMs * Math.pow(backoffFactor, attempt - 1);
+      console.warn(`Retry attempt ${attempt} failed. Retrying in ${waitTime}ms...`, err);
+      await new Promise((res) => setTimeout(res, waitTime));
+    }
+  }
+
+  throw lastError;
+}
+
 /**
  * Activates an extension by adding it to both the config system and the API.
  * @param props The extension activation properties
@@ -43,39 +83,6 @@ export async function activateExtension({
   }
 }
 
-type RetryOptions = {
-  retries?: number;
-  delayMs?: number;
-  shouldRetry?: (error: unknown, attempt: number) => boolean;
-  backoffFactor?: number; // multiplier for exponential backoff
-};
-
-async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
-  const { retries = 3, delayMs = 1000, backoffFactor = 1.5, shouldRetry = () => true } = options;
-
-  let attempt = 0;
-  let lastError: unknown;
-
-  while (attempt <= retries) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      attempt++;
-
-      if (attempt > retries || !shouldRetry(err, attempt)) {
-        break;
-      }
-
-      const waitTime = delayMs * Math.pow(backoffFactor, attempt - 1);
-      console.warn(`Retry attempt ${attempt} failed. Retrying in ${waitTime}ms...`, err);
-      await new Promise((res) => setTimeout(res, waitTime));
-    }
-  }
-
-  throw lastError;
-}
-
 interface AddToAgentOnStartupProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
@@ -92,7 +99,7 @@ export async function addToAgentOnStartup({
     await retryWithBackoff(() => addToAgent(extensionConfig, { silent: true }), {
       retries: 3,
       delayMs: 1000,
-      shouldRetry: (error: any) =>
+      shouldRetry: (error: ExtensionError) =>
         error.message &&
         (error.message.includes('428') ||
           error.message.includes('Precondition Required') ||
@@ -103,7 +110,7 @@ export async function addToAgentOnStartup({
     toastService.error({
       title: extensionConfig.name,
       msg: 'Extension failed to start and will be disabled.',
-      traceback: finalError,
+      traceback: finalError as Error,
     });
 
     try {

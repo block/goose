@@ -146,6 +146,7 @@ impl ExtensionManager {
                 name,
                 display_name: _,
                 timeout,
+                bundled: _,
             } => {
                 // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()

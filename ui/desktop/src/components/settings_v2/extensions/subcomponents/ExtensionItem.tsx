@@ -56,6 +56,10 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
     ));
   };
 
+  // Bundled extensions and builtins are not editable
+  // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
+  const editable = !(extension.type === 'builtin' || extension.bundled);
+
   return (
     <div
       className="flex justify-between rounded-lg transition-colors border border-borderSubtle p-4 pt-3 hover:border-borderProminent hover:cursor-pointer"
@@ -70,8 +74,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
         className="flex items-center justify-end gap-2 w-max-[10%]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Only show config button for non-builtin extensions */}
-        {extension.type !== 'builtin' && (
+        {editable && (
           <button
             className="text-textSubtle hover:text-textStandard"
             onClick={() => onConfigure(extension)}
