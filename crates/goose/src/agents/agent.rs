@@ -11,11 +11,11 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::types::ToolResultReceiver;
-use crate::config::{Config, ExtensionConfigManager};
+use crate::config::permission::PermissionLevel;
+use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::permission::{
-    detect_read_only_tools, Permission, PermissionConfirmation, ToolPermissionStore,
-};
+use crate::permission::permission_judge::check_tool_permissions;
+use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
@@ -331,16 +331,18 @@ impl Agent {
         tools.push(platform_tools::search_available_extensions_tool());
         tools.push(platform_tools::enable_extension_tool());
 
-        let (tools_with_readonly_annotation, tools_without_annotation): (Vec<String>, Vec<String>) =
-            tools.iter().fold((vec![], vec![]), |mut acc, tool| {
+        let (tools_with_readonly_annotation, tools_without_annotation): (
+            HashSet<String>,
+            HashSet<String>,
+        ) = tools
+            .iter()
+            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
                 match &tool.annotations {
-                    Some(annotations) => {
-                        if annotations.read_only_hint {
-                            acc.0.push(tool.name.clone());
-                        }
+                    Some(annotations) if annotations.read_only_hint => {
+                        acc.0.insert(tool.name.clone());
                     }
-                    None => {
-                        acc.1.push(tool.name.clone());
+                    _ => {
+                        acc.1.insert(tool.name.clone());
                     }
                 }
                 acc
@@ -481,53 +483,22 @@ impl Agent {
                         // If there are install extension requests, always require confirmation
                         // or if goose_mode is approve or smart_approve, check permissions for all tools
                         if !enable_extension_requests.is_empty() || mode.as_str() == "approve" || mode.as_str() == "smart_approve" {
-                            let mut needs_confirmation = Vec::<&ToolRequest>::new();
-                            let mut approved_tools = Vec::new();
-                            let mut llm_detect_candidates = Vec::<&ToolRequest>::new();
-                            let mut detected_read_only_tools = Vec::new();
+                            let mut permission_manager = PermissionManager::default();
+                            // Skip the platform tools
+                            remaining_requests.retain(|req| {
+                                if let Ok(tool_call) = &req.tool_call {
+                                    !tool_call.name.starts_with("platform__")
+                                } else {
+                                    true // If there's an error (Err), don't skip the request
+                                }
+                            });
+                            let permission_check_result = check_tool_permissions(remaining_requests,
+                                                            &mode,
+                                                            tools_with_readonly_annotation.clone(),
+                                                            tools_without_annotation.clone(),
+                                                            &mut permission_manager,
+                                                            self.provider()).await;
 
-                            // If approve mode or smart approve mode, check permissions for all tools
-                            if mode.as_str() == "approve" || mode.as_str() == "smart_approve" {
-                                let store = ToolPermissionStore::load()?;
-                                for request in &non_enable_extension_requests {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        // Regular permission checking for other tools
-                                        if tools_with_readonly_annotation.contains(&tool_call.name) {
-                                            approved_tools.push((request.id.clone(), tool_call));
-                                        } else if let Some(allowed) = store.check_permission(request) {
-                                            if allowed {
-                                                // Instead of executing immediately, collect approved tools
-                                                approved_tools.push((request.id.clone(), tool_call));
-                                            } else {
-                                                // If the tool doesn't have any annotation, we can use llm-as-a-judge to check permission.
-                                                if tools_without_annotation.contains(&tool_call.name) {
-                                                    llm_detect_candidates.push(request);
-                                                }
-                                                needs_confirmation.push(request);
-                                            }
-                                        } else {
-                                            if tools_without_annotation.contains(&tool_call.name) {
-                                                llm_detect_candidates.push(request);
-                                            }
-                                            needs_confirmation.push(request);
-                                        }
-                                    }
-                                }
-                            }
-                            // Only check read-only status for tools needing confirmation
-                            if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
-                                detected_read_only_tools = detect_read_only_tools(self.provider(), llm_detect_candidates.clone()).await;
-                                // Remove install extensions from read-only tools
-                                if !enable_extension_requests.is_empty() {
-                                    detected_read_only_tools.retain(|tool_name| {
-                                        !enable_extension_requests.iter().any(|req| {
-                                            req.tool_call.as_ref()
-                                                .map(|call| call.name == *tool_name)
-                                                .unwrap_or(false)
-                                        })
-                                    });
-                                }
-                            }
 
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures = Vec::new();
@@ -562,44 +533,58 @@ impl Agent {
                                 }
                             }
 
-                            // Process read-only tools
-                            for request in &needs_confirmation {
+                            // Skip the confirmation for approved tools
+                            for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                    // Skip confirmation if the tool_call.name is in the read_only_tools list
-                                    if detected_read_only_tools.contains(&tool_call.name) {
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
-                                        tool_futures.push(tool_future);
-                                    } else {
-                                        let confirmation = Message::user().with_tool_confirmation_request(
-                                            request.id.clone(),
-                                            tool_call.name.clone(),
-                                            tool_call.arguments.clone(),
-                                            Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
-                                        );
-                                        yield confirmation;
+                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                     tool_futures.push(tool_future);
+                                }
+                            }
 
-                                        // Wait for confirmation response through the channel
-                                        let mut rx = self.confirmation_rx.lock().await;
-                                        while let Some((req_id, tool_confirmation)) = rx.recv().await {
-                                            if req_id == request.id {
-                                                let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
-                                                if confirmed {
-                                                    // Add this tool call to the futures collection
-                                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
-                                                    tool_futures.push(tool_future);
-                                                } else {
-                                                    // User declined - add declined response
-                                                    message_tool_response = message_tool_response.with_tool_response(
-                                                        request.id.clone(),
-                                                        Ok(vec![Content::text(
-                                                            "The user has declined to run this tool. \
-                                                            DO NOT attempt to call this tool again. \
-                                                            If there are no alternative methods to proceed, clearly explain the situation and STOP.")]),
-                                                    );
+                            let denied_content_text = Content::text(
+                                "The user has declined to run this tool. \
+                                DO NOT attempt to call this tool again. \
+                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
+                            for request in &permission_check_result.denied {
+                                message_tool_response = message_tool_response.with_tool_response(
+                                    request.id.clone(),
+                                    Ok(vec![denied_content_text.clone()]),
+                                );
+                            }
+
+                            // Process read-only tools
+                            for request in &permission_check_result.needs_approval {
+                                if let Ok(tool_call) = request.tool_call.clone() {
+                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
+                                    let confirmation = Message::user().with_tool_confirmation_request(
+                                        request.id.clone(),
+                                        tool_call.name.clone(),
+                                        tool_call.arguments.clone(),
+                                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                                    );
+                                    yield confirmation;
+
+                                    // Wait for confirmation response through the channel
+                                    let mut rx = self.confirmation_rx.lock().await;
+                                    while let Some((req_id, tool_confirmation)) = rx.recv().await {
+                                        if req_id == request.id {
+                                            let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
+                                            if confirmed {
+                                                // Add this tool call to the futures collection
+                                                let tool_future = Self::create_tool_future(&extension_manager, tool_call.clone(), is_frontend_tool, request.id.clone());
+                                                tool_futures.push(tool_future);
+                                                if tool_confirmation.permission == Permission::AlwaysAllow {
+                                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
                                                 }
-                                                break; // Exit the loop once the matching `req_id` is found
+                                            } else {
+                                                // User declined - add declined response
+                                                message_tool_response = message_tool_response.with_tool_response(
+                                                    request.id.clone(),
+                                                    Ok(vec![denied_content_text.clone()]),
+                                                );
                                             }
+                                            break; // Exit the loop once the matching `req_id` is found
                                         }
                                     }
                                 }

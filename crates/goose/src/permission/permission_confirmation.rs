@@ -15,7 +15,6 @@ pub enum PrincipalType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PermissionConfirmation {
-    pub principal_name: String,
     pub principal_type: PrincipalType,
     pub permission: Permission,
 }
