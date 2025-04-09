@@ -77,7 +77,6 @@ export function ConfigureApproveMode({
               ))}
             </div>
           </div>
-        </div>
 
           {/* Actions */}
           <div className="mt-[8px] ml-[-32px] mr-[-32px] pt-[16px]">
