@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ChatType } from '../components/ChatView';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
+import { View, ViewOptions } from '../App';
 
 type UseChatArgs = {
   setIsLoadingSession: (isLoading: boolean) => void;
-  setView: (view: string) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
 };
 export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
   const [chat, setChat] = useState<ChatType>({

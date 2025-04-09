@@ -5,6 +5,7 @@
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "generate-api": "openapi-ts",
     "start-gui": "npm run generate-api && electron-forge start",
     "start": "cd ../.. && just run-ui",

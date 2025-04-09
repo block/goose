@@ -1,7 +1,7 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { type View } from './App';
 
-interface ViewOptions {
+interface SessionLinksViewOptions {
   sessionDetails?: SharedSessionDetails | null;
   error?: string;
   shareToken?: string;
@@ -18,7 +18,7 @@ interface ViewOptions {
  */
 export async function openSharedSessionFromDeepLink(
   url: string,
-  setView: (view: View, options?: ViewOptions) => void,
+  setView: (view: View, options?: SessionLinksViewOptions) => void,
   baseUrl?: string
 ): Promise<SharedSessionDetails | null> {
   try {
