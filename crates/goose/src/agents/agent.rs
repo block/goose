@@ -518,14 +518,24 @@ impl Agent {
 
                                     let mut rx = self.confirmation_rx.lock().await;
                                     while let Some((req_id, extension_confirmation)) = rx.recv().await {
+                                        let extension_name = tool_call.arguments.get("extension_name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
                                         if req_id == request.id {
                                             if extension_confirmation.permission == Permission::AllowOnce || extension_confirmation.permission == Permission::AlwaysAllow {
-                                                let extension_name = tool_call.arguments.get("extension_name")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
                                                 let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
+                                            } else {
+                                                // User declined - add declined response
+                                                let denied_extension_content = Content::text(
+                                                    format!(
+                                                        "The user has declined to enable the extension: {}. \
+                                                        Goose will not attempt to enable this extension again.", &extension_name));
+                                                message_tool_response = message_tool_response.with_tool_response(
+                                                    request.id.clone(),
+                                                    Ok(vec![denied_extension_content]),
+                                                );
                                             }
                                             break;
                                         }

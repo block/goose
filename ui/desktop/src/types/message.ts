@@ -85,11 +85,6 @@ export interface EnableExtensionRequest {
   extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
 }
 
-export interface EnableExtensionResponse {
-  id: string;
-  extensionResult: EnableExtensionCallResult<Content[]>;
-}
-
 export interface EnableExtensionConfirmationRequest {
   id: string;
   extensionName: string;
@@ -104,20 +99,13 @@ export interface EnableExtensionRequestMessageContent {
   extensionName: string;
 }
 
-export interface EnableExtensionResponseMessageContent {
-  type: 'enableExtensionResponse';
-  id: string;
-  extensionResult: EnableExtensionCallResult<Content[]>;
-}
-
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
-  | EnableExtensionRequestMessageContent
-  | EnableExtensionResponseMessageContent;
+  | EnableExtensionRequestMessageContent;
 
 export interface Message {
   id?: string;
@@ -198,24 +186,6 @@ export function createToolErrorResponseMessage(id: string, error: string): Messa
         type: 'toolResponse',
         id,
         toolResult: {
-          status: 'error',
-          error,
-        },
-      },
-    ],
-  };
-}
-
-export function createEnableExtensionErrorResponseMessage(id: string, error: string): Message {
-  return {
-    id: generateId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'enableExtensionResponse',
-        id,
-        extensionResult: {
           status: 'error',
           error,
         },

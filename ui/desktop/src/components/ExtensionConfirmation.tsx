@@ -24,7 +24,7 @@ export default function ExtensionConfirmation({
   ) : (
     <>
       <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to install the above extension. Allow?
+        Goose would like to enable the following extension. Allow?
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">

@@ -11,7 +11,6 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   createToolErrorResponseMessage,
-  createEnableExtensionErrorResponseMessage,
   getEnableExtensionContent,
   getEnableExtensionRequests,
 } from '../types/message';
@@ -92,7 +91,7 @@ export default function GooseMessage({
     }
     if (messageIndex == messageHistoryIndex - 1 && hasEnableExtension) {
       appendMessage(
-        createEnableExtensionErrorResponseMessage(
+        createToolErrorResponseMessage(
           enableExtensionContent.id,
           'The extension enablement is cancelled.'
         )
