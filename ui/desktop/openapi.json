@@ -173,6 +173,29 @@
         }
       }
     },
+    "/config/init": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "init_config",
+        "responses": {
+          "200": {
+            "description": "Config initialization check completed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [

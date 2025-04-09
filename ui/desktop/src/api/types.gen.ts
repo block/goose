@@ -360,6 +360,29 @@ export type RemoveExtensionResponses = {
 
 export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
+export type InitConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/init';
+};
+
+export type InitConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type InitConfigResponses = {
+    /**
+     * Config initialization check completed
+     */
+    200: string;
+};
+
+export type InitConfigResponse = InitConfigResponses[keyof InitConfigResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
