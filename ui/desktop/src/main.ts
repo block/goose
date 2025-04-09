@@ -359,7 +359,7 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
     const currentWindow = BrowserWindow.getFocusedWindow();
-    await createChat(app, undefined, result.filePaths[0]);
+    const newWindow = await createChat(app, undefined, result.filePaths[0]);
     if (replaceWindow) {
       currentWindow.close();
     }
