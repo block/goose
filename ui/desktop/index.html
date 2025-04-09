@@ -17,17 +17,6 @@
           } else {
             document.documentElement.classList.remove('dark');
           }
-
-          // Set up system theme listener
-          if (useSystemTheme) {
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-              if (e.matches) {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            });
-          }
         }
 
         // Run immediately
