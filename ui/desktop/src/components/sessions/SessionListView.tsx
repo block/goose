@@ -13,7 +13,7 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
-import { View, ViewOptions } from '../../types/views';
+import { View, ViewOptions } from '../../App';
 
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;

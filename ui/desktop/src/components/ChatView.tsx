@@ -4,7 +4,7 @@ import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
 import Input from './Input';
-import { View, ViewOptions } from '../types/views';
+import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
 import { Card } from './ui/card';

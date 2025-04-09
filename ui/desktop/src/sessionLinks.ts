@@ -1,5 +1,5 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
-import { type View } from './types/views';
+import { type View } from './App';
 
 interface ViewOptions {
   sessionDetails?: SharedSessionDetails | null;

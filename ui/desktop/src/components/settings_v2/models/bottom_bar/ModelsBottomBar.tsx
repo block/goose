@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useConfig } from '../../../ConfigContext';
 import { getCurrentModelAndProviderForDisplay } from '../index';
 import { AddModelModal } from '../subcomponents/AddModelModal';
-import { View } from '../../../../types/views';
+import { View } from '../../../../App';
 
 interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;

@@ -14,7 +14,7 @@ import { ConfigureBuiltInExtensionModal } from './extensions/ConfigureBuiltInExt
 import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
-import { View, ViewOptions } from '../../types/views';
+import { View, ViewOptions } from '../../App';
 import { ModeSelection } from './basic/ModeSelection';
 import SessionSharingSection from './session/SessionSharingSection';
 import { toastSuccess } from '../../toasts';

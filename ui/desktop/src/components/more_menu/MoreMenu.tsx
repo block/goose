@@ -5,7 +5,7 @@ import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
 import { useTheme } from '../ThemeContext';
-import { ViewOptions, View } from '../../types/views';
+import { ViewOptions, View } from '../../App';
 
 interface VersionInfo {
   current_version: string;

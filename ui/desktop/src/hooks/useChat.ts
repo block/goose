@@ -1,28 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ChatType } from '../components/ChatView';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
-import { View } from '../types/views';
-import { APISessionResponse, SessionDetails } from '../types/sessions';
-
-function mapAPISessionToDetails(apiSession: APISessionResponse): SessionDetails {
-  return {
-    id: apiSession.session_id,
-    path: '',
-    created: new Date().toISOString(),
-    modified: new Date().toISOString(),
-    metadata: apiSession.metadata || {
-      message_count: apiSession.messages.length,
-      total_tokens: null,
-    },
-    messages: apiSession.messages,
-  };
-}
 
 type UseChatArgs = {
   setIsLoadingSession: (isLoading: boolean) => void;
-  setView: (view: View) => void;
+  setView: (view: string) => void;
 };
-
 export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
   const [chat, setChat] = useState<ChatType>({
     id: generateSessionId(),
@@ -43,14 +26,13 @@ export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
 
       setIsLoadingSession(true);
       try {
-        const apiResponse = await fetchSessionDetails(resumeSessionId);
+        const sessionDetails = await fetchSessionDetails(resumeSessionId);
 
         // Only set view if we have valid session details
-        if (apiResponse && apiResponse.session_id) {
-          const sessionDetails = mapAPISessionToDetails(apiResponse);
+        if (sessionDetails && sessionDetails.session_id) {
           setChat({
-            id: sessionDetails.id,
-            title: sessionDetails.metadata?.description || `ID: ${sessionDetails.id}`,
+            id: sessionDetails.session_id,
+            title: sessionDetails.metadata?.description || `ID: ${sessionDetails.session_id}`,
             messages: sessionDetails.messages,
             messageHistoryIndex: sessionDetails.messages.length,
           });
@@ -67,7 +49,9 @@ export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
     };
 
     checkForResumeSession();
-  }, [setIsLoadingSession, setView]);
+    // todo: rework this to allow for exhaustive deps currently throws app in error loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return { chat, setChat };
 };

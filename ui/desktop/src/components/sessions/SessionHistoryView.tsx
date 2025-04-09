@@ -10,7 +10,7 @@ import {
   Target,
   LoaderCircle,
 } from 'lucide-react';
-import { SessionDetails } from '../../types/sessions';
+import { type SessionDetails } from '../../sessions';
 import { SessionHeaderCard, SessionMessages, formatDate } from './SessionViewComponents';
 import { createSharedSession } from '../../sharedSessions';
 import { Modal, ModalContent } from '../ui/modal';
@@ -122,12 +122,12 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         {/* Session info row */}
         <div className="ml-8">
           <h1 className="text-lg text-textStandardInverse">
-            {session.metadata.description || session.id}
+            {session.metadata.description || session.session_id}
           </h1>
           <div className="flex items-center text-sm text-textSubtle mt-1 space-x-5">
             <span className="flex items-center">
               <Calendar className="w-4 h-4 mr-1" />
-              {formatDate(session.created)}
+              {formatDate(session.messages[0]?.created)}
             </span>
             <span className="flex items-center">
               <MessageSquareText className="w-4 h-4 mr-1" />

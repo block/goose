@@ -1,6 +1,6 @@
 import MoreMenu from './MoreMenu';
 import React from 'react';
-import { View, ViewOptions } from '../../types/views';
+import { View, ViewOptions } from '../../App';
 
 export default function MoreMenuLayout({
   setView,
