@@ -4,7 +4,7 @@ import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { HammerIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-const SUGGESTED_MAX_TOOLS = 15;
+const SUGGESTED_MAX_TOOLS = 24;
 
 export default function ToolCount() {
   const [toolCount, setToolCount] = useState(null);
@@ -46,9 +46,9 @@ export default function ToolCount() {
               <HammerIcon size={16} />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="p-3 w-auto" side="top">
+          <PopoverContent className="p-3 w-auto bg-white dark:bg-gray-800" side="top">
             <div className="space-y-1">
-              <p className="text-sm text-black dark:text-white">Tool count: {toolCount}</p>
+              <p className="text-sm text-gray-800 dark:text-gray-200">Tool count: {toolCount}</p>
             </div>
           </PopoverContent>
         </Popover>
@@ -63,14 +63,18 @@ export default function ToolCount() {
               <ExclamationTriangleIcon color="orange" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="p-3" side="top">
+          <PopoverContent className="p-3 bg-white dark:bg-gray-800" side="top">
             <div className="space-y-2">
-              <h4 className="text-sm font-medium">Warning: High Tool Count</h4>
-              <p className="text-xs text-black dark:text-white">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Warning: High Tool Count
+              </h4>
+              <p className="text-xs text-gray-700 dark:text-gray-300">
                 Too many tools can degrade goose's performance. Consider turning a few extensions
                 off.
               </p>
-              <p className="text-xs font-medium">Tool count: {toolCount}</p>
+              <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                Tool count: {toolCount}
+              </p>
             </div>
           </PopoverContent>
         </Popover>
