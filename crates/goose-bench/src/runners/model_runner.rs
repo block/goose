@@ -196,7 +196,7 @@ impl ModelRunner {
         for eval in self.config.evals.iter() {
             let selected_suites = EvaluationSuite::select(vec![eval.selector.clone()]);
             for (suite, evals) in selected_suites {
-                let entry: &mut Vec<BenchEval> = result.entry(suite).or_insert_with(Vec::new);
+                let entry: &mut Vec<BenchEval> = result.entry(suite).or_default();
                 entry.reserve(evals.len());
                 for suite_eval in evals {
                     let mut updated_eval = eval.clone();
