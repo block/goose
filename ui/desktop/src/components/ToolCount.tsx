@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getTools } from '../api';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
-import { HammerIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const SUGGESTED_MAX_TOOLS = 24;
@@ -18,9 +17,7 @@ export default function ToolCount() {
           console.error('failed to get tool count');
           setError(true);
         } else {
-          if (response) {
-            setToolCount(response.data.length);
-          }
+          setToolCount(response.data.length);
         }
       } catch (err) {
         console.error('Error fetching tools:', err);
@@ -39,24 +36,7 @@ export default function ToolCount() {
     return <div>...</div>;
   }
 
-  if (toolCount < SUGGESTED_MAX_TOOLS) {
-    return (
-      <div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="flex items-center justify-center p-0 border-0 bg-transparent cursor-pointer">
-              <HammerIcon size={16} />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="p-3 w-auto bg-white dark:bg-gray-800" side="top">
-            <div className="space-y-1">
-              <p className="text-sm text-gray-800 dark:text-gray-200">Tool count: {toolCount}</p>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-    );
-  } else {
+  if (toolCount > SUGGESTED_MAX_TOOLS) {
     return (
       <div>
         <Popover>
@@ -76,5 +56,7 @@ export default function ToolCount() {
         </Popover>
       </div>
     );
+  } else {
+    return <div></div>;
   }
 }
