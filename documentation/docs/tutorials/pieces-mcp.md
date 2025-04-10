@@ -6,7 +6,9 @@ description: Add Pieces for Developers MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Pieces for Developers MCP Server](https://pieces.app/) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
+This tutorial covers how to add the [Pieces for Developers MCP Server](https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
+
+To learn more about MCP in Pieces, check out the Pieces [MCP documentation](https://docs.pieces.app/products/mcp/get-started?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
 
 :::tip TLDR
 
@@ -23,7 +25,7 @@ This can change if the port is already in use when you start PiecesOS. Check you
 ## Configuration
 
 :::info
-Note that you'll need [Pieces](https://pieces.app) installed to use this extension.
+Note that you'll need [Pieces](https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp) installed to use this extension.
 :::
 
 <Tabs groupId="interface">
@@ -220,3 +222,7 @@ Here's a report summarizing your key activities from yesterday, based on the mos
     
 These activities demonstrate a productive day with a focus on development, collaboration, and content management within your technical community.
 ```
+
+## Learn more
+
+To see some more examples of prompting capabilities unlocked by using the Pieces MCP server, check out the [Pieces MCP prompting guide](https://docs.pieces.app/products/mcp/prompting?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
