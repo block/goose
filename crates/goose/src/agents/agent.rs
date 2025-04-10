@@ -822,7 +822,7 @@ impl Agent {
         let content = result.as_concat_text();
 
         // the response may be contained in ```json ```, strip that before parsing json
-        let re = Regex::new(r"(?s)^```[^\n]*\n(.*?)\n```$").unwrap();
+        let re = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
         let clean_content = re
             .captures(&content)
             .and_then(|caps| caps.get(1).map(|m| m.as_str()))
