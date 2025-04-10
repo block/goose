@@ -1,6 +1,6 @@
 # Goose Desktop App
 
-Native desktop app for Goose built with [Electron](https://www.electronjs.org/). 
+Native desktop app for Goose built with [Electron](https://www.electronjs.org/) and [ReactJS](https://react.dev/). 
 
 # Prerequisites
 - [nvm](https://github.com/nvm-sh/nvm) (recommended for managing node versions easier but not required)
