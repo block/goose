@@ -10,7 +10,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
 
-This tutorial covers how to add the [Repomix MCP Server](https://github.com/yamadashy/repomix) as a Goose extension  to enable automated repository packing, codebase analysis, architecture summaries, and code exploration.
+This tutorial covers how to add the [Repomix MCP Server](https://github.com/yamadashy/repomix) as a Goose extension to enable automated repository packing, codebase analysis, architecture summaries, test generation, and code exploration, all while compressing the codebase to minimize token usage and stay within your LLM's context limits.
 
 
 :::tip TLDR
@@ -151,280 +151,311 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I’ll show you how to use Goose with the Repomix Extension to automate developer onboarding for the Axios repository. Goose will unpack the repo, highlight key files, skip unnecessary files, and give you a clear understanding of the architecture, improvement areas, and even draft a better README, all from a single prompt.
+In this example, I’ll show you how to use Goose with the Repomix Extension to analyze the compressed Axios repository. Goose will focus on the `lib/core/Axios.js` file, explain its role in the architecture, spot missing tests, write new unit tests, and suggest improvements to the testing strategy and code maintainability. 
+
+By compressing the entire codebase into an AI-friendly format, Repomix helps Goose stay within token limits while providing detailed, file-specific insights.
 
 ### Goose Prompt
 
-> I’m trying to get familiar with the Axios repo, but I haven’t worked with it before. Can you explore the project on GitHub and give me a good overview of how it’s structured? Focus on the important parts like source code and config files, skip over logs or build artifacts. Help me understand how the pieces fit together, point out any areas for improvement, and if possible, write me a better README with the project description, features, setup instructions, and contribution guidelines.
+> Review the file lib/core/Axios.js from the Axios repository and identify any missing unit tests needed to thoroughly cover its core functions and classes. Explain the role this file plays in the overall Axios architecture, how it integrates with other modules, and how well it is currently tested. Write new unit tests to improve coverage, and recommend improvements to the testing strategy or refactoring opportunities to make the code more maintainable.
 
 
 ### Goose Output
 
 :::note CLI
 
-I'll help you explore and analyze the Axios repository. Let me fetch it using the repomix tool, focusing on the essential parts of the codebase.
+I'll help analyze the Axios.js core file and its testing coverage. Let's break this down into steps:
+
+1. First, let's fetch and examine the Axios repository using repomix
+2. Then analyze the specific file and its related tests
+3. Finally provide recommendations and new unit tests
+
+Let's start by getting the repository:
 
 --- Pack Remote Repository ---
 
-Let me read the packed codebase to analyze its structure and provide you with a comprehensive overview.
+Now let's read the core Axios.js file and its related test files:
 
 --- Read Repomix Output ---
 
 Based on my analysis of the Axios codebase, I'll provide you with a comprehensive overview of the project structure and create an improved README. Let me break this down into sections:
 
-**Axios Project Analysis**
+**Role in Axios Architecture**
 
-**Project Overview**
-Axios is a popular Promise-based HTTP client that works in both browser and Node.js environments. The project is well-structured and follows modern JavaScript practices.
+The `Axios.js` file is one of the most critical core components of the Axios library. It serves several key purposes:
 
-**Core Architecture**
-The project is organized into several key directories:
+1. Request Handling: It contains the main `Axios` class that processes and dispatches HTTP requests
+2. Configuration Management: Handles merging of default configs with request-specific configs
+3. Interceptor Management: Manages request and response interceptors
+4. HTTP Method Convenience: Provides convenience methods for different HTTP verbs (get, post, etc.)
 
-1. `/lib` - Main source code
+The file integrates with other core modules through:
 
-- `/adapters` - HTTP request adapters (http, xhr, fetch)
-- `/cancel` - Cancellation functionality
-- `/core` - Core functionality (Axios, AxiosHeaders, etc.)
-- `/defaults` - Default configurations
-- `/env` - Environment-specific code
-- `/helpers` - Utility functions
-- `/platform` - Platform-specific implementations
+- `InterceptorManager` for handling request/response interceptors
+- `dispatchRequest` for making the actual HTTP requests
+- `mergeConfig` for configuration processing
+- `buildFullPath` for URL resolution
+- `AxiosHeaders` for header management
 
-2. Key Components:
+**Current Test Coverage Analysis**
 
-Axios class - Main client implementation
-AxiosHeaders - Headers management
-InterceptorManager - Request/response interceptors
-Multiple adapters supporting different environments
+The current test coverage for Axios.js is fairly good but has some gaps. Looking at the test files:
 
-**Key Features**
+1. `test/unit/core/Axios.js` - Focuses mainly on error handling cases, particularly un-writable error stacks
+2. `test/specs/api.spec.js` - Tests the public API surface
+3. `test/specs/interceptors.spec.js` - Tests interceptor functionality
+4. `test/specs/instance.spec.js` - Tests instance creation and configuration
 
-1. Adapters System
-
-- HTTP adapter for Node.js
-- XHR adapter for browsers
-- New Fetch adapter
-- Pluggable adapter architecture
-
-2. Request/Response Interceptors
-
-- Pre/post request processing
-- Error handling
-- Request/response transformation
-
-3. Advanced Features
-
-- Progress tracking
-- Request cancellation
-- Rate limiting
-- Automatic request/response transformations
-- Form data handling
-- File uploads
-
-**Areas for Improvement**
-
-1. Documentation
-
-- More detailed API documentation
-- Better examples for advanced features
-- Clearer migration guides
-
-2. Code Organization
-
-- Consider splitting into smaller modules
-- Better separation of browser/node specific code
-
-3. Testing
-
-- Increase test coverage
-- Add more integration tests
-- Better browser testing
-
-Here's an improved README.md for the project:
-
-**Axios**
-
-![Axios](https://axios-http.com/assets/logo.svg)
-
-A modern, promise-based HTTP client for browser and Node.js.
-
-[![npm version](https://img.shields.io/npm/v/axios.svg)](https://www.npmjs.org/package/axios)
-[![build status](https://img.shields.io/github/actions/workflow/status/axios/axios/ci.yml?branch=v1.x)](https://github.com/axios/axios/actions)
-[![coverage](https://img.shields.io/coveralls/mzabriskie/axios.svg)](https://coveralls.io/r/mzabriskie/axios)
-[![install size](https://img.shields.io/bundlephobia/minzip/axios)](https://bundlephobia.com/package/axios)
-
-**Features**
-
-- 🌐 Works in browser & Node.js
-- 🔄 Automatic transforms for JSON data
-- 🛡️ Client-side XSRF protection
-- 🎯 Request & response interceptors
-- ⚡️ Transform request & response data
-- 🚫 Request cancellation
-- 📊 Progress capturing
-- 🔍 Automatic error handling
-- 📝 TypeScript support
-- 🔄 Automatic serialization of objects to `multipart/form-data` and `x-www-form-urlencoded`
-
-**Installation**
-
-```bash
-# Using npm
-npm install axios
-
-# Using yarn
-yarn add axios
-
-# Using pnpm
-pnpm add axios
-
-# Using bun
-bun add axios
-```
-
-**Quick Start**
+**Missing Test Coverage**
+1. Error Handling:
 
 ```js
-import axios from 'axios';
-
-// Make a GET request
-const response = await axios.get('/api/data');
-
-// Make a POST request
-const response = await axios.post('/api/data', {
-  firstName: 'Fred',
-  lastName: 'Flintstone'
-});
-
-// Request with config
-const response = await axios({
-  method: 'post',
-  url: '/api/data',
-  data: {
-    firstName: 'Fred',
-    lastName: 'Flintstone'
-  }
-});
-```
-
-**Core Features**
-
-**Creating an Instance**
-
-```js
-const api = axios.create({
-  baseURL: 'https://api.example.com',
-  timeout: 5000,
-  headers: {'X-Custom-Header': 'value'}
-});
-```
-**Interceptors**
-
-```js
-// Request interceptor
-axios.interceptors.request.use(config => {
-  // Modify request config
-  return config;
-});
-
-// Response interceptor
-axios.interceptors.response.use(response => {
-  // Handle response
-  return response;
-}, error => {
-  // Handle error
-  return Promise.reject(error);
-});
-```
-
-**Request Cancellation**
-```js
-const controller = new AbortController();
-
-axios.get('/api/data', {
-  signal: controller.signal
-});
-
-// Cancel the request
-controller.abort();
-```
-
-**Progress Tracking**
-
-```js
-axios.post('/upload', data, {
-  onUploadProgress: (progressEvent) => {
-    const percentCompleted = Math.round(
-      (progressEvent.loaded * 100) / progressEvent.total
-    );
-    console.log(`Upload Progress: ${percentCompleted}%`);
-  }
-});
-```
-
-**Advanced Usage**
-
-**Form Data**
-```js
-// Automatic serialization
-await axios.post('/api/submit', {
-  name: 'John',
-  files: document.querySelector('#fileInput').files
-}, {
-  headers: {
-    'Content-Type': 'multipart/form-data'
-  }
-});
-```
-
-**Rate Limiting**
-
-```js
-const response = await axios.post('/api/upload', data, {
-  maxRate: [100 * 1024], // 100KB/s limit
-  onUploadProgress: ({progress, rate}) => {
-    console.log(`Upload: ${progress}%, Rate: ${rate/1024}KB/s`);
-  }
-});
-```
-
-**TypeScript Support**
-
-```js
-import axios, { AxiosResponse, AxiosError } from 'axios';
-
-interface User {
-  id: number;
-  name: string;
-}
-
-try {
-  const response: AxiosResponse<User> = await axios.get('/user/123');
-  console.log(response.data.name);
-} catch (error) {
-  if (axios.isAxiosError(error)) {
-    console.error('Axios Error:', error.response?.data);
-  }
+// Missing tests for error propagation in request chain
+_request(configOrUrl, config) {
+  // Error handling here needs more coverage
 }
 ```
 
-**Browser Support**
+2. Config Processing:
 
-| Chrome | Firefox | Safari | Edge |
-|--------|---------|--------|------|
-| ![Chrome](https://raw.githubusercontent.com/alrra/browser-logos/main/src/chrome/chrome_64x64.png) <br /> Latest ✔️ | ![Firefox](https://raw.githubusercontent.com/alrra/browser-logos/main/src/firefox/firefox_64x64.png) <br /> Latest ✔️ | ![Safari](https://raw.githubusercontent.com/alrra/browser-logos/main/src/safari/safari_64x64.png) <br /> Latest ✔️ | ![Edge](https://raw.githubusercontent.com/alrra/browser-logos/main/src/edge/edge_64x64.png) <br /> Latest ✔️ |
-
-**Contributing**
-Please read our Contributing Guide before submitting a Pull Request.
-
-**Security**
-For security issues, please read our Security Policy.
-
-**License**
-
+```js
+// Missing edge cases for config validation
+request(configOrUrl, config) {
+  // Config validation edge cases not fully tested
+}
 ```
-This improved README provides better organization, more comprehensive examples, and clearer documentation of features. It maintains the essential information while making it more accessible and user-friendly.
 
-Let me know if you'd like me to elaborate on any part of the analysis or README!
+3. Method Aliases:
+
+```js
+// Missing tests for all HTTP method aliases with various parameter combinations
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  // Missing tests for these methods with different data types
+});
 ```
+
+4. Interceptor Chain:
+
+```js
+// Missing tests for complex interceptor chains and error scenarios
+const chain = [dispatchRequest.bind(this), undefined];
+chain.unshift.apply(chain, requestInterceptorChain);
+chain.push.apply(chain, responseInterceptorChain);
+```
+
+**New Unit Tests**
+Here are new unit tests to improve coverage:
+
+```js
+describe('core::Axios', function() {
+  describe('request method', function() {
+    it('should handle null/undefined config values', function(done) {
+      const instance = new Axios({});
+      
+      instance.request({
+        url: '/foo',
+        params: null,
+        data: undefined
+      }).then(function(response) {
+        expect(response.config.params).toBeNull();
+        expect(response.config.data).toBeUndefined();
+        done();
+      }).catch(done);
+    });
+
+    it('should properly merge nested config objects', function(done) {
+      const instance = new Axios({
+        headers: {
+          common: {
+            'X-Common': 'common'
+          },
+          get: {
+            'X-Method': 'get'
+          }
+        }
+      });
+
+      instance.request({
+        method: 'get',
+        headers: {
+          'X-Custom': 'custom'
+        }
+      }).then(function(response) {
+        expect(response.config.headers['X-Common']).toBe('common');
+        expect(response.config.headers['X-Method']).toBe('get');
+        expect(response.config.headers['X-Custom']).toBe('custom');
+        done();
+      }).catch(done);
+    });
+  });
+
+  describe('interceptor chain', function() {
+    it('should handle async interceptors correctly', async function() {
+      const instance = new Axios({});
+      const order = [];
+
+      instance.interceptors.request.use(async function(config) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        order.push(1);
+        return config;
+      });
+
+      instance.interceptors.request.use(async function(config) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        order.push(2);
+        return config;
+      });
+
+      instance.interceptors.response.use(async function(response) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        order.push(3);
+        return response;
+      });
+
+      await instance.request('/foo');
+      expect(order).toEqual([2, 1, 3]); // Interceptors should execute in correct order
+    });
+
+    it('should handle interceptor errors properly', function(done) {
+      const instance = new Axios({});
+      const error = new Error('Interceptor Error');
+
+      instance.interceptors.request.use(function() {
+        throw error;
+      });
+
+      instance.request('/foo').catch(function(e) {
+        expect(e).toBe(error);
+        done();
+      });
+    });
+  });
+
+  describe('HTTP method aliases', function() {
+    it('should handle various data types in post/put/patch', function(done) {
+      const instance = new Axios({});
+      const testCases = [
+        {method: 'post', data: {foo: 'bar'}},
+        {method: 'put', data: 'string data'},
+        {method: 'patch', data: new URLSearchParams('foo=bar')},
+        {method: 'post', data: new FormData()},
+        {method: 'put', data: new Blob(['test'])},
+        {method: 'patch', data: null}
+      ];
+
+      Promise.all(testCases.map(({method, data}) => {
+        return instance[method]('/foo', data).then(response => {
+          expect(response.config.data).toEqual(data);
+          return response;
+        });
+      })).then(() => done()).catch(done);
+    });
+  });
+});
+```
+
+**Recommendations for Testing Strategy**
+
+1. Modular Testing:
+
+- Break down tests into smaller, focused units
+- Test each HTTP method alias separately
+- Create dedicated test suites for config processing, interceptors, and error handling
+
+2. Mock Integration Points:
+
+- Use dependency injection for better isolation
+- Mock external dependencies consistently
+- Create reusable mock factories
+
+3. Error Handling:
+
+- Add more tests for error cases
+- Test error propagation through interceptor chains
+- Verify error object properties and inheritance
+
+4. Config Processing:
+
+- Test complex config merging scenarios
+- Verify default values are applied correctly
+- Test config validation edge cases
+
+5. Interceptor Testing:
+
+- Test complex chains of interceptors
+- Verify async interceptor behavior
+- Test interceptor error handling
+
+**Refactoring Opportunities**
+
+1. Error Handling:
+```js
+// Current
+_request(configOrUrl, config) {
+  try {
+    return this.request(configOrUrl, config);
+  } catch (err) {
+    // Error handling
+  }
+}
+
+// Suggested
+async _request(configOrUrl, config) {
+  try {
+    return await this.request(configOrUrl, config);
+  } catch (err) {
+    if (err instanceof AxiosError) {
+      throw err;
+    }
+    throw AxiosError.from(err);
+  }
+}
+```
+2. Config Processing:
+
+```js
+// Current
+request(configOrUrl, config) {
+  // Config processing
+}
+
+// Suggested
+request(configOrUrl, config) {
+  const normalizedConfig = this._normalizeConfig(configOrUrl, config);
+  this._validateConfig(normalizedConfig);
+  return this._processRequest(normalizedConfig);
+}
+```
+
+3. Interceptor Chain:
+
+```js
+// Current
+// Interceptor chain building mixed with request logic
+
+// Suggested
+class InterceptorChain {
+  constructor(request, config) {
+    this.request = request;
+    this.config = config;
+    this.chain = [];
+  }
+
+  addRequestInterceptors(interceptors) {
+    // Add request interceptors
+  }
+
+  addResponseInterceptors(interceptors) {
+    // Add response interceptors
+  }
+
+  execute() {
+    // Execute chain
+  }
+}
+```
+
+These improvements would make the code more maintainable and easier to test, while also improving error handling and separation of concerns.
+
+The current test coverage is good but could be improved in these specific areas to ensure more robust functionality. The suggested new tests and refactoring opportunities would help catch edge cases and make the code more maintainable.
 :::
