@@ -475,50 +475,50 @@ impl Agent {
                             }
                         }
 
-                        // Split tool requests into enable_extension and others
-                        let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
-                        let (search_extension_requests, _non_search_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
-
-                        // If there are install extension requests, always require confirmation
-                        // or if goose_mode is approve or smart_approve, check permissions for all tools
-                        if !enable_extension_requests.is_empty() || mode.as_str() == "approve" || mode.as_str() == "smart_approve" {
+                        if mode.as_str() == "chat" {
+                            // Skip all tool calls in chat mode
+                            for request in remaining_requests {
+                                message_tool_response = message_tool_response.with_tool_response(
+                                    request.id.clone(),
+                                    Ok(vec![Content::text(
+                                        "Let the user know the tool call was skipped in Goose chat mode. \
+                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                        Provide an explanation of what the tool call would do, structured as a \
+                                        plan for the user. Again, DO NOT apologize. \
+                                        **Example Plan:**\n \
+                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                        2. **Outline Steps** - Break down the steps.\n \
+                                        If needed, adjust the explanation based on user preferences or questions."
+                                    )]),
+                                );
+                            }
+                        } else {
+                            // Split tool requests into enable_extension and others
+                            let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
+                                .into_iter()
+                                .partition(|req| {
+                                    req.tool_call.as_ref()
+                                        .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
+                                        .unwrap_or(false)
+                                });
                             let mut permission_manager = PermissionManager::default();
-                            // Skip the platform tools
-                            remaining_requests.retain(|req| {
-                                if let Ok(tool_call) = &req.tool_call {
-                                    !tool_call.name.starts_with("platform__")
-                                } else {
-                                    true // If there's an error (Err), don't skip the request
-                                }
-                            });
-                            let permission_check_result = check_tool_permissions(remaining_requests,
+                            let permission_check_result = check_tool_permissions(non_enable_extension_requests,
                                                             &mode,
                                                             tools_with_readonly_annotation.clone(),
                                                             tools_without_annotation.clone(),
                                                             &mut permission_manager,
                                                             self.provider()).await;
 
-
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures = Vec::new();
                             let mut install_results = Vec::new();
 
+                            let denied_content_text = Content::text(
+                                "The user has declined to run this tool. \
+                                DO NOT attempt to call this tool again. \
+                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             // Handle install extension requests
                             for request in &enable_extension_requests {
                                 if let Ok(tool_call) = request.tool_call.clone() {
@@ -541,6 +541,12 @@ impl Agent {
                                                     .to_string();
                                                 let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
+                                            } else {
+                                                // User declined - add declined response
+                                                message_tool_response = message_tool_response.with_tool_response(
+                                                    request.id.clone(),
+                                                    Ok(vec![denied_content_text.clone()]),
+                                                );
                                             }
                                             break;
                                         }
@@ -557,10 +563,6 @@ impl Agent {
                                 }
                             }
 
-                            let denied_content_text = Content::text(
-                                "The user has declined to run this tool. \
-                                DO NOT attempt to call this tool again. \
-                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             for request in &permission_check_result.denied {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request.id.clone(),
@@ -629,59 +631,12 @@ impl Agent {
                                 let extensions_info = extension_manager.get_extensions_info().await;
                                 system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
                                 tools = extension_manager.get_prefixed_tools().await?;
-                            }
-                        }
-
-                        if mode.as_str() == "auto" || !search_extension_requests.is_empty() {
-                            let mut tool_futures = Vec::new();
-                            // Process non_enable_extension_requests and search_extension_requests without duplicates
-                            let mut processed_ids = HashSet::new();
-
-                            for request in non_enable_extension_requests.iter().chain(search_extension_requests.iter()) {
-                                if processed_ids.insert(request.id.clone()) {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
-                                        tool_futures.push(tool_future);
-                                    }
+                                if extension_manager.supports_resources() {
+                                    tools.push(platform_tools::read_resource_tool());
+                                    tools.push(platform_tools::list_resources_tool());
                                 }
-                            }
-
-                            // Wait for all tool calls to complete
-                            let results = futures::future::join_all(tool_futures).await;
-                            for (request_id, output) in results {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request_id,
-                                    output,
-                                );
-                            }
-                        }
-
-                        if mode.as_str() == "chat" {
-                            // Skip all tool calls in chat mode
-                            // Skip search extension requests since they were already processed
-                            let non_search_non_enable_extension_requests = non_enable_extension_requests.iter()
-                                .filter(|req| {
-                                    if let Ok(tool_call) = &req.tool_call {
-                                        tool_call.name != PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
-                                    } else {
-                                        true
-                                    }
-                                });
-                            for request in non_search_non_enable_extension_requests {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(
-                                        "Let the user know the tool call was skipped in Goose chat mode. \
-                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
-                                        Provide an explanation of what the tool call would do, structured as a \
-                                        plan for the user. Again, DO NOT apologize. \
-                                        **Example Plan:**\n \
-                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                        2. **Outline Steps** - Break down the steps.\n \
-                                        If needed, adjust the explanation based on user preferences or questions."
-                                    )]),
-                                );
+                                tools.push(platform_tools::search_available_extensions_tool());
+                                tools.push(platform_tools::enable_extension_tool());
                             }
                         }
 
