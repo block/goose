@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { addExtensionFromDeepLink } from './extensions';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
@@ -51,7 +51,6 @@ export type View =
   | 'loading'
   | 'recipeEditor';
 
-
 export type ViewOptions =
   | SettingsViewOptions
   | { resumedSession?: SessionDetails }
@@ -98,7 +97,12 @@ export default function App() {
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
-  const { getExtensions, addExtension: addExtensionToConfig, read } = useConfig();
+  const {
+    getExtensions,
+    addExtension: addExtensionToConfig,
+    disableAllExtensions,
+    read,
+  } = useConfig();
   const initAttemptedRef = useRef(false);
 
   // Utility function to extract the command from the link
@@ -239,6 +243,34 @@ export default function App() {
     console.log('Finished enabling bot config extensions');
   };
 
+  const enableBotConfigExtensionsV2 = useCallback(
+    async (extensions: FullExtensionConfig[]) => {
+      if (!extensions?.length) {
+        console.log('No extensions to enable from bot config');
+        return;
+      }
+
+      try {
+        await disableAllExtensions();
+        console.log('Disabled all existing extensions');
+
+        for (const extension of extensions) {
+          try {
+            console.log('Enabling extension: ${extension.name}');
+            await addExtensionToConfig(extension.name, extension, true);
+          } catch (error) {
+            console.error(`Failed to enable extension ${extension.name}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to enable bot extensions');
+      }
+      console.log('Finished enabling bot config extensions');
+    },
+    [disableAllExtensions, addExtensionToConfig]
+  );
+
+  // settings v2 initialization
   useEffect(() => {
     if (!settingsV2Enabled) {
       return;
@@ -252,6 +284,27 @@ export default function App() {
     initAttemptedRef.current = true;
 
     console.log(`Initializing app with settings v2`);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewType = urlParams.get('view');
+    const botConfig = window.appConfig.get('botConfig');
+
+    // Handle bot config extensions first
+    if (botConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+      console.log('Found extensions in bot config:', botConfig.extensions);
+      enableBotConfigExtensionsV2(botConfig.extensions);
+    }
+
+    // If we have a specific view type in the URL, use that and skip provider detection
+    if (viewType) {
+      if (viewType === 'recipeEditor' && botConfig) {
+        console.log('Setting view to recipeEditor with config:', botConfig);
+        setView('recipeEditor', { config: botConfig });
+      } else {
+        setView(viewType as View);
+      }
+      return;
+    }
 
     const initializeApp = async () => {
       try {
@@ -301,7 +354,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension]);
+  }, [read, getExtensions, addExtensionToConfig, enableBotConfigExtensionsV2]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -487,7 +540,7 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
     const botConfig = window.appConfig.get('botConfig');
-    
+
     if (settingsV2Enabled) {
       return;
     }

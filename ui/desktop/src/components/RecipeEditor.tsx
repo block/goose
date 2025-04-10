@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
 import { Buffer } from 'buffer';
 import { type View } from '../App';
-import { ExtensionItem } from './settings/extensions/ExtensionItem';
 import { FullExtensionConfig } from '../extensions';
 import { ChevronRight } from './icons/ChevronRight';
 import Back from './icons/Back';
 import { Bars } from './icons/Bars';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
+import { useConfig } from '../components/ConfigContext';
+import { settingsV2Enabled } from '../flags';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -20,11 +21,11 @@ interface RecipeEditorProps {
 // Function to generate a deep link from a recipe
 function generateDeepLink(recipe: Recipe): string {
   const configBase64 = Buffer.from(JSON.stringify(recipe)).toString('base64');
-  return `goose://bot?config=${configBase64}`;
+  return `goose://recipe?config=${configBase64}`;
 }
 
 export default function RecipeEditor({ config, onClose, onSave, setView }: RecipeEditorProps) {
-  // State management
+  const { getExtensions } = useConfig();
   const [botConfig, setBotConfig] = useState<Recipe | undefined>(config);
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
@@ -43,11 +44,21 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
 
   // Load extensions
   useEffect(() => {
-    const loadExtensions = () => {
-      const userSettingsStr = localStorage.getItem('user_settings');
-      if (userSettingsStr) {
-        const userSettings = JSON.parse(userSettingsStr);
-        setAvailableExtensions(userSettings.extensions || []);
+    const loadExtensions = async () => {
+      if (settingsV2Enabled) {
+        try {
+          const extensions = await getExtensions(true); // force refresh to get latest
+          console.log('extensions {}', extensions);
+          setAvailableExtensions(extensions || []);
+        } catch (error) {
+          console.error('Failed to load extensions:', error);
+        }
+      } else {
+        const userSettingsStr = localStorage.getItem('user_settings');
+        if (userSettingsStr) {
+          const userSettings = JSON.parse(userSettingsStr);
+          setAvailableExtensions(userSettings.extensions || []);
+        }
       }
     };
     loadExtensions();
@@ -73,35 +84,43 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
     setActivities((prev) => prev.filter((a) => a !== activity));
   };
 
-  const getCurrentConfig = (): Recipe => ({
-    ...botConfig,
-    title,
-    description,
-    instructions,
-    activities,
-    extensions: selectedExtensions
-      .map((id) => {
-        const extension = availableExtensions.find((e) => e.id === id);
-        if (!extension) return null;
+  const getCurrentConfig = (): Recipe => {
+    console.log('Creating config with:', {
+      selectedExtensions,
+      availableExtensions,
+      botConfig,
+    });
 
-        // Create a clean copy of the extension
-        const cleanExtension = { ...extension, enabled: true };
+    const config = {
+      ...botConfig,
+      title,
+      description,
+      instructions,
+      activities,
+      extensions: selectedExtensions
+        .map((name) => {
+          const extension = availableExtensions.find((e) => e.name === name);
+          console.log('Looking for extension:', name, 'Found:', extension);
+          if (!extension) return null;
 
-        // If the extension has env_vars, preserve keys but clear values
-        if (cleanExtension.env_keys) {
-          cleanExtension.env_keys = Object.keys(cleanExtension.env_keys).reduce(
-            (acc, key) => {
-              acc[key] = '';
-              return acc;
-            },
-            {} as Record<string, string>
-          );
-        }
+          // Create a clean copy of the extension configuration
+          const cleanExtension = { ...extension };
+          delete cleanExtension.enabled;
 
-        return cleanExtension;
-      })
-      .filter(Boolean) as FullExtensionConfig[],
-  });
+          // If the extension has env_keys, preserve keys but clear values
+          if (cleanExtension.env_keys) {
+            cleanExtension.env_keys = Object.fromEntries(
+              Object.keys(cleanExtension.env_keys).map((key) => [key, ''])
+            );
+          }
+
+          return cleanExtension;
+        })
+        .filter(Boolean) as FullExtensionConfig[],
+    };
+    console.log('Final config extensions:', config.extensions);
+    return config;
+  };
 
   const deeplink = generateDeepLink(getCurrentConfig());
 
@@ -203,23 +222,25 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
             <div className="grid grid-cols-2 gap-4">
               {availableExtensions.map((extension) => (
                 <button
-                  key={extension.id}
+                  key={extension.name}
                   className="p-4 border border-gray-200 rounded-lg flex justify-between items-center w-full text-left hover:bg-gray-50"
-                  onClick={() => handleExtensionToggle(extension.id)}
+                  onClick={() => handleExtensionToggle(extension.name)}
                 >
                   <div>
-                    <h3 className="font-medium">{extension.name || 'File viewer'}</h3>
-                    <p className="text-sm text-gray-600">Standard config</p>
+                    <h3 className="font-medium">{extension.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      {extension.description || 'No description available'}
+                    </p>
                   </div>
                   <div className="relative inline-block w-10 align-middle select-none">
                     <div
                       className={`w-10 h-6 rounded-full transition-colors duration-200 ease-in-out ${
-                        selectedExtensions.includes(extension.id) ? 'bg-black' : 'bg-gray-300'
+                        selectedExtensions.includes(extension.name) ? 'bg-black' : 'bg-gray-300'
                       }`}
                     >
                       <div
                         className={`w-6 h-6 rounded-full bg-white border-2 transform transition-transform duration-200 ease-in-out ${
-                          selectedExtensions.includes(extension.id)
+                          selectedExtensions.includes(extension.name)
                             ? 'translate-x-4 border-black'
                             : 'translate-x-0 border-gray-300'
                         }`}
@@ -323,7 +344,7 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
                 Open agent
               </button>
               <button
-                onClick={() => window.electron.closeWindow()}
+                onClick={() => window.close()}
                 className="w-full p-3 text-gray-600 rounded-lg hover:bg-gray-100"
               >
                 Cancel

@@ -1,15 +1,15 @@
 use axum::{
     extract::State,
-    routing::{post},
-    Json, Router,
     http::{HeaderMap, StatusCode},
+    routing::post,
+    Json, Router,
 };
-use std::collections::HashMap;
 use goose::agents::extension::Envs;
 use goose::config::ExtensionConfig;
-use goose::recipe::Recipe;
 use goose::message::Message;
+use goose::recipe::Recipe;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::state::AppState;
 
@@ -47,10 +47,10 @@ async fn create_recipe(
 ) -> Result<Json<CreateRecipeResponse>, StatusCode> {
     let agent = state.agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
-    
+
     // Create base recipe from agent state and messages
     let recipe_result = agent.create_recipe(request.messages).await;
-    
+
     match recipe_result {
         Ok(mut recipe) => {
             // Update with user-provided metadata
@@ -59,7 +59,7 @@ async fn create_recipe(
             if request.activities.is_some() {
                 recipe.activities = request.activities
             };
-            
+
             // Add author if provided
             if let Some(author_req) = request.author {
                 recipe.author = Some(goose::recipe::Author {
@@ -68,15 +68,15 @@ async fn create_recipe(
                 });
             }
 
-            Ok(Json(CreateRecipeResponse { 
+            Ok(Json(CreateRecipeResponse {
                 recipe: Some(recipe),
-                error: None
+                error: None,
             }))
-        },
+        }
         Err(e) => Ok(Json(CreateRecipeResponse {
             recipe: None,
-            error: Some(e.to_string())
-        }))
+            error: Some(e.to_string()),
+        })),
     }
 }
 
