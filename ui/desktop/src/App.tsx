@@ -79,6 +79,12 @@ export default function App() {
     return `${cmd} ${args.join(' ')}`.trim();
   }
 
+  // Utility function to extract the remote url from the link
+  function extractRemoteUrl(link: string): string {
+    const url = new URL(link);
+    return url.searchParams.get('url');
+  }
+
   const setView = (view: View, viewOptions: ViewOptions = {}) => {
     console.log(`Setting view to: ${view}`, viewOptions);
     setInternalView({ view, viewOptions });
@@ -257,11 +263,14 @@ export default function App() {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
+        const remoteUrl = extractRemoteUrl(link);
         const extName = extractExtensionName(link);
         window.electron.logInfo(`Adding extension from deep link ${link}`);
         setPendingLink(link);
+
+        const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
         setModalMessage(
-          `Are you sure you want to install the ${extName} extension?\n\nCommand: ${command}`
+          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
         );
         setModalVisible(true);
       } catch (error) {

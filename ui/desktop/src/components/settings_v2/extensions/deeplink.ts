@@ -4,6 +4,75 @@ import { activateExtension } from './extension-manager';
 import { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';
 
 /**
+ * Build an extension config for stdio from the deeplink URL
+ */
+function getStdioConfig(
+  cmd: string,
+  parsedUrl: URL,
+  name: string,
+  description: string,
+  timeout: number
+) {
+  // Validate that the command is one of the allowed commands
+  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
+  if (!allowedCommands.includes(cmd)) {
+    toastService.handleError(
+      'Invalid Command',
+      `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
+      { shouldThrow: true }
+    );
+  }
+
+  // Check for security risk with npx -c command
+  const args = parsedUrl.searchParams.getAll('arg');
+  if (cmd === 'npx' && args.includes('-c')) {
+    toastService.handleError(
+      'Security Risk',
+      'Failed to install extension: npx with -c argument can lead to code injection',
+      { shouldThrow: true }
+    );
+  }
+
+  const envList = parsedUrl.searchParams.getAll('env');
+
+  // Create the extension config
+  const config: ExtensionConfig = {
+    name: name,
+    type: 'stdio',
+    cmd: cmd,
+    description,
+    args: args,
+    envs:
+      envList.length > 0
+        ? Object.fromEntries(
+            envList.map((env) => {
+              const [key] = env.split('=');
+              return [key, '']; // Initialize with empty string as value
+            })
+          )
+        : undefined,
+    timeout: timeout,
+  };
+
+  return config;
+}
+
+/**
+ * Build an extension config for SSE from the deeplink URL
+ */
+function getSseConfig(remoteUrl: string, name: string, description: string, timeout: number) {
+  const config: ExtensionConfig = {
+    name,
+    type: 'sse',
+    uri: remoteUrl,
+    description,
+    timeout: timeout,
+  };
+
+  return config;
+}
+
+/**
  * Handles adding an extension from a deeplink URL
  */
 export async function addExtensionFromDeepLink(
@@ -39,56 +108,17 @@ export async function addExtensionFromDeepLink(
     }
   }
 
-  const cmd = parsedUrl.searchParams.get('cmd');
-  if (!cmd) {
-    toastService.handleError(
-      'Missing Command',
-      "Failed to install extension: Missing required 'cmd' parameter in the URL",
-      { shouldThrow: true }
-    );
-  }
-
-  // Validate that the command is one of the allowed commands
-  const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
-  if (!allowedCommands.includes(cmd)) {
-    toastService.handleError(
-      'Invalid Command',
-      `Failed to install extension: Invalid command: ${cmd}. Only ${allowedCommands.join(', ')} are allowed.`,
-      { shouldThrow: true }
-    );
-  }
-
-  // Check for security risk with npx -c command
-  const args = parsedUrl.searchParams.getAll('arg');
-  if (cmd === 'npx' && args.includes('-c')) {
-    toastService.handleError(
-      'Security Risk',
-      'Failed to install extension: npx with -c argument can lead to code injection',
-      { shouldThrow: true }
-    );
-  }
-
-  const envList = parsedUrl.searchParams.getAll('env');
   const name = parsedUrl.searchParams.get('name')!;
-  const timeout = parsedUrl.searchParams.get('timeout');
+  const parsedTimeout = parsedUrl.searchParams.get('timeout');
+  const timeout = parsedTimeout ? parseInt(parsedTimeout, 10) : DEFAULT_EXTENSION_TIMEOUT;
+  const description = parsedUrl.searchParams.get('description');
 
-  // Create the extension config
-  const config: ExtensionConfig = {
-    name: name,
-    type: 'stdio',
-    cmd: cmd,
-    args: args,
-    envs:
-      envList.length > 0
-        ? Object.fromEntries(
-            envList.map((env) => {
-              const [key] = env.split('=');
-              return [key, '']; // Initialize with empty string as value
-            })
-          )
-        : undefined,
-    timeout: timeout ? parseInt(timeout, 10) : DEFAULT_EXTENSION_TIMEOUT,
-  };
+  const cmd = parsedUrl.searchParams.get('cmd');
+  const remoteUrl = parsedUrl.searchParams.get('url');
+
+  const config = remoteUrl
+    ? getSseConfig(remoteUrl, name, description, timeout)
+    : getStdioConfig(cmd!, parsedUrl, name, description, timeout);
 
   // Check if extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {
