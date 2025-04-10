@@ -4,7 +4,7 @@ import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { HammerIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-const SUGGESTED_MAX_TOOLS = 24;
+const SUGGESTED_MAX_TOOLS = 10;
 
 export default function ToolCount() {
   const [toolCount, setToolCount] = useState(null);
@@ -65,15 +65,9 @@ export default function ToolCount() {
           </PopoverTrigger>
           <PopoverContent className="p-3 bg-white dark:bg-gray-800" side="top">
             <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                Warning: High Tool Count
-              </h4>
               <p className="text-xs text-gray-700 dark:text-gray-300">
-                Too many tools can degrade goose's performance. Consider turning a few extensions
-                off.
-              </p>
-              <p className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                Tool count: {toolCount}
+                Too many tools can degrade goose's performance. Consider turning unused extensions
+                off. Tool count: {toolCount} (recommend: {SUGGESTED_MAX_TOOLS})
               </p>
             </div>
           </PopoverContent>
