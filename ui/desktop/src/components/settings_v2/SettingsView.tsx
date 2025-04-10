@@ -6,23 +6,23 @@ import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 import { ModeSection } from './mode/ModeSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
-import {ExtensionConfig} from "../../api";
+import { ExtensionConfig } from '../../api';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
-  needEnvVars?: boolean;
+  showEnvVars?: boolean;
 };
 
 export default function SettingsView({
   onClose,
   setView,
-    viewOptions
+  viewOptions,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
-  viewOptions: SettingsViewOptions
+  viewOptions: SettingsViewOptions;
 }) {
-  console.log("In settings view and got this", viewOptions.deepLinkConfig, viewOptions.needEnvVars)
+  console.log('In settings view and got this', viewOptions.deepLinkConfig, viewOptions.showEnvVars);
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>
@@ -40,7 +40,10 @@ export default function SettingsView({
               {/* Models Section */}
               <ModelsSection setView={setView} />
               {/* Extensions Section */}
-              <ExtensionsSection deepLinkConfig={viewOptions.deepLinkConfig} needsEnvVars={viewOptions.needEnvVars} />
+              <ExtensionsSection
+                deepLinkConfig={viewOptions.deepLinkConfig}
+                showEnvVars={viewOptions.showEnvVars}
+              />
               {/* Goose Modes */}
               <ModeSection />
               {/*Session sharing*/}

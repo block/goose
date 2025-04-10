@@ -18,10 +18,10 @@ import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
-  needsEnvVars?: boolean;
+  showEnvVars?: boolean;
 }
 
-export default function ExtensionsSection({ deepLinkConfig, needsEnvVars }: ExtensionSectionProps) {
+export default function ExtensionsSection({ deepLinkConfig, showEnvVars }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
@@ -30,9 +30,12 @@ export default function ExtensionsSection({ deepLinkConfig, needsEnvVars }: Exte
   const [deepLinkConfigStateVar, setDeepLinkConfigStateVar] = useState<
     ExtensionConfig | undefined | null
   >(deepLinkConfig);
-  const [needsEnvVarsStateVar, setNeedsEnvVarsStateVar] = useState<boolean | undefined | null>(
-    needsEnvVars
+  const [showEnvVarsStateVar, setShowEnvVarsStateVar] = useState<boolean | undefined | null>(
+    showEnvVars
   );
+
+  console.log('needsEnvVarsStateVar', showEnvVarsStateVar);
+  console.log('deepLinkConfigStateVar', deepLinkConfigStateVar);
 
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
@@ -127,7 +130,7 @@ export default function ExtensionsSection({ deepLinkConfig, needsEnvVars }: Exte
 
   const handleModalClose = () => {
     setDeepLinkConfigStateVar(null);
-    setNeedsEnvVarsStateVar(null);
+    setShowEnvVarsStateVar(null);
 
     setIsModalOpen(false);
     setIsAddModalOpen(false);
@@ -194,7 +197,7 @@ export default function ExtensionsSection({ deepLinkConfig, needsEnvVars }: Exte
         )}
 
         {/* Modal for adding extension from deeplink*/}
-        {deepLinkConfigStateVar && needsEnvVarsStateVar && (
+        {deepLinkConfigStateVar && showEnvVarsStateVar && (
           <ExtensionModal
             title="Add custom extension"
             initialData={extensionToFormData({ ...deepLinkConfig, enabled: true })}
