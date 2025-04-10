@@ -63,9 +63,9 @@ export default function ToolCount() {
               <ExclamationTriangleIcon color="orange" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="p-3 bg-white dark:bg-gray-800" side="top">
+          <PopoverContent className="p-3 bg-orangit ge-500 " side="top">
             <div className="space-y-2">
-              <p className="text-xs text-gray-700 dark:text-gray-300">
+              <p className="text-xs text-gray-300">
                 Too many tools can degrade goose's performance. Consider turning unused extensions
                 off. Tool count: {toolCount} (recommend: {SUGGESTED_MAX_TOOLS})
               </p>
