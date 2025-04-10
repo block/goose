@@ -153,7 +153,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     │  No
     |
     // highlight-end
-    └  Added playwright extension
+    └  Added blender extension
   ```  
 
   </TabItem>
