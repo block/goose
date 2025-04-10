@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -14,22 +14,26 @@ import {
 } from './utils';
 
 import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
-import {ExtensionConfig} from "../../../api/types.gen";
+import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
-  deepLinkConfig?: ExtensionConfig,
-  needsEnvVars?: boolean,
+  deepLinkConfig?: ExtensionConfig;
+  needsEnvVars?: boolean;
 }
 
-export default function ExtensionsSection({deepLinkConfig, needsEnvVars}: ExtensionSectionProps) {
+export default function ExtensionsSection({ deepLinkConfig, needsEnvVars }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [deepLinkConfigStateVar, setDeepLinkConfigStateVar] = useState<ExtensionConfig | undefined | null>(deepLinkConfig)
-  const [needsEnvVarsStateVar, setNeedsEnvVarsStateVar] = useState<boolean | undefined | null>(needsEnvVars)
-  
+  const [deepLinkConfigStateVar, setDeepLinkConfigStateVar] = useState<
+    ExtensionConfig | undefined | null
+  >(deepLinkConfig);
+  const [needsEnvVarsStateVar, setNeedsEnvVarsStateVar] = useState<boolean | undefined | null>(
+    needsEnvVars
+  );
+
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
@@ -122,8 +126,8 @@ export default function ExtensionsSection({deepLinkConfig, needsEnvVars}: Extens
   };
 
   const handleModalClose = () => {
-    setDeepLinkConfigStateVar(null)
-    setNeedsEnvVarsStateVar(null)
+    setDeepLinkConfigStateVar(null);
+    setNeedsEnvVarsStateVar(null);
 
     setIsModalOpen(false);
     setIsAddModalOpen(false);
@@ -191,14 +195,14 @@ export default function ExtensionsSection({deepLinkConfig, needsEnvVars}: Extens
 
         {/* Modal for adding extension from deeplink*/}
         {deepLinkConfigStateVar && needsEnvVarsStateVar && (
-            <ExtensionModal
-                title="Add custom extension"
-                initialData={extensionToFormData({...deepLinkConfig, enabled: true})}
-                onClose={handleModalClose}
-                onSubmit={handleAddExtension}
-                submitLabel="Add Extension"
-                modalType={'add'}
-            />
+          <ExtensionModal
+            title="Add custom extension"
+            initialData={extensionToFormData({ ...deepLinkConfig, enabled: true })}
+            onClose={handleModalClose}
+            onSubmit={handleAddExtension}
+            submitLabel="Add Extension"
+            modalType={'add'}
+          />
         )}
       </div>
     </section>
