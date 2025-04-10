@@ -1,8 +1,9 @@
 // Create a new file called test.txt with the content 'Hello, World!
 
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
     ExtensionRequirements,
 };
 use crate::register_evaluation;
@@ -24,12 +25,12 @@ impl DeveloperCreateFile {
 impl Evaluation for DeveloperCreateFile {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        _work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        _run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         // Send the prompt to create and read
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Create a new file called test.txt in the current directory with the content 'Hello, World!'. Then read the contents of the new file to confirm.".to_string()
         ).await;
 
@@ -99,15 +100,15 @@ impl Evaluation for DeveloperCreateFile {
 
         metrics.push((
             "Create file".to_string(),
-            EvaluationMetric::Boolean(write_tool_call),
+            EvalMetricValue::Boolean(write_tool_call),
         ));
         metrics.push((
             "Read file".to_string(),
-            EvaluationMetric::Boolean(read_tool_call),
+            EvalMetricValue::Boolean(read_tool_call),
         ));
         metrics.push((
             "Complete create and read".to_string(),
-            EvaluationMetric::Boolean(write_tool_call && read_tool_call),
+            EvalMetricValue::Boolean(write_tool_call && read_tool_call),
         ));
         Ok(metrics)
     }

@@ -56,28 +56,38 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
     ));
   };
 
+  // Bundled extensions and builtins are not editable
+  // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
+  const editable = !(extension.type === 'builtin' || extension.bundled);
+
   return (
-    <div className="rounded-lg border border-borderSubtle p-4 mb-2">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-medium text-textStandard">{getFriendlyTitle(extension)}</h3>
-        <div className="flex items-center gap-2">
-          {/* Only show config button for non-builtin extensions */}
-          {extension.type !== 'builtin' && (
-            <button
-              className="text-textSubtle hover:text-textStandard"
-              onClick={() => onConfigure(extension)}
-            >
-              <Gear className="h-4 w-4" />
-            </button>
-          )}
-          <Switch
-            checked={(isToggling && visuallyEnabled) || extension.enabled}
-            onCheckedChange={() => handleToggle(extension)}
-            variant="mono"
-          />
-        </div>
+    <div
+      className="flex justify-between rounded-lg transition-colors border border-borderSubtle p-4 pt-3 hover:border-borderProminent hover:cursor-pointer"
+      onClick={() => handleToggle(extension)}
+    >
+      <div className="flex flex-col w-max-[90%]">
+        <h3 className="text-textStandard">{getFriendlyTitle(extension)}</h3>
+        <p className="text-xs text-textSubtle">{renderFormattedSubtitle()}</p>
       </div>
-      <p className="text-sm text-textSubtle">{renderFormattedSubtitle()}</p>
+
+      <div
+        className="flex items-center justify-end gap-2 w-max-[10%]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {editable && (
+          <button
+            className="text-textSubtle hover:text-textStandard"
+            onClick={() => onConfigure(extension)}
+          >
+            <Gear className="h-4 w-4" />
+          </button>
+        )}
+        <Switch
+          checked={(isToggling && visuallyEnabled) || extension.enabled}
+          onCheckedChange={() => handleToggle(extension)}
+          variant="mono"
+        />
+      </div>
     </div>
   );
 }

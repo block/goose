@@ -8,12 +8,13 @@ use axum::{
 use goose::agents::ExtensionConfig;
 use goose::config::extensions::name_to_key;
 use goose::config::Config;
-use goose::config::{ExtensionEntry, ExtensionManager};
+use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_yaml;
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
@@ -183,7 +184,7 @@ pub async fn get_extensions(
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    match ExtensionManager::get_all() {
+    match ExtensionConfigManager::get_all() {
         Ok(extensions) => Ok(Json(ExtensionResponse { extensions })),
         Err(err) => {
             // Return UNPROCESSABLE_ENTITY only for DeserializeError, INTERNAL_SERVER_ERROR for everything else
@@ -218,13 +219,13 @@ pub async fn add_extension(
     verify_secret_key(&headers, &state)?;
 
     // Get existing extensions to check if this is an update
-    let extensions = ExtensionManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let extensions =
+        ExtensionConfigManager::get_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let key = name_to_key(&extension_query.name);
 
     let is_update = extensions.iter().any(|e| e.config.key() == key);
 
-    // Use ExtensionManager to set the extension
-    match ExtensionManager::set(ExtensionEntry {
+    match ExtensionConfigManager::set(ExtensionEntry {
         enabled: extension_query.enabled,
         config: extension_query.config,
     }) {
@@ -256,8 +257,7 @@ pub async fn remove_extension(
     verify_secret_key(&headers, &state)?;
 
     let key = name_to_key(&name);
-    // Use ExtensionManager to remove the extension
-    match ExtensionManager::remove(&key) {
+    match ExtensionConfigManager::remove(&key) {
         Ok(_) => Ok(Json(format!("Removed extension {}", name))),
         Err(_) => Err(StatusCode::NOT_FOUND),
     }
@@ -320,6 +320,75 @@ pub async fn providers(
     Ok(Json(providers_response))
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/init",
+    responses(
+        (status = 200, description = "Config initialization check completed", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn init_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config = Config::global();
+
+    // 200 if config already exists
+    if config.exists() {
+        return Ok(Json("Config already exists".to_string()));
+    }
+
+    // Find the workspace root (where the top-level Cargo.toml with [workspace] is)
+    let workspace_root = match std::env::current_exe() {
+        Ok(mut exe_path) => {
+            // Start from the executable's directory and traverse up
+            while let Some(parent) = exe_path.parent() {
+                let cargo_toml = parent.join("Cargo.toml");
+                if cargo_toml.exists() {
+                    // Read the Cargo.toml file
+                    if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+                        // Check if it contains [workspace]
+                        if content.contains("[workspace]") {
+                            exe_path = parent.to_path_buf();
+                            break;
+                        }
+                    }
+                }
+                exe_path = parent.to_path_buf();
+            }
+            exe_path
+        }
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Check if init-config.yaml exists at workspace root
+    let init_config_path = workspace_root.join("init-config.yaml");
+    if !init_config_path.exists() {
+        return Ok(Json(
+            "No init-config.yaml found, using default configuration".to_string(),
+        ));
+    }
+
+    // Read init-config.yaml and validate
+    let init_content = match std::fs::read_to_string(&init_config_path) {
+        Ok(content) => content,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+    let init_values: HashMap<String, Value> = match serde_yaml::from_str(&init_content) {
+        Ok(values) => values,
+        Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+    };
+
+    // Save init-config.yaml to ~/.config/goose/config.yaml
+    match config.save_values(init_values) {
+        Ok(_) => Ok(Json("Config initialized successfully".to_string())),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -330,5 +399,6 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extensions", post(add_extension))
         .route("/config/extensions/:name", delete(remove_extension))
         .route("/config/providers", get(providers))
+        .route("/config/init", post(init_config))
         .with_state(state)
 }

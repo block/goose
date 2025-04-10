@@ -77,12 +77,22 @@ export default function GooseMessage({
   useEffect(() => {
     // If the message is the last message in the resumed session and has tool confirmation, it means the tool confirmation
     // is broken or cancelled, to contonue use the session, we need to append a tool response to avoid mismatch tool result error.
-    if (messageIndex == messageHistoryIndex - 1 && hasToolConfirmation) {
+    if (
+      messageIndex === messageHistoryIndex - 1 &&
+      hasToolConfirmation &&
+      toolConfirmationContent
+    ) {
       appendMessage(
         createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
       );
     }
-  }, []);
+  }, [
+    messageIndex,
+    messageHistoryIndex,
+    hasToolConfirmation,
+    toolConfirmationContent,
+    appendMessage,
+  ]);
 
   return (
     <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">

@@ -1,6 +1,13 @@
-import { toast } from 'react-toastify';
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { type View } from './App';
+
+interface SessionLinksViewOptions {
+  sessionDetails?: SharedSessionDetails | null;
+  error?: string;
+  shareToken?: string;
+  baseUrl?: string;
+  [key: string]: unknown;
+}
 
 /**
  * Handles opening a shared session from a deep link
@@ -11,7 +18,7 @@ import { type View } from './App';
  */
 export async function openSharedSessionFromDeepLink(
   url: string,
-  setView: (view: View, options?: Record<string, any>) => void,
+  setView: (view: View, options?: SessionLinksViewOptions) => void,
   baseUrl?: string
 ): Promise<SharedSessionDetails | null> {
   try {

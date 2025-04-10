@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { getActiveProviders } from './utils';
+import SuspenseLoader from '../../../suspense-loader';
 
 // Create a context for active keys
 const ActiveKeysContext = createContext<
@@ -33,7 +34,7 @@ export const ActiveKeysProvider = ({ children }: { children: ReactNode }) => {
   // Provide active keys and ability to update them
   return (
     <ActiveKeysContext.Provider value={{ activeKeys, setActiveKeys }}>
-      {!isLoading ? children : <div>Loading...</div>} {/* Conditional rendering */}
+      {!isLoading ? children : <SuspenseLoader />}
     </ActiveKeysContext.Provider>
   );
 };

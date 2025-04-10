@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ChatType } from '../components/ChatView';
 import { fetchSessionDetails, generateSessionId } from '../sessions';
+import { View, ViewOptions } from '../App';
 
 type UseChatArgs = {
   setIsLoadingSession: (isLoading: boolean) => void;
-  setView: (view: string) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
 };
 export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
   const [chat, setChat] = useState<ChatType>({
@@ -49,6 +50,8 @@ export const useChat = ({ setIsLoadingSession, setView }: UseChatArgs) => {
     };
 
     checkForResumeSession();
+    // todo: rework this to allow for exhaustive deps currently throws app in error loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { chat, setChat };

@@ -204,6 +204,7 @@ async fn add_extension(
                 envs: Envs::new(env_map),
                 description: None,
                 timeout,
+                bundled: None,
             }
         }
         ExtensionConfigRequest::Stdio {
@@ -254,6 +255,7 @@ async fn add_extension(
                 description: None,
                 envs: Envs::new(env_map),
                 timeout,
+                bundled: None,
             }
         }
         ExtensionConfigRequest::Builtin {
@@ -264,6 +266,7 @@ async fn add_extension(
             name,
             display_name,
             timeout,
+            bundled: None,
         },
         ExtensionConfigRequest::Frontend {
             name,
@@ -273,6 +276,7 @@ async fn add_extension(
             name,
             tools,
             instructions,
+            bundled: None,
         },
     };
 

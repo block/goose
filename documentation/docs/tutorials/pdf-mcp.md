@@ -1,15 +1,15 @@
 ---
-title: PDF Extension
-description: Add PDF MCP Server as a Goose Extension
+title: PDF Reader Extension
+description: Add PDF Reader MCP Server as a Goose Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EJf2_iZfaWk" />
 
-This tutorial covers how to add the [PDF MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a Goose extension, enabling Goose to read and extract text from protected and unprotected PDFs.
+This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a Goose extension, enabling Goose to read and extract text from protected and unprotected PDFs.
 
 :::tip TLDR
 
@@ -154,7 +154,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-This example shows how to use the PDF Extension to analyze an applicant's resume for specific attributes. With the PDF extension, Goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
+This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, Goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
 
 ### Goose Prompt
 

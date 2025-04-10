@@ -358,10 +358,17 @@ fn print_tool_header(call: &ToolCall) {
     println!("{}", tool_header);
 }
 
+// Respect NO_COLOR, as https://crates.io/crates/console already does
+pub fn env_no_color() -> bool {
+    // if NO_COLOR is defined at all disable colors
+    std::env::var_os("NO_COLOR").is_none()
+}
+
 fn print_markdown(content: &str, theme: Theme) {
     bat::PrettyPrinter::new()
         .input(bat::Input::from_bytes(content.as_bytes()))
         .theme(theme.as_str())
+        .colored_output(env_no_color())
         .language("Markdown")
         .wrapping_mode(WrappingMode::NoWrapping(true))
         .print()

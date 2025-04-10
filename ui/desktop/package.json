@@ -5,6 +5,7 @@
   "description": "Goose App",
   "main": ".vite/build/main.js",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "generate-api": "openapi-ts",
     "start-gui": "npm run generate-api && electron-forge start",
     "start": "cd ../.. && just run-ui",
@@ -19,8 +20,8 @@
     "test-e2e:ui": "npm run generate-api && playwright test --ui",
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" --fix",
-    "lint:check": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" --fix --no-warn-ignored",
+    "lint:check": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0 --no-warn-ignored",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "prepare": "cd ../.. && husky install",
@@ -36,6 +37,7 @@
     "@electron-forge/plugin-fuses": "^7.5.0",
     "@electron-forge/plugin-vite": "^7.5.0",
     "@electron/fuses": "^1.8.0",
+    "@electron/remote": "^2.1.2",
     "@eslint/js": "^8.56.0",
     "@hey-api/openapi-ts": "^0.64.4",
     "@modelcontextprotocol/sdk": "^1.8.0",
@@ -43,6 +45,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@types/cors": "^2.8.17",
     "@types/electron-squirrel-startup": "^1.0.2",
+    "@types/electron-window-state": "^2.0.34",
     "@types/express": "^5.0.0",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
@@ -63,7 +66,7 @@
   "license": "Apache-2.0",
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
-      "eslint --fix",
+      "eslint --fix --max-warnings 0 --no-warn-ignored",
       "prettier --write"
     ],
     "src/**/*.{css,json}": [
