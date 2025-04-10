@@ -96,7 +96,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     if (attemptedSubmit) {
       validateForm();
     }
-  }, [provider, model, attemptedSubmit, validateForm]);
+  }, [attemptedSubmit, validateForm]);
 
   useEffect(() => {
     (async () => {
@@ -144,7 +144,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
         console.error('Failed to load providers:', error);
       }
     })();
-  }, [getProviders]);
+  }, []);
 
   // Filter model options based on selected provider
   const filteredModelOptions = provider

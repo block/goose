@@ -28,11 +28,11 @@ export default function ExtensionsSection() {
     // Sort extensions by name to maintain consistent order
     const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
     setExtensions(sortedExtensions);
-  }, [getExtensions]);
+  }, []);
 
   useEffect(() => {
     fetchExtensions();
-  }, [fetchExtensions]);
+  }, []);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     // If extension is enabled, we are trying to toggle if off, otherwise on

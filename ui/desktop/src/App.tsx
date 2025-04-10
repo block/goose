@@ -147,7 +147,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension]);
+  }, []);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);

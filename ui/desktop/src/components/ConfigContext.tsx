@@ -87,7 +87,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       });
       await reloadConfig();
     },
-    [reloadConfig]
+    []
   );
 
   const read = useCallback(async (key: string, is_secret: boolean = false) => {
@@ -106,7 +106,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       });
       await reloadConfig();
     },
-    [reloadConfig]
+    []
   );
 
   const addExtension = useCallback(
@@ -121,7 +121,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       });
       await reloadConfig();
     },
-    [reloadConfig]
+    []
   );
 
   const removeExtension = useCallback(
@@ -129,7 +129,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       await apiRemoveExtension({ path: { name: name } });
       await reloadConfig();
     },
-    [reloadConfig]
+    []
   );
 
   const getExtensions = useCallback(
@@ -164,7 +164,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         await addExtension(name, extension, !extension.enabled);
       }
     },
-    [addExtension, getExtensions]
+    []
   );
 
   const getProviders = useCallback(

@@ -40,22 +40,11 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     } catch (error) {
       console.error('Error loading model data:', error);
     }
-  }, [read, getProviders]);
+  }, []);
 
   useEffect(() => {
-    // Initial load
     loadModelData();
-
-    // Set up polling interval to check for changes
-    const interval = setInterval(() => {
-      loadModelData();
-    }, 1000); // Check every second
-
-    // Clean up interval on unmount
-    return () => {
-      clearInterval(interval);
-    };
-  }, [loadModelData]);
+  }, []);
 
   return (
     <section id="models" className="px-8">
