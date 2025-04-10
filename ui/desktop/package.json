@@ -3,6 +3,9 @@
   "productName": "Goose",
   "version": "1.0.17",
   "description": "Goose App",
+  "engines": {
+    "node": "^23.0.0"
+  },
   "main": ".vite/build/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
