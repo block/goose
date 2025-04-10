@@ -4,7 +4,7 @@ import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { HammerIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
-const SUGGESTED_MAX_TOOLS = 10;
+const SUGGESTED_MAX_TOOLS = 24;
 
 export default function ToolCount() {
   const [toolCount, setToolCount] = useState(null);
@@ -18,7 +18,9 @@ export default function ToolCount() {
           console.error('failed to get tool count');
           setError(true);
         } else {
-          setToolCount(response.data.length);
+          if (response) {
+            setToolCount(response.data.length);
+          }
         }
       } catch (err) {
         console.error('Error fetching tools:', err);
