@@ -503,6 +503,10 @@ impl Agent {
                             let mut tool_futures = Vec::new();
                             let mut install_results = Vec::new();
 
+                            let denied_content_text = Content::text(
+                                "The user has declined to run this tool. \
+                                DO NOT attempt to call this tool again. \
+                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             // Handle install extension requests
                             for request in &enable_extension_requests {
                                 if let Ok(tool_call) = request.tool_call.clone() {
@@ -525,6 +529,12 @@ impl Agent {
                                                     .to_string();
                                                 let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
+                                            } else {
+                                                // User declined - add declined response
+                                                message_tool_response = message_tool_response.with_tool_response(
+                                                    request.id.clone(),
+                                                    Ok(vec![denied_content_text.clone()]),
+                                                );
                                             }
                                             break;
                                         }
@@ -541,10 +551,6 @@ impl Agent {
                                 }
                             }
 
-                            let denied_content_text = Content::text(
-                                "The user has declined to run this tool. \
-                                DO NOT attempt to call this tool again. \
-                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             for request in &permission_check_result.denied {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request.id.clone(),
