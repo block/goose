@@ -463,30 +463,41 @@ impl Agent {
                             }
                         }
 
-                        // Split tool requests into enable_extension and others
-                        let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
-
-                        // If there are install extension requests, always require confirmation
-                        // or if goose_mode is approve or smart_approve, check permissions for all tools
-                        if !enable_extension_requests.is_empty() || mode.as_str() != "chat" {
+                        if mode.as_str() == "chat" {
+                            // Skip all tool calls in chat mode
+                            for request in remaining_requests {
+                                message_tool_response = message_tool_response.with_tool_response(
+                                    request.id.clone(),
+                                    Ok(vec![Content::text(
+                                        "Let the user know the tool call was skipped in Goose chat mode. \
+                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                        Provide an explanation of what the tool call would do, structured as a \
+                                        plan for the user. Again, DO NOT apologize. \
+                                        **Example Plan:**\n \
+                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                        2. **Outline Steps** - Break down the steps.\n \
+                                        If needed, adjust the explanation based on user preferences or questions."
+                                    )]),
+                                );
+                            }
+                        } else {
+                            // Split tool requests into enable_extension and others
+                            let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
+                                .into_iter()
+                                .partition(|req| {
+                                    req.tool_call.as_ref()
+                                        .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
+                                        .unwrap_or(false)
+                                });
                             let mut permission_manager = PermissionManager::default();
-                            let permission_check_result = check_tool_permissions(
-                                non_enable_extension_requests.clone(),
-                                &mode,
-                                tools_with_readonly_annotation.clone(),
-                                tools_without_annotation.clone(),
-                                &mut permission_manager,
-                                self.provider(),
-                            ).await;
+                            let permission_check_result = check_tool_permissions(non_enable_extension_requests,
+                                                            &mode,
+                                                            tools_with_readonly_annotation.clone(),
+                                                            tools_without_annotation.clone(),
+                                                            &mut permission_manager,
+                                                            self.provider()).await;
 
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures = Vec::new();
@@ -541,7 +552,7 @@ impl Agent {
                                 );
                             }
 
-                            // Process needs-approval tools
+                            // Process read-only tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
@@ -608,34 +619,6 @@ impl Agent {
                                 }
                                 tools.push(platform_tools::search_available_extensions_tool());
                                 tools.push(platform_tools::enable_extension_tool());
-                            }
-                        }
-
-                        if mode.as_str() == "chat" {
-                            // Skip all tool calls in chat mode
-                            // Skip search extension requests since they were already processed
-                            let non_search_non_enable_extension_requests = non_enable_extension_requests.iter()
-                                .filter(|req| {
-                                    if let Ok(tool_call) = &req.tool_call {
-                                        tool_call.name != PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
-                                    } else {
-                                        true
-                                    }
-                                });
-                            for request in non_search_non_enable_extension_requests {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(
-                                        "Let the user know the tool call was skipped in Goose chat mode. \
-                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
-                                        Provide an explanation of what the tool call would do, structured as a \
-                                        plan for the user. Again, DO NOT apologize. \
-                                        **Example Plan:**\n \
-                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                        2. **Outline Steps** - Break down the steps.\n \
-                                        If needed, adjust the explanation based on user preferences or questions."
-                                    )]),
-                                );
                             }
                         }
 

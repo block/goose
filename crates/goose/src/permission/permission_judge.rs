@@ -1,4 +1,3 @@
-use crate::agents::platform_tools::PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -173,12 +172,6 @@ pub async fn check_tool_permissions(
 
     for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
-            // Special case for search extention tool, it should always be in approved list
-            if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
-                approved.push(request.clone());
-                continue;
-            }
-
             if mode == "chat" {
                 continue;
             } else if mode == "auto" {
