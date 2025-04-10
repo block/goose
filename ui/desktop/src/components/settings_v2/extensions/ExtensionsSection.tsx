@@ -14,15 +14,22 @@ import {
 } from './utils';
 
 import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
+import {ExtensionConfig} from "../../../api/types.gen";
 
-export default function ExtensionsSection() {
+interface ExtensionSectionProps {
+  deepLinkConfig?: ExtensionConfig,
+  needsEnvVars?: boolean,
+}
+
+export default function ExtensionsSection({deepLinkConfig, needsEnvVars}: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // We don't need errorFormData anymore since we're not reopening modals on failure
-
+  const [deepLinkConfigStateVar, setDeepLinkConfigStateVar] = useState<ExtensionConfig | undefined | null>(deepLinkConfig)
+  const [needsEnvVarsStateVar, setNeedsEnvVarsStateVar] = useState<boolean | undefined | null>(needsEnvVars)
+  
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
@@ -115,6 +122,9 @@ export default function ExtensionsSection() {
   };
 
   const handleModalClose = () => {
+    setDeepLinkConfigStateVar(null)
+    setNeedsEnvVarsStateVar(null)
+
     setIsModalOpen(false);
     setIsAddModalOpen(false);
     setSelectedExtension(null);
@@ -177,6 +187,18 @@ export default function ExtensionsSection() {
             submitLabel="Add Extension"
             modalType={'add'}
           />
+        )}
+
+        {/* Modal for adding extension from deeplink*/}
+        {deepLinkConfigStateVar && needsEnvVarsStateVar && (
+            <ExtensionModal
+                title="Add custom extension"
+                initialData={extensionToFormData({...deepLinkConfig, enabled: true})}
+                onClose={handleModalClose}
+                onSubmit={handleAddExtension}
+                submitLabel="Add Extension"
+                modalType={'add'}
+            />
         )}
       </div>
     </section>
