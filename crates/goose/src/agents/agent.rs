@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 
+use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, instrument, warn};
@@ -21,6 +22,7 @@ use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
+use crate::recipe::{Author, Recipe};
 use crate::session;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
@@ -786,5 +788,117 @@ impl Agent {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             tracing::error!("Failed to send tool result: {}", e);
         }
+    }
+
+    pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
+        let mut extension_manager = self.extension_manager.lock().await;
+        let extensions_info = extension_manager.get_extensions_info().await;
+        let system_prompt = self
+            .prompt_manager
+            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
+
+        let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
+        let tools = extension_manager.get_prefixed_tools().await?;
+
+        messages.push(Message::user().with_text(recipe_prompt));
+
+        let (result, _usage) = self
+            .provider
+            .complete(&system_prompt, &messages, &tools)
+            .await?;
+
+        let content = result.as_concat_text();
+
+        // the response may be contained in ```json ```, strip that before parsing json
+        let re = Regex::new(r"(?s)^```[^\n]*\n(.*?)\n```$").unwrap();
+        let clean_content = re
+            .captures(&content)
+            .and_then(|caps| caps.get(1).map(|m| m.as_str()))
+            .unwrap_or(&content)
+            .trim()
+            .to_string();
+
+        // try to parse json response from the LLM
+        let (instructions, activities) =
+            if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                let instructions = json_content
+                    .get("instructions")
+                    .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
+                    .as_str()
+                    .ok_or_else(|| anyhow!("instructions' is not a string"))?
+                    .to_string();
+
+                let activities = json_content
+                    .get("activities")
+                    .ok_or_else(|| anyhow!("Missing 'activities' in json response"))?
+                    .as_array()
+                    .ok_or_else(|| anyhow!("'activities' is not an array'"))?
+                    .iter()
+                    .map(|act| {
+                        act.as_str()
+                            .map(|s| s.to_string())
+                            .ok_or(anyhow!("'activities' array element is not a string"))
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                (instructions, activities)
+            } else {
+                // If we can't get valid JSON, try string parsing
+                // Use split_once to get the content after "Instructions:".
+                let after_instructions = content
+                    .split_once("instructions:")
+                    .map(|(_, rest)| rest)
+                    .unwrap_or(&content);
+
+                // Split once more to separate instructions from activities.
+                let (instructions_part, activities_text) = after_instructions
+                    .split_once("activities:")
+                    .unwrap_or((after_instructions, ""));
+
+                let instructions = instructions_part
+                    .trim_end_matches(|c: char| c.is_whitespace() || c == '#')
+                    .trim()
+                    .to_string();
+                let activities_text = activities_text.trim();
+
+                // Regex to remove bullet markers or numbers with an optional dot.
+                let bullet_re = Regex::new(r"^[•\-\*\d]+\.?\s*").expect("Invalid regex");
+
+                // Process each line in the activities section.
+                let activities: Vec<String> = activities_text
+                    .lines()
+                    .map(|line| bullet_re.replace(line, "").to_string())
+                    .map(|s| s.trim().to_string())
+                    .filter(|line| !line.is_empty())
+                    .collect();
+
+                (instructions, activities)
+            };
+
+        let extensions = ExtensionConfigManager::get_all().unwrap_or_default();
+        let extension_configs: Vec<_> = extensions
+            .iter()
+            .filter(|e| e.enabled)
+            .map(|e| e.config.clone())
+            .collect();
+
+        let author = Author {
+            contact: std::env::var("USER")
+                .or_else(|_| std::env::var("USERNAME"))
+                .ok(),
+            metadata: None,
+        };
+
+        let recipe = Recipe::builder()
+            .title("Custom recipe from chat")
+            .description("a custom recipe instance from this chat session")
+            .instructions(instructions)
+            .activities(activities)
+            .extensions(extension_configs)
+            .author(author)
+            .build()
+            .expect("valid recipe");
+
+        Ok(recipe)
     }
 }

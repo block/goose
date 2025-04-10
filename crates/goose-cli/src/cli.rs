@@ -1,16 +1,18 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
-use goose::config::Config;
+use goose::config::{Config, ExtensionConfig};
 
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
+use crate::commands::recipe::{handle_deeplink, handle_validate};
 use crate::commands::session::handle_session_list;
 use crate::logging::setup_logging;
+use crate::recipe::load_recipe;
 use crate::session;
-use crate::session::build_session;
+use crate::session::{build_session, SessionBuilderConfig};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -116,6 +118,25 @@ pub enum BenchCommand {
 }
 
 #[derive(Subcommand)]
+enum RecipeCommand {
+    /// Validate a recipe file
+    #[command(about = "Validate a recipe file")]
+    Validate {
+        /// Path to the recipe file to validate
+        #[arg(help = "Path to the recipe file to validate")]
+        file: String,
+    },
+
+    /// Generate a deeplink for a recipe file
+    #[command(about = "Generate a deeplink for a recipe file")]
+    Deeplink {
+        /// Path to the recipe file
+        #[arg(help = "Path to the recipe file")]
+        file: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure Goose settings
     #[command(about = "Configure Goose settings")]
@@ -170,7 +191,7 @@ enum Command {
             long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
             action = clap::ArgAction::Append
         )]
-        extension: Vec<String>,
+        extensions: Vec<String>,
 
         /// Add remote extensions with a URL
         #[arg(
@@ -180,7 +201,7 @@ enum Command {
             long_help = "Add remote extensions from a URL. Can be specified multiple times. Format: 'url...'",
             action = clap::ArgAction::Append
         )]
-        remote_extension: Vec<String>,
+        remote_extensions: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
@@ -190,7 +211,7 @@ enum Command {
             long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
             value_delimiter = ','
         )]
-        builtin: Vec<String>,
+        builtins: Vec<String>,
     },
 
     /// Execute commands from an instruction file
@@ -202,7 +223,8 @@ enum Command {
             long,
             value_name = "FILE",
             help = "Path to instruction file containing commands. Use - for stdin.",
-            conflicts_with = "input_text"
+            conflicts_with = "input_text",
+            conflicts_with = "recipe"
         )]
         instructions: Option<String>,
 
@@ -213,9 +235,22 @@ enum Command {
             value_name = "TEXT",
             help = "Input text to provide to Goose directly",
             long_help = "Input text containing commands for Goose. Use this in lieu of the instructions argument.",
-            conflicts_with = "instructions"
+            conflicts_with = "instructions",
+            conflicts_with = "recipe"
         )]
         input_text: Option<String>,
+
+        /// Path to recipe.yaml file
+        #[arg(
+            short = None,
+            long = "recipe",
+            value_name = "FILE",
+            help = "Path to recipe.yaml file",
+            long_help = "Path to a recipe.yaml file that defines a custom agent configuration",
+            conflicts_with = "instructions",
+            conflicts_with = "input_text"
+        )]
+        recipe: Option<String>,
 
         /// Continue in interactive mode after processing input
         #[arg(
@@ -255,7 +290,7 @@ enum Command {
             long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
             action = clap::ArgAction::Append
         )]
-        extension: Vec<String>,
+        extensions: Vec<String>,
 
         /// Add remote extensions
         #[arg(
@@ -265,7 +300,7 @@ enum Command {
             long_help = "Add remote extensions. Can be specified multiple times. Format: 'url...'",
             action = clap::ArgAction::Append
         )]
-        remote_extension: Vec<String>,
+        remote_extensions: Vec<String>,
 
         /// Add builtin extensions by name
         #[arg(
@@ -275,7 +310,14 @@ enum Command {
             long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
             value_delimiter = ','
         )]
-        builtin: Vec<String>,
+        builtins: Vec<String>,
+    },
+
+    /// Recipe utilities for validation and deeplinking
+    #[command(about = "Recipe utilities for validation and deeplinking")]
+    Recipe {
+        #[command(subcommand)]
+        command: RecipeCommand,
     },
 
     /// Update the Goose CLI version
@@ -308,6 +350,12 @@ enum CliProviderVariant {
     Ollama,
 }
 
+struct InputConfig {
+    contents: Option<String>,
+    extensions_override: Option<Vec<ExtensionConfig>>,
+    additional_system_prompt: Option<String>,
+}
+
 pub async fn cli() -> Result<()> {
     let cli = Cli::parse();
 
@@ -328,9 +376,9 @@ pub async fn cli() -> Result<()> {
             identifier,
             resume,
             debug,
-            extension,
-            remote_extension,
-            builtin,
+            extensions,
+            remote_extensions,
+            builtins,
         }) => {
             return match command {
                 Some(SessionCommand::List { verbose, format }) => {
@@ -339,14 +387,16 @@ pub async fn cli() -> Result<()> {
                 }
                 None => {
                     // Run session command by default
-                    let mut session = build_session(
-                        identifier.map(extract_identifier),
+                    let mut session = build_session(SessionBuilderConfig {
+                        identifier: identifier.map(extract_identifier),
                         resume,
-                        extension,
-                        remote_extension,
-                        builtin,
+                        extensions,
+                        remote_extensions,
+                        builtins,
+                        extensions_override: None,
+                        additional_system_prompt: None,
                         debug,
-                    )
+                    })
                     .await;
                     setup_logging(
                         session.session_file().file_stem().and_then(|s| s.to_str()),
@@ -360,44 +410,74 @@ pub async fn cli() -> Result<()> {
         Some(Command::Run {
             instructions,
             input_text,
+            recipe,
             interactive,
             identifier,
             resume,
             debug,
-            extension,
-            remote_extension,
-            builtin,
+            extensions,
+            remote_extensions,
+            builtins,
         }) => {
-            let contents = match (instructions, input_text) {
-                (Some(file), _) if file == "-" => {
-                    let mut stdin = String::new();
+            let input_config = match (instructions, input_text, recipe) {
+                (Some(file), _, _) if file == "-" => {
+                    let mut input = String::new();
                     std::io::stdin()
-                        .read_to_string(&mut stdin)
+                        .read_to_string(&mut input)
                         .expect("Failed to read from stdin");
-                    stdin
+
+                    InputConfig {
+                        contents: Some(input),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    }
                 }
-                (Some(file), _) => std::fs::read_to_string(&file).unwrap_or_else(|err| {
-                    eprintln!(
-                        "Instruction file not found — did you mean to use goose run --text?\n{}",
-                        err
-                    );
-                    std::process::exit(1);
-                }),
-                (None, Some(text)) => text,
-                (None, None) => {
-                    eprintln!("Error: Must provide either --instructions (-i) or --text (-t). Use -i - for stdin.");
+                (Some(file), _, _) => {
+                    let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
+                        eprintln!(
+                            "Instruction file not found — did you mean to use goose run --text?\n{}",
+                            err
+                        );
+                        std::process::exit(1);
+                    });
+                    InputConfig {
+                        contents: Some(contents),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    }
+                }
+                (_, Some(text), _) => InputConfig {
+                    contents: Some(text),
+                    extensions_override: None,
+                    additional_system_prompt: None,
+                },
+                (_, _, Some(file)) => {
+                    let recipe = load_recipe(&file, true).unwrap_or_else(|err| {
+                        eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                        std::process::exit(1);
+                    });
+                    InputConfig {
+                        contents: recipe.prompt,
+                        extensions_override: recipe.extensions,
+                        additional_system_prompt: Some(recipe.instructions),
+                    }
+                }
+                (None, None, None) => {
+                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe (-r). Use -i - for stdin.");
                     std::process::exit(1);
                 }
             };
 
-            let mut session = build_session(
-                identifier.map(extract_identifier),
+            let mut session = build_session(SessionBuilderConfig {
+                identifier: identifier.map(extract_identifier),
                 resume,
-                extension,
-                remote_extension,
-                builtin,
+                extensions,
+                remote_extensions,
+                builtins,
+                extensions_override: input_config.extensions_override,
+                additional_system_prompt: input_config.additional_system_prompt,
                 debug,
-            )
+            })
             .await;
 
             setup_logging(
@@ -406,9 +486,12 @@ pub async fn cli() -> Result<()> {
             )?;
 
             if interactive {
-                session.interactive(Some(contents)).await?;
-            } else {
+                session.interactive(input_config.contents).await?;
+            } else if let Some(contents) = input_config.contents {
                 session.headless(contents).await?;
+            } else {
+                eprintln!("Error: no text provided for prompt in headless mode");
+                std::process::exit(1);
             }
 
             return Ok(());
@@ -432,13 +515,24 @@ pub async fn cli() -> Result<()> {
             }
             return Ok(());
         }
+        Some(Command::Recipe { command }) => {
+            match command {
+                RecipeCommand::Validate { file } => {
+                    handle_validate(file)?;
+                }
+                RecipeCommand::Deeplink { file } => {
+                    handle_deeplink(file)?;
+                }
+            }
+            return Ok(());
+        }
         None => {
             return if !Config::global().exists() {
                 let _ = handle_configure().await;
                 Ok(())
             } else {
                 // Run session command by default
-                let mut session = build_session(None, false, vec![], vec![], vec![], false).await;
+                let mut session = build_session(SessionBuilderConfig::default()).await;
                 setup_logging(
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,
