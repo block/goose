@@ -92,6 +92,11 @@ impl Evaluation for DeveloperSearchReplace {
             EvalMetricValue::Boolean(changes_match),
         ));
 
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float((changes_match as u8) as f64 / 1.0),
+        ));
+
         Ok(metrics)
     }
 
