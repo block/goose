@@ -401,6 +401,18 @@ impl Agent {
                             metadata.total_tokens = usage.usage.total_tokens;
                             metadata.input_tokens = usage.usage.input_tokens;
                             metadata.output_tokens = usage.usage.output_tokens;
+
+                            let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
+                                match (a, b) {
+                                    (Some(x), Some(y)) => Some(x + y),
+                                    _ => a.or(b)
+                                }
+                            };
+
+                            metadata.accumulated_total_tokens = accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
+                            metadata.accumulated_input_tokens = accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
+                            metadata.accumulated_output_tokens = accumulate(metadata.accumulated_output_tokens, usage.usage.output_tokens);
+
                             // The message count is the number of messages in the session + 1 for the response
                             // The message count does not include the tool response till next iteration
                             metadata.message_count = messages.len() + 1;
