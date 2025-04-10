@@ -169,7 +169,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 In this example, I’ll show you how to use Goose with the Blender Extension to build an entire 3D campfire scene from scratch. By automating Blender controls through natural language, Goose can create objects like logs and fireballs, apply realistic materials, add lighting effects, generate particles for sparks, create subtle smoke, and even animate the fire to gently pulse over time.
 
-This allows you to design complex, cinematic 3D environments without needing to manually place objects or adjust settings in Blender. Goose handles the entire scene setup hands-free, letting you focus on creativity instead of technical Blender workflows.
+In this example, I’ll show you how to use Goose with the Blender Extension to build a full 3D campfire scene, including logs, fireballs, lighting, and subtle fire animation, just by describing what you want.
 
 ### Goose Prompt
 
