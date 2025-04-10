@@ -28,10 +28,11 @@ export default function ExtensionsSection() {
     // Sort extensions by name to maintain consistent order
     const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
     setExtensions(sortedExtensions);
-  }, []);
+  }, [getExtensions]);
 
   useEffect(() => {
     fetchExtensions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {

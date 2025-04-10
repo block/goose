@@ -27,7 +27,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
       setProvider(modelProvider.provider);
       setModel(modelProvider.model);
     })();
-  }, []);
+  });
 
   // Add click outside handler
   useEffect(() => {

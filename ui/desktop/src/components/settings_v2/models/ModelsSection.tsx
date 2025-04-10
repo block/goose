@@ -40,10 +40,11 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     } catch (error) {
       console.error('Error loading model data:', error);
     }
-  }, []);
+  }, [read, getProviders]);
 
   useEffect(() => {
     loadModelData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
