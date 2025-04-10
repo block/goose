@@ -472,36 +472,21 @@ impl Agent {
                                     .unwrap_or(false)
                             });
 
-                        let (search_extension_requests, _non_search_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
 
                         // If there are install extension requests, always require confirmation
                         // or if goose_mode is approve or smart_approve, check permissions for all tools
-                        if !enable_extension_requests.is_empty() || mode.as_str() == "approve" || mode.as_str() == "smart_approve" {
+                        if !enable_extension_requests.is_empty() || mode.as_str() != "chat" {
                             let mut permission_manager = PermissionManager::default();
-                            // Skip the platform tools
-                            remaining_requests.retain(|req| {
-                                if let Ok(tool_call) = &req.tool_call {
-                                    !tool_call.name.starts_with("platform__")
-                                } else {
-                                    true // If there's an error (Err), don't skip the request
-                                }
-                            });
-                            let permission_check_result = check_tool_permissions(remaining_requests,
-                                                            &mode,
-                                                            tools_with_readonly_annotation.clone(),
-                                                            tools_without_annotation.clone(),
-                                                            &mut permission_manager,
-                                                            self.provider()).await;
-
+                            let permission_check_result = check_tool_permissions(
+                                non_enable_extension_requests.clone(),
+                                &mode,
+                                tools_with_readonly_annotation.clone(),
+                                tools_without_annotation.clone(),
+                                &mut permission_manager,
+                                self.provider(),
+                            ).await;
 
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures = Vec::new();
@@ -556,7 +541,7 @@ impl Agent {
                                 );
                             }
 
-                            // Process read-only tools
+                            // Process needs-approval tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
@@ -617,31 +602,12 @@ impl Agent {
                                 let extensions_info = extension_manager.get_extensions_info().await;
                                 system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
                                 tools = extension_manager.get_prefixed_tools().await?;
-                            }
-                        }
-
-                        if mode.as_str() == "auto" || !search_extension_requests.is_empty() {
-                            let mut tool_futures = Vec::new();
-                            // Process non_enable_extension_requests and search_extension_requests without duplicates
-                            let mut processed_ids = HashSet::new();
-
-                            for request in non_enable_extension_requests.iter().chain(search_extension_requests.iter()) {
-                                if processed_ids.insert(request.id.clone()) {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
-                                        tool_futures.push(tool_future);
-                                    }
+                                if extension_manager.supports_resources() {
+                                    tools.push(platform_tools::read_resource_tool());
+                                    tools.push(platform_tools::list_resources_tool());
                                 }
-                            }
-
-                            // Wait for all tool calls to complete
-                            let results = futures::future::join_all(tool_futures).await;
-                            for (request_id, output) in results {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request_id,
-                                    output,
-                                );
+                                tools.push(platform_tools::search_available_extensions_tool());
+                                tools.push(platform_tools::enable_extension_tool());
                             }
                         }
 
