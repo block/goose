@@ -667,6 +667,7 @@ mod tests {
             "npx -y @mic/mcp_mic2@latest",
             "npx @mic/mcp_mic3",
             "npx @mic/mcp_mic4@latest",
+            "executor thing",
             "minecraft",
         ]);
 
@@ -694,6 +695,21 @@ mod tests {
         ));
 
         assert!(is_command_allowed_with_allowlist(
+            "executor thing",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor thing2",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor2 thing",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
             "npx -y @mic/mcp_mic",
             &allowlist
         ));
@@ -712,9 +728,6 @@ mod tests {
             "npx -y @mic/mcp_mic4@latest",
             &allowlist
         ));
-
-
-
 
         // Get the current executable directory for reference
         let current_exe = std::env::current_exe().unwrap();
