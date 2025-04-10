@@ -1,4 +1,3 @@
-import React from 'react';
 import { getApiUrl, getSecretKey } from './config';
 import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
@@ -6,7 +5,6 @@ import { toast } from 'react-toastify';
 
 import builtInExtensionsData from './built-in-extensions.json';
 import { toastError, toastLoading, toastSuccess } from './toasts';
-import { Toast } from 'react-toastify/dist/components';
 
 // Hardcoded default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -214,7 +212,9 @@ export async function loadAndAddStoredExtensions() {
 
     if (userSettingsStr) {
       const userSettings = JSON.parse(userSettingsStr);
-      const enabledExtensions = userSettings.extensions.filter((ext: any) => ext.enabled);
+      const enabledExtensions = userSettings.extensions.filter(
+        (ext: FullExtensionConfig) => ext.enabled
+      );
       console.log('Adding extensions from localStorage: ', enabledExtensions);
       for (const ext of enabledExtensions) {
         await addExtension(ext, true);

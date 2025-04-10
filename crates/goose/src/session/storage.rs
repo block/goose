@@ -31,6 +31,12 @@ pub struct SessionMetadata {
     pub input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Retrieved from the provider's last usage.
     pub output_tokens: Option<i32>,
+    /// The total number of tokens used in the session. Accumulated across all messages.
+    pub accumulated_total_tokens: Option<i32>,
+    /// The number of input tokens used in the session. Accumulated across all messages.
+    pub accumulated_input_tokens: Option<i32>,
+    /// The number of output tokens used in the session. Accumulated across all messages.
+    pub accumulated_output_tokens: Option<i32>,
 }
 
 // Custom deserializer to handle old sessions without working_dir
@@ -46,6 +52,9 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             total_tokens: Option<i32>,
             input_tokens: Option<i32>,
             output_tokens: Option<i32>,
+            accumulated_total_tokens: Option<i32>,
+            accumulated_input_tokens: Option<i32>,
+            accumulated_output_tokens: Option<i32>,
             working_dir: Option<PathBuf>,
         }
 
@@ -57,6 +66,9 @@ impl<'de> Deserialize<'de> for SessionMetadata {
             total_tokens: helper.total_tokens,
             input_tokens: helper.input_tokens,
             output_tokens: helper.output_tokens,
+            accumulated_total_tokens: helper.accumulated_total_tokens,
+            accumulated_input_tokens: helper.accumulated_input_tokens,
+            accumulated_output_tokens: helper.accumulated_output_tokens,
             working_dir: helper.working_dir.unwrap_or_else(get_home_dir),
         })
     }
@@ -71,6 +83,9 @@ impl SessionMetadata {
             total_tokens: None,
             input_tokens: None,
             output_tokens: None,
+            accumulated_total_tokens: None,
+            accumulated_input_tokens: None,
+            accumulated_output_tokens: None,
         }
     }
 }

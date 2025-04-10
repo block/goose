@@ -72,7 +72,13 @@ const ProviderCards = memo(function ProviderCards({
         isOnboarding={isOnboarding}
       />
     ));
-  }, [providers, isOnboarding, configureProviderViaModal, onProviderLaunch]);
+  }, [
+    providers,
+    isOnboarding,
+    configureProviderViaModal,
+    deleteProviderConfigViaModal,
+    onProviderLaunch,
+  ]);
 
   return <>{providerCards}</>;
 });

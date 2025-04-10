@@ -7,7 +7,6 @@ import { ProviderDetails } from '../../../api/types.gen';
 import { initializeSystem } from '../../../utils/providerUtils';
 import WelcomeGooseLogo from '../../WelcomeGooseLogo';
 import { toastService } from '../../../toasts';
-import { toast } from 'react-toastify';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -84,7 +83,7 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
       });
       onClose();
     },
-    [onClose, upsert]
+    [onClose, upsert, getExtensions, addExtension]
   );
 
   return (

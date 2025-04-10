@@ -4,7 +4,6 @@ import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { FullExtensionConfig, DEFAULT_EXTENSION_TIMEOUT } from '../../../extensions';
 import { Select } from '../../ui/Select';
-import { createDarkSelectStyles, darkSelectTheme } from '../../ui/select-styles';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastError } from '../../../toasts';
 

@@ -2,8 +2,16 @@ import { ChevronUp } from 'lucide-react';
 import React, { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
 
+type ToolCallArgumentValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ToolCallArgumentValue[]
+  | { [key: string]: ToolCallArgumentValue };
+
 interface ToolCallArgumentsProps {
-  args: Record<string, any>;
+  args: Record<string, ToolCallArgumentValue>;
 }
 
 export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
@@ -13,7 +21,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     setExpandedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const renderValue = (key: string, value: any) => {
+  const renderValue = (key: string, value: ToolCallArgumentValue) => {
     if (typeof value === 'string') {
       const needsExpansion = value.length > 60;
       const isExpanded = expandedKeys[key];
@@ -45,18 +53,12 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                 onClick={() => toggleKey(key)}
                 className="text-sm hover:opacity-75 text-textStandard"
               >
-                {/* {isExpanded ? '▼ ' : '▶ '} */}
                 <ChevronUp
                   className={`h-5 w-5 transition-all origin-center ${!isExpanded ? 'rotate-180' : ''}`}
                 />
               </button>
             </div>
           </div>
-          {/* {isExpanded && (
-            <div className="mt-2">
-              <MarkdownContent content={value} />
-            </div>
-          )} */}
         </div>
       );
     }

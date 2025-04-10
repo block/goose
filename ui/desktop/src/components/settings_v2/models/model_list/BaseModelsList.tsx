@@ -72,7 +72,7 @@ export function BaseModelsList({
     return () => {
       isMounted = false;
     };
-  }, [read]);
+  }, [read, modelList, upsert]);
 
   const handleModelSelection = async (model: Model) => {
     await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });

@@ -24,6 +24,10 @@ export type Envs = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     description?: string | null;
     envs?: Envs;
     /**
@@ -35,6 +39,10 @@ export type ExtensionConfig = {
     uri: string;
 } | {
     args: Array<string>;
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     cmd: string;
     description?: string | null;
     envs?: Envs;
@@ -45,6 +53,10 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'stdio';
 } | {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -53,6 +65,10 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'builtin';
 } | {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     /**
      * Instructions for how to use these tools
      */

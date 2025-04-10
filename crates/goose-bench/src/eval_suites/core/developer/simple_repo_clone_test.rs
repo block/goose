@@ -197,6 +197,14 @@ impl Evaluation for SimpleRepoCloneTest {
             EvalMetricValue::Boolean(git_clone_executed && test_added),
         ));
 
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float(
+                ((git_clone_executed as u8) + (test_added as u8) + (test_executed as u8)) as f64
+                    / 3.0,
+            ),
+        ));
+
         Ok(metrics)
     }
 

@@ -6,6 +6,7 @@ pub mod model;
 pub mod permission;
 pub mod prompt_template;
 pub mod providers;
+pub mod recipe;
 pub mod session;
 pub mod token_counter;
 pub mod tracing;

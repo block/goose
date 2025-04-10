@@ -92,4 +92,10 @@ impl PromptManager {
             )
         }
     }
+
+    /// Get the recipe prompt
+    pub async fn get_recipe_prompt(&self) -> String {
+        let context: HashMap<&str, Value> = HashMap::new();
+        prompt_template::render_global_file("recipe.md", &context).expect("Prompt should render")
+    }
 }
