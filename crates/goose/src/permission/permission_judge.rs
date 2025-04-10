@@ -184,7 +184,7 @@ pub async fn check_tool_permissions(
 
             // 2. Fallback based on mode
             match mode {
-                "manual_approve" => {
+                "approve" => {
                     needs_approval.push(request.clone());
                 }
                 "smart_approve" => {

@@ -2,7 +2,7 @@ use crate::bench_config::{BenchEval, BenchModel, BenchRunConfig};
 use crate::eval_suites::EvaluationSuite;
 use crate::reporting::{BenchmarkResults, SuiteResult};
 use crate::runners::eval_runner::EvalRunner;
-use crate::utilities::{await_process_exits, parallel_bench_cmd, union_hashmaps};
+use crate::utilities::{await_process_exits, parallel_bench_cmd};
 use std::collections::HashMap;
 use std::fs::read_to_string;
 use std::io::{self, BufRead};
@@ -189,30 +189,23 @@ impl ModelRunner {
 
         Ok(results)
     }
+
     fn collect_evals_for_run(&self) -> HashMap<String, Vec<BenchEval>> {
         // convert suites map {suite_name => [eval_selector_str] to map suite_name => [BenchEval]
-        let suites = self
-            .config
-            .evals
-            .iter()
-            .map(|eval| {
-                EvaluationSuite::select(vec![eval.clone().selector])
-                    .iter()
-                    .map(|(suite, evals)| {
-                        let bench_evals = evals
-                            .iter()
-                            .map(|suite_eval| {
-                                let mut updated_eval = eval.clone();
-                                updated_eval.selector = (*suite_eval).to_string();
-                                updated_eval
-                            })
-                            .collect::<Vec<_>>();
-                        (suite.clone(), bench_evals)
-                    })
-                    .collect()
-            })
-            .collect();
-        union_hashmaps(suites)
+        let mut result: HashMap<String, Vec<BenchEval>> = HashMap::new();
+        for eval in self.config.evals.iter() {
+            let selected_suites = EvaluationSuite::select(vec![eval.selector.clone()]);
+            for (suite, evals) in selected_suites {
+                let entry: &mut Vec<BenchEval> = result.entry(suite).or_default();
+                entry.reserve(evals.len());
+                for suite_eval in evals {
+                    let mut updated_eval = eval.clone();
+                    updated_eval.selector = suite_eval.to_string();
+                    entry.push(updated_eval);
+                }
+            }
+        }
+        result
     }
 
     fn toolshim_envs(&self) -> Vec<(String, String)> {

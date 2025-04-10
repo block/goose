@@ -295,11 +295,50 @@ export async function addExtensionFromDeepLink(
   }
 
   const cmd = parsedUrl.searchParams.get('cmd');
-  if (!cmd) {
-    handleError("Failed to install extension: Missing required 'cmd' parameter in the URL", true);
+  const remoteUrl = parsedUrl.searchParams.get('url');
+
+  if (!cmd && !remoteUrl) {
+    handleError(
+      "Failed to install extension: Missing required 'cmd' or 'url' parameter in the URL",
+      true
+    );
   }
 
-  // Validate that the command is one of the allowed commands
+  const id = parsedUrl.searchParams.get('id');
+  const name = parsedUrl.searchParams.get('name');
+  const description = parsedUrl.searchParams.get('description');
+  const timeout = parsedUrl.searchParams.get('timeout');
+
+  // Create a ExtensionConfig from the URL parameters
+  // Parse timeout if provided, otherwise use default
+  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
+
+  const config: FullExtensionConfig = cmd
+    ? getStdioConfig(cmd, parsedUrl, id, name, description, parsedTimeout)
+    : getSseConfig(remoteUrl, id, name, description, parsedTimeout);
+
+  // Store the extension config regardless of env vars status
+  storeExtensionConfig(config);
+
+  // Check if extension requires env vars and go to settings if so
+  if (envVarsRequired(config)) {
+    console.log('Environment variables required, redirecting to settings');
+    setView('settings', { extensionId: config.id, showEnvVars: true });
+    return;
+  }
+
+  // If no env vars are required, proceed with extending Goosed
+  await addExtension(config);
+}
+
+function getStdioConfig(
+  cmd: string,
+  parsedUrl: URL,
+  id: string,
+  name: string,
+  description: string,
+  parsedTimeout: number
+) {
   const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
@@ -315,10 +354,6 @@ export async function addExtensionFromDeepLink(
   }
 
   const envList = parsedUrl.searchParams.getAll('env');
-  const id = parsedUrl.searchParams.get('id');
-  const name = parsedUrl.searchParams.get('name');
-  const description = parsedUrl.searchParams.get('description');
-  const timeout = parsedUrl.searchParams.get('timeout');
 
   // split env based on delimiter to a map
   const envs = envList.reduce(
@@ -329,10 +364,6 @@ export async function addExtensionFromDeepLink(
     },
     {} as Record<string, string>
   );
-
-  // Create a ExtensionConfig from the URL parameters
-  // Parse timeout if provided, otherwise use default
-  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
 
   const config: FullExtensionConfig = {
     id,
@@ -349,16 +380,29 @@ export async function addExtensionFromDeepLink(
         : DEFAULT_EXTENSION_TIMEOUT,
   };
 
-  // Store the extension config regardless of env vars status
-  storeExtensionConfig(config);
+  return config;
+}
 
-  // Check if extension requires env vars and go to settings if so
-  if (envVarsRequired(config)) {
-    console.log('Environment variables required, redirecting to settings');
-    setView('settings', { extensionId: config.id, showEnvVars: true });
-    return;
-  }
+function getSseConfig(
+  remoteUrl: string,
+  id: string,
+  name: string,
+  description: string,
+  parsedTimeout: number
+) {
+  const config: FullExtensionConfig = {
+    id,
+    name,
+    type: 'sse',
+    uri: remoteUrl,
+    description,
+    enabled: true,
+    env_keys: [],
+    timeout:
+      parsedTimeout !== null && !isNaN(parsedTimeout) && Number.isInteger(parsedTimeout)
+        ? parsedTimeout
+        : DEFAULT_EXTENSION_TIMEOUT,
+  };
 
-  // If no env vars are required, proceed with extending Goosed
-  await addExtension(config);
+  return config;
 }

@@ -96,7 +96,7 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
     if (attemptedSubmit) {
       validateForm();
     }
-  }, [provider, model, attemptedSubmit, validateForm]);
+  }, [attemptedSubmit, validateForm]);
 
   useEffect(() => {
     (async () => {
