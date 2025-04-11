@@ -1,6 +1,6 @@
 ---
 title: "A Visual Guide To MCPs"
-description: "gfgf"
+description: "MCP ecosystem explained through visuals"
 authors: 
     - ebony
 ---
@@ -72,11 +72,11 @@ Without Goose handing over the gadget suitcase, the model would just show up in 
   <meta property="og:title" content="A Visual Guide To MCPs" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/10/visual-guide-mcp" />
-  <meta property="og:description" content="MCP ecosystem explained through images" />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/responsible-vibe-code-a77f5e24a879edda943cc76f1fc0bd2a.png" />
+  <meta property="og:description" content="MCP ecosystem explained through visuals" />
+  <meta property="og:image" content="" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="A Visual Guide To MCPs" />
-  <meta name="twitter:description" content="MCP ecosystem explained through images" />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/responsible-vibe-code-a77f5e24a879edda943cc76f1fc0bd2a.png" />
+  <meta name="twitter:description" content="MCP ecosystem explained through visuals" />
+  <meta name="twitter:image" content="" />
 </head>
