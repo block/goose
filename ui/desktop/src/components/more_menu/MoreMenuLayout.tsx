@@ -1,12 +1,12 @@
 import MoreMenu from './MoreMenu';
 import React from 'react';
-import type { View } from '../../App';
+import { View, ViewOptions } from '../../App';
 
 export default function MoreMenuLayout({
   setView,
   setIsGoosehintsModalOpen,
 }: {
-  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   return (

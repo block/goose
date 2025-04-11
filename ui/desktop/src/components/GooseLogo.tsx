@@ -19,7 +19,7 @@ export default function GooseLogo({ className = '', size = 'default', hover = tr
       className={`${className} ${sizes[size].frame} ${hover ? 'group/with-hover' : ''} relative overflow-hidden`}
     >
       <Rain
-        className={`${sizes[size].rain} absolute left-0 bottom-0 ${hover ? 'opacity-0 opacity-0 group-hover/with-hover:opacity-100' : ''} transition-all duration-300 z-1`}
+        className={`${sizes[size].rain} absolute left-0 bottom-0 ${hover ? 'opacity-0 group-hover/with-hover:opacity-100' : ''} transition-all duration-300 z-1`}
       />
       <Goose className={`${sizes[size].goose} absolute left-0 bottom-0 z-2`} />
     </div>

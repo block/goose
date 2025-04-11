@@ -101,8 +101,18 @@ export async function getProvidersList(): Promise<Provider[]> {
 
   const data = await response.json();
 
+  interface ProviderItem {
+    id: string;
+    details?: {
+      name?: string;
+      description?: string;
+      models?: string[];
+      required_keys?: string[];
+    };
+  }
+
   // Format the response into an array of providers
-  return data.map((item: any) => ({
+  return data.map((item: ProviderItem) => ({
     id: item.id, // Root-level ID
     name: item.details?.name || 'Unknown Provider', // Nested name in details
     description: item.details?.description || 'No description available.', // Nested description

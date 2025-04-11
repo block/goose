@@ -1,20 +1,10 @@
-import {
-  Popover,
-  PopoverContent,
-  PopoverPortal,
-  PopoverTrigger,
-} from '../../components/ui/popover';
+import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
 import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
-import { View } from '../../App';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
-
-interface VersionInfo {
-  current_version: string;
-  available_versions: string[];
-}
+import { ViewOptions, View } from '../../App';
 
 interface MenuButtonProps {
   onClick: () => void;
@@ -51,84 +41,88 @@ const MenuButton: React.FC<MenuButtonProps> = ({
   </button>
 );
 
-interface DarkModeToggleProps {
-  isDarkMode: boolean;
-  onToggle: () => void;
+interface ThemeSelectProps {
+  themeMode: 'light' | 'dark' | 'system';
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
 }
 
-const DarkModeToggle: React.FC<DarkModeToggleProps> = ({ isDarkMode, onToggle }) => (
-  <button
-    className="flex items-center min-h-[64px] justify-between px-4 py-3 hover:bg-bgSubtle border-b border-borderSubtle"
-    onClick={onToggle}
-  >
-    <div className="flex flex-col items-start">
-      <span className="text-sm">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-      <span className="text-xs font-regular text-textSubtle mt-0.5">
-        {isDarkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-      </span>
-    </div>
-    <div className="h-4 w-4 overflow-hidden relative rounded-full">
-      <div className="absolute bg-bg flex h-4 w-4 flex-row items-center justify-center transition-transform rotate-180 dark:rotate-0 translate-x-[100%] dark:translate-x-[0%]">
-        <Sun className="h-4 w-4 transition-all duration-[400ms]" />
-      </div>
+const ThemeSelect: React.FC<ThemeSelectProps> = ({ themeMode, onThemeChange }) => {
+  return (
+    <div className="px-4 py-3 border-b border-borderSubtle">
+      <div className="text-sm mb-2">Theme</div>
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => onThemeChange('light')}
+          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
+            themeMode === 'light'
+              ? 'border-borderStandard'
+              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
+          }`}
+        >
+          <Sun className="h-4 w-4" />
+          <span className="text-xs">Light</span>
+        </button>
 
-      <div className="absolute bg-bg flex h-4 w-4 flex-row items-center justify-center transition-transform dark:translate-x-[-100%] dark:-rotate-90">
-        <Moon className="h-4 w-4 transition-all duration-[400ms]" />
+        <button
+          onClick={() => onThemeChange('dark')}
+          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
+            themeMode === 'dark'
+              ? 'border-borderStandard'
+              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
+          }`}
+        >
+          <Moon className="h-4 w-4" />
+          <span className="text-xs">Dark</span>
+        </button>
+
+        <button
+          onClick={() => onThemeChange('system')}
+          className={`flex items-center justify-center gap-2 p-2 rounded-md border transition-colors ${
+            themeMode === 'system'
+              ? 'border-borderStandard'
+              : 'border-borderSubtle hover:border-borderStandard text-textSubtle hover:text-textStandard'
+          }`}
+        >
+          <Sliders className="h-4 w-4" />
+          <span className="text-xs">System</span>
+        </button>
       </div>
     </div>
-  </button>
-);
+  );
+};
 
 export default function MoreMenu({
   setView,
   setIsGoosehintsModalOpen,
 }: {
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const { remove } = useConfig();
-  const [versions, setVersions] = useState<VersionInfo | null>(null);
-  const [showVersions, setShowVersions] = useState(false);
-  const [useSystemTheme, setUseSystemTheme] = useState(
-    () => localStorage.getItem('use_system_theme') === 'true'
-  );
-  const [isDarkMode, setDarkMode] = useState(() => {
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (useSystemTheme) {
-      return systemPrefersDark;
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
+    const savedUseSystemTheme = localStorage.getItem('use_system_theme') === 'true';
+    if (savedUseSystemTheme) {
+      return 'system';
     }
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme ? savedTheme === 'dark' : systemPrefersDark;
+    return savedTheme === 'dark' ? 'dark' : 'light';
   });
 
-  useEffect(() => {
-    // Fetch available versions when the menu opens
-    const fetchVersions = async () => {
-      try {
-        const port = window.appConfig.get('GOOSE_PORT');
-        const response = await fetch(`http://127.0.0.1:${port}/agent/versions`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setVersions(data);
-      } catch (error) {
-        console.error('Failed to fetch versions:', error);
-      }
-    };
-
-    if (open) {
-      fetchVersions();
+  const [isDarkMode, setDarkMode] = useState(() => {
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (themeMode === 'system') {
+      return systemPrefersDark;
     }
-  }, [open]);
+    return themeMode === 'dark';
+  });
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     // Handler for system theme changes
     const handleThemeChange = (e: { matches: boolean }) => {
-      if (useSystemTheme) {
+      if (themeMode === 'system') {
         setDarkMode(e.matches);
       }
     };
@@ -137,32 +131,31 @@ export default function MoreMenu({
     mediaQuery.addEventListener('change', handleThemeChange);
 
     // Initial setup
-    if (useSystemTheme) {
+    if (themeMode === 'system') {
       setDarkMode(mediaQuery.matches);
+      localStorage.setItem('use_system_theme', 'true');
     } else {
-      const savedTheme = localStorage.getItem('theme');
-      setDarkMode(savedTheme ? savedTheme === 'dark' : mediaQuery.matches);
+      setDarkMode(themeMode === 'dark');
+      localStorage.setItem('use_system_theme', 'false');
+      localStorage.setItem('theme', themeMode);
     }
 
     // Cleanup
     return () => mediaQuery.removeEventListener('change', handleThemeChange);
-  }, [useSystemTheme]);
+  }, [themeMode]);
 
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
     } else {
       document.documentElement.classList.remove('dark');
+      document.documentElement.classList.add('light');
     }
-    if (!useSystemTheme) {
-      localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    }
-  }, [isDarkMode, useSystemTheme]);
+  }, [isDarkMode]);
 
-  const toggleTheme = () => {
-    if (!useSystemTheme) {
-      setDarkMode(!isDarkMode);
-    }
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setThemeMode(newTheme);
   };
 
   return (
@@ -170,6 +163,8 @@ export default function MoreMenu({
       <PopoverTrigger asChild>
         <button
           className={`z-[100] absolute top-2 right-4 w-[20px] h-[20px] transition-colors cursor-pointer no-drag hover:text-textProminent ${open ? 'text-textProminent' : 'text-textSubtle'}`}
+          role="button"
+          aria-label="More options"
         >
           <More />
         </button>
@@ -229,8 +224,6 @@ export default function MoreMenu({
                 Configure .goosehints
               </MenuButton>
 
-              <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleTheme} />
-
               {/* Make Agent from Chat */}
               <MenuButton
                 onClick={() => {
@@ -256,6 +249,8 @@ export default function MoreMenu({
                 Advanced settings
                 <span className="text-textSubtle ml-1">⌘,</span>
               </MenuButton>
+
+              <ThemeSelect themeMode={themeMode} onThemeChange={handleThemeChange} />
 
               {settingsV2Enabled && (
                 <MenuButton

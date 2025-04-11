@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { IpcRendererEvent } from 'electron';
 import { ScrollArea } from '../ui/scroll-area';
 import { Settings as SettingsType } from './types';
 import {
@@ -13,7 +14,7 @@ import { ConfigureBuiltInExtensionModal } from './extensions/ConfigureBuiltInExt
 import BackButton from '../ui/BackButton';
 import { RecentModelsRadio } from './models/RecentModels';
 import { ExtensionItem } from './extensions/ExtensionItem';
-import type { View } from '../../App';
+import { View, ViewOptions } from '../../App';
 import { ModeSelection } from './basic/ModeSelection';
 import SessionSharingSection from './session/SessionSharingSection';
 import { toastSuccess } from '../../toasts';
@@ -59,7 +60,7 @@ export default function SettingsView({
   viewOptions,
 }: {
   onClose: () => void;
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
   const [settings, setSettings] = React.useState<SettingsType>(() => {
@@ -92,7 +93,7 @@ export default function SettingsView({
 
   // Listen for settings updates from extension storage
   useEffect(() => {
-    const handleSettingsUpdate = (_: any) => {
+    const handleSettingsUpdate = (_event: IpcRendererEvent) => {
       const saved = localStorage.getItem('user_settings');
       if (saved) {
         let currentSettings = JSON.parse(saved);

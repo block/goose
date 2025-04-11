@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { View } from '../../../App';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
@@ -16,7 +16,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   const { read, getProviders } = useConfig();
 
   // Function to load model data
-  const loadModelData = async () => {
+  const loadModelData = useCallback(async () => {
     try {
       const gooseModel = (await read('GOOSE_MODEL', false)) as string;
       const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
@@ -40,32 +40,22 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     } catch (error) {
       console.error('Error loading model data:', error);
     }
-  };
+  }, [read, getProviders]);
 
   useEffect(() => {
-    // Initial load
     loadModelData();
-
-    // Set up polling interval to check for changes
-    const interval = setInterval(() => {
-      loadModelData();
-    }, 1000); // Check every second
-
-    // Clean up interval on unmount
-    return () => {
-      clearInterval(interval);
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <section id="models">
-      <div className="flex justify-between items-center mb-6 px-8">
-        <h1 className="text-3xl font-medium text-textStandard">Models</h1>
+    <section id="models" className="px-8">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-medium text-textStandard">Models</h2>
       </div>
-      <div className="px-8">
-        <div className="space-y-2">
-          <h3 className="font-medium text-textStandard">{model}</h3>
-          <h4 className="font-medium text-textSubtle">{provider}</h4>
+      <div className="border-b border-borderSubtle pb-8">
+        <div className="">
+          <h3 className="text-textStandard">{model}</h3>
+          <h4 className="text-xs text-textSubtle">{provider}</h4>
         </div>
         <ModelSettingsButtons setView={setView} />
       </div>

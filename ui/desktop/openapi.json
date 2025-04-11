@@ -173,6 +173,29 @@
         }
       }
     },
+    "/config/init": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "init_config",
+        "responses": {
+          "200": {
+            "description": "Config initialization check completed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -367,6 +390,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "description": {
                 "type": "string",
                 "nullable": true
@@ -411,6 +439,11 @@
                   "type": "string"
                 }
               },
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "cmd": {
                 "type": "string"
               },
@@ -447,6 +480,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "display_name": {
                 "type": "string",
                 "nullable": true
@@ -478,6 +516,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "instructions": {
                 "type": "string",
                 "description": "Instructions for how to use these tools",

@@ -240,6 +240,10 @@
       background: var(--dark-grey-60);
     }
   }
+
+  body {
+    background-color: var(--background-app);
+  }
 }
 
 @layer components {
@@ -295,5 +299,9 @@
 
   .user-message p {
     margin-bottom: 0 !important;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
   }
 }

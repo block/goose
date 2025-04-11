@@ -5,7 +5,9 @@ import path from 'node:path';
 import { getBinaryPath } from './utils/binaryPath';
 import log from './utils/logger';
 import { ChildProcessByStdio } from 'node:child_process';
-import { Readable } from 'node:stream';
+import { Readable, Buffer } from 'node:stream';
+import { App } from 'electron';
+import type { ProcessEnv } from 'node:process';
 
 // Find an available port to start goosed on
 export const findAvailablePort = (): Promise<number> => {
@@ -50,10 +52,20 @@ const checkServerStatus = async (
   return false;
 };
 
+interface GooseProcessEnv extends ProcessEnv {
+  HOME: string;
+  USERPROFILE: string;
+  APPDATA: string;
+  LOCALAPPDATA: string;
+  PATH: string;
+  GOOSE_PORT: string;
+  GOOSE_SERVER__SECRET_KEY?: string;
+}
+
 export const startGoosed = async (
-  app,
-  dir = null,
-  env = {}
+  app: App,
+  dir: string | null = null,
+  env: Partial<GooseProcessEnv> = {}
 ): Promise<[number, string, ChildProcessByStdio<null, Readable, Readable>]> => {
   // we default to running goosed in home dir - if not specified
   const homeDir = os.homedir();
@@ -72,7 +84,7 @@ export const startGoosed = async (
   log.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${dir}`);
 
   // Define additional environment variables
-  const additionalEnv = {
+  const additionalEnv: GooseProcessEnv = {
     // Set HOME for UNIX-like systems
     HOME: homeDir,
     // Set USERPROFILE for Windows
@@ -82,16 +94,16 @@ export const startGoosed = async (
     // Set LOCAL_APPDATA for Windows
     LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
     // Set PATH to include the binary directory
-    PATH: `${path.dirname(goosedPath)}${path.delimiter}${process.env.PATH}`,
+    PATH: `${path.dirname(goosedPath)}${path.delimiter}${process.env.PATH || ''}`,
     // start with the port specified
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: process.env.GOOSE_SERVER__SECRET_KEY,
     // Add any additional environment variables passed in
     ...env,
-  };
+  } as GooseProcessEnv;
 
   // Merge parent environment with additional environment variables
-  const processEnv = { ...process.env, ...additionalEnv };
+  const processEnv: GooseProcessEnv = { ...process.env, ...additionalEnv } as GooseProcessEnv;
 
   // Add detailed logging for troubleshooting
   log.info(`Process platform: ${process.platform}`);
@@ -111,6 +123,7 @@ export const startGoosed = async (
 
   // Verify binary exists
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const fs = require('fs');
     const stats = fs.statSync(goosedPath);
     log.info(`Binary exists: ${stats.isFile()}`);
@@ -122,7 +135,7 @@ export const startGoosed = async (
   const spawnOptions = {
     cwd: dir,
     env: processEnv,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe'] as ['ignore', 'pipe', 'pipe'],
     // Hide terminal window on Windows
     windowsHide: true,
     // Run detached on Windows only to avoid terminal windows
@@ -142,19 +155,19 @@ export const startGoosed = async (
     goosedProcess.unref();
   }
 
-  goosedProcess.stdout.on('data', (data) => {
+  goosedProcess.stdout.on('data', (data: Buffer) => {
     log.info(`goosed stdout for port ${port} and dir ${dir}: ${data.toString()}`);
   });
 
-  goosedProcess.stderr.on('data', (data) => {
+  goosedProcess.stderr.on('data', (data: Buffer) => {
     log.error(`goosed stderr for port ${port} and dir ${dir}: ${data.toString()}`);
   });
 
-  goosedProcess.on('close', (code) => {
+  goosedProcess.on('close', (code: number | null) => {
     log.info(`goosed process exited with code ${code} for port ${port} and dir ${dir}`);
   });
 
-  goosedProcess.on('error', (err) => {
+  goosedProcess.on('error', (err: Error) => {
     log.error(`Failed to start goosed on port ${port} and dir ${dir}`, err);
     throw err; // Propagate the error
   });

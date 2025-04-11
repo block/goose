@@ -42,36 +42,33 @@ export default function Input({
     }
   }, []);
 
-  // Debounced function to update actual value
-  const debouncedSetValue = useCallback(
-    debounce((val: string) => {
-      setValue(val);
-    }, 150),
-    []
-  );
-
-  // Debounced autosize function
-  const debouncedAutosize = useCallback(
-    debounce((textArea: HTMLTextAreaElement, value: string) => {
-      textArea.style.height = '0px'; // Reset height
-      const scrollHeight = textArea.scrollHeight;
-      textArea.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-    }, 150),
-    []
-  );
-
-  const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
-    useEffect(() => {
-      if (textAreaRef) {
-        debouncedAutosize(textAreaRef, value);
-      }
-    }, [textAreaRef, value]);
-  };
-
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
-  useAutosizeTextArea(textAreaRef.current, displayValue);
+  // Debounced function to update actual value
+  const debouncedSetValue = useCallback((val: string) => {
+    debounce((value: string) => {
+      setValue(value);
+    }, 150)(val);
+  }, []);
+
+  // Debounced autosize function
+  const debouncedAutosize = useCallback(
+    (textArea: HTMLTextAreaElement) => {
+      debounce((element: HTMLTextAreaElement) => {
+        element.style.height = '0px'; // Reset height
+        const scrollHeight = element.scrollHeight;
+        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+      }, 150)(textArea);
+    },
+    [maxHeight]
+  );
+
+  useEffect(() => {
+    if (textAreaRef.current) {
+      debouncedAutosize(textAreaRef.current);
+    }
+  }, [debouncedAutosize, displayValue]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
@@ -82,17 +79,17 @@ export default function Input({
   // Cleanup debounced functions on unmount
   useEffect(() => {
     return () => {
-      debouncedSetValue.cancel();
-      debouncedAutosize.cancel();
+      debouncedSetValue.cancel?.();
+      debouncedAutosize.cancel?.();
     };
-  }, []);
+  }, [debouncedSetValue, debouncedAutosize]);
 
   // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionStart = () => {
     setIsComposing(true);
   };
 
-  const handleCompositionEnd = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionEnd = () => {
     setIsComposing(false);
   };
 
@@ -118,7 +115,7 @@ export default function Input({
       }
     }
 
-    if (newIndex == historyIndex) {
+    if (newIndex === historyIndex) {
       return;
     }
 
@@ -231,7 +228,7 @@ export default function Input({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onStop();
+            onStop?.();
           }}
           className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
         >

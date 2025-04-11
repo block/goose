@@ -5,7 +5,7 @@ interface ExtensionConfigFieldsProps {
   type: 'stdio' | 'sse' | 'builtin';
   full_cmd: string;
   endpoint: string;
-  onChange: (key: string, value: any) => void;
+  onChange: (key: string, value: string) => void;
   submitAttempted?: boolean;
   isValid?: boolean;
 }

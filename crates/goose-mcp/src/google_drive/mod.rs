@@ -4,6 +4,7 @@ pub mod storage;
 use anyhow::{Context, Error};
 use base64::Engine;
 use indoc::indoc;
+use lazy_static::lazy_static;
 use mcp_core::tool::ToolAnnotations;
 use oauth_pkce::PkceOAuth2Client;
 use regex::Regex;
@@ -52,6 +53,18 @@ enum PaginationState {
     Start,
     Next(String),
     End,
+}
+
+lazy_static! {
+    static ref GOOGLE_DRIVE_ID_REGEX: Regex =
+        Regex::new(r"^(?:https:\/\/)(?:[\w-]+\.)?google\.com\/(?:[^\/]+\/)*d\/([a-zA-Z0-9_-]+)")
+            .unwrap();
+}
+
+fn extract_google_drive_id(url: &str) -> Option<&str> {
+    GOOGLE_DRIVE_ID_REGEX
+        .captures(url)
+        .and_then(|caps| caps.get(1).map(|m| m.as_str()))
 }
 
 pub struct GoogleDriveRouter {
@@ -226,13 +239,15 @@ impl GoogleDriveRouter {
         let read_tool = Tool::new(
             "read".to_string(),
             indoc! {r#"
-                Read a file from google drive using the file uri.
+                Read a file from google drive using the file URI or the full google drive URL.
+                One of URI or URL MUST is required.
+
                 Optionally include base64 encoded images, false by default.
 
                 Example extracting URIs from URLs:
                 Given "https://docs.google.com/document/d/1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc/edit?tab=t.0#heading=h.5v419d3h97tr"
                 Pass in "gdrive:///1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc"
-                Do not include any other path parameters.
+                Do not include any other path parameters when using URI.
             "#}
             .to_string(),
             json!({
@@ -240,14 +255,17 @@ impl GoogleDriveRouter {
               "properties": {
                   "uri": {
                       "type": "string",
-                      "description": "google drive uri of the file to read",
+                      "description": "google drive uri of the file to read, use this when you have the file URI",
+                  },
+                  "url": {
+                      "type": "string",
+                      "description": "the full google drive URL to read the file from, use this when the user gives a full https url",
                   },
                   "includeImages": {
                       "type": "boolean",
                       "description": "Whether or not to include images as base64 encoded strings, defaults to false",
                   }
               },
-              "required": ["uri"],
             }),
             Some(ToolAnnotations {
                 title: Some("Read GDrive".to_string()),
@@ -1186,23 +1204,46 @@ impl GoogleDriveRouter {
     }
 
     async fn read(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let uri =
-            params
-                .get("uri")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The uri of the file is required".to_string(),
-                ))?;
+        let (maybe_uri, maybe_url) = (
+            params.get("uri").and_then(|q| q.as_str()),
+            params.get("url").and_then(|q| q.as_str()),
+        );
 
-        let drive_uri = uri.replace("gdrive:///", "");
+        let drive_uri = match (maybe_uri, maybe_url) {
+            (Some(uri), None) => {
+                let drive_uri = uri.replace("gdrive:///", "");
 
-        // Validation: check for / path separators as invalid uris
-        if drive_uri.contains('/') {
-            return Err(ToolError::InvalidParameters(format!(
-                "The uri '{}' conatins extra '/'. Only the base URI is allowed.",
-                uri
-            )));
-        }
+                // Validation: check for / path separators as invalid uris
+                if drive_uri.contains('/') {
+                    return Err(ToolError::InvalidParameters(format!(
+                        "The uri '{}' conatins extra '/'. Only the base URI is allowed.",
+                        uri
+                    )));
+                }
+
+                drive_uri
+            }
+            (None, Some(url)) => {
+                if let Some(drive_uri) = extract_google_drive_id(url) {
+                    drive_uri.to_string()
+                } else {
+                    return Err(ToolError::InvalidParameters(format!(
+                        "Failed to extract valid google drive URI from {}",
+                        url
+                    )));
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(ToolError::InvalidParameters(
+                    "Only one of 'uri' or 'url' should be provided".to_string(),
+                ));
+            }
+            (None, None) => {
+                return Err(ToolError::InvalidParameters(
+                    "Either 'uri' or 'url' must be provided".to_string(),
+                ));
+            }
+        };
 
         let include_images = params
             .get("includeImages")
@@ -1211,7 +1252,10 @@ impl GoogleDriveRouter {
 
         let metadata = self.fetch_file_metadata(&drive_uri).await?;
         let mime_type = metadata.mime_type.ok_or_else(|| {
-            ToolError::ExecutionError(format!("Missing mime type in file metadata for {}.", uri))
+            ToolError::ExecutionError(format!(
+                "Missing mime type in file metadata for {}.",
+                drive_uri
+            ))
         })?;
 
         // Handle Google Docs export
@@ -2795,5 +2839,65 @@ impl Clone for GoogleDriveRouter {
             docs: self.docs.clone(),
             credentials_manager: self.credentials_manager.clone(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_document_url() {
+        let url = "https://docs.google.com/document/d/1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc/edit?tab=t.0#heading=h.5v419d3h97tr";
+        assert_eq!(
+            extract_google_drive_id(url),
+            Some("1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc")
+        );
+    }
+
+    #[test]
+    fn test_spreadsheets_url() {
+        let url = "https://docs.google.com/spreadsheets/d/1J5KHqWsGFzweuiQboX7dlm8Ejv90Po16ocEBahzCt4W/edit?gid=1249300797#gid=1249300797";
+        assert_eq!(
+            extract_google_drive_id(url),
+            Some("1J5KHqWsGFzweuiQboX7dlm8Ejv90Po16ocEBahzCt4W")
+        );
+    }
+
+    #[test]
+    fn test_slides_url() {
+        let url = "https://docs.google.com/presentation/d/1zXWqsGpHJEu40oqb1omh68sW9liu7EKFBCdnPaJVoQ5et/edit#slide=id.p1";
+        assert_eq!(
+            extract_google_drive_id(url),
+            Some("1zXWqsGpHJEu40oqb1omh68sW9liu7EKFBCdnPaJVoQ5et")
+        );
+    }
+
+    #[test]
+    fn test_missing_scheme() {
+        let url = "docs.google.com/document/d/abcdef12345/edit";
+        assert_eq!(extract_google_drive_id(url), None);
+    }
+
+    #[test]
+    fn test_extra_path_segments() {
+        let url = "https://drive.google.com/file/d/1abcdEFGH_ijklMNOpqrstUVwxyz-1234/view";
+        assert_eq!(
+            extract_google_drive_id(url),
+            Some("1abcdEFGH_ijklMNOpqrstUVwxyz-1234")
+        );
+    }
+
+    #[test]
+    fn test_invalid_google_url() {
+        let url = "https://example.com/d/12345";
+        assert_eq!(extract_google_drive_id(url), None);
+    }
+
+    #[test]
+    fn test_no_d_segment() {
+        let url =
+            "https://docs.google.com/document/1QG8d8wtWe7ZfmG93sW-1h2WXDJDUkOi-9hDnvJLmWrc/edit";
+        assert_eq!(extract_google_drive_id(url), None);
     }
 }

@@ -59,6 +59,7 @@ export default {
 
         borderSubtle: 'var(--border-subtle)',
         borderStandard: 'var(--border-standard)',
+        borderProminent: 'var(--border-prominent)',
 
         textProminent: 'var(--text-prominent)',
         textStandard: 'var(--text-standard)',

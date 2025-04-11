@@ -2,7 +2,7 @@ import { getApiUrl, getSecretKey } from '../config';
 import { required_keys } from '../components/settings/models/hardcoded_stuff';
 
 export async function DeleteProviderKeysFromKeychain() {
-  for (const [provider, keys] of Object.entries(required_keys)) {
+  for (const [_provider, keys] of Object.entries(required_keys)) {
     for (const keyName of keys) {
       try {
         const deleteResponse = await fetch(getApiUrl('/configs/delete'), {

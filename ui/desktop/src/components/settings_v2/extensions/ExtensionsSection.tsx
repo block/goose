@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -17,31 +17,22 @@ import { activateExtension, deleteExtension, toggleExtension, updateExtension } 
 
 export default function ExtensionsSection() {
   const { getExtensions, addExtension, removeExtension } = useConfig();
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // We don't need errorFormData anymore since we're not reopening modals on failure
 
-  const fetchExtensions = async () => {
-    setLoading(true);
-    try {
-      const extensionsList = await getExtensions(true); // Force refresh
-      // Sort extensions by name to maintain consistent order
-      const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
-      setExtensions(sortedExtensions);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load extensions');
-      console.error('Error loading extensions:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchExtensions = useCallback(async () => {
+    const extensionsList = await getExtensions(true); // Force refresh
+    // Sort extensions by name to maintain consistent order
+    const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
+    setExtensions(sortedExtensions);
+  }, [getExtensions]);
 
   useEffect(() => {
     fetchExtensions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
@@ -49,6 +40,7 @@ export default function ExtensionsSection() {
     const toggleDirection = extension.enabled ? 'toggleOff' : 'toggleOn';
     const extensionConfig = extractExtensionConfig(extension);
 
+    // eslint-disable-next-line no-useless-catch
     try {
       await toggleExtension({
         toggle: toggleDirection,
@@ -72,38 +64,54 @@ export default function ExtensionsSection() {
   };
 
   const handleAddExtension = async (formData: ExtensionFormData) => {
+    // Close the modal immediately
+    handleModalClose();
+
     const extensionConfig = createExtensionConfig(formData);
     try {
       await activateExtension({ addToConfig: addExtension, extensionConfig: extensionConfig });
     } catch (error) {
-      // Even if activation fails, the extension is added as disabled, so we want to show it
       console.error('Failed to activate extension:', error);
+      // Even if activation fails, we don't reopen the modal
     } finally {
-      handleModalClose();
+      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };
 
   const handleUpdateExtension = async (formData: ExtensionFormData) => {
-    const extensionConfig = createExtensionConfig(formData);
-
-    await updateExtension({
-      enabled: formData.enabled,
-      extensionConfig: extensionConfig,
-      addToConfig: addExtension,
-    });
-
-    // First refresh the extensions list
-    await fetchExtensions();
-
-    // Then close the modal after data is refreshed
+    // Close the modal immediately
     handleModalClose();
+
+    const extensionConfig = createExtensionConfig(formData);
+    try {
+      await updateExtension({
+        enabled: formData.enabled,
+        extensionConfig: extensionConfig,
+        addToConfig: addExtension,
+      });
+    } catch (error) {
+      console.error('Failed to update extension:', error);
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
+    }
   };
 
   const handleDeleteExtension = async (name: string) => {
-    await deleteExtension({ name, removeFromConfig: removeExtension });
+    // Close the modal immediately
     handleModalClose();
-    await fetchExtensions();
+
+    try {
+      await deleteExtension({ name, removeFromConfig: removeExtension });
+    } catch (error) {
+      console.error('Failed to delete extension:', error);
+      // We don't reopen the modal on failure
+    } finally {
+      // Refresh the extensions list regardless of success or failure
+      await fetchExtensions();
+    }
   };
 
   const handleModalClose = () => {
@@ -113,11 +121,11 @@ export default function ExtensionsSection() {
   };
 
   return (
-    <section id="extensions">
-      <div className="flex justify-between items-center mb-6 px-8">
-        <h1 className="text-3xl font-medium text-textStandard">Extensions</h1>
+    <section id="extensions" className="px-8">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-medium text-textStandard">Extensions</h2>
       </div>
-      <div className="px-8">
+      <div className="border-b border-borderSubtle pb-8">
         <p className="text-sm text-textStandard mb-6">
           These extensions use the Model Context Protocol (MCP). They can expand Goose's
           capabilities using three main components: Prompts, Resources, and Tools.
@@ -131,46 +139,46 @@ export default function ExtensionsSection() {
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-white dark:text-textSubtle bg-black dark:bg-white hover:bg-subtle"
+            className="flex items-center gap-2 justify-center text-white dark:text-textSubtle bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
             Add custom extension
           </Button>
           <Button
-            className="flex items-center gap-2 flex-1 justify-center text-textSubtle bg-white dark:bg-black hover:bg-subtle dark:border dark:border-gray-500 dark:hover:border-gray-400"
+            className="flex items-center gap-2 justify-center text-textStandard bg-bgApp border border-borderSubtle hover:border-borderProminent hover:bg-bgApp [&>svg]:!size-4"
             onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
           >
-            <GPSIcon size={18} />
-            Visit Extensions
+            <GPSIcon size={12} />
+            Browse extensions
           </Button>
         </div>
+
+        {/* Modal for updating an existing extension */}
+        {isModalOpen && selectedExtension && (
+          <ExtensionModal
+            title="Update Extension"
+            initialData={extensionToFormData(selectedExtension)}
+            onClose={handleModalClose}
+            onSubmit={handleUpdateExtension}
+            onDelete={handleDeleteExtension}
+            submitLabel="Save Changes"
+            modalType={'edit'}
+          />
+        )}
+
+        {/* Modal for adding a new extension */}
+        {isAddModalOpen && (
+          <ExtensionModal
+            title="Add custom extension"
+            initialData={getDefaultFormData()}
+            onClose={handleModalClose}
+            onSubmit={handleAddExtension}
+            submitLabel="Add Extension"
+            modalType={'add'}
+          />
+        )}
       </div>
-
-      {/* Modal for updating an existing extension */}
-      {isModalOpen && selectedExtension && (
-        <ExtensionModal
-          title="Update Extension"
-          initialData={extensionToFormData(selectedExtension)}
-          onClose={handleModalClose}
-          onSubmit={handleUpdateExtension}
-          onDelete={handleDeleteExtension}
-          submitLabel="Save Changes"
-          modalType={'edit'}
-        />
-      )}
-
-      {/* Modal for adding a new extension */}
-      {isAddModalOpen && (
-        <ExtensionModal
-          title="Add New Extension"
-          initialData={getDefaultFormData()}
-          onClose={handleModalClose}
-          onSubmit={handleAddExtension}
-          submitLabel="Add Extension"
-          modalType={'add'}
-        />
-      )}
     </section>
   );
 }
