@@ -59,7 +59,7 @@ impl Agent {
         Ok((tools, toolshim_tools, system_prompt))
     }
 
-     /// Categorize tools based on their annotations
+    /// Categorize tools based on their annotations
     /// Returns:
     /// - read_only_tools: Tools with read-only annotations
     /// - non_read_tools: Tools without read-only annotations
@@ -93,9 +93,7 @@ impl Agent {
         let config = provider.get_model_config();
 
         // Call the provider to get a response
-        let (mut response, usage) = provider
-            .complete(system_prompt, messages, tools)
-            .await?;
+        let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
 
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {
@@ -134,12 +132,17 @@ impl Agent {
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
                 (Some(x), Some(y)) => Some(x + y),
-                _ => a.or(b)
+                _ => a.or(b),
             }
         };
-        metadata.accumulated_total_tokens = accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-        metadata.accumulated_input_tokens = accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-        metadata.accumulated_output_tokens = accumulate(metadata.accumulated_output_tokens, usage.usage.output_tokens);
+        metadata.accumulated_total_tokens =
+            accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
+        metadata.accumulated_input_tokens =
+            accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
+        metadata.accumulated_output_tokens = accumulate(
+            metadata.accumulated_output_tokens,
+            usage.usage.output_tokens,
+        );
         session::update_metadata(&session_file, &metadata).await?;
 
         Ok(())
