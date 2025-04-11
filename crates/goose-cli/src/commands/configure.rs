@@ -237,10 +237,6 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
 
     // Configure required provider keys
     for key in &provider_meta.config_keys {
-        if !key.required {
-            continue;
-        }
-
         // First check if the value is set via environment variable
         let from_env = std::env::var(&key.name).ok();
 
@@ -272,49 +268,115 @@ pub async fn configure_provider_dialog() -> Result<bool, Box<dyn Error>> {
                     Ok(_) => {
                         let _ = cliclack::log::info(format!("{} is already configured", key.name));
                         if cliclack::confirm("Would you like to update this value?").interact()? {
-                            let new_value: String = if key.secret {
-                                cliclack::password(format!("Enter new value for {}", key.name))
-                                    .mask('▪')
-                                    .interact()?
+                            let prompt = if key.required {
+                                format!("Enter value for {} (required)", key.name)
                             } else {
-                                let mut input =
-                                    cliclack::input(format!("Enter new value for {}", key.name));
+                                format!("Enter value for {} (optional, press Enter to skip)", key.name)
+                            };
+
+                            let value: String = if key.secret {
+                                // Use regular input for optional secrets (compromise: no masking)
+                                if !key.required {
+                                     let prompt_with_note = format!("{} (Secret, input not masked)", prompt);
+                                     let mut input = cliclack::input(&prompt_with_note);
+                                     input = input.required(false);
+                                     let value: String = input.interact()?;
+                                     if value.is_empty() {
+                                         config.delete_secret(&key.name)?;
+                                     }
+                                     value
+                                } else { // Required secret: use password input
+                                    let mut input = cliclack::password(&prompt).mask('▪');
+                                    let value = input.interact()?;
+                                    // Password input likely requires a value, but add check just in case
+                                    if value.is_empty() {
+                                        return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Input required for secret key")));
+                                    }
+                                    value
+                                }
+                            } else { // Not secret
+                                let mut input = cliclack::input(&prompt);
                                 if key.default.is_some() {
                                     input = input.default_input(&key.default.clone().unwrap());
                                 }
-                                input.interact()?
+                                if !key.required {
+                                    input = input.required(false);
+                                }
+                                let value: String = input.interact()?;
+                                if !key.required && value.is_empty() {
+                                    // If the key is optional and no value was provided, remove it
+                                    config.delete(&key.name)?;
+                                    String::new()
+                                } else {
+                                    value
+                                }
                             };
 
-                            if key.secret {
-                                config.set_secret(&key.name, Value::String(new_value))?;
-                            } else {
-                                config.set_param(&key.name, Value::String(new_value))?;
+                            // Only save if a non-empty value was provided during the update
+                            if !value.is_empty() {
+                                if key.secret {
+                                    config.set_secret(&key.name, Value::String(value))?;
+                                } else {
+                                    config.set_param(&key.name, Value::String(value))?;
+                                }
                             }
+                            // If an empty value was entered for an optional key,
+                            // it was already deleted above, and value is String::new(),
+                            // so this block is skipped, which is correct.
                         }
                     }
-                    Err(_) => {
-                        let value: String = if key.secret {
-                            cliclack::password(format!(
+                    Err(_) => { // Key not configured yet (Initial setup)
+                        let prompt_text = if key.required {
+                            format!(
                                 "Provider {} requires {}, please enter a value",
                                 provider_meta.display_name, key.name
-                            ))
-                            .mask('▪')
-                            .interact()?
+                            )
                         } else {
-                            let mut input = cliclack::input(format!(
-                                "Provider {} requires {}, please enter a value",
+                            format!(
+                                "Provider {} accepts {}, enter a value or press enter to skip",
                                 provider_meta.display_name, key.name
-                            ));
+                            )
+                        };
+
+                        let value: String = if key.secret {
+                             // Use regular input for optional secrets (compromise: no masking)
+                            if !key.required {
+                                let prompt_with_note = format!("{} (Secret, input not masked)", prompt_text);
+                                let mut input = cliclack::input(&prompt_with_note);
+                                input = input.required(false);
+                                let value: String = input.interact()?;
+                                if value.is_empty() {
+                                    // if we entered an empty string for an optional secret, just return empty
+                                    value
+                                } else {
+                                    value
+                                }
+                            } else { // Required secret: use password input
+                                let mut input = cliclack::password(&prompt_text).mask('▪');
+                                let value = input.interact()?;
+                                if value.is_empty() {
+                                     return Err(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Input required for secret key")));
+                                }
+                                value
+                            }
+                        } else { // Not secret
+                            let mut input = cliclack::input(&prompt_text);
                             if key.default.is_some() {
                                 input = input.default_input(&key.default.clone().unwrap());
+                            }
+                            if !key.required {
+                                input = input.required(false);
                             }
                             input.interact()?
                         };
 
-                        if key.secret {
-                            config.set_secret(&key.name, Value::String(value))?;
-                        } else {
-                            config.set_param(&key.name, Value::String(value))?;
+                        // Only save if a value was provided
+                        if !value.is_empty() {
+                            if key.secret {
+                                config.set_secret(&key.name, Value::String(value))?;
+                            } else {
+                                config.set_param(&key.name, Value::String(value))?;
+                            }
                         }
                     }
                 }
