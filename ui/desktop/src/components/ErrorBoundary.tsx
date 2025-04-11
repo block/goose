@@ -22,15 +22,11 @@ export function ErrorUI({ error }) {
           <AlertTriangle className="w-8 h-8 text-destructive" />
         </div>
 
-        <h1 className="text-2xl font-semibold text-foreground">
-          Honk!
-        </h1>
+        <h1 className="text-2xl font-semibold text-foreground">Honk!</h1>
 
-        <p className="text-base text-textSubtle mb-2">
-          An error occurred.
-        </p>
+        <p className="text-base text-textSubtle mb-2">An error occurred.</p>
 
-        <pre className="text-destructive text-sm p-4 bg-muted rounded-lg w-full overflow-auto border border-border">
+        <pre className="text-destructive text-sm dark:text-white p-4 bg-muted rounded-lg w-full overflow-auto border border-border">
           {error.message}
         </pre>
 
@@ -47,7 +43,7 @@ export function ErrorUI({ error }) {
 
 export class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: Error, hasError: boolean }
+  { error: Error; hasError: boolean }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props);
@@ -65,7 +61,7 @@ export class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      return <ErrorUI error={this.state.error} />
+      return <ErrorUI error={this.state.error} />;
     }
     return this.props.children;
   }
