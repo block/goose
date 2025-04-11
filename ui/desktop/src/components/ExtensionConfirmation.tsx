@@ -7,6 +7,12 @@ export default function ExtensionConfirmation({
   extensionConfirmationId,
   extensionName,
 }) {
+  const actions = ['approved', 'denied'];
+  const actionDisplayMap = {
+    approved: 'Enable extension',
+    denied: 'Deny',
+  };
+
   return (
     <Confirmation
       isCancelledMessage={isCancelledMessage}
@@ -16,7 +22,8 @@ export default function ExtensionConfirmation({
       confirmRequest={ConfirmExtensionRequest}
       message="enable the following extension"
       enableButtonText="Enable extension"
-      denyButtonText="Deny"
+      actions={actions}
+      actionDisplayMap={actionDisplayMap}
     />
   );
 }

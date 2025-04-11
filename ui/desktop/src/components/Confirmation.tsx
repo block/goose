@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { snakeToTitleCase } from '../utils';
+import PermissionModal from './settings_v2/permission/PermissionModal';
+import { ChevronRight } from 'lucide-react';
 
 export default function Confirmation({
   isCancelledMessage,
@@ -9,15 +11,23 @@ export default function Confirmation({
   confirmRequest,
   message,
   enableButtonText,
-  denyButtonText,
+  actions,
+  actionDisplayMap,
 }) {
   const [clicked, setClicked] = useState(isClicked);
   const [status, setStatus] = useState('unknown');
+  const [actionDisplay, setActionDisplay] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleButtonClick = (confirmed) => {
+  const handleButtonClick = (action) => {
     setClicked(true);
-    setStatus(confirmed ? 'approved' : 'denied');
-    confirmRequest(confirmationId, confirmed);
+    setStatus(action);
+    setActionDisplay(actionDisplayMap[action] || 'unknown');
+    confirmRequest(confirmationId, action);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
   };
 
   return isCancelledMessage ? (
@@ -59,30 +69,31 @@ export default function Confirmation({
             <span className="ml-2 text-textStandard">
               {isClicked
                 ? `${enableButtonText} is not available`
-                : `${snakeToTitleCase(name.includes('__') ? name.split('__').pop() : name)} is ${status}`}
+                : `${snakeToTitleCase(name.includes('__') ? name.split('__').pop() : name)} is ${actionDisplay}`}
             </span>
+          </div>
+          <div className="flex items-center cursor-pointer" onClick={() => setIsModalOpen(true)}>
+            <span className="mr-1 text-textStandard">Change</span>
+            <ChevronRight className="w-4 h-4 ml-1 text-iconStandard" />
           </div>
         </div>
       ) : (
         <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
-          <button
-            className={
-              'bg-black text-white dark:bg-white dark:text-black rounded-full px-6 py-2 transition'
-            }
-            onClick={() => handleButtonClick(true)}
-          >
-            {enableButtonText}
-          </button>
-          <button
-            className={
-              'bg-white text-black dark:bg-black dark:text-white border border-gray-300 dark:border-gray-700 rounded-full px-6 py-2 transition'
-            }
-            onClick={() => handleButtonClick(false)}
-          >
-            {denyButtonText}
-          </button>
+          {actions.map((action) => (
+            <button
+              key={action}
+              className={
+                'bg-black text-white dark:bg-white dark:text-black rounded-full px-6 py-2 transition'
+              }
+              onClick={() => handleButtonClick(action)}
+            >
+              {actionDisplayMap[action]}
+            </button>
+          ))}
         </div>
       )}
+
+      {isModalOpen && <PermissionModal onClose={handleModalClose} extensionName={name} />}
     </>
   );
 }
