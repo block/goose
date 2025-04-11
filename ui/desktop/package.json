@@ -15,7 +15,7 @@
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "bundle:default": "npm run make && cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip",
+    "bundle:default": "npm run make && (cd out/Goose-darwin-arm64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose.zip) || echo 'out/Goose-darwin-arm64 not found; either the binary is not built or you are not on macOS'",
     "bundle:windows": "node scripts/build-main.js && node scripts/prepare-platform.js && npm run make -- --platform=win32 --arch=x64 && node scripts/copy-windows-dlls.js",
     "bundle:intel": "npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",

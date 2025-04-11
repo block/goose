@@ -34,12 +34,6 @@ let cfg = {
     appleIdPassword: process.env['APPLE_ID_PASSWORD'],
     teamId: process.env['APPLE_TEAM_ID']
   },
-  protocols: [
-    {
-      name: "GooseProtocol",     // The macOS CFBundleURLName
-      schemes: ["goose"]         // The macOS CFBundleURLSchemes array
-    }
-  ]
 }
 
 if (process.env['APPLE_ID'] === undefined) {
@@ -55,19 +49,25 @@ module.exports = {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin', 'win32'],
       config: {
-          arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
-          options: {
-              icon: 'src/images/icon.ico'
+        arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
+        options: {
+          icon: 'src/images/icon.ico'
         }
       }
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
   ],
   plugins: [
