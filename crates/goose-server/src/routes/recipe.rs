@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::message::Message;
 use goose::recipe::Recipe;
 use serde::{Deserialize, Serialize};
@@ -41,9 +36,15 @@ pub struct CreateRecipeResponse {
 async fn create_recipe(
     State(state): State<AppState>,
     Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, StatusCode> {
+) -> Result<Json<CreateRecipeResponse>, (StatusCode, Json<CreateRecipeResponse>)> {
     let agent = state.agent.read().await;
-    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let agent = agent.as_ref().ok_or_else(|| {
+        let error_response = CreateRecipeResponse {
+            recipe: None,
+            error: Some("Agent not initialized".to_string()),
+        };
+        (StatusCode::PRECONDITION_REQUIRED, Json(error_response))
+    })?;
 
     // Create base recipe from agent state and messages
     let recipe_result = agent.create_recipe(request.messages).await;
@@ -70,10 +71,14 @@ async fn create_recipe(
                 error: None,
             }))
         }
-        Err(e) => Ok(Json(CreateRecipeResponse {
-            recipe: None,
-            error: Some(e.to_string()),
-        })),
+        Err(e) => {
+            // Return 400 Bad Request with error message
+            let error_response = CreateRecipeResponse {
+                recipe: None,
+                error: Some(e.to_string()),
+            };
+            Err((StatusCode::BAD_REQUEST, Json(error_response)))
+        }
     }
 }
 
