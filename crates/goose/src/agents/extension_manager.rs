@@ -229,7 +229,7 @@ impl ExtensionManager {
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
+    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = Vec::new();
 
         // Add tools from MCP extensions with prefixing
