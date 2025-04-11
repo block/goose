@@ -88,10 +88,10 @@ On top of local models, we would like to consider parsers, parser combinators, c
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/11/finetuning-toolshim" />
   <meta property="og:description" content="Addressing performance limitations in models without native tool calling support" />
-  <meta property="og:image" content="http://localhost:3000/goose/assets/images/toolshim-header-9accab4168c5d501172ddcf739c71c56.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/toolshim-header-42611f614e7722f90cf83991debe3046.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Finetuning Toolshim Models for Tool Calling" />
   <meta name="twitter:description" content="Addressing performance limitations in models without native tool calling support" />
-  <meta name="twitter:image" content="http://localhost:3000/goose/assets/images/toolshim-header-9accab4168c5d501172ddcf739c71c56.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/toolshim-header-42611f614e7722f90cf83991debe3046.png" />
 </head>
