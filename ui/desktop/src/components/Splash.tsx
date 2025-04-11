@@ -13,9 +13,10 @@ export default function Splash({ append, activities, title }: SplashProps) {
     <div className="flex flex-col h-full">
       {title && (
         <div className="flex items-center px-4 py-2">
-          <span className="w-2 h-2 rounded-full bg-[#FF69B4] mr-2" />
+          <span className="w-2 h-2 rounded-full bg-blockTeal mr-2" />
           <span className="text-sm">
-            <span className="text-gray-600">Agent</span> {title}
+            <span className="text-textSubtle">Agent</span>{' '}
+            <span className="text-textStandard">{title}</span>
           </span>
         </div>
       )}

@@ -129,14 +129,14 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         return (
           <div className="p-6 pt-10">
             <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6" />
+              <Back className="w-6 h-6 text-iconProminent" />
             </button>
             <div className="py-2">
-              <Bars className="w-6 h-6 text-gray-500" />
+              <Bars className="w-6 h-6 text-iconSubtle" />
             </div>
             <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2">Activities</h2>
-              <p className="text-gray-600">
+              <h2 className="text-2xl font-medium mb-2 text-textProminent">Activities</h2>
+              <p className="text-textSubtle">
                 The top-line prompts and activities that will display within your goose home page.
               </p>
             </div>
@@ -145,12 +145,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 {activities.map((activity, index) => (
                   <div
                     key={index}
-                    className="inline-flex items-center bg-white border-2 border-gray-300 rounded-full px-4 py-2 text-sm"
+                    className="inline-flex items-center bg-bgApp border-2 border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
                   >
                     <span>{activity}</span>
                     <button
                       onClick={() => handleRemoveActivity(activity)}
-                      className="ml-2 text-gray-900 hover:text-gray-600 transition-colors"
+                      className="ml-2 text-textStandard hover:text-textSubtle transition-colors"
                     >
                       ×
                     </button>
@@ -163,12 +163,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   value={newActivity}
                   onChange={(e) => setNewActivity(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
-                  className="flex-1 px-4 py-3 bg-gray-50 rounded-xl placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-black"
+                  className="flex-1 px-4 py-3 bg-bgSubtle text-textStandard rounded-xl placeholder-textPlaceholder focus:outline-none focus:ring-2 focus:ring-borderProminent"
                   placeholder="Add new activity..."
                 />
                 <button
                   onClick={handleAddActivity}
-                  className="px-5 py-3 bg-black text-white rounded-xl hover:bg-gray-900 transition-colors"
+                  className="px-5 py-3 bg-bgAppInverse text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
                 >
                   Add activity
                 </button>
@@ -181,14 +181,14 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         return (
           <div className="p-6 pt-10">
             <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6" />
+              <Back className="w-6 h-6 text-iconProminent" />
             </button>
             <div className="py-2">
-              <Bars className="w-6 h-6 text-gray-500" />
+              <Bars className="w-6 h-6 text-iconSubtle" />
             </div>
             <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2">Instructions</h2>
-              <p className="text-gray-600">
+              <h2 className="text-2xl font-medium mb-2 text-textProminent">Instructions</h2>
+              <p className="text-textSubtle">
                 Hidden instructions that will be passed to the provider to help direct and add
                 context to your responses.
               </p>
@@ -196,7 +196,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             <textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              className="w-full h-96 p-4 bg-gray-50 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-black"
+              className="w-full h-96 p-4 bg-bgSubtle text-textStandard rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-borderProminent"
               placeholder="Enter instructions..."
             />
           </div>
@@ -206,14 +206,14 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         return (
           <div className="p-6 pt-10">
             <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6" />
+              <Back className="w-6 h-6 text-iconProminent" />
             </button>
             <div className="py-2">
-              <Bars className="w-6 h-6 text-gray-500" />
+              <Bars className="w-6 h-6 text-iconSubtle" />
             </div>
             <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2">Extensions</h2>
-              <p className="text-gray-600">
+              <h2 className="text-2xl font-medium mb-2 text-textProminent">Extensions</h2>
+              <p className="text-textSubtle">
                 Choose which extensions will be available to your agent.
               </p>
             </div>
@@ -221,26 +221,28 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               {availableExtensions.map((extension) => (
                 <button
                   key={extension.name}
-                  className="p-4 border border-gray-200 rounded-lg flex justify-between items-center w-full text-left hover:bg-gray-50"
+                  className="p-4 border border-borderSubtle rounded-lg flex justify-between items-center w-full text-left hover:bg-bgSubtle bg-bgApp"
                   onClick={() => handleExtensionToggle(extension.name)}
                 >
                   <div>
-                    <h3 className="font-medium">{extension.name}</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="font-medium text-textProminent">{extension.name}</h3>
+                    <p className="text-sm text-textSubtle">
                       {extension.description || 'No description available'}
                     </p>
                   </div>
                   <div className="relative inline-block w-10 align-middle select-none">
                     <div
                       className={`w-10 h-6 rounded-full transition-colors duration-200 ease-in-out ${
-                        selectedExtensions.includes(extension.name) ? 'bg-black' : 'bg-gray-300'
+                        selectedExtensions.includes(extension.name)
+                          ? 'bg-bgAppInverse'
+                          : 'bg-borderSubtle'
                       }`}
                     >
                       <div
-                        className={`w-6 h-6 rounded-full bg-white border-2 transform transition-transform duration-200 ease-in-out ${
+                        className={`w-6 h-6 rounded-full bg-bgApp border-2 transform transition-transform duration-200 ease-in-out ${
                           selectedExtensions.includes(extension.name)
-                            ? 'translate-x-4 border-black'
-                            : 'translate-x-0 border-gray-300'
+                            ? 'translate-x-4 border-bgAppInverse'
+                            : 'translate-x-0 border-borderSubtle'
                         }`}
                       />
                     </div>
@@ -255,12 +257,12 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
         return (
           <div className="space-y-4 py-4">
             <div>
-              <h2 className="text-lg font-medium mb-2">Agent</h2>
+              <h2 className="text-lg font-medium mb-2 text-textProminent">Agent</h2>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-3 border border-gray-200 rounded-lg"
+                className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard"
                 placeholder="Agent Name"
               />
             </div>
@@ -270,7 +272,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 border border-gray-200 rounded-lg"
+                className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard"
                 placeholder="Description"
               />
             </div>
@@ -278,48 +280,48 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             {/* Section buttons */}
             <button
               onClick={() => setActiveSection('activities')}
-              className="w-full flex items-start justify-between p-4 border border-gray-200 rounded-lg"
+              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
             >
               <div className="text-left">
-                <h3 className="font-medium">Activities</h3>
-                <p className="text-gray-500 text-sm">
+                <h3 className="font-medium text-textProminent">Activities</h3>
+                <p className="text-textSubtle text-sm">
                   Starting activities present in the home panel on a fresh goose session
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 mt-1" />
+              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
             </button>
 
             <button
               onClick={() => setActiveSection('instructions')}
-              className="w-full flex items-start justify-between p-4 border border-gray-200 rounded-lg"
+              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
             >
               <div className="text-left">
-                <h3 className="font-medium">Instructions</h3>
-                <p className="text-gray-500 text-sm">
+                <h3 className="font-medium text-textProminent">Instructions</h3>
+                <p className="text-textSubtle text-sm">
                   Starting activities present in the home panel on a fresh goose session
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 mt-1" />
+              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
             </button>
 
             <button
               onClick={() => setActiveSection('extensions')}
-              className="w-full flex items-start justify-between p-4 border border-gray-200 rounded-lg"
+              className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
             >
               <div className="text-left">
-                <h3 className="font-medium">Extensions</h3>
-                <p className="text-gray-500 text-sm">
+                <h3 className="font-medium text-textProminent">Extensions</h3>
+                <p className="text-textSubtle text-sm">
                   Starting activities present in the home panel on a fresh goose session
                 </p>
               </div>
-              <ChevronRight className="w-5 h-5 mt-1" />
+              <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
             </button>
 
             {/* Deep Link Display */}
-            <div className="w-full p-4 bg-gray-50 rounded-lg flex items-center justify-between">
-              <code className="text-sm text-gray-600 truncate">{deeplink}</code>
+            <div className="w-full p-4 bg-bgSubtle rounded-lg flex items-center justify-between">
+              <code className="text-sm text-textSubtle truncate">{deeplink}</code>
               <button onClick={() => navigator.clipboard.writeText(deeplink)} className="ml-2">
-                <Copy className="w-5 h-5" />
+                <Copy className="w-5 h-5 text-iconSubtle" />
               </button>
             </div>
 
@@ -337,13 +339,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                     undefined
                   );
                 }}
-                className="w-full p-3 bg-black text-white rounded-lg hover:bg-gray-900"
+                className="w-full p-3 bg-bgAppInverse text-textProminentInverse rounded-lg hover:bg-bgStandardInverse"
               >
                 Open agent
               </button>
               <button
                 onClick={() => window.close()}
-                className="w-full p-3 text-gray-600 rounded-lg hover:bg-gray-100"
+                className="w-full p-3 text-textSubtle rounded-lg hover:bg-bgSubtle"
               >
                 Cancel
               </button>
@@ -354,14 +356,16 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   };
 
   return (
-    <div className="flex flex-col w-full h-screen bg-white max-w-3xl mx-auto">
+    <div className="flex flex-col w-full h-screen bg-bgApp max-w-3xl mx-auto">
       {activeSection === 'none' && (
         <div className="flex flex-col items-center mb-6 px-6 pt-10">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4">
-            <Geese className="w-5 h-5" />
+          <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
+            <Geese className="w-12 h-12 text-iconProminent" />
           </div>
-          <h1 className="text-2xl font-medium text-center">Create custom agent</h1>
-          <p className="text-gray-500 text-center mt-2 text-sm">
+          <h1 className="text-2xl font-medium text-center text-textProminent">
+            Create custom agent
+          </h1>
+          <p className="text-textSubtle text-center mt-2 text-sm">
             Your custom agent can be shared with others
           </p>
         </div>

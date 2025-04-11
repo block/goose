@@ -3,7 +3,7 @@ import React from 'react';
 function SplashPill({ content, append, className = '', longForm = '' }) {
   return (
     <div
-      className={`px-4 py-2 text-sm text-center text-textSubtle dark:text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
+      className={`px-4 py-2 text-sm text-center text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
       onClick={async () => {
         // Use the longForm text if provided, otherwise use the content
         await append(longForm || content);

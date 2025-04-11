@@ -13,13 +13,15 @@ export default function LayingEggLoader() {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-white">
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-bgApp">
       <div className="flex flex-col items-center max-w-3xl w-full px-6 pt-10">
-        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-4">
-          <Geese className="w-5 h-5" />
+        <div className="w-16 h-16 bg-bgApp rounded-full flex items-center justify-center mb-4">
+          <Geese className="w-12 h-12 text-iconProminent" />
         </div>
-        <h1 className="text-2xl font-medium text-center mb-2">Laying an egg{dots}</h1>
-        <p className="text-gray-500 text-center text-sm">
+        <h1 className="text-2xl font-medium text-center mb-2 text-textProminent">
+          Laying an egg{dots}
+        </h1>
+        <p className="text-textSubtle text-center text-sm">
           Please wait while we process your request
         </p>
       </div>
