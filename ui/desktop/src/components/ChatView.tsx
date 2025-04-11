@@ -125,8 +125,8 @@ export default function ChatView({
         // Create recipe directly from chat messages
         const createRecipeRequest = {
           messages: messages,
-          title: 'Custom Recipe',
-          description: 'Created from chat session',
+          title: '',
+          description: '',
         };
 
         const response = await createRecipe(createRecipeRequest);
