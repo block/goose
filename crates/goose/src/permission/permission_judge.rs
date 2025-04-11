@@ -12,6 +12,8 @@ use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use super::permission_confirmation::PrincipalType;
+
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
     Tool::new(
@@ -154,10 +156,10 @@ pub async fn detect_read_only_tools(
 
 /// Gets the boolean value whether the message is enable extension related and
 /// the cconfirmation message based on the tool call
-pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (bool, Message) {
+pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (PrincipalType, Message) {
     if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
         (
-            true,
+            PrincipalType::Extension,
             Message::user().with_enable_extension_request(
                 request_id,
                 tool_call
@@ -170,7 +172,7 @@ pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (bool,
         )
     } else {
         (
-            false,
+            PrincipalType::Tool,
             Message::user().with_tool_confirmation_request(
                 request_id,
                 tool_call.name.clone(),

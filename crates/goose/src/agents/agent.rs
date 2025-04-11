@@ -7,6 +7,7 @@ use futures::stream::BoxStream;
 use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
+use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::permission_judge::{check_tool_permissions, get_confirmation_message};
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
@@ -458,7 +459,7 @@ impl Agent {
                             // Process read-only tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let (is_enable_extension_tool, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
+                                    let (principal_type, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
                                     yield confirmation;
 
                                     // Wait for confirmation response through the channel
@@ -466,7 +467,7 @@ impl Agent {
                                     while let Some((req_id, confirmation)) = rx.recv().await {
                                         if req_id == request.id {
                                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                                if is_enable_extension_tool {
+                                                if principal_type == PrincipalType::Extension {
                                                     let extension_name = tool_call.arguments.get("extension_name")
                                                         .and_then(|v| v.as_str())
                                                         .unwrap_or("")
