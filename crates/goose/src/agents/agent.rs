@@ -763,8 +763,8 @@ impl Agent {
         };
 
         let recipe = Recipe::builder()
-            .title("Custom recipe from chat")
-            .description("a custom recipe instance from this chat session")
+            .title("")
+            .description("")
             .instructions(instructions)
             .activities(activities)
             .extensions(extension_configs)
