@@ -31,6 +31,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
+use utoipa::ToSchema;
 
 // Direct message serialization for the chat request
 #[derive(Debug, Deserialize)]
@@ -365,10 +366,9 @@ async fn ask_handler(
     }))
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct PermissionConfirmationRequest {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct PermissionConfirmationRequest {
     id: String,
-    confirmed: bool,
     #[serde(default = "default_principal_type")]
     principal_type: PrincipalType,
     action: String,
@@ -378,7 +378,17 @@ fn default_principal_type() -> PrincipalType {
     PrincipalType::Tool
 }
 
-async fn confirm_handler(
+#[utoipa::path(
+    post,
+    path = "/confirm",
+    request_body = PermissionConfirmationRequest,
+    responses(
+        (status = 200, description = "Permission action is confirmed", body = Value),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn confirm_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(request): Json<PermissionConfirmationRequest>,
@@ -392,10 +402,6 @@ async fn confirm_handler(
     if secret_key != state.secret_key {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    tracing::info!(
-        "Received confirmation request: {}",
-        serde_json::to_string_pretty(&request).unwrap()
-    );
 
     let agent = state.agent.clone();
     let agent = agent.read().await;
@@ -471,7 +477,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
-        .route("/confirm", post(confirm_handler))
+        .route("/confirm", post(confirm_permission))
         .route("/tool_result", post(submit_tool_result))
         .with_state(state)
 }

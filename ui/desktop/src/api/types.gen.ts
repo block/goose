@@ -100,10 +100,18 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+export type PermissionConfirmationRequest = {
+    action: string;
+    id: string;
+    principal_type?: PrincipalType;
+};
+
 /**
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+export type PrincipalType = 'Extension' | 'Tool';
 
 export type ProviderDetails = {
     /**
@@ -520,6 +528,31 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ConfirmPermissionData = {
+    body: PermissionConfirmationRequest;
+    path?: never;
+    query?: never;
+    url: '/confirm';
+};
+
+export type ConfirmPermissionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmPermissionResponses = {
+    /**
+     * Permission action is confirmed
+     */
+    200: unknown;
+};
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
