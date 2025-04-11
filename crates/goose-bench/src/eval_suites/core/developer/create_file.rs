@@ -110,6 +110,12 @@ impl Evaluation for DeveloperCreateFile {
             "Complete create and read".to_string(),
             EvalMetricValue::Boolean(write_tool_call && read_tool_call),
         ));
+
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float(((write_tool_call as u8) + (read_tool_call as u8)) as f64 / 2.0),
+        ));
+
         Ok(metrics)
     }
 

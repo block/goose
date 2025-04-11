@@ -1,4 +1,5 @@
 use crate::session::build_session;
+use crate::session::SessionBuilderConfig;
 use crate::{logging, session, Session};
 use async_trait::async_trait;
 use goose::message::Message;
@@ -30,14 +31,16 @@ pub async fn agent_generator(
 ) -> BenchAgent {
     let identifier = Some(session::Identifier::Name(session_id));
 
-    let base_session = build_session(
+    let base_session = build_session(SessionBuilderConfig {
         identifier,
-        false,
-        requirements.external,
-        requirements.remote,
-        requirements.builtin,
-        false,
-    )
+        resume: false,
+        extensions: requirements.external,
+        remote_extensions: requirements.remote,
+        builtins: requirements.builtin,
+        extensions_override: None,
+        additional_system_prompt: None,
+        debug: false,
+    })
     .await;
 
     // package session obj into benchmark-compatible struct

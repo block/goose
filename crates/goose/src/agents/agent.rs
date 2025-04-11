@@ -1,16 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 
-use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, instrument, warn};
-
-use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::types::ToolResultReceiver;
 use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -18,42 +11,42 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::providers::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
-};
-use crate::session;
+use crate::recipe::{Author, Recipe};
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
+use regex::Regex;
+use serde_json::Value;
+use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, error, instrument, warn};
 
-use mcp_core::{
-    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
-};
-
+use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    self, PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
+    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
-
-use super::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
-use super::types::FrontendTool;
+use crate::agents::types::{FrontendTool, ToolResultReceiver};
+use mcp_core::{
+    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
+};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
 /// The main goose Agent
 pub struct Agent {
-    provider: Arc<dyn Provider>,
-    extension_manager: Mutex<ExtensionManager>,
-    frontend_tools: HashMap<String, FrontendTool>,
-    frontend_instructions: Option<String>,
-    prompt_manager: PromptManager,
-    token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
-    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
-    tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
-    tool_result_rx: ToolResultReceiver,
+    pub(super) provider: Arc<dyn Provider>,
+    pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) frontend_tools: HashMap<String, FrontendTool>,
+    pub(super) frontend_instructions: Option<String>,
+    pub(super) prompt_manager: PromptManager,
+    pub(super) token_counter: TokenCounter,
+    pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
+    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
+    pub(super) tool_result_rx: ToolResultReceiver,
 }
 
 impl Agent {
@@ -110,13 +103,13 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(tool_call, extension_manager, request_id), fields(input, output))]
-    async fn create_tool_future(
-        extension_manager: &ExtensionManager,
+    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    async fn dispatch_tool_call(
+        &self,
         tool_call: mcp_core::tool::ToolCall,
-        is_frontend_tool: bool,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        let extension_manager = self.extension_manager.lock().await;
         let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             extension_manager
@@ -128,7 +121,7 @@ impl Agent {
                 .await
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             extension_manager.search_available_extensions().await
-        } else if is_frontend_tool {
+        } else if self.is_frontend_tool(&tool_call.name) {
             // For frontend tools, return an error indicating we need frontend execution
             Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
@@ -197,10 +190,11 @@ impl Agent {
     }
 
     async fn enable_extension(
-        extension_manager: &mut ExtensionManager,
+        &self,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        let mut extension_manager = self.extension_manager.lock().await;
         let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
@@ -273,7 +267,7 @@ impl Agent {
     }
 
     pub async fn list_tools(&self) -> Vec<Tool> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         extension_manager
             .get_prefixed_tools()
             .await
@@ -315,56 +309,20 @@ impl Agent {
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut extension_manager = self.extension_manager.lock().await;
-        let mut tools = extension_manager.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
 
         // Load settings from config
         let config = Config::global();
+
+        // Setup tools and prompt
+        let (mut tools, mut toolshim_tools, mut system_prompt) =
+            self.prepare_tools_and_prompt().await?;
+
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
-        // we add in the 2 resource tools if any extensions support resources
-        // TODO: make sure there is no collision with another extension's tool name
-        if extension_manager.supports_resources() {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
-        }
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::enable_extension_tool());
+        let (tools_with_readonly_annotation, tools_without_annotation) =
+            Self::categorize_tools_by_annotation(&tools);
 
-        let (tools_with_readonly_annotation, tools_without_annotation): (
-            HashSet<String>,
-            HashSet<String>,
-        ) = tools
-            .iter()
-            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
-                match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint => {
-                        acc.0.insert(tool.name.clone());
-                    }
-                    _ => {
-                        acc.1.insert(tool.name.clone());
-                    }
-                }
-                acc
-            });
-
-        let config = self.provider.get_model_config();
-        let extensions_info = extension_manager.get_extensions_info().await;
-        let mut system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
-        let mut toolshim_tools = vec![];
-        if config.toolshim {
-            // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
-            system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
-            // make a copy of tools before empty
-            toolshim_tools = tools.clone();
-            // pass empty tools vector to provider completion since toolshim will handle tool calls instead
-            tools = vec![];
-        }
-
-        // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
             .last()
             .and_then(|msg| msg.content.first())
@@ -374,35 +332,19 @@ impl Agent {
         }
 
         Ok(Box::pin(async_stream::try_stream! {
-            let _reply_guard = reply_span.enter();
+            let _ = reply_span.enter();
             loop {
-                match self.provider().complete(
+                match Self::generate_response_from_provider(
+                    self.provider(),
                     &system_prompt,
                     &messages,
                     &tools,
+                    &toolshim_tools,
                 ).await {
-                    Ok((mut response, usage)) => {
-                        // Post-process / structure the response only if tool interpretation is enabled
-                        if config.toolshim {
-                            let interpreter = OllamaInterpreter::new()
-                                .map_err(|e| anyhow::anyhow!("Failed to create OllamaInterpreter: {}", e))?;
-
-                            response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
-                        }
-
+                    Ok((response, usage)) => {
                         // record usage for the session in the session file
-                        if let Some(session) = session.clone() {
-                            // TODO: track session_id in langfuse tracing
-                            let session_file = session::get_path(session.id);
-                            let mut metadata = session::read_metadata(&session_file)?;
-                            metadata.working_dir = session.working_dir;
-                            metadata.total_tokens = usage.usage.total_tokens;
-                            metadata.input_tokens = usage.usage.input_tokens;
-                            metadata.output_tokens = usage.usage.output_tokens;
-                            // The message count is the number of messages in the session + 1 for the response
-                            // The message count does not include the tool response till next iteration
-                            metadata.message_count = messages.len() + 1;
-                            session::update_metadata(&session_file, &metadata).await?;
+                        if let Some(session_config) = session.clone() {
+                            Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                         }
 
                         // Reset truncation attempt
@@ -461,50 +403,50 @@ impl Agent {
                             }
                         }
 
-                        // Split tool requests into enable_extension and others
-                        let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
-                        let (search_extension_requests, _non_search_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                            .into_iter()
-                            .partition(|req| {
-                                req.tool_call.as_ref()
-                                    .map(|call| call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME)
-                                    .unwrap_or(false)
-                            });
-
                         // Clone goose_mode once before the match to avoid move issues
                         let mode = goose_mode.clone();
-
-                        // If there are install extension requests, always require confirmation
-                        // or if goose_mode is approve or smart_approve, check permissions for all tools
-                        if !enable_extension_requests.is_empty() || mode.as_str() == "approve" || mode.as_str() == "smart_approve" {
+                        if mode.as_str() == "chat" {
+                            // Skip all tool calls in chat mode
+                            for request in remaining_requests {
+                                message_tool_response = message_tool_response.with_tool_response(
+                                    request.id.clone(),
+                                    Ok(vec![Content::text(
+                                        "Let the user know the tool call was skipped in Goose chat mode. \
+                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
+                                        Provide an explanation of what the tool call would do, structured as a \
+                                        plan for the user. Again, DO NOT apologize. \
+                                        **Example Plan:**\n \
+                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
+                                        2. **Outline Steps** - Break down the steps.\n \
+                                        If needed, adjust the explanation based on user preferences or questions."
+                                    )]),
+                                );
+                            }
+                        } else {
+                            // Split tool requests into enable_extension and others
+                            let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
+                                .into_iter()
+                                .partition(|req| {
+                                    req.tool_call.as_ref()
+                                        .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
+                                        .unwrap_or(false)
+                                });
                             let mut permission_manager = PermissionManager::default();
-                            // Skip the platform tools
-                            remaining_requests.retain(|req| {
-                                if let Ok(tool_call) = &req.tool_call {
-                                    !tool_call.name.starts_with("platform__")
-                                } else {
-                                    true // If there's an error (Err), don't skip the request
-                                }
-                            });
-                            let permission_check_result = check_tool_permissions(remaining_requests,
+                            let permission_check_result = check_tool_permissions(non_enable_extension_requests,
                                                             &mode,
                                                             tools_with_readonly_annotation.clone(),
                                                             tools_without_annotation.clone(),
                                                             &mut permission_manager,
                                                             self.provider()).await;
 
-
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures = Vec::new();
                             let mut install_results = Vec::new();
 
+                            let denied_content_text = Content::text(
+                                "The user has declined to run this tool. \
+                                DO NOT attempt to call this tool again. \
+                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             // Handle install extension requests
                             for request in &enable_extension_requests {
                                 if let Ok(tool_call) = request.tool_call.clone() {
@@ -525,17 +467,13 @@ impl Agent {
                                             .to_string();
                                         if req_id == request.id {
                                             if extension_confirmation.permission == Permission::AllowOnce || extension_confirmation.permission == Permission::AlwaysAllow {
-                                                let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
+                                                let install_result = self.enable_extension(extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
                                             } else {
                                                 // User declined - add declined response
-                                                let denied_extension_content = Content::text(
-                                                    format!(
-                                                        "The user has declined to enable the extension: {}. \
-                                                        Goose will not attempt to enable this extension again.", &extension_name));
                                                 message_tool_response = message_tool_response.with_tool_response(
                                                     request.id.clone(),
-                                                    Ok(vec![denied_extension_content]),
+                                                    Ok(vec![denied_content_text.clone()]),
                                                 );
                                             }
                                             break;
@@ -547,16 +485,11 @@ impl Agent {
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                    let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
                                      tool_futures.push(tool_future);
                                 }
                             }
 
-                            let denied_content_text = Content::text(
-                                "The user has declined to run this tool. \
-                                DO NOT attempt to call this tool again. \
-                                If there are no alternative methods to proceed, clearly explain the situation and STOP.");
                             for request in &permission_check_result.denied {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request.id.clone(),
@@ -567,7 +500,6 @@ impl Agent {
                             // Process read-only tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
                                     let confirmation = Message::user().with_tool_confirmation_request(
                                         request.id.clone(),
                                         tool_call.name.clone(),
@@ -583,7 +515,7 @@ impl Agent {
                                             let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                             if confirmed {
                                                 // Add this tool call to the futures collection
-                                                let tool_future = Self::create_tool_future(&extension_manager, tool_call.clone(), is_frontend_tool, request.id.clone());
+                                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
                                                 tool_futures.push(tool_future);
                                                 if tool_confirmation.permission == Permission::AlwaysAllow {
                                                     permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
@@ -611,8 +543,7 @@ impl Agent {
                             }
 
                             // Check if any install results had errors before processing them
-                            let all_successful = !install_results.iter().any(|(_, result)| result.is_err());
-
+                            let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
                             for (request_id, output) in install_results {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request_id,
@@ -620,66 +551,11 @@ impl Agent {
                                 );
                             }
 
-                            // Update system prompt and tools if all installations were successful
-                            if all_successful {
-                                let extensions_info = extension_manager.get_extensions_info().await;
-                                system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
-                                tools = extension_manager.get_prefixed_tools().await?;
+                            // Update system prompt and tools if installations were successful
+                            if all_install_successful {
+                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                             }
-                        }
-
-                        if mode.as_str() == "auto" || !search_extension_requests.is_empty() {
-                            let mut tool_futures = Vec::new();
-                            // Process non_enable_extension_requests and search_extension_requests without duplicates
-                            let mut processed_ids = HashSet::new();
-
-                            for request in non_enable_extension_requests.iter().chain(search_extension_requests.iter()) {
-                                if processed_ids.insert(request.id.clone()) {
-                                    if let Ok(tool_call) = request.tool_call.clone() {
-                                        let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                        let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
-                                        tool_futures.push(tool_future);
-                                    }
-                                }
-                            }
-
-                            // Wait for all tool calls to complete
-                            let results = futures::future::join_all(tool_futures).await;
-                            for (request_id, output) in results {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request_id,
-                                    output,
-                                );
-                            }
-                        }
-
-                        if mode.as_str() == "chat" {
-                            // Skip all tool calls in chat mode
-                            // Skip search extension requests since they were already processed
-                            let non_search_non_enable_extension_requests = non_enable_extension_requests.iter()
-                                .filter(|req| {
-                                    if let Ok(tool_call) = &req.tool_call {
-                                        tool_call.name != PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME
-                                    } else {
-                                        true
-                                    }
-                                });
-                            for request in non_search_non_enable_extension_requests {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request.id.clone(),
-                                    Ok(vec![Content::text(
-                                        "Let the user know the tool call was skipped in Goose chat mode. \
-                                        DO NOT apologize for skipping the tool call. DO NOT say sorry. \
-                                        Provide an explanation of what the tool call would do, structured as a \
-                                        plan for the user. Again, DO NOT apologize. \
-                                        **Example Plan:**\n \
-                                        1. **Identify Task Scope** - Determine the purpose and expected outcome.\n \
-                                        2. **Outline Steps** - Break down the steps.\n \
-                                        If needed, adjust the explanation based on user preferences or questions."
-                                    )]),
-                                );
-                            }
-                        }
+                    }
 
                         yield message_tool_response.clone();
 
@@ -694,26 +570,15 @@ impl Agent {
                             yield Message::assistant().with_text("Error: Context length exceeds limits even after multiple attempts to truncate. Please start a new session with fresh context and try again.");
                             break;
                         }
-
                         truncation_attempt += 1;
                         warn!("Context length exceeded. Truncation Attempt: {}/{}.", truncation_attempt, MAX_TRUNCATION_ATTEMPTS);
-
                         // Decay the estimate factor as we make more truncation attempts
                         // Estimate factor decays like this over time: 0.9, 0.81, 0.729, ...
                         let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
-
-                        // release the lock before truncation to prevent deadlock
-                        drop(extension_manager);
-
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
                             break;
                         }
-
-
-                        // Re-acquire the lock
-                        extension_manager = self.extension_manager.lock().await;
-
                         // Retry the loop after truncation
                         continue;
                     },
@@ -773,7 +638,7 @@ impl Agent {
     }
 
     pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         let tools = extension_manager.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
@@ -796,5 +661,117 @@ impl Agent {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             tracing::error!("Failed to send tool result: {}", e);
         }
+    }
+
+    pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
+        let extension_manager = self.extension_manager.lock().await;
+        let extensions_info = extension_manager.get_extensions_info().await;
+        let system_prompt = self
+            .prompt_manager
+            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
+
+        let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
+        let tools = extension_manager.get_prefixed_tools().await?;
+
+        messages.push(Message::user().with_text(recipe_prompt));
+
+        let (result, _usage) = self
+            .provider
+            .complete(&system_prompt, &messages, &tools)
+            .await?;
+
+        let content = result.as_concat_text();
+
+        // the response may be contained in ```json ```, strip that before parsing json
+        let re = Regex::new(r"(?s)```[^\n]*\n(.*?)\n```").unwrap();
+        let clean_content = re
+            .captures(&content)
+            .and_then(|caps| caps.get(1).map(|m| m.as_str()))
+            .unwrap_or(&content)
+            .trim()
+            .to_string();
+
+        // try to parse json response from the LLM
+        let (instructions, activities) =
+            if let Ok(json_content) = serde_json::from_str::<Value>(&clean_content) {
+                let instructions = json_content
+                    .get("instructions")
+                    .ok_or_else(|| anyhow!("Missing 'instructions' in json response"))?
+                    .as_str()
+                    .ok_or_else(|| anyhow!("instructions' is not a string"))?
+                    .to_string();
+
+                let activities = json_content
+                    .get("activities")
+                    .ok_or_else(|| anyhow!("Missing 'activities' in json response"))?
+                    .as_array()
+                    .ok_or_else(|| anyhow!("'activities' is not an array'"))?
+                    .iter()
+                    .map(|act| {
+                        act.as_str()
+                            .map(|s| s.to_string())
+                            .ok_or(anyhow!("'activities' array element is not a string"))
+                    })
+                    .collect::<Result<_, _>>()?;
+
+                (instructions, activities)
+            } else {
+                // If we can't get valid JSON, try string parsing
+                // Use split_once to get the content after "Instructions:".
+                let after_instructions = content
+                    .split_once("instructions:")
+                    .map(|(_, rest)| rest)
+                    .unwrap_or(&content);
+
+                // Split once more to separate instructions from activities.
+                let (instructions_part, activities_text) = after_instructions
+                    .split_once("activities:")
+                    .unwrap_or((after_instructions, ""));
+
+                let instructions = instructions_part
+                    .trim_end_matches(|c: char| c.is_whitespace() || c == '#')
+                    .trim()
+                    .to_string();
+                let activities_text = activities_text.trim();
+
+                // Regex to remove bullet markers or numbers with an optional dot.
+                let bullet_re = Regex::new(r"^[•\-\*\d]+\.?\s*").expect("Invalid regex");
+
+                // Process each line in the activities section.
+                let activities: Vec<String> = activities_text
+                    .lines()
+                    .map(|line| bullet_re.replace(line, "").to_string())
+                    .map(|s| s.trim().to_string())
+                    .filter(|line| !line.is_empty())
+                    .collect();
+
+                (instructions, activities)
+            };
+
+        let extensions = ExtensionConfigManager::get_all().unwrap_or_default();
+        let extension_configs: Vec<_> = extensions
+            .iter()
+            .filter(|e| e.enabled)
+            .map(|e| e.config.clone())
+            .collect();
+
+        let author = Author {
+            contact: std::env::var("USER")
+                .or_else(|_| std::env::var("USERNAME"))
+                .ok(),
+            metadata: None,
+        };
+
+        let recipe = Recipe::builder()
+            .title("Custom recipe from chat")
+            .description("a custom recipe instance from this chat session")
+            .instructions(instructions)
+            .activities(activities)
+            .extensions(extension_configs)
+            .author(author)
+            .build()
+            .expect("valid recipe");
+
+        Ok(recipe)
     }
 }

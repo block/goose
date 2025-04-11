@@ -525,12 +525,6 @@ test.describe('Goose App', () => {
       
           // Wait a bit and dump HTML to see structure
           await mainWindow.waitForTimeout(1000);
-          const html = await mainWindow.evaluate(() => document.documentElement.outerHTML);
-          console.log('Full page HTML after clicking Output:', html);
-      
-          // Also dump just the response area HTML
-          const responseHtml = await response.evaluate(el => el.outerHTML);
-          console.log('Response area HTML:', responseHtml);
       
           // Take screenshot before trying to find content
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-quote-response-debug.png` });
