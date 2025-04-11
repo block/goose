@@ -77,11 +77,45 @@ impl OpenRouterProvider {
             .send()
             .await?;
 
+        // Handle Google-compatible model responses differently
         if is_google_model(&payload) {
-            handle_response_google_compat(response).await
-        } else {
-            handle_response_openai_compat(response).await
+            return handle_response_google_compat(response).await;
         }
+
+        // For OpenAI-compatible models, parse the response body to JSON
+        let response_body = handle_response_openai_compat(response)
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
+
+        // OpenRouter can return errors in 200 OK responses, so we have to check for errors explicitly
+        // https://openrouter.ai/docs/api-reference/errors
+        if let Some(error_obj) = response_body.get("error") {
+            // If there's an error object, extract the error message and code
+            let error_message = error_obj
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown OpenRouter error");
+
+            let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
+
+            // Check for context length errors in the error message
+            if error_code == 400 && error_message.contains("maximum context length") {
+                return Err(ProviderError::ContextLengthExceeded(
+                    error_message.to_string(),
+                ));
+            }
+
+            // Return appropriate error based on the OpenRouter error code
+            match error_code {
+                401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
+                429 => return Err(ProviderError::RateLimitExceeded(error_message.to_string())),
+                500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
+                _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
+            }
+        }
+
+        // No error detected, return the response body
+        Ok(response_body)
     }
 }
 
