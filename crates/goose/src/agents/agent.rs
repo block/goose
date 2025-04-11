@@ -7,7 +7,7 @@ use futures::stream::BoxStream;
 use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
-use crate::permission::permission_judge::check_tool_permissions;
+use crate::permission::permission_judge::{check_tool_permissions, get_confirmation_message};
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
@@ -22,8 +22,8 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
@@ -423,16 +423,8 @@ impl Agent {
                                 );
                             }
                         } else {
-                            // Split tool requests into enable_extension and others
-                            let (enable_extension_requests, non_enable_extension_requests): (Vec<&ToolRequest>, Vec<&ToolRequest>) = remaining_requests.clone()
-                                .into_iter()
-                                .partition(|req| {
-                                    req.tool_call.as_ref()
-                                        .map(|call| call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
-                                        .unwrap_or(false)
-                                });
                             let mut permission_manager = PermissionManager::default();
-                            let permission_check_result = check_tool_permissions(non_enable_extension_requests,
+                            let permission_check_result = check_tool_permissions(remaining_requests,
                                                             &mode,
                                                             tools_with_readonly_annotation.clone(),
                                                             tools_without_annotation.clone(),
@@ -447,40 +439,6 @@ impl Agent {
                                 "The user has declined to run this tool. \
                                 DO NOT attempt to call this tool again. \
                                 If there are no alternative methods to proceed, clearly explain the situation and STOP.");
-                            // Handle install extension requests
-                            for request in &enable_extension_requests {
-                                if let Ok(tool_call) = request.tool_call.clone() {
-                                    let confirmation = Message::user().with_enable_extension_request(
-                                        request.id.clone(),
-                                        tool_call.arguments.get("extension_name")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("")
-                                            .to_string()
-                                    );
-                                    yield confirmation;
-
-                                    let mut rx = self.confirmation_rx.lock().await;
-                                    while let Some((req_id, extension_confirmation)) = rx.recv().await {
-                                        let extension_name = tool_call.arguments.get("extension_name")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("")
-                                            .to_string();
-                                        if req_id == request.id {
-                                            if extension_confirmation.permission == Permission::AllowOnce || extension_confirmation.permission == Permission::AlwaysAllow {
-                                                let install_result = self.enable_extension(extension_name, request.id.clone()).await;
-                                                install_results.push(install_result);
-                                            } else {
-                                                // User declined - add declined response
-                                                message_tool_response = message_tool_response.with_tool_response(
-                                                    request.id.clone(),
-                                                    Ok(vec![denied_content_text.clone()]),
-                                                );
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
 
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
@@ -500,25 +458,28 @@ impl Agent {
                             // Process read-only tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let confirmation = Message::user().with_tool_confirmation_request(
-                                        request.id.clone(),
-                                        tool_call.name.clone(),
-                                        tool_call.arguments.clone(),
-                                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
-                                    );
+                                    let (is_enable_extension_tool, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
                                     yield confirmation;
 
                                     // Wait for confirmation response through the channel
                                     let mut rx = self.confirmation_rx.lock().await;
-                                    while let Some((req_id, tool_confirmation)) = rx.recv().await {
+                                    while let Some((req_id, confirmation)) = rx.recv().await {
                                         if req_id == request.id {
-                                            let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
-                                            if confirmed {
-                                                // Add this tool call to the futures collection
-                                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
-                                                tool_futures.push(tool_future);
-                                                if tool_confirmation.permission == Permission::AlwaysAllow {
-                                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
+                                            if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                                                if is_enable_extension_tool {
+                                                    let extension_name = tool_call.arguments.get("extension_name")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("")
+                                                        .to_string();
+                                                    let install_result = self.enable_extension(extension_name, request.id.clone()).await;
+                                                    install_results.push(install_result);
+                                                } else {
+                                                    // Add this tool call to the futures collection
+                                                    let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
+                                                    tool_futures.push(tool_future);
+                                                    if confirmation.permission == Permission::AlwaysAllow {
+                                                        permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
+                                                    }
                                                 }
                                             } else {
                                                 // User declined - add declined response
