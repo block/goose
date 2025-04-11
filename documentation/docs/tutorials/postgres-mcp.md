@@ -16,15 +16,7 @@ The PostgreSQL MCP Server extension allows Goose to interact directly with your 
 npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb
 ```
 
-It's worth noting that this MCP server only allows connecting to a single predefined database at this time, and the connection URL must be specified in the command.
-
-**Environment Variables**
-```
-POSTGRES_URL: Your PostgreSQL connection URL
-
-We're using `postgresql://localhost/mydb` as an example here to access a local database, but you can configure this for your own environment.
-```
-:::
+It's worth noting that this MCP server only allows connecting to a single predefined database at this time, and the connection URL must be specified in the command. We're using `postgresql://localhost/mydb` as an example here to access a local database, but you can configure this for your own environment.
 
 ## Configuration
 
@@ -173,28 +165,22 @@ Let's see how to use Goose with the PostgreSQL extension to perform some common 
 
 #### Goose Prompt
 ```
-Show me all tables in the database
+Tell me which students in my database have a GPA above their grade's average.
 ```
 
 #### Goose Output
 ```
-I'll query the database to list all tables.
+Okay, here are the students with a GPA above their grade's average:
 
-Tables in your database:
-- users
-- products
-- orders
-- inventory
-- categories
-
-Would you like to see the schema for any specific table?
+*   **John Smith**, GPA: 3.85, Grade Level: 12, Grade Level Average GPA: 3.775
+*   **Emma Johnson**, GPA: 4.00, Grade Level: 11, Grade Level Average GPA: 3.90
 ```
 
 ### Querying Data
 
 #### Goose Prompt
 ```
-Show me the top 5 orders by value
+Show me the top 5 orders of my store by value
 ```
 
 #### Goose Output
@@ -210,17 +196,10 @@ Query results:
 | 1055     | InfoTech | $3,675.00   | 2024-03-16 |
 | 1071     | DevCo    | $3,450.00   | 2024-03-19 |
 
-Would you like to see more details about any of these orders?
 ```
 
 ## Common Tasks
 
-The PostgreSQL extension enables you to:
-- Query and analyze data
-- Manage database schema
-- Create and modify tables
-- Handle data import/export
-- Monitor database performance
-- Manage users and permissions
+The PostgreSQL extension enables you to query and analyze data or give you information about the table structures. The extension is only capable of read-only operations, so you can use it to get information about your database, but not to modify it.
 
 Just describe what you want to do in natural language, and Goose will help you accomplish it using the appropriate SQL commands and PostgreSQL features.
