@@ -1,7 +1,8 @@
 ---
-sidebar_position: 6
+title: File Management
+sidebar_position: 10
+sidebar_label: File Management
 ---
-# File Management
 
 As an autonomous agent, Goose is designed to carry out tasks following specified instructions. This may sometimes involve working with local files. It's essential to follow best practices for safe file modification to monitor changes and revert anywhere necessary.
 

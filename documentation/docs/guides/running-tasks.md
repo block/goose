@@ -1,7 +1,8 @@
 ---
-sidebar_position: 7
+sidebar_position: 13
+title: Running Tasks
+sidebar_label: Run Tasks
 ---
-# Running Tasks
 
 When working with the Goose CLI, you can pass files and instructions to the `goose run` command to execute tasks and workflows. This could be a simple one-liner command or a complex set of instructions stored in a file.
 

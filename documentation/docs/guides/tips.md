@@ -1,5 +1,7 @@
 ---
-title: Quick Tips
+title: Quick Goose Tips
+sidebar_position: 6
+sidebar_label: Quick Tips
 ---
 
 Here is a collection of tips for working with Goose:

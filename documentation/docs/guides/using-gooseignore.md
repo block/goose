@@ -1,10 +1,9 @@
 ---
 title: Prevent Goose from Accessing Files
 sidebar_label: Using Gooseignore
-sidebar_position: 8
+sidebar_position: 14
 ---
 
-# Prevent Goose from Accessing Files
 
 `.gooseignore` is a text file that defines patterns for files and directories that Goose will not access. This means Goose cannot read, modify, delete, or run shell commands on these files when using the Developer extension's tools.
 

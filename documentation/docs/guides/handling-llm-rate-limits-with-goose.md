@@ -1,12 +1,12 @@
 ---
-title: LLM Rate Limits
-sidebar_position: 4
+title: Set LLM Rate Limits
+sidebar_label: LLM Rate Limits
+sidebar_position: 8
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Handling LLM Rate Limits
 
 Rate limiting is the process of restricting the number of requests a user or application can send to an LLM API within a specific timeframe. LLM providers enforce this with the purpose of managing resources and preventing abuse. 
 

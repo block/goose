@@ -1,9 +1,9 @@
 ---
-title: Logging System
-sidebar_position: 5
+title: Goose Logging System
+sidebar_label: Logging System
+sidebar_position: 9
 ---
 
-# Goose Logging System
 
 Goose uses a unified storage system for conversations and interactions. All conversations and interactions (both CLI and Desktop) are stored **locally** in the following locations:
 

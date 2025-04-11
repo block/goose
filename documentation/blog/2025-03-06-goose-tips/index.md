@@ -54,7 +54,7 @@ Goose offers [different modes](/docs/guides/goose-permissions) that determine ho
 
 * ⚡️ **Auto Mode (Default):** Goose can modify, create, and delete files, as well as use extensions, without requiring approval. Best for users who want seamless automation.
 
-* ✅ **Approve Mode:** Goose asks for confirmation before making changes. With [Smart Approve](/docs/guides/goose-permissions#smart-approve) enabled, it evaluates risk levels and prompts for high-risk actions while executing safe ones automatically.
+* ✅ **Approve Mode:** Goose asks for confirmation before making changes. With [Smart Approve](/docs/guides/goose-permissions#permission-modes) enabled, it evaluates risk levels and prompts for high-risk actions while executing safe ones automatically.
 
 * 💬 **Chat Mode:** Goose operates in chat-only mode, without modifying files or using extensions. Ideal for users who want AI assistance without automation.
 

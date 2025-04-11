@@ -1,7 +1,8 @@
 ---
-sidebar_position: 7
+sidebar_position: 11
+title: Adjusting Tool Output Verbosity
+sidebar_label: Adjust Tool Output
 ---
-# Adjust Tool Output
 
 When working with the Goose CLI, you can control the verbosity of tool output.
 

@@ -1,11 +1,11 @@
 ---
 sidebar_position: 1
-title: Managing Sessions
+title: Managing Goose Sessions
+sidebar_label: Managing Sessions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Managing Goose Sessions
 
 A session is a single, continuous interaction between you and Goose, providing a space to ask questions and prompt action. In this guide, we'll cover how to start, exit, and resume a session. 
 

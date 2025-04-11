@@ -1,9 +1,8 @@
 ---
-title: Goose in Docker
-sidebar_position: 9
+title: Building Goose in Docker
+sidebar_label: Goose in Docker
+sidebar_position: 15
 ---
-
-# Building Goose in Docker
 
 :::info Tell Us What You Need
 There are various scenarios where you might want to build Goose in Docker. If the instructions below do not meet your needs, please contact us by replying to our [discussion topic](https://github.com/block/goose/discussions/1496).

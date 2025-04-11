@@ -65,7 +65,7 @@ import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
 
           Ensure the `~/.config` directory has read and write access.
 
-          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues-m3-macs)
+          Goose needs this access to create the log directory and file. Once permissions are granted, the app should load correctly. For steps on how to do this, refer to the  [Troubleshooting Guide](/docs/troubleshooting.md#macos-permission-issues)
           :::
         </div>
       </TabItem>
