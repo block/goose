@@ -24,6 +24,10 @@ Develop a dedicated toolshim model that translates open-source model outputs int
 
 We already experimented with this in the [benchmarking effort](https://block.github.io/goose/blog/2025/03/31/goose-benchmark), finding that phi4 (14b) and gemma3 (27b) achieved close performance to llama3.3 (70b) when used with a generic local model (mistral-nemo) as the shim. This shows potential for furthering their performance with more focused attention on improving the shim's performance.
 
+Toolshim System Sketch:
+
+![Toolshim System Sketch](./sketch.png)
+
 ## Key Observations on Current Challenges with Tool Call Generation
 
 1. **Model training templates are inconsistent**  
@@ -35,32 +39,23 @@ We already experimented with this in the [benchmarking effort](https://block.git
 3. **Hosting providers vary wildly in how well they work with tool calls**  
    Hosting providers helpfully provide chat templates or similar which can, in many cases, prompt some of the larger models to reply correctly formatted tool calls, and thus can support openai-like apis where tools are provided, but in practice these can fall short after one shot, or vary a lot between providers (an issue exacerbated if using model routers such as openrouter or huggingface hosted inference)
 
-## Some examples of model-specific quirks with tool calling:
+### Some examples of model-specific quirks wrt tool calling:
 
-**Tool Calling Examples in Goose**
+**Openhands**: Despite instructions to generate JSON-formatted tool calls, still generates markdown (likely due to shape of their training data) 
 
-Here are some examples showing how different models handle tool calling in Goose:
-
-![Goose shell command](./images/goose_shell_command.png)
-*Example 1: Goose using the shell tool to find the "openai.rs" file with a find command*
-
-![Flappy Bird implementation](./images/flappy_bird_code.png)
-*Example 2: Goose implementing a Flappy Bird game by writing Python code to a file*
-
-![Step-by-step implementation](./images/flappy_bird_steps.png)
-*Example 3: Goose creating a Flappy Bird implementation with a step-by-step approach*
-
-![JSON-formatted tool call](./images/json_tool_call.png)
-*Example 4: Goose using a JSON-formatted tool call to execute a shell command*
-
-**Openhands**: Despite instructions to generate JSON-formatted tool calls, still generates markdown (likely due to shape of their training data)
+![Openhands example](./openhands.png)
 
 **Llama4 Maverick**: Generates malformed tool calls, but performs somewhat better when specifically prompted to generate tool calls as JSON
 
-**Note:** To include these images in the blog post, save the screenshots to the `/images` directory with the filenames `goose_shell_command.png`, `flappy_bird_code.png`, `flappy_bird_steps.png`, and `json_tool_call.png`.
+With "tool calls" on OpenRouter:  
+![OpenRouter tool calls example](./openrouter_toolcalls.png)
+
+Llama4 Maverick when instead just prompted to generate tool calls in JSON:  
+![Llama4 example](./llama4.png)
 
 **Gemma3**: A DeepMind engineer [suggested providing a function calling template in-context in Python format](https://www.philschmid.de/gemma-function-calling)  
-The 12B model also outputs valid JSON tool calls reasonably well
+The 12B model also outputs valid JSON tool calls reasonably well:  
+![Gemma3 example](./gemma3.png)
 
 **Functionary models**: [Ollama couldn't support the tool calling capabilities](https://github.com/MeetKai/functionary/issues/302#issuecomment-2650187280) because these models were trained with prompt templates in a TypeScript schema incompatible with Ollama's supported JSON schema
 
