@@ -156,7 +156,7 @@ pub async fn detect_read_only_tools(
 /// the cconfirmation message based on the tool call
 pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (bool, Message) {
     if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
-        return (
+        (
             true,
             Message::user().with_enable_extension_request(
                 request_id,
@@ -167,9 +167,9 @@ pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (bool,
                     .unwrap_or("")
                     .to_string(),
             ),
-        );
+        )
     } else {
-        return (
+        (
             false,
             Message::user().with_tool_confirmation_request(
                 request_id,
@@ -177,7 +177,7 @@ pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (bool,
                 tool_call.arguments.clone(),
                 Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
             ),
-        );
+        )
     }
 }
 
