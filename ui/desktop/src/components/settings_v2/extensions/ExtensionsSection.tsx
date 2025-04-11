@@ -153,7 +153,7 @@ export default function ExtensionsSection({ deepLinkConfig, showEnvVars }: Exten
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 justify-center text-white dark:text-textSubtle bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
+            className="flex items-center gap-2 justify-center text-white dark:text-black bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
