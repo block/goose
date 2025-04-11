@@ -146,8 +146,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                   <div
                     key={index}
                     className="inline-flex items-center bg-bgApp border-2 border-borderSubtle rounded-full px-4 py-2 text-sm text-textStandard"
+                    title={activity.length > 100 ? activity : undefined}
                   >
-                    <span>{activity}</span>
+                    <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
                     <button
                       onClick={() => handleRemoveActivity(activity)}
                       className="ml-2 text-textStandard hover:text-textSubtle transition-colors"

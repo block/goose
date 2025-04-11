@@ -20,16 +20,18 @@ export default function Splash({ append, activities, title }: SplashProps) {
           </span>
         </div>
       )}
-      <div className="flex flex-col items-center justify-center flex-1">
+      <div className="flex flex-col flex-1">
         <div className="h-full flex flex-col pb-12">
           <div className="p-8">
             <div className="relative text-textStandard mb-12">
               <div className="w-min animate-[flyin_2s_var(--spring-easing)_forwards]">
-                <GooseLogo />
+                <div className="scale-150">
+                  <GooseLogo />
+                </div>
               </div>
             </div>
 
-            <div className="flex">
+            <div>
               <SplashPills append={append} activities={activities} />
             </div>
           </div>
