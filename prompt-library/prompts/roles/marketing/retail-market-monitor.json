@@ -1,0 +1,41 @@
+{
+  "id": "business-retail-market-monitor",
+  "title": "Monitor Top Retailers Market Activity",
+  "description": "Generate and maintain an automated dashboard tracking top retailers' digital presence and market activities",
+  "category": "Business",
+  "function": "marketing",
+  "extensions": ["computercontroller", "tavily"],
+  "external": true,
+  "extensionUrl": "https://github.com/tavily-ai/tavily-mcp",
+  "prompt": "1. Search the web for the top 5 most popular retailers.\n2. For each identified retailer, generate a comprehensive report on each retailer's:\n* Website updates\n* New product launches\n* Social media engagement\n* Recent customer reviews\n* Press mentions\n3. Generate an HTML dashboard based on findings for each retailer\n4. Open the dashboard in a browser\n5. Automation Script to pull new results every 30 days",
+  "example": "This will create a dashboard showing:\n- Amazon's latest product launches and website changes\n- Walmart's social media engagement metrics\n- Target's recent customer sentiment analysis\n- Costco's press coverage and news mentions\n- Home Depot's promotional activities and updates\n\nThe dashboard will auto-update monthly to track changes and trends.\n\nNote: Uses Tavily Web Search's advanced capabilities for comprehensive web results including news, social media, and review sites.",
+  "tags": ["retail", "market-research", "automation", "dashboard", "competitive-analysis", "monitoring", "web-search"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "num_retailers": {
+      "description": "Number of top retailers to monitor",
+      "default": 5,
+      "required": false
+    },
+    "update_frequency": {
+      "description": "How often to update the dashboard in days",
+      "default": 30,
+      "required": false
+    },
+    "dashboard_path": {
+      "description": "Path where the dashboard HTML should be saved",
+      "default": "retail_dashboard.html",
+      "required": false
+    },
+    "search_type": {
+      "description": "Tavily Web Search type (comprehensive or news)",
+      "default": "comprehensive",
+      "required": false
+    }
+  }
+}

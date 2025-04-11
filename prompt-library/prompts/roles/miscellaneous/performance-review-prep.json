@@ -1,0 +1,27 @@
+{
+  "id": "developer-review-prep",
+  "title": "Structure Your Performance Review",
+  "description": "Sort collected feedback into a well-organized performance review",
+  "category": "Productivity",
+  "function": "miscellaneous",
+  "extensions": ["developer", "google_drive"],
+  "prompt": "Create a web app that will take feedback and sort it into custom performance dimensions to populate a performance evaluation. The app should:\n- Allow users to define their review dimensions (e.g., Leadership, Technical Skills, Innovation)\n- Accept feedback text through input or file upload\n- Sort feedback into the defined dimensions\n- Export the organized feedback for performance reviews",
+  "example": "User defines dimensions like 'Technical Skills', 'Teamwork', 'Innovation'\nInputs feedback: 'Led the migration to cloud services'\nApp categorizes it under appropriate dimension\nExports organized feedback for review",
+  "tags": ["performance-review", "feedback", "career-development", "self-review"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "dimensions": {
+      "description": "List of performance dimensions to sort feedback into",
+      "required": true
+    },
+    "feedback_input": {
+      "description": "Text or file containing feedback to sort",
+      "required": true
+    }
+  }
+}

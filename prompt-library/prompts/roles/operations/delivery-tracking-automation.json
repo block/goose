@@ -1,0 +1,33 @@
+{
+  "id": "ops-delivery-tracking",
+  "title": "Real-Time Delivery Route Optimization",
+  "description": "Monitor delivery routes and automatically optimize them based on real-time traffic conditions",
+  "category": "Business",
+  "function": "operations",
+  "prompt": "Track the live GPS location of driver ID #{driver_id}. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer's live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.",
+  "example": "Track the live GPS location of driver ID #12345. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer's live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.",
+  "tags": [
+    "operations",
+    "logistics",
+    "delivery",
+    "route-optimization",
+    "automation",
+    "real-time-tracking",
+    "customer-communication"
+  ],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-13",
+  "lastUpdated": "2025-03-13",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "extensions": ["google_maps"],
+  "variables": [
+    {
+      "name": "driver_id",
+      "description": "The unique identifier for the driver being tracked",
+      "required": true,
+      "type": "string"
+    }
+  ]
+}
