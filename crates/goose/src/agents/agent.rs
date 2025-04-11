@@ -4,14 +4,6 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 
-use regex::Regex;
-use serde_json::Value;
-use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, instrument, warn};
-
-use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::types::ToolResultReceiver;
 use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -22,20 +14,23 @@ use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
+use regex::Regex;
+use serde_json::Value;
+use tokio::sync::{mpsc, Mutex};
+use tracing::{debug, error, instrument, warn};
 
-use mcp_core::{
-    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
-};
-
+use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
+    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
-
-use super::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
-use super::types::FrontendTool;
+use crate::agents::types::{FrontendTool, ToolResultReceiver};
+use mcp_core::{
+    prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
+};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -328,7 +323,6 @@ impl Agent {
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);
 
-        // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
             .last()
             .and_then(|msg| msg.content.first())
@@ -338,7 +332,7 @@ impl Agent {
         }
 
         Ok(Box::pin(async_stream::try_stream! {
-            let _reply_guard = reply_span.enter();
+            let _ = reply_span.enter();
             loop {
                 match Self::generate_response_from_provider(
                     self.provider(),
@@ -550,7 +544,6 @@ impl Agent {
 
                             // Check if any install results had errors before processing them
                             let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
-
                             for (request_id, output) in install_results {
                                 message_tool_response = message_tool_response.with_tool_response(
                                     request_id,
@@ -560,9 +553,7 @@ impl Agent {
 
                             // Update system prompt and tools if installations were successful
                             if all_install_successful {
-                                (tools, toolshim_tools, system_prompt) = self
-                                                        .prepare_tools_and_prompt()
-                                                        .await?;
+                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                             }
                     }
 
