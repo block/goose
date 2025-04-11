@@ -189,7 +189,7 @@ pub struct PermissionCheckResult {
 }
 
 pub async fn check_tool_permissions(
-    candidate_requests: Vec<&&ToolRequest>,
+    candidate_requests: Vec<&ToolRequest>,
     mode: &str,
     tools_with_readonly_annotation: HashSet<String>,
     tools_without_annotation: HashSet<String>,
@@ -201,7 +201,7 @@ pub async fn check_tool_permissions(
     let mut denied = vec![];
     let mut llm_detect_candidates = vec![];
 
-    for &&request in &candidate_requests {
+    for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
             // Always ask approval for enable extension tool.
             if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
@@ -464,10 +464,8 @@ mod tests {
             }),
         };
 
-        // Store ToolRequests in a Vec
-        let tool_requests = vec![&tool_request_1, &tool_request_2, &enable_extension];
-        // Create a Vec of references to ToolRequests
-        let candidate_requests: Vec<&&ToolRequest> = tool_requests.iter().collect();
+        let candidate_requests: Vec<&ToolRequest> =
+            vec![&tool_request_1, &tool_request_2, &enable_extension];
 
         // Call the function under test
         let result = check_tool_permissions(
@@ -534,10 +532,7 @@ mod tests {
             }),
         };
 
-        // Store ToolRequests in a Vec
-        let tool_requests = vec![&tool_request_1, &tool_request_2];
-        // Create a Vec of references to ToolRequests
-        let candidate_requests: Vec<&&ToolRequest> = tool_requests.iter().collect();
+        let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
 
         // Call the function under test
         let result = check_tool_permissions(

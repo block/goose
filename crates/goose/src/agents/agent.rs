@@ -424,7 +424,7 @@ impl Agent {
                             }
                         } else {
                             let mut permission_manager = PermissionManager::default();
-                            let permission_check_result = check_tool_permissions(remaining_requests,
+                            let permission_check_result = check_tool_permissions(remaining_requests.into_iter().map(|&x| x).collect(),
                                                             &mode,
                                                             tools_with_readonly_annotation.clone(),
                                                             tools_without_annotation.clone(),
