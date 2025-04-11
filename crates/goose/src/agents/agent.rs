@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
+use futures::TryStreamExt;
 
-use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::permission::permission_judge::check_tool_permissions;
@@ -31,6 +31,8 @@ use crate::agents::types::{FrontendTool, ToolResultReceiver};
 use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
+
+use super::tool_execution::ToolFuture;
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -104,7 +106,7 @@ impl Agent {
 
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
-    async fn dispatch_tool_call(
+    pub(crate) async fn dispatch_tool_call(
         &self,
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
@@ -379,7 +381,7 @@ impl Agent {
                         }
 
                         // Process tool requests depending on goose_mode
-                        let mut message_tool_response = Message::user();
+                        let message_tool_response = Arc::new(Mutex::new(Message::user()));
 
                         // First handle any frontend tool requests
                         let mut remaining_requests = Vec::new();
@@ -393,7 +395,8 @@ impl Agent {
                                     );
 
                                     if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
-                                        message_tool_response = message_tool_response.with_tool_response(id, result);
+                                        let mut response = message_tool_response.lock().await;
+                                        *response = response.clone().with_tool_response(id, result);
                                     }
                                 } else {
                                     remaining_requests.push(request);
@@ -408,7 +411,8 @@ impl Agent {
                         if mode.as_str() == "chat" {
                             // Skip all tool calls in chat mode
                             for request in remaining_requests {
-                                message_tool_response = message_tool_response.with_tool_response(
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
                                     request.id.clone(),
                                     Ok(vec![Content::text(
                                         "Let the user know the tool call was skipped in Goose chat mode. \
@@ -440,7 +444,7 @@ impl Agent {
                                                             self.provider()).await;
 
                             // Handle pre-approved and read-only tools in parallel
-                            let mut tool_futures = Vec::new();
+                            let mut tool_futures: Vec<ToolFuture> = Vec::new();
                             let mut install_results = Vec::new();
 
                             let denied_content_text = Content::text(
@@ -471,7 +475,8 @@ impl Agent {
                                                 install_results.push(install_result);
                                             } else {
                                                 // User declined - add declined response
-                                                message_tool_response = message_tool_response.with_tool_response(
+                                                let mut response = message_tool_response.lock().await;
+                                                *response = response.clone().with_tool_response(
                                                     request.id.clone(),
                                                     Ok(vec![denied_content_text.clone()]),
                                                 );
@@ -486,57 +491,46 @@ impl Agent {
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
-                                     tool_futures.push(tool_future);
+                                     tool_futures.push(Box::pin(tool_future));
                                 }
                             }
 
                             for request in &permission_check_result.denied {
-                                message_tool_response = message_tool_response.with_tool_response(
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
                                     request.id.clone(),
                                     Ok(vec![denied_content_text.clone()]),
                                 );
                             }
 
-                            // Process read-only tools
-                            for request in &permission_check_result.needs_approval {
-                                if let Ok(tool_call) = request.tool_call.clone() {
-                                    let confirmation = Message::user().with_tool_confirmation_request(
-                                        request.id.clone(),
-                                        tool_call.name.clone(),
-                                        tool_call.arguments.clone(),
-                                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
-                                    );
-                                    yield confirmation;
+                            // we need interior mutability in handle_approval_tool_requests
+                            let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
-                                    // Wait for confirmation response through the channel
-                                    let mut rx = self.confirmation_rx.lock().await;
-                                    while let Some((req_id, tool_confirmation)) = rx.recv().await {
-                                        if req_id == request.id {
-                                            let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
-                                            if confirmed {
-                                                // Add this tool call to the futures collection
-                                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
-                                                tool_futures.push(tool_future);
-                                                if tool_confirmation.permission == Permission::AlwaysAllow {
-                                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
-                                                }
-                                            } else {
-                                                // User declined - add declined response
-                                                message_tool_response = message_tool_response.with_tool_response(
-                                                    request.id.clone(),
-                                                    Ok(vec![denied_content_text.clone()]),
-                                                );
-                                            }
-                                            break; // Exit the loop once the matching `req_id` is found
-                                        }
-                                    }
-                                }
+                            // Process read-only tools
+                            let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                &permission_check_result.needs_approval,
+                                tool_futures_arc.clone(),
+                                &mut permission_manager,
+                                message_tool_response.clone()
+                            );
+
+                            while let Some(msg) = tool_approval_stream.try_next().await? {
+                                yield msg;
                             }
+
+                            tool_futures = {
+                                // Lock the mutex asynchronously.
+                                let mut futures_lock = tool_futures_arc.lock().await;
+                                // Drain the vector and collect into a new Vec.
+                                futures_lock.drain(..).collect::<Vec<_>>()
+                            };
+
 
                             // Wait for all tool calls to complete
                             let results = futures::future::join_all(tool_futures).await;
                             for (request_id, output) in results {
-                                message_tool_response = message_tool_response.with_tool_response(
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
                                     request_id,
                                     output,
                                 );
@@ -545,7 +539,8 @@ impl Agent {
                             // Check if any install results had errors before processing them
                             let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
                             for (request_id, output) in install_results {
-                                message_tool_response = message_tool_response.with_tool_response(
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
                                     request_id,
                                     output
                                 );
@@ -556,11 +551,12 @@ impl Agent {
                                 (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                             }
                     }
+                         let final_message = message_tool_response.lock().await.clone();
 
-                        yield message_tool_response.clone();
+                        yield final_message.clone();
 
                         messages.push(response);
-                        messages.push(message_tool_response);
+                        messages.push(final_message);
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
                         if truncation_attempt >= MAX_TRUNCATION_ATTEMPTS {
