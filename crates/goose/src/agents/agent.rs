@@ -320,14 +320,13 @@ impl Agent {
         let config = Config::global();
 
         // Setup tools and prompt
-        let (mut tools, toolshim_tools, mut system_prompt) = self
-            .prepare_tools_and_prompt()
-            .await?;
+        let (mut tools, mut toolshim_tools, mut system_prompt) =
+            self.prepare_tools_and_prompt().await?;
 
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
-
-        let (tools_with_readonly_annotation, tools_without_annotation) = Self::categorize_tools_by_annotation(&tools);
+        let (tools_with_readonly_annotation, tools_without_annotation) =
+            Self::categorize_tools_by_annotation(&tools);
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -340,7 +339,7 @@ impl Agent {
 
         Ok(Box::pin(async_stream::try_stream! {
             let _reply_guard = reply_span.enter();
-            loop {                
+            loop {
                 match Self::generate_response_from_provider(
                     self.provider(),
                     &system_prompt,
@@ -550,7 +549,7 @@ impl Agent {
                             }
 
                             // Check if any install results had errors before processing them
-                            let all_successful = !install_results.iter().any(|(_, result)| result.is_err());
+                            let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
 
                             for (request_id, output) in install_results {
                                 message_tool_response = message_tool_response.with_tool_response(
@@ -559,20 +558,13 @@ impl Agent {
                                 );
                             }
 
-                            // Update system prompt and tools if all installations were successful
-                            if all_successful {
-                                let extension_manager = self.extension_manager.lock().await;
-                                let extensions_info = extension_manager.get_extensions_info().await;
-                                system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
-                                tools = extension_manager.get_prefixed_tools().await?;
-                                if extension_manager.supports_resources() {
-                                    tools.push(platform_tools::read_resource_tool());
-                                    tools.push(platform_tools::list_resources_tool());
-                                }
-                                tools.push(platform_tools::search_available_extensions_tool());
-                                tools.push(platform_tools::enable_extension_tool());
+                            // Update system prompt and tools if installations were successful
+                            if all_install_successful {
+                                (tools, toolshim_tools, system_prompt) = self
+                                                        .prepare_tools_and_prompt()
+                                                        .await?;
                             }
-                        }
+                    }
 
                         yield message_tool_response.clone();
 
@@ -587,19 +579,15 @@ impl Agent {
                             yield Message::assistant().with_text("Error: Context length exceeds limits even after multiple attempts to truncate. Please start a new session with fresh context and try again.");
                             break;
                         }
-
                         truncation_attempt += 1;
                         warn!("Context length exceeded. Truncation Attempt: {}/{}.", truncation_attempt, MAX_TRUNCATION_ATTEMPTS);
-
                         // Decay the estimate factor as we make more truncation attempts
                         // Estimate factor decays like this over time: 0.9, 0.81, 0.729, ...
                         let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
-
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
                             break;
                         }
-
                         // Retry the loop after truncation
                         continue;
                     },
