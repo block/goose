@@ -158,7 +158,7 @@ pub struct PermissionCheckResult {
 }
 
 pub async fn check_tool_permissions(
-    remaining_requests: Vec<&&ToolRequest>,
+    candidate_requests: Vec<&ToolRequest>,
     mode: &str,
     tools_with_readonly_annotation: HashSet<String>,
     tools_without_annotation: HashSet<String>,
@@ -170,45 +170,51 @@ pub async fn check_tool_permissions(
     let mut denied = vec![];
     let mut llm_detect_candidates = vec![];
 
-    for &&request in &remaining_requests {
+    for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
-            // 1. Check user-defined permission
-            if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
-                match level {
-                    PermissionLevel::AlwaysAllow => approved.push(request.clone()),
-                    PermissionLevel::AskBefore => needs_approval.push(request.clone()),
-                    PermissionLevel::NeverAllow => denied.push(request.clone()),
-                }
+            if mode == "chat" {
                 continue;
-            }
-
-            // 2. Fallback based on mode
-            match mode {
-                "approve" => {
-                    needs_approval.push(request.clone());
-                }
-                "smart_approve" => {
-                    if let Some(level) =
-                        permission_manager.get_smart_approve_permission(&tool_call.name)
-                    {
-                        match level {
-                            PermissionLevel::AlwaysAllow => approved.push(request.clone()),
-                            PermissionLevel::AskBefore => needs_approval.push(request.clone()),
-                            PermissionLevel::NeverAllow => denied.push(request.clone()),
-                        }
-                        continue;
+            } else if mode == "auto" {
+                approved.push(request.clone());
+            } else {
+                // 1. Check user-defined permission
+                if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
+                    match level {
+                        PermissionLevel::AlwaysAllow => approved.push(request.clone()),
+                        PermissionLevel::AskBefore => needs_approval.push(request.clone()),
+                        PermissionLevel::NeverAllow => denied.push(request.clone()),
                     }
+                    continue;
+                }
 
-                    if tools_with_readonly_annotation.contains(&tool_call.name) {
-                        approved.push(request.clone());
-                    } else if tools_without_annotation.contains(&tool_call.name) {
-                        llm_detect_candidates.push(request.clone());
-                    } else {
+                // 2. Fallback based on mode
+                match mode {
+                    "approve" => {
                         needs_approval.push(request.clone());
                     }
-                }
-                _ => {
-                    needs_approval.push(request.clone());
+                    "smart_approve" => {
+                        if let Some(level) =
+                            permission_manager.get_smart_approve_permission(&tool_call.name)
+                        {
+                            match level {
+                                PermissionLevel::AlwaysAllow => approved.push(request.clone()),
+                                PermissionLevel::AskBefore => needs_approval.push(request.clone()),
+                                PermissionLevel::NeverAllow => denied.push(request.clone()),
+                            }
+                            continue;
+                        }
+
+                        if tools_with_readonly_annotation.contains(&tool_call.name) {
+                            approved.push(request.clone());
+                        } else if tools_without_annotation.contains(&tool_call.name) {
+                            llm_detect_candidates.push(request.clone());
+                        } else {
+                            needs_approval.push(request.clone());
+                        }
+                    }
+                    _ => {
+                        needs_approval.push(request.clone());
+                    }
                 }
             }
         }
@@ -380,7 +386,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_check_tool_permissions() {
+    async fn test_check_tool_permissions_smart_approve() {
         // Setup mocks
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path();
@@ -412,15 +418,12 @@ mod tests {
             }),
         };
 
-        // Store ToolRequests in a Vec
-        let tool_requests = vec![&tool_request_1, &tool_request_2];
-
         // Create a Vec of references to ToolRequests
-        let remaining_requests: Vec<&&ToolRequest> = tool_requests.iter().collect();
+        let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
 
         // Call the function under test
         let result = check_tool_permissions(
-            remaining_requests,
+            candidate_requests,
             "smart_approve",
             tools_with_readonly_annotation,
             tools_without_annotation,
@@ -437,5 +440,58 @@ mod tests {
         // Ensure the right tools are in the approved and needs_approval lists
         assert!(result.approved.iter().any(|req| req.id == "tool_1"));
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
+    }
+
+    #[tokio::test]
+    async fn test_check_tool_permissions_auto() {
+        // Setup mocks
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        let mut permission_manager = PermissionManager::new(temp_path);
+        let provider = create_mock_provider();
+
+        let tools_with_readonly_annotation: HashSet<String> =
+            vec!["file_reader".to_string()].into_iter().collect();
+        let tools_without_annotation: HashSet<String> =
+            vec!["data_fetcher".to_string()].into_iter().collect();
+
+        permission_manager.update_user_permission("file_reader", PermissionLevel::AlwaysAllow);
+        permission_manager
+            .update_smart_approve_permission("data_fetcher", PermissionLevel::AskBefore);
+
+        let tool_request_1 = ToolRequest {
+            id: "tool_1".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "file_reader".to_string(),
+                arguments: serde_json::json!({"path": "/path/to/file"}),
+            }),
+        };
+
+        let tool_request_2 = ToolRequest {
+            id: "tool_2".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "data_fetcher".to_string(),
+                arguments: serde_json::json!({"url": "http://example.com"}),
+            }),
+        };
+
+        // Create a Vec of references to ToolRequests
+        let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
+
+        // Call the function under test
+        let result = check_tool_permissions(
+            candidate_requests,
+            "auto",
+            tools_with_readonly_annotation,
+            tools_without_annotation,
+            &mut permission_manager,
+            provider,
+        )
+        .await;
+
+        // Validate the result
+        assert_eq!(result.approved.len(), 2); // file_reader should be approved
+        assert_eq!(result.needs_approval.len(), 0); // data_fetcher should need approval
+        assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
     }
 }
