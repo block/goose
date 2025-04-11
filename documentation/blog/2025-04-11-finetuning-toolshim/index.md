@@ -6,6 +6,8 @@ authors:
     - mic
 ---
 
+![blog cover](toolshim-header.png)
+
 Our recently published [Goose benchmark](https://block.github.io/goose/blog/2025/03/31/goose-benchmark) revealed significant performance limitations in models where tool calling is not straightforwardly supported (e.g., Gemma3, Deepseek-r1, phi4). These models often fail to invoke tools at appropriate times or produce malformed or inconsistently formatted tool calls. With the most recent releases of Llama4 and Deepseek v3 (0324), we are again observing challenges with effective tool calling performance, even on these flagship openweight models.
 
 <!--truncate-->
@@ -86,10 +88,10 @@ On top of local models, we would like to consider parsers, parser combinators, c
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/11/finetuning-toolshim" />
   <meta property="og:description" content="Addressing performance limitations in models without native tool calling support" />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/toolshim-header.png" />
+  <meta property="og:image" content="http://localhost:3000/goose/assets/images/toolshim-header-9accab4168c5d501172ddcf739c71c56.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Finetuning Toolshim Models for Tool Calling" />
   <meta name="twitter:description" content="Addressing performance limitations in models without native tool calling support" />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/toolshim-header.png" />
+  <meta name="twitter:image" content="http://localhost:3000/goose/assets/images/toolshim-header-9accab4168c5d501172ddcf739c71c56.png" />
 </head>
