@@ -72,8 +72,8 @@ export default function ChatView({
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
-  // Get botConfig directly from appConfig
-  const botConfig = window.appConfig.get('botConfig') as Recipe | null;
+  // Get recipeConfig directly from appConfig
+  const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   const {
     messages,
@@ -368,11 +368,13 @@ export default function ChatView({
       </div>
 
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
-        {botConfig?.title && messages.length > 0 && (
+        {recipeConfig?.title && messages.length > 0 && (
           <AgentHeader
-            title={botConfig.title}
+            title={recipeConfig.title}
             profileInfo={
-              botConfig.profile ? `${botConfig.profile} - ${botConfig.mcps || 12} MCPs` : undefined
+              recipeConfig.profile
+                ? `${recipeConfig.profile} - ${recipeConfig.mcps || 12} MCPs`
+                : undefined
             }
             onChangeProfile={() => {
               // Handle profile change
@@ -383,8 +385,8 @@ export default function ChatView({
         {messages.length === 0 ? (
           <Splash
             append={(text) => append(createUserMessage(text))}
-            activities={Array.isArray(botConfig?.activities) ? botConfig.activities : null}
-            title={botConfig?.title}
+            activities={Array.isArray(recipeConfig?.activities) ? recipeConfig.activities : null}
+            title={recipeConfig?.title}
           />
         ) : (
           <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
