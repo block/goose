@@ -21,6 +21,7 @@ use utoipa::OpenApi;
         super::routes::config_management::get_extensions,
         super::routes::config_management::read_all_config,
         super::routes::config_management::providers,
+        super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
     ),
     components(schemas(
@@ -31,6 +32,8 @@ use utoipa::OpenApi;
         super::routes::config_management::ProviderDetails,
         super::routes::config_management::ExtensionResponse,
         super::routes::config_management::ExtensionQuery,
+        super::routes::config_management::ToolPermission,
+        super::routes::config_management::UpsertPermissionsQuery,
         ProviderMetadata,
         ExtensionEntry,
         ExtensionConfig,

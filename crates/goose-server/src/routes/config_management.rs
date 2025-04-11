@@ -5,12 +5,12 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
-use goose::agents::ExtensionConfig;
-use goose::config::extensions::name_to_key;
 use goose::config::Config;
+use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
 use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
+use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -76,6 +76,18 @@ pub struct ProviderDetails {
 #[derive(Serialize, ToSchema)]
 pub struct ProvidersResponse {
     pub providers: Vec<ProviderDetails>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct ToolPermission {
+    /// Unique identifier and name of the tool, format <extension_name>__<tool_name>
+    pub tool_name: String,
+    pub permission: PermissionLevel,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct UpsertPermissionsQuery {
+    pub tool_permissions: Vec<ToolPermission>,
 }
 
 #[utoipa::path(
@@ -389,6 +401,34 @@ pub async fn init_config(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/permissions",
+    request_body = UpsertPermissionsQuery,
+    responses(
+        (status = 200, description = "Permission update completed", body = String),
+        (status = 400, description = "Invalid request"),
+    )
+)]
+pub async fn upsert_permissions(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(query): Json<UpsertPermissionsQuery>,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let mut permission_manager = PermissionManager::default();
+    // Iterate over each tool permission and update permissions
+    for tool_permission in &query.tool_permissions {
+        permission_manager.update_user_permission(
+            &tool_permission.tool_name,
+            tool_permission.permission.clone(),
+        );
+    }
+
+    Ok(Json("Permissions updated successfully".to_string()))
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -400,5 +440,6 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extensions/:name", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/init", post(init_config))
+        .route("/config/permissions", post(upsert_permissions))
         .with_state(state)
 }

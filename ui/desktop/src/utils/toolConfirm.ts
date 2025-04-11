@@ -1,6 +1,6 @@
 import { getApiUrl, getSecretKey } from '../config';
 
-export async function ConfirmToolRequest(requesyId: string, confirmed: boolean) {
+export async function ConfirmToolRequest(requesyId: string, action: string) {
   try {
     const response = await fetch(getApiUrl('/confirm'), {
       method: 'POST',
@@ -10,7 +10,7 @@ export async function ConfirmToolRequest(requesyId: string, confirmed: boolean) 
       },
       body: JSON.stringify({
         id: requesyId,
-        confirmed,
+        action,
       }),
     });
 

@@ -368,7 +368,7 @@ async fn ask_handler(
 #[derive(Debug, Deserialize)]
 struct ToolConfirmationRequest {
     id: String,
-    confirmed: bool,
+    action: String,
 }
 
 async fn confirm_handler(
@@ -389,11 +389,14 @@ async fn confirm_handler(
     let agent = state.agent.clone();
     let agent = agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
-    let permission = if request.confirmed {
-        Permission::AllowOnce
-    } else {
-        Permission::DenyOnce
+
+    let permission = match request.action.as_str() {
+        "always_allow" => Permission::AlwaysAllow,
+        "allow_once" => Permission::AllowOnce,
+        "deny" => Permission::DenyOnce,
+        _ => Permission::DenyOnce,
     };
+
     agent
         .handle_confirmation(
             request.id.clone(),

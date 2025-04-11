@@ -5,10 +5,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::agents::{extension::ToolInfo, extension_manager::get_parameter_names};
 use goose::config::Config;
 use goose::config::PermissionManager;
 use goose::{agents::Agent, model::ModelConfig, providers};
+use goose::{
+    agents::{extension::ToolInfo, extension_manager::get_parameter_names},
+    config::permission::PermissionLevel,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -173,7 +176,7 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
         ("extension_name" = Option<String>, Query, description = "Optional extension name to filter tools")
     ),
     responses(
-        (status = 200, description = "Tools retrieved successfully", body = Vec<Tool>),
+        (status = 200, description = "Tools retrieved successfully", body = Vec<ToolInfo>),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
@@ -193,11 +196,13 @@ async fn get_tools(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    let config = Config::global();
+    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
     let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
     let permission_manager = PermissionManager::default();
 
-    let tools = agent
+    let mut tools: Vec<ToolInfo> = agent
         .list_tools()
         .await
         .into_iter()
@@ -210,14 +215,27 @@ async fn get_tools(
             }
         })
         .map(|tool| {
+            let permission = permission_manager
+                .get_user_permission(&tool.name)
+                .or_else(|| {
+                    if goose_mode == "smart_approve" {
+                        permission_manager.get_smart_approve_permission(&tool.name)
+                    } else if goose_mode == "approve" {
+                        Some(PermissionLevel::AskBefore)
+                    } else {
+                        None
+                    }
+                });
+
             ToolInfo::new(
                 &tool.name,
                 &tool.description,
                 get_parameter_names(&tool),
-                permission_manager.get_user_permission(&tool.name),
+                permission,
             )
         })
-        .collect();
+        .collect::<Vec<ToolInfo>>();
+    tools.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(Json(tools))
 }
