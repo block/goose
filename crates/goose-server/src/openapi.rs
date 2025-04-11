@@ -3,6 +3,7 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::ConfigKey;
 use goose::providers::base::ProviderMetadata;
 use mcp_core::tool::{Tool, ToolAnnotations};
@@ -23,6 +24,7 @@ use utoipa::OpenApi;
         super::routes::config_management::providers,
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
+        super::routes::reply::confirm_permission,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -34,6 +36,7 @@ use utoipa::OpenApi;
         super::routes::config_management::ExtensionQuery,
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
+        super::routes::reply::PermissionConfirmationRequest,
         ProviderMetadata,
         ExtensionEntry,
         ExtensionConfig,
@@ -43,6 +46,7 @@ use utoipa::OpenApi;
         ToolAnnotations,
         ToolInfo,
         PermissionLevel,
+        PrincipalType,
     ))
 )]
 pub struct ApiDoc;

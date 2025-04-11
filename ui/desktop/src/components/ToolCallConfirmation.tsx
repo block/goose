@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { ConfirmToolRequest } from '../utils/toolConfirm';
 import { snakeToTitleCase } from '../utils';
 import PermissionModal from './settings_v2/permission/PermissionModal';
 import { ChevronRight } from 'lucide-react';
+import { confirmPermission } from '../api';
 
 const ALWAYS_ALLOW = 'always_allow';
 const ALLOW_ONCE = 'allow_once';
@@ -26,7 +26,7 @@ export default function ToolConfirmation({
   const [actionDisplay, setActionDisplay] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleButtonClick = (action: string) => {
+  const handleButtonClick = async (action: string) => {
     setClicked(true);
     setStatus(action);
     if (action === ALWAYS_ALLOW) {
@@ -36,7 +36,16 @@ export default function ToolConfirmation({
     } else {
       setActionDisplay('denied');
     }
-    ConfirmToolRequest(toolConfirmationId, action);
+    try {
+      const response = await confirmPermission({
+        body: { id: toolConfirmationId, action, principal_type: 'Tool' },
+      });
+      if (response.error) {
+        console.error('Failed to confirm permission: ', response.error);
+      }
+    } catch (err) {
+      console.error('Error fetching tools:', err);
+    }
   };
 
   const handleModalClose = () => {

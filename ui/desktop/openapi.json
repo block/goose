@@ -351,6 +351,40 @@
           }
         }
       }
+    },
+    "/confirm": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "confirm_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Permission action is confirmed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -635,6 +669,24 @@
           }
         }
       },
+      "PermissionConfirmationRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principal_type": {
+            "$ref": "#/components/schemas/PrincipalType"
+          }
+        }
+      },
       "PermissionLevel": {
         "type": "string",
         "description": "Enum representing the possible permission levels for a tool.",
@@ -642,6 +694,13 @@
           "always_allow",
           "ask_before",
           "never_allow"
+        ]
+      },
+      "PrincipalType": {
+        "type": "string",
+        "enum": [
+          "Extension",
+          "Tool"
         ]
       },
       "ProviderDetails": {

@@ -1,20 +1,39 @@
 import React, { useState } from 'react';
-import { ConfirmExtensionRequest } from '../utils/extensionConfirm';
 import { snakeToTitleCase } from '../utils';
+import { confirmPermission } from '../api';
 
+interface ExtensionConfirmationProps {
+  isCancelledMessage: boolean;
+  isClicked: boolean;
+  extensionConfirmationId: string;
+  extensionName: string;
+}
 export default function ExtensionConfirmation({
   isCancelledMessage,
   isClicked,
   extensionConfirmationId,
   extensionName,
-}) {
+}: ExtensionConfirmationProps) {
   const [clicked, setClicked] = useState(isClicked);
   const [status, setStatus] = useState('unknown');
 
-  const handleButtonClick = (confirmed) => {
+  const handleButtonClick = async (confirmed: boolean) => {
     setClicked(true);
     setStatus(confirmed ? 'approved' : 'denied');
-    ConfirmExtensionRequest(extensionConfirmationId, confirmed);
+    try {
+      const response = await confirmPermission({
+        body: {
+          id: extensionConfirmationId,
+          action: confirmed ? 'allow_once' : 'deny',
+          principal_type: 'Extension',
+        },
+      });
+      if (response.error) {
+        console.error('Failed to confirm permission: ', response.error);
+      }
+    } catch (err) {
+      console.error('Error fetching tools:', err);
+    }
   };
 
   return isCancelledMessage ? (
