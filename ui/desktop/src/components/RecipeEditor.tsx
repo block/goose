@@ -22,7 +22,7 @@ function generateDeepLink(recipe: Recipe): string {
 
 export default function RecipeEditor({ config }: RecipeEditorProps) {
   const { getExtensions } = useConfig();
-  const [botConfig] = useState<Recipe | undefined>(config);
+  const [recipeConfig] = useState<Recipe | undefined>(config);
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
   const [instructions, setInstructions] = useState(config?.instructions || '');
@@ -86,11 +86,11 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     console.log('Creating config with:', {
       selectedExtensions,
       availableExtensions,
-      botConfig,
+      recipeConfig,
     });
 
     const config = {
-      ...botConfig,
+      ...recipeConfig,
       title,
       description,
       instructions,

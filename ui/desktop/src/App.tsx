@@ -67,11 +67,11 @@ const getInitialView = (): ViewConfig => {
   const viewFromUrl = urlParams.get('view');
   const windowConfig = window.electron.getConfig();
 
-  if (viewFromUrl === 'recipeEditor' && windowConfig?.botConfig) {
+  if (viewFromUrl === 'recipeEditor' && windowConfig?.recipeConfig) {
     return {
       view: 'recipeEditor',
       viewOptions: {
-        config: windowConfig.botConfig,
+        config: windowConfig.recipeConfig,
       },
     };
   }
@@ -191,7 +191,7 @@ export default function App() {
     }
   };
 
-  const enableBotConfigExtensions = async (extensions: FullExtensionConfig[]) => {
+  const enableRecipeConfigExtensions = async (extensions: FullExtensionConfig[]) => {
     if (!extensions?.length) {
       console.log('No extensions to enable from bot config');
       return;
@@ -243,7 +243,7 @@ export default function App() {
     console.log('Finished enabling bot config extensions');
   };
 
-  const enableBotConfigExtensionsV2 = useCallback(
+  const enableRecipeConfigExtensionsV2 = useCallback(
     async (extensions: FullExtensionConfig[]) => {
       if (!extensions?.length) {
         console.log('No extensions to enable from bot config');
@@ -287,19 +287,19 @@ export default function App() {
 
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
-    const botConfig = window.appConfig.get('botConfig');
+    const recipeConfig = window.appConfig.get('recipeConfig');
 
     // Handle bot config extensions first
-    if (botConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-      console.log('Found extensions in bot config:', botConfig.extensions);
-      enableBotConfigExtensionsV2(botConfig.extensions);
+    if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+      console.log('Found extensions in bot config:', recipeConfig.extensions);
+      enableRecipeConfigExtensionsV2(recipeConfig.extensions);
     }
 
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
-      if (viewType === 'recipeEditor' && botConfig) {
-        console.log('Setting view to recipeEditor with config:', botConfig);
-        setView('recipeEditor', { config: botConfig });
+      if (viewType === 'recipeEditor' && recipeConfig) {
+        console.log('Setting view to recipeEditor with config:', recipeConfig);
+        setView('recipeEditor', { config: recipeConfig });
       } else {
         setView(viewType as View);
       }
@@ -354,7 +354,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtensionToConfig, enableBotConfigExtensionsV2]);
+  }, [read, getExtensions, addExtensionToConfig, enableRecipeConfigExtensionsV2]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -453,7 +453,7 @@ export default function App() {
 
       if (viewFromUrl === 'recipeEditor') {
         const initialViewOptions = {
-          botConfig: windowConfig?.botConfig,
+          recipeConfig: windowConfig?.recipeConfig,
           view: viewFromUrl,
         };
         setView(viewFromUrl, initialViewOptions);
@@ -539,7 +539,7 @@ export default function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
-    const botConfig = window.appConfig.get('botConfig');
+    const recipeConfig = window.appConfig.get('recipeConfig');
 
     if (settingsV2Enabled) {
       return;
@@ -548,16 +548,16 @@ export default function App() {
     console.log(`Initializing app with settings v1`);
 
     // Handle bot config extensions first
-    if (botConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-      console.log('Found extensions in bot config:', botConfig.extensions);
-      enableBotConfigExtensions(botConfig.extensions);
+    if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+      console.log('Found extensions in bot config:', recipeConfig.extensions);
+      enableRecipeConfigExtensions(recipeConfig.extensions);
     }
 
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
-      if (viewType === 'recipeEditor' && botConfig) {
-        console.log('Setting view to recipeEditor with config:', botConfig);
-        setView('recipeEditor', { config: botConfig });
+      if (viewType === 'recipeEditor' && recipeConfig) {
+        console.log('Setting view to recipeEditor with config:', recipeConfig);
+        setView('recipeEditor', { config: recipeConfig });
       } else {
         setView(viewType as View);
       }
@@ -565,7 +565,7 @@ export default function App() {
     }
 
     // if not in any of the states above (in a regular chat)
-    if (!botConfig) {
+    if (!recipeConfig) {
       restoreOriginalExtensionStates();
     }
 
@@ -760,7 +760,7 @@ export default function App() {
           {view === 'recipeEditor' && (
             <RecipeEditor
               key={viewOptions?.config ? 'with-config' : 'no-config'}
-              config={viewOptions?.config || window.electron.getConfig().botConfig}
+              config={viewOptions?.config || window.electron.getConfig().recipeConfig}
               onClose={() => setView('chat')}
               setView={setView}
               onSave={(config) => {

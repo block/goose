@@ -1,6 +1,6 @@
 import Electron, { contextBridge, ipcRenderer } from 'electron';
 
-interface BotConfig {
+interface RecipeConfig {
   id: string;
   name: string;
   description: string;
@@ -34,7 +34,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: BotConfig,
+    recipeConfig?: RecipeConfig,
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
@@ -75,7 +75,7 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: BotConfig,
+    recipeConfig?: RecipeConfig,
     viewType?: string
   ) =>
     ipcRenderer.send(
@@ -84,7 +84,7 @@ const electronAPI: ElectronAPI = {
       dir,
       version,
       resumeSessionId,
-      botConfig,
+      recipeConfig,
       viewType
     ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),

@@ -121,16 +121,16 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   } else if (parsedUrl.hostname === 'sessions') {
     firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-    let botConfig = null;
+    let recipeConfig = null;
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
-        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
       } catch (e) {
         console.error('Failed to parse bot config:', e);
       }
     }
-    createChat(app, undefined, openDir, undefined, undefined, botConfig);
+    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
 }
@@ -159,16 +159,23 @@ app.on('open-url', async (event, url) => {
     } else if (parsedUrl.hostname === 'sessions') {
       firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     } else if (parsedUrl.hostname === 'bot') {
-      let botConfig = null;
+      let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
       if (configParam) {
         try {
-          botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
       }
-      firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
+      firstOpenWindow = await createChat(
+        app,
+        undefined,
+        openDir,
+        undefined,
+        undefined,
+        recipeConfig
+      );
     }
   }
 });
@@ -245,7 +252,7 @@ console.log('[main] Created appConfig:', appConfig);
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-interface BotConfig {
+interface RecipeConfig {
   id: string;
   name: string;
   description: string;
@@ -259,7 +266,7 @@ const createChat = async (
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  botConfig?: BotConfig, // Bot configuration
+  recipeConfig?: RecipeConfig, // Bot configuration
   viewType?: string // View type
 ) => {
   // Initialize variables for process and configuration
@@ -319,7 +326,7 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
-          botConfig: botConfig,
+          recipeConfig: recipeConfig,
         }),
       ],
       partition: 'persist:goose', // Add this line to ensure persistence
@@ -333,7 +340,7 @@ const createChat = async (
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
-    botConfig: botConfig,
+    recipeConfig: recipeConfig,
   };
 
   // We need to wait for the window to load before we can access localStorage
@@ -745,10 +752,10 @@ app.whenReady().then(async () => {
 
           // Extract the bot config from the URL
           const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let botConfig = null;
+          let recipeConfig = null;
           if (configParam) {
             try {
-              botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+              recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
             } catch (e) {
               console.error('Failed to parse bot config:', e);
             }
@@ -758,7 +765,7 @@ app.whenReady().then(async () => {
           const recentDirs = loadRecentDirs();
           const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-          createChat(app, undefined, openDir, undefined, undefined, botConfig);
+          createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
         },
       })
     );
@@ -776,17 +783,17 @@ app.whenReady().then(async () => {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, botConfig, viewType) => {
+    (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : null;
       }
 
-      // Log the botConfig for debugging
-      console.log('Creating chat window with botConfig:', botConfig);
+      // Log the recipeConfig for debugging
+      console.log('Creating chat window with recipeConfig:', recipeConfig);
 
-      // Pass botConfig as part of viewOptions when viewType is recipeEditor
-      createChat(app, query, dir, version, resumeSessionId, botConfig, viewType);
+      // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
+      createChat(app, query, dir, version, resumeSessionId, recipeConfig, viewType);
     }
   );
 
