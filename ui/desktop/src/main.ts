@@ -48,9 +48,34 @@ if (!gotTheLock) {
     if (process.platform === 'win32') {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
+        const parsedUrl = new URL(protocolUrl);
+
+        // If it's a bot/recipe URL, handle it directly by creating a new window
+        if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+          app.whenReady().then(() => {
+            const recentDirs = loadRecentDirs();
+            const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+            let recipeConfig = null;
+            const configParam = parsedUrl.searchParams.get('config');
+            if (configParam) {
+              try {
+                recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+              } catch (e) {
+                console.error('Failed to parse bot config:', e);
+              }
+            }
+
+            createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+          });
+          return; // Skip the rest of the handler
+        }
+
+        // For non-bot URLs, continue with normal handling
         handleProtocolUrl(protocolUrl);
       }
 
+      // Only focus existing windows for non-bot/recipe URLs
       const existingWindows = BrowserWindow.getAllWindows();
       if (existingWindows.length > 0) {
         const mainWindow = existingWindows[0];
@@ -61,7 +86,6 @@ if (!gotTheLock) {
       }
     }
   });
-
   if (process.platform === 'win32') {
     const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
     if (protocolUrl) {
@@ -84,10 +108,12 @@ async function handleProtocolUrl(url: string) {
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-  pendingDeepLink = url;
-
-  if (parsedUrl.hostname !== 'bot' && parsedUrl.hostname !== 'recipe') {
-    // For non URL types, reuse existing window if available
+  if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+    // For bot/recipe URLs, skip existing window processing
+    // and let processProtocolUrl handle it entirely
+    processProtocolUrl(parsedUrl, null);
+  } else {
+    // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
@@ -98,16 +124,16 @@ async function handleProtocolUrl(url: string) {
     } else {
       firstOpenWindow = await createChat(app, undefined, openDir);
     }
-  }
 
-  if (firstOpenWindow) {
-    const webContents = firstOpenWindow.webContents;
-    if (webContents.isLoadingMainFrame()) {
-      webContents.once('did-finish-load', () => {
+    if (firstOpenWindow) {
+      const webContents = firstOpenWindow.webContents;
+      if (webContents.isLoadingMainFrame()) {
+        webContents.once('did-finish-load', () => {
+          processProtocolUrl(parsedUrl, firstOpenWindow);
+        });
+      } else {
         processProtocolUrl(parsedUrl, firstOpenWindow);
-      });
-    } else {
-      processProtocolUrl(parsedUrl, firstOpenWindow);
+      }
     }
   }
 }
@@ -119,7 +145,7 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.hostname === 'sessions') {
-    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+    window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     let recipeConfig = null;
     const configParam = parsedUrl.searchParams.get('config');
@@ -130,6 +156,7 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
         console.error('Failed to parse bot config:', e);
       }
     }
+    // Create a new window and ignore the passed-in window
     createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
   }
   pendingDeepLink = null;
@@ -137,28 +164,12 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
 
 app.on('open-url', async (event, url) => {
   if (process.platform !== 'win32') {
-    pendingDeepLink = url;
     const parsedUrl = new URL(url);
-
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
-    if (parsedUrl.hostname !== 'bot') {
-      const existingWindows = BrowserWindow.getAllWindows();
-      if (existingWindows.length > 0) {
-        firstOpenWindow = existingWindows[0];
-        if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
-        firstOpenWindow.focus();
-      } else {
-        firstOpenWindow = await createChat(app, undefined, openDir);
-      }
-    }
-
-    if (parsedUrl.hostname === 'extension') {
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'bot') {
+    // Handle bot/recipe URLs by directly creating a new window
+    if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       let recipeConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
       if (configParam) {
@@ -168,14 +179,28 @@ app.on('open-url', async (event, url) => {
           console.error('Failed to parse bot config:', e);
         }
       }
-      firstOpenWindow = await createChat(
-        app,
-        undefined,
-        openDir,
-        undefined,
-        undefined,
-        recipeConfig
-      );
+
+      // Create a new window directly
+      await createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+      return; // Skip the rest of the handler
+    }
+
+    // For non-bot URLs, continue with normal handling
+    pendingDeepLink = url;
+
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      firstOpenWindow = existingWindows[0];
+      if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+      firstOpenWindow.focus();
+    } else {
+      firstOpenWindow = await createChat(app, undefined, openDir);
+    }
+
+    if (parsedUrl.hostname === 'extension') {
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
