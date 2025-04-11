@@ -347,7 +347,7 @@ const createChat = async (
         JSON.stringify({
           ...appConfig,
           GOOSE_PORT: port,
-          GOOSE_WORKGIN_DIR: working_dir,
+          GOOSE_WORKING_DIR: working_dir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
