@@ -583,4 +583,30 @@ mod tests {
             panic!("Expected valid tool request");
         }
     }
+
+    #[test]
+    fn test_response_to_message_with_empty_content() {
+        let tool_result: Vec<Content> = Vec::new();
+
+        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let payload = format_messages(&messages);
+
+        let expected_payload = vec![json!({
+            "role": "model",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "response_id",
+                        "response": {
+                            "content": {
+                                "text": "Tool call is done."
+                            }
+                        }
+                    }
+                }
+            ]
+        })];
+
+        assert_eq!(payload, expected_payload);
+    }
 }
