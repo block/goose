@@ -31,7 +31,7 @@ pub struct SessionMetadata {
     pub input_tokens: Option<i32>,
     /// The number of output tokens used in the session. Retrieved from the provider's last usage.
     pub output_tokens: Option<i32>,
-    /// The total number of tokens used in the session. Accumulated across all messages.
+    /// The total number of tokens used in the session. Accumulated across all messages (useful for tracking cost over an entire session).
     pub accumulated_total_tokens: Option<i32>,
     /// The number of input tokens used in the session. Accumulated across all messages.
     pub accumulated_input_tokens: Option<i32>,

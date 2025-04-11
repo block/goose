@@ -83,6 +83,7 @@ serial_test = "3.2.0"
 mockall = "0.13.1"
 wiremock = "0.6.0"
 tokio = { version = "1.43", features = ["full"] }
+temp-env = "0.3.6"
 
 [[example]]
 name = "agent"
