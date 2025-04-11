@@ -1,8 +1,8 @@
 use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, write_response_to_file,
-    EvalMetricValue, Evaluation, ExtensionRequirements,
+    collect_baseline_metrics, metrics_hashmap_to_vec, write_response_to_file, EvalMetricValue,
+    Evaluation, ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -84,13 +84,6 @@ Present the information in order of significance or quality. Focus specifically 
             "used_fetch_tool".to_string(),
             EvalMetricValue::Boolean(used_fetch_tool),
         ));
-
-        // Copy the session file to the current working directory
-        if let Err(e) = copy_session_to_cwd() {
-            println!("Warning: Failed to copy session file: {}", e);
-        } else {
-            println!("Successfully copied session file to current directory");
-        }
 
         Ok(metrics)
     }

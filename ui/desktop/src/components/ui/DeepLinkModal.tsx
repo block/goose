@@ -61,7 +61,8 @@ export function DeepLinkModal({ botConfig: initialBotConfig, onClose }: DeepLink
       instructions,
       activities,
     });
-  }, [instructions, activities, botConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instructions, activities]);
 
   // Handle adding a new activity
   const handleAddActivity = () => {

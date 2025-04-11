@@ -39,40 +39,124 @@ if (started) app.quit();
 
 app.setAsDefaultProtocolClient('goose');
 
-// Triggered when the user opens "goose://..." links
-let firstOpenWindow: BrowserWindow;
-let pendingDeepLink: string | null = null; // Store deep link if sent before React is ready
-app.on('open-url', async (_event, url) => {
-  pendingDeepLink = url;
+const gotTheLock = app.requestSingleInstanceLock();
 
-  // Parse the URL to determine the type
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    if (process.platform === 'win32') {
+      const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
+      if (protocolUrl) {
+        handleProtocolUrl(protocolUrl);
+      }
+
+      const existingWindows = BrowserWindow.getAllWindows();
+      if (existingWindows.length > 0) {
+        const mainWindow = existingWindows[0];
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
+        }
+        mainWindow.focus();
+      }
+    }
+  });
+
+  if (process.platform === 'win32') {
+    const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
+    if (protocolUrl) {
+      app.whenReady().then(() => {
+        handleProtocolUrl(protocolUrl);
+      });
+    }
+  }
+}
+
+let firstOpenWindow: BrowserWindow;
+let pendingDeepLink = null;
+
+async function handleProtocolUrl(url: string) {
+  if (!url) return;
+
+  pendingDeepLink = url;
   const parsedUrl = new URL(url);
 
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname !== 'bot') {
-    // For non URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
-      if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+      if (firstOpenWindow.isMinimized()) {
+        firstOpenWindow.restore();
+      }
       firstOpenWindow.focus();
     } else {
       firstOpenWindow = await createChat(app, undefined, openDir);
     }
   }
 
-  // Handle extension install links and sessions
+  if (firstOpenWindow) {
+    const webContents = firstOpenWindow.webContents;
+    if (webContents.isLoadingMainFrame()) {
+      webContents.once('did-finish-load', () => {
+        processProtocolUrl(parsedUrl, firstOpenWindow);
+      });
+    } else {
+      processProtocolUrl(parsedUrl, firstOpenWindow);
+    }
+  }
+}
+
+function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
   if (parsedUrl.hostname === 'extension') {
-    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    window.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.hostname === 'sessions') {
-    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+    window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot') {
     let botConfig = null;
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
+    createChat(app, undefined, openDir, undefined, undefined, botConfig);
+  }
+  pendingDeepLink = null;
+}
 
-    // Extract bot config if it's a bot (miniagent) URL
-    if (parsedUrl.hostname === 'bot') {
+app.on('open-url', async (event, url) => {
+  if (process.platform !== 'win32') {
+    pendingDeepLink = url;
+    const parsedUrl = new URL(url);
+
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
+    if (parsedUrl.hostname !== 'bot') {
+      const existingWindows = BrowserWindow.getAllWindows();
+      if (existingWindows.length > 0) {
+        firstOpenWindow = existingWindows[0];
+        if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
+        firstOpenWindow.focus();
+      } else {
+        firstOpenWindow = await createChat(app, undefined, openDir);
+      }
+    }
+
+    if (parsedUrl.hostname === 'extension') {
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'bot') {
+      let botConfig = null;
       const configParam = parsedUrl.searchParams.get('config');
       if (configParam) {
         try {
@@ -81,9 +165,8 @@ app.on('open-url', async (_event, url) => {
           console.error('Failed to parse bot config:', e);
         }
       }
+      firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
     }
-
-    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
   }
 });
 
@@ -390,18 +473,7 @@ ipcMain.on('react-ready', () => {
 
   if (pendingDeepLink) {
     console.log('Processing pending deep link:', pendingDeepLink);
-    const parsedUrl = new URL(pendingDeepLink);
-
-    // Handle different deep link types
-    if (parsedUrl.hostname === 'extension') {
-      console.log('Sending add-extension event');
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      console.log('Sending open-shared-session event');
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
-    }
-    // Bot URLs are handled directly through botConfig in additionalArguments
-    pendingDeepLink = null;
+    handleProtocolUrl(pendingDeepLink);
   } else {
     console.log('No pending deep link to process');
   }

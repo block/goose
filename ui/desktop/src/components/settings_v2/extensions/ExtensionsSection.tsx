@@ -32,7 +32,8 @@ export default function ExtensionsSection() {
 
   useEffect(() => {
     fetchExtensions();
-  }, [fetchExtensions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleExtensionToggle = async (extension: FixedExtensionEntry) => {
     // If extension is enabled, we are trying to toggle if off, otherwise on

@@ -43,19 +43,9 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   }, [read, getProviders]);
 
   useEffect(() => {
-    // Initial load
     loadModelData();
-
-    // Set up polling interval to check for changes
-    const interval = setInterval(() => {
-      loadModelData();
-    }, 1000); // Check every second
-
-    // Clean up interval on unmount
-    return () => {
-      clearInterval(interval);
-    };
-  }, [loadModelData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <section id="models" className="px-8">

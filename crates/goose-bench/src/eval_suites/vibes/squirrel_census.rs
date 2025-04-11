@@ -1,8 +1,8 @@
 use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, EvalMetricValue,
-    Evaluation, ExtensionRequirements,
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
+    ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -148,17 +148,11 @@ After writing the script, run it using python3 and show the results. Do not ask 
             "ran_script".to_string(),
             EvalMetricValue::Boolean(ran_script),
         ));
-        metrics.push((
-            "correct_results".to_string(),
-            EvalMetricValue::Boolean(correct_results),
-        ));
 
-        // Copy the session file to the current working directory
-        if let Err(e) = copy_session_to_cwd() {
-            println!("Warning: Failed to copy session file: {}", e);
-        } else {
-            println!("Successfully copied session file to current directory");
-        }
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float((correct_results as u8) as f64 / 1.0),
+        ));
 
         Ok(metrics)
     }

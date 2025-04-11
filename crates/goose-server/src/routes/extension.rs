@@ -540,12 +540,13 @@ fn is_command_allowed_with_allowlist(
 
             println!("Command to check after path trimming: {}", cmd_to_check);
 
-            // Remove @version suffix from command parts
+            // Remove @version suffix from command parts, but preserve scoped npm packages
             let parts: Vec<&str> = cmd_to_check.split_whitespace().collect();
             let mut cleaned_parts: Vec<String> = Vec::new();
 
             for part in parts {
-                if part.contains('@') {
+                if part.contains('@') && !part.starts_with('@') {
+                    // This is likely a package with a version suffix, like "package@1.0.0"
                     // Keep only the part before the @ symbol
                     if let Some(base_part) = part.split('@').next() {
                         cleaned_parts.push(base_part.to_string());
@@ -553,6 +554,7 @@ fn is_command_allowed_with_allowlist(
                         cleaned_parts.push(part.to_string());
                     }
                 } else {
+                    // Either no @ symbol or it's a scoped package (starts with @)
                     cleaned_parts.push(part.to_string());
                 }
             }
@@ -661,6 +663,11 @@ mod tests {
             "uvx something",
             "uvx mcp_slack",
             "npx mcp_github",
+            "npx -y @mic/mcp_mic",
+            "npx -y @mic/mcp_mic2@latest",
+            "npx @mic/mcp_mic3",
+            "npx @mic/mcp_mic4@latest",
+            "executor thing",
             "minecraft",
         ]);
 
@@ -679,6 +686,46 @@ mod tests {
         ));
         assert!(is_command_allowed_with_allowlist(
             "npx mcp_github",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y mcp_github",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "executor thing",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor thing2",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor2 thing",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic2@latest",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic3",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic4@latest",
             &allowlist
         ));
 

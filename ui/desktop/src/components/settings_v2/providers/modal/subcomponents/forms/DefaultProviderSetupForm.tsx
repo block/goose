@@ -99,7 +99,8 @@ export default function DefaultProviderSetupForm({
 
   useEffect(() => {
     loadConfigValues();
-  }, [loadConfigValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filter parameters to only show required ones
   const requiredParameters = useMemo(() => {
