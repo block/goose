@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -19,11 +19,7 @@ use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::providers::toolshim::{
-    augment_message_with_tool_calls, modify_system_prompt_for_tool_json, OllamaInterpreter,
-};
 use crate::recipe::{Author, Recipe};
-use crate::session;
 use crate::token_counter::TokenCounter;
 use crate::truncate::{truncate_messages, OldestFirstTruncation};
 
@@ -118,7 +114,7 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             extension_manager
@@ -276,7 +272,7 @@ impl Agent {
     }
 
     pub async fn list_tools(&self) -> Vec<Tool> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         extension_manager
             .get_prefixed_tools()
             .await
@@ -663,7 +659,7 @@ impl Agent {
     }
 
     pub async fn get_plan_prompt(&self) -> anyhow::Result<String> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         let tools = extension_manager.get_prefixed_tools().await?;
         let tools_info = tools
             .into_iter()
@@ -689,7 +685,7 @@ impl Agent {
     }
 
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
         let system_prompt = self
             .prompt_manager

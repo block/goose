@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::agents::{platform_tools, ExtensionManager};
+use crate::agents::platform_tools;
 use crate::message::Message;
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -20,7 +20,7 @@ impl Agent {
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        let mut extension_manager = self.extension_manager.lock().await;
+        let extension_manager = self.extension_manager.lock().await;
         // Get tools from extension manager
         let mut tools = extension_manager.get_prefixed_tools().await?;
 
