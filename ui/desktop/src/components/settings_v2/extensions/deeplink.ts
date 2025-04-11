@@ -130,7 +130,6 @@ export async function addExtensionFromDeepLink(
   if (config.envs && Object.keys(config.envs).length > 0) {
     console.log('Environment variables required, redirecting to settings');
     if (settingsV2Enabled) {
-      console.log('!!! redirecting to settings', { deepLinkConfig: config, showEnvVars: true });
       setView('settings', { deepLinkConfig: config, showEnvVars: true });
     } else {
       setView('settings', { extensionId: nameToKey(name), showEnvVars: true });

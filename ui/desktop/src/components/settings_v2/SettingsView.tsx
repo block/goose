@@ -22,7 +22,6 @@ export default function SettingsView({
   setView: (view: View) => void;
   viewOptions: SettingsViewOptions;
 }) {
-  console.log('In settings view and got this', viewOptions.deepLinkConfig, viewOptions.showEnvVars);
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
       <div className="relative flex items-center h-[36px] w-full bg-bgSubtle"></div>

@@ -34,9 +34,6 @@ export default function ExtensionsSection({ deepLinkConfig, showEnvVars }: Exten
     showEnvVars
   );
 
-  console.log('needsEnvVarsStateVar', showEnvVarsStateVar);
-  console.log('deepLinkConfigStateVar', deepLinkConfigStateVar);
-
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
