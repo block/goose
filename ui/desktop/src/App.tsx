@@ -97,12 +97,7 @@ export default function App() {
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
-  const {
-    getExtensions,
-    addExtension: addExtensionToConfig,
-    disableAllExtensions,
-    read,
-  } = useConfig();
+  const { getExtensions, addExtension, disableAllExtensions, read } = useConfig();
   const initAttemptedRef = useRef(false);
 
   // Utility function to extract the command from the link
@@ -257,7 +252,7 @@ export default function App() {
         for (const extension of extensions) {
           try {
             console.log('Enabling extension: ${extension.name}');
-            await addExtensionToConfig(extension.name, extension, true);
+            await addExtension(extension.name, extension, true);
           } catch (error) {
             console.error(`Failed to enable extension ${extension.name}:`, error);
           }
@@ -267,7 +262,7 @@ export default function App() {
       }
       console.log('Finished enabling bot config extensions');
     },
-    [disableAllExtensions, addExtensionToConfig]
+    [disableAllExtensions, addExtension]
   );
 
   // settings v2 initialization
@@ -322,7 +317,7 @@ export default function App() {
           try {
             await initializeSystem(provider, model, {
               getExtensions,
-              addExtensionToConfig,
+              addExtension,
             });
           } catch (error) {
             console.error('Error in initialization:', error);
@@ -354,7 +349,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtensionToConfig, enableRecipeConfigExtensionsV2]);
+  }, [read, getExtensions, addExtension, enableRecipeConfigExtensionsV2]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -510,7 +505,7 @@ export default function App() {
       setModalVisible(false); // Dismiss modal immediately
       try {
         if (settingsV2Enabled) {
-          await addExtensionFromDeepLinkV2(pendingLink, addExtensionToConfig, setView);
+          await addExtensionFromDeepLinkV2(pendingLink, addExtension, setView);
         } else {
           await addExtensionFromDeepLink(pendingLink, setView);
         }
