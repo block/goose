@@ -456,7 +456,7 @@ impl Agent {
                                 );
                             }
 
-                            // Process read-only tools
+                            // Process tools requiring approval
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let (principal_type, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
@@ -517,7 +517,7 @@ impl Agent {
                             if all_install_successful {
                                 (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                             }
-                    }
+                        }
 
                         yield message_tool_response.clone();
 
