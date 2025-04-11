@@ -142,5 +142,16 @@
     "endorsed": false,
     "githubStars": 27,
     "environmentVariables": []
+  },
+  {
+    "id": "pieces",
+    "name": "Pieces",
+    "description": "Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this.",
+    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
+    "installation_notes": "You need to install Pieces first, and have this running.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
   }
 ]
