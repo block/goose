@@ -231,7 +231,7 @@ impl ExtensionManager {
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
+    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let client_futures = self.clients.iter().map(|(name, client)| {
             let name = name.clone();
             let client = client.clone();
