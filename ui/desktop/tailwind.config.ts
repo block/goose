@@ -55,7 +55,9 @@ export default {
         bgStandard: 'var(--background-standard)',
         bgProminent: 'var(--background-prominent)',
         bgAppInverse: 'var(--background-app-inverse)',
+        bgSubtleInverse: 'var(--background-subtle-inverse)',
         bgStandardInverse: 'var(--background-standard-inverse)',
+        bgProminentInverse: 'var(--background-prominent-inverse)',
 
         borderSubtle: 'var(--border-subtle)',
         borderStandard: 'var(--border-standard)',
