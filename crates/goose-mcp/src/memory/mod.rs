@@ -232,15 +232,20 @@ impl MemoryRouter {
             .join(".goose")
             .join("memory");
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/memory/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\memory
-        // if it fails, fall back to `.config/goose/memory` (relative to the current dir)
-        let global_memory_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir("memory"))
-            .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
+        // On Linux and macOS, use /tmp/.config/goose/memory/ instead of ~/.config/goose/memory/
+        // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\memory
+        let global_memory_dir = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let tmp_memory_dir = PathBuf::from("/tmp/.config/goose/memory");
+            std::fs::create_dir_all(&tmp_memory_dir).unwrap();
+            tmp_memory_dir
+        } else {
+            let dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir("memory"))
+                .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        };
 
-        fs::create_dir_all(&global_memory_dir).unwrap();
         fs::create_dir_all(&local_memory_dir).unwrap();
 
         let mut memory_router = Self {

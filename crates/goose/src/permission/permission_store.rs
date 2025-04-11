@@ -35,9 +35,17 @@ impl Default for ToolPermissionStore {
 
 impl ToolPermissionStore {
     pub fn new() -> Self {
-        let permissions_dir = choose_app_strategy(crate::config::APP_STRATEGY.clone())
-            .map(|strategy| strategy.config_dir())
-            .unwrap_or_else(|_| PathBuf::from(".config/goose"));
+        // On Linux and macOS, use /tmp/.config/goose/ instead of ~/.config/goose/
+        // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\
+        let permissions_dir = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let path = PathBuf::from("/tmp/.config/goose");
+            std::fs::create_dir_all(&path).ok();
+            path
+        } else {
+            choose_app_strategy(crate::config::APP_STRATEGY.clone())
+                .map(|strategy| strategy.config_dir())
+                .unwrap_or_else(|_| PathBuf::from(".config/goose"))
+        };
 
         Self {
             permissions: HashMap::new(),

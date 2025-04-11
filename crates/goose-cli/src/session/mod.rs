@@ -314,19 +314,29 @@ impl Session {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
 
-        // Create and use a global history file in ~/.config/goose directory
+        // Create and use a global history file in config directory
         // This allows command history to persist across different chat sessions
         // instead of being tied to each individual session's messages
-        let history_file = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .in_config_dir("history.txt");
-
-        // Ensure config directory exists
-        if let Some(parent) = history_file.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)?;
+        // On Linux and macOS, use /tmp/.config/goose/ instead of ~/.config/goose/
+        let history_file = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let path = PathBuf::from("/tmp/.config/goose/history.txt");
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)?;
+                }
             }
-        }
+            path
+        } else {
+            let path = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .expect("goose requires a home dir")
+                .in_config_dir("history.txt");
+            if let Some(parent) = path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+            path
+        };
 
         // Load history from the global file
         if history_file.exists() {
