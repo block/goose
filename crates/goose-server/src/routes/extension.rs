@@ -396,6 +396,16 @@ fn get_allowed_extensions() -> &'static Option<AllowedExtensions> {
 
 /// Checks if a command is allowed based on the allowlist
 fn is_command_allowed(cmd: &str, args: &[String]) -> bool {
+    // Check if bypass is enabled
+    if let Ok(bypass_value) = env::var("GOOSE_ALLOWLIST_BYPASS") {
+        if bypass_value.to_lowercase() == "true" {
+            // Bypass the allowlist check
+            println!("Allowlist check bypassed due to GOOSE_ALLOWLIST_BYPASS=true");
+            return true;
+        }
+    }
+
+    // Proceed with normal allowlist check
     is_command_allowed_with_allowlist(&make_full_cmd(cmd, args), get_allowed_extensions())
 }
 
@@ -1074,5 +1084,82 @@ mod tests {
 
         // Wait for the server thread to complete
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_allowlist_bypass() {
+        // We need to directly test is_command_allowed_with_allowlist with our test allowlist
+        // since get_allowed_extensions() might return None in the test environment
+
+        // Create a restrictive allowlist
+        let allowlist = create_test_allowlist(&["uvx mcp_slack"]);
+
+        // Command not in allowlist
+        let cmd = "uvx unauthorized_command";
+
+        // Without bypass, command should be denied with our test allowlist
+        assert!(!is_command_allowed_with_allowlist(cmd, &allowlist));
+
+        // Set the bypass environment variable
+        env::set_var("GOOSE_ALLOWLIST_BYPASS", "true");
+
+        // With bypass enabled, any command should be allowed regardless of allowlist
+        assert!(is_command_allowed(
+            "uvx",
+            &vec!["unauthorized_command".to_string()]
+        ));
+
+        // Test case insensitivity
+        env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE");
+        assert!(is_command_allowed(
+            "uvx",
+            &vec!["unauthorized_command".to_string()]
+        ));
+
+        // Clean up
+        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+
+        // Create a mock function to test with allowlist and bypass
+        let test_with_allowlist_and_bypass = |bypass_value: &str, expected: bool| {
+            if bypass_value.is_empty() {
+                env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+            } else {
+                env::set_var("GOOSE_ALLOWLIST_BYPASS", bypass_value);
+            }
+
+            // This is what we're testing - a direct call that simulates what happens in is_command_allowed
+            let result = if let Ok(bypass) = env::var("GOOSE_ALLOWLIST_BYPASS") {
+                if bypass.to_lowercase() == "true" {
+                    true
+                } else {
+                    is_command_allowed_with_allowlist(cmd, &allowlist)
+                }
+            } else {
+                is_command_allowed_with_allowlist(cmd, &allowlist)
+            };
+
+            assert_eq!(
+                result,
+                expected,
+                "With GOOSE_ALLOWLIST_BYPASS={}, expected allowed={}",
+                if bypass_value.is_empty() {
+                    "not set"
+                } else {
+                    bypass_value
+                },
+                expected
+            );
+        };
+
+        // Test various bypass values
+        test_with_allowlist_and_bypass("true", true);
+        test_with_allowlist_and_bypass("TRUE", true);
+        test_with_allowlist_and_bypass("True", true);
+        test_with_allowlist_and_bypass("false", false);
+        test_with_allowlist_and_bypass("0", false);
+        test_with_allowlist_and_bypass("", false);
+
+        // Final cleanup
+        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
     }
 }
