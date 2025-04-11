@@ -463,7 +463,7 @@ pub async fn cli() -> Result<()> {
                     }
                 }
                 (None, None, None) => {
-                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe (-r). Use -i - for stdin.");
+                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
                     std::process::exit(1);
                 }
             };
