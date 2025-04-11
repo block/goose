@@ -142,5 +142,23 @@
     "endorsed": false,
     "githubStars": 27,
     "environmentVariables": []
+  },
+  {
+    "id": "nwc",
+    "name": "NWC",
+    "description": "Seamlessly interact with your bitcoin lightning wallet",
+    "command": "npx -y @getalby/nwc-mcp-server",
+    "link": "https://github.com/getalby/nwc-mcp-server",
+    "installation_notes": "Install using npx package manager. Requires a connection secret from an NWC-compatible wallet",
+    "is_builtin": false,
+    "endorsed": false,
+    "githubStars": 5,
+    "environmentVariables": [
+      {
+        "name": "NWC_CONNECTION_STRING",
+        "description": "NWC connection secret to access to your wallet",
+        "required": true
+      }
+    ]
   }
 ]
