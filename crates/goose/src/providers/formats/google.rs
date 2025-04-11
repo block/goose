@@ -88,17 +88,16 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     })
                                     .collect::<Vec<_>>()
                                     .join("\n");
-                                if !tool_content.is_empty() {
-                                    if text.is_empty() {
-                                        text = "Tool call is done.".to_string();
-                                    }
-                                    parts.push(json!({
-                                        "functionResponse": {
-                                            "name": response.id,
-                                            "response": {"content": {"text": text}},
-                                        }}
-                                    ));
+
+                                if text.is_empty() {
+                                    text = "Tool call is done.".to_string();
                                 }
+                                parts.push(json!({
+                                    "functionResponse": {
+                                        "name": response.id,
+                                        "response": {"content": {"text": text}},
+                                    }}
+                                ));
                             }
                             Err(e) => {
                                 parts.push(json!({"text":format!("Error: {}", e)}));
