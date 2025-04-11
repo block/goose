@@ -4,6 +4,7 @@ pub mod extension_manager;
 pub mod platform_tools;
 pub mod prompt_manager;
 mod types;
+mod reply_parts;
 
 pub use agent::Agent;
 pub use extension::ExtensionConfig;

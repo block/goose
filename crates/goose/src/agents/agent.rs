@@ -46,16 +46,16 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
 /// The main goose Agent
 pub struct Agent {
-    provider: Arc<dyn Provider>,
-    extension_manager: Mutex<ExtensionManager>,
-    frontend_tools: HashMap<String, FrontendTool>,
-    frontend_instructions: Option<String>,
-    prompt_manager: PromptManager,
-    token_counter: TokenCounter,
-    confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
-    confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
-    tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
-    tool_result_rx: ToolResultReceiver,
+    pub(super) provider: Arc<dyn Provider>,
+    pub(super) extension_manager: Mutex<ExtensionManager>,
+    pub(super) frontend_tools: HashMap<String, FrontendTool>,
+    pub(super) frontend_instructions: Option<String>,
+    pub(super) prompt_manager: PromptManager,
+    pub(super) token_counter: TokenCounter,
+    pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
+    pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
+    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
+    pub(super) tool_result_rx: ToolResultReceiver,
 }
 
 impl Agent {
@@ -112,13 +112,13 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(tool_call, extension_manager, request_id), fields(input, output))]
-    async fn create_tool_future(
-        extension_manager: &ExtensionManager,
+    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    async fn dispatch_tool_call(
+        &self,
         tool_call: mcp_core::tool::ToolCall,
-        is_frontend_tool: bool,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        let mut extension_manager = self.extension_manager.lock().await;
         let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
             extension_manager
@@ -130,7 +130,7 @@ impl Agent {
                 .await
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             extension_manager.search_available_extensions().await
-        } else if is_frontend_tool {
+        } else if self.is_frontend_tool(&tool_call.name) {
             // For frontend tools, return an error indicating we need frontend execution
             Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
@@ -199,10 +199,11 @@ impl Agent {
     }
 
     async fn enable_extension(
-        extension_manager: &mut ExtensionManager,
+        &self,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        let mut extension_manager = self.extension_manager.lock().await;
         let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
@@ -317,54 +318,20 @@ impl Agent {
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut extension_manager = self.extension_manager.lock().await;
-        let mut tools = extension_manager.get_prefixed_tools().await?;
         let mut truncation_attempt: usize = 0;
 
         // Load settings from config
         let config = Config::global();
+
+        // Setup tools and prompt
+        let (mut tools, toolshim_tools, mut system_prompt) = self
+            .prepare_tools_and_prompt()
+            .await?;
+
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
 
-        // we add in the 2 resource tools if any extensions support resources
-        // TODO: make sure there is no collision with another extension's tool name
-        if extension_manager.supports_resources() {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
-        }
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::enable_extension_tool());
 
-        let (tools_with_readonly_annotation, tools_without_annotation): (
-            HashSet<String>,
-            HashSet<String>,
-        ) = tools
-            .iter()
-            .fold((HashSet::new(), HashSet::new()), |mut acc, tool| {
-                match &tool.annotations {
-                    Some(annotations) if annotations.read_only_hint => {
-                        acc.0.insert(tool.name.clone());
-                    }
-                    _ => {
-                        acc.1.insert(tool.name.clone());
-                    }
-                }
-                acc
-            });
-
-        let config = self.provider.get_model_config();
-        let extensions_info = extension_manager.get_extensions_info().await;
-        let mut system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
-        let mut toolshim_tools = vec![];
-        if config.toolshim {
-            // If tool interpretation is enabled, modify the system prompt to instruct to return JSON tool requests
-            system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
-            // make a copy of tools before empty
-            toolshim_tools = tools.clone();
-            // pass empty tools vector to provider completion since toolshim will handle tool calls instead
-            tools = vec![];
-        }
+        let (tools_with_readonly_annotation, tools_without_annotation) = Self::categorize_tools_by_annotation(&tools);
 
         // Set the user_message field in the span instead of creating a new event
         if let Some(content) = messages
@@ -377,46 +344,18 @@ impl Agent {
 
         Ok(Box::pin(async_stream::try_stream! {
             let _reply_guard = reply_span.enter();
-            loop {
-                match self.provider().complete(
+            loop {                
+                match Self::generate_response_from_provider(
+                    self.provider(),
                     &system_prompt,
                     &messages,
                     &tools,
+                    &toolshim_tools,
                 ).await {
-                    Ok((mut response, usage)) => {
-                        // Post-process / structure the response only if tool interpretation is enabled
-                        if config.toolshim {
-                            let interpreter = OllamaInterpreter::new()
-                                .map_err(|e| anyhow::anyhow!("Failed to create OllamaInterpreter: {}", e))?;
-
-                            response = augment_message_with_tool_calls(&interpreter, response, &toolshim_tools).await?;
-                        }
-
+                    Ok((response, usage)) => {
                         // record usage for the session in the session file
-                        if let Some(session) = session.clone() {
-                            // TODO: track session_id in langfuse tracing
-                            let session_file = session::get_path(session.id);
-                            let mut metadata = session::read_metadata(&session_file)?;
-                            metadata.working_dir = session.working_dir;
-                            metadata.total_tokens = usage.usage.total_tokens;
-                            metadata.input_tokens = usage.usage.input_tokens;
-                            metadata.output_tokens = usage.usage.output_tokens;
-
-                            let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-                                match (a, b) {
-                                    (Some(x), Some(y)) => Some(x + y),
-                                    _ => a.or(b)
-                                }
-                            };
-
-                            metadata.accumulated_total_tokens = accumulate(metadata.accumulated_total_tokens, usage.usage.total_tokens);
-                            metadata.accumulated_input_tokens = accumulate(metadata.accumulated_input_tokens, usage.usage.input_tokens);
-                            metadata.accumulated_output_tokens = accumulate(metadata.accumulated_output_tokens, usage.usage.output_tokens);
-
-                            // The message count is the number of messages in the session + 1 for the response
-                            // The message count does not include the tool response till next iteration
-                            metadata.message_count = messages.len() + 1;
-                            session::update_metadata(&session_file, &metadata).await?;
+                        if let Some(session_config) = session.clone() {
+                            Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                         }
 
                         // Reset truncation attempt
@@ -539,7 +478,7 @@ impl Agent {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("")
                                                     .to_string();
-                                                let install_result = Self::enable_extension(&mut extension_manager, extension_name, request.id.clone()).await;
+                                                let install_result = self.enable_extension(extension_name, request.id.clone()).await;
                                                 install_results.push(install_result);
                                             } else {
                                                 // User declined - add declined response
@@ -557,8 +496,7 @@ impl Agent {
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
-                                    let tool_future = Self::create_tool_future(&extension_manager, tool_call, is_frontend_tool, request.id.clone());
+                                    let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
                                      tool_futures.push(tool_future);
                                 }
                             }
@@ -573,7 +511,6 @@ impl Agent {
                             // Process read-only tools
                             for request in &permission_check_result.needs_approval {
                                 if let Ok(tool_call) = request.tool_call.clone() {
-                                    let is_frontend_tool = self.is_frontend_tool(&tool_call.name);
                                     let confirmation = Message::user().with_tool_confirmation_request(
                                         request.id.clone(),
                                         tool_call.name.clone(),
@@ -589,7 +526,7 @@ impl Agent {
                                             let confirmed = tool_confirmation.permission == Permission::AllowOnce || tool_confirmation.permission == Permission::AlwaysAllow;
                                             if confirmed {
                                                 // Add this tool call to the futures collection
-                                                let tool_future = Self::create_tool_future(&extension_manager, tool_call.clone(), is_frontend_tool, request.id.clone());
+                                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
                                                 tool_futures.push(tool_future);
                                                 if tool_confirmation.permission == Permission::AlwaysAllow {
                                                     permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
@@ -628,6 +565,7 @@ impl Agent {
 
                             // Update system prompt and tools if all installations were successful
                             if all_successful {
+                                let extension_manager = self.extension_manager.lock().await;
                                 let extensions_info = extension_manager.get_extensions_info().await;
                                 system_prompt = self.prompt_manager.build_system_prompt(extensions_info, self.frontend_instructions.clone());
                                 tools = extension_manager.get_prefixed_tools().await?;
@@ -661,17 +599,10 @@ impl Agent {
                         // Estimate factor decays like this over time: 0.9, 0.81, 0.729, ...
                         let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
 
-                        // release the lock before truncation to prevent deadlock
-                        drop(extension_manager);
-
                         if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
                             yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
                             break;
                         }
-
-
-                        // Re-acquire the lock
-                        extension_manager = self.extension_manager.lock().await;
 
                         // Retry the loop after truncation
                         continue;
