@@ -40,13 +40,6 @@ if (started) app.quit();
 app.setAsDefaultProtocolClient('goose');
 
 const gotTheLock = app.requestSingleInstanceLock();
-// Triggered when the user opens "goose://..." links
-let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null; // Store deep link if sent before React is ready
-let pendingGooselingConfig = null; // Store gooseling config if sent before React is ready
-app.on('open-url', async (event, url) => {
-  // event.preventDefault();
-  console.log('[main] Received deep link:', url);
 
 if (!gotTheLock) {
   app.quit();
@@ -129,7 +122,6 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     let botConfig = null;
-<<<<<<< HEAD
     const configParam = parsedUrl.searchParams.get('config');
     if (configParam) {
       try {
@@ -175,41 +167,9 @@ app.on('open-url', async (event, url) => {
         } catch (e) {
           console.error('Failed to parse bot config:', e);
         }
-||||||| parent of c3aa813bb (feat: add recipes, a custom goose agent configuration)
-
-    // Extract bot config if it's a bot (miniagent) URL
-    if (parsedUrl.hostname === 'bot') {
-      const configParam = parsedUrl.searchParams.get('config');
-      if (configParam) {
-        try {
-          botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        } catch (e) {
-          console.error('Failed to parse bot config:', e);
-        }
-=======
-    const configParam = parsedUrl.searchParams.get('config');
-    if (configParam) {
-      try {
-        botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        console.log('Parsed bot config:', botConfig);
-      } catch (e) {
-        console.error('Failed to parse bot config:', e);
->>>>>>> c3aa813bb (feat: add recipes, a custom goose agent configuration)
       }
       firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
     }
-
-    // Always create a new window for bot URLs, with recipeEditor view for recipe
-    const viewType = parsedUrl.hostname === 'recipe' ? 'recipeEditor' : undefined;
-    firstOpenWindow = await createChat(
-      app,
-      undefined,
-      openDir,
-      undefined,
-      undefined,
-      botConfig,
-      viewType
-    );
   }
 });
 
@@ -299,7 +259,7 @@ const createChat = async (
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  botConfig?: any, // Bot configuration
+  botConfig?: BotConfig, // Bot configuration
   viewType?: string // View type
 ) => {
   // Initialize variables for process and configuration

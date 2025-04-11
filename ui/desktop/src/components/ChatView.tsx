@@ -28,7 +28,7 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
-  EnableExtensionRequestMessageContent,
+  EnableExtensionRequestMessageContent
 } from '../types/message';
 
 export interface ChatType {
@@ -38,14 +38,6 @@ export interface ChatType {
   // anything before this index should not render any buttons, but anything after should
   messageHistoryIndex: number;
   messages: Message[];
-}
-
-interface GeneratedBotConfig {
-  id: string;
-  name: string;
-  description: string;
-  instructions: string;
-  activities: string[];
 }
 
 // Helper function to determine if a message is a user message

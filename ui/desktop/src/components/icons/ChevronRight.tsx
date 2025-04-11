@@ -2,6 +2,7 @@ import React from 'react';
 
 interface Props {
   className?: string;
+  // eslint-disable-next-line
   [key: string]: any; // This will allow any other SVG props to pass through
 }
 

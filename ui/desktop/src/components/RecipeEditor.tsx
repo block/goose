@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Recipe } from '../recipe';
 import { Buffer } from 'buffer';
-import { type View } from '../App';
 import { FullExtensionConfig } from '../extensions';
 import { ChevronRight } from './icons/ChevronRight';
 import Back from './icons/Back';
@@ -13,9 +12,6 @@ import { settingsV2Enabled } from '../flags';
 
 interface RecipeEditorProps {
   config?: Recipe;
-  onClose: () => void;
-  onSave?: (config: Recipe) => void;
-  setView: (view: View, viewOptions?: Record<string, any>) => void;
 }
 
 // Function to generate a deep link from a recipe
@@ -24,9 +20,9 @@ function generateDeepLink(recipe: Recipe): string {
   return `goose://recipe?config=${configBase64}`;
 }
 
-export default function RecipeEditor({ config, onClose, onSave, setView }: RecipeEditorProps) {
+export default function RecipeEditor({ config }: RecipeEditorProps) {
   const { getExtensions } = useConfig();
-  const [botConfig, setBotConfig] = useState<Recipe | undefined>(config);
+  const [botConfig] = useState<Recipe | undefined>(config);
   const [title, setTitle] = useState(config?.title || '');
   const [description, setDescription] = useState(config?.description || '');
   const [instructions, setInstructions] = useState(config?.instructions || '');
@@ -47,7 +43,7 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
     const loadExtensions = async () => {
       if (settingsV2Enabled) {
         try {
-          const extensions = await getExtensions(true); // force refresh to get latest
+          const extensions = await getExtensions(false); // force refresh to get latest
           console.log('extensions {}', extensions);
           setAvailableExtensions(extensions || []);
         } catch (error) {
@@ -62,6 +58,8 @@ export default function RecipeEditor({ config, onClose, onSave, setView }: Recip
       }
     };
     loadExtensions();
+    // Intentionally omitting getExtensions from deps to avoid refresh loops
+    // eslint-disable-next-line
   }, []);
 
   const handleExtensionToggle = (id: string) => {

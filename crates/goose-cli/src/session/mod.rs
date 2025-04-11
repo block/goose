@@ -502,39 +502,6 @@ impl Session {
 
                     continue;
                 }
-                InputResult::Recipe(filepath_opt) => {
-                    println!("{}", console::style("Generating Recipe").green());
-
-                    output::show_thinking();
-                    let recipe = self.agent.create_recipe(self.messages.clone()).await;
-                    output::hide_thinking();
-
-                    match recipe {
-                        Ok(recipe) => {
-                            // Use provided filepath or default
-                            let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
-                            match self.save_recipe(&recipe, filepath_str) {
-                                Ok(path) => println!(
-                                    "{}",
-                                    console::style(format!("Saved recipe to {}", path.display()))
-                                        .green()
-                                ),
-                                Err(e) => {
-                                    println!("{}", console::style(e).red());
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!(
-                                "{}: {:?}",
-                                console::style("Failed to generate recipe").red(),
-                                e
-                            );
-                        }
-                    }
-
-                    continue;
-                }
             }
         }
 

@@ -34,7 +34,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: any,
+    botConfig?: BotConfig,
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
@@ -75,7 +75,7 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: any,
+    botConfig?: BotConfig,
     viewType?: string
   ) =>
     ipcRenderer.send(

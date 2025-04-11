@@ -1,11 +1,11 @@
 import React from 'react';
 
 interface Props {
-  className?: string;
+  // eslint-disable-next-line
   [key: string]: any; // This will allow any other SVG props to pass through
 }
 
-export function Geese({ className = '', ...props }: Props) {
+export function Geese({ ...props }: Props) {
   return (
     <svg
       width="35"

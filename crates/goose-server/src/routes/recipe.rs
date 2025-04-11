@@ -1,15 +1,12 @@
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     routing::post,
     Json, Router,
 };
-use goose::agents::extension::Envs;
-use goose::config::ExtensionConfig;
 use goose::message::Message;
 use goose::recipe::Recipe;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::state::AppState;
 
