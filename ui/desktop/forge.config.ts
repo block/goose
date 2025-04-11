@@ -5,7 +5,6 @@ const { resolve } = require('path');
 let cfg = {
   asar: true,
   extraResource: ['src/bin', 'src/images'],
-  executableName: 'goose-app',
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
@@ -50,19 +49,25 @@ module.exports = {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin', 'win32'],
       config: {
-          arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
-          options: {
-              icon: 'src/images/icon.ico'
+        arch: process.env.ELECTRON_ARCH === 'x64' ? ['x64'] : ['arm64'],
+        options: {
+          icon: 'src/images/icon.ico'
         }
       }
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        name: 'Goose',
+        bin: 'Goose'
+      },
     },
   ],
   plugins: [
