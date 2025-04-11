@@ -1,23 +1,109 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useModel } from './settings/models/ModelContext';
+import { useModel } from '../settings/models/ModelContext';
 import { Sliders } from 'lucide-react';
-import { ModelRadioList } from './settings/models/ModelRadioList';
-import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View } from '../App';
-import { settingsV2Enabled } from '../flags';
+import { useAlerts, AlertType } from './alerts';
+import BottomMenuAlertPopover from './BottomMenuAlertPopover';
+import { ModelRadioList } from '../settings/models/ModelRadioList';
+import { Document, ChevronUp, ChevronDown } from '../icons';
+import type { View } from '../../App';
+import { bottomMenuPopoverEnabled, settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
+import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
+import { getTools } from '../../api';
+
+// Constants
+// todo: map these to a config based on the LLM provider?
+const MAX_TOKENS = 10; // Low value for testing
+const WARNING_THRESHOLD = 0.8; // Show warning at 80% of max tokens
+const SUGGESTED_MAX_TOOLS = 1; // Low value for testing
 
 export default function BottomMenu({
   hasMessages,
   setView,
+  numTokens = 0,
 }: {
   hasMessages: boolean;
   setView: (view: View) => void;
+  numTokens?: number;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
+  const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [toolCount, setToolCount] = useState<number | null>(null);
+
+  // Fetch tool count with retries and backoff
+  useEffect(() => {
+    if (!bottomMenuPopoverEnabled) {
+      return;
+    }
+
+    let retryCount = 0;
+    const maxRetries = 5;
+    const initialDelay = 1000;
+
+    const fetchTools = async () => {
+      try {
+        const response = await getTools();
+        // Hack to get around the fact that getTools returns an empty list if the engine is not ready yet
+        // todo: tool count seems inflated, only one extension developer enabled but 5 come back from api
+        if (!response.error && response.data) {
+          if (response.data.length === 0 && retryCount < maxRetries) {
+            // Empty list - try again with exponential backoff
+            retryCount++;
+            const delay = initialDelay * Math.pow(2, retryCount - 1); // 1s, 2s, 4s, 8s, 16s
+            console.log(
+              `Got empty tool list, retrying (${retryCount}/${maxRetries}) in ${delay}ms...`
+            );
+            setTimeout(fetchTools, delay);
+          } else {
+            // Either we got tools or we're out of retries
+            console.log(`Got tool count: ${response.data.length} (after ${retryCount} retries)`);
+            setToolCount(response.data.length);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching tools:', err);
+      }
+    };
+    fetchTools();
+  }, []); // Only runs once on mount
+
+  // Handle all alerts
+  useEffect(() => {
+    if (!bottomMenuPopoverEnabled) {
+      return;
+    }
+
+    clearAlerts();
+
+    // Add token alerts
+    if (numTokens >= MAX_TOKENS) {
+      addAlert(
+        AlertType.Error,
+        `Token limit reached (${numTokens.toLocaleString()}/${MAX_TOKENS.toLocaleString()})`
+      );
+    } else if (numTokens >= MAX_TOKENS * WARNING_THRESHOLD) {
+      addAlert(
+        AlertType.Warning,
+        `Approaching token limit (${numTokens.toLocaleString()}/${MAX_TOKENS.toLocaleString()})`
+      );
+    }
+
+    // Add tool count alert if we have the data
+    if (toolCount !== null && toolCount > SUGGESTED_MAX_TOOLS) {
+      addAlert(
+        AlertType.Warning,
+        `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${SUGGESTED_MAX_TOOLS})`,
+        {
+          text: 'View extensions',
+          onClick: () => setView('settings', { section: 'extensions' }),
+        }
+      );
+    }
+    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numTokens, toolCount, addAlert, clearAlerts]);
 
   // Add effect to handle clicks outside
   useEffect(() => {
@@ -78,6 +164,8 @@ export default function BottomMenu({
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">
+        {/* Tool count */}
+        {bottomMenuPopoverEnabled && <BottomMenuAlertPopover alerts={alerts} />}
         {/* Model Selector Dropdown */}
         {settingsV2Enabled ? (
           <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />

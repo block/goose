@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { getApiUrl, getSecretKey } from '../config';
-import { ChevronDown, ChevronUp } from './icons';
+import { getApiUrl, getSecretKey } from '../../config';
+import { ChevronDown, ChevronUp } from '../icons';
 import {
   all_goose_modes,
   filterGooseModes,
   ModeSelectionItem,
-} from './settings/basic/ModeSelectionItem';
-import { useConfig } from './ConfigContext';
-import { settingsV2Enabled } from '../flags';
+} from '../settings/basic/ModeSelectionItem';
+import { useConfig } from '../ConfigContext';
+import { settingsV2Enabled } from '../../flags';
 
 export const BottomMenuModeSelection = () => {
   const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
