@@ -6,18 +6,21 @@ import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 import { ModeSection } from './mode/ModeSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
+import { ExtensionConfig } from '../../api';
 
 export type SettingsViewOptions = {
-  extensionId?: string;
+  deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
 };
 
 export default function SettingsView({
   onClose,
   setView,
+  viewOptions,
 }: {
   onClose: () => void;
   setView: (view: View) => void;
+  viewOptions: SettingsViewOptions;
 }) {
   return (
     <div className="h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
@@ -36,7 +39,10 @@ export default function SettingsView({
               {/* Models Section */}
               <ModelsSection setView={setView} />
               {/* Extensions Section */}
-              <ExtensionsSection />
+              <ExtensionsSection
+                deepLinkConfig={viewOptions.deepLinkConfig}
+                showEnvVars={viewOptions.showEnvVars}
+              />
               {/* Goose Modes */}
               <ModeSection />
               {/*Session sharing*/}
