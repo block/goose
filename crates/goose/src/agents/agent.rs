@@ -497,20 +497,12 @@ impl Agent {
 
                             // Wait for all tool calls to complete
                             let results = futures::future::join_all(tool_futures).await;
-                            for (request_id, output) in results {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request_id,
-                                    output,
-                                );
-                            }
 
                             // Check if any install results had errors before processing them
                             let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
-                            for (request_id, output) in install_results {
-                                message_tool_response = message_tool_response.with_tool_response(
-                                    request_id,
-                                    output
-                                );
+
+                            for (request_id, output) in results.into_iter().chain(install_results.into_iter()) {
+                                message_tool_response = message_tool_response.with_tool_response(request_id, output);
                             }
 
                             // Update system prompt and tools if installations were successful
