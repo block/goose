@@ -170,37 +170,26 @@ Let's see how to use Goose with the PostgreSQL extension to perform some common 
 
 #### Goose Prompt
 ```
-Tell me which students in my database have a GPA above their grade's average.
+Search my database for any students whose current GPA is higher than the average in their current grade level. Tell me their name, grade, and how much they exceed their grade’s average GPA, and the average GPA.
 ```
 
 #### Goose Output
 ```
-Okay, here are the students with a GPA above their grade's average:
+Based on the query results, here are the students who are performing above their grade level average:
 
-*   **John Smith**, GPA: 3.85, Grade Level: 12, Grade Level Average GPA: 3.775
-*   **Emma Johnson**, GPA: 4.00, Grade Level: 11, Grade Level Average GPA: 3.90
-```
+Grade 11
+  Emma Johnson
+    GPA: 4.00
+    Grade Average: 3.90
+    Exceeds average by: 0.10 points
 
-### Querying Data
+Grade 12
+  John Smith
+    GPA: 3.85
+    Grade Average: 3.78
+    Exceeds average by: 0.08 points
 
-#### Goose Prompt
-```
-Show me the top 5 orders of my store by value
-```
-
-#### Goose Output
-```
-I'll write and execute a query to find the highest value orders.
-
-Query results:
-| order_id | customer | total_value | order_date |
-|----------|----------|-------------|------------|
-| 1042     | ACME Inc | $5,280.00   | 2024-03-15 |
-| 1067     | TechCorp | $4,150.00   | 2024-03-18 |
-| 1039     | DataSys  | $3,900.00   | 2024-03-14 |
-| 1055     | InfoTech | $3,675.00   | 2024-03-16 |
-| 1071     | DevCo    | $3,450.00   | 2024-03-19 |
-
+Both students are performing well above their respective grade level averages. Emma Johnson in Grade 11 shows the highest difference above the grade average, exceeding it by 0.10 points, while John Smith in Grade 12 exceeds his grade's average by 0.08 points.
 ```
 
 ## Common Tasks
