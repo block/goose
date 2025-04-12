@@ -46,14 +46,15 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
     }
   }, [extension.enabled, isToggling]);
 
-  const renderFormattedSubtitle = () => {
-    const subtitle = getSubtitle(extension);
-    return subtitle.split('\n').map((part, index) => (
-      <React.Fragment key={index}>
-        {index === 0 ? part : <span className="font-mono text-xs">{part}</span>}
-        {index < subtitle.split('\n').length - 1 && <br />}
-      </React.Fragment>
-    ));
+  const renderSubtitle = () => {
+    const { description, command } = getSubtitle(extension);
+    return (
+      <>
+        {description && <span>{description}</span>}
+        {description && command && <br />}
+        {command && <span className="font-mono text-xs">{command}</span>}
+      </>
+    );
   };
 
   // Bundled extensions and builtins are not editable
@@ -67,7 +68,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
     >
       <div className="flex flex-col w-max-[90%]">
         <h3 className="text-textStandard">{getFriendlyTitle(extension)}</h3>
-        <p className="text-xs text-textSubtle">{renderFormattedSubtitle()}</p>
+        <p className="text-xs text-textSubtle">{renderSubtitle()}</p>
       </div>
 
       <div
