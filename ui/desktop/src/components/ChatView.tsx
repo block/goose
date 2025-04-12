@@ -125,7 +125,7 @@ export default function ChatView({
         // Create recipe directly from chat messages
         const createRecipeRequest = {
           messages: messages,
-          title: '',
+          title: '', // Default title
           description: '',
         };
 
@@ -138,21 +138,21 @@ export default function ChatView({
         window.electron.logInfo('Created recipe:');
         window.electron.logInfo(JSON.stringify(response.recipe, null, 2));
 
-        // Create a new window for the recipe editor
-        console.log('Opening recipe editor with config:', response.recipe);
-
         // First, verify the recipe data
-        if (!response.recipe || !response.recipe.title) {
-          throw new Error('Invalid recipe data received');
+        if (!response.recipe) {
+          throw new Error('No recipe data received');
         }
 
+        // Create a new window for the recipe editor
+        console.log('Opening recipe editor with config:', response.recipe);
         window.electron.createChatWindow(
           undefined, // query
           undefined, // dir
           undefined, // version
           undefined, // resumeSessionId
           response.recipe, // recipe config
-          'recipeEditor' // view type
+          'recipeEditor', // view type
+          { config: response.recipe } // viewOptions
         );
 
         window.electron.logInfo('Opening recipe editor window');
