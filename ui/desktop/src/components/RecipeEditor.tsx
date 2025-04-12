@@ -120,6 +120,34 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     return config;
   };
 
+  const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
+
+  const validateForm = () => {
+    const newErrors: { title?: string; description?: string } = {};
+    if (!title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+    if (!description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleOpenAgent = () => {
+    if (validateForm()) {
+      const updatedConfig = getCurrentConfig();
+      window.electron.createChatWindow(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        updatedConfig,
+        undefined
+      );
+    }
+  };
+
   const deeplink = generateDeepLink(getCurrentConfig());
 
   // Render expanded section content
@@ -262,20 +290,38 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard"
-                placeholder="Agent Name"
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (errors.title) {
+                    setErrors({ ...errors, title: undefined });
+                  }
+                }}
+                className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard ${
+                  errors.title ? 'border-red-500' : 'border-borderSubtle'
+                }`}
+                placeholder="Agent Name (required)"
               />
+              {errors.title && <div className="text-red-500 text-sm mt-1">{errors.title}</div>}
             </div>
 
             <div>
               <input
                 type="text"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3 border border-borderSubtle rounded-lg bg-bgApp text-textStandard"
-                placeholder="Description"
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  if (errors.description) {
+                    setErrors({ ...errors, description: undefined });
+                  }
+                }}
+                className={`w-full p-3 border rounded-lg bg-bgApp text-textStandard ${
+                  errors.description ? 'border-red-500' : 'border-borderSubtle'
+                }`}
+                placeholder="Description (required)"
               />
+              {errors.description && (
+                <div className="text-red-500 text-sm mt-1">{errors.description}</div>
+              )}
             </div>
 
             {/* Section buttons */}
@@ -329,18 +375,9 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             {/* Action Buttons */}
             <div className="flex flex-col space-y-2 pt-4">
               <button
-                onClick={() => {
-                  const updatedConfig = getCurrentConfig();
-                  window.electron.createChatWindow(
-                    undefined,
-                    undefined,
-                    undefined,
-                    undefined,
-                    updatedConfig,
-                    undefined
-                  );
-                }}
-                className="w-full p-3 bg-bgAppInverse text-textProminentInverse rounded-lg hover:bg-bgStandardInverse"
+                onClick={handleOpenAgent}
+                className="w-full p-3 bg-bgAppInverse text-textProminentInverse rounded-lg hover:bg-bgStandardInverse disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!title.trim() || !description.trim()}
               >
                 Open agent
               </button>
