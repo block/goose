@@ -37,7 +37,20 @@ export default function ExtensionsSection({ deepLinkConfig, showEnvVars }: Exten
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
-    const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedExtensions = [...extensionsList].sort((a, b) => {
+      // First sort by builtin
+      if (a.type === 'builtin' && b.type !== 'builtin') return -1;
+      if (a.type !== 'builtin' && b.type === 'builtin') return 1;
+
+      // Then sort by bundled (handle null/undefined cases)
+      const aBundled = a.bundled === true;
+      const bBundled = b.bundled === true;
+      if (aBundled && !bBundled) return -1;
+      if (!aBundled && bBundled) return 1;
+
+      // Finally sort alphabetically within each group
+      return a.name.localeCompare(b.name);
+    });
     setExtensions(sortedExtensions);
   }, [getExtensions]);
 
