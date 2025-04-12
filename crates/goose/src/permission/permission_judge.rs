@@ -1,3 +1,4 @@
+use crate::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -5,10 +6,13 @@ use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
+use mcp_core::ToolCall;
 use mcp_core::{tool::Tool, TextContent};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::sync::Arc;
+
+use super::permission_confirmation::PrincipalType;
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -150,6 +154,35 @@ pub async fn detect_read_only_tools(
     }
 }
 
+/// Gets the boolean value whether the message is enable extension related and
+/// the cconfirmation message based on the tool call
+pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (PrincipalType, Message) {
+    if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+        (
+            PrincipalType::Extension,
+            Message::user().with_enable_extension_request(
+                request_id,
+                tool_call
+                    .arguments
+                    .get("extension_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            ),
+        )
+    } else {
+        (
+            PrincipalType::Tool,
+            Message::user().with_tool_confirmation_request(
+                request_id,
+                tool_call.name.clone(),
+                tool_call.arguments.clone(),
+                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+            ),
+        )
+    }
+}
+
 // Define return structure
 pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,
@@ -172,6 +205,13 @@ pub async fn check_tool_permissions(
 
     for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
+            // Always ask approval for enable extension tool.
+            if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+                // Insert at the front of the list so that enable extension can be run before other tools.
+                needs_approval.insert(0, request.clone());
+                continue;
+            }
+
             if mode == "chat" {
                 continue;
             } else if mode == "auto" {
@@ -418,8 +458,16 @@ mod tests {
             }),
         };
 
-        // Create a Vec of references to ToolRequests
-        let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
+        let enable_extension = ToolRequest {
+            id: "tool_3".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
+                arguments: serde_json::json!({"url": "http://example.com"}),
+            }),
+        };
+
+        let candidate_requests: Vec<&ToolRequest> =
+            vec![&tool_request_1, &tool_request_2, &enable_extension];
 
         // Call the function under test
         let result = check_tool_permissions(
@@ -434,12 +482,23 @@ mod tests {
 
         // Validate the result
         assert_eq!(result.approved.len(), 1); // file_reader should be approved
-        assert_eq!(result.needs_approval.len(), 1); // data_fetcher should need approval
+        assert_eq!(result.needs_approval.len(), 2); // data_fetcher should need approval
         assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
 
         // Ensure the right tools are in the approved and needs_approval lists
         assert!(result.approved.iter().any(|req| req.id == "tool_1"));
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
+
+        let tool_0 = result.needs_approval.get(0);
+        assert!(
+            tool_0.is_some(),
+            "Expected at least one tool in needs_approval"
+        );
+        assert_eq!(
+            tool_0.unwrap().id,
+            "tool_3",
+            "PLATFORM_ENABLE_EXTENSION_TOOL_NAME should be the first in needs_approval"
+        );
     }
 
     #[tokio::test]
@@ -475,7 +534,6 @@ mod tests {
             }),
         };
 
-        // Create a Vec of references to ToolRequests
         let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
 
         // Call the function under test
