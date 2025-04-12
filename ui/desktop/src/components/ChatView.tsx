@@ -125,7 +125,7 @@ export default function ChatView({
         // Create recipe directly from chat messages
         const createRecipeRequest = {
           messages: messages,
-          title: '', // Default title
+          title: '',
           description: '',
         };
 
@@ -151,8 +151,7 @@ export default function ChatView({
           undefined, // version
           undefined, // resumeSessionId
           response.recipe, // recipe config
-          'recipeEditor', // view type
-          { config: response.recipe } // viewOptions
+          'recipeEditor' // view type
         );
 
         window.electron.logInfo('Opening recipe editor window');
