@@ -161,12 +161,11 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 </Tabs>
 
 
-
 ## Example Usage
 
-Let's see how to use Goose with the PostgreSQL extension to perform some common database operations.
+The PostgreSQL extension enables you to query and analyze data or give you information about the table structures. The extension is only capable of *read-only* operations, so you can use it to get information about your database, but not to modify it.
 
-### Listing Tables
+Just describe what you want to do in natural language, and Goose will help you accomplish it using the appropriate SQL commands and PostgreSQL features.
 
 #### Goose Prompt
 ```
@@ -191,9 +190,3 @@ Grade 12
 
 Both students are performing well above their respective grade level averages. Emma Johnson in Grade 11 shows the highest difference above the grade average, exceeding it by 0.10 points, while John Smith in Grade 12 exceeds his grade's average by 0.08 points.
 ```
-
-## Common Tasks
-
-The PostgreSQL extension enables you to query and analyze data or give you information about the table structures. The extension is only capable of read-only operations, so you can use it to get information about your database, but not to modify it.
-
-Just describe what you want to do in natural language, and Goose will help you accomplish it using the appropriate SQL commands and PostgreSQL features.
