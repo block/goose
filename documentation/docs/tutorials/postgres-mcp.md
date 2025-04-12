@@ -15,8 +15,34 @@ The PostgreSQL MCP Server extension allows Goose to interact directly with your 
 ```sh
 npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb
 ```
+:::
+
+## Customizing Your Connection
 
 It's worth noting that this MCP server only allows connecting to a single predefined database at this time, and the connection URL must be specified in the command. We're using `postgresql://localhost/mydb` as an example here to access a local database, but you can configure this for your own environment.
+
+The PostgreSQL connection URL follows this format:
+```
+postgresql://username:password@hostname:5432/database
+```
+
+Where:
+- `username`: Your PostgreSQL user
+- `password`: Your PostgreSQL password
+- `hostname`: The host where PostgreSQL is running (e.g., localhost, IP address, or domain)
+- `5432`: The default PostgreSQL port (change if using a different port)
+- `database`: The name of your database
+
+Examples:
+- Local database: `postgresql://localhost/mydb`
+- Local with credentials: `postgresql://myuser:mypass@localhost/mydb`
+- Remote database: `postgresql://user:pass@db.example.com:5432/production`
+
+:::caution
+Never commit connection strings with credentials to version control! Use environment variables or secure configuration management.
+:::
+
+
 
 ## Configuration
 
@@ -134,28 +160,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   </TabItem>
 </Tabs>
 
-## Customizing Your Connection
 
-The PostgreSQL connection URL follows this format:
-```
-postgresql://username:password@hostname:5432/database
-```
-
-Where:
-- `username`: Your PostgreSQL user
-- `password`: Your PostgreSQL password
-- `hostname`: The host where PostgreSQL is running (e.g., localhost, IP address, or domain)
-- `5432`: The default PostgreSQL port (change if using a different port)
-- `database`: The name of your database
-
-Examples:
-- Local database: `postgresql://localhost/mydb`
-- Local with credentials: `postgresql://myuser:mypass@localhost/mydb`
-- Remote database: `postgresql://user:pass@db.example.com:5432/production`
-
-:::caution
-Never commit connection strings with credentials to version control! Use environment variables or secure configuration management.
-:::
 
 ## Example Usage
 
