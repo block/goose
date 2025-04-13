@@ -73,3 +73,11 @@ alice:
   socials:
     linkedin: alice-hau
     github: alicehau
+
+mic:
+  name: Michael Neale
+  title: Principal Engineer
+  image_url: https://avatars.githubusercontent.com/u/14976?v=4
+  page: true
+  socials:
+    github: michaelneale

@@ -62,6 +62,7 @@ export async function addExtension(
   silent: boolean = false
 ): Promise<Response> {
   try {
+    console.log('Adding extension:', extension);
     // Create the config based on the extension type
     const config = {
       type: extension.type,
@@ -93,7 +94,29 @@ export async function addExtension(
       body: JSON.stringify(config),
     });
 
-    const data = await response.json();
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      const errorMsg = `Server returned ${response.status}: ${response.statusText}. Response: ${responseText}`;
+      console.error(errorMsg);
+      if (toastId) toast.dismiss(toastId);
+      toastError({
+        title: extension.name,
+        msg: 'Failed to add extension',
+        traceback: errorMsg,
+        toastOptions: { autoClose: false },
+      });
+      return response;
+    }
+
+    // Only try to parse JSON if we got a successful response and have JSON content
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', e);
+      data = { error: true, message: responseText };
+    }
 
     if (!data.error) {
       if (!silent) {

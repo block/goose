@@ -100,10 +100,18 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+export type PermissionConfirmationRequest = {
+    action: string;
+    id: string;
+    principal_type?: PrincipalType;
+};
+
 /**
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+export type PrincipalType = 'Extension' | 'Tool';
 
 export type ProviderDetails = {
     /**
@@ -235,10 +243,22 @@ export type ToolInfo = {
     permission?: PermissionLevel | null;
 };
 
+export type ToolPermission = {
+    permission: PermissionLevel;
+    /**
+     * Unique identifier and name of the tool, format <extension_name>__<tool_name>
+     */
+    tool_name: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
     value: unknown;
+};
+
+export type UpsertPermissionsQuery = {
+    tool_permissions: Array<ToolPermission>;
 };
 
 export type GetToolsData = {
@@ -272,7 +292,7 @@ export type GetToolsResponses = {
     /**
      * Tools retrieved successfully
      */
-    200: Array<Tool>;
+    200: Array<ToolInfo>;
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
@@ -399,6 +419,29 @@ export type InitConfigResponses = {
 
 export type InitConfigResponse = InitConfigResponses[keyof InitConfigResponses];
 
+export type UpsertPermissionsData = {
+    body: UpsertPermissionsQuery;
+    path?: never;
+    query?: never;
+    url: '/config/permissions';
+};
+
+export type UpsertPermissionsErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+};
+
+export type UpsertPermissionsResponses = {
+    /**
+     * Permission update completed
+     */
+    200: string;
+};
+
+export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -485,6 +528,31 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ConfirmPermissionData = {
+    body: PermissionConfirmationRequest;
+    path?: never;
+    query?: never;
+    url: '/confirm';
+};
+
+export type ConfirmPermissionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmPermissionResponses = {
+    /**
+     * Permission action is confirmed
+     */
+    200: unknown;
+};
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

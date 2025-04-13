@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
@@ -14,19 +14,43 @@ import {
 } from './utils';
 
 import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
+import { ExtensionConfig } from '../../../api/types.gen';
 
-export default function ExtensionsSection() {
+interface ExtensionSectionProps {
+  deepLinkConfig?: ExtensionConfig;
+  showEnvVars?: boolean;
+}
+
+export default function ExtensionsSection({ deepLinkConfig, showEnvVars }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // We don't need errorFormData anymore since we're not reopening modals on failure
+  const [deepLinkConfigStateVar, setDeepLinkConfigStateVar] = useState<
+    ExtensionConfig | undefined | null
+  >(deepLinkConfig);
+  const [showEnvVarsStateVar, setShowEnvVarsStateVar] = useState<boolean | undefined | null>(
+    showEnvVars
+  );
 
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
     // Sort extensions by name to maintain consistent order
-    const sortedExtensions = [...extensionsList].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedExtensions = [...extensionsList].sort((a, b) => {
+      // First sort by builtin
+      if (a.type === 'builtin' && b.type !== 'builtin') return -1;
+      if (a.type !== 'builtin' && b.type === 'builtin') return 1;
+
+      // Then sort by bundled (handle null/undefined cases)
+      const aBundled = a.bundled === true;
+      const bBundled = b.bundled === true;
+      if (aBundled && !bBundled) return -1;
+      if (!aBundled && bBundled) return 1;
+
+      // Finally sort alphabetically within each group
+      return a.name.localeCompare(b.name);
+    });
     setExtensions(sortedExtensions);
   }, [getExtensions]);
 
@@ -115,6 +139,9 @@ export default function ExtensionsSection() {
   };
 
   const handleModalClose = () => {
+    setDeepLinkConfigStateVar(null);
+    setShowEnvVarsStateVar(null);
+
     setIsModalOpen(false);
     setIsAddModalOpen(false);
     setSelectedExtension(null);
@@ -139,7 +166,7 @@ export default function ExtensionsSection() {
 
         <div className="flex gap-4 pt-4 w-full">
           <Button
-            className="flex items-center gap-2 justify-center text-white dark:text-textSubtle bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
+            className="flex items-center gap-2 justify-center text-white dark:text-black bg-bgAppInverse hover:bg-bgStandardInverse [&>svg]:!size-4"
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -172,6 +199,18 @@ export default function ExtensionsSection() {
           <ExtensionModal
             title="Add custom extension"
             initialData={getDefaultFormData()}
+            onClose={handleModalClose}
+            onSubmit={handleAddExtension}
+            submitLabel="Add Extension"
+            modalType={'add'}
+          />
+        )}
+
+        {/* Modal for adding extension from deeplink*/}
+        {deepLinkConfigStateVar && showEnvVarsStateVar && (
+          <ExtensionModal
+            title="Add custom extension"
+            initialData={extensionToFormData({ ...deepLinkConfig, enabled: true })}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
             submitLabel="Add Extension"
