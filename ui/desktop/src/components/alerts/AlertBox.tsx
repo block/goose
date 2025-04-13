@@ -11,7 +11,6 @@ const alertIcons: Record<AlertType, React.ReactNode> = {
 interface AlertBoxProps {
   alert: Alert;
   className?: string;
-  index?: number;
 }
 
 const alertStyles: Record<AlertType, string> = {
@@ -19,16 +18,9 @@ const alertStyles: Record<AlertType, string> = {
   [AlertType.Warning]: 'bg-[#cc4b03] text-white',
 };
 
-export const AlertBox = ({ alert, className, index = 0 }: AlertBoxProps) => {
+export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   return (
-    <div
-      className={cn(
-        'flex items-center gap-2 px-3 py-2',
-        alertStyles[alert.type],
-        index > 0 && 'border-t border-white/20',
-        className
-      )}
-    >
+    <div className={cn('flex items-center gap-2 px-3 py-2', alertStyles[alert.type], className)}>
       <div className="flex-shrink-0">{alertIcons[alert.type]}</div>
       <div className="flex flex-col gap-2 flex-1">
         <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
