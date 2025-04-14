@@ -19,7 +19,7 @@ Currently, goose's CLI version works on Windows with limited built-in extensions
 
 ## ATrueLight4's Goose4Win
 
-Our featured contributor, ATrueLight4, shipped **Goose4Win**, a fix that improves how Goose handles Windows-specific file paths. Their contribution is already merged into main, so if you install Goose for CLI on Windows today, you’ll get the improvement out of the box. No extra setup needed.
+Our featured contributor, [ATrueLight4](https://github.com/ATrueLight4), shipped **Goose4Win**, a fix that improves how Goose handles Windows-specific file paths. Their contribution is already merged into main, so if you install Goose for CLI on Windows today, you’ll get the improvement out of the box. No extra setup needed.
 
 Thank you so much for your contribution, ATrueLight4! Your work brings us one step closer to Goose on Windows.
 
