@@ -1,10 +1,8 @@
+use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use anyhow::Result;
-
-use crate::agents::platform_tools;
-use crate::message::Message;
+use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
@@ -20,19 +18,8 @@ impl Agent {
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        let extension_manager = self.extension_manager.lock().await;
         // Get tools from extension manager
-        let mut tools = extension_manager.get_prefixed_tools().await?;
-
-        // Add resource tools if supported
-        if extension_manager.supports_resources() {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
-        }
-
-        // Add platform tools
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::enable_extension_tool());
+        let mut tools = self.list_tools().await;
 
         // Add frontend tools
         for frontend_tool in self.frontend_tools.values() {
@@ -40,6 +27,7 @@ impl Agent {
         }
 
         // Prepare system prompt
+        let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
         let mut system_prompt = self
             .prompt_manager
@@ -109,6 +97,70 @@ impl Agent {
         }
 
         Ok((response, usage))
+    }
+
+    /// Categorize tool requests from the response into different types
+    /// Returns:
+    /// - frontend_requests: Tool requests that should be handled by the frontend
+    /// - other_requests: All other tool requests (including requests to enable extensions)
+    /// - filtered_message: The original message with frontend tool requests removed
+    pub(crate) fn categorize_tool_requests(
+        &self,
+        response: &Message,
+    ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
+        // First collect all tool requests
+        let tool_requests: Vec<ToolRequest> = response
+            .content
+            .iter()
+            .filter_map(|content| {
+                if let MessageContent::ToolRequest(req) = content {
+                    Some(req.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Create a filtered message with frontend tool requests removed
+        let filtered_content = response
+            .content
+            .iter()
+            .filter(|c| {
+                if let MessageContent::ToolRequest(req) = c {
+                    // Only filter out frontend tool requests
+                    if let Ok(tool_call) = &req.tool_call {
+                        return !self.is_frontend_tool(&tool_call.name);
+                    }
+                }
+                true
+            })
+            .cloned()
+            .collect();
+
+        let filtered_message = Message {
+            role: response.role.clone(),
+            created: response.created,
+            content: filtered_content,
+        };
+
+        // Categorize tool requests
+        let mut frontend_requests = Vec::new();
+        let mut other_requests = Vec::new();
+
+        for request in tool_requests {
+            if let Ok(tool_call) = &request.tool_call {
+                if self.is_frontend_tool(&tool_call.name) {
+                    frontend_requests.push(request);
+                } else {
+                    other_requests.push(request);
+                }
+            } else {
+                // If there's an error in the tool call, add it to other_requests
+                other_requests.push(request);
+            }
+        }
+
+        (frontend_requests, other_requests, filtered_message)
     }
 
     /// Update session metrics after a response

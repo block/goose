@@ -25,9 +25,7 @@ export default function Splash({ append, activities, title }: SplashProps) {
           <div className="p-8">
             <div className="relative text-textStandard mb-12">
               <div className="w-min animate-[flyin_2s_var(--spring-easing)_forwards]">
-                <div className="scale-150">
-                  <GooseLogo />
-                </div>
+                <GooseLogo />
               </div>
             </div>
 
