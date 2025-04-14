@@ -203,17 +203,9 @@ async fn get_tools(
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools()
+        .list_tools(query.extension_name)
         .await
         .into_iter()
-        .filter(|tool| {
-            // Apply the filter only if the extension name is present in the query
-            if let Some(extension_name) = &query.extension_name {
-                tool.name.starts_with(extension_name)
-            } else {
-                true
-            }
-        })
         .map(|tool| {
             let permission = permission_manager
                 .get_user_permission(&tool.name)

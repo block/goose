@@ -2,6 +2,7 @@ use cliclack::spinner;
 use console::style;
 use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
+use goose::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
 use goose::config::extensions::name_to_key;
@@ -953,12 +954,30 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         }
     }
 
+    let mut extensions: Vec<String> = ExtensionConfigManager::get_all()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|ext| ext.enabled)
+        .map(|ext| ext.config.name().clone())
+        .collect();
+    extensions.push("platform".to_string());
+
+    let extension_name = cliclack::select("Choose an extension to configure tools")
+        .items(
+            &extensions
+                .iter()
+                .map(|ext| (ext.clone(), ext.clone(), ""))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    // Fetch tools for the selected extension
     let mut permission_manager = PermissionManager::default();
-    // Fetch the list of tools grouped by extension
-    let tools: Vec<ToolInfo> = agent
-        .list_tools()
+    let selected_tools = agent
+        .list_tools(Some(extension_name.clone()))
         .await
         .into_iter()
+        .filter(|tool| tool.name != PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
         .map(|tool| {
             ToolInfo::new(
                 &tool.name,
@@ -967,31 +986,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
                 permission_manager.get_user_permission(&tool.name),
             )
         })
-        .collect();
-
-    let mut tools_by_extension: HashMap<String, Vec<ToolInfo>> = HashMap::new();
-
-    for tool in tools {
-        if let Some((extension_name, _tool_name)) = tool.name.split_once("__") {
-            tools_by_extension
-                .entry(extension_name.to_string())
-                .or_default()
-                .push(tool);
-        }
-    }
-
-    // Ask the user to choose an extension
-    let extension_name = cliclack::select("Choose an extension to configure tools")
-        .items(
-            &tools_by_extension
-                .keys()
-                .map(|ext| (ext.clone(), ext.clone(), ""))
-                .collect::<Vec<_>>(),
-        )
-        .interact()?;
-
-    // Fetch tools for the selected extension
-    let selected_tools = tools_by_extension.get(&extension_name).unwrap();
+        .collect::<Vec<ToolInfo>>();
 
     let tool_name = cliclack::select("Choose a tool to update permission")
         .items(
