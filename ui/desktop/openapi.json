@@ -39,7 +39,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Tool"
+                    "$ref": "#/components/schemas/ToolInfo"
                   }
                 }
               }
@@ -196,6 +196,39 @@
         }
       }
     },
+    "/config/permissions": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "upsert_permissions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPermissionsQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Permission update completed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -312,6 +345,40 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/confirm": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "confirm_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Permission action is confirmed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
           },
           "500": {
             "description": "Internal server error"
@@ -602,6 +669,24 @@
           }
         }
       },
+      "PermissionConfirmationRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principal_type": {
+            "$ref": "#/components/schemas/PrincipalType"
+          }
+        }
+      },
       "PermissionLevel": {
         "type": "string",
         "description": "Enum representing the possible permission levels for a tool.",
@@ -609,6 +694,13 @@
           "always_allow",
           "ask_before",
           "never_allow"
+        ]
+      },
+      "PrincipalType": {
+        "type": "string",
+        "enum": [
+          "Extension",
+          "Tool"
         ]
       },
       "ProviderDetails": {
@@ -783,6 +875,22 @@
           }
         }
       },
+      "ToolPermission": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "$ref": "#/components/schemas/PermissionLevel"
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Unique identifier and name of the tool, format <extension_name>__<tool_name>"
+          }
+        }
+      },
       "UpsertConfigQuery": {
         "type": "object",
         "required": [
@@ -798,6 +906,20 @@
             "type": "string"
           },
           "value": {}
+        }
+      },
+      "UpsertPermissionsQuery": {
+        "type": "object",
+        "required": [
+          "tool_permissions"
+        ],
+        "properties": {
+          "tool_permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolPermission"
+            }
+          }
         }
       }
     }

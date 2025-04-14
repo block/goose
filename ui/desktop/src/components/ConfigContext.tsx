@@ -49,6 +49,8 @@ interface ConfigContextType {
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
+  disableAllExtensions: () => Promise<void>;
+  enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
 
 interface ConfigProviderProps {
@@ -204,8 +206,25 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     })();
   }, []);
 
-  const contextValue = useMemo(
-    () => ({
+  const contextValue = useMemo(() => {
+    const disableAllExtensions = async () => {
+      const currentExtensions = await getExtensions(true);
+      for (const ext of currentExtensions) {
+        if (ext.enabled) {
+          await addExtension(ext.name, ext, false);
+        }
+      }
+      await reloadConfig();
+    };
+
+    const enableBotExtensions = async (extensions: ExtensionConfig[]) => {
+      for (const ext of extensions) {
+        await addExtension(ext.name, ext, true);
+      }
+      await reloadConfig();
+    };
+
+    return {
       config,
       providersList,
       extensionsList,
@@ -217,21 +236,23 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       toggleExtension,
       getProviders,
       getExtensions,
-    }),
-    [
-      config,
-      providersList,
-      extensionsList,
-      upsert,
-      read,
-      remove,
-      addExtension,
-      removeExtension,
-      toggleExtension,
-      getProviders,
-      getExtensions,
-    ]
-  );
+      disableAllExtensions,
+      enableBotExtensions,
+    };
+  }, [
+    config,
+    providersList,
+    extensionsList,
+    upsert,
+    read,
+    remove,
+    addExtension,
+    removeExtension,
+    toggleExtension,
+    getProviders,
+    getExtensions,
+    reloadConfig,
+  ]);
 
   return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;
 };

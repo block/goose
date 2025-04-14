@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, TimeZone, Utc};
+use futures::future;
 use futures::stream::{FuturesUnordered, StreamExt};
 use mcp_client::McpService;
 use mcp_core::protocol::GetPromptResult;
@@ -8,6 +9,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::task;
 use tracing::debug;
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
@@ -230,29 +232,47 @@ impl ExtensionManager {
 
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
+        let client_futures = self.clients.iter().map(|(name, client)| {
+            let name = name.clone();
+            let client = client.clone();
+
+            task::spawn(async move {
+                let mut tools = Vec::new();
+                let client_guard = client.lock().await;
+                let mut client_tools = client_guard.list_tools(None).await?;
+
+                loop {
+                    for tool in client_tools.tools {
+                        tools.push(Tool::new(
+                            format!("{}__{}", name, tool.name),
+                            &tool.description,
+                            tool.input_schema,
+                            tool.annotations,
+                        ));
+                    }
+
+                    // Exit loop when there are no more pages
+                    if client_tools.next_cursor.is_none() {
+                        break;
+                    }
+
+                    client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
+                }
+
+                Ok::<Vec<Tool>, ExtensionError>(tools)
+            })
+        });
+
+        // Collect all results concurrently
+        let results = future::join_all(client_futures).await;
+
+        // Aggregate tools and handle errors
         let mut tools = Vec::new();
-
-        // Add tools from MCP extensions with prefixing
-        for (name, client) in &self.clients {
-            let client_guard = client.lock().await;
-            let mut client_tools = client_guard.list_tools(None).await?;
-
-            loop {
-                for tool in client_tools.tools {
-                    tools.push(Tool::new(
-                        format!("{}__{}", name, tool.name),
-                        &tool.description,
-                        tool.input_schema,
-                        tool.annotations,
-                    ));
-                }
-
-                // exit loop when there are no more pages
-                if client_tools.next_cursor.is_none() {
-                    break;
-                }
-
-                client_tools = client_guard.list_tools(client_tools.next_cursor).await?;
+        for result in results {
+            match result {
+                Ok(Ok(client_tools)) => tools.extend(client_tools),
+                Ok(Err(err)) => return Err(err),
+                Err(join_err) => return Err(ExtensionError::from(join_err)),
             }
         }
 

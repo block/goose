@@ -24,6 +24,8 @@ pub enum ExtensionError {
     Transport(#[from] mcp_client::transport::Error),
     #[error("Environment variable `{0}` is not allowed to be overridden.")]
     InvalidEnvVar(String),
+    #[error("Join error occurred during task execution: {0}")]
+    TaskJoinError(#[from] tokio::task::JoinError),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;

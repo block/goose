@@ -1,6 +1,6 @@
 import Electron, { contextBridge, ipcRenderer } from 'electron';
 
-interface BotConfig {
+interface RecipeConfig {
   id: string;
   name: string;
   description: string;
@@ -34,7 +34,8 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: BotConfig
+    recipeConfig?: RecipeConfig,
+    viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
@@ -74,8 +75,18 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    botConfig?: BotConfig
-  ) => ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, botConfig),
+    recipeConfig?: RecipeConfig,
+    viewType?: string
+  ) =>
+    ipcRenderer.send(
+      'create-chat-window',
+      query,
+      dir,
+      version,
+      resumeSessionId,
+      recipeConfig,
+      viewType
+    ),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),

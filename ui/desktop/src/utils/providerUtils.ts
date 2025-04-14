@@ -173,9 +173,9 @@ export const initializeSystem = async (
       console.log('Model synced with React state:', syncedModel);
     }
 
-    // Get botConfig directly here
-    const botConfig = window.appConfig?.get?.('botConfig');
-    const botPrompt = botConfig?.instructions;
+    // Get recipeConfig directly here
+    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const botPrompt = recipeConfig?.instructions;
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {

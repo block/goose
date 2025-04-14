@@ -3,39 +3,39 @@ import { Buffer } from 'buffer';
 import Copy from '../icons/Copy';
 import { Card } from './card';
 
-interface BotConfig {
+interface RecipeConfig {
   instructions?: string;
   activities?: string[];
   [key: string]: unknown;
 }
 
 interface DeepLinkModalProps {
-  botConfig: BotConfig;
+  recipeConfig: RecipeConfig;
   onClose: () => void;
 }
 
 // Function to generate a deep link from a bot config
-export function generateDeepLink(botConfig: BotConfig): string {
-  const configBase64 = Buffer.from(JSON.stringify(botConfig)).toString('base64');
+export function generateDeepLink(recipeConfig: RecipeConfig): string {
+  const configBase64 = Buffer.from(JSON.stringify(recipeConfig)).toString('base64');
   return `goose://bot?config=${configBase64}`;
 }
 
-export function DeepLinkModal({ botConfig: initialBotConfig, onClose }: DeepLinkModalProps) {
+export function DeepLinkModal({ recipeConfig: initialRecipeConfig, onClose }: DeepLinkModalProps) {
   // Create editable state for the bot config
-  const [botConfig, setBotConfig] = useState(initialBotConfig);
-  const [instructions, setInstructions] = useState(initialBotConfig.instructions || '');
-  const [activities, setActivities] = useState<string[]>(initialBotConfig.activities || []);
+  const [recipeConfig, setRecipeConfig] = useState(initialRecipeConfig);
+  const [instructions, setInstructions] = useState(initialRecipeConfig.instructions || '');
+  const [activities, setActivities] = useState<string[]>(initialRecipeConfig.activities || []);
   const [activityInput, setActivityInput] = useState('');
 
   // Generate the deep link using the current bot config
   const deepLink = useMemo(() => {
     const currentConfig = {
-      ...botConfig,
+      ...recipeConfig,
       instructions,
       activities,
     };
     return generateDeepLink(currentConfig);
-  }, [botConfig, instructions, activities]);
+  }, [recipeConfig, instructions, activities]);
 
   // Handle Esc key press
   useEffect(() => {
@@ -56,8 +56,8 @@ export function DeepLinkModal({ botConfig: initialBotConfig, onClose }: DeepLink
 
   // Update the bot config when instructions or activities change
   useEffect(() => {
-    setBotConfig({
-      ...botConfig,
+    setRecipeConfig({
+      ...recipeConfig,
       instructions,
       activities,
     });
@@ -136,7 +136,7 @@ export function DeepLinkModal({ botConfig: initialBotConfig, onClose }: DeepLink
                 onClick={() => {
                   // Open the deep link with the current bot config
                   const currentConfig = {
-                    ...botConfig,
+                    ...recipeConfig,
                     instructions,
                     activities,
                   };

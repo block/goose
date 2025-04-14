@@ -99,7 +99,9 @@
     --background-standard: var(--grey-90);
     --background-subtle: var(--grey-95);
     --background-app-inverse: var(--constant-black);
+    --background-subtle-inverse: var(--dark-grey-15);
     --background-standard-inverse: var(--dark-grey-25);
+    --background-prominent-inverse: var(--dark-grey-40);
 
     --border-divider: var(--grey-90);
     --border-inverse: var(--constant-white);
@@ -128,6 +130,8 @@
       --background-standard: var(--dark-grey-25);
       --background-subtle: var(--dark-grey-15);
       --background-app-inverse: var(--constant-white);
+      --background-subtle-inverse: var(--grey-95);
+      --background-standard-inverse: var(--grey-90);
       --background-prominent-inverse: var(--grey-80);
 
       --border-divider: var(--dark-grey-25);

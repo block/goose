@@ -11,9 +11,11 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   createToolErrorResponseMessage,
+  getEnableExtensionContent,
 } from '../types/message';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
+import ExtensionConfirmation from './ExtensionConfirmation';
 
 interface GooseMessageProps {
   messageHistoryIndex: number;
@@ -52,6 +54,9 @@ export default function GooseMessage({
   const toolConfirmationContent = getToolConfirmationContent(message);
   const hasToolConfirmation = toolConfirmationContent !== undefined;
 
+  const enableExtensionContent = getEnableExtensionContent(message);
+  const hasEnableExtension = enableExtensionContent !== undefined;
+
   // Find tool responses that correspond to the tool requests in this message
   const toolResponsesMap = useMemo(() => {
     const responseMap = new Map();
@@ -86,12 +91,23 @@ export default function GooseMessage({
         createToolErrorResponseMessage(toolConfirmationContent.id, 'The tool call is cancelled.')
       );
     }
+    if (messageIndex == messageHistoryIndex - 1 && hasEnableExtension) {
+      appendMessage(
+        createToolErrorResponseMessage(
+          enableExtensionContent.id,
+          'The extension enablement is cancelled.'
+        )
+      );
+    }
   }, [
     messageIndex,
     messageHistoryIndex,
     hasToolConfirmation,
     toolConfirmationContent,
     appendMessage,
+    hasEnableExtension,
+    // Only include enableExtensionContent if it exists
+    enableExtensionContent?.id,
   ]);
 
   return (
@@ -138,6 +154,15 @@ export default function GooseMessage({
             isClicked={messageIndex < messageHistoryIndex - 1}
             toolConfirmationId={toolConfirmationContent.id}
             toolName={toolConfirmationContent.toolName}
+          />
+        )}
+
+        {hasEnableExtension && (
+          <ExtensionConfirmation
+            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
+            isClicked={messageIndex < messageHistoryIndex - 1}
+            extensionConfirmationId={enableExtensionContent.id}
+            extensionName={enableExtensionContent.extensionName}
           />
         )}
       </div>

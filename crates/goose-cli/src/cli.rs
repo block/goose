@@ -537,7 +537,9 @@ pub async fn cli() -> Result<()> {
                     session.session_file().file_stem().and_then(|s| s.to_str()),
                     None,
                 )?;
-                let _ = session.interactive(None).await;
+                if let Err(e) = session.interactive(None).await {
+                    eprintln!("Session ended with error: {}", e);
+                }
                 Ok(())
             };
         }
