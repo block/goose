@@ -1,9 +1,7 @@
+use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use anyhow::Result;
-
-use crate::agents::platform_tools;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
@@ -20,19 +18,8 @@ impl Agent {
     pub(crate) async fn prepare_tools_and_prompt(
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
-        let extension_manager = self.extension_manager.lock().await;
         // Get tools from extension manager
-        let mut tools = extension_manager.get_prefixed_tools().await?;
-
-        // Add resource tools if supported
-        if extension_manager.supports_resources() {
-            tools.push(platform_tools::read_resource_tool());
-            tools.push(platform_tools::list_resources_tool());
-        }
-
-        // Add platform tools
-        tools.push(platform_tools::search_available_extensions_tool());
-        tools.push(platform_tools::enable_extension_tool());
+        let mut tools = self.list_tools().await;
 
         // Add frontend tools
         for frontend_tool in self.frontend_tools.values() {
@@ -40,6 +27,7 @@ impl Agent {
         }
 
         // Prepare system prompt
+        let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
         let mut system_prompt = self
             .prompt_manager
