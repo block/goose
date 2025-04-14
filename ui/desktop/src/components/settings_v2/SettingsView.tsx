@@ -44,7 +44,7 @@ export default function SettingsView({
                 showEnvVars={viewOptions.showEnvVars}
               />
               {/* Goose Modes */}
-              <ModeSection />
+              <ModeSection setView={setView} />
               {/*Session sharing*/}
               <SessionSharingSection />
             </div>
