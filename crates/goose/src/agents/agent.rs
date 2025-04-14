@@ -398,9 +398,7 @@ impl Agent {
                                     Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
                                 );
                             }
-                            break; // we break here because tool calls are not allowed in chat mode
-                        }
-
+                        } else {
                         // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
                         // What remains is handling the remaining tool requests (enable extension,
                         // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
@@ -466,6 +464,7 @@ impl Agent {
                             results_lock.drain(..).collect::<Vec<_>>()
                         };
 
+
                         // Wait for all tool calls to complete
                         let results = futures::future::join_all(tool_futures).await;
                         for (request_id, output) in results {
@@ -490,6 +489,7 @@ impl Agent {
                         if all_install_successful {
                             (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                         }
+                    }
 
                         let final_message_tool_resp = message_tool_response.lock().await.clone();
                         yield final_message_tool_resp.clone();
