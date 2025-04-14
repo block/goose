@@ -973,6 +973,7 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
             style("Warning").yellow().italic(),
             selected_extension_name
         );
+        return Ok(());
     }
 
     let mut permission_manager = PermissionManager::default();
