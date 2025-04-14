@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::agents::platform_tools;
 use crate::message::{Message, MessageContent, ToolRequest};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
