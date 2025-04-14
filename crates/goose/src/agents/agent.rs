@@ -5,12 +5,10 @@ use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::TryStreamExt;
 
-use crate::config::permission::PermissionLevel;
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
-use crate::message::{Message, MessageContent, ToolRequest};
-use crate::permission::permission_confirmation::PrincipalType;
-use crate::permission::permission_judge::{check_tool_permissions, get_confirmation_message};
-use crate::permission::{Permission, PermissionConfirmation};
+use crate::message::Message;
+use crate::permission::permission_judge::check_tool_permissions;
+use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
@@ -34,7 +32,9 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use super::tool_execution::{ExtensionInstallResult, ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{
+    ExtensionInstallResult, ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
+};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -359,13 +359,13 @@ impl Agent {
                             remaining_requests,
                             filtered_response) =
                             self.categorize_tool_requests(&response);
-                        
-                        
+
+
                         // Yield the assistant's response with frontend tool requests filtered out
                         yield filtered_response.clone();
 
                         tokio::task::yield_now().await;
-                        
+
                         let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                         if num_tool_requests == 0 {
                             break;
@@ -399,10 +399,10 @@ impl Agent {
                                 );
                             }
                             continue; // TODO: should we continue or break here?
-                        } 
+                        }
 
                         // At this point, we have handled the frontend tool requests and goose_mode == "chat".
-                        // What remains is handling the remaining tool requests (enable extension, 
+                        // What remains is handling the remaining tool requests (enable extension,
                         // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
                         let mut permission_manager = PermissionManager::default();
                         let permission_check_result = check_tool_permissions(&remaining_requests,
@@ -412,7 +412,7 @@ impl Agent {
                                                         &mut permission_manager,
                                                         self.provider()).await;
 
-                        
+
                         // Handle pre-approved and read-only tools in parallel
                         let mut tool_futures: Vec<ToolFuture> = Vec::new();
                         let mut install_results: Vec<ExtensionInstallResult> = Vec::new();
@@ -432,14 +432,14 @@ impl Agent {
                                 Ok(vec![Content::text(DECLINED_RESPONSE)]),
                             );
                         }
-                        
+
                         // we need interior mutability in handle_approval_tool_requests
                         let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
                         // Process tools requiring approval (enable extension, regular tool calls)
                         let mut tool_approval_stream = self.handle_approval_tool_requests(
                             &permission_check_result.needs_approval,
                             install_results_arc.clone(),
-                            tool_futures_arc.clone(),                            
+                            tool_futures_arc.clone(),
                             &mut permission_manager,
                             message_tool_response.clone()
                         );

@@ -38,11 +38,10 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         2. **Outline Steps** - Break down the steps.\n \
                                         If needed, adjust the explanation based on user preferences or questions.";
 
-
 impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
-        tool_requests: &'a[ToolRequest],
+        tool_requests: &'a [ToolRequest],
         install_results: ExtensionInstallResults,
         tool_futures: ToolFuturesVec<'a>,
         permission_manager: &'a mut PermissionManager,
@@ -76,7 +75,7 @@ impl Agent {
                                     if confirmation.permission == Permission::AlwaysAllow {
                                         permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
                                     }
-                                }                                
+                                }
                             } else {
                                 // User declined - add declined response
                                 let mut response = message_tool_response.lock().await;
@@ -115,6 +114,7 @@ impl Agent {
                     }
                 }
             }
-        }.boxed()
+        }
+        .boxed()
     }
 }

@@ -14,7 +14,6 @@ use crate::session;
 use mcp_core::tool::Tool;
 
 use super::super::agents::Agent;
-use super::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
 
 impl Agent {
     /// Prepares tools and system prompt for a provider request
@@ -112,7 +111,7 @@ impl Agent {
         Ok((response, usage))
     }
 
-        /// Categorize tool requests from the response into different types
+    /// Categorize tool requests from the response into different types
     /// Returns:
     /// - frontend_requests: Tool requests that should be handled by the frontend
     /// - other_requests: All other tool requests (including requests to enable extensions)
@@ -120,11 +119,7 @@ impl Agent {
     pub(crate) fn categorize_tool_requests(
         &self,
         response: &Message,
-    ) -> (
-        Vec<ToolRequest>,
-        Vec<ToolRequest>,
-        Message,
-    ) {
+    ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
         // First collect all tool requests
         let tool_requests: Vec<ToolRequest> = response
             .content
@@ -153,7 +148,7 @@ impl Agent {
             })
             .cloned()
             .collect();
-        
+
         let filtered_message = Message {
             role: response.role.clone(),
             created: response.created,
@@ -177,11 +172,7 @@ impl Agent {
             }
         }
 
-        (
-            frontend_requests,
-            other_requests,
-            filtered_message,
-        )
+        (frontend_requests, other_requests, filtered_message)
     }
 
     /// Update session metrics after a response
@@ -220,5 +211,4 @@ impl Agent {
 
         Ok(())
     }
-
 }

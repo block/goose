@@ -466,12 +466,12 @@ mod tests {
             }),
         };
 
-        let candidate_requests: Vec<&ToolRequest> =
-            vec![&tool_request_1, &tool_request_2, &enable_extension];
+        let candidate_requests: Vec<ToolRequest> =
+            vec![tool_request_1, tool_request_2, enable_extension];
 
         // Call the function under test
         let result = check_tool_permissions(
-            candidate_requests,
+            &candidate_requests,
             "smart_approve",
             tools_with_readonly_annotation,
             tools_without_annotation,
@@ -534,11 +534,11 @@ mod tests {
             }),
         };
 
-        let candidate_requests: Vec<&ToolRequest> = vec![&tool_request_1, &tool_request_2];
+        let candidate_requests: Vec<ToolRequest> = vec![tool_request_1, tool_request_2];
 
         // Call the function under test
         let result = check_tool_permissions(
-            candidate_requests,
+            &candidate_requests,
             "auto",
             tools_with_readonly_annotation,
             tools_without_annotation,
