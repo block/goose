@@ -14,7 +14,7 @@ import { extractExtensionConfig } from '../components/settings_v2/extensions/uti
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
-import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
+import {ExtensionQuery, addExtension as apiAddExtension, getExtensions} from '../api';
 
 interface AppConfig {
   GOOSE_PROVIDER?: string;
@@ -173,6 +173,10 @@ export const initializeSystem = async (
       console.log('Model synced with React state:', syncedModel);
     }
 
+    console.log('here')
+    const logs = await options.getExtensions(true)
+    console.log("logs", logs)
+
     // Get recipeConfig directly here
     const recipeConfig = window.appConfig?.get?.('recipeConfig');
     const botPrompt = recipeConfig?.instructions;
@@ -234,6 +238,7 @@ export const initializeSystem = async (
       }
 
       // enable all extensions in parallel
+      console.log("adding these extensions to the agent right now", refreshedExtensions.filter((e) => e.enabled))
       await Promise.all(
         refreshedExtensions
           .filter((e) => e.enabled)

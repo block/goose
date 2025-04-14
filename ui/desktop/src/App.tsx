@@ -251,7 +251,7 @@ export default function App() {
 
         for (const extension of extensions) {
           try {
-            console.log('Enabling extension: ${extension.name}');
+            console.log(`Enabling extension: ${extension.name}`);
             await addExtension(extension.name, extension, true);
           } catch (error) {
             console.error(`Failed to enable extension ${extension.name}:`, error);
@@ -270,7 +270,6 @@ export default function App() {
     if (!settingsV2Enabled) {
       return;
     }
-
     // Guard against multiple initialization attempts
     if (initAttemptedRef.current) {
       console.log('Initialization already attempted, skipping...');
@@ -283,12 +282,6 @@ export default function App() {
     const urlParams = new URLSearchParams(window.location.search);
     const viewType = urlParams.get('view');
     const recipeConfig = window.appConfig.get('recipeConfig');
-
-    // Handle bot config extensions first
-    if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-      console.log('Found extensions in bot config:', recipeConfig.extensions);
-      enableRecipeConfigExtensionsV2(recipeConfig.extensions);
-    }
 
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
@@ -306,11 +299,20 @@ export default function App() {
         // Initialize config first
         await initConfig();
 
+        // update list of extensions if we are starting app from a bot recipe link
+        // overwrite extensions list if needed
+        if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+          console.log('Found extensions in bot config:', recipeConfig.extensions);
+          await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
+        }
+
         const config = window.electron.getConfig();
 
         const provider = (await read('GOOSE_PROVIDER', false)) ?? config.GOOSE_DEFAULT_PROVIDER;
         const model = (await read('GOOSE_MODEL', false)) ?? config.GOOSE_DEFAULT_MODEL;
 
+        const extensions = (await getExtensions(true))
+        console.log("in app.tsx and have these extensions", extensions.filter((e)=> e.enabled))
         if (provider && model) {
           setView('chat');
 
