@@ -224,18 +224,29 @@ export default function MoreMenu({
                 Configure .goosehints
               </MenuButton>
 
-              {/* Make Agent from Chat */}
+              {/* Make Agent from Chat - disabled if already in a recipe */}
               <MenuButton
                 onClick={() => {
-                  setOpen(false);
-                  // Signal to ChatView that we want to make an agent from the current chat
-                  window.electron.logInfo('Make Agent button clicked');
-                  window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
+                  const recipeConfig = window.appConfig.get('recipeConfig');
+                  if (!recipeConfig) {
+                    setOpen(false);
+                    // Signal to ChatView that we want to make an agent from the current chat
+                    window.electron.logInfo('Make Agent button clicked');
+                    window.dispatchEvent(new CustomEvent('make-agent-from-chat'));
+                  }
                 }}
                 subtitle="Make a custom agent you can share or reuse with a link"
                 icon={<Send className="w-4 h-4" />}
+                className={
+                  window.appConfig.get('recipeConfig') ? 'opacity-50 cursor-not-allowed' : ''
+                }
               >
                 Make Agent from this session
+                {window.appConfig.get('recipeConfig') && (
+                  <div className="text-xs text-textSubtle mt-1">
+                    (Not available while using a recipe/botling)
+                  </div>
+                )}
               </MenuButton>
 
               <MenuButton

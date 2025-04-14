@@ -85,10 +85,11 @@ impl Evaluation for FlappyBird {
         ));
 
         // If tool was used correctly, check the actual file content
+        let mut valid_implementation = false;
         if valid_tool_call {
             if let Ok(file_path) = run_loc.fs_get("flappy_bird.py".to_string()) {
                 if let Ok(content) = fs::read_to_string(file_path) {
-                    let valid_implementation = self.check_python_implementation(&content);
+                    valid_implementation = self.check_python_implementation(&content);
                     metrics.push((
                         "valid_implementation".to_string(),
                         EvalMetricValue::Boolean(valid_implementation),
@@ -96,6 +97,13 @@ impl Evaluation for FlappyBird {
                 }
             }
         }
+
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float(
+                ((valid_implementation as u8) + (valid_tool_call as u8)) as f64 / 2.0,
+            ),
+        ));
 
         Ok(metrics)
     }

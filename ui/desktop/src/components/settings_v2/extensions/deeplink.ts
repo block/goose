@@ -2,6 +2,7 @@ import type { ExtensionConfig } from '../../../api/types.gen';
 import { toastService } from '../../../toasts';
 import { activateExtension } from './extension-manager';
 import { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';
+import { settingsV2Enabled } from '../../../flags';
 
 /**
  * Build an extension config for stdio from the deeplink URL
@@ -82,7 +83,12 @@ export async function addExtensionFromDeepLink(
     extensionConfig: ExtensionConfig,
     enabled: boolean
   ) => Promise<void>,
-  setView: (view: string, options: { extensionId: string; showEnvVars: boolean }) => void
+  setView: (
+    view: string,
+    options:
+      | { extensionId: string; showEnvVars: boolean }
+      | { deepLinkConfig: ExtensionConfig; showEnvVars: boolean }
+  ) => void
 ) {
   const parsedUrl = new URL(url);
 
@@ -123,7 +129,11 @@ export async function addExtensionFromDeepLink(
   // Check if extension requires env vars and go to settings if so
   if (config.envs && Object.keys(config.envs).length > 0) {
     console.log('Environment variables required, redirecting to settings');
-    setView('settings', { extensionId: nameToKey(name), showEnvVars: true });
+    if (settingsV2Enabled) {
+      setView('settings', { deepLinkConfig: config, showEnvVars: true });
+    } else {
+      setView('settings', { extensionId: nameToKey(name), showEnvVars: true });
+    }
     return;
   }
 

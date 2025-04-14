@@ -7,7 +7,6 @@ import type { View } from '../App';
 import { settingsV2Enabled } from '../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
-import ToolCount from './ToolCount';
 
 export default function BottomMenu({
   hasMessages,
@@ -79,8 +78,6 @@ export default function BottomMenu({
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">
-        {/* Tool count */}
-        <ToolCount />
         {/* Model Selector Dropdown */}
         {settingsV2Enabled ? (
           <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />

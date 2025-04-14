@@ -88,17 +88,16 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     })
                                     .collect::<Vec<_>>()
                                     .join("\n");
-                                if !tool_content.is_empty() {
-                                    if text.is_empty() {
-                                        text = "Tool call is done.".to_string();
-                                    }
-                                    parts.push(json!({
-                                        "functionResponse": {
-                                            "name": response.id,
-                                            "response": {"content": {"text": text}},
-                                        }}
-                                    ));
+
+                                if text.is_empty() {
+                                    text = "Tool call is done.".to_string();
                                 }
+                                parts.push(json!({
+                                    "functionResponse": {
+                                        "name": response.id,
+                                        "response": {"content": {"text": text}},
+                                    }}
+                                ));
                             }
                             Err(e) => {
                                 parts.push(json!({"text":format!("Error: {}", e)}));
@@ -583,5 +582,31 @@ mod tests {
         } else {
             panic!("Expected valid tool request");
         }
+    }
+
+    #[test]
+    fn test_response_to_message_with_empty_content() {
+        let tool_result: Vec<Content> = Vec::new();
+
+        let messages = vec![set_up_tool_response_message("response_id", tool_result)];
+        let payload = format_messages(&messages);
+
+        let expected_payload = vec![json!({
+            "role": "model",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "name": "response_id",
+                        "response": {
+                            "content": {
+                                "text": "Tool call is done."
+                            }
+                        }
+                    }
+                }
+            ]
+        })];
+
+        assert_eq!(payload, expected_payload);
     }
 }

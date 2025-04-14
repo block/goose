@@ -1,15 +1,23 @@
 import React from 'react';
 
+function truncateText(text: string, maxLength: number = 100): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+}
+
 function SplashPill({ content, append, className = '', longForm = '' }) {
+  const displayText = truncateText(content);
+
   return (
     <div
-      className={`px-4 py-2 text-sm text-center text-textSubtle dark:text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
+      className={`px-4 py-2 text-sm text-center text-textStandard cursor-pointer border border-borderSubtle hover:bg-bgSubtle rounded-full transition-all duration-150 ${className}`}
       onClick={async () => {
-        // Use the longForm text if provided, otherwise use the content
+        // Always use the full text (longForm or original content) when clicked
         await append(longForm || content);
       }}
+      title={content.length > 100 ? content : undefined} // Show full text on hover if truncated
     >
-      <div className="line-clamp-2">{content}</div>
+      <div className="whitespace-normal">{displayText}</div>
     </div>
   );
 }
