@@ -32,7 +32,10 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         if (response.error) {
           console.error('Failed to get tools');
         } else {
-          setTools(response.data || []);
+          const filteredTools = (response.data || []).filter(
+            (tool) => tool.name !== 'platform__enable_extension'
+          );
+          setTools(filteredTools);
         }
       } catch (err) {
         console.error('Error fetching tools:', err);

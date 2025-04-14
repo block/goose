@@ -33,6 +33,8 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
+use super::platform_tools;
+
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
@@ -269,10 +271,21 @@ impl Agent {
 
     pub async fn list_tools(&self) -> Vec<Tool> {
         let extension_manager = self.extension_manager.lock().await;
-        extension_manager
+        let mut prefixed_tools = extension_manager
             .get_prefixed_tools()
             .await
-            .unwrap_or_default()
+            .unwrap_or_default();
+
+        // Add resource tools if supported
+        if extension_manager.supports_resources() {
+            prefixed_tools.push(platform_tools::read_resource_tool());
+            prefixed_tools.push(platform_tools::list_resources_tool());
+        }
+
+        // Add platform tools
+        prefixed_tools.push(platform_tools::search_available_extensions_tool());
+        prefixed_tools.push(platform_tools::enable_extension_tool());
+        prefixed_tools
     }
 
     pub async fn remove_extension(&mut self, name: &str) {
