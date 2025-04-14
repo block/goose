@@ -398,10 +398,10 @@ impl Agent {
                                     Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
                                 );
                             }
-                            continue; // TODO: should we continue or break here?
+                            break; // we break here because tool calls are not allowed in chat mode
                         }
 
-                        // At this point, we have handled the frontend tool requests and goose_mode == "chat".
+                        // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
                         // What remains is handling the remaining tool requests (enable extension,
                         // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
                         let mut permission_manager = PermissionManager::default();
