@@ -251,7 +251,7 @@ export default function App() {
 
         for (const extension of extensions) {
           try {
-            console.log('Enabling extension: ${extension.name}');
+            console.log(`Enabling extension: ${extension.name}`);
             await addExtension(extension.name, extension, true);
           } catch (error) {
             console.error(`Failed to enable extension ${extension.name}:`, error);
@@ -284,12 +284,6 @@ export default function App() {
     const viewType = urlParams.get('view');
     const recipeConfig = window.appConfig.get('recipeConfig');
 
-    // Handle bot config extensions first
-    if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-      console.log('Found extensions in bot config:', recipeConfig.extensions);
-      enableRecipeConfigExtensionsV2(recipeConfig.extensions);
-    }
-
     // If we have a specific view type in the URL, use that and skip provider detection
     if (viewType) {
       if (viewType === 'recipeEditor' && recipeConfig) {
@@ -305,6 +299,12 @@ export default function App() {
       try {
         // Initialize config first
         await initConfig();
+
+        // Handle bot config extensions first
+        if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+          console.log('Found extensions in bot config:', recipeConfig.extensions);
+          await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
+        }
 
         const config = window.electron.getConfig();
 
