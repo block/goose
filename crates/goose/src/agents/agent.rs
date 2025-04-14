@@ -399,97 +399,90 @@ impl Agent {
                                 );
                             }
                         } else {
-                        // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
-                        // What remains is handling the remaining tool requests (enable extension,
-                        // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
-                        let mut permission_manager = PermissionManager::default();
-                        let permission_check_result = check_tool_permissions(&remaining_requests,
-                                                        &mode,
-                                                        tools_with_readonly_annotation.clone(),
-                                                        tools_without_annotation.clone(),
-                                                        &mut permission_manager,
-                                                        self.provider()).await;
+                            // At this point, we have handled the frontend tool requests and know goose_mode != "chat"
+                            // What remains is handling the remaining tool requests (enable extension,
+                            // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
+                            let mut permission_manager = PermissionManager::default();
+                            let permission_check_result = check_tool_permissions(&remaining_requests,
+                                                            &mode,
+                                                            tools_with_readonly_annotation.clone(),
+                                                            tools_without_annotation.clone(),
+                                                            &mut permission_manager,
+                                                            self.provider()).await;
 
 
-                        // Handle pre-approved and read-only tools in parallel
-                        let mut tool_futures: Vec<ToolFuture> = Vec::new();
-                        let mut install_results: Vec<ExtensionInstallResult> = Vec::new();
-                        let install_results_arc = Arc::new(Mutex::new(install_results));
+                            // Handle pre-approved and read-only tools in parallel
+                            let mut tool_futures: Vec<ToolFuture> = Vec::new();
+                            let mut install_results: Vec<ExtensionInstallResult> = Vec::new();
+                            let install_results_arc = Arc::new(Mutex::new(install_results));
 
-                        // Skip the confirmation for approved tools
-                        for request in &permission_check_result.approved {
-                            if let Ok(tool_call) = request.tool_call.clone() {
-                                let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
-                                    tool_futures.push(Box::pin(tool_future));
+                            // Skip the confirmation for approved tools
+                            for request in &permission_check_result.approved {
+                                if let Ok(tool_call) = request.tool_call.clone() {
+                                    let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
+                                        tool_futures.push(Box::pin(tool_future));
+                                }
+                            }
+                            for request in &permission_check_result.denied {
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
+                                    request.id.clone(),
+                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                                );
+                            }
+
+                            // we need interior mutability in handle_approval_tool_requests
+                            let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+                            // Process tools requiring approval (enable extension, regular tool calls)
+                            let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                &permission_check_result.needs_approval,
+                                install_results_arc.clone(),
+                                tool_futures_arc.clone(),
+                                &mut permission_manager,
+                                message_tool_response.clone()
+                            );
+
+                            // we have a stream of tool_approval_requests to handle
+                            // execution is yeield back to this reply loop, and is of the same Message
+                            // type, so we can yield the Message back up to be handled and grab and
+                            // confirmations or denials
+                            while let Some(msg) = tool_approval_stream.try_next().await? {
+                                yield msg;
+                            }
+
+                            tool_futures = {
+                                // Lock the mutex asynchronously.
+                                let mut futures_lock = tool_futures_arc.lock().await;
+                                // Drain the vector and collect into a new Vec.
+                                futures_lock.drain(..).collect::<Vec<_>>()
+                            };
+
+                            install_results = {
+                                // Lock the mutex asynchronously.
+                                let mut results_lock = install_results_arc.lock().await;
+                                // Drain the vector and collect into a new Vec.
+                                results_lock.drain(..).collect::<Vec<_>>()
+                            };
+
+
+                            // Wait for all tool calls to complete
+                            let results = futures::future::join_all(tool_futures).await;
+
+                            // Check if any install results had errors before processing them
+                            let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
+                            for (request_id, output) in results.into_iter().chain(install_results.into_iter()) {
+                                let mut response = message_tool_response.lock().await;
+                                *response = response.clone().with_tool_response(
+                                    request_id,
+                                    output
+                                );
+                            }
+
+                            // Update system prompt and tools if installations were successful
+                            if all_install_successful {
+                                (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
                             }
                         }
-                        for request in &permission_check_result.denied {
-                            let mut response = message_tool_response.lock().await;
-                            *response = response.clone().with_tool_response(
-                                request.id.clone(),
-                                Ok(vec![Content::text(DECLINED_RESPONSE)]),
-                            );
-                        }
-
-                        // we need interior mutability in handle_approval_tool_requests
-                        let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
-                        // Process tools requiring approval (enable extension, regular tool calls)
-                        let mut tool_approval_stream = self.handle_approval_tool_requests(
-                            &permission_check_result.needs_approval,
-                            install_results_arc.clone(),
-                            tool_futures_arc.clone(),
-                            &mut permission_manager,
-                            message_tool_response.clone()
-                        );
-
-                        // we have a stream of tool_approval_requests to handle
-                        // execution is yeield back to this reply loop, and is of the same Message
-                        // type, so we can yield the Message back up to be handled and grab and
-                        // confirmations or denials
-                        while let Some(msg) = tool_approval_stream.try_next().await? {
-                            yield msg;
-                        }
-
-                        tool_futures = {
-                            // Lock the mutex asynchronously.
-                            let mut futures_lock = tool_futures_arc.lock().await;
-                            // Drain the vector and collect into a new Vec.
-                            futures_lock.drain(..).collect::<Vec<_>>()
-                        };
-
-                        install_results = {
-                            // Lock the mutex asynchronously.
-                            let mut results_lock = install_results_arc.lock().await;
-                            // Drain the vector and collect into a new Vec.
-                            results_lock.drain(..).collect::<Vec<_>>()
-                        };
-
-
-                        // Wait for all tool calls to complete
-                        let results = futures::future::join_all(tool_futures).await;
-                        for (request_id, output) in results {
-                            let mut response = message_tool_response.lock().await;
-                            *response = response.clone().with_tool_response(
-                                request_id,
-                                output,
-                            );
-                        }
-
-                        // Check if any install results had errors before processing them
-                        let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
-                        for (request_id, output) in install_results {
-                            let mut response = message_tool_response.lock().await;
-                            *response = response.clone().with_tool_response(
-                                request_id,
-                                output
-                            );
-                        }
-
-                        // Update system prompt and tools if installations were successful
-                        if all_install_successful {
-                            (tools, toolshim_tools, system_prompt) = self.prepare_tools_and_prompt().await?;
-                        }
-                    }
 
                         let final_message_tool_resp = message_tool_response.lock().await.clone();
                         yield final_message_tool_resp.clone();
