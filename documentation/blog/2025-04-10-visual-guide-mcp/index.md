@@ -1,19 +1,22 @@
 ---
-title: "A Visual Guide To MCPs"
-description: "MCP ecosystem explained through visuals"
+title: "A Visual Guide To MCP Ecosystem"
+description: "Visual breakdown of MCP: How your AI agent, tools, and models work together."
 authors: 
     - ebony
 ---
 
-# A Visual Guide to MCP (Model Context Protocol) 
+![blog cover](mcpblog.png)
 
-You ever open a GitHub repo or blog post and instantly feel like you need a PhD just to understand the first sentence?
+# A Visual Guide to MCP Ecosystem
+
+You ever open a GitHub repo or blog post, read the first sentence, and immediately feel like you’ve stumbled into a PhD dissertation?
 
 Yeah. Same.
 
+MCP (Model Context Protocol) sounds complicated, but it’s really not. Think of this as your go to cheat sheet, no whitepapers, no academic jargon, just plain English and a few good visuals.
 <!--truncate-->
 
-So let’s break down Model Context Protocol (MCP) like we’re explaining it to our semi technical friend, that doesn’t want to read 30 whitepapers to get the gist.
+Let's break this down together. 
 
 ## What Is MCP in plain English?
 
@@ -40,7 +43,7 @@ Lets take a look at how all the players work together:
 ![Visual guide](visualguide.png)
 In this flow, the user kicks things off by giving Goose a prompt. Goose gets the prompt ready, along with its available tools and any relevant context, and hands it off to the LLM. The LLM figures out what it needs, Goose routes those requests to the right MCP servers, and they execute the tasks. Once everything's done, Goose brings the final answer back to you, the user.
 
-## I'm Still Confused..
+## Here's An Analogy
 
 Okay. So you’ve seen the flow, but if its still not making sense lets think of it in context of James Bond. 
 
@@ -65,18 +68,26 @@ The LLM (Bond) picks the right gadgets for the mission, Goose routes the request
 
 Without Goose handing over the gadget suitcase, the model would just show up in the field with nothing but a tuxedo and a smile, and we don't want to know how that ends.
 
+## Your Turn
 
+Now that you’ve got the basics down, and you understand how the MCP ecosystem works, it’s time to try it yourself.
+
+The [Quickstart Guide](/docs/quickstart) walks you through connecting your first MCP server.
+
+And when you’re ready to explore more, head over to the [tutorials section](/docs/category/tutorials) in the docs — it has step-by-step guides and quick YouTube Shorts to show you how to connect to a variety of MCP servers.
+
+And don't forget to [join the community](https://discord.gg/block-opensource) to see what others are building, ask questions, or to simply connect. 
 
 
 <head>
   <meta property="og:title" content="A Visual Guide To MCPs" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/10/visual-guide-mcp" />
-  <meta property="og:description" content="MCP ecosystem explained through visuals" />
+  <meta property="og:description" content="Visual breakdown of MCP: How your agent, tools, and models work together." />
   <meta property="og:image" content="" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="A Visual Guide To MCPs" />
-  <meta name="twitter:description" content="MCP ecosystem explained through visuals" />
+  <meta name="twitter:description" content="Visual breakdown of MCP: How your AI agent, tools, and models work together." />
   <meta name="twitter:image" content="" />
 </head>
