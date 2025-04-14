@@ -191,7 +191,7 @@ pub struct PermissionCheckResult {
 }
 
 pub async fn check_tool_permissions(
-    candidate_requests: Vec<&ToolRequest>,
+    candidate_requests: &[ToolRequest],
     mode: &str,
     tools_with_readonly_annotation: HashSet<String>,
     tools_without_annotation: HashSet<String>,
