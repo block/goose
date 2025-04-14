@@ -274,18 +274,20 @@ impl Agent {
     pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
         let extension_manager = self.extension_manager.lock().await;
         let mut prefixed_tools = extension_manager
-            .get_prefixed_tools(extension_name)
+            .get_prefixed_tools(extension_name.clone())
             .await
             .unwrap_or_default();
 
-        // Add platform tools
-        prefixed_tools.push(platform_tools::search_available_extensions_tool());
-        prefixed_tools.push(platform_tools::enable_extension_tool());
+        if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
+            // Add platform tools
+            prefixed_tools.push(platform_tools::search_available_extensions_tool());
+            prefixed_tools.push(platform_tools::enable_extension_tool());
 
-        // Add resource tools if supported
-        if extension_manager.supports_resources() {
-            prefixed_tools.push(platform_tools::read_resource_tool());
-            prefixed_tools.push(platform_tools::list_resources_tool());
+            // Add resource tools if supported
+            if extension_manager.supports_resources() {
+                prefixed_tools.push(platform_tools::read_resource_tool());
+                prefixed_tools.push(platform_tools::list_resources_tool());
+            }
         }
 
         prefixed_tools

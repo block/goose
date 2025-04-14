@@ -922,6 +922,24 @@ pub fn toggle_experiments_dialog() -> Result<(), Box<dyn Error>> {
 }
 
 pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
+    let mut extensions: Vec<String> = ExtensionConfigManager::get_all()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|ext| ext.enabled)
+        .map(|ext| ext.config.name().clone())
+        .collect();
+    extensions.push("platform".to_string());
+
+    let selected_extension_name = cliclack::select("Choose an extension to configure tools")
+        .items(
+            &extensions
+                .iter()
+                .map(|ext| (ext.clone(), ext.clone(), ""))
+                .collect::<Vec<_>>(),
+        )
+        .interact()?;
+
+    // Fetch tools for the selected extension
     // Load config and get provider/model
     let config = Config::global();
 
@@ -938,43 +956,28 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Create the agent
     let mut agent = Agent::new(provider);
-    for extension in ExtensionConfigManager::get_all().expect("should load extensions") {
-        if extension.enabled {
-            let config = extension.config.clone();
-            agent
-                .add_extension(config.clone())
-                .await
-                .unwrap_or_else(|_| {
-                    println!(
-                        "{} Failed to check extension: {}",
-                        style("Error").red().italic(),
-                        config.name()
-                    );
-                });
-        }
+    if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
+        agent
+            .add_extension(config.clone())
+            .await
+            .unwrap_or_else(|_| {
+                println!(
+                    "{} Failed to check extension: {}",
+                    style("Error").red().italic(),
+                    config.name()
+                );
+            });
+    } else {
+        println!(
+            "{} Configuration not found for extension: {}",
+            style("Warning").yellow().italic(),
+            selected_extension_name
+        );
     }
 
-    let mut extensions: Vec<String> = ExtensionConfigManager::get_all()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|ext| ext.enabled)
-        .map(|ext| ext.config.name().clone())
-        .collect();
-    extensions.push("platform".to_string());
-
-    let extension_name = cliclack::select("Choose an extension to configure tools")
-        .items(
-            &extensions
-                .iter()
-                .map(|ext| (ext.clone(), ext.clone(), ""))
-                .collect::<Vec<_>>(),
-        )
-        .interact()?;
-
-    // Fetch tools for the selected extension
     let mut permission_manager = PermissionManager::default();
     let selected_tools = agent
-        .list_tools(Some(extension_name.clone()))
+        .list_tools(Some(selected_extension_name.clone()))
         .await
         .into_iter()
         .filter(|tool| tool.name != PLATFORM_ENABLE_EXTENSION_TOOL_NAME)
@@ -992,7 +995,15 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .items(
             &selected_tools
                 .iter()
-                .map(|tool| (tool.name.clone(), tool.name.clone(), &tool.description))
+                .map(|tool| {
+                    let first_description = tool
+                        .description
+                        .split('.')
+                        .next()
+                        .unwrap_or("No description available")
+                        .trim();
+                    (tool.name.clone(), tool.name.clone(), first_description)
+                })
                 .collect::<Vec<_>>(),
         )
         .interact()?;
