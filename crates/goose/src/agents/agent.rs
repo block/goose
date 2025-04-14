@@ -278,15 +278,16 @@ impl Agent {
             .await
             .unwrap_or_default();
 
+        // Add platform tools
+        prefixed_tools.push(platform_tools::search_available_extensions_tool());
+        prefixed_tools.push(platform_tools::enable_extension_tool());
+
         // Add resource tools if supported
         if extension_manager.supports_resources() {
             prefixed_tools.push(platform_tools::read_resource_tool());
             prefixed_tools.push(platform_tools::list_resources_tool());
         }
 
-        // Add platform tools
-        prefixed_tools.push(platform_tools::search_available_extensions_tool());
-        prefixed_tools.push(platform_tools::enable_extension_tool());
         prefixed_tools
     }
 
