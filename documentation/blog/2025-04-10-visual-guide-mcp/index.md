@@ -22,7 +22,7 @@ Let's break this down together.
 
 MCP is like a universal translator between your AI agent, like Goose, and external tools, files, databases, APIs, you name it.
 
-It gives your agent a way to, ask questions, run tools, store/retrieve context, and keep track of everything it knows. 
+It gives your agent a way to ask questions, run tools, store/retrieve context, and keep track of everything it knows. 
 
 Instead of cramming everything into one prompt like “here’s 10k tokens worth of context, good luck,” MCP helps the model pull what it needs, when it needs it.
 
