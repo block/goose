@@ -110,6 +110,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
+                MessageContent::ContextLengthExceeded(_) => {
+                    continue;
+                }
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(contents) => {
