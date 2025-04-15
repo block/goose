@@ -10,6 +10,7 @@ import Copy from './icons/Copy';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
+import { Check } from 'lucide-react';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -29,6 +30,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
+  const [copied, setCopied] = useState(false);
 
   // Initialize selected extensions for the recipe from config or localStorage
   const [recipeExtensions, setRecipeExtensions] = useState<string[]>(() => {
