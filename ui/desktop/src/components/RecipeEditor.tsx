@@ -276,7 +276,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             <ExtensionList
               extensions={extensionOptions}
               onToggle={handleExtensionToggle}
-            ></ExtensionList>
+              isStatic={true}
+            />
           </div>
         );
 
