@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import LinkPreview from './LinkPreview';
 import { extractUrls } from '../utils/urlUtils';
 import MarkdownContent from './MarkdownContent';
 import { Message, getTextContent } from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
+import { formatMessageTimestamp } from '../utils/timeUtils';
 
 interface UserMessageProps {
   message: Message;
@@ -14,6 +15,9 @@ export default function UserMessage({ message }: UserMessageProps) {
 
   // Extract text content from the message
   const textContent = getTextContent(message);
+
+  // Memoize the timestamp
+  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
 
   // Extract URLs which explicitly contain the http:// or https:// protocol
   const urls = extractUrls(textContent, []);
@@ -30,7 +34,8 @@ export default function UserMessage({ message }: UserMessageProps) {
               />
             </div>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-between items-center">
+            <div className="text-[11px] text-[--grey-50] pl-1 pt-1">{timestamp}</div>
             <MessageCopyLink text={textContent} contentRef={contentRef} />
           </div>
         </div>

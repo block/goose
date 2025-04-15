@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
+import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
@@ -38,6 +39,9 @@ export default function GooseMessage({
 
   // Extract text content from the message
   let textContent = getTextContent(message);
+
+  // Memoize the timestamp
+  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
@@ -121,11 +125,12 @@ export default function GooseMessage({
               <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
-            {textContent && message.content.every((content) => content.type === 'text') && (
-              <div className="flex justify-end mr-2">
+            <div className="flex justify-between items-center">
+              <div className="text-[11px] text-[--grey-50] pl-1 pt-1">{timestamp}</div>
+              {textContent && message.content.every((content) => content.type === 'text') && (
                 <MessageCopyLink text={textContent} contentRef={contentRef} />
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
