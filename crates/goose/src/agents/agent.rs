@@ -296,6 +296,15 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
+                 // TODO: For testing: force a context length exceeded error
+                if messages.len() >= 4 {
+                    // Err(ProviderError::ContextLengthExceeded("Simulated error: context length exceeded for testing".into()))?;
+                    yield Message::assistant().with_context_length_exceeded(
+                        "The context length of the model has been exceeded. Please shorten your input and try again.",
+                    );
+                    break;
+                }
+
                 match Self::generate_response_from_provider(
                     self.provider(),
                     &system_prompt,

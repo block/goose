@@ -6,6 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::{build_session, SessionBuilderConfig};
+use console::Color;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -646,6 +647,36 @@ impl Session {
                                     principal_type: PrincipalType::Extension,
                                     permission,
                                 },).await;
+                            } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
+                                output::hide_thinking();
+
+                                let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
+                                let selected = cliclack::select(prompt)
+                                    .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                    // .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
+                                    // .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                    .interact()?;
+
+                                match selected {
+                                    "clear" => {
+                                        self.messages.clear();
+                                        output::render_text("Session cleared", Some(Color::Yellow), true);
+                                        break;  // exit the loop to hand back control to the user
+                                    }
+                                    "truncate" => {
+                                        // Truncate messages to fit within context length
+                                        todo!()
+                                    }
+                                    "summarize" => {
+                                        // Summarize messages to fit within context length
+                                        todo!()
+                                    }
+                                    _ => {
+                                        unreachable!()
+                                    }
+                                }
+
+
                             }
                             // otherwise we have a model/tool to render
                             else {
