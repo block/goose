@@ -19,7 +19,7 @@ impl Agent {
         &self,
     ) -> anyhow::Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tools from extension manager
-        let mut tools = self.list_tools().await;
+        let mut tools = self.list_tools(None).await;
 
         // Add frontend tools
         for frontend_tool in self.frontend_tools.values() {
