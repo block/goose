@@ -68,7 +68,7 @@ impl PromptManager {
         } else if let Some(model) = model_name {
             // Try to load a model-specific system prompt first
             let model_specific_file =
-                format!("system_{}.md", model.replace('-', "_").replace('/', "_"));
+                format!("system_{}.md", model.replace(['-', '/'], "_"));
             match prompt_template::render_global_file(&model_specific_file, &context) {
                 Ok(prompt) => prompt,
                 Err(_) => {
