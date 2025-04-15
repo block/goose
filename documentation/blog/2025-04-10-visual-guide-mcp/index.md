@@ -41,7 +41,7 @@ Instead of cramming everything into one prompt like “here’s 10k tokens worth
 Lets take a look at how all the players work together: 
 
 ![Visual guide](visualguide.png)
-In this flow, the user kicks things off by giving Goose a prompt. Goose gets the prompt ready, along with its available tools and any relevant context, and hands it off to the LLM. The LLM figures out what it needs, Goose routes those requests to the right MCP servers, and they execute the tasks. Once everything's done, Goose brings the final answer back to you, the user.
+In this flow, the user kicks things off by giving Goose a prompt. Goose gets the prompt ready, along with its available tools and any relevant context, and hands it off to the LLM. The LLM decides which tools it needs to complete the task. Goose then routes those tool calls to the right MCP servers, and they execute the tasks. As steps of the task are being completed, informs you, the user, of what it's done and can also loop with the LLM as needed.
 
 ## Here's An Analogy
 
