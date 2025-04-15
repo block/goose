@@ -17,13 +17,8 @@ use serde_json::{json, Value};
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages {
-        let converted = json!({
-            "role": message.role
-        });
-
         // Accumulate content parts for the current message here
         let mut current_content_parts = Vec::new();
-        let mut has_content = false; // Flag if we add any text/image content
 
         // Hold tool calls separately as they go in a different field
         let mut current_tool_calls = Vec::new();
@@ -48,7 +43,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             // Regular text content
                             current_content_parts.push(json!({ "type": "text", "text": text.text }));
                         }
-                        has_content = true;
                     }
                 }
                 MessageContent::Thinking(_) => continue,
@@ -139,23 +133,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             }));
                         }
                     }
-<<<<<<< HEAD
-                }
+                },
                 MessageContent::ToolConfirmationRequest(_) => {
                     // Skip tool confirmation requests
-                }
+                },
                 MessageContent::EnableExtensionRequest(_) => {
                     // Skip enable extension requests
-                }
-=======
                 },
-                MessageContent::ToolConfirmationRequest(_) => continue,
->>>>>>> 666e8e8de (feat(chat): Implement multi-modal image input)
                 MessageContent::Image(image) => {
                     // Add converted image to the parts list for this message
                     current_content_parts.push(convert_image(image, image_format));
-                    has_content = true;
-                }
+                },
                 // Added missing FrontendToolRequest handling similar to ToolRequest
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -181,11 +169,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         }
 
         // After processing all content parts for the message:
-        let mut message_to_add = converted; // Start with role
+        let mut message_to_add = json!({ "role": message.role }); // Initialize directly
         let mut should_add = false;
 
         // If there was text or image content, add it as an array
-        if has_content {
+        if !current_content_parts.is_empty() {
             message_to_add["content"] = json!(current_content_parts);
             should_add = true;
         }
