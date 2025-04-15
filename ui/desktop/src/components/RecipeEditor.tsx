@@ -47,7 +47,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       }
     }
     // Fall back to config if available, using extension names
-    return config?.extensions?.map((e) => e.name) || [];
+    const exts = [];
+    return exts;
   });
   const [newActivity, setNewActivity] = useState('');
 
