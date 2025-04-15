@@ -1,0 +1,128 @@
+name: Build and Release FFI Libraries
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (leave empty to use Cargo.toml version)'
+        required: false
+        default: ''
+  release:
+    types: [published]
+
+jobs:
+  build-ffi:
+    name: Build FFI Library
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        architecture: [x86_64, aarch64]
+        include:
+          - os: ubuntu-latest
+            target-suffix: unknown-linux-gnu
+            lib-extension: so
+          - os: macos-latest
+            target-suffix: apple-darwin
+            lib-extension: dylib
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update version in Cargo.toml
+        if: ${{ inputs.version != '' }}
+        run: |
+          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' crates/goose-ffi/Cargo.toml
+          rm -f crates/goose-ffi/Cargo.toml.bak
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          target: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Build FFI Library
+        env:
+          CROSS_NO_WARNINGS: 0
+          RUST_LOG: debug
+          RUST_BACKTRACE: 1
+          CROSS_VERBOSE: 1
+        run: |
+          export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
+          rustup target add "${TARGET}"
+          echo "Building for target: ${TARGET}"
+          echo "Rust toolchain info:"
+          rustup show
+          echo "Cross version:"
+          cross --version
+
+          # 'cross' is used to cross-compile for different architectures
+          cross build --release --target ${TARGET} -p goose-ffi -vv
+
+          # Create a package with the library, header, and examples
+          mkdir -p goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/include
+          mkdir -p goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/examples
+          
+          # Copy library
+          cp target/${TARGET}/release/libgoose_ffi.${{ matrix.lib-extension }} goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/
+          
+          # Copy header file
+          cp crates/goose-ffi/include/goose_ffi.h goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/include/
+          
+          # Copy Python examples only
+          cp crates/goose-ffi/examples/*.py goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/examples/
+          
+          # Add README
+          cp crates/goose-ffi/README.md goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}/
+          
+          # Create tarball
+          tar -cjf goose-ffi-${TARGET}.${{ matrix.lib-extension }}.tar.bz2 goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}
+          echo "ARTIFACT=goose-ffi-${TARGET}.${{ matrix.lib-extension }}.tar.bz2" >> $GITHUB_ENV
+
+      - name: Upload FFI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: goose-ffi-${{ matrix.architecture }}-${{ matrix.target-suffix }}
+          path: ${{ env.ARTIFACT }}
+
+  release-artifacts:
+    name: Release Artifacts
+    needs: build-ffi
+    runs-on: ubuntu-latest
+    # Only run this job if triggered by a release or manually with a version
+    if: github.event_name == 'release' || inputs.version != ''
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Determine release tag
+        id: release_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=v${{ inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: "Goose FFI ${{ steps.release_tag.outputs.tag }}"
+          draft: false
+          files: artifacts/**/*.tar.bz2
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
