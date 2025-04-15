@@ -125,10 +125,14 @@ export default function GooseMessage({
               <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
-            <div className="flex justify-between items-center">
-              <div className="text-[11px] text-[--grey-50] pl-1 pt-1">{timestamp}</div>
+            <div className="relative h-[22px] flex justify-end">
+              <div className="absolute right-0 text-[11px] text-[--grey-50] pr-1 transition-opacity duration-200 group-hover:opacity-0">
+                {timestamp}
+              </div>
               {textContent && message.content.every((content) => content.type === 'text') && (
-                <MessageCopyLink text={textContent} contentRef={contentRef} />
+                <div className="absolute right-0">
+                  <MessageCopyLink text={textContent} contentRef={contentRef} />
+                </div>
               )}
             </div>
           </div>

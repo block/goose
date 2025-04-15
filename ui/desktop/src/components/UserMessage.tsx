@@ -34,9 +34,13 @@ export default function UserMessage({ message }: UserMessageProps) {
               />
             </div>
           </div>
-          <div className="flex justify-between items-center">
-            <div className="text-[11px] text-[--grey-50] pl-1 pt-1">{timestamp}</div>
-            <MessageCopyLink text={textContent} contentRef={contentRef} />
+          <div className="relative h-[22px] flex justify-end">
+            <div className="absolute right-0 text-[11px] text-[--grey-50] pr-1 transition-opacity duration-200 group-hover:opacity-0">
+              {timestamp}
+            </div>
+            <div className="absolute right-0">
+              <MessageCopyLink text={textContent} contentRef={contentRef} />
+            </div>
           </div>
         </div>
 
