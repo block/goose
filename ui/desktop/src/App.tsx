@@ -300,6 +300,12 @@ export default function App() {
         // Initialize config first
         await initConfig();
 
+        // note: if in a non recipe session, recipeConfig is undefined, otherwise null if error
+        if (recipeConfig === null) {
+          setFatalError('Cannot read recipe config. Please check the deeplink and try again.');
+          return;
+        }
+
         // Handle bot config extensions first
         if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
           console.log('Found extensions in bot config:', recipeConfig.extensions);
