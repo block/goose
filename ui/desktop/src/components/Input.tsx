@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import Stop from './ui/Stop';
-import { Send, Close, Attach } from './icons';
+import { Send, Close, Attach, Upload } from './icons';
 import { DropzoneInputProps } from 'react-dropzone';
 
 interface InputProps {
@@ -186,7 +186,7 @@ export default function Input({
                 <img
                   src={imageBase64}
                   alt={`Attached image preview ${index + 1}`}
-                  className="max-h-24 w-auto rounded border border-borderSubtle object-contain"
+                  className="max-h-20 w-auto rounded border border-borderSubtle object-contain"
                 />
                 <Button
                   type="button"
@@ -196,7 +196,7 @@ export default function Input({
                     e.stopPropagation();
                     removeAttachedImage(index);
                   }}
-                  className="absolute top-0 left-0 m-1 p-0.5 bg-black/50 text-white rounded-full hover:bg-black/75 w-5 h-5 flex items-center justify-center"
+                  className="absolute -top-1 -right-1 p-0.5 bg-black/50 text-white rounded-full hover:bg-black/75 w-5 h-5 flex items-center justify-center"
                   title={`Remove Image ${index + 1}`}
                 >
                   <Close className="w-3 h-3" />
@@ -273,7 +273,7 @@ export default function Input({
 
       {/* Drop Zone Indicator - Style and positioning depend on mode */}
       <div
-        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md text-center cursor-pointer transition-opacity duration-150 border-blue-500 bg-blue-50 dark:bg-blue-900/30 p-4 ${
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md text-center cursor-pointer transition-opacity duration-150 border-gray-300 ${
           isOverlayMode
             ? 'absolute top-4 right-4 bottom-4 left-4 z-10 opacity-100' // Overlay mode
             : isCollapseReplaceMode
@@ -282,8 +282,8 @@ export default function Input({
         }`}
       >
         <div>
-          <Attach className="w-8 h-8 text-textSubtle mx-auto" />
-          <p className="text-textSubtle mt-1">Drop files here</p>
+          <Upload className="w-8 h-8 text-textSubtle mx-auto" />
+          <p className="text-textSubtle mt-1">Drop files here to upload into your goose chat</p>
         </div>
       </div>
     </div>
