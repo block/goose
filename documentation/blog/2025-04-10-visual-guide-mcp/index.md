@@ -35,7 +35,7 @@ Instead of cramming everything into one prompt like “here’s 10k tokens worth
 
 - **LLM** – The model that does the reasoning (like Claude, GPT-4, etc.)
 
-- **MCP Servers (Extensions)** – Goose's toolbox: built-in and custom extensions that give goose the ability to execute task
+- **MCP Servers (Extensions)** – Goose's toolbox: built-in and custom extensions that give goose the ability to execute tasks
 
 ## How Do They Communicate?
 Lets take a look at how all the players work together: 
