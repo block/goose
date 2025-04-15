@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useFrontendTools } from '../frontend-tools/useFrontendTools';
 import { getApiUrl } from '../config';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
@@ -114,6 +115,35 @@ export default function ChatView({
       // Implement tool call handling logic here
     },
   });
+
+  // Add frontend tools hook
+  const { handleToolRequest } = useFrontendTools();
+
+  // Add frontend tool request handler
+  useEffect(() => {
+    const processFrontendTools = async (message: Message) => {
+      if (message.role !== 'assistant') return;
+
+      for (const content of message.content) {
+        console.log('Processing message content:', content);
+        if (content.type === 'frontendToolRequest') {
+          console.log('Found frontend tool request:', content);
+          try {
+            const result = await handleToolRequest(content);
+            console.log('Frontend tool request result:', result);
+          } catch (error) {
+            console.error('Failed to handle frontend tool request:', error);
+          }
+        }
+      }
+    };
+
+    // Process the last message if it exists
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage) {
+      processFrontendTools(lastMessage);
+    }
+  }, [messages, handleToolRequest]);
 
   // Listen for make-agent-from-chat event
   useEffect(() => {

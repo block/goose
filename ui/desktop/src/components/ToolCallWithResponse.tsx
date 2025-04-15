@@ -5,12 +5,17 @@ import { ToolCallArguments } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
 import { LoadingPlaceholder } from './LoadingPlaceholder';
 import { ChevronUp } from 'lucide-react';
-import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  Content,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  FrontendToolRequestMessageContent,
+} from '../types/message';
 import { snakeToTitleCase } from '../utils';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
-  toolRequest: ToolRequestMessageContent;
+  toolRequest: ToolRequestMessageContent | FrontendToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
 }
 
@@ -60,7 +65,9 @@ function ToolCallView({ toolCall }: ToolCallViewProps) {
       <div className="flex items-center mb-4">
         <Box size={16} />
         <span className="ml-[8px] text-textStandard">
-          {snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))}
+          {toolCall.name.includes('__')
+            ? snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2))
+            : snakeToTitleCase(toolCall.name)}
         </span>
       </div>
 
