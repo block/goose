@@ -42,6 +42,7 @@ impl PromptManager {
         &self,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
+        model_name: Option<&str>,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -64,6 +65,19 @@ impl PromptManager {
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
             prompt_template::render_inline_once(override_prompt, &context)
                 .expect("Prompt should render")
+        } else if let Some(model) = model_name {
+            // Try to load a model-specific system prompt first
+            let model_specific_file = format!("system_{}.md", model.replace('-', "_"));
+            println!("attempting to load model-specific system prompt: {}", model_specific_file);
+            match prompt_template::render_global_file(&model_specific_file, &context) {
+                Ok(prompt) => prompt,
+                Err(e) => {
+                    println!("falling back to default system prompt");
+                    // Fall back to the standard system.md if model-specific one doesn't exist
+                    prompt_template::render_global_file("system.md", &context)
+                        .expect("Prompt should render")
+                }
+            }
         } else {
             prompt_template::render_global_file("system.md", &context)
                 .expect("Prompt should render")
