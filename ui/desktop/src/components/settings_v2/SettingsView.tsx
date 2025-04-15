@@ -1,4 +1,3 @@
-import React from 'react';
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
 import type { View } from '../../App';
