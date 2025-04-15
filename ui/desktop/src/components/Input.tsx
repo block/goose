@@ -1,14 +1,21 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import Stop from './ui/Stop';
-import { Attach, Send, Close } from './icons';
+import { Send, Close, Attach } from './icons';
+import { DropzoneInputProps } from 'react-dropzone';
 
 interface InputProps {
-  handleSubmit: (e: React.FormEvent | CustomEvent<{ value?: string; images?: string[] }>) => void;
+  handleSubmit: (e?: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
   commandHistory?: string[];
-  initialValue?: string;
+  value: string;
+  setValue: React.Dispatch<React.SetStateAction<string>>;
+  isDragActive: boolean;
+  getInputProps: (props?: React.HTMLProps<HTMLInputElement>) => DropzoneInputProps;
+  attachedImages: string[];
+  setAttachedImages: React.Dispatch<React.SetStateAction<string[]>>;
+  removeAttachedImage: (indexToRemove: number) => void;
 }
 
 export default function Input({
@@ -16,18 +23,14 @@ export default function Input({
   isLoading = false,
   onStop,
   commandHistory = [],
-  initialValue = '',
+  value,
+  setValue,
+  isDragActive,
+  getInputProps,
+  attachedImages,
+  setAttachedImages,
+  removeAttachedImage,
 }: InputProps) {
-  const [value, setValue] = useState(initialValue);
-  const [attachedImages, setAttachedImages] = useState<string[]>([]);
-
-  useEffect(() => {
-    setValue(initialValue);
-    if (!initialValue) {
-      setAttachedImages([]);
-    }
-  }, [initialValue]);
-
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
@@ -39,11 +42,11 @@ export default function Input({
     }
   }, []);
 
-  const autosizeTextArea = (textArea: HTMLTextAreaElement | null, value: string) => {
+  const autosizeTextArea = (textArea: HTMLTextAreaElement | null, _value: string) => {
     if (textArea) {
       textArea.style.height = '0px';
       const scrollHeight = textArea.scrollHeight;
-      textArea.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+      textArea.style.height = Math.min(scrollHeight, 10 * 24) + 'px';
     }
   };
 
@@ -63,11 +66,11 @@ export default function Input({
     setValue(val);
   };
 
-  const handleCompositionStart = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionStart = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
   };
 
-  const handleCompositionEnd = (evt: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionEnd = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
   };
 
@@ -118,45 +121,16 @@ export default function Input({
 
   const submitData = () => {
     if (!isLoading && (value.trim() || attachedImages.length > 0)) {
-      let detail: { value?: string; images?: string[] } = {};
-      if (value.trim()) {
-        detail.value = value;
-      }
-      if (attachedImages.length > 0) {
-        detail.images = attachedImages;
-      }
-      handleSubmit(new CustomEvent('submit', { detail }));
-      setValue('');
-      setAttachedImages([]);
+      handleSubmit();
       setHistoryIndex(-1);
       setSavedInput('');
     }
   };
 
-  const onFormSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    submitData();
-  };
-
-  const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      setValue((prev) => {
-        const currentText = prev.trim();
-        return currentText ? `${currentText} ${path}` : path;
-      });
-      setAttachedImages([]);
-      textAreaRef.current?.focus();
-    }
-  };
-
   const handlePaste = (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = evt.clipboardData.items;
-    let imageFound = false;
-
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        imageFound = true;
         const blob = items[i].getAsFile();
         if (blob) {
           const reader = new FileReader();
@@ -174,105 +148,144 @@ export default function Input({
         }
       }
     }
+  };
 
-    if (imageFound) {
-      evt.preventDefault();
+  const openFileDialog = () => {
+    const inputElement = document.querySelector('input[type="file"]');
+    if (inputElement instanceof HTMLInputElement) {
+      inputElement.click();
     }
   };
 
-  const removeAttachedImage = (indexToRemove: number) => {
-    setAttachedImages((prevImages) => prevImages.filter((_, index) => index !== indexToRemove));
-    textAreaRef.current?.focus();
-  };
+  const showDragOverlay = isDragActive;
+  const hasAttachedImages = attachedImages.length > 0;
+  const isOverlayMode = showDragOverlay && hasAttachedImages;
+  const isCollapseReplaceMode = showDragOverlay && !hasAttachedImages;
 
   return (
-    <div className="flex flex-col border-t border-borderSubtle">
-      <form onSubmit={onFormSubmit} className="flex relative h-auto px-[16px] pr-[68px] py-[1rem]">
-        <textarea
-          autoFocus
-          id="dynamic-textarea"
-          placeholder="What can goose help with?   ⌘↑/⌘↓"
-          value={value}
-          onChange={handleChange}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          ref={textAreaRef}
-          rows={1}
-          style={{
-            minHeight: `${minHeight}px`,
-            maxHeight: `${maxHeight}px`,
-            overflowY: 'auto',
-          }}
-          className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
-        />
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={handleFileSelect}
-          className="absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard"
-          title="Attach File"
-        >
-          <Attach />
-        </Button>
-        {isLoading ? (
+    <div
+      className={`border-t border-borderSubtle px-4 pt-4 pb-4 overflow-hidden ${isOverlayMode ? 'relative' : ''}`}
+    >
+      {/* Render hidden input unconditionally */}
+      <input {...getInputProps()} />
+
+      {/* Normal Input Content Wrapper - Conditionally Hidden */}
+      <div
+        className={`transition-opacity duration-150 ${
+          isOverlayMode
+            ? 'opacity-0 pointer-events-none' // Keep for height, hide visually
+            : isCollapseReplaceMode
+              ? 'opacity-0 h-0 overflow-hidden p-0 m-0 border-0 pointer-events-none hidden' // Collapse completely
+              : 'opacity-100' // Normal visible state
+        }`}
+      >
+        {attachedImages.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2 justify-start">
+            {attachedImages.map((imageBase64, index) => (
+              <div key={index} className="relative max-w-xs">
+                <img
+                  src={imageBase64}
+                  alt={`Attached image preview ${index + 1}`}
+                  className="max-h-24 w-auto rounded border border-borderSubtle object-contain"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAttachedImage(index);
+                  }}
+                  className="absolute top-0 left-0 m-1 p-0.5 bg-black/50 text-white rounded-full hover:bg-black/75 w-5 h-5 flex items-center justify-center"
+                  title={`Remove Image ${index + 1}`}
+                >
+                  <Close className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-end gap-2">
+          <textarea
+            autoFocus
+            id="dynamic-textarea"
+            placeholder="What can goose help with?   ⌘↑/⌘↓"
+            value={value}
+            onChange={handleChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            ref={textAreaRef}
+            rows={1}
+            style={{
+              minHeight: `${minHeight}px`,
+              maxHeight: `${maxHeight}px`,
+              overflowY: 'auto',
+            }}
+            className="flex-1 outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard self-center"
+          />
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onStop && onStop();
-            }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
-            title="Stop Generating"
+            className="text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5"
+            onClick={openFileDialog}
+            title="Attach File"
           >
-            <Stop size={24} />
+            <Attach className="w-4 h-4" />
           </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            variant="ghost"
-            disabled={isLoading || (!value.trim() && attachedImages.length === 0)}
-            onClick={submitData}
-            className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-              isLoading || (!value.trim() && attachedImages.length === 0)
-                ? 'text-textSubtle cursor-not-allowed'
-                : ''
-            }`}
-            title="Send Message"
-          >
-            <Send />
-          </Button>
-        )}
-      </form>
-      {attachedImages.length > 0 && (
-        <div className="px-[16px] pb-2 flex flex-wrap gap-2">
-          {attachedImages.map((imageBase64, index) => (
-            <div key={index} className="relative max-w-xs">
-              <img
-                src={imageBase64}
-                alt={`Pasted image preview ${index + 1}`}
-                className="max-h-24 w-auto rounded border border-borderSubtle object-contain"
-              />
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => removeAttachedImage(index)}
-                className="absolute top-0 left-0 m-1 p-0.5 bg-black/50 text-white rounded-full hover:bg-black/75 w-5 h-5 flex items-center justify-center"
-                title={`Remove Image ${index + 1}`}
-              >
-                <Close className="w-3 h-3" />
-              </Button>
-            </div>
-          ))}
+          {isLoading ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onStop && onStop();
+              }}
+              className="text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5"
+              title="Stop Generating"
+            >
+              <Stop size={20} />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              disabled={isLoading || (!value.trim() && attachedImages.length === 0)}
+              onClick={submitData}
+              className={`text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5 ${
+                isLoading || (!value.trim() && attachedImages.length === 0)
+                  ? 'text-textSubtle cursor-not-allowed opacity-50'
+                  : ''
+              }`}
+              title="Send Message"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Drop Zone Indicator - Style and positioning depend on mode */}
+      <div
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md text-center cursor-pointer transition-opacity duration-150 border-blue-500 bg-blue-50 dark:bg-blue-900/30 p-4 ${
+          isOverlayMode
+            ? 'absolute top-4 right-4 bottom-4 left-4 z-10 opacity-100' // Overlay mode
+            : isCollapseReplaceMode
+              ? 'opacity-100 min-h-28' // Collapse/replace mode: visible, normal flow, with min-height
+              : 'opacity-0 h-0 overflow-hidden p-0 m-0 border-0 pointer-events-none hidden' // Hidden and collapsed
+        }`}
+      >
+        <div>
+          <Attach className="w-8 h-8 text-textSubtle mx-auto" />
+          <p className="text-textSubtle mt-1">Drop files here</p>
+        </div>
+      </div>
     </div>
   );
 }
