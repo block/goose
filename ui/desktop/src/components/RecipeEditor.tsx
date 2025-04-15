@@ -31,13 +31,20 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
   const [copied, setCopied] = useState(false);
+  const [extensionsLoaded, setExtensionsLoaded] = useState(false);
 
   // Initialize selected extensions for the recipe from config or localStorage
   const [recipeExtensions, setRecipeExtensions] = useState<string[]>(() => {
     // First try to get from localStorage
     const stored = localStorage.getItem('recipe_editor_extensions');
     if (stored) {
-      return JSON.parse(stored);
+      try {
+        const parsed = JSON.parse(stored);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error('Failed to parse localStorage recipe extensions:', e);
+        return [];
+      }
     }
     // Fall back to config if available, using extension names
     return config?.extensions?.map((e) => e.name) || [];
@@ -49,29 +56,43 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     'none' | 'activities' | 'instructions' | 'extensions'
   >('none');
 
-  // Load extensions when switching to extensions section
+  // Load extensions when component mounts and when switching to extensions section
   useEffect(() => {
-    if (activeSection === 'extensions') {
+    if (activeSection === 'extensions' && !extensionsLoaded) {
       const loadExtensions = async () => {
         try {
           const extensions = await getExtensions(false); // force refresh to get latest
           console.log('Loading extensions for recipe editor');
 
-          // Always set all extensions to disabled initially, then apply selected state
-          const initializedExtensions =
-            extensions?.map((ext) => ({
+          if (extensions && extensions.length > 0) {
+            // Map the extensions with the current selection state from recipeExtensions
+            const initializedExtensions = extensions.map((ext) => ({
               ...ext,
-              // Only enable if it's in the selectedExtensions array
               enabled: recipeExtensions.includes(ext.name),
-            })) || [];
-          setExtensionOptions(initializedExtensions);
+            }));
+
+            setExtensionOptions(initializedExtensions);
+            setExtensionsLoaded(true);
+          }
         } catch (error) {
           console.error('Failed to load extensions:', error);
         }
       };
       loadExtensions();
     }
-  }, [activeSection, getExtensions, recipeExtensions]);
+  }, [activeSection, getExtensions, recipeExtensions, extensionsLoaded]);
+
+  // Effect for updating extension options when recipeExtensions change
+  useEffect(() => {
+    if (extensionsLoaded && extensionOptions.length > 0) {
+      const updatedOptions = extensionOptions.map((ext) => ({
+        ...ext,
+        enabled: recipeExtensions.includes(ext.name),
+      }));
+      setExtensionOptions(updatedOptions);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipeExtensions, extensionsLoaded]);
 
   const handleExtensionToggle = (extension: FixedExtensionEntry) => {
     console.log('Toggling extension:', extension.name);
@@ -80,8 +101,10 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       const newState = isSelected
         ? prev.filter((extName) => extName !== extension.name)
         : [...prev, extension.name];
+
       // Persist to localStorage
       localStorage.setItem('recipe_editor_extensions', JSON.stringify(newState));
+
       return newState;
     });
   };
@@ -181,6 +204,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
       });
   };
 
+  // Reset extensionsLoaded when section changes away from extensions
+  useEffect(() => {
+    if (activeSection !== 'extensions') {
+      setExtensionsLoaded(false);
+    }
+  }, [activeSection]);
+
   // Render expanded section content
   const renderSectionContent = () => {
     switch (activeSection) {
@@ -275,11 +305,15 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <h2 className="text-2xl font-medium mb-2 text-textProminent">Extensions</h2>
               <p className="text-textSubtle">Select extensions to bundle in the recipe</p>
             </div>
-            <ExtensionList
-              extensions={extensionOptions}
-              onToggle={handleExtensionToggle}
-              isStatic={true}
-            />
+            {extensionsLoaded ? (
+              <ExtensionList
+                extensions={extensionOptions}
+                onToggle={handleExtensionToggle}
+                isStatic={true}
+              />
+            ) : (
+              <div className="text-center py-8 text-textSubtle">Loading extensions...</div>
+            )}
           </div>
         );
 
