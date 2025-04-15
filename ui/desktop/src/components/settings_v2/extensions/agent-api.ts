@@ -3,12 +3,17 @@ import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { replaceWithShims } from './utils';
 
+interface ApiResponse {
+  error?: boolean;
+  message?: string;
+}
+
 /**
  * Makes an API call to the extension endpoints
  */
 export async function extensionApiCall(
   endpoint: string,
-  payload: any,
+  payload: ExtensionConfig | string,
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   // Configure toast notifications
@@ -118,7 +123,7 @@ function handleErrorResponse(
 }
 
 // Safely parses JSON response
-async function parseResponseData(response: Response): Promise<any> {
+async function parseResponseData(response: Response): Promise<ApiResponse> {
   try {
     const text = await response.text();
     return text ? JSON.parse(text) : { error: false };

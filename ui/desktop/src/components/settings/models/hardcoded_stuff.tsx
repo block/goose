@@ -1,5 +1,3 @@
-import { Model } from './ModelContext';
-
 export const openai_models = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o1'];
 
 export const anthropic_models = [
@@ -16,6 +14,7 @@ export const google_models = [
   'gemini-2.0-flash-lite-preview-02-05',
   'gemini-2.0-flash-thinking-exp-01-21',
   'gemini-2.0-pro-exp-02-05',
+  'gemini-2.5-pro-exp-03-25',
 ];
 
 export const groq_models = ['llama-3.3-70b-versatile'];
@@ -51,7 +50,7 @@ export const default_models = {
 };
 
 export function getDefaultModel(key: string): string | undefined {
-  return default_models[key] || undefined;
+  return default_models[key as keyof typeof default_models] || undefined;
 }
 
 export const short_list = ['gpt-4o', 'claude-3-5-sonnet-latest'];

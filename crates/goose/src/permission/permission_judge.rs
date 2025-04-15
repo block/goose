@@ -1,13 +1,18 @@
-use crate::agents::capabilities::Capabilities;
+use crate::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
+use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
 use mcp_core::tool::ToolAnnotations;
+use mcp_core::ToolCall;
 use mcp_core::{tool::Tool, TextContent};
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::sync::Arc;
+
+use super::permission_confirmation::PrincipalType;
 
 /// Creates the tool definition for checking read-only permissions.
 fn create_read_only_tool() -> Tool {
@@ -32,11 +37,12 @@ fn create_read_only_tool() -> Tool {
                 - `INSERT`, `UPDATE`, or `DELETE` in SQL.
                 - Writing or appending to a file.
                 - Modifying system configurations.
+                - Sending messages to Slack channel.
 
             How to analyze tool requests:
             - Inspect each tool request to identify its purpose based on its name and arguments.
             - Categorize the operation as read-only if it does not involve any state or data modification.
-            - Return a list of tool names that are strictly read-only.
+            - Return a list of tool names that are strictly read-only. If you cannot make the decision, then it is not read-only.
 
             Use this analysis to generate the list of tools performing read-only operations from the provided tool requests.
         "#}
@@ -66,6 +72,16 @@ fn create_read_only_tool() -> Tool {
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.
 fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
+    let tool_names: Vec<String> = tool_requests
+        .iter()
+        .filter_map(|req| {
+            if let Ok(tool_call) = &req.tool_call {
+                Some(tool_call.name.clone())
+            } else {
+                None // Skip requests with errors in tool_call
+            }
+        })
+        .collect();
     let mut check_messages = vec![];
     check_messages.push(Message {
         role: mcp_core::Role::User,
@@ -78,7 +94,7 @@ fn create_check_messages(tool_requests: Vec<&ToolRequest>) -> Vec<Message> {
                 \n- Examples include file reading, SELECT queries in SQL, and directory listing. \
                 \n- Write operations include INSERT, UPDATE, DELETE, and file writing. \
                 \n\nPlease provide a list of tool names that qualify as read-only:",
-                tool_requests,
+                tool_names.join(", "),
             ),
             annotations: None,
         })],
@@ -113,7 +129,7 @@ fn extract_read_only_tools(response: &Message) -> Option<Vec<String>> {
 
 /// Executes the read-only tools detection and returns the list of tools with read-only operations.
 pub async fn detect_read_only_tools(
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
     tool_requests: Vec<&ToolRequest>,
 ) -> Vec<String> {
     if tool_requests.is_empty() {
@@ -122,8 +138,7 @@ pub async fn detect_read_only_tools(
     let tool = create_read_only_tool();
     let check_messages = create_check_messages(tool_requests);
 
-    let res = capabilities
-        .provider()
+    let res = provider
         .complete(
             "You are a good analyst and can detect operations whether they have read-only operations.",
             &check_messages,
@@ -139,6 +154,35 @@ pub async fn detect_read_only_tools(
     }
 }
 
+/// Gets the boolean value whether the message is enable extension related and
+/// the cconfirmation message based on the tool call
+pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (PrincipalType, Message) {
+    if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+        (
+            PrincipalType::Extension,
+            Message::user().with_enable_extension_request(
+                request_id,
+                tool_call
+                    .arguments
+                    .get("extension_name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+            ),
+        )
+    } else {
+        (
+            PrincipalType::Tool,
+            Message::user().with_tool_confirmation_request(
+                request_id,
+                tool_call.name.clone(),
+                tool_call.arguments.clone(),
+                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+            ),
+        )
+    }
+}
+
 // Define return structure
 pub struct PermissionCheckResult {
     pub approved: Vec<ToolRequest>,
@@ -147,57 +191,70 @@ pub struct PermissionCheckResult {
 }
 
 pub async fn check_tool_permissions(
-    remaining_requests: Vec<ToolRequest>,
+    candidate_requests: &[ToolRequest],
     mode: &str,
     tools_with_readonly_annotation: HashSet<String>,
     tools_without_annotation: HashSet<String>,
     permission_manager: &mut PermissionManager,
-    capabilities: &Capabilities,
+    provider: Arc<dyn Provider>,
 ) -> PermissionCheckResult {
     let mut approved = vec![];
     let mut needs_approval = vec![];
     let mut denied = vec![];
     let mut llm_detect_candidates = vec![];
 
-    for request in remaining_requests {
+    for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
-            // 1. Check user-defined permission
-            if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
-                match level {
-                    PermissionLevel::AlwaysAllow => approved.push(request),
-                    PermissionLevel::AskBefore => needs_approval.push(request),
-                    PermissionLevel::NeverAllow => denied.push(request),
-                }
+            // Always ask approval for enable extension tool.
+            if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+                // Insert at the front of the list so that enable extension can be run before other tools.
+                needs_approval.insert(0, request.clone());
                 continue;
             }
 
-            // 2. Fallback based on mode
-            match mode {
-                "manual_approve" => {
-                    needs_approval.push(request);
-                }
-                "smart_approve" => {
-                    if let Some(level) =
-                        permission_manager.get_smart_approve_permission(&tool_call.name)
-                    {
-                        match level {
-                            PermissionLevel::AlwaysAllow => approved.push(request),
-                            PermissionLevel::AskBefore => needs_approval.push(request),
-                            PermissionLevel::NeverAllow => denied.push(request),
-                        }
-                        continue;
+            if mode == "chat" {
+                continue;
+            } else if mode == "auto" {
+                approved.push(request.clone());
+            } else {
+                // 1. Check user-defined permission
+                if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
+                    match level {
+                        PermissionLevel::AlwaysAllow => approved.push(request.clone()),
+                        PermissionLevel::AskBefore => needs_approval.push(request.clone()),
+                        PermissionLevel::NeverAllow => denied.push(request.clone()),
                     }
+                    continue;
+                }
 
-                    if tools_with_readonly_annotation.contains(&tool_call.name) {
-                        approved.push(request);
-                    } else if tools_without_annotation.contains(&tool_call.name) {
-                        llm_detect_candidates.push(request);
-                    } else {
-                        needs_approval.push(request);
+                // 2. Fallback based on mode
+                match mode {
+                    "approve" => {
+                        needs_approval.push(request.clone());
                     }
-                }
-                _ => {
-                    needs_approval.push(request);
+                    "smart_approve" => {
+                        if let Some(level) =
+                            permission_manager.get_smart_approve_permission(&tool_call.name)
+                        {
+                            match level {
+                                PermissionLevel::AlwaysAllow => approved.push(request.clone()),
+                                PermissionLevel::AskBefore => needs_approval.push(request.clone()),
+                                PermissionLevel::NeverAllow => denied.push(request.clone()),
+                            }
+                            continue;
+                        }
+
+                        if tools_with_readonly_annotation.contains(&tool_call.name) {
+                            approved.push(request.clone());
+                        } else if tools_without_annotation.contains(&tool_call.name) {
+                            llm_detect_candidates.push(request.clone());
+                        } else {
+                            needs_approval.push(request.clone());
+                        }
+                    }
+                    _ => {
+                        needs_approval.push(request.clone());
+                    }
                 }
             }
         }
@@ -206,17 +263,17 @@ pub async fn check_tool_permissions(
     // 3. LLM detect
     if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
         let detected_readonly_tools =
-            detect_read_only_tools(capabilities, llm_detect_candidates.iter().collect()).await;
+            detect_read_only_tools(provider, llm_detect_candidates.iter().collect()).await;
         for request in llm_detect_candidates {
             if let Ok(tool_call) = request.tool_call.clone() {
                 if detected_readonly_tools.contains(&tool_call.name) {
-                    approved.push(request);
+                    approved.push(request.clone());
                     permission_manager.update_smart_approve_permission(
                         &tool_call.name,
                         PermissionLevel::AlwaysAllow,
                     );
                 } else {
-                    needs_approval.push(request);
+                    needs_approval.push(request.clone());
                     permission_manager.update_smart_approve_permission(
                         &tool_call.name,
                         PermissionLevel::AskBefore,
@@ -236,7 +293,6 @@ pub async fn check_tool_permissions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::capabilities::Capabilities;
     use crate::message::{Message, MessageContent, ToolRequest};
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -287,12 +343,12 @@ mod tests {
         }
     }
 
-    fn create_mock_capabilities() -> Capabilities {
+    fn create_mock_provider() -> Arc<dyn Provider> {
         let mock_model_config =
             ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
-        Capabilities::new(Box::new(MockProvider {
+        Arc::new(MockProvider {
             model_config: mock_model_config,
-        }))
+        })
     }
 
     #[tokio::test]
@@ -349,7 +405,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_read_only_tools() {
-        let capabilities = create_mock_capabilities();
+        let provider = create_mock_provider();
         let tool_request = ToolRequest {
             id: "tool_1".to_string(),
             tool_call: ToolResult::Ok(ToolCall {
@@ -358,24 +414,24 @@ mod tests {
             }),
         };
 
-        let result = detect_read_only_tools(&capabilities, vec![&tool_request]).await;
+        let result = detect_read_only_tools(provider, vec![&tool_request]).await;
         assert_eq!(result, vec!["file_reader", "data_fetcher"]);
     }
 
     #[tokio::test]
     async fn test_detect_read_only_tools_empty_requests() {
-        let capabilities = create_mock_capabilities();
-        let result = detect_read_only_tools(&capabilities, vec![]).await;
+        let provider = create_mock_provider();
+        let result = detect_read_only_tools(provider, vec![]).await;
         assert!(result.is_empty());
     }
 
     #[tokio::test]
-    async fn test_check_tool_permissions() {
+    async fn test_check_tool_permissions_smart_approve() {
         // Setup mocks
         let temp_file = NamedTempFile::new().unwrap();
         let temp_path = temp_file.path();
         let mut permission_manager = PermissionManager::new(temp_path);
-        let capabilities = create_mock_capabilities();
+        let provider = create_mock_provider();
 
         let tools_with_readonly_annotation: HashSet<String> =
             vec!["file_reader".to_string()].into_iter().collect();
@@ -402,26 +458,98 @@ mod tests {
             }),
         };
 
-        let remaining_requests = vec![tool_request_1, tool_request_2];
+        let enable_extension = ToolRequest {
+            id: "tool_3".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
+                arguments: serde_json::json!({"url": "http://example.com"}),
+            }),
+        };
+
+        let candidate_requests: Vec<ToolRequest> =
+            vec![tool_request_1, tool_request_2, enable_extension];
 
         // Call the function under test
         let result = check_tool_permissions(
-            remaining_requests,
+            &candidate_requests,
             "smart_approve",
             tools_with_readonly_annotation,
             tools_without_annotation,
             &mut permission_manager,
-            &capabilities,
+            provider,
         )
         .await;
 
         // Validate the result
         assert_eq!(result.approved.len(), 1); // file_reader should be approved
-        assert_eq!(result.needs_approval.len(), 1); // data_fetcher should need approval
+        assert_eq!(result.needs_approval.len(), 2); // data_fetcher should need approval
         assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
 
         // Ensure the right tools are in the approved and needs_approval lists
         assert!(result.approved.iter().any(|req| req.id == "tool_1"));
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
+
+        let tool_0 = result.needs_approval.get(0);
+        assert!(
+            tool_0.is_some(),
+            "Expected at least one tool in needs_approval"
+        );
+        assert_eq!(
+            tool_0.unwrap().id,
+            "tool_3",
+            "PLATFORM_ENABLE_EXTENSION_TOOL_NAME should be the first in needs_approval"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_check_tool_permissions_auto() {
+        // Setup mocks
+        let temp_file = NamedTempFile::new().unwrap();
+        let temp_path = temp_file.path();
+        let mut permission_manager = PermissionManager::new(temp_path);
+        let provider = create_mock_provider();
+
+        let tools_with_readonly_annotation: HashSet<String> =
+            vec!["file_reader".to_string()].into_iter().collect();
+        let tools_without_annotation: HashSet<String> =
+            vec!["data_fetcher".to_string()].into_iter().collect();
+
+        permission_manager.update_user_permission("file_reader", PermissionLevel::AlwaysAllow);
+        permission_manager
+            .update_smart_approve_permission("data_fetcher", PermissionLevel::AskBefore);
+
+        let tool_request_1 = ToolRequest {
+            id: "tool_1".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "file_reader".to_string(),
+                arguments: serde_json::json!({"path": "/path/to/file"}),
+            }),
+        };
+
+        let tool_request_2 = ToolRequest {
+            id: "tool_2".to_string(),
+            tool_call: ToolResult::Ok(ToolCall {
+                name: "data_fetcher".to_string(),
+                arguments: serde_json::json!({"url": "http://example.com"}),
+            }),
+        };
+
+        let candidate_requests: Vec<ToolRequest> = vec![tool_request_1, tool_request_2];
+
+        // Call the function under test
+        let result = check_tool_permissions(
+            &candidate_requests,
+            "auto",
+            tools_with_readonly_annotation,
+            tools_without_annotation,
+            &mut permission_manager,
+            provider,
+        )
+        .await;
+
+        // Validate the result
+        assert_eq!(result.approved.len(), 2); // file_reader should be approved
+        assert_eq!(result.needs_approval.len(), 0); // data_fetcher should need approval
+        assert_eq!(result.denied.len(), 0); // No tool should be denied in this test
     }
 }

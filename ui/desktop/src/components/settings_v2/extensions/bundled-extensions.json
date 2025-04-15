@@ -7,7 +7,8 @@
     "enabled": true,
     "type": "builtin",
     "env_keys": [],
-    "timeout": 300
+    "timeout": 300,
+    "bundled": true
   },
   {
     "id": "computercontroller",
@@ -17,7 +18,8 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": [],
-    "timeout": 300
+    "timeout": 300,
+    "bundled": true
   },
   {
     "id": "memory",
@@ -27,7 +29,8 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": [],
-    "timeout": 300
+    "timeout": 300,
+    "bundled": true
   },
   {
     "id": "jetbrains",
@@ -37,7 +40,8 @@
     "enabled": false,
     "type": "builtin",
     "env_keys": [],
-    "timeout": 300
+    "timeout": 300,
+    "bundled": true
   },
   {
     "id": "tutorial",
@@ -46,6 +50,7 @@
     "description": "Access interactive tutorials and guides",
     "enabled": false,
     "type": "builtin",
-    "env_keys": []
+    "env_keys": [],
+    "bundled": true
   }
 ]

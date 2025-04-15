@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { getApiUrl, getSecretKey } from '../config';
 import { ChevronDown, ChevronUp } from './icons';
 import {
@@ -16,35 +16,35 @@ export const BottomMenuModeSelection = () => {
   const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
   const { read, upsert } = useConfig();
 
-  useEffect(() => {
-    const fetchCurrentMode = async () => {
-      try {
-        if (!settingsV2Enabled) {
-          const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Secret-Key': getSecretKey(),
-            },
-          });
+  const fetchCurrentMode = useCallback(async () => {
+    try {
+      if (!settingsV2Enabled) {
+        const response = await fetch(getApiUrl('/configs/get?key=GOOSE_MODE'), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': getSecretKey(),
+          },
+        });
 
-          if (response.ok) {
-            const { value } = await response.json();
-            if (value) {
-              setGooseMode(value);
-            }
+        if (response.ok) {
+          const { value } = await response.json();
+          if (value) {
+            setGooseMode(value);
           }
-        } else {
-          const mode = (await read('GOOSE_MODE', false)) as string;
-          setGooseMode(mode);
         }
-      } catch (error) {
-        console.error('Error fetching current mode:', error);
+      } else {
+        const mode = (await read('GOOSE_MODE', false)) as string;
+        setGooseMode(mode);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching current mode:', error);
+    }
+  }, [read]);
 
+  useEffect(() => {
     fetchCurrentMode();
-  }, []);
+  }, [fetchCurrentMode]);
 
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {

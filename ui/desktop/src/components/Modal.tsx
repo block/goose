@@ -62,7 +62,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/20 dark:bg-white/20 backdrop-blur-sm transition-colors animate-[fadein_200ms_ease-in_forwards] flex items-center justify-center p-4 z-[9999]"
+      className="fixed inset-0 bg-black/30 dark:bg-white/20 transition-colors animate-[fadein_200ms_ease-in_forwards] flex items-center justify-center p-4 z-[9999]"
       onClick={handleBackdropClick}
       style={{ isolation: 'isolate' }} /* Creates a new stacking context */
     >

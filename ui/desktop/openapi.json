@@ -19,6 +19,18 @@
           "super::routes::agent"
         ],
         "operationId": "get_tools",
+        "parameters": [
+          {
+            "name": "extension_name",
+            "in": "query",
+            "description": "Optional extension name to filter tools",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Tools retrieved successfully",
@@ -27,7 +39,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Tool"
+                    "$ref": "#/components/schemas/ToolInfo"
                   }
                 }
               }
@@ -161,6 +173,62 @@
         }
       }
     },
+    "/config/init": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "init_config",
+        "responses": {
+          "200": {
+            "description": "Config initialization check completed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/permissions": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "upsert_permissions",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPermissionsQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Permission update completed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -283,6 +351,40 @@
           }
         }
       }
+    },
+    "/confirm": {
+      "post": {
+        "tags": [
+          "super::routes::reply"
+        ],
+        "operationId": "confirm_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Permission action is confirmed",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -355,6 +457,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "description": {
                 "type": "string",
                 "nullable": true
@@ -399,6 +506,11 @@
                   "type": "string"
                 }
               },
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "cmd": {
                 "type": "string"
               },
@@ -435,6 +547,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "display_name": {
                 "type": "string",
                 "nullable": true
@@ -466,6 +583,11 @@
               "type"
             ],
             "properties": {
+              "bundled": {
+                "type": "boolean",
+                "description": "Whether this extension is bundled with Goose",
+                "nullable": true
+              },
               "instructions": {
                 "type": "string",
                 "description": "Instructions for how to use these tools",
@@ -546,6 +668,40 @@
             }
           }
         }
+      },
+      "PermissionConfirmationRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "principal_type": {
+            "$ref": "#/components/schemas/PrincipalType"
+          }
+        }
+      },
+      "PermissionLevel": {
+        "type": "string",
+        "description": "Enum representing the possible permission levels for a tool.",
+        "enum": [
+          "always_allow",
+          "ask_before",
+          "never_allow"
+        ]
+      },
+      "PrincipalType": {
+        "type": "string",
+        "enum": [
+          "Extension",
+          "Tool"
+        ]
       },
       "ProviderDetails": {
         "type": "object",
@@ -688,6 +844,53 @@
           }
         }
       },
+      "ToolInfo": {
+        "type": "object",
+        "description": "Information about the tool used for building prompts",
+        "required": [
+          "name",
+          "description",
+          "parameters"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permission": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PermissionLevel"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "ToolPermission": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "$ref": "#/components/schemas/PermissionLevel"
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Unique identifier and name of the tool, format <extension_name>__<tool_name>"
+          }
+        }
+      },
       "UpsertConfigQuery": {
         "type": "object",
         "required": [
@@ -703,6 +906,20 @@
             "type": "string"
           },
           "value": {}
+        }
+      },
+      "UpsertPermissionsQuery": {
+        "type": "object",
+        "required": [
+          "tool_permissions"
+        ],
+        "properties": {
+          "tool_permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolPermission"
+            }
+          }
         }
       }
     }

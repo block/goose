@@ -11,22 +11,22 @@ export interface GooseMode {
 export const all_goose_modes: GooseMode[] = [
   {
     key: 'auto',
-    label: 'Completely Autonomous',
+    label: 'Completely autonomous',
     description: 'Full file modification capabilities, edit, create, and delete files freely.',
   },
   {
     key: 'approve',
-    label: 'Manual Approval',
+    label: 'Manual approval',
     description: 'All tools, extensions and file modifications will require human approval',
   },
   {
     key: 'smart_approve',
-    label: 'Smart Approval',
+    label: 'Smart approval',
     description: 'Intelligently determine which actions need approval based on risk level ',
   },
   {
     key: 'chat',
-    label: 'Chat Only',
+    label: 'Chat only',
     description: 'Engage with the selected provider without using tools or extensions.',
   },
 ];
@@ -89,20 +89,23 @@ export function ModeSelectionItem({
   }, [currentMode, mode.key]);
 
   return (
-    <div>
+    <div className="group hover:cursor-pointer">
       <div
-        className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
+        className="flex items-center justify-between text-textStandard mb-4"
         onClick={() => handleModeChange(mode.key)}
       >
-        <div>
-          <h3 className="text-sm font-light text-textStandard dark:text-gray-200">{mode.label}</h3>
-          {showDescription && (
-            <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
-              {mode.description}
-            </p>
-          )}
+        <div className="flex">
+          <div>
+            <h3 className="text-textStandard dark:text-gray-200">{mode.label}</h3>
+            {showDescription && (
+              <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
+                {mode.description}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="relative flex items-center gap-3">
+
+        <div className="relative flex items-center gap-3 mr-4">
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
@@ -121,10 +124,10 @@ export function ModeSelectionItem({
             className="peer sr-only"
           />
           <div
-            className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
+            className="h-4 w-4 rounded-full border border-borderStandard 
                   peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                   peer-checked:bg-white dark:peer-checked:bg-black
-                  transition-all duration-200 ease-in-out"
+                  transition-all duration-200 ease-in-out group-hover:border-borderProminent"
           ></div>
         </div>
       </div>

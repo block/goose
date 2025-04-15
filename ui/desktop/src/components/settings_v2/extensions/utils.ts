@@ -1,6 +1,5 @@
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
-import * as module from 'node:module';
 
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
 
@@ -132,7 +131,8 @@ export function combineCmdAndArgs(cmd: string, args: string[]): string {
  * @returns The ExtensionConfig portion of the object
  */
 export function extractExtensionConfig(fixedEntry: FixedExtensionEntry): ExtensionConfig {
-  const { enabled, ...extensionConfig } = fixedEntry;
+  // todo: enabled not used?
+  const { ...extensionConfig } = fixedEntry;
   return extensionConfig;
 }
 

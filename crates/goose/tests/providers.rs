@@ -77,14 +77,14 @@ lazy_static::lazy_static! {
 
 /// Generic test harness for any Provider implementation
 struct ProviderTester {
-    provider: Box<dyn Provider + Send + Sync>,
+    provider: Arc<dyn Provider>,
     name: String,
 }
 
 impl ProviderTester {
     fn new<T: Provider + Send + Sync + 'static>(provider: T, name: String) -> Self {
         Self {
-            provider: Box::new(provider),
+            provider: Arc::new(provider),
             name,
         }
     }
@@ -233,8 +233,8 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        // Ollama and OpenRouter truncate by default even when the context window is exceeded
-        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+        // Ollama truncates by default even when the context window is exceeded
+        if self.name.to_lowercase() == "ollama" {
             assert!(
                 result.is_ok(),
                 "Expected to succeed because of default truncation"

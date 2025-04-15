@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 
 use crate::config;
 use crate::config::extensions::name_to_key;
+use crate::config::permission::PermissionLevel;
 
 /// Errors from Extension operation
 #[derive(Error, Debug)]
@@ -23,6 +24,8 @@ pub enum ExtensionError {
     Transport(#[from] mcp_client::transport::Error),
     #[error("Environment variable `{0}` is not allowed to be overridden.")]
     InvalidEnvVar(String),
+    #[error("Join error occurred during task execution: {0}")]
+    TaskJoinError(#[from] tokio::task::JoinError),
 }
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
@@ -129,6 +132,9 @@ pub enum ExtensionConfig {
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -141,6 +147,9 @@ pub enum ExtensionConfig {
         envs: Envs,
         timeout: Option<u64>,
         description: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Built-in extension that is part of the goose binary
     #[serde(rename = "builtin")]
@@ -149,6 +158,9 @@ pub enum ExtensionConfig {
         name: String,
         display_name: Option<String>, // needed for the UI
         timeout: Option<u64>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
     /// Frontend-provided tools that will be called through the frontend
     #[serde(rename = "frontend")]
@@ -159,6 +171,9 @@ pub enum ExtensionConfig {
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
+        /// Whether this extension is bundled with Goose
+        #[serde(default)]
+        bundled: Option<bool>,
     },
 }
 
@@ -168,6 +183,7 @@ impl Default for ExtensionConfig {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
             timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: Some(true),
         }
     }
 }
@@ -180,6 +196,7 @@ impl ExtensionConfig {
             envs: Envs::default(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -196,6 +213,7 @@ impl ExtensionConfig {
             envs: Envs::default(),
             description: Some(description.into()),
             timeout: Some(timeout.into()),
+            bundled: None,
         }
     }
 
@@ -211,6 +229,7 @@ impl ExtensionConfig {
                 envs,
                 timeout,
                 description,
+                bundled,
                 ..
             } => Self::Stdio {
                 name,
@@ -219,6 +238,7 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                bundled,
             },
             other => other,
         }
@@ -261,9 +281,9 @@ impl std::fmt::Display for ExtensionConfig {
 /// Information about the extension used for building prompts
 #[derive(Clone, Debug, Serialize)]
 pub struct ExtensionInfo {
-    name: String,
-    instructions: String,
-    has_resources: bool,
+    pub name: String,
+    pub instructions: String,
+    pub has_resources: bool,
 }
 
 impl ExtensionInfo {
@@ -277,19 +297,26 @@ impl ExtensionInfo {
 }
 
 /// Information about the tool used for building prompts
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, ToSchema)]
 pub struct ToolInfo {
-    name: String,
-    description: String,
-    parameters: Vec<String>,
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<PermissionLevel>,
 }
 
 impl ToolInfo {
-    pub fn new(name: &str, description: &str, parameters: Vec<String>) -> Self {
+    pub fn new(
+        name: &str,
+        description: &str,
+        parameters: Vec<String>,
+        permission: Option<PermissionLevel>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             description: description.to_string(),
             parameters,
+            permission,
         }
     }
 }

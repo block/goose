@@ -162,7 +162,7 @@ for ((i=0; i<$COUNT; i++)); do
   if [ "$TOOLSHIM" = true ]; then
     export GOOSE_TOOLSHIM=1
     if [[ -n "$TOOLSHIM_MODEL" ]]; then
-      export GOOSE_TOOLSHIM_MODEL="$TOOLSHIM_MODEL"
+      export GOOSE_TOOLSHIM_OLLAMA_MODEL="$TOOLSHIM_MODEL"
     fi
   fi
   

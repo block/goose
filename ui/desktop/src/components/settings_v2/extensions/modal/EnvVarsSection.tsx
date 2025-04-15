@@ -74,7 +74,7 @@ export default function EnvVarsSection({
         <label className="text-sm font-medium text-textStandard mb-2 block">
           Environment Variables
         </label>
-        <p className="text-xs text-textSubtle mb-2">
+        <p className="text-xs text-textSubtle mb-4">
           Add key-value pairs for environment variables. Click the "+" button to add after filling
           both fields.
         </p>
@@ -89,7 +89,7 @@ export default function EnvVarsSection({
                 onChange={(e) => onChange(index, 'key', e.target.value)}
                 placeholder="Variable name"
                 className={cn(
-                  'w-full border-borderSubtle text-textStandard',
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
                   isFieldInvalid(index, 'key') && 'border-red-500 focus:border-red-500'
                 )}
               />
@@ -100,7 +100,7 @@ export default function EnvVarsSection({
                 onChange={(e) => onChange(index, 'value', e.target.value)}
                 placeholder="Value"
                 className={cn(
-                  'w-full border-borderSubtle text-textStandard',
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
                   isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
                 )}
               />
@@ -124,7 +124,7 @@ export default function EnvVarsSection({
           }}
           placeholder="Variable name"
           className={cn(
-            'w-full border-borderStandard text-textStandard',
+            'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
             invalidFields.key && 'border-red-500 focus:border-red-500'
           )}
         />
@@ -136,16 +136,16 @@ export default function EnvVarsSection({
           }}
           placeholder="Value"
           className={cn(
-            'w-full border-borderStandard text-textStandard',
+            'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
             invalidFields.value && 'border-red-500 focus:border-red-500'
           )}
         />
         <Button
           onClick={handleAdd}
           variant="ghost"
-          className="flex items-center justify-start gap-1 px-2 pr-4 text-s font-medium rounded-full dark:bg-slate-400 dark:text-gray-300 bg-gray-300 dark:bg-slate text-slate-400 dark:hover:bg-slate-300 hover:bg-gray-500 hover:text-white dark:hover:text-gray-900 transition-colors min-w-[60px] h-9"
+          className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-bgApp border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
         >
-          <Plus className="h-3 w-3" /> Add
+          <Plus /> Add
         </Button>
       </div>
       {validationError && <div className="mt-2 text-red-500 text-sm">{validationError}</div>}

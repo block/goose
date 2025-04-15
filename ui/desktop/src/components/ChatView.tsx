@@ -13,10 +13,8 @@ import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import UserMessage from './UserMessage';
 import Splash from './Splash';
 import { SearchView } from './conversation/SearchView';
-import { DeepLinkModal } from './ui/DeepLinkModal';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
-import { BotConfig } from '../botConfig';
 import {
   Message,
   createUserMessage,
@@ -29,6 +27,7 @@ import {
 } from '../types/message';
 import { useDropzone } from 'react-dropzone';
 import {} from /* Removed Attach */ './icons';
+import type { BotConfig } from '../botConfig';
 
 export interface ChatType {
   id: string;
@@ -43,6 +42,21 @@ export interface ChatType {
 // with an object containing the optional non-standard 'path' property added by Electron.
 // eslint-disable-next-line no-undef
 type DroppedFile = File & { path?: string };
+
+// Define isUserMessage helper function (integrated from upstream/main)
+const isUserMessage = (message: Message): boolean => {
+  if (message.role === 'assistant') {
+    return false;
+  }
+  if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
+    return false;
+  }
+  // Assuming EnableExtensionRequestMessageContent is not used in HEAD, keep this commented or remove
+  // if (message.content.every((c) => c.type === 'enableExtensionRequest')) {
+  //   return false;
+  // }
+  return true;
+};
 
 export default function ChatView({
   chat,
@@ -59,7 +73,6 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
-  const [showShareableBotModal, setshowShareableBotModal] = useState(false);
   const [generatedBotConfig, setGeneratedBotConfig] = useState<BotConfig | null>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const [_showDeepLinkModal, _setShowDeepLinkModal] = useState<boolean>(false);
@@ -67,7 +80,8 @@ export default function ChatView({
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [value, setValue] = useState('');
 
-  const botConfig = window.appConfig.get('botConfig') as BotConfig | null;
+  // Get recipeConfig directly from appConfig
+  // const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
 
   const {
     messages,
@@ -105,7 +119,9 @@ export default function ChatView({
   // Listen for make-agent-from-chat event
   useEffect(() => {
     const handleMakeAgent = async () => {
-      window.electron.logInfo('Making agent from chat...');
+      window.electron.logInfo('Making agent from chat (using HEAD logic)...');
+      // Assuming setIsGeneratingRecipe is not needed for bot creation logic
+      // setIsGeneratingRecipe(true);
 
       // Log all messages for now
       window.electron.logInfo('Current messages:');
@@ -115,23 +131,30 @@ export default function ChatView({
         window.electron.logInfo(`Message ${index} (${role}): ${content}`);
       });
 
-      // Inject a question into the chat to generate instructions
-      const instructionsPrompt =
-        'Based on our conversation so far, could you create:\n' +
-        "1. A concise set of instructions (1-2 paragraphs) that describe what you've been helping with. Pay special attention if any output styles or formats are requested (and make it clear), and note any non standard tools used or required.\n" +
-        '2. A list of 3-5 example activities (as a few words each at most) that would be relevant to this topic\n\n' +
-        "Format your response with clear headings for 'Instructions:' and 'Activities:' sections." +
-        'For example, perhaps we have been discussing fruit and you might write:\n\n' +
-        'Instructions:\nUsing web searches we find pictures of fruit, and always check what language to reply in.' +
-        'Activities:\nShow pics of apples, say a random fruit, share a fruit fact';
+      // Construct the prompt for the agent
+      const agentPrompt = `Based on the following conversation, generate instructions and suggested activities for a specialized bot:
 
-      // Set waiting state to true before adding the prompt
+${chat.messages
+  .map((message) => {
+    const role = isUserMessage(message) ? 'User' : 'Assistant';
+    const content = getTextContent(message);
+    return `${role}: ${content}`;
+  })
+  .join('\n\n')}
+
+Provide the output in the following format:
+Instructions: [Detailed instructions for the bot based on the conversation]
+Activities: [Bulleted list of suggested user activities based on the conversation]`;
+
+      window.electron.logInfo('Generated prompt for agent creation:');
+      window.electron.logInfo(agentPrompt);
+
+      // Send the prompt as a new user message
+      append(createUserMessage(agentPrompt));
+
+      // Set waiting state to process the response
       setWaitingForAgentResponse(true);
-
-      // Add the prompt as a user message
-      append(createUserMessage(instructionsPrompt));
-
-      window.electron.logInfo('Injected instructions prompt into chat');
+      window.electron.logInfo('Sent prompt to generate bot config');
     };
 
     window.addEventListener('make-agent-from-chat', handleMakeAgent);
@@ -139,7 +162,7 @@ export default function ChatView({
     return () => {
       window.removeEventListener('make-agent-from-chat', handleMakeAgent);
     };
-  }, [append, chat.messages, setWaitingForAgentResponse]);
+  }, [append, chat.messages, setWaitingForAgentResponse, chat]);
 
   // Listen for new messages and process agent response
   useEffect(() => {
@@ -175,7 +198,7 @@ export default function ChatView({
           .filter((activity) => activity.length > 0);
 
         // Create a bot config object
-        const generatedConfig = {
+        const generatedConfig: BotConfig = {
           id: `bot-${Date.now()}`,
           name: 'Custom Bot',
           description: 'Bot created from chat',
@@ -190,7 +213,8 @@ export default function ChatView({
         setGeneratedBotConfig(generatedConfig);
 
         // Show the modal with the generated bot config
-        setshowShareableBotModal(true);
+        // Assuming the modal display is handled elsewhere or this state/setter was truly unused
+        // setshowShareableBotModal(true);
 
         window.electron.logInfo('Generated bot config for agent creation');
 
@@ -198,7 +222,7 @@ export default function ChatView({
         setWaitingForAgentResponse(false);
       }
     }
-  }, [messages, waitingForAgentResponse, setshowShareableBotModal, setGeneratedBotConfig]);
+  }, [messages, waitingForAgentResponse, setGeneratedBotConfig]);
 
   // Update parent component's chat state when messages change
   useEffect(() => {
@@ -211,8 +235,7 @@ export default function ChatView({
       ...chat, // Spread existing chat props (id, title, etc.)
       messages: messages, // Update with the latest messages array
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, chat.id, chat.title, chat.messageHistoryIndex, setChat]);
+  }, [messages, chat.id, chat.title, chat.messageHistoryIndex, setChat, chat]);
 
   // Updated Dropzone Logic
   const onDrop = useCallback(
@@ -360,37 +383,26 @@ export default function ChatView({
             return [content.id, toolCall];
           }
         });
+      const notification = 'Interrupted by the user to make a correction';
 
-      if (toolRequests.length !== 0) {
-        // This means we were interrupted during a tool request
-        // Create tool responses for all interrupted tool requests
-
-        let responseMessage: Message = {
-          role: 'user',
-          created: Date.now(),
-          content: [],
+      // generate a response saying it was interrupted for each tool request
+      for (const [reqId, _] of toolRequests) {
+        const toolResponse: ToolResponseMessageContent = {
+          type: 'toolResponse',
+          id: reqId,
+          toolResult: {
+            status: 'error',
+            error: notification,
+          },
         };
 
-        // get the last tool's name or just "tool"
-        const _lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
-        const notification = 'Interrupted by the user to make a correction';
-
-        // generate a response saying it was interrupted for each tool request
-        for (const [reqId, _] of toolRequests) {
-          const toolResponse: ToolResponseMessageContent = {
-            type: 'toolResponse',
-            id: reqId,
-            toolResult: {
-              status: 'error',
-              error: notification,
-            },
-          };
-
-          responseMessage.content.push(toolResponse);
-        }
-
-        // Use an immutable update to add the response message to the messages array
-        setMessages([...messages, responseMessage]);
+        // Wrap toolResponse in a Message object for append
+        const responseMessage: Message = {
+          role: 'user', // Or 'system' if more appropriate for interruption feedback
+          created: Date.now(),
+          content: [toolResponse], // Put the single ToolResponseMessageContent in an array
+        };
+        append(responseMessage); // Append the full Message object
       }
     }
   };
@@ -409,23 +421,13 @@ export default function ChatView({
         (c) => c.type === 'toolConfirmationRequest'
       );
 
+      const hasEnableExtension = message.content.every((c) => c.type === 'enableExtensionRequest');
       // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
+      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation || hasEnableExtension;
     }
 
     return true;
   });
-
-  const isUserMessage = (message: Message) => {
-    if (message.role === 'assistant') {
-      return false;
-    }
-
-    if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-      return false;
-    }
-    return true;
-  };
 
   const commandHistory = useMemo(() => {
     const filteredMessages = messages || [];
@@ -439,6 +441,8 @@ export default function ChatView({
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
+      {/* Loader when generating recipe */}
+      {/* {isGeneratingRecipe && <LayingEggLoader />} */}
       <div className="relative flex items-center h-[36px] w-full">
         <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
@@ -451,7 +455,7 @@ export default function ChatView({
             {messages.length === 0 && !isLoading ? (
               <Splash
                 append={(text) => append(createUserMessage(text))}
-                activities={botConfig?.activities || null}
+                activities={generatedBotConfig?.activities || null}
               />
             ) : (
               <ScrollArea ref={scrollRef} className="flex-1 overflow-y-auto p-4">
@@ -498,7 +502,6 @@ export default function ChatView({
                     </div>
                   </div>
                 )}
-                <div className="block h-16" />
               </ScrollArea>
             )}
 
@@ -524,21 +527,6 @@ export default function ChatView({
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-
-      {/* Deep Link Modal */}
-      {showShareableBotModal && generatedBotConfig && (
-        <DeepLinkModal
-          botConfig={generatedBotConfig}
-          onClose={() => {
-            setshowShareableBotModal(false);
-            setGeneratedBotConfig(null);
-          }}
-          onOpen={() => {
-            setshowShareableBotModal(false);
-            setGeneratedBotConfig(null);
-          }}
-        />
-      )}
     </div>
   );
 }

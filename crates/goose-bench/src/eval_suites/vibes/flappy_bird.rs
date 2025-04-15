@@ -1,7 +1,8 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, copy_session_to_cwd, metrics_hashmap_to_vec, BenchAgent, Evaluation,
-    EvaluationMetric, ExtensionRequirements,
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
+    ExtensionRequirements,
 };
 use crate::register_evaluation;
 use async_trait::async_trait;
@@ -31,14 +32,14 @@ impl FlappyBird {
 impl Evaluation for FlappyBird {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         println!("FlappyBird - run");
 
         // Collect baseline metrics (execution time, token usage, tool calls)
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Create a Flappy Bird game in Python. Structure the code with a main function and use the if __name__ == '__main__': idiom. You must use pygame. The background color should be a light blue color. Pressing SPACE multiple times will accelerate the bird. The bird's shape should be a red circle. Place on the bottom some land colored as dark yellow chosen. Make a score shown on the top right side. Increment if you pass pipes and don't hit them. Make randomly spaced dark green pipes with enough space. When you lose, show the best score. Make the text inside the screen. Pressing q or Esc will quit the game. Restarting is pressing SPACE again. When trying to run the game, make sure to use pyenv and create the environment in the current working directory. The final game should be written to a file named flappy_bird.py. Remember to use your tools if applicable.".to_string()
         ).await;
 
@@ -80,28 +81,29 @@ impl Evaluation for FlappyBird {
 
         metrics.push((
             "used_write_tool".to_string(),
-            EvaluationMetric::Boolean(valid_tool_call),
+            EvalMetricValue::Boolean(valid_tool_call),
         ));
 
         // If tool was used correctly, check the actual file content
+        let mut valid_implementation = false;
         if valid_tool_call {
-            if let Ok(file_path) = work_dir.fs_get("flappy_bird.py".to_string()) {
+            if let Ok(file_path) = run_loc.fs_get("flappy_bird.py".to_string()) {
                 if let Ok(content) = fs::read_to_string(file_path) {
-                    let valid_implementation = self.check_python_implementation(&content);
+                    valid_implementation = self.check_python_implementation(&content);
                     metrics.push((
                         "valid_implementation".to_string(),
-                        EvaluationMetric::Boolean(valid_implementation),
+                        EvalMetricValue::Boolean(valid_implementation),
                     ));
                 }
             }
         }
 
-        // Copy the session file to the current working directory
-        if let Err(e) = copy_session_to_cwd() {
-            println!("Warning: Failed to copy session file: {}", e);
-        } else {
-            println!("Successfully copied session file to current directory");
-        }
+        metrics.push((
+            "score".to_string(),
+            EvalMetricValue::Float(
+                ((valid_implementation as u8) + (valid_tool_call as u8)) as f64 / 2.0,
+            ),
+        ));
 
         Ok(metrics)
     }

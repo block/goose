@@ -1,6 +1,7 @@
+use crate::bench_session::BenchAgent;
 use crate::bench_work_dir::BenchmarkWorkDir;
 use crate::eval_suites::{
-    collect_baseline_metrics, metrics_hashmap_to_vec, BenchAgent, Evaluation, EvaluationMetric,
+    collect_baseline_metrics, metrics_hashmap_to_vec, EvalMetricValue, Evaluation,
     ExtensionRequirements,
 };
 use crate::register_evaluation;
@@ -23,12 +24,12 @@ impl DeveloperImage {
 impl Evaluation for DeveloperImage {
     async fn run(
         &self,
-        mut agent: Box<dyn BenchAgent>,
-        _work_dir: &mut BenchmarkWorkDir,
-    ) -> anyhow::Result<Vec<(String, EvaluationMetric)>> {
+        agent: &mut BenchAgent,
+        _run_loc: &mut BenchmarkWorkDir,
+    ) -> anyhow::Result<Vec<(String, EvalMetricValue)>> {
         // Send the prompt to list files
         let (messages, perf_metrics) = collect_baseline_metrics(
-            &mut agent,
+            agent,
             "Take a screenshot of the display 0 and describe what you see.".to_string(),
         )
         .await;
@@ -85,7 +86,7 @@ impl Evaluation for DeveloperImage {
         // Both the tool call and response must be valid
         metrics.push((
             "Take a screenshot and upload images".to_string(),
-            EvaluationMetric::Boolean(valid_tool_call && valid_response),
+            EvalMetricValue::Boolean(valid_tool_call && valid_response),
         ));
         Ok(metrics)
     }

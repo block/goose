@@ -13,7 +13,7 @@ interface ExtensionListProps {
 
 export default function ExtensionList({ extensions, onToggle, onConfigure }: ExtensionListProps) {
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-2 mb-2">
       {extensions.map((extension) => (
         <ExtensionItem
           key={extension.name}
@@ -25,13 +25,14 @@ export default function ExtensionList({ extensions, onToggle, onConfigure }: Ext
     </div>
   );
 }
+
 // Helper functions
 // Helper function to get a friendly title from extension name
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
   let name = '';
 
   // if it's a builtin, check if there's a display_name (old configs didn't have this field)
-  if (extension.type === 'builtin' && 'display_name' in extension && extension.display_name) {
+  if (extension.bundled === true && 'display_name' in extension && extension.display_name) {
     // If we have a display_name for a builtin, use it directly
     return extension.display_name;
   } else {
@@ -46,23 +47,46 @@ export function getFriendlyTitle(extension: FixedExtensionEntry): string {
     .join(' ');
 }
 
+export interface SubtitleParts {
+  description: string | null;
+  command: string | null;
+}
+
 // Helper function to get a subtitle based on extension type and configuration
-export function getSubtitle(config: ExtensionConfig): string {
+export function getSubtitle(config: ExtensionConfig): SubtitleParts {
   if (config.type === 'builtin') {
     // Find matching extension in the data
-    const extensionData = builtInExtensionsData.find((ext) => ext.name === config.name);
-    if (extensionData?.description) {
-      return extensionData.description;
-    }
-    return 'Built-in extension';
+    const extensionData = builtInExtensionsData.find(
+      (ext) =>
+        ext.name.toLowerCase().replace(/\s+/g, '') === config.name.toLowerCase().replace(/\s+/g, '')
+    );
+    return {
+      description: extensionData?.description || 'Built-in extension',
+      command: null,
+    };
   }
+
   if (config.type === 'stdio') {
-    // remove shims for displaying
-    const full_command = combineCmdAndArgs(removeShims(config.cmd), config.args);
-    return `STDIO extension${config.description ? `: ${config.description}` : ''}${full_command ? `\n${full_command}` : ''}`;
+    // Only include command if it exists
+    const full_command = config.cmd
+      ? combineCmdAndArgs(removeShims(config.cmd), config.args)
+      : null;
+    return {
+      description: config.description || null,
+      command: full_command,
+    };
   }
+
   if (config.type === 'sse') {
-    return `SSE extension${config.description ? `: ${config.description}` : ''}${config.uri ? ` (${config.uri})` : ''}`;
+    const description = config.description
+      ? `SSE extension: ${config.description}`
+      : 'SSE extension';
+    const command = config.uri || null;
+    return { description, command };
   }
-  return `Unknown type of extension`;
+
+  return {
+    description: 'Unknown type of extension',
+    command: null,
+  };
 }

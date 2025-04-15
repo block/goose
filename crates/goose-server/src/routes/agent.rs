@@ -1,13 +1,17 @@
 use crate::state::AppState;
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
     Json, Router,
 };
 use goose::config::Config;
-use goose::{agents::AgentFactory, model::ModelConfig, providers};
-use mcp_core::Tool;
+use goose::config::PermissionManager;
+use goose::{agents::Agent, model::ModelConfig, providers};
+use goose::{
+    agents::{extension::ToolInfo, extension_manager::get_parameter_names},
+    config::permission::PermissionLevel,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -30,7 +34,6 @@ struct ExtendPromptResponse {
 
 #[derive(Deserialize)]
 struct CreateAgentRequest {
-    version: Option<String>,
     provider: String,
     model: Option<String>,
 }
@@ -62,9 +65,14 @@ struct ProviderList {
     details: ProviderDetails,
 }
 
+#[derive(Deserialize)]
+pub struct GetToolsQuery {
+    extension_name: Option<String>,
+}
+
 async fn get_versions() -> Json<VersionsResponse> {
-    let versions = AgentFactory::available_versions();
-    let default_version = AgentFactory::default_version().to_string();
+    let versions = ["goose".to_string()];
+    let default_version = "goose".to_string();
 
     Json(VersionsResponse {
         available_versions: versions.iter().map(|v| v.to_string()).collect(),
@@ -129,11 +137,8 @@ async fn create_agent(
     let provider =
         providers::create(&payload.provider, model_config).expect("Failed to create provider");
 
-    let version = payload
-        .version
-        .unwrap_or_else(|| AgentFactory::default_version().to_string());
-
-    let new_agent = AgentFactory::create(&version, provider).expect("Failed to create agent");
+    let version = String::from("goose");
+    let new_agent = Agent::new(provider);
 
     let mut agent = state.agent.write().await;
     *agent = Some(new_agent);
@@ -167,8 +172,11 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
 #[utoipa::path(
     get,
     path = "/agent/tools",
+    params(
+        ("extension_name" = Option<String>, Query, description = "Optional extension name to filter tools")
+    ),
     responses(
-        (status = 200, description = "Tools retrieved successfully", body = Vec<Tool>),
+        (status = 200, description = "Tools retrieved successfully", body = Vec<ToolInfo>),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 424, description = "Agent not initialized"),
         (status = 500, description = "Internal server error")
@@ -177,7 +185,8 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
 async fn get_tools(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<Vec<Tool>>, StatusCode> {
+    Query(query): Query<GetToolsQuery>,
+) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let secret_key = headers
         .get("X-Secret-Key")
         .and_then(|value| value.to_str().ok())
@@ -187,13 +196,39 @@ async fn get_tools(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    let config = Config::global();
+    let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
     let mut agent = state.agent.write().await;
     let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let permission_manager = PermissionManager::default();
 
-    // Since list_tools() now returns Vec<Tool> directly, not a Result
-    let tools = agent.list_tools().await;
+    let mut tools: Vec<ToolInfo> = agent
+        .list_tools(query.extension_name)
+        .await
+        .into_iter()
+        .map(|tool| {
+            let permission = permission_manager
+                .get_user_permission(&tool.name)
+                .or_else(|| {
+                    if goose_mode == "smart_approve" {
+                        permission_manager.get_smart_approve_permission(&tool.name)
+                    } else if goose_mode == "approve" {
+                        Some(PermissionLevel::AskBefore)
+                    } else {
+                        None
+                    }
+                });
 
-    // Return the tools directly
+            ToolInfo::new(
+                &tool.name,
+                &tool.description,
+                get_parameter_names(&tool),
+                permission,
+            )
+        })
+        .collect::<Vec<ToolInfo>>();
+    tools.sort_by(|a, b| a.name.cmp(&b.name));
+
     Ok(Json(tools))
 }
 

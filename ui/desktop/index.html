@@ -3,20 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <title>Goose</title>
+    <script>
+      // Initialize theme before any content loads
+      (function() {
+        function initializeTheme() {
+          const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
+          const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const savedTheme = localStorage.getItem('theme');
+          const isDark = useSystemTheme ? systemPrefersDark : (savedTheme ? savedTheme === 'dark' : systemPrefersDark);
+          
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        }
+
+        // Run immediately
+        initializeTheme();
+      })();
+    </script>
     <link href="./src/styles/main.css" rel="stylesheet" />
   </head>
-  <script>
-    // On page load or when changing themes, best to add inline in `head` to avoid FOUC
-    const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-    const savedTheme = localStorage.getItem('theme');
-
-    document.documentElement.classList.toggle(
-      'dark',
-      useSystemTheme
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        : savedTheme === 'dark'
-    );
-  </script>
   <body>
     <div id="root"></div>
     <script type="module" src="./src/renderer.tsx"></script>

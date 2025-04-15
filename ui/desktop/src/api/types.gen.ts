@@ -24,6 +24,10 @@ export type Envs = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     description?: string | null;
     envs?: Envs;
     /**
@@ -35,6 +39,10 @@ export type ExtensionConfig = {
     uri: string;
 } | {
     args: Array<string>;
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     cmd: string;
     description?: string | null;
     envs?: Envs;
@@ -45,6 +53,10 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'stdio';
 } | {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     display_name?: string | null;
     /**
      * The name used to identify this extension
@@ -53,6 +65,10 @@ export type ExtensionConfig = {
     timeout?: number | null;
     type: 'builtin';
 } | {
+    /**
+     * Whether this extension is bundled with Goose
+     */
+    bundled?: boolean | null;
     /**
      * Instructions for how to use these tools
      */
@@ -83,6 +99,19 @@ export type ExtensionQuery = {
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
+
+export type PermissionConfirmationRequest = {
+    action: string;
+    id: string;
+    principal_type?: PrincipalType;
+};
+
+/**
+ * Enum representing the possible permission levels for a tool.
+ */
+export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+export type PrincipalType = 'Extension' | 'Tool';
 
 export type ProviderDetails = {
     /**
@@ -204,16 +233,43 @@ export type ToolAnnotations = {
     title?: string | null;
 };
 
+/**
+ * Information about the tool used for building prompts
+ */
+export type ToolInfo = {
+    description: string;
+    name: string;
+    parameters: Array<string>;
+    permission?: PermissionLevel | null;
+};
+
+export type ToolPermission = {
+    permission: PermissionLevel;
+    /**
+     * Unique identifier and name of the tool, format <extension_name>__<tool_name>
+     */
+    tool_name: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
     value: unknown;
 };
 
+export type UpsertPermissionsQuery = {
+    tool_permissions: Array<ToolPermission>;
+};
+
 export type GetToolsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Optional extension name to filter tools
+         */
+        extension_name?: string | null;
+    };
     url: '/agent/tools';
 };
 
@@ -236,7 +292,7 @@ export type GetToolsResponses = {
     /**
      * Tools retrieved successfully
      */
-    200: Array<Tool>;
+    200: Array<ToolInfo>;
 };
 
 export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
@@ -340,6 +396,52 @@ export type RemoveExtensionResponses = {
 
 export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
+export type InitConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/init';
+};
+
+export type InitConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type InitConfigResponses = {
+    /**
+     * Config initialization check completed
+     */
+    200: string;
+};
+
+export type InitConfigResponse = InitConfigResponses[keyof InitConfigResponses];
+
+export type UpsertPermissionsData = {
+    body: UpsertPermissionsQuery;
+    path?: never;
+    query?: never;
+    url: '/config/permissions';
+};
+
+export type UpsertPermissionsErrors = {
+    /**
+     * Invalid request
+     */
+    400: unknown;
+};
+
+export type UpsertPermissionsResponses = {
+    /**
+     * Permission update completed
+     */
+    200: string;
+};
+
+export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -426,6 +528,31 @@ export type UpsertConfigResponses = {
 };
 
 export type UpsertConfigResponse = UpsertConfigResponses[keyof UpsertConfigResponses];
+
+export type ConfirmPermissionData = {
+    body: PermissionConfirmationRequest;
+    path?: never;
+    query?: never;
+    url: '/confirm';
+};
+
+export type ConfirmPermissionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmPermissionResponses = {
+    /**
+     * Permission action is confirmed
+     */
+    200: unknown;
+};
 
 export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});

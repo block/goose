@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { ViewConfig } from '../../App';
+import { View, ViewOptions } from '../../App';
 import { fetchSessionDetails, type SessionDetails } from '../../sessions';
 import SessionListView from './SessionListView';
 import SessionHistoryView from './SessionHistoryView';
 import { toastError } from '../../toasts';
 
 interface SessionsViewProps {
-  setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
 }
 
 const SessionsView: React.FC<SessionsViewProps> = ({ setView }) => {

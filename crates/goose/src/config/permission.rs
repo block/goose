@@ -1,13 +1,13 @@
 use super::APP_STRATEGY;
 use etcetera::{choose_app_strategy, AppStrategy};
-use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use utoipa::ToSchema;
 
 /// Enum representing the possible permission levels for a tool.
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PermissionLevel {
     AlwaysAllow, // Tool can always be used without prompt
@@ -29,9 +29,6 @@ pub struct PermissionManager {
     config_path: PathBuf, // Path to the permission configuration file
     permission_map: HashMap<String, PermissionConfig>, // Mapping of permission names to configurations
 }
-
-// Global singleton for the PermissionManager
-static GLOBAL_PERMISSION_MANAGER: OnceCell<PermissionManager> = OnceCell::new();
 
 // Constants representing specific permission categories
 const USER_PERMISSION: &str = "user";
@@ -67,11 +64,6 @@ impl Default for PermissionManager {
 }
 
 impl PermissionManager {
-    /// Returns the global instance of the PermissionManager, initializing it if necessary.
-    pub fn global() -> &'static PermissionManager {
-        GLOBAL_PERMISSION_MANAGER.get_or_init(PermissionManager::default)
-    }
-
     /// Creates a new `PermissionManager` with a specified config path.
     pub fn new<P: AsRef<Path>>(config_path: P) -> Self {
         let config_path = config_path.as_ref().to_path_buf();
@@ -178,6 +170,25 @@ impl PermissionManager {
             .expect("Failed to serialize permission config");
         fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
     }
+
+    /// Removes all entries where the principal name starts with the given extension name.
+    pub fn remove_extension(&mut self, extension_name: &str) {
+        for permission_config in self.permission_map.values_mut() {
+            permission_config
+                .always_allow
+                .retain(|p| !p.starts_with(extension_name));
+            permission_config
+                .ask_before
+                .retain(|p| !p.starts_with(extension_name));
+            permission_config
+                .never_allow
+                .retain(|p| !p.starts_with(extension_name));
+        }
+
+        let yaml_content = serde_yaml::to_string(&self.permission_map)
+            .expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
+    }
 }
 
 #[cfg(test)]
@@ -271,5 +282,27 @@ mod tests {
         assert!(!config.always_allow.contains(&"tool7".to_string()));
         assert!(!config.ask_before.contains(&"tool7".to_string()));
         assert!(config.never_allow.contains(&"tool7".to_string()));
+    }
+
+    #[test]
+    fn test_remove_extension() {
+        let mut manager = create_test_permission_manager();
+        manager.update_user_permission("prefix__tool1", PermissionLevel::AlwaysAllow);
+        manager.update_user_permission("nonprefix__tool2", PermissionLevel::AlwaysAllow);
+        manager.update_user_permission("prefix__tool3", PermissionLevel::AskBefore);
+
+        // Remove entries starting with "prefix"
+        manager.remove_extension("prefix");
+
+        let config = manager.permission_map.get(USER_PERMISSION).unwrap();
+
+        // Verify entries with "prefix" are removed
+        assert!(!config.always_allow.contains(&"prefix__tool1".to_string()));
+        assert!(!config.ask_before.contains(&"prefix__tool3".to_string()));
+
+        // Verify other entries remain
+        assert!(config
+            .always_allow
+            .contains(&"nonprefix__tool2".to_string()));
     }
 }

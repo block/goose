@@ -19,6 +19,16 @@ export GOOSE_ALLOWLIST=https://example.com/goose-allowlist.yaml
 
 If this environment variable is not set, no allowlist restrictions will be applied (all commands will be allowed).
 
+## Bypassing the Allowlist
+
+In certain development or testing scenarios, you may need to bypass the allowlist restrictions. You can do this by setting the `GOOSE_ALLOWLIST_BYPASS` environment variable to `true`:
+
+```bash
+export GOOSE_ALLOWLIST_BYPASS=true
+```
+
+When this environment variable is set to `true` (case insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
+
 ## Allowlist File Format
 
 The allowlist file should be a YAML file with the following structure:

@@ -122,7 +122,7 @@ With the evolution of Agents performing actions on behalf of users we will need 
 
 Having consistent mechanisms for identifying usage in this manner allows companies to protect users from integrations with malicious agents and protect their platforms from attacks by unwanted agentic tooling.
 
-The model context protocol itself has a specification for [OAuth that at the time of writing was a draft, but has since been released here](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/authorization/). 
+The model context protocol itself has a [specification for OAuth](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/authorization/) that at the time of writing was a draft, but has since been released here. 
 
 This flow considers the following steps:
 
@@ -150,7 +150,7 @@ For example, for an agent tasked with writing IaC, this could be as simple as re
 
 In client side agents this would improve data integrity in the event the underlying LLM hallucinated or was tampered with externally through malicious MCP or data sources. 
 
-In the latest release of the [protocol an enhancement we love is being able to annotate a tool to indicate to clients that tool actions are “readOnly” or “destructive”. Using this to decide when to require a secondary approval from the user before performing a given action provides significantly better protections for users](https://github.com/modelcontextprotocol/specification/blob/9236eb1cbfa02c17ab45c83a7bdbe55c450070be/schema/2025-03-26/schema.ts#L730). 
+In the latest release of the protocol, an enhancement we love is being able to [annotate a tool](https://github.com/modelcontextprotocol/specification/blob/9236eb1cbfa02c17ab45c83a7bdbe55c450070be/schema/2025-03-26/schema.ts#L730) to indicate to clients that tool actions are "readOnly" or "destructive". Using this to decide when to require a secondary approval from the user before performing a given action provides significantly better protections for users. 
 
 While we encourage an LLM based processing step to check for potentially malicious commands, **having a deterministic aspect to higher risk commands in tandem ensures good access control is a more accurate way to provide protections**.
 

@@ -1,4 +1,4 @@
-use crate::eval_suites::BenchAgentError;
+use crate::bench_session::BenchAgentError;
 use chrono::Utc;
 use once_cell::sync::Lazy;
 use std::sync::Arc;

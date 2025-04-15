@@ -92,7 +92,7 @@ export default function Input({
       }
     }
 
-    if (newIndex == historyIndex) {
+    if (newIndex === historyIndex) {
       return;
     }
 

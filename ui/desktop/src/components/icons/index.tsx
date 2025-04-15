@@ -6,6 +6,7 @@ import ChatSmart from './ChatSmart';
 import Check from './Check';
 import ChevronDown from './ChevronDown';
 import ChevronUp from './ChevronUp';
+import { ChevronRight } from './ChevronRight';
 import Close from './Close';
 import Copy from './Copy';
 import Document from './Document';
@@ -28,6 +29,7 @@ export {
   ChatSmart,
   Check,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Close,
   Copy,

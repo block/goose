@@ -76,7 +76,7 @@ export function AddModelInline() {
         <Select
           options={providerOptions}
           value={providerOptions.find((option) => option.value === selectedProvider) || null}
-          onChange={(option) => {
+          onChange={(option: { value: string | null }) => {
             setSelectedProvider(option?.value || null);
             setModelName(''); // Clear model name when provider changes
             setFilteredModels([]);
@@ -110,10 +110,10 @@ export function AddModelInline() {
         </div>
         <Button
           type="button"
-          className="bg-black text-white hover:bg-black/90"
+          className="bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
           onClick={handleSubmit}
         >
-          <Plus className="mr-2 h-4 w-4" /> Add Model
+          <Plus className="h-4 w-4" /> Add Model
         </Button>
       </form>
     </div>

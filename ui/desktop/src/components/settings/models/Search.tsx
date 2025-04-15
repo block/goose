@@ -74,7 +74,7 @@ export function SearchBar() {
 
   return (
     <div className="relative" ref={searchBarRef}>
-      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+      <Search className="absolute left-3 top-[0.8rem] h-4 w-4 text-textSubtle" />
       <input
         type="text"
         placeholder="Search models..."
@@ -85,17 +85,17 @@ export function SearchBar() {
         }}
         onKeyDown={handleKeyDown}
         onFocus={() => setShowResults(true)}
-        className="w-full pl-12 py-2 bg-background border border-muted-foreground/20 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full pl-9 py-2 text-black dark:text-white bg-bgApp border border-borderSubtle rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {showResults && search && (
-        <div className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-800 border border-muted-foreground/20 rounded-md shadow-lg">
+        <div className="absolute z-10 w-full mt-2 bg-white dark:bg-gray-800 border border-borderSubtle rounded-md shadow-lg">
           {filteredModels.length > 0 ? (
             filteredModels.map((model, index) => (
               <div
                 key={model.id}
                 ref={(el) => (resultsRef.current[index] = el)}
-                className={`p-2 flex justify-between items-center hover:bg-muted/50 dark:hover:bg-gray-700 cursor-pointer ${
-                  model.id === currentModel?.id ? 'bg-muted/50 dark:bg-gray-700' : ''
+                className={`p-2 flex justify-between items-center hover:bg-bgSubtle/50 dark:hover:bg-gray-700 cursor-pointer ${
+                  model.id === currentModel?.id ? 'bg-bgSubtle/50 dark:bg-gray-700' : ''
                 }`}
               >
                 <div>
@@ -112,7 +112,7 @@ export function SearchBar() {
               </div>
             ))
           ) : (
-            <div className="p-2 text-muted-foreground dark:text-gray-400">No models found</div>
+            <div className="p-2 text-textSubtle dark:text-gray-400">No models found</div>
           )}
         </div>
       )}

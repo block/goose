@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 declare var requestAnimationFrame: (callback: FrameRequestCallback) => number;
 declare class HTMLCanvasElement {}
@@ -51,57 +51,18 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
   const OBSTACLE_WIDTH = 40;
   const FLAP_DURATION = 150;
 
-  const safeRequestAnimationFrame = (callback: FrameRequestCallback) => {
+  const safeRequestAnimationFrame = useCallback((callback: FrameRequestCallback) => {
     if (typeof window !== 'undefined' && typeof requestAnimationFrame !== 'undefined') {
       requestAnimationFrame(callback);
     }
-  };
-
-  // Load goose images
-  useEffect(() => {
-    const frames = [svg1, svg7];
-    frames.forEach((src, index) => {
-      const img = new Image();
-      img.src = src;
-      img.onload = () => {
-        framesLoaded.current += 1;
-        if (framesLoaded.current === frames.length) {
-          setImagesReady(true);
-        }
-      };
-      gooseImages.current[index] = img;
-    });
   }, []);
 
-  const startGame = () => {
-    if (gameState.current.running || !imagesReady || typeof window === 'undefined') return;
+  const handleGameOver = useCallback(() => {
+    gameState.current.running = false;
+    setGameOver(true);
+  }, []);
 
-    gameState.current = {
-      gooseY: CANVAS_HEIGHT / 3,
-      velocity: 0,
-      obstacles: [],
-      gameLoop: 0,
-      running: true,
-      score: 0,
-      isFlapping: false,
-      flapEndTime: 0,
-    };
-    setGameOver(false);
-    setDisplayScore(0);
-    safeRequestAnimationFrame(gameLoop);
-  };
-
-  const flap = () => {
-    if (gameOver) {
-      startGame();
-      return;
-    }
-    gameState.current.velocity = FLAP_FORCE;
-    gameState.current.isFlapping = true;
-    gameState.current.flapEndTime = Date.now() + FLAP_DURATION;
-  };
-
-  const gameLoop = () => {
+  const gameLoop = useCallback(() => {
     if (!gameState.current.running || !imagesReady) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -209,12 +170,63 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
 
     gameState.current.gameLoop++;
     safeRequestAnimationFrame(gameLoop);
-  };
+  }, [
+    CANVAS_HEIGHT,
+    CANVAS_WIDTH,
+    GOOSE_SIZE,
+    GOOSE_X,
+    GRAVITY,
+    OBSTACLE_GAP,
+    OBSTACLE_SPEED,
+    OBSTACLE_WIDTH,
+    handleGameOver,
+    imagesReady,
+    safeRequestAnimationFrame,
+  ]);
 
-  const handleGameOver = () => {
-    gameState.current.running = false;
-    setGameOver(true);
-  };
+  const startGame = useCallback(() => {
+    if (gameState.current.running || !imagesReady || typeof window === 'undefined') return;
+
+    gameState.current = {
+      gooseY: CANVAS_HEIGHT / 3,
+      velocity: 0,
+      obstacles: [],
+      gameLoop: 0,
+      running: true,
+      score: 0,
+      isFlapping: false,
+      flapEndTime: 0,
+    };
+    setGameOver(false);
+    setDisplayScore(0);
+    safeRequestAnimationFrame(gameLoop);
+  }, [CANVAS_HEIGHT, imagesReady, safeRequestAnimationFrame, gameLoop]);
+
+  const flap = useCallback(() => {
+    if (gameOver) {
+      startGame();
+      return;
+    }
+    gameState.current.velocity = FLAP_FORCE;
+    gameState.current.isFlapping = true;
+    gameState.current.flapEndTime = Date.now() + FLAP_DURATION;
+  }, [FLAP_DURATION, FLAP_FORCE, gameOver, startGame]);
+
+  // Load goose images
+  useEffect(() => {
+    const frames = [svg1, svg7];
+    frames.forEach((src, index) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        framesLoaded.current += 1;
+        if (framesLoaded.current === frames.length) {
+          setImagesReady(true);
+        }
+      };
+      gooseImages.current[index] = img;
+    });
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -240,7 +252,7 @@ const FlappyGoose: React.FC<FlappyGooseProps> = ({ onClose }) => {
       window.removeEventListener('keydown', handleKeyPress);
       gameState.current.running = false;
     };
-  }, [imagesReady]);
+  }, [CANVAS_HEIGHT, CANVAS_WIDTH, flap, imagesReady, startGame]);
 
   return (
     <div

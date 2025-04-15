@@ -108,6 +108,60 @@ async fn add_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // If this is a Stdio extension that uses npx, check for Node.js installation
+    #[cfg(target_os = "windows")]
+    if let ExtensionConfigRequest::Stdio { cmd, .. } = &request {
+        if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
+            // Check if Node.js is installed in standard locations
+            let node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe").exists()
+                || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
+
+            if !node_exists {
+                // Get the directory containing npx.cmd
+                let cmd_path = std::path::Path::new(&cmd);
+                let script_dir = cmd_path.parent().ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+                // Run the Node.js installer script
+                let install_script = script_dir.join("install-node.cmd");
+
+                if install_script.exists() {
+                    eprintln!("Installing Node.js...");
+                    let output = std::process::Command::new(&install_script)
+                        .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
+                        .output()
+                        .map_err(|e| {
+                            eprintln!("Failed to run Node.js installer: {}", e);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        })?;
+
+                    if !output.status.success() {
+                        eprintln!(
+                            "Failed to install Node.js: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                        return Ok(Json(ExtensionResponse {
+                            error: true,
+                            message: Some(format!(
+                                "Failed to install Node.js: {}",
+                                String::from_utf8_lossy(&output.stderr)
+                            )),
+                        }));
+                    }
+                    eprintln!("Node.js installation completed");
+                } else {
+                    eprintln!(
+                        "Node.js installer script not found at: {}",
+                        install_script.display()
+                    );
+                    return Ok(Json(ExtensionResponse {
+                        error: true,
+                        message: Some("Node.js installer script not found".to_string()),
+                    }));
+                }
+            }
+        }
+    }
+
     // Load the configuration
     let config = Config::global();
 
@@ -150,6 +204,7 @@ async fn add_extension(
                 envs: Envs::new(env_map),
                 description: None,
                 timeout,
+                bundled: None,
             }
         }
         ExtensionConfigRequest::Stdio {
@@ -200,6 +255,7 @@ async fn add_extension(
                 description: None,
                 envs: Envs::new(env_map),
                 timeout,
+                bundled: None,
             }
         }
         ExtensionConfigRequest::Builtin {
@@ -210,6 +266,7 @@ async fn add_extension(
             name,
             display_name,
             timeout,
+            bundled: None,
         },
         ExtensionConfigRequest::Frontend {
             name,
@@ -219,6 +276,7 @@ async fn add_extension(
             name,
             tools,
             instructions,
+            bundled: None,
         },
     };
 
@@ -338,6 +396,16 @@ fn get_allowed_extensions() -> &'static Option<AllowedExtensions> {
 
 /// Checks if a command is allowed based on the allowlist
 fn is_command_allowed(cmd: &str, args: &[String]) -> bool {
+    // Check if bypass is enabled
+    if let Ok(bypass_value) = env::var("GOOSE_ALLOWLIST_BYPASS") {
+        if bypass_value.to_lowercase() == "true" {
+            // Bypass the allowlist check
+            println!("Allowlist check bypassed due to GOOSE_ALLOWLIST_BYPASS=true");
+            return true;
+        }
+    }
+
+    // Proceed with normal allowlist check
     is_command_allowed_with_allowlist(&make_full_cmd(cmd, args), get_allowed_extensions())
 }
 
@@ -419,20 +487,41 @@ fn is_command_allowed_with_allowlist(
 
         // Check against the allowlist
         Some(extensions) => {
-            // Strip out the Goose.app/Contents/Resources/bin/ prefix if present
+            // Strip out the Goose app resources/bin prefix if present (handle both macOS and Windows paths)
             let mut cmd_to_check = cmd.to_string();
+            let mut is_goose_path = false;
 
-            // Check if the command path contains Goose.app/Contents/Resources/bin/
+            // Check for macOS-style Goose.app path
             if cmd_to_check.contains("Goose.app/Contents/Resources/bin/") {
-                // Find the position of "Goose.app/Contents/Resources/bin/"
                 if let Some(idx) = cmd_to_check.find("Goose.app/Contents/Resources/bin/") {
-                    // Extract only the part after "Goose.app/Contents/Resources/bin/"
                     cmd_to_check = cmd_to_check
                         [(idx + "Goose.app/Contents/Resources/bin/".len())..]
                         .to_string();
+                    is_goose_path = true;
                 }
-            } else {
-                // Only apply the path check if we're not dealing with a Goose.app path
+            }
+            // Check for Windows-style Goose path with resources\bin
+            else if cmd_to_check.to_lowercase().contains("\\resources\\bin\\")
+                || cmd_to_check.contains("/resources/bin/")
+            {
+                // Also handle forward slashes
+                if let Some(idx) = cmd_to_check
+                    .to_lowercase()
+                    .rfind("\\resources\\bin\\")
+                    .or_else(|| cmd_to_check.rfind("/resources/bin/"))
+                {
+                    let path_len = if cmd_to_check.contains("/resources/bin/") {
+                        "/resources/bin/".len()
+                    } else {
+                        "\\resources\\bin\\".len()
+                    };
+                    cmd_to_check = cmd_to_check[(idx + path_len)..].to_string();
+                    is_goose_path = true;
+                }
+            }
+
+            // Only check current directory for non-Goose paths
+            if !is_goose_path {
                 // Check that the command exists as a peer command to current executable directory
                 // Only apply this check if the command includes a path separator
                 let current_exe = std::env::current_exe().unwrap();
@@ -461,12 +550,13 @@ fn is_command_allowed_with_allowlist(
 
             println!("Command to check after path trimming: {}", cmd_to_check);
 
-            // Remove @version suffix from command parts
+            // Remove @version suffix from command parts, but preserve scoped npm packages
             let parts: Vec<&str> = cmd_to_check.split_whitespace().collect();
             let mut cleaned_parts: Vec<String> = Vec::new();
 
             for part in parts {
-                if part.contains('@') {
+                if part.contains('@') && !part.starts_with('@') {
+                    // This is likely a package with a version suffix, like "package@1.0.0"
                     // Keep only the part before the @ symbol
                     if let Some(base_part) = part.split('@').next() {
                         cleaned_parts.push(base_part.to_string());
@@ -474,6 +564,7 @@ fn is_command_allowed_with_allowlist(
                         cleaned_parts.push(part.to_string());
                     }
                 } else {
+                    // Either no @ symbol or it's a scoped package (starts with @)
                     cleaned_parts.push(part.to_string());
                 }
             }
@@ -582,6 +673,11 @@ mod tests {
             "uvx something",
             "uvx mcp_slack",
             "npx mcp_github",
+            "npx -y @mic/mcp_mic",
+            "npx -y @mic/mcp_mic2@latest",
+            "npx @mic/mcp_mic3",
+            "npx @mic/mcp_mic4@latest",
+            "executor thing",
             "minecraft",
         ]);
 
@@ -600,6 +696,46 @@ mod tests {
         ));
         assert!(is_command_allowed_with_allowlist(
             "npx mcp_github",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y mcp_github",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "executor thing",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor thing2",
+            &allowlist
+        ));
+
+        assert!(!is_command_allowed_with_allowlist(
+            "executor2 thing",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic2@latest",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic3",
+            &allowlist
+        ));
+
+        assert!(is_command_allowed_with_allowlist(
+            "npx -y @mic/mcp_mic4@latest",
             &allowlist
         ));
 
@@ -818,6 +954,79 @@ mod tests {
     }
 
     #[test]
+    fn test_windows_paths() {
+        let allowlist = create_test_allowlist(&["uvx mcp_snowflake", "uvx mcp_test"]);
+
+        // Test various Windows path formats
+        let test_paths = vec![
+            // Standard Windows path
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources\bin\uvx.exe",
+            // Path with different casing
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\Resources\Bin\uvx.exe",
+            // Path with forward slashes
+            r"C:/Users/MaxNovich/Downloads/Goose-1.0.17/resources/bin/uvx.exe",
+            // Path with spaces
+            r"C:\Program Files\Goose 1.0.17\resources\bin\uvx.exe",
+            // Path with version numbers
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\resources\bin\uvx.exe",
+        ];
+
+        for path in test_paths {
+            // Test with @latest version
+            let cmd = format!("{} mcp_snowflake@latest", path);
+            assert!(
+                is_command_allowed_with_allowlist(&cmd, &allowlist),
+                "Failed for path: {}",
+                path
+            );
+
+            // Test with specific version
+            let cmd_version = format!("{} mcp_test@1.2.3", path);
+            assert!(
+                is_command_allowed_with_allowlist(&cmd_version, &allowlist),
+                "Failed for path with version: {}",
+                path
+            );
+        }
+
+        // Test invalid paths that should be rejected
+        let invalid_paths = vec![
+            // Path without resources\bin
+            r"C:\Users\MaxNovich\Downloads\uvx.exe",
+            // Path with modified resources\bin
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources_modified\bin\uvx.exe",
+            // Path with extra components
+            r"C:\Users\MaxNovich\Downloads\Goose-1.0.17\resources\bin\extra\uvx.exe",
+        ];
+
+        for path in invalid_paths {
+            let cmd = format!("{} mcp_snowflake@latest", path);
+            assert!(
+                !is_command_allowed_with_allowlist(&cmd, &allowlist),
+                "Should have rejected path: {}",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_windows_uvx_path() {
+        let allowlist = create_test_allowlist(&["uvx mcp_snowflake"]);
+
+        // Test Windows-style path with uvx.exe
+        let windows_path = r"C:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\resources\bin\uvx.exe";
+        let cmd = format!("{} mcp_snowflake@latest", windows_path);
+
+        // This should be allowed because it's a valid uvx command in the Goose resources/bin directory
+        assert!(is_command_allowed_with_allowlist(&cmd, &allowlist));
+
+        // Test with different casing and backslashes
+        let windows_path_alt = r"c:\Users\MaxNovich\Downloads\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Goose-1.0.17-block.202504072238-76ffe-win32-x64\Resources\Bin\uvx.exe";
+        let cmd_alt = format!("{} mcp_snowflake@latest", windows_path_alt);
+        assert!(is_command_allowed_with_allowlist(&cmd_alt, &allowlist));
+    }
+
+    #[test]
     fn test_fetch_allowed_extensions_from_url() {
         // Start a mock server - we need to use a blocking approach since fetch_allowed_extensions is blocking
         let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -875,5 +1084,82 @@ mod tests {
 
         // Wait for the server thread to complete
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn test_allowlist_bypass() {
+        // We need to directly test is_command_allowed_with_allowlist with our test allowlist
+        // since get_allowed_extensions() might return None in the test environment
+
+        // Create a restrictive allowlist
+        let allowlist = create_test_allowlist(&["uvx mcp_slack"]);
+
+        // Command not in allowlist
+        let cmd = "uvx unauthorized_command";
+
+        // Without bypass, command should be denied with our test allowlist
+        assert!(!is_command_allowed_with_allowlist(cmd, &allowlist));
+
+        // Set the bypass environment variable
+        env::set_var("GOOSE_ALLOWLIST_BYPASS", "true");
+
+        // With bypass enabled, any command should be allowed regardless of allowlist
+        assert!(is_command_allowed(
+            "uvx",
+            &vec!["unauthorized_command".to_string()]
+        ));
+
+        // Test case insensitivity
+        env::set_var("GOOSE_ALLOWLIST_BYPASS", "TRUE");
+        assert!(is_command_allowed(
+            "uvx",
+            &vec!["unauthorized_command".to_string()]
+        ));
+
+        // Clean up
+        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+
+        // Create a mock function to test with allowlist and bypass
+        let test_with_allowlist_and_bypass = |bypass_value: &str, expected: bool| {
+            if bypass_value.is_empty() {
+                env::remove_var("GOOSE_ALLOWLIST_BYPASS");
+            } else {
+                env::set_var("GOOSE_ALLOWLIST_BYPASS", bypass_value);
+            }
+
+            // This is what we're testing - a direct call that simulates what happens in is_command_allowed
+            let result = if let Ok(bypass) = env::var("GOOSE_ALLOWLIST_BYPASS") {
+                if bypass.to_lowercase() == "true" {
+                    true
+                } else {
+                    is_command_allowed_with_allowlist(cmd, &allowlist)
+                }
+            } else {
+                is_command_allowed_with_allowlist(cmd, &allowlist)
+            };
+
+            assert_eq!(
+                result,
+                expected,
+                "With GOOSE_ALLOWLIST_BYPASS={}, expected allowed={}",
+                if bypass_value.is_empty() {
+                    "not set"
+                } else {
+                    bypass_value
+                },
+                expected
+            );
+        };
+
+        // Test various bypass values
+        test_with_allowlist_and_bypass("true", true);
+        test_with_allowlist_and_bypass("TRUE", true);
+        test_with_allowlist_and_bypass("True", true);
+        test_with_allowlist_and_bypass("false", false);
+        test_with_allowlist_and_bypass("0", false);
+        test_with_allowlist_and_bypass("", false);
+
+        // Final cleanup
+        env::remove_var("GOOSE_ALLOWLIST_BYPASS");
     }
 }

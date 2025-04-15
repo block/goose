@@ -25,9 +25,9 @@ pub fn name_to_key(name: &str) -> String {
 }
 
 /// Extension configuration management
-pub struct ExtensionManager;
+pub struct ExtensionConfigManager;
 
-impl ExtensionManager {
+impl ExtensionConfigManager {
     /// Get the extension configuration if enabled -- uses key
     pub fn get_config(key: &str) -> Result<Option<ExtensionConfig>> {
         let config = Config::global();
@@ -45,6 +45,7 @@ impl ExtensionManager {
                             name: DEFAULT_EXTENSION.to_string(),
                             display_name: Some(DEFAULT_DISPLAY_NAME.to_string()),
                             timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                            bundled: Some(true),
                         },
                     },
                 )]);
@@ -125,7 +126,9 @@ impl ExtensionManager {
     /// Get all extensions and their configurations
     pub fn get_all() -> Result<Vec<ExtensionEntry>> {
         let config = Config::global();
-        let extensions: HashMap<String, ExtensionEntry> = config.get_param("extensions")?;
+        let extensions: HashMap<String, ExtensionEntry> = config
+            .get_param("extensions")
+            .unwrap_or_else(|_| HashMap::new());
         Ok(Vec::from_iter(extensions.values().cloned()))
     }
 

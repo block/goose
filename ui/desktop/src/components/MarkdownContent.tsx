@@ -4,15 +4,14 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { Check, Copy } from './icons';
 import { visit } from 'unist-util-visit';
 
 function rehypeinlineCodeProperty() {
   return function (tree) {
     if (!tree) return;
-    visit(tree, 'element', function (node, index, parent) {
-      if (node.tagName == 'code' && parent && parent.tagName === 'pre') {
+    visit(tree, 'element', function (node) {
+      if (node.tagName == 'code' && node.parent && node.parent.tagName === 'pre') {
         node.properties.inlinecode = 'false';
       } else {
         node.properties.inlinecode = 'true';
@@ -75,8 +74,6 @@ const CodeBlock = ({ language, children }: { language: string; children: string 
 };
 
 export default function MarkdownContent({ content, className = '' }: MarkdownContentProps) {
-  // Determine whether dark mode is enabled
-  const isDarkMode = document.documentElement.classList.contains('dark');
   return (
     <div className="w-full overflow-x-hidden">
       <ReactMarkdown
@@ -100,8 +97,8 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
 
           ${className}`}
         components={{
-          a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-          code({ node, className, children, inlinecode, ...props }) {
+          a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+          code({ className, children, inlinecode, ...props }) {
             const match = /language-(\w+)/.exec(className || 'language-text');
             return inlinecode == 'false' && match ? (
               <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>

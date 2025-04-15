@@ -31,6 +31,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
+use utoipa::ToSchema;
 
 // Direct message serialization for the chat request
 #[derive(Debug, Deserialize)]
@@ -153,7 +154,7 @@ async fn handler(
         };
 
         // Get the provider first, before starting the reply stream
-        let provider = agent.provider().await;
+        let provider = agent.provider();
 
         let mut stream = match agent
             .reply(
@@ -294,7 +295,7 @@ async fn ask_handler(
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
 
     // Get the provider first, before starting the reply stream
-    let provider = agent.provider().await;
+    let provider = agent.provider();
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
@@ -365,16 +366,32 @@ async fn ask_handler(
     }))
 }
 
-#[derive(Debug, Deserialize)]
-struct ToolConfirmationRequest {
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct PermissionConfirmationRequest {
     id: String,
-    confirmed: bool,
+    #[serde(default = "default_principal_type")]
+    principal_type: PrincipalType,
+    action: String,
 }
 
-async fn confirm_handler(
+fn default_principal_type() -> PrincipalType {
+    PrincipalType::Tool
+}
+
+#[utoipa::path(
+    post,
+    path = "/confirm",
+    request_body = PermissionConfirmationRequest,
+    responses(
+        (status = 200, description = "Permission action is confirmed", body = Value),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn confirm_permission(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<ToolConfirmationRequest>,
+    Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     // Verify secret key
     let secret_key = headers
@@ -389,17 +406,19 @@ async fn confirm_handler(
     let agent = state.agent.clone();
     let agent = agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
-    let permission = if request.confirmed {
-        Permission::AllowOnce
-    } else {
-        Permission::DenyOnce
+
+    let permission = match request.action.as_str() {
+        "always_allow" => Permission::AlwaysAllow,
+        "allow_once" => Permission::AllowOnce,
+        "deny" => Permission::DenyOnce,
+        _ => Permission::DenyOnce,
     };
+
     agent
         .handle_confirmation(
             request.id.clone(),
             PermissionConfirmation {
-                principal_name: "tool_name_placeholder".to_string(),
-                principal_type: PrincipalType::Tool,
+                principal_type: request.principal_type,
                 permission,
             },
         )
@@ -458,7 +477,7 @@ pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
-        .route("/confirm", post(confirm_handler))
+        .route("/confirm", post(confirm_permission))
         .route("/tool_result", post(submit_tool_result))
         .with_state(state)
 }
@@ -467,7 +486,7 @@ pub fn routes(state: AppState) -> Router {
 mod tests {
     use super::*;
     use goose::{
-        agents::AgentFactory,
+        agents::Agent,
         model::ModelConfig,
         providers::{
             base::{Provider, ProviderUsage, Usage},
@@ -518,10 +537,10 @@ mod tests {
         async fn test_ask_endpoint() {
             // Create a mock app state with mock provider
             let mock_model_config = ModelConfig::new("test-model".to_string());
-            let mock_provider = Box::new(MockProvider {
+            let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = AgentFactory::create("reference", mock_provider).unwrap();
+            let agent = Agent::new(mock_provider);
             let state = AppState {
                 config: Arc::new(Mutex::new(HashMap::new())),
                 agent: Arc::new(RwLock::new(Some(agent))),

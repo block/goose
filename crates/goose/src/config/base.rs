@@ -210,7 +210,7 @@ impl Config {
     }
 
     // Save current values to the config file
-    fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
+    pub fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
         // Convert to YAML for storage
         let yaml_value = serde_yaml::to_string(&values)?;
 

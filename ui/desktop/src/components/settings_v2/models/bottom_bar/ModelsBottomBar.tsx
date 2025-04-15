@@ -4,10 +4,10 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useConfig } from '../../../ConfigContext';
 import { getCurrentModelAndProviderForDisplay } from '../index';
 import { AddModelModal } from '../subcomponents/AddModelModal';
-import type { View } from '../../../../App';
+import { View } from '../../../../App';
 
 interface ModelsBottomBarProps {
-  dropdownRef: any;
+  dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
 }
 export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBarProps) {
@@ -27,7 +27,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
       setProvider(modelProvider.provider);
       setModel(modelProvider.model);
     })();
-  }, [read, getProviders]);
+  });
 
   // Add click outside handler
   useEffect(() => {

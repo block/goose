@@ -2,8 +2,8 @@ import { PROVIDER_REGISTRY } from '../../../ProviderRegistry';
 import { Input } from '../../../../../ui/input';
 import React from 'react';
 
-import { useState, useEffect } from 'react';
-import { Lock, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import CustomRadio from '../../../../../ui/CustomRadio';
 
 export default function OllamaForm({ configValues, setConfigValues, provider }) {
@@ -12,12 +12,15 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
   const [isCheckingLocal, setIsCheckingLocal] = useState(false);
   const [isLocalAvailable, setIsLocalAvailable] = useState(false);
 
-  const handleConnectionTypeChange = (value) => {
-    setConfigValues((prev) => ({
-      ...prev,
-      connection_type: value,
-    }));
-  };
+  const handleConnectionTypeChange = useCallback(
+    (value) => {
+      setConfigValues((prev) => ({
+        ...prev,
+        connection_type: value,
+      }));
+    },
+    [setConfigValues]
+  );
 
   // Function to handle input changes and auto-select/deselect the host radio
   const handleInputChange = (paramName, value) => {
@@ -40,7 +43,7 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
     }
   };
 
-  const checkLocalAvailability = async () => {
+  const checkLocalAvailability = useCallback(async () => {
     setIsCheckingLocal(true);
 
     // Dummy implementation - simulates checking local availability
@@ -69,12 +72,12 @@ export default function OllamaForm({ configValues, setConfigValues, provider }) 
     } finally {
       setIsCheckingLocal(false);
     }
-  };
+  }, [configValues.connection_type, handleConnectionTypeChange]);
 
   // Check local availability on initial load
   useEffect(() => {
     checkLocalAvailability();
-  }, []);
+  }, [checkLocalAvailability]);
 
   return (
     <div className="mt-4 space-y-4">

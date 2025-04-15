@@ -36,20 +36,25 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   // Create debounced highlight function
   const debouncedHighlight = useCallback(
-    debounce((term: string, caseSensitive: boolean, highlighter: SearchHighlighter) => {
-      const highlights = highlighter.highlight(term, caseSensitive);
-      const count = highlights.length;
+    (term: string, caseSensitive: boolean, highlighter: SearchHighlighter) => {
+      debounce(
+        (searchTerm: string, isCaseSensitive: boolean, searchHighlighter: SearchHighlighter) => {
+          const highlights = searchHighlighter.highlight(searchTerm, isCaseSensitive);
+          const count = highlights.length;
 
-      if (count > 0) {
-        setSearchResults({
-          currentIndex: 1,
-          count,
-        });
-        highlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
-      } else {
-        setSearchResults(null);
-      }
-    }, 150),
+          if (count > 0) {
+            setSearchResults({
+              currentIndex: 1,
+              count,
+            });
+            searchHighlighter.setCurrentMatch(0, true); // Explicitly scroll when setting initial match
+          } else {
+            setSearchResults(null);
+          }
+        },
+        150
+      )(term, caseSensitive, highlighter);
+    },
     []
   );
 
@@ -60,9 +65,9 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
         highlighterRef.current.destroy();
         highlighterRef.current = null;
       }
-      debouncedHighlight.cancel();
+      debouncedHighlight.cancel?.();
     };
-  }, []);
+  }, [debouncedHighlight]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -162,7 +167,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       highlighterRef.current.clearHighlights();
     }
     // Cancel any pending highlight operations
-    debouncedHighlight.cancel();
+    debouncedHighlight.cancel?.();
   };
 
   return (

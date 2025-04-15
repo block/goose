@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { ViewConfig } from '../../App';
 import {
   MessageSquareText,
   Target,
@@ -14,9 +13,10 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
+import { View, ViewOptions } from '../../App';
 
 interface SessionListViewProps {
-  setView: (view: ViewConfig['view'], viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   onSelectSession: (sessionId: string) => void;
 }
 

@@ -5,14 +5,14 @@ mod output;
 mod prompt;
 mod thinking;
 
-pub use builder::build_session;
+pub use builder::{build_session, SessionBuilderConfig};
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 pub use goose::session::Identifier;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
@@ -21,6 +21,7 @@ use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
 use goose::session;
+use input::InputResult;
 use mcp_core::handler::ToolError;
 use mcp_core::prompt::PromptMessage;
 
@@ -38,7 +39,7 @@ pub enum RunMode {
 }
 
 pub struct Session {
-    agent: Box<dyn Agent>,
+    agent: Agent,
     messages: Vec<Message>,
     session_file: PathBuf,
     // Cache for completion data - using std::sync for thread safety without async
@@ -76,7 +77,7 @@ pub enum PlannerResponseType {
 /// question.
 pub async fn classify_planner_response(
     message_text: String,
-    provider: Arc<Box<dyn Provider>>,
+    provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
@@ -101,7 +102,7 @@ pub async fn classify_planner_response(
 }
 
 impl Session {
-    pub fn new(agent: Box<dyn Agent>, session_file: PathBuf, debug: bool) -> Self {
+    pub fn new(agent: Agent, session_file: PathBuf, debug: bool) -> Self {
         let messages = match session::read_messages(&session_file) {
             Ok(msgs) => msgs,
             Err(e) => {
@@ -159,6 +160,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -190,6 +192,7 @@ impl Session {
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
         };
 
         self.agent
@@ -214,6 +217,7 @@ impl Session {
                 display_name: None,
                 // TODO: should set a timeout
                 timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+                bundled: None,
             };
             self.agent
                 .add_extension(config)
@@ -278,7 +282,7 @@ impl Session {
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
-        let provider = self.agent.provider().await;
+        let provider = self.agent.provider();
 
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
@@ -350,7 +354,7 @@ impl Session {
                             self.messages.push(Message::user().with_text(&content));
 
                             // Get the provider from the agent for description generation
-                            let provider = self.agent.provider().await;
+                            let provider = self.agent.provider();
 
                             // Persist messages with provider for automatic description generation
                             session::persist_messages(
@@ -463,64 +467,40 @@ impl Session {
                 }
                 input::InputResult::PromptCommand(opts) => {
                     save_history(&mut editor);
+                    self.handle_prompt_command(opts).await?;
+                }
+                InputResult::Recipe(filepath_opt) => {
+                    println!("{}", console::style("Generating Recipe").green());
 
-                    // name is required
-                    if opts.name.is_empty() {
-                        output::render_error("Prompt name argument is required");
-                        continue;
-                    }
+                    output::show_thinking();
+                    let recipe = self.agent.create_recipe(self.messages.clone()).await;
+                    output::hide_thinking();
 
-                    if opts.info {
-                        match self.get_prompt_info(&opts.name).await? {
-                            Some(info) => output::render_prompt_info(&info),
-                            None => {
-                                output::render_error(&format!("Prompt '{}' not found", opts.name))
-                            }
-                        }
-                    } else {
-                        // Convert the arguments HashMap to a Value
-                        let arguments = serde_json::to_value(opts.arguments)
-                            .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
-
-                        match self.get_prompt(&opts.name, arguments).await {
-                            Ok(messages) => {
-                                let start_len = self.messages.len();
-                                let mut valid = true;
-                                for (i, prompt_message) in messages.into_iter().enumerate() {
-                                    let msg = Message::from(prompt_message);
-                                    // ensure we get a User - Assistant - User type pattern
-                                    let expected_role = if i % 2 == 0 {
-                                        mcp_core::Role::User
-                                    } else {
-                                        mcp_core::Role::Assistant
-                                    };
-
-                                    if msg.role != expected_role {
-                                        output::render_error(&format!(
-                                            "Expected {:?} message at position {}, but found {:?}",
-                                            expected_role, i, msg.role
-                                        ));
-                                        valid = false;
-                                        // get rid of everything we added to messages
-                                        self.messages.truncate(start_len);
-                                        break;
-                                    }
-
-                                    if msg.role == mcp_core::Role::User {
-                                        output::render_message(&msg, self.debug);
-                                    }
-                                    self.messages.push(msg);
-                                }
-
-                                if valid {
-                                    output::show_thinking();
-                                    self.process_agent_response(true).await?;
-                                    output::hide_thinking();
+                    match recipe {
+                        Ok(recipe) => {
+                            // Use provided filepath or default
+                            let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
+                            match self.save_recipe(&recipe, filepath_str) {
+                                Ok(path) => println!(
+                                    "{}",
+                                    console::style(format!("Saved recipe to {}", path.display()))
+                                        .green()
+                                ),
+                                Err(e) => {
+                                    println!("{}", console::style(e).red());
                                 }
                             }
-                            Err(e) => output::render_error(&e.to_string()),
+                        }
+                        Err(e) => {
+                            println!(
+                                "{}: {:?}",
+                                console::style("Failed to generate recipe").red(),
+                                e
+                            );
                         }
                     }
+
+                    continue;
                 }
             }
         }
@@ -535,7 +515,7 @@ impl Session {
     async fn plan_with_reasoner_model(
         &mut self,
         plan_messages: Vec<Message>,
-        reasoner: Box<dyn Provider + Send + Sync>,
+        reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt().await?;
         output::show_thinking();
@@ -543,7 +523,7 @@ impl Session {
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await)
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider())
                 .await?;
 
         match planner_response_type {
@@ -628,17 +608,15 @@ impl Session {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt
-                                let prompt = "Goose would like to call the above tool, do you approve?".to_string();
+                                let prompt = "Goose would like to call the above tool, do you allow?".to_string();
 
                                 // Get confirmation from user
-                                let confirmed = cliclack::confirm(prompt).initial_value(true).interact()?;
-                                let permission = if confirmed {
-                                    Permission::AllowOnce
-                                } else {
-                                    Permission::DenyOnce
-                                };
+                                let permission = cliclack::select(prompt)
+                                    .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+                                    .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
+                                    .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+                                    .interact()?;
                                 self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
-                                    principal_name: "tool_name_placeholder".to_string(),
                                     principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
@@ -656,7 +634,6 @@ impl Session {
                                     Permission::DenyOnce
                                 };
                                 self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
-                                    principal_name: "extension_name_placeholder".to_string(),
                                     principal_type: PrincipalType::Extension,
                                     permission,
                                 },).await;
@@ -855,9 +832,113 @@ impl Session {
         let metadata = self.get_metadata()?;
         Ok(metadata.total_tokens)
     }
+
+    /// Handle prompt command execution
+    async fn handle_prompt_command(&mut self, opts: input::PromptCommandOptions) -> Result<()> {
+        // name is required
+        if opts.name.is_empty() {
+            output::render_error("Prompt name argument is required");
+            return Ok(());
+        }
+
+        if opts.info {
+            match self.get_prompt_info(&opts.name).await? {
+                Some(info) => output::render_prompt_info(&info),
+                None => output::render_error(&format!("Prompt '{}' not found", opts.name)),
+            }
+        } else {
+            // Convert the arguments HashMap to a Value
+            let arguments = serde_json::to_value(opts.arguments)
+                .map_err(|e| anyhow::anyhow!("Failed to serialize arguments: {}", e))?;
+
+            match self.get_prompt(&opts.name, arguments).await {
+                Ok(messages) => {
+                    let start_len = self.messages.len();
+                    let mut valid = true;
+                    for (i, prompt_message) in messages.into_iter().enumerate() {
+                        let msg = Message::from(prompt_message);
+                        // ensure we get a User - Assistant - User type pattern
+                        let expected_role = if i % 2 == 0 {
+                            mcp_core::Role::User
+                        } else {
+                            mcp_core::Role::Assistant
+                        };
+
+                        if msg.role != expected_role {
+                            output::render_error(&format!(
+                                "Expected {:?} message at position {}, but found {:?}",
+                                expected_role, i, msg.role
+                            ));
+                            valid = false;
+                            // get rid of everything we added to messages
+                            self.messages.truncate(start_len);
+                            break;
+                        }
+
+                        if msg.role == mcp_core::Role::User {
+                            output::render_message(&msg, self.debug);
+                        }
+                        self.messages.push(msg);
+                    }
+
+                    if valid {
+                        output::show_thinking();
+                        self.process_agent_response(true).await?;
+                        output::hide_thinking();
+                    }
+                }
+                Err(e) => output::render_error(&e.to_string()),
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Save a recipe to a file
+    ///
+    /// # Arguments
+    /// * `recipe` - The recipe to save
+    /// * `filepath_str` - The path to save the recipe to
+    ///
+    /// # Returns
+    /// * `Result<PathBuf, String>` - The path the recipe was saved to or an error message
+    fn save_recipe(
+        &self,
+        recipe: &goose::recipe::Recipe,
+        filepath_str: &str,
+    ) -> anyhow::Result<PathBuf> {
+        let path_buf = PathBuf::from(filepath_str);
+        let mut path = path_buf.clone();
+
+        // Update the final path if it's relative
+        if path_buf.is_relative() {
+            // If the path is relative, resolve it relative to the current working directory
+            let cwd = std::env::current_dir().context("Failed to get current directory")?;
+            path = cwd.join(&path_buf);
+        }
+
+        // Check if parent directory exists
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                return Err(anyhow::anyhow!(
+                    "Directory '{}' does not exist",
+                    parent.display()
+                ));
+            }
+        }
+
+        // Try creating the file
+        let file = std::fs::File::create(path.as_path())
+            .context(format!("Failed to create file '{}'", path.display()))?;
+
+        // Write YAML
+        serde_yaml::to_writer(file, recipe).context("Failed to save recipe")?;
+
+        Ok(path)
+    }
 }
 
-fn get_reasoner() -> Result<Box<dyn Provider + Send + Sync>, anyhow::Error> {
+fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     use goose::model::ModelConfig;
     use goose::providers::create;
 

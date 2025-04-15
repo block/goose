@@ -44,11 +44,15 @@ impl ModelConfig {
 
         let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
+        let temperature = std::env::var("GOOSE_TEMPERATURE")
+            .ok()
+            .and_then(|val| val.parse::<f32>().ok());
+
         Self {
             model_name,
             tokenizer_name: tokenizer_name.to_string(),
             context_limit,
-            temperature: None,
+            temperature,
             max_tokens: None,
             toolshim,
             toolshim_model,
@@ -181,5 +185,28 @@ mod tests {
         let config = ModelConfig::new("test-model".to_string())
             .with_toolshim_model(Some("mistral-nemo".to_string()));
         assert_eq!(config.toolshim_model, Some("mistral-nemo".to_string()));
+    }
+
+    #[test]
+    fn test_model_config_temp_env_var() {
+        use temp_env::with_var;
+
+        with_var("GOOSE_TEMPERATURE", Some("0.128"), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert_eq!(config.temperature, Some(0.128));
+        });
+
+        with_var("GOOSE_TEMPERATURE", Some("notanum"), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert_eq!(config.temperature, None);
+        });
+
+        with_var("GOOSE_TEMPERATURE", Some(""), || {
+            let config = ModelConfig::new("test-model".to_string());
+            assert_eq!(config.temperature, None);
+        });
+
+        let config = ModelConfig::new("test-model".to_string());
+        assert_eq!(config.temperature, None);
     }
 }

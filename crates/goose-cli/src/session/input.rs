@@ -17,6 +17,7 @@ pub enum InputResult {
     GooseMode(String),
     Plan(PlanCommandOptions),
     EndPlan,
+    Recipe(Option<String>),
 }
 
 #[derive(Debug)]
@@ -89,6 +90,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_MODE: &str = "/mode ";
     const CMD_PLAN: &str = "/plan";
     const CMD_ENDPLAN: &str = "/endplan";
+    const CMD_RECIPE: &str = "/recipe";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -130,8 +132,34 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
         }
         s if s.starts_with(CMD_PLAN) => parse_plan_command(s[CMD_PLAN.len()..].trim().to_string()),
         s if s == CMD_ENDPLAN => Some(InputResult::EndPlan),
+        s if s.starts_with(CMD_RECIPE) => parse_recipe_command(s),
         _ => None,
     }
+}
+
+fn parse_recipe_command(s: &str) -> Option<InputResult> {
+    const CMD_RECIPE: &str = "/recipe";
+
+    if s == CMD_RECIPE {
+        // No filepath provided, use default
+        return Some(InputResult::Recipe(None));
+    }
+
+    // Extract the filepath from the command
+    let filepath = s[CMD_RECIPE.len()..].trim();
+
+    if filepath.is_empty() {
+        return Some(InputResult::Recipe(None));
+    }
+
+    // Validate that the filepath ends with .yaml
+    if !filepath.to_lowercase().ends_with(".yaml") {
+        println!("{}", console::style("Filepath must end with .yaml").red());
+        return Some(InputResult::Retry);
+    }
+
+    // Return the filepath for validation in the handler
+    Some(InputResult::Recipe(Some(filepath.to_string())))
 }
 
 fn parse_prompts_command(args: &str) -> Option<InputResult> {
@@ -211,6 +239,8 @@ fn print_help() {
                         The model is used based on $GOOSE_PLANNER_PROVIDER and $GOOSE_PLANNER_MODEL environment variables.
                         If no model is set, the default model is used.
 /endplan - Exit plan mode and return to 'normal' goose mode.
+/recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
+                       If no filepath is provided, it will be saved to ./recipe.yaml.
 /? or /help - Display this help message
 
 Navigation:
@@ -420,5 +450,28 @@ mod tests {
             }
             _ => panic!("Expected Plan"),
         }
+    }
+
+    #[test]
+    fn test_recipe_command() {
+        // Test recipe with no filepath
+        if let Some(InputResult::Recipe(filepath)) = handle_slash_command("/recipe") {
+            assert!(filepath.is_none());
+        } else {
+            panic!("Expected Recipe");
+        }
+
+        // Test recipe with filepath
+        if let Some(InputResult::Recipe(filepath)) =
+            handle_slash_command("/recipe /path/to/file.yaml")
+        {
+            assert_eq!(filepath, Some("/path/to/file.yaml".to_string()));
+        } else {
+            panic!("Expected recipe with filepath");
+        }
+
+        // Test recipe with invalid extension
+        let result = handle_slash_command("/recipe /path/to/file.txt");
+        assert!(matches!(result, Some(InputResult::Retry)));
     }
 }

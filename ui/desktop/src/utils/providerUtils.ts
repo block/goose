@@ -16,7 +16,12 @@ import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigC
 import { toastService } from '../toasts';
 import { ExtensionQuery, addExtension as apiAddExtension } from '../api';
 
-export function getStoredProvider(config: any): string | null {
+interface AppConfig {
+  GOOSE_PROVIDER?: string;
+  [key: string]: unknown;
+}
+
+export function getStoredProvider(config: AppConfig): string | null {
   return config.GOOSE_PROVIDER || localStorage.getItem(GOOSE_PROVIDER);
 }
 
@@ -168,9 +173,9 @@ export const initializeSystem = async (
       console.log('Model synced with React state:', syncedModel);
     }
 
-    // Get botConfig directly here
-    const botConfig = window.appConfig?.get?.('botConfig');
-    const botPrompt = botConfig?.instructions;
+    // Get recipeConfig directly here
+    const recipeConfig = window.appConfig?.get?.('recipeConfig');
+    const botPrompt = recipeConfig?.instructions;
 
     // Extend the system prompt with desktop-specific information
     const response = await fetch(getApiUrl('/agent/prompt'), {

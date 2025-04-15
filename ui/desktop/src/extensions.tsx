@@ -1,4 +1,3 @@
-import React from 'react';
 import { getApiUrl, getSecretKey } from './config';
 import { type View } from './App';
 import { type SettingsViewOptions } from './components/settings/SettingsView';
@@ -6,7 +5,6 @@ import { toast } from 'react-toastify';
 
 import builtInExtensionsData from './built-in-extensions.json';
 import { toastError, toastLoading, toastSuccess } from './toasts';
-import { Toast } from 'react-toastify/dist/components';
 
 // Hardcoded default extension timeout in seconds
 export const DEFAULT_EXTENSION_TIMEOUT = 300;
@@ -64,6 +62,7 @@ export async function addExtension(
   silent: boolean = false
 ): Promise<Response> {
   try {
+    console.log('Adding extension:', extension);
     // Create the config based on the extension type
     const config = {
       type: extension.type,
@@ -95,7 +94,29 @@ export async function addExtension(
       body: JSON.stringify(config),
     });
 
-    const data = await response.json();
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      const errorMsg = `Server returned ${response.status}: ${response.statusText}. Response: ${responseText}`;
+      console.error(errorMsg);
+      if (toastId) toast.dismiss(toastId);
+      toastError({
+        title: extension.name,
+        msg: 'Failed to add extension',
+        traceback: errorMsg,
+        toastOptions: { autoClose: false },
+      });
+      return response;
+    }
+
+    // Only try to parse JSON if we got a successful response and have JSON content
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', e);
+      data = { error: true, message: responseText };
+    }
 
     if (!data.error) {
       if (!silent) {
@@ -214,7 +235,9 @@ export async function loadAndAddStoredExtensions() {
 
     if (userSettingsStr) {
       const userSettings = JSON.parse(userSettingsStr);
-      const enabledExtensions = userSettings.extensions.filter((ext: any) => ext.enabled);
+      const enabledExtensions = userSettings.extensions.filter(
+        (ext: FullExtensionConfig) => ext.enabled
+      );
       console.log('Adding extensions from localStorage: ', enabledExtensions);
       for (const ext of enabledExtensions) {
         await addExtension(ext, true);
@@ -295,11 +318,50 @@ export async function addExtensionFromDeepLink(
   }
 
   const cmd = parsedUrl.searchParams.get('cmd');
-  if (!cmd) {
-    handleError("Failed to install extension: Missing required 'cmd' parameter in the URL", true);
+  const remoteUrl = parsedUrl.searchParams.get('url');
+
+  if (!cmd && !remoteUrl) {
+    handleError(
+      "Failed to install extension: Missing required 'cmd' or 'url' parameter in the URL",
+      true
+    );
   }
 
-  // Validate that the command is one of the allowed commands
+  const id = parsedUrl.searchParams.get('id');
+  const name = parsedUrl.searchParams.get('name');
+  const description = parsedUrl.searchParams.get('description');
+  const timeout = parsedUrl.searchParams.get('timeout');
+
+  // Create a ExtensionConfig from the URL parameters
+  // Parse timeout if provided, otherwise use default
+  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
+
+  const config: FullExtensionConfig = cmd
+    ? getStdioConfig(cmd, parsedUrl, id, name, description, parsedTimeout)
+    : getSseConfig(remoteUrl, id, name, description, parsedTimeout);
+
+  // Store the extension config regardless of env vars status
+  storeExtensionConfig(config);
+
+  // Check if extension requires env vars and go to settings if so
+  if (envVarsRequired(config)) {
+    console.log('Environment variables required, redirecting to settings');
+    setView('settings', { extensionId: config.id, showEnvVars: true });
+    return;
+  }
+
+  // If no env vars are required, proceed with extending Goosed
+  await addExtension(config);
+}
+
+function getStdioConfig(
+  cmd: string,
+  parsedUrl: URL,
+  id: string,
+  name: string,
+  description: string,
+  parsedTimeout: number
+) {
   const allowedCommands = ['jbang', 'npx', 'uvx', 'goosed'];
   if (!allowedCommands.includes(cmd)) {
     handleError(
@@ -315,10 +377,6 @@ export async function addExtensionFromDeepLink(
   }
 
   const envList = parsedUrl.searchParams.getAll('env');
-  const id = parsedUrl.searchParams.get('id');
-  const name = parsedUrl.searchParams.get('name');
-  const description = parsedUrl.searchParams.get('description');
-  const timeout = parsedUrl.searchParams.get('timeout');
 
   // split env based on delimiter to a map
   const envs = envList.reduce(
@@ -329,10 +387,6 @@ export async function addExtensionFromDeepLink(
     },
     {} as Record<string, string>
   );
-
-  // Create a ExtensionConfig from the URL parameters
-  // Parse timeout if provided, otherwise use default
-  const parsedTimeout = timeout ? parseInt(timeout, 10) : null;
 
   const config: FullExtensionConfig = {
     id,
@@ -349,16 +403,29 @@ export async function addExtensionFromDeepLink(
         : DEFAULT_EXTENSION_TIMEOUT,
   };
 
-  // Store the extension config regardless of env vars status
-  storeExtensionConfig(config);
+  return config;
+}
 
-  // Check if extension requires env vars and go to settings if so
-  if (envVarsRequired(config)) {
-    console.log('Environment variables required, redirecting to settings');
-    setView('settings', { extensionId: config.id, showEnvVars: true });
-    return;
-  }
+function getSseConfig(
+  remoteUrl: string,
+  id: string,
+  name: string,
+  description: string,
+  parsedTimeout: number
+) {
+  const config: FullExtensionConfig = {
+    id,
+    name,
+    type: 'sse',
+    uri: remoteUrl,
+    description,
+    enabled: true,
+    env_keys: [],
+    timeout:
+      parsedTimeout !== null && !isNaN(parsedTimeout) && Number.isInteger(parsedTimeout)
+        ? parsedTimeout
+        : DEFAULT_EXTENSION_TIMEOUT,
+  };
 
-  // If no env vars are required, proceed with extending Goosed
-  await addExtension(config);
+  return config;
 }

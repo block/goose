@@ -42,20 +42,159 @@ if (started) app.quit();
 
 app.setAsDefaultProtocolClient('goose');
 
-// Triggered when the user opens "goose://..." links
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    if (process.platform === 'win32') {
+      const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
+      if (protocolUrl) {
+        const parsedUrl = new URL(protocolUrl);
+
+        // If it's a bot/recipe URL, handle it directly by creating a new window
+        if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+          app.whenReady().then(() => {
+            const recentDirs = loadRecentDirs();
+            const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+
+            let recipeConfig = null;
+            const configParam = parsedUrl.searchParams.get('config');
+            if (configParam) {
+              try {
+                recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+              } catch (e) {
+                console.error('Failed to parse bot config:', e);
+              }
+            }
+
+            const botConfigToPass = recipeConfig as BotConfig | null;
+            createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
+          });
+          return; // Skip the rest of the handler
+        }
+
+        // For non-bot URLs, continue with normal handling
+        handleProtocolUrl(protocolUrl);
+      }
+
+      // Only focus existing windows for non-bot/recipe URLs
+      const existingWindows = BrowserWindow.getAllWindows();
+      if (existingWindows.length > 0) {
+        const mainWindow = existingWindows[0];
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore();
+        }
+        mainWindow.focus();
+      }
+    }
+  });
+  if (process.platform === 'win32') {
+    const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
+    if (protocolUrl) {
+      app.whenReady().then(() => {
+        handleProtocolUrl(protocolUrl);
+      });
+    }
+  }
+}
+
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null; // Store deep link if sent before React is ready
-app.on('open-url', async (event, url) => {
+let pendingDeepLink: string | null = null;
+
+async function handleProtocolUrl(url: string) {
+  if (!url) return;
+
   pendingDeepLink = url;
 
-  // Parse the URL to determine the type
   const parsedUrl = new URL(url);
-
   const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
-  if (parsedUrl.hostname !== 'bot') {
-    // For non URL types, reuse existing window if available
+  if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+    // For bot/recipe URLs, skip existing window processing
+    // and let processProtocolUrl handle it entirely
+    processProtocolUrl(parsedUrl, undefined);
+  } else {
+    // For other URL types, reuse existing window if available
+    const existingWindows = BrowserWindow.getAllWindows();
+    if (existingWindows.length > 0) {
+      firstOpenWindow = existingWindows[0];
+      if (firstOpenWindow.isMinimized()) {
+        firstOpenWindow.restore();
+      }
+      firstOpenWindow.focus();
+    } else {
+      firstOpenWindow = await createChat(app, undefined, openDir);
+    }
+
+    if (firstOpenWindow) {
+      const webContents = firstOpenWindow.webContents;
+      if (webContents.isLoadingMainFrame()) {
+        webContents.once('did-finish-load', () => {
+          processProtocolUrl(parsedUrl, firstOpenWindow);
+        });
+      } else {
+        processProtocolUrl(parsedUrl, firstOpenWindow);
+      }
+    }
+  }
+}
+
+function processProtocolUrl(parsedUrl: URL, window: BrowserWindow | undefined) {
+  const recentDirs = loadRecentDirs();
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+
+  if (parsedUrl.hostname === 'extension') {
+    if (window) window.webContents.send('add-extension', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'sessions') {
+    if (window) window.webContents.send('open-shared-session', pendingDeepLink);
+  } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+    let recipeConfig = null;
+    const configParam = parsedUrl.searchParams.get('config');
+    if (configParam) {
+      try {
+        recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+      } catch (e) {
+        console.error('Failed to parse bot config:', e);
+      }
+    }
+    // Create a new window and ignore the passed-in window
+    const botConfigToPass = recipeConfig as BotConfig | null;
+    createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
+  }
+  pendingDeepLink = null;
+}
+
+app.on('open-url', async (event, url) => {
+  if (process.platform !== 'win32') {
+    const parsedUrl = new URL(url);
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+
+    // Handle bot/recipe URLs by directly creating a new window
+    if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
+      let recipeConfig = null;
+      const configParam = parsedUrl.searchParams.get('config');
+      if (configParam) {
+        try {
+          recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+        } catch (e) {
+          console.error('Failed to parse bot config:', e);
+        }
+      }
+
+      // Adapt recipeConfig to botConfig if necessary
+      const botConfigToPass = recipeConfig as BotConfig | null;
+      // Create a new window directly
+      await createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
+      return; // Skip the rest of the handler
+    }
+
+    // For non-bot URLs, continue with normal handling
+    pendingDeepLink = url;
+
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
@@ -64,29 +203,12 @@ app.on('open-url', async (event, url) => {
     } else {
       firstOpenWindow = await createChat(app, undefined, openDir);
     }
-  }
 
-  // Handle extension install links and sessions
-  if (parsedUrl.hostname === 'extension') {
-    firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-  } else if (parsedUrl.hostname === 'sessions') {
-    firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
-  } else if (parsedUrl.hostname === 'bot') {
-    let botConfig = null;
-
-    // Extract bot config if it's a bot (miniagent) URL
-    if (parsedUrl.hostname === 'bot') {
-      const configParam = parsedUrl.searchParams.get('config');
-      if (configParam) {
-        try {
-          botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-        } catch (e) {
-          console.error('Failed to parse bot config:', e);
-        }
-      }
+    if (parsedUrl.hostname === 'extension') {
+      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+    } else if (parsedUrl.hostname === 'sessions') {
+      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
-
-    firstOpenWindow = await createChat(app, undefined, openDir, undefined, undefined, botConfig);
   }
 });
 
@@ -141,6 +263,7 @@ const getVersion = () => {
 };
 
 let [provider, model] = getGooseProvider();
+console.log('[main] Got provider and model:', { provider, model });
 
 let sharingUrl = getSharingUrl();
 
@@ -155,22 +278,26 @@ let appConfig = {
   secretKey: generateSecretKey(),
 };
 
+console.log('[main] Created appConfig:', appConfig);
+
 // Track windows by ID
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
 const createChat = async (
-  _app: App,
+  app: App,
   query?: string,
   dir?: string,
   version?: string,
   resumeSessionId?: string,
   botConfig?: BotConfig | null
 ) => {
-  // Apply current environment settings before creating chat
-  updateEnvironmentVariables(envToggles);
+  // Initialize variables for process and configuration
+  let port = 0;
+  let working_dir = '';
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  const [port, working_dir, goosedProcess] = await startGoosed(_app, dir);
+  [port, working_dir, goosedProcess] = await startGoosed(app, dir);
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -185,6 +312,7 @@ const createChat = async (
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon'),
     webPreferences: {
+      spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: [
         JSON.stringify({
@@ -200,6 +328,26 @@ const createChat = async (
       partition: 'persist:goose',
     },
   });
+
+  // Store config in localStorage for future windows
+  const windowConfig = {
+    ...appConfig,
+    GOOSE_PORT: port,
+    GOOSE_WORKING_DIR: working_dir,
+    REQUEST_DIR: dir,
+    GOOSE_BASE_URL_SHARE: sharingUrl,
+    botConfig: botConfig,
+  };
+
+  // We need to wait for the window to load before we can access localStorage
+  mainWindow.webContents.on('did-finish-load', () => {
+    const configStr = JSON.stringify(windowConfig).replace(/'/g, "\\'");
+    mainWindow.webContents.executeJavaScript(`
+      localStorage.setItem('gooseConfig', '${configStr}')
+    `);
+  });
+
+  console.log('[main] Creating window with config:', windowConfig);
 
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -262,12 +410,18 @@ const createChat = async (
   });
 
   windowMap.set(windowId, mainWindow);
+  // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
-    goosedProcess.kill();
+    if (goosedProcess) {
+      goosedProcess.kill();
+    }
   });
   return mainWindow;
 };
+
+// Track tray instance
+let tray: Tray | null = null;
 
 const createTray = () => {
   const isDev = process.env.NODE_ENV === 'development';
@@ -279,7 +433,7 @@ const createTray = () => {
     iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
   }
 
-  const tray = new Tray(iconPath);
+  tray = new Tray(iconPath);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Window', click: showWindow },
@@ -289,6 +443,11 @@ const createTray = () => {
 
   tray.setToolTip('Goose');
   tray.setContextMenu(contextMenu);
+
+  // On Windows, clicking the tray icon should show the window
+  if (process.platform === 'win32') {
+    tray.on('click', showWindow);
+  }
 };
 
 const showWindow = async () => {
@@ -297,7 +456,7 @@ const showWindow = async () => {
   if (windows.length === 0) {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     await createChat(app, undefined, openDir);
     return;
   }
@@ -339,16 +498,20 @@ const buildRecentFilesMenu = () => {
 
 const openDirectoryDialog = async (replaceWindow: boolean = false) => {
   const result = await dialog.showOpenDialog({
-    properties: ['openDirectory'],
+    properties: ['openFile', 'openDirectory'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
     addRecentDir(result.filePaths[0]);
+    const currentWindow = BrowserWindow.getFocusedWindow();
+    await createChat(app, undefined, result.filePaths[0]);
     if (replaceWindow) {
-      BrowserWindow.getFocusedWindow().close();
+      if (currentWindow) {
+        currentWindow.close();
+      }
     }
-    createChat(app, undefined, result.filePaths[0]);
   }
+  return result;
 };
 
 // Global error handler
@@ -369,32 +532,30 @@ process.on('unhandledRejection', (error) => {
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
-ipcMain.on('react-ready', (_event) => {
+ipcMain.on('react-ready', () => {
   console.log('React ready event received');
 
   if (pendingDeepLink) {
     console.log('Processing pending deep link:', pendingDeepLink);
-    const parsedUrl = new URL(pendingDeepLink);
-
-    // Handle different deep link types
-    if (parsedUrl.hostname === 'extension') {
-      console.log('Sending add-extension event');
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      console.log('Sending open-shared-session event');
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
-    }
-    // Bot URLs are handled directly through botConfig in additionalArguments
-    pendingDeepLink = null;
+    handleProtocolUrl(pendingDeepLink);
   } else {
     console.log('No pending deep link to process');
   }
+
+  // We don't need to handle pending deep links here anymore
+  // since we're handling them in the window creation flow
+  console.log('[main] React ready - window is prepared for deep links');
+});
+
+// Handle directory chooser
+ipcMain.handle('directory-chooser', (_event, replace: boolean = false) => {
+  return openDirectoryDialog(replace);
 });
 
 // Add file/directory selection handler
 ipcMain.handle('select-file-or-directory', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory'],
+    properties: process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openFile'],
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -423,15 +584,20 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
+// Revert to HEAD version (async/await) for read-file and write-file
+// This resolves the linter errors with the Promise/callback version
 ipcMain.handle('read-file', async (_event, filePath) => {
   try {
     const { stdout } = await exec(`cat ${filePath}`);
     return { file: stdout, filePath, error: null, found: true };
-  } catch (error) {
+  } catch (error: unknown) {
+    // Change type to unknown
     // Check if the error indicates file not found (specific error handling might be needed depending on the shell/OS)
     // For a simple approach, return found: false for any error
     // console.error(`Error reading file ${filePath}:`, error);
-    return { file: '', filePath, error: error.message, found: false };
+    // Type check before accessing message property
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error during file read';
+    return { file: '', filePath, error: errorMessage, found: false };
   }
 });
 
@@ -468,32 +634,34 @@ app.whenReady().then(async () => {
 
   createTray();
   const recentDirs = loadRecentDirs();
-  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
+  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : undefined);
   firstOpenWindow = await createChat(app, undefined, openDir);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
   // App menu
-  const appMenu = menu.items.find((item) => item.label === 'Goose');
-  // add Settings to app menu after About
-  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-  appMenu.submenu.insert(
-    1,
-    new MenuItem({
-      label: 'Settings',
-      accelerator: 'CmdOrCtrl+,',
-      click() {
-        const focusedWindow = BrowserWindow.getFocusedWindow();
-        if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
-      },
-    })
-  );
-  appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  const appMenu = menu?.items.find((item) => item.label === 'Goose');
+  if (appMenu?.submenu) {
+    // add Settings to app menu after About
+    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+    appMenu.submenu.insert(
+      1,
+      new MenuItem({
+        label: 'Settings',
+        accelerator: 'CmdOrCtrl+,',
+        click() {
+          const focusedWindow = BrowserWindow.getFocusedWindow();
+          if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+        },
+      })
+    );
+    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
+  }
 
   // Add Environment menu items to View menu
-  const viewMenu = menu.items.find((item) => item.label === 'View');
-  if (viewMenu) {
+  const viewMenu = menu?.items.find((item) => item.label === 'View');
+  if (viewMenu?.submenu) {
     viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
     viewMenu.submenu.append(
       new MenuItem({
@@ -512,31 +680,29 @@ app.whenReady().then(async () => {
 
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
-  // open goose to specific dir and set that as its working space
-  fileMenu.submenu.append(
-    new MenuItem({
-      label: 'Open Directory...',
-      accelerator: 'CmdOrCtrl+O',
-      click() {
-        openDirectoryDialog();
-      },
-    })
-  );
-
-  // Add Recent Files submenu
-  const recentFilesSubmenu = buildRecentFilesMenu();
-  if (recentFilesSubmenu.length > 0) {
-    fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+  if (fileMenu?.submenu) {
+    // open goose to specific dir and set that as its working space
     fileMenu.submenu.append(
       new MenuItem({
-        label: 'Recent Directories',
-        submenu: recentFilesSubmenu,
+        label: 'Open Directory...',
+        accelerator: 'CmdOrCtrl+O',
+        click: () => openDirectoryDialog(),
       })
     );
-  }
 
-  // Add menu items to File menu
-  if (fileMenu && fileMenu.submenu) {
+    // Add Recent Files submenu
+    const recentFilesSubmenu = buildRecentFilesMenu();
+    if (recentFilesSubmenu.length > 0) {
+      fileMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Recent Directories',
+          submenu: recentFilesSubmenu,
+        })
+      );
+    }
+
+    // Add menu items to File menu
     fileMenu.submenu.append(
       new MenuItem({
         label: 'New Chat Window',
@@ -557,10 +723,10 @@ app.whenReady().then(async () => {
 
           // Extract the bot config from the URL
           const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let botConfig = null;
+          let recipeConfig = null;
           if (configParam) {
             try {
-              botConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
+              recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
             } catch (e) {
               console.error('Failed to parse bot config:', e);
             }
@@ -568,15 +734,18 @@ app.whenReady().then(async () => {
 
           // Create a new window
           const recentDirs = loadRecentDirs();
-          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
-          createChat(app, undefined, openDir, undefined, undefined, botConfig);
+          const botConfigToPass = recipeConfig as BotConfig | null;
+          createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
         },
       })
     );
   }
 
-  Menu.setApplicationMenu(menu);
+  if (menu) {
+    Menu.setApplicationMenu(menu);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -587,21 +756,22 @@ app.whenReady().then(async () => {
   ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
     if (!dir?.trim()) {
       const recentDirs = loadRecentDirs();
-      dir = recentDirs.length > 0 ? recentDirs[0] : null;
+      dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     }
+
+    // Log the recipeConfig for debugging
+    console.log('Creating chat window with botConfig:', botConfig);
+
+    // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
     createChat(app, query, dir, version, resumeSessionId, botConfig);
   });
 
-  ipcMain.on('directory-chooser', (_, replace: boolean = false) => {
-    openDirectoryDialog(replace);
-  });
-
-  ipcMain.on('notify', (event, data) => {
+  ipcMain.on('notify', (_event, data) => {
     console.log('NOTIFY', data);
     new Notification({ title: data.title, body: data.body }).show();
   });
 
-  ipcMain.on('logInfo', (_, info) => {
+  ipcMain.on('logInfo', (_event, info) => {
     log.info('from renderer:', info);
   });
 
@@ -661,7 +831,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.on('open-in-chrome', (_, url) => {
+  ipcMain.on('open-in-chrome', (_event, url) => {
     // On macOS, use the 'open' command with Chrome
     if (process.platform === 'darwin') {
       spawn('open', ['-a', 'Google Chrome', url]);
@@ -705,9 +875,10 @@ app.whenReady().then(async () => {
   // --- End Path Resolution Handler ---
 });
 
-// Quit when all windows are closed, except on macOS.
+// Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // Only quit if we're not on macOS or don't have a tray icon
+  if (process.platform !== 'darwin' || !tray) {
     app.quit();
   }
 });

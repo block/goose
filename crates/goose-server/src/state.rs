@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, RwLock};
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct AppState {
-    pub agent: Arc<RwLock<Option<Box<dyn Agent>>>>,
+    pub agent: Arc<RwLock<Option<Agent>>>,
     pub secret_key: String,
     pub config: Arc<Mutex<HashMap<String, Value>>>,
 }

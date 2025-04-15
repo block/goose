@@ -1,3 +1,4 @@
+import React from 'react';
 import ParameterSchema from '../interfaces/ParameterSchema';
 import ProviderSetupFormProps from '../modal/interfaces/ProviderSetupFormProps';
 
@@ -8,5 +9,5 @@ export default interface ProviderDetails {
   parameters: ParameterSchema[];
   getTags?: (name: string) => string[];
   customForm?: React.ComponentType<ProviderSetupFormProps>;
-  customSubmit?: (e: any) => void;
+  customSubmit?: (e: React.SyntheticEvent) => void;
 }

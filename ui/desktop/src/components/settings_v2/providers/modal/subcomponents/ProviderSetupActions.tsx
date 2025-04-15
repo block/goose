@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { SyntheticEvent } from 'react';
 import { Button } from '../../../../ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;
-  onSubmit: (e: any) => void;
+  onSubmit: (e: SyntheticEvent) => void;
   onDelete?: () => void;
   showDeleteConfirmation?: boolean;
   onConfirmDelete?: () => void;
