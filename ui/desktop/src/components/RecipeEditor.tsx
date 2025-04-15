@@ -7,6 +7,7 @@ import Back from './icons/Back';
 import { Bars } from './icons/Bars';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
+import Check from './icons/Check';
 import { useConfig } from '../components/ConfigContext';
 import { settingsV2Enabled } from '../flags';
 
@@ -32,6 +33,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     config?.extensions?.map((e) => e.id) || []
   );
   const [newActivity, setNewActivity] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // Section visibility state
   const [activeSection, setActiveSection] = useState<
@@ -149,6 +151,20 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   };
 
   const deeplink = generateDeepLink(getCurrentConfig());
+
+  const handleCopy = () => {
+    // Copy the text to the clipboard
+    navigator.clipboard
+      .writeText(deeplink)
+      .then(() => {
+        setCopied(true); // Show the check mark
+        // Reset to normal after 2 seconds (2000 milliseconds)
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err) => {
+        console.error('Failed to copy the text:', err);
+      });
+  };
 
   // Render expanded section content
   const renderSectionContent = () => {
@@ -367,8 +383,16 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             {/* Deep Link Display */}
             <div className="w-full p-4 bg-bgSubtle rounded-lg flex items-center justify-between">
               <code className="text-sm text-textSubtle truncate">{deeplink}</code>
-              <button onClick={() => navigator.clipboard.writeText(deeplink)} className="ml-2">
-                <Copy className="w-5 h-5 text-iconSubtle" />
+              <button
+                onClick={handleCopy}
+                className="ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!title.trim() || !description.trim()}
+              >
+                {copied ? (
+                  <Check className="w-5 h-5 text-green-500" />
+                ) : (
+                  <Copy className="w-5 h-5 text-iconSubtle" />
+                )}
               </button>
             </div>
 
