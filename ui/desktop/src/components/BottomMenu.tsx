@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useModel } from './settings/models/ModelContext';
-import { useRecentModels } from './settings/models/RecentModels'; // Hook for recent models
 import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
@@ -19,7 +18,6 @@ export default function BottomMenu({
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
-  const { recentModels } = useRecentModels(); // Get recent models
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Add effect to handle clicks outside
@@ -59,15 +57,15 @@ export default function BottomMenu({
   // Removed the envModelProvider code that was checking for environment variables
 
   return (
-    <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
+    <div className="flex justify-start items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
       {/* Directory Chooser - Always visible */}
       <span
         className="cursor-pointer flex items-center [&>svg]:size-4"
         onClick={async () => {
           if (hasMessages) {
-            window.electron.directoryChooser();
+            window.electron.directoryChooser('');
           } else {
-            window.electron.directoryChooser(true);
+            window.electron.directoryChooser('true');
           }
         }}
       >
@@ -78,6 +76,9 @@ export default function BottomMenu({
 
       {/* Goose Mode Selector Dropdown */}
       <BottomMenuModeSelection />
+
+      {/* Add a growing div to push subsequent items to the right */}
+      <div className="flex-grow"></div>
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">
