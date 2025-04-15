@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { getApiUrl, getSecretKey } from '../../../config';
-import { all_goose_modes, filterGooseModes, ModeSelectionItem } from './ModeSelectionItem';
+import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
+import { View } from '../../../App';
 
-export const ModeSection = () => {
+interface ModeSectionProps {
+  setView: (view: View) => void;
+}
+
+export const ModeSection = ({ setView }: ModeSectionProps) => {
   const [currentMode, setCurrentMode] = useState('auto');
-  const [previousApproveModel, setPreviousApproveModel] = useState('');
 
   const handleModeChange = async (newMode: string) => {
     const storeResponse = await fetch(getApiUrl('/configs/store'), {
@@ -24,10 +28,6 @@ export const ModeSection = () => {
       const errorText = await storeResponse.text();
       console.error('Store response error:', errorText);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
-    }
-    // Only track the previous approve if current mode is approve related but new mode is not.
-    if (currentMode.includes('approve') && !newMode.includes('approve')) {
-      setPreviousApproveModel(currentMode);
     }
     setCurrentMode(newMode);
   };
@@ -67,13 +67,14 @@ export const ModeSection = () => {
           Configure how Goose interacts with tools and extensions
         </p>
         <div>
-          {filterGooseModes(currentMode, all_goose_modes, previousApproveModel).map((mode) => (
+          {all_goose_modes.map((mode) => (
             <ModeSelectionItem
               key={mode.key}
               mode={mode}
               currentMode={currentMode}
               showDescription={true}
               isApproveModeConfigure={false}
+              setView={setView}
               handleModeChange={handleModeChange}
             />
           ))}
