@@ -84,7 +84,7 @@ And don't forget to [join the community](https://discord.gg/block-opensource) to
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/10/visual-guide-mcp" />
   <meta property="og:description" content="Visual breakdown of MCP: How your agent, tools, and models work together." />
-  <meta property="og:image" content="" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/mcpblog-40894789122bda594a8576ebcb67a2d8.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="A Visual Guide To MCPs" />
