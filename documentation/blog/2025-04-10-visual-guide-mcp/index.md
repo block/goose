@@ -45,7 +45,7 @@ In this flow, the user kicks things off by giving Goose a prompt. Goose gets the
 
 ## Here's An Analogy
 
-Okay. So you’ve seen the flow, but if its still not making sense lets think of it in context of James Bond. 
+Let’s make this even clearer with a James Bond analogy. Sometimes a story makes it all click.
 
 ![james bond](james.png)
 
