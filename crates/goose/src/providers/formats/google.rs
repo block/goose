@@ -14,6 +14,12 @@ use serde_json::{json, Map, Value};
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     messages
         .iter()
+        .filter(|message| {
+            message
+                .content
+                .iter()
+                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+        })
         .map(|message| {
             let role = if message.role == Role::User {
                 "user"
@@ -333,6 +339,19 @@ mod tests {
         }
     }
 
+    fn set_up_tool_confirmation_message(id: &str, tool_call: ToolCall) -> Message {
+        Message {
+            role: Role::User,
+            created: 0,
+            content: vec![MessageContent::tool_confirmation_request(
+                id.to_string(),
+                tool_call.name.clone(),
+                tool_call.arguments.clone(),
+                Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+            )],
+        }
+    }
+
     fn set_up_tool_response_message(id: &str, tool_response: Vec<Content>) -> Message {
         Message {
             role: Role::Assistant,
@@ -389,10 +408,10 @@ mod tests {
         let arguments = json!({
             "param1": "value1"
         });
-        let messages = vec![set_up_tool_request_message(
-            "id",
-            ToolCall::new("tool_name", json!(arguments)),
-        )];
+        let messages = vec![
+            set_up_tool_request_message("id", ToolCall::new("tool_name", json!(arguments))),
+            set_up_tool_confirmation_message("id2", ToolCall::new("tool_name_2", json!(arguments))),
+        ];
         let payload = format_messages(&messages);
         assert_eq!(payload.len(), 1);
         assert_eq!(payload[0]["role"], "user");
