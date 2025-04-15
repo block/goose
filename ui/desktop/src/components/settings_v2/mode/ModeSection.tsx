@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
-import { View } from '../../../App';
+import { View, ViewOptions } from '../../../App';
 
 interface ModeSectionProps {
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
 }
 
 export const ModeSection = ({ setView }: ModeSectionProps) => {
@@ -74,6 +74,7 @@ export const ModeSection = ({ setView }: ModeSectionProps) => {
               currentMode={currentMode}
               showDescription={true}
               isApproveModeConfigure={false}
+              parentView="settings"
               setView={setView}
               handleModeChange={handleModeChange}
             />

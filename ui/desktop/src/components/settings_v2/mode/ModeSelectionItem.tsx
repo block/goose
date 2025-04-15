@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
-import { View } from '../../../App';
+import { View, ViewOptions } from '../../../App';
 
 export interface GooseMode {
   key: string;
@@ -72,7 +72,8 @@ interface ModeSelectionItemProps {
   mode: GooseMode;
   showDescription: boolean;
   isApproveModeConfigure: boolean;
-  setView: (view: View) => void;
+  parentView: View;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   handleModeChange: (newMode: string) => void;
 }
 
@@ -81,6 +82,7 @@ export function ModeSelectionItem({
   mode,
   showDescription,
   isApproveModeConfigure,
+  parentView,
   setView,
   handleModeChange,
 }: ModeSelectionItemProps) {
@@ -112,7 +114,9 @@ export function ModeSelectionItem({
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
-                setView('permission');
+                setView('permission', {
+                  parentView,
+                });
               }}
             >
               <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />

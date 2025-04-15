@@ -781,7 +781,11 @@ export default function App() {
               }}
             />
           )}
-          {view === 'permission' && <PermissionSettingsView onClose={() => setView('settings')} />}
+          {view === 'permission' && (
+            <PermissionSettingsView
+              onClose={() => setView((viewOptions as { parentView: View }).parentView)}
+            />
+          )}
         </div>
       </div>
       {isGoosehintsModalOpen && (
