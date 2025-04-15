@@ -89,5 +89,5 @@ And don't forget to [join the community](https://discord.gg/block-opensource) to
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="A Visual Guide To MCPs" />
   <meta name="twitter:description" content="Visual breakdown of MCP: How your AI agent, tools, and models work together." />
-  <meta name="twitter:image" content="" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcpblog-40894789122bda594a8576ebcb67a2d8.png" />
 </head>
