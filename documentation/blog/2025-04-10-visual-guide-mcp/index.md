@@ -18,7 +18,7 @@ MCP (Model Context Protocol) sounds complicated, but it’s really not. Think of
 
 Let's break this down together. 
 
-## What Is MCP in plain English?
+## What Is MCP in Plain English?
 
 MCP is like a universal translator between your AI agent, like Goose, and external tools, files, databases, APIs, you name it.
 
