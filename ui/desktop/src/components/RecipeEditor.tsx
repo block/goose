@@ -367,7 +367,11 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             {/* Deep Link Display */}
             <div className="w-full p-4 bg-bgSubtle rounded-lg flex items-center justify-between">
               <code className="text-sm text-textSubtle truncate">{deeplink}</code>
-              <button onClick={() => navigator.clipboard.writeText(deeplink)} className="ml-2">
+              <button
+                onClick={() => navigator.clipboard.writeText(deeplink)}
+                className="ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!title.trim() || !description.trim()}
+              >
                 <Copy className="w-5 h-5 text-iconSubtle" />
               </button>
             </div>
