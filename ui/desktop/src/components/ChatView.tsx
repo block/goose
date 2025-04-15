@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+/// <reference lib="dom" />
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { getApiUrl } from '../config';
 import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
@@ -22,12 +23,12 @@ import {
   ToolCall,
   ToolCallResult,
   ToolRequestMessageContent,
-  ToolResponse,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
   getTextContent,
-  createAssistantMessage,
 } from '../types/message';
+import { useDropzone } from 'react-dropzone';
+import {} from /* Removed Attach */ './icons';
 
 export interface ChatType {
   id: string;
@@ -38,6 +39,11 @@ export interface ChatType {
   messages: Message[];
 }
 
+// Define a type for files dropped, intersecting the standard File type
+// with an object containing the optional non-standard 'path' property added by Electron.
+// eslint-disable-next-line no-undef
+type DroppedFile = File & { path?: string };
+
 export default function ChatView({
   chat,
   setChat,
@@ -46,19 +52,21 @@ export default function ChatView({
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setView: (view: View, viewOptions?: Record<any, any>) => void;
+  setView: (view: View, viewOptions?: Record<string, unknown>) => void;
   setIsGoosehintsModalOpen: (isOpen: boolean) => void;
 }) {
-  const [messageMetadata, setMessageMetadata] = useState<Record<string, string[]>>({});
-  const [hasMessages, setHasMessages] = useState(false);
+  const [_messageMetadata, _setMessageMetadata] = useState<Record<string, string[]>>({});
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [waitingForAgentResponse, setWaitingForAgentResponse] = useState(false);
   const [showShareableBotModal, setshowShareableBotModal] = useState(false);
-  const [generatedBotConfig, setGeneratedBotConfig] = useState<any>(null);
+  const [generatedBotConfig, setGeneratedBotConfig] = useState<BotConfig | null>(null);
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const [_showDeepLinkModal, _setShowDeepLinkModal] = useState<boolean>(false);
+  const [_deepLinkUrl, _setDeepLinkUrl] = useState<string>('');
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
+  const [value, setValue] = useState('');
 
-  // Get botConfig directly from appConfig
   const botConfig = window.appConfig.get('botConfig') as BotConfig | null;
 
   const {
@@ -70,13 +78,11 @@ export default function ChatView({
     setMessages,
     input: _input,
     setInput: _setInput,
-    handleInputChange: _handleInputChange,
-    handleSubmit: _submitMessage,
   } = useMessageStream({
     api: getApiUrl('/reply'),
     initialMessages: chat.messages,
     body: { session_id: chat.id, session_working_dir: window.appConfig.get('GOOSE_WORKING_DIR') },
-    onFinish: async (message, _reason) => {
+    onFinish: async (_message, _reason) => {
       window.electron.stopPowerSaveBlocker();
 
       // Disabled askAi calls to save costs
@@ -194,52 +200,101 @@ export default function ChatView({
     }
   }, [messages, waitingForAgentResponse, setshowShareableBotModal, setGeneratedBotConfig]);
 
-  // Leaving these in for easy debugging of different message states
-
-  // One message with a tool call and no text content
-  // const messages = [{"role":"assistant","created":1742484893,"content":[{"type":"toolRequest","id":"call_udVcu3crnFdx2k5FzlAjk5dI","toolCall":{"status":"success","value":{"name":"developer__text_editor","arguments":{"command":"write","file_text":"Hello, this is a test file.\nLet's see if this works properly.","path":"/Users/alexhancock/Development/testfile.txt"}}}}]}];
-
-  // One message with text content and tool calls
-  // const messages = [{"role":"assistant","created":1742484388,"content":[{"type":"text","text":"Sure, let's break this down into two steps:\n\n1. **Write content to a `.txt` file.**\n2. **Read the content from the `.txt` file.**\n\nLet's start by writing some example content to a `.txt` file. I'll create a file named `example.txt` and write a sample sentence into it. Then I'll read the content back. \n\n### Sample Content\nWe'll write the following content into the `example.txt` file:\n\n```\nHello World! This is an example text file.\n```\n\nLet's proceed with this task."},{"type":"toolRequest","id":"call_CmvAsxMxiWVKZvONZvnz4QCE","toolCall":{"status":"success","value":{"name":"developer__text_editor","arguments":{"command":"write","file_text":"Hello World! This is an example text file.","path":"/Users/alexhancock/Development/example.txt"}}}}]}];
-
-  // Update chat messages when they change and save to sessionStorage
+  // Update parent component's chat state when messages change
   useEffect(() => {
-    // Directly set state using current chat and updated messages
-    // Avoid function update form to resolve typing issue
-    setChat({ ...chat, messages: messages });
-    // Add chat and setChat to dependency array as they are used/referenced
-  }, [messages, chat, setChat]);
+    // Avoid function update form if not supported by setChat type
+    // Pass the latest chat metadata along with the updated messages
+    // Check if messages reference has actually changed before setting state
+    // Note: This relies on parent passing a stable 'chat' reference if messages haven't changed, which might not be guaranteed.
+    // A potentially safer approach might involve memoizing parts of the chat object in the parent.
+    setChat({
+      ...chat, // Spread existing chat props (id, title, etc.)
+      messages: messages, // Update with the latest messages array
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, chat.id, chat.title, chat.messageHistoryIndex, setChat]);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      setHasMessages(true);
-    }
-  }, [messages]);
+  // Updated Dropzone Logic
+  const onDrop = useCallback(
+    (acceptedFiles: DroppedFile[]) => {
+      // Use the DroppedFile type to access path safely
+      acceptedFiles.forEach((file) => {
+        // Use inferred DroppedFile type
+        console.log('Dropped file object:', file);
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onabort = () => console.log('file reading was aborted');
+          reader.onerror = () => console.log('file reading has failed');
+          reader.onload = () => {
+            const base64Image = reader.result as string;
+            setAttachedImages((prevImages) => [...prevImages, base64Image]);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          // Access path directly from the DroppedFile type
+          const filePath = file.path;
+          const fileName = file.name; // Get filename as fallback
+          const cwd = window.appConfig.get('GOOSE_WORKING_DIR');
+          let finalPath: string | null = null;
 
-  // Handle submit
+          if (filePath && typeof filePath === 'string') {
+            // Check if path looks absolute
+            if (filePath.startsWith('/') || filePath.match(/^[a-zA-Z]:\\/)) {
+              finalPath = filePath; // Use absolute path directly
+            } else {
+              // Path is relative, clean it and join with CWD
+              const cleanedRelativePath = filePath.startsWith('./')
+                ? filePath.substring(2)
+                : filePath;
+              finalPath = `${cwd}/${cleanedRelativePath}`;
+            }
+          } else if (fileName) {
+            // Fallback: If path is missing, use CWD + filename
+            console.warn('File path missing, falling back to CWD + filename');
+            finalPath = `${cwd}/${fileName}`;
+          }
+
+          if (finalPath) {
+            // Normalize slashes and append
+            finalPath = finalPath.replace(/\\/g, '/');
+            setValue((prevValue) => `${prevValue}${prevValue ? ' ' : ''}${finalPath}`.trimStart());
+          } else {
+            console.error('Could not get path or name for non-image file');
+          }
+        }
+      });
+    },
+    [setValue, setAttachedImages]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    noClick: true,
+    noKeyboard: true,
+  });
+
+  const removeAttachedImage = (indexToRemove: number) => {
+    setAttachedImages((prevImages) => prevImages.filter((_, index) => index !== indexToRemove));
+  };
+
+  // Updated handleSubmit to use local value state
   const handleSubmit = (
-    e: React.FormEvent | CustomEvent<{ value?: string; images?: string[] }>
+    e?: React.FormEvent | CustomEvent<{ value?: string /* This detail value is no longer used */ }>
   ) => {
+    e?.preventDefault(); // Prevent default form submission if triggered by form event
     window.electron.startPowerSaveBlocker();
     setLastInteractionTime(Date.now());
 
-    // Keep using plural 'images' for clarity
-    let eventDetail: { value?: string; images?: string[] } | null = null;
+    // Use the value state from ChatView
+    const textToSend = value.trim();
 
-    // Check if it's a CustomEvent with detail
-    if (e instanceof CustomEvent && e.detail) {
-      eventDetail = e.detail;
-    }
-
-    // Check if we have either text value OR images array has items
-    if (eventDetail?.value?.trim() || (eventDetail?.images && eventDetail.images.length > 0)) {
-      const textToSend = eventDetail.value?.trim() || '';
-      const imagesToSend = eventDetail.images; // Pass the array
-
-      // Call the modified createUserMessage (needs update in next step)
-      const userMessage = createUserMessage(textToSend, imagesToSend);
-      // Log the exact structure being appended
+    if (textToSend || attachedImages.length > 0) {
+      const userMessage = createUserMessage(textToSend, attachedImages);
       append(userMessage);
+
+      // Clear state after submit
+      setValue(''); // Clear text input state
+      setAttachedImages([]);
 
       if (scrollRef.current?.scrollToBottom) {
         scrollRef.current.scrollToBottom();
@@ -317,7 +372,7 @@ export default function ChatView({
         };
 
         // get the last tool's name or just "tool"
-        const lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
+        const _lastToolName = toolRequests.at(-1)?.[1].value?.name ?? 'tool';
         const notification = 'Interrupted by the user to make a correction';
 
         // generate a response saying it was interrupted for each tool request
@@ -373,18 +428,14 @@ export default function ChatView({
   };
 
   const commandHistory = useMemo(() => {
+    const filteredMessages = messages || [];
     return filteredMessages
-      .reduce<string[]>((history, message) => {
-        if (isUserMessage(message)) {
-          const text = message.content.find((c) => c.type === 'text')?.text?.trim();
-          if (text) {
-            history.push(text);
-          }
-        }
-        return history;
-      }, [])
+      .filter((m) => m.role === 'user' && getTextContent(m)?.trim())
+      .map((m) => getTextContent(m))
       .reverse();
-  }, [filteredMessages, isUserMessage]);
+  }, [messages]);
+
+  const hasMessages = messages.length > 0;
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -392,71 +443,83 @@ export default function ChatView({
         <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
       </div>
 
-      <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
-        {messages.length === 0 ? (
-          <Splash
-            append={(text) => append(createUserMessage(text))}
-            activities={botConfig?.activities || null}
-          />
-        ) : (
-          <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
-            <SearchView>
-              {filteredMessages.map((message, index) => (
-                <div key={message.id || index} className="mt-4 px-4">
-                  {isUserMessage(message) ? (
-                    <UserMessage message={message} />
-                  ) : (
-                    <GooseMessage
-                      messageHistoryIndex={chat?.messageHistoryIndex}
-                      message={message}
-                      messages={messages}
-                      metadata={messageMetadata[message.id || '']}
-                      append={(text) => append(createUserMessage(text))}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
+      <Card {...getRootProps()} className="flex flex-col h-full w-full overflow-hidden relative">
+        {/* Prevent dropzone activation when clicking inside */}
+        <div onClick={(e) => e.stopPropagation()} className="flex flex-col flex-1 h-full">
+          {/* Main Content Area */}
+          <div className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
+            {messages.length === 0 && !isLoading ? (
+              <Splash
+                append={(text) => append(createUserMessage(text))}
+                activities={botConfig?.activities || null}
+              />
+            ) : (
+              <ScrollArea ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+                <SearchView>
+                  {filteredMessages.map((message, index) => (
+                    <div key={message.id || index} className="mt-4 px-4">
+                      {isUserMessage(message) ? (
+                        <UserMessage message={message} />
+                      ) : (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          metadata={_messageMetadata[message.id || '']}
+                          append={(text) => append(createUserMessage(text))}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </SearchView>
+                {error && (
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                      {error.message || 'Honk! Goose experienced an error while responding'}
+                    </div>
+                    <div
+                      className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                      onClick={async () => {
+                        // Find the last user message
+                        const lastUserMessage = messages.reduceRight(
+                          (found, m) => found || (m.role === 'user' ? m : null),
+                          null as Message | null
+                        );
+                        if (lastUserMessage) {
+                          append(lastUserMessage);
+                        }
                       }}
-                    />
-                  )}
-                </div>
-              ))}
-            </SearchView>
-            {error && (
-              <div className="flex flex-col items-center justify-center p-4">
-                <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                  {error.message || 'Honk! Goose experienced an error while responding'}
-                </div>
-                <div
-                  className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                  onClick={async () => {
-                    // Find the last user message
-                    const lastUserMessage = messages.reduceRight(
-                      (found, m) => found || (m.role === 'user' ? m : null),
-                      null as Message | null
-                    );
-                    if (lastUserMessage) {
-                      append(lastUserMessage);
-                    }
-                  }}
-                >
-                  Retry Last Message
-                </div>
-              </div>
+                    >
+                      Retry Last Message
+                    </div>
+                  </div>
+                )}
+                <div className="block h-16" />
+              </ScrollArea>
             )}
-            <div className="block h-16" />
-          </ScrollArea>
-        )}
 
-        <div className="relative">
-          {isLoading && <LoadingGoose />}
-          <Input
-            handleSubmit={handleSubmit}
-            isLoading={isLoading}
-            onStop={onStopGoose}
-            commandHistory={commandHistory}
-            initialValue={_input}
-          />
-          <BottomMenu hasMessages={hasMessages} setView={setView} />
+            <div className="relative">
+              {isLoading && <LoadingGoose />}
+              <Input
+                value={value}
+                setValue={setValue}
+                handleSubmit={handleSubmit}
+                isLoading={isLoading}
+                onStop={onStopGoose}
+                commandHistory={commandHistory}
+                isDragActive={isDragActive}
+                getInputProps={getInputProps}
+                attachedImages={attachedImages}
+                setAttachedImages={setAttachedImages}
+                removeAttachedImage={removeAttachedImage}
+              />
+              <BottomMenu hasMessages={hasMessages} setView={setView} />
+            </div>
+          </div>
         </div>
       </Card>
 
