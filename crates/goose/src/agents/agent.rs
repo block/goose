@@ -264,7 +264,7 @@ impl Agent {
             }
             _ => {
                 let mut extension_manager = self.extension_manager.lock().await;
-                let _ = extension_manager.add_extension(extension).await;
+                extension_manager.add_extension(extension).await?;
             }
         };
 
