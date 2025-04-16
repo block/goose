@@ -779,6 +779,11 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
             "Toggle Experiment",
             "Enable or disable an experiment feature",
         )
+        .item(
+            "local_hints",
+            "Local Hints",
+            "Configure whether local .goosehints files are enabled",
+        )
         .interact()?;
 
     match setting_type {
@@ -793,6 +798,9 @@ pub async fn configure_settings_dialog() -> Result<(), Box<dyn Error>> {
         }
         "experiment" => {
             toggle_experiments_dialog()?;
+        }
+        "local_hints" => {
+            configure_local_hints_dialog()?;
         }
         _ => unreachable!(),
     };
@@ -847,6 +855,37 @@ pub fn configure_goose_mode_dialog() -> Result<(), Box<dyn Error>> {
         "chat" => {
             config.set_param("GOOSE_MODE", Value::String("chat".to_string()))?;
             cliclack::outro("Set to Chat Mode - no tools or modifications enabled")?;
+        }
+        _ => unreachable!(),
+    };
+    Ok(())
+}
+
+pub fn configure_local_hints_dialog() -> Result<(), Box<dyn Error>> {
+    let config = Config::global();
+
+    let hints_enabled = !config
+        .get_param::<bool>("goose_disable_local_hints")
+        .unwrap_or(false);
+
+    let current_state = if hints_enabled { "enabled" } else { "disabled" };
+
+    let new_state = cliclack::select(format!(
+        "Local hints are currently {}. Would you like to change this?",
+        current_state
+    ))
+    .item("enable", "Enable Local Hints", "Read .goosehints files in project directories")
+    .item("disable", "Disable Local Hints", "Ignore .goosehints files in project directories")
+    .interact()?;
+
+    match new_state {
+        "enable" => {
+            config.set_param("goose_disable_local_hints", Value::Bool(false))?;
+            cliclack::outro("Local hints enabled - .goosehints files will be read")?;
+        }
+        "disable" => {
+            config.set_param("goose_disable_local_hints", Value::Bool(true))?;
+            cliclack::outro("Local hints disabled - .goosehints files will be ignored")?;
         }
         _ => unreachable!(),
     };

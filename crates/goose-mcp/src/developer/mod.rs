@@ -90,7 +90,23 @@ pub fn load_prompt_files() -> HashMap<String, Prompt> {
     prompts
 }
 
+/// Configuration for the developer extension.
+#[derive(Clone, Debug)]
+pub struct DeveloperConfig {
+    /// Whether to disable local .goosehints files
+    pub disable_local_hints: bool,
+}
+
+impl Default for DeveloperConfig {
+    fn default() -> Self {
+        Self {
+            disable_local_hints: false,
+        }
+    }
+}
+
 pub struct DeveloperRouter {
+    config: DeveloperConfig,
     tools: Vec<Tool>,
     prompts: Arc<HashMap<String, Prompt>>,
     instructions: String,
@@ -105,7 +121,15 @@ impl Default for DeveloperRouter {
 }
 
 impl DeveloperRouter {
+    #[deprecated(
+        since = "1.0.18",
+        note = "Use with_config() to explicitly set configuration"
+    )]
     pub fn new() -> Self {
+        Self::with_config(DeveloperConfig::default())
+    }
+
+    pub fn with_config(config: DeveloperConfig) -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
@@ -347,8 +371,9 @@ impl DeveloperRouter {
         // Create the directory if it doesn't exist
         let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
 
-        // Check for local hints in current directory
+        // Check for local hints in current directory if not disabled
         let local_hints_path = cwd.join(".goosehints");
+        let local_hints_enabled = !config.disable_local_hints;
 
         // Read global hints if they exist
         let mut hints = String::new();
@@ -359,8 +384,8 @@ impl DeveloperRouter {
             }
         }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
+        // Read local hints if they exist and are enabled
+        if local_hints_enabled && local_hints_path.is_file() {
             if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
                 if !hints.is_empty() {
                     hints.push_str("\n\n");
@@ -368,6 +393,11 @@ impl DeveloperRouter {
                 hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
                 hints.push_str(&local_hints);
             }
+        } else if !local_hints_enabled && local_hints_path.is_file() {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
+            }
+            hints.push_str("### Project Hints\nLocal hints are disabled via goose_disable_local_hints in config.yaml.\n");
         }
 
         // Return base instructions directly when no hints are found
@@ -1110,6 +1140,7 @@ impl Router for DeveloperRouter {
 impl Clone for DeveloperRouter {
     fn clone(&self) -> Self {
         Self {
+            config: self.config.clone(),
             tools: self.tools.clone(),
             prompts: Arc::clone(&self.prompts),
             instructions: self.instructions.clone(),
@@ -1173,6 +1204,78 @@ mod tests {
         let instructions = router.instructions();
 
         assert!(instructions.contains("Test hint content"));
+        assert!(instructions.contains("Project Hints"));
+        assert!(instructions.contains("The developer extension includes some hints for working on the project in this directory"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_when_disabled() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        fs::write(".goosehints", "Test hint content").unwrap();
+
+        let router = DeveloperRouter::with_config(DeveloperConfig {
+            disable_local_hints: true,
+        });
+        let instructions = router.instructions();
+
+        assert!(!instructions.contains("Test hint content"));
+        assert!(instructions.contains("Local hints are disabled via goose_disable_local_hints in config.yaml"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_with_global_and_local() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Save current global hints if they exist
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string()));
+
+        let had_global_hints = global_hints_path.is_file();
+        let global_hints_backup = if had_global_hints {
+            Some(fs::read_to_string(&global_hints_path).unwrap())
+        } else {
+            None
+        };
+
+        // Set up test files
+        fs::create_dir_all(global_hints_path.parent().unwrap()).unwrap();
+        fs::write(&global_hints_path, "Global hint content").unwrap();
+        fs::write(".goosehints", "Local hint content").unwrap();
+
+        // Test with both hints enabled
+        let router = DeveloperRouter::with_config(DeveloperConfig {
+            disable_local_hints: false,
+        });
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Global hint content"));
+        assert!(instructions.contains("Global Hints"));
+        assert!(instructions.contains("Local hint content"));
+        assert!(instructions.contains("Project Hints"));
+
+        // Test with local hints disabled
+        let router = DeveloperRouter::with_config(DeveloperConfig {
+            disable_local_hints: true,
+        });
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Global hint content"));
+        assert!(instructions.contains("Global Hints"));
+        assert!(!instructions.contains("Local hint content"));
+        assert!(instructions.contains("Local hints are disabled"));
+
+        // Cleanup - restore original global hints
+        if let Some(original_content) = global_hints_backup {
+            fs::write(&global_hints_path, original_content).unwrap();
+        } else {
+            fs::remove_file(&global_hints_path).unwrap();
+        }
     }
 
     #[test]
@@ -1181,17 +1284,52 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
+        // Save current global hints if they exist
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string()));
+
+        let had_global_hints = global_hints_path.is_file();
+        let global_hints_backup = if had_global_hints {
+            let content = fs::read_to_string(&global_hints_path).unwrap();
+            fs::remove_file(&global_hints_path).unwrap();
+            Some(content)
+        } else {
+            None
+        };
+
         let router = DeveloperRouter::new();
         let instructions = router.instructions();
 
+        // Restore global hints if they existed
+        if let Some(content) = global_hints_backup {
+            fs::write(&global_hints_path, content).unwrap();
+        }
+
         assert!(!instructions.contains("Project Hints"));
+        assert!(!instructions.contains("Global Hints"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_missing_with_disable() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::with_config(DeveloperConfig {
+            disable_local_hints: true,
+        });
+        let instructions = router.instructions();
+
+        assert!(!instructions.contains("Project Hints"));
+        assert!(!instructions.contains("Local hints are disabled"));
     }
 
     static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
 
     async fn get_router() -> &'static DeveloperRouter {
         DEV_ROUTER
-            .get_or_init(|| async { DeveloperRouter::new() })
+            .get_or_init(|| async { DeveloperRouter::with_config(DeveloperConfig::default()) })
             .await
     }
 

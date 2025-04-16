@@ -13,7 +13,15 @@ pub async fn run(name: &str) -> Result<()> {
 
     tracing::info!("Starting MCP server");
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
+        "developer" => {
+            let config = goose::config::Config::global();
+            let disable_local_hints = config.get_param("goose_disable_local_hints").unwrap_or(false);
+            Some(Box::new(RouterService(DeveloperRouter::with_config(
+                goose_mcp::DeveloperConfig {
+                    disable_local_hints,
+                },
+            ))))
+        },
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "jetbrains" => Some(Box::new(RouterService(JetBrainsRouter::new()))),
         "google_drive" | "googledrive" => {
