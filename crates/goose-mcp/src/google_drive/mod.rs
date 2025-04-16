@@ -2840,6 +2840,19 @@ impl GoogleDriveRouter {
         Ok(vec![Content::text(results.join("\n"))])
     }
 
+    fn output_permission(&self, p: Permission) -> String {
+        format!(
+            "(display_name: {}) (domain: {}) (email_address: {}) (expiration_time: {}) (permission_details: {:?}) (role: {}) (type: {}) (uri: {})",
+            p.display_name.unwrap_or_default(),
+            p.domain.unwrap_or_default(),
+            p.email_address.unwrap_or_default(),
+            p.expiration_time.unwrap_or_default(),
+            p.permission_details.unwrap_or_default(),
+            p.role.unwrap_or_default(),
+            p.type_.unwrap_or_default(),
+            p.id.unwrap_or_default())
+    }
+
     async fn get_permissions(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         let file_id =
             params
@@ -2876,21 +2889,7 @@ impl GoogleDriveRouter {
                 Ok(r) => {
                     let mut content =
                         r.1.permissions
-                            .map(|perms| {
-                                perms.into_iter().map(|f| {
-                                    format!(
-                                        "(display_name: {}) (domain: {}) (email_address: {}) (expiration_time: {}) (permission_details: {:?}) (role: {}) (type: {}) (uri: {})",
-                                        f.display_name.unwrap_or_default(),
-                                        f.domain.unwrap_or_default(),
-                                        f.email_address.unwrap_or_default(),
-                                        f.expiration_time.unwrap_or_default(),
-                                        f.permission_details.unwrap_or_default(),
-                                        f.role.unwrap_or_default(),
-                                        f.type_.unwrap_or_default(),
-                                        f.id.unwrap_or_default()
-                                    )
-                                })
-                            })
+                            .map(|perms| perms.into_iter().map(|p| self.output_permission(p)))
                             .into_iter()
                             .flatten()
                             .collect::<Vec<_>>();
@@ -2962,7 +2961,7 @@ impl GoogleDriveRouter {
                     ("anyone", None) => {}
                     (_, _) => {
                         return Err(ToolError::InvalidParameters(format!(
-                            "The '{}' operation for type '{}' requires the 'target'.",
+                            "The '{}' operation for type '{}' requires the 'target' parameter.",
                             operation, permission_type
                         )))
                     }
@@ -2985,18 +2984,7 @@ impl GoogleDriveRouter {
                         "Failed to manage sharing for google drive file {}, {}.",
                         file_id, e
                     ))),
-                    Ok(r) => Ok(vec![Content::text(
-                        format!(
-                            "(display_name: {}) (domain: {}) (email_address: {}) (expiration_time: {}) (permission_details: {:?}) (role: {}) (type: {}) (uri: {})",
-                            r.1.display_name.unwrap_or_default(),
-                            r.1.domain.unwrap_or_default(),
-                            r.1.email_address.unwrap_or_default(),
-                            r.1.expiration_time.unwrap_or_default(),
-                            r.1.permission_details.unwrap_or_default(),
-                            r.1.role.unwrap_or_default(),
-                            r.1.type_.unwrap_or_default(),
-                            r.1.id.unwrap_or_default()
-                    ))]),
+                    Ok(r) => Ok(vec![Content::text(self.output_permission(r.1))]),
                 }
             }
             "update" => {
@@ -3033,18 +3021,7 @@ impl GoogleDriveRouter {
                         "Failed to manage sharing for google drive file {}, {}.",
                         file_id, e
                     ))),
-                    Ok(r) => Ok(vec![Content::text(
-                        format!(
-                            "(display_name: {}) (domain: {}) (email_address: {}) (expiration_time: {}) (permission_details: {:?}) (role: {}) (type: {}) (uri: {})",
-                            r.1.display_name.unwrap_or_default(),
-                            r.1.domain.unwrap_or_default(),
-                            r.1.email_address.unwrap_or_default(),
-                            r.1.expiration_time.unwrap_or_default(),
-                            r.1.permission_details.unwrap_or_default(),
-                            r.1.role.unwrap_or_default(),
-                            r.1.type_.unwrap_or_default(),
-                            r.1.id.unwrap_or_default()
-                    ))]),
+                    Ok(r) => Ok(vec![Content::text(self.output_permission(r.1))]),
                 }
             }
             "delete" => {
