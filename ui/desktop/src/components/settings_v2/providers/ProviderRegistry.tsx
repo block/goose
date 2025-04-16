@@ -216,4 +216,26 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       ],
     },
   },
+  {
+    name: 'Snowflake',
+    details: {
+      id: 'snowflake',
+      name: 'Snowflake',
+      description: 'Access Cortex models hosted on your Snowflake account',
+      parameters: [
+        {
+          name: 'SNOWFLAKE_HOST',
+          is_secret: false,
+        },
+        {
+          name: 'SNOWFLAKE_USER',
+          is_secret: false,
+        },
+        {
+          name: 'SNOWFLAKE_TOKEN',
+          is_secret: true,
+        },
+      ],
+    },
+  },
 ];

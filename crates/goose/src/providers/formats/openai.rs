@@ -447,6 +447,9 @@ pub fn create_request(
             .unwrap()
             .insert(key.to_string(), json!(tokens));
     }
+
+    println!("payload: {:?}", payload.to_string());
+
     Ok(payload)
 }
 
