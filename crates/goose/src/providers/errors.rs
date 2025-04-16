@@ -93,7 +93,7 @@ where
 
     struct CodeVisitor;
 
-    impl<'de> Visitor<'de> for CodeVisitor {
+    impl Visitor<'_> for CodeVisitor {
         type Value = Option<String>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
