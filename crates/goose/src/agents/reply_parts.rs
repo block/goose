@@ -91,7 +91,7 @@ impl Agent {
         let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
 
         // Store the model information in the global store
-        crate::providers::set_current_model(&usage.model);
+        crate::providers::base::set_current_model(&usage.model);
 
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {

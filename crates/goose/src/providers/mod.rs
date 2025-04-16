@@ -10,7 +10,6 @@ mod gcpauth;
 pub mod gcpvertexai;
 pub mod google;
 pub mod groq;
-pub mod model_store;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
@@ -19,4 +18,3 @@ pub mod toolshim;
 pub mod utils;
 
 pub use factory::{create, providers};
-pub use model_store::{get_current_model, set_current_model};
