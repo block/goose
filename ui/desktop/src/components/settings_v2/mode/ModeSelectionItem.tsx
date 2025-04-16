@@ -32,41 +32,6 @@ export const all_goose_modes: GooseMode[] = [
   },
 ];
 
-export function filterGooseModes(
-  currentMode: string,
-  modes: GooseMode[],
-  previousApproveMode: string
-) {
-  return modes.filter((mode) => {
-    const approveList = ['approve', 'smart_approve'];
-    const nonApproveList = ['auto', 'chat'];
-    // Always keep 'auto' and 'chat'
-    if (nonApproveList.includes(mode.key)) {
-      return true;
-    }
-    // If current mode is non approve mode, we display write approve by default.
-    if (nonApproveList.includes(currentMode) && !previousApproveMode) {
-      return mode.key === 'smart_approve';
-    }
-
-    // Always include the current and previou approve mode
-    if (mode.key === currentMode) {
-      return true;
-    }
-
-    // Current mode and previous approve mode cannot exist at the same time.
-    if (approveList.includes(currentMode) && approveList.includes(previousApproveMode)) {
-      return false;
-    }
-
-    if (mode.key === previousApproveMode) {
-      return true;
-    }
-
-    return false;
-  });
-}
-
 interface ModeSelectionItemProps {
   currentMode: string;
   mode: GooseMode;
