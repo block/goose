@@ -41,12 +41,14 @@ pub enum ProviderType {
 /// - api_key: Provider API key (null for default from environment variables)
 /// - model_name: Model name to use (null for provider default)
 /// - host: Provider host URL (null for default from environment variables)
+/// - ephemeral: Whether to use ephemeral in-memory configuration (true) or persistent configuration (false)
 #[repr(C)]
 pub struct ProviderConfigFFI {
     pub provider_type: ProviderType,
     pub api_key: *const c_char,
     pub model_name: *const c_char,
     pub host: *const c_char,
+    pub ephemeral: bool,
 }
 
 // Extension configuration will be implemented in a future commit
@@ -133,6 +135,14 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
     // This match ensures future compiler errors if new provider types are added without handling
     match config.provider_type {
         ProviderType::Databricks => (), // Databricks provider is supported
+    }
+
+    // Check if we should use in-memory configuration
+    if config.ephemeral {
+        // Initialize global configuration to use in-memory storage
+        if !goose::config::Config::set_global_in_memory() {
+            eprintln!("Warning: Global config already initialized, ephemeral setting might not take effect");
+        }
     }
 
     // Get api_key from config or environment
