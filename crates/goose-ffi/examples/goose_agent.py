@@ -11,18 +11,14 @@ This example demonstrates how to:
 """
 
 import ctypes
-import json
 import os
 import platform
-from ctypes import c_char_p, c_void_p, c_bool, c_uint32, Structure, POINTER, CFUNCTYPE
-from enum import IntEnum
+from ctypes import c_char_p, c_bool, c_uint32, c_void_p, Structure, POINTER
 
-# Provider type enum values
-class ProviderType(IntEnum):
-    DATABRICKS = 0  # Databricks AI provider
-from typing import Dict, Any, Optional, Callable
+class ProviderType:
+    DATABRICKS = 0
 
-# Determine the platform-specific library name
+# Platform-specific dynamic lib name
 if platform.system() == "Darwin":
     LIB_NAME = "libgoose_ffi.dylib"
 elif platform.system() == "Linux":
@@ -30,133 +26,91 @@ elif platform.system() == "Linux":
 elif platform.system() == "Windows":
     LIB_NAME = "goose_ffi.dll"
 else:
-    raise RuntimeError(f"Unsupported platform: {platform.system()}")
+    raise RuntimeError("Unsupported platform")
 
-# Find the library path relative to this script
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LIB_PATH = os.path.join(SCRIPT_DIR, "../../..", "target", "debug", LIB_NAME)
+# Adjust to your actual build output directory
+LIB_PATH = os.path.join(os.path.dirname(__file__), "../../..", "target", "debug", LIB_NAME)
 
-# Load the FFI library
-try:
-    goose_lib = ctypes.CDLL(LIB_PATH)
-except OSError as e:
-    print(f"Error loading library: {e}")
-    print(f"Make sure you've built the library with 'cargo build' and the path is correct: {LIB_PATH}")
-    exit(1)
+# Load library
+goose = ctypes.CDLL(LIB_PATH)
 
-# Define C-compatible structures and callbacks
+# Forward declaration for goose_Agent
+class goose_Agent(Structure):
+    pass
+
+# Agent pointer type
+goose_AgentPtr = POINTER(goose_Agent)
+
+# C struct mappings
 class ProviderConfig(Structure):
     _fields_ = [
-        ("provider_type", c_uint32),  # 0 = Databricks (currently the only supported provider)
+        ("provider_type", c_uint32),
         ("api_key", c_char_p),
         ("model_name", c_char_p),
         ("host", c_char_p),
     ]
 
-# Extension and tool callback support to be added in future commits
+class AsyncResult(Structure):
+    _fields_ = [
+        ("succeeded", c_bool),
+        ("error_message", c_char_p),
+    ]
 
-# Set up the function signatures
-goose_lib.goose_agent_new.argtypes = [POINTER(ProviderConfig)]
-goose_lib.goose_agent_new.restype = c_void_p
+# Function signatures
+goose.goose_agent_new.argtypes = [POINTER(ProviderConfig)]
+goose.goose_agent_new.restype = goose_AgentPtr
 
-goose_lib.goose_agent_free.argtypes = [c_void_p]
-goose_lib.goose_agent_free.restype = None
+goose.goose_agent_free.argtypes = [goose_AgentPtr]
+goose.goose_agent_free.restype = None
 
-goose_lib.goose_agent_send_message.argtypes = [c_void_p, c_char_p]
-goose_lib.goose_agent_send_message.restype = c_char_p
+goose.goose_agent_send_message.argtypes = [goose_AgentPtr, c_char_p]
+goose.goose_agent_send_message.restype = c_void_p
 
-goose_lib.goose_free_string.argtypes = [c_char_p]
-goose_lib.goose_free_string.restype = None
+goose.goose_free_string.argtypes = [c_void_p]
+goose.goose_free_string.restype = None
+
+goose.goose_free_async_result.argtypes = [POINTER(AsyncResult)]
+goose.goose_free_async_result.restype = None
 
 class GooseAgent:
-    """Python wrapper for Goose Agent."""
-    
-    def __init__(self, provider_type: int = 0, api_key: Optional[str] = None, 
-                 model_name: Optional[str] = None, host: Optional[str] = None):
-        """
-        Create a new Goose Agent.
-        
-        Args:
-            provider_type: Provider type (0 = Databricks, currently the only supported provider)
-            api_key: Provider API key (or None to use environment variables)
-            model_name: Model name (or None to use provider default)
-            host: Provider host URL (or None to use environment variable)
-        """
-        # Convert strings to bytes for C compatibility
-        api_key_bytes = api_key.encode('utf-8') if api_key else None
-        model_name_bytes = model_name.encode('utf-8') if model_name else None
-        host_bytes = host.encode('utf-8') if host else None
-        
-        # Create provider config
-        config = ProviderConfig(
+    def __init__(self, provider_type=ProviderType.DATABRICKS, api_key=None, model_name=None, host=None):
+        self.config = ProviderConfig(
             provider_type=provider_type,
-            api_key=api_key_bytes,
-            model_name=model_name_bytes,
-            host=host_bytes
+            api_key=api_key.encode("utf-8") if api_key else None,
+            model_name=model_name.encode("utf-8") if model_name else None,
+            host=host.encode("utf-8") if host else None,
         )
-        
-        # Create agent
-        self.agent_ptr = goose_lib.goose_agent_new(ctypes.byref(config))
-        if not self.agent_ptr:
-            raise RuntimeError("Failed to create agent")
-    
+        self.agent = goose.goose_agent_new(ctypes.byref(self.config))
+        if not self.agent:
+            raise RuntimeError("Failed to create Goose agent")
+
     def __del__(self):
-        """Cleanup agent when object is destroyed."""
-        if hasattr(self, 'agent_ptr') and self.agent_ptr:
-            goose_lib.goose_agent_free(self.agent_ptr)
-    
-    # Tool support will be added in future commits
-    
+        if getattr(self, "agent", None):
+            goose.goose_agent_free(self.agent)
+
     def send_message(self, message: str) -> str:
-        """
-        Send a message to the agent.
-        
-        Args:
-            message: The message to send
-        
-        Returns:
-            The agent's response
-        """
-        # Send the message
-        response_ptr = goose_lib.goose_agent_send_message(
-            self.agent_ptr,
-            message.encode('utf-8')
-        )
-        
+        msg = message.encode("utf-8")
+        response_ptr = goose.goose_agent_send_message(self.agent, msg)
         if not response_ptr:
-            return "Error getting response from agent"
-        
-        # Read the response string and free it
-        response = ctypes.string_at(response_ptr).decode('utf-8')
-        goose_lib.goose_free_string(response_ptr)
-        
+            return "Error or NULL response from agent"
+        response = ctypes.string_at(response_ptr).decode("utf-8")
+        # Free the string using the proper C function provided by the library
+        # This correctly releases memory allocated by the Rust side
+        goose.goose_free_string(response_ptr)
         return response
 
-
 def main():
-    # Get API key and host URL from environment or let the library use them
-    api_key = os.environ.get("DATABRICKS_API_KEY")
-    host_url = os.environ.get("DATABRICKS_HOST")
-    
-    # Create agent with Databricks provider
-    print("Creating Databricks agent...")
-    agent = GooseAgent(
-        provider_type=ProviderType.DATABRICKS,  # Use Databricks provider
-        api_key=api_key,
-        model_name="claude-3-7-sonnet",
-        host=host_url
-    )
-    
-    # Interactive loop
-    print("Type your message (or 'quit' to exit):")
+    api_key = os.getenv("DATABRICKS_API_KEY")
+    host = os.getenv("DATABRICKS_HOST")
+    agent = GooseAgent(api_key=api_key, model_name="claude-3-7-sonnet", host=host)
+
+    print("Type a message (or 'quit' to exit):")
     while True:
         user_input = input("> ")
         if user_input.lower() in ("quit", "exit"):
             break
-        
-        response = agent.send_message(user_input)
-        print(f"Agent: {response}\n")
-
+        reply = agent.send_message(user_input)
+        print(f"Agent: {reply}\n")
 
 if __name__ == "__main__":
     main()

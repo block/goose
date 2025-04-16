@@ -35,11 +35,9 @@ typedef struct goose_AsyncResult {
 } goose_AsyncResult;
 
 /*
- Opaque pointer to Agent
+ Pointer type for the agent
  */
-typedef struct goose_AgentPtr {
-  goose_Agent *_0;
-} goose_AgentPtr;
+typedef goose_Agent *goose_AgentPtr;
 
 /*
  Provider configuration used to initialize an AI provider
@@ -85,7 +83,7 @@ void goose_free_async_result(struct goose_AsyncResult *result);
  The config pointer must be valid or NULL. The resulting agent must be freed
  with goose_agent_free when no longer needed.
  */
-struct goose_AgentPtr goose_agent_new(const struct goose_ProviderConfigFFI *config);
+goose_AgentPtr goose_agent_new(const struct goose_ProviderConfigFFI *config);
 
 /*
  Free an agent
@@ -102,7 +100,7 @@ struct goose_AgentPtr goose_agent_new(const struct goose_ProviderConfigFFI *conf
  or have a null internal pointer. The agent_ptr must not be used after
  calling this function.
  */
-void goose_agent_free(struct goose_AgentPtr agent_ptr);
+void goose_agent_free(goose_AgentPtr agent_ptr);
 
 /*
  Send a message to the agent and get the response
@@ -126,7 +124,7 @@ void goose_agent_free(struct goose_AgentPtr agent_ptr);
  The agent_ptr must be a valid pointer returned by goose_agent_new.
  The message must be a valid C string.
  */
-char *goose_agent_send_message(struct goose_AgentPtr agent_ptr, const char *message);
+char *goose_agent_send_message(goose_AgentPtr agent_ptr, const char *message);
 
 /*
  Free a string allocated by goose FFI functions
