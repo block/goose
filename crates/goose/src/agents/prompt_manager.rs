@@ -40,18 +40,17 @@ impl PromptManager {
     }
 
     /// Map model (normalized) to prompt filenames; returns filename if a key is contained in the normalized model
-    fn model_prompt_map(model: &str) -> Option<&'static str> {
+    fn model_prompt_map(model: &str) -> &'static str {
         let mut map = HashMap::new();
         map.insert("gpt_4_1", "system_gpt_4_1.md");
-        map.insert("gpt_3_5", "system_gpt_3_5.md");
         // Add more mappings as needed
         let norm_model = Self::normalize_model_name(model);
         for (key, val) in &map {
             if norm_model.contains(key) {
-                return Some(*val);
+                return val;
             }
         }
-        None
+        "system.md"
     }
 
     /// Build the final system prompt
@@ -87,10 +86,7 @@ impl PromptManager {
                 .expect("Prompt should render")
         } else if let Some(model) = model_name {
             // Use the fuzzy mapping to determine the prompt file, or fall back to legacy logic
-            let prompt_file = Self::model_prompt_map(model)
-                .unwrap_or_else(|| {
-                    Box::leak(format!("system_{}.md", Self::normalize_model_name(model)).into_boxed_str())
-                });
+            let prompt_file = Self::model_prompt_map(model);
             match prompt_template::render_global_file(prompt_file, &context) {
                 Ok(prompt) => prompt,
                 Err(_) => {
@@ -143,25 +139,45 @@ mod tests {
     fn test_normalize_model_name() {
         assert_eq!(PromptManager::normalize_model_name("gpt-4.1"), "gpt_4_1");
         assert_eq!(PromptManager::normalize_model_name("gpt/3.5"), "gpt_3_5");
-        assert_eq!(PromptManager::normalize_model_name("GPT-3.5/PLUS"), "gpt_3_5_plus");
+        assert_eq!(
+            PromptManager::normalize_model_name("GPT-3.5/PLUS"),
+            "gpt_3_5_plus"
+        );
     }
 
     #[test]
     fn test_model_prompt_map_matches() {
         // should match prompts based on contained normalized keys
-        assert_eq!(PromptManager::model_prompt_map("gpt-4.1"), Some("system_gpt_4_1.md"));
-        assert_eq!(PromptManager::model_prompt_map("openai/gpt-4.1"), Some("system_gpt_4_1.md"));
-        assert_eq!(PromptManager::model_prompt_map("goose-gpt-4-1"), Some("system_gpt_4_1.md"));
-        assert_eq!(PromptManager::model_prompt_map("gpt-4-1-huge"), Some("system_gpt_4_1.md"));
-        assert_eq!(PromptManager::model_prompt_map("openai/gpt-3.5-turbo"), Some("system_gpt_3_5.md"));
+        assert_eq!(
+            PromptManager::model_prompt_map("gpt-4.1"),
+            "system_gpt_4_1.md"
+        );
+        assert_eq!(
+            PromptManager::model_prompt_map("openai/gpt-4.1"),
+            "system_gpt_4_1.md"
+        );
+        assert_eq!(
+            PromptManager::model_prompt_map("goose-gpt-4-1"),
+            "system_gpt_4_1.md"
+        );
+        assert_eq!(
+            PromptManager::model_prompt_map("gpt-4-1-huge"),
+            "system_gpt_4_1.md"
+        );
     }
-    
+
     #[test]
     fn test_model_prompt_map_none() {
-        // should return None for unrecognized/unsupported model names
-        assert_eq!(PromptManager::model_prompt_map("llama-3-70b"), None);
-        assert_eq!(PromptManager::model_prompt_map("goose"), None);
-        assert_eq!(PromptManager::model_prompt_map("claude-3.7-sonnet"), None);
-        assert_eq!(PromptManager::model_prompt_map("xxx-unknown-model"), None);
+        // should return system.md for unrecognized/unsupported model names
+        assert_eq!(PromptManager::model_prompt_map("llama-3-70b"), "system.md");
+        assert_eq!(PromptManager::model_prompt_map("goose"), "system.md");
+        assert_eq!(
+            PromptManager::model_prompt_map("claude-3.7-sonnet"),
+            "system.md"
+        );
+        assert_eq!(
+            PromptManager::model_prompt_map("xxx-unknown-model"),
+            "system.md"
+        );
     }
 }
