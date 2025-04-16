@@ -1,7 +1,8 @@
 use anyhow::Result;
+use goose::config::Config;
 use goose_mcp::{
-    ComputerControllerRouter, DeveloperRouter, GoogleDriveRouter, JetBrainsRouter, MemoryRouter,
-    TutorialRouter,
+    ComputerControllerRouter, DeveloperConfig, DeveloperRouter, GoogleDriveRouter, JetBrainsRouter,
+    MemoryRouter, TutorialRouter,
 };
 use mcp_server::router::RouterService;
 use mcp_server::{BoundedService, ByteTransport, Server};
@@ -14,7 +15,13 @@ pub async fn run_server(name: &str) -> Result<()> {
     tracing::info!("Starting MCP server");
 
     let router: Option<Box<dyn BoundedService>> = match name {
-        "developer" => Some(Box::new(RouterService(DeveloperRouter::new()))),
+        "developer" => {
+            // Try to get developer config from config.yaml
+            let dev_config = Config::global()
+                .get_param::<DeveloperConfig>("developer")
+                .unwrap_or_default();
+            Some(Box::new(RouterService(DeveloperRouter::new(dev_config))))
+        }
         "computercontroller" => Some(Box::new(RouterService(ComputerControllerRouter::new()))),
         "jetbrains" => Some(Box::new(RouterService(JetBrainsRouter::new()))),
         "google_drive" | "googledrive" => {
