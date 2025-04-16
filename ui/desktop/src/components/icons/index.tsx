@@ -20,6 +20,7 @@ import Send from './Send';
 import Settings from './Settings';
 import Time from './Time';
 import { Gear } from './Gear';
+import Upload from './Upload';
 
 export {
   ArrowDown,
@@ -44,4 +45,5 @@ export {
   Send,
   Settings,
   Time,
+  Upload,
 };

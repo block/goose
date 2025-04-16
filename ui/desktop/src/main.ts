@@ -9,7 +9,10 @@ import {
   Notification,
   powerSaveBlocker,
   Tray,
-  App,
+  shell,
+  screen,
+  type App,
+  type MenuItemConstructorOptions,
 } from 'electron';
 import { Buffer } from 'node:buffer';
 import started from 'electron-squirrel-startup';
@@ -29,9 +32,9 @@ import {
   updateEnvironmentVariables,
 } from './utils/settings';
 import * as crypto from 'crypto';
-import * as electron from 'electron';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import type { BotConfig } from './botConfig';
 
 const exec = promisify(execCallback);
 
@@ -54,7 +57,7 @@ if (!gotTheLock) {
         if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
           app.whenReady().then(() => {
             const recentDirs = loadRecentDirs();
-            const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+            const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
             let recipeConfig = null;
             const configParam = parsedUrl.searchParams.get('config');
@@ -66,7 +69,8 @@ if (!gotTheLock) {
               }
             }
 
-            createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+            const botConfigToPass = recipeConfig as BotConfig | null;
+            createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
           });
           return; // Skip the rest of the handler
         }
@@ -97,7 +101,7 @@ if (!gotTheLock) {
 }
 
 let firstOpenWindow: BrowserWindow;
-let pendingDeepLink = null;
+let pendingDeepLink: string | null = null;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -106,12 +110,12 @@ async function handleProtocolUrl(url: string) {
 
   const parsedUrl = new URL(url);
   const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
   if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     // For bot/recipe URLs, skip existing window processing
     // and let processProtocolUrl handle it entirely
-    processProtocolUrl(parsedUrl, null);
+    processProtocolUrl(parsedUrl, undefined);
   } else {
     // For other URL types, reuse existing window if available
     const existingWindows = BrowserWindow.getAllWindows();
@@ -138,14 +142,14 @@ async function handleProtocolUrl(url: string) {
   }
 }
 
-function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
+function processProtocolUrl(parsedUrl: URL, window: BrowserWindow | undefined) {
   const recentDirs = loadRecentDirs();
-  const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+  const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
   if (parsedUrl.hostname === 'extension') {
-    window.webContents.send('add-extension', pendingDeepLink);
+    if (window) window.webContents.send('add-extension', pendingDeepLink);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-shared-session', pendingDeepLink);
+    if (window) window.webContents.send('open-shared-session', pendingDeepLink);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     let recipeConfig = null;
     const configParam = parsedUrl.searchParams.get('config');
@@ -157,7 +161,8 @@ function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       }
     }
     // Create a new window and ignore the passed-in window
-    createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+    const botConfigToPass = recipeConfig as BotConfig | null;
+    createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
   }
   pendingDeepLink = null;
 }
@@ -166,7 +171,7 @@ app.on('open-url', async (event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
     // Handle bot/recipe URLs by directly creating a new window
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
@@ -180,8 +185,10 @@ app.on('open-url', async (event, url) => {
         }
       }
 
+      // Adapt recipeConfig to botConfig if necessary
+      const botConfigToPass = recipeConfig as BotConfig | null;
       // Create a new window directly
-      await createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+      await createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
       return; // Skip the rest of the handler
     }
 
@@ -277,56 +284,20 @@ console.log('[main] Created appConfig:', appConfig);
 let windowCounter = 0;
 const windowMap = new Map<number, BrowserWindow>();
 
-interface RecipeConfig {
-  id: string;
-  name: string;
-  description: string;
-  instructions: string;
-  activities: string[];
-}
-
 const createChat = async (
   app: App,
   query?: string,
   dir?: string,
   version?: string,
   resumeSessionId?: string,
-  recipeConfig?: RecipeConfig, // Bot configuration
-  viewType?: string // View type
+  botConfig?: BotConfig | null
 ) => {
   // Initialize variables for process and configuration
   let port = 0;
   let working_dir = '';
-  let goosedProcess = null;
+  let goosedProcess: import('child_process').ChildProcess | null = null;
 
-  if (viewType === 'recipeEditor') {
-    // For recipeEditor, get the port from existing windows' config
-    const existingWindows = BrowserWindow.getAllWindows();
-    if (existingWindows.length > 0) {
-      // Get the config from localStorage through an existing window
-      try {
-        const result = await existingWindows[0].webContents.executeJavaScript(
-          `localStorage.getItem('gooseConfig')`
-        );
-        if (result) {
-          const config = JSON.parse(result);
-          port = config.GOOSE_PORT;
-          working_dir = config.GOOSE_WORKING_DIR;
-        }
-      } catch (e) {
-        console.error('Failed to get config from localStorage:', e);
-      }
-    }
-    if (port === 0) {
-      console.error('No existing Goose process found for recipeEditor');
-      throw new Error('Cannot create recipeEditor window: No existing Goose process found');
-    }
-  } else {
-    // Apply current environment settings before creating chat
-    updateEnvironmentVariables(envToggles);
-    // Start new Goosed process for regular windows
-    [port, working_dir, goosedProcess] = await startGoosed(app, dir);
-  }
+  [port, working_dir, goosedProcess] = await startGoosed(app, dir);
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -351,10 +322,10 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: sharingUrl,
           GOOSE_VERSION: gooseVersion,
-          recipeConfig: recipeConfig,
+          botConfig: botConfig,
         }),
       ],
-      partition: 'persist:goose', // Add this line to ensure persistence
+      partition: 'persist:goose',
     },
   });
 
@@ -365,7 +336,7 @@ const createChat = async (
     GOOSE_WORKING_DIR: working_dir,
     REQUEST_DIR: dir,
     GOOSE_BASE_URL_SHARE: sharingUrl,
-    recipeConfig: recipeConfig,
+    botConfig: botConfig,
   };
 
   // We need to wait for the window to load before we can access localStorage
@@ -380,9 +351,9 @@ const createChat = async (
 
   // Handle new window creation for links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open all links in external browser
+    // Open all links in external browser using shell
     if (url.startsWith('http:') || url.startsWith('https:')) {
-      electron.shell.openExternal(url);
+      shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
@@ -401,14 +372,7 @@ const createChat = async (
       : `?resumeSessionId=${encodeURIComponent(resumeSessionId)}`;
   }
 
-  // Add view type to query params if provided
-  if (viewType) {
-    queryParams = queryParams
-      ? `${queryParams}&view=${encodeURIComponent(viewType)}`
-      : `?view=${encodeURIComponent(viewType)}`;
-  }
-
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
+  const primaryDisplay = screen.getPrimaryDisplay();
   const { width } = primaryDisplay.workAreaSize;
 
   // Increment window counter to track number of windows
@@ -492,7 +456,7 @@ const showWindow = async () => {
   if (windows.length === 0) {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     await createChat(app, undefined, openDir);
     return;
   }
@@ -542,7 +506,9 @@ const openDirectoryDialog = async (replaceWindow: boolean = false) => {
     const currentWindow = BrowserWindow.getFocusedWindow();
     await createChat(app, undefined, result.filePaths[0]);
     if (replaceWindow) {
-      currentWindow.close();
+      if (currentWindow) {
+        currentWindow.close();
+      }
     }
   }
   return result;
@@ -600,32 +566,16 @@ ipcMain.handle('select-file-or-directory', async () => {
 
 ipcMain.handle('check-ollama', async () => {
   try {
-    return new Promise((resolve) => {
-      // Run `ps` and filter for "ollama"
-      exec('ps aux | grep -iw "[o]llama"', (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error executing ps command:', error);
-          return resolve(false); // Process is not running
-        }
-
-        if (stderr) {
-          console.error('Standard error output from ps command:', stderr);
-          return resolve(false); // Process is not running
-        }
-
-        console.log('Raw stdout from ps command:', stdout);
-
-        // Trim and check if output contains a match
-        const trimmedOutput = stdout.trim();
-        console.log('Trimmed stdout:', trimmedOutput);
-
-        const isRunning = trimmedOutput.length > 0; // True if there's any output
-        resolve(isRunning); // Resolve true if running, false otherwise
-      });
-    });
-  } catch (err) {
-    console.error('Error checking for Ollama:', err);
-    return false; // Return false on error
+    // Run `ps` and filter for "ollama" using await
+    const { stdout } = await exec('ps aux | grep -iw "[o]llama"');
+    const isRunning = stdout.trim().length > 0;
+    return isRunning;
+  } catch (error) {
+    // If exec fails (e.g., grep returns non-zero exit code if no match), it throws an error
+    // We interpret this as the process not running.
+    // Log the error for debugging, but return false.
+    // console.error('Error checking for Ollama (likely not running):', error);
+    return false;
   }
 });
 
@@ -634,39 +584,34 @@ ipcMain.handle('get-binary-path', (_event, binaryName) => {
   return getBinaryPath(app, binaryName);
 });
 
-ipcMain.handle('read-file', (_event, filePath) => {
-  return new Promise((resolve) => {
-    exec(`cat ${filePath}`, (error, stdout, stderr) => {
-      if (error) {
-        // File not found
-        resolve({ file: '', filePath, error: null, found: false });
-      }
-      if (stderr) {
-        console.error('Error output:', stderr);
-        resolve({ file: '', filePath, error, found: false });
-      }
-      resolve({ file: stdout, filePath, error: null, found: true });
-    });
-  });
+// Revert to HEAD version (async/await) for read-file and write-file
+// This resolves the linter errors with the Promise/callback version
+ipcMain.handle('read-file', async (_event, filePath) => {
+  try {
+    const { stdout } = await exec(`cat ${filePath}`);
+    return { file: stdout, filePath, error: null, found: true };
+  } catch (error: unknown) {
+    // Change type to unknown
+    // Check if the error indicates file not found (specific error handling might be needed depending on the shell/OS)
+    // For a simple approach, return found: false for any error
+    // console.error(`Error reading file ${filePath}:`, error);
+    // Type check before accessing message property
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error during file read';
+    return { file: '', filePath, error: errorMessage, found: false };
+  }
 });
 
-ipcMain.handle('write-file', (_event, filePath, content) => {
-  return new Promise((resolve) => {
-    const command = `cat << 'EOT' > ${filePath}
-${content}
-EOT`;
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error('Error writing to file:', error);
-        resolve(false);
-      }
-      if (stderr) {
-        console.error('Error output:', stderr);
-        resolve(false);
-      }
-      resolve(true);
-    });
-  });
+ipcMain.handle('write-file', async (_event, filePath, content) => {
+  try {
+    // Using a temporary file or a more robust method might be safer than relying on cat << EOT
+    // For simplicity, keeping the existing command but using await
+    const command = `cat << EOT > '${filePath.replace(/'/g, `'"'"'`)}'\n${content}\nEOT`;
+    await exec(command);
+    return true;
+  } catch (error) {
+    console.error(`Error writing file ${filePath}:`, error);
+    return false;
+  }
 });
 
 app.whenReady().then(async () => {
@@ -689,8 +634,8 @@ app.whenReady().then(async () => {
 
   createTray();
   const recentDirs = loadRecentDirs();
-  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : null);
-  createChat(app, undefined, openDir);
+  let openDir = dirPath || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  firstOpenWindow = await createChat(app, undefined, openDir);
 
   // Get the existing menu
   const menu = Menu.getApplicationMenu();
@@ -722,11 +667,12 @@ app.whenReady().then(async () => {
       new MenuItem({
         label: 'Environment',
         submenu: Menu.buildFromTemplate(
+          // Cast the result to MenuItemConstructorOptions[]
           createEnvironmentMenu(envToggles, (newToggles) => {
             envToggles = newToggles;
             saveSettings({ envToggles: newToggles });
             updateEnvironmentVariables(newToggles);
-          })
+          }) as MenuItemConstructorOptions[] // <-- Cast here
         ),
       })
     );
@@ -788,9 +734,10 @@ app.whenReady().then(async () => {
 
           // Create a new window
           const recentDirs = loadRecentDirs();
-          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+          const openDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
 
-          createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
+          const botConfigToPass = recipeConfig as BotConfig | null;
+          createChat(app, undefined, openDir, undefined, undefined, botConfigToPass);
         },
       })
     );
@@ -802,25 +749,22 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createChat(app);
+      createChat(app, undefined, openDir);
     }
   });
 
-  ipcMain.on(
-    'create-chat-window',
-    (_, query, dir, version, resumeSessionId, recipeConfig, viewType) => {
-      if (!dir?.trim()) {
-        const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : null;
-      }
-
-      // Log the recipeConfig for debugging
-      console.log('Creating chat window with recipeConfig:', recipeConfig);
-
-      // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
-      createChat(app, query, dir, version, resumeSessionId, recipeConfig, viewType);
+  ipcMain.on('create-chat-window', (_, query, dir, version, resumeSessionId, botConfig) => {
+    if (!dir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     }
-  );
+
+    // Log the recipeConfig for debugging
+    console.log('Creating chat window with botConfig:', botConfig);
+
+    // Pass recipeConfig as part of viewOptions when viewType is recipeEditor
+    createChat(app, query, dir, version, resumeSessionId, botConfig);
+  });
 
   ipcMain.on('notify', (_event, data) => {
     console.log('NOTIFY', data);
@@ -899,6 +843,36 @@ app.whenReady().then(async () => {
       spawn('xdg-open', [url]);
     }
   });
+
+  // --- Add IPC Handler for File Dialog ---
+  ipcMain.handle('dialog:openFile', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'], // Allow selecting files
+      // properties: ['openFile', 'multiSelections'] // Use this for multi-select
+    });
+    if (!canceled && filePaths.length > 0) {
+      return filePaths[0]; // Return the first selected path
+      // return filePaths; // Use this for multi-select
+    }
+    return null; // Indicate cancellation or no selection
+  });
+  // --- End IPC Handler ---
+
+  // --- Path Resolution Handler ---
+  ipcMain.handle('resolve-path', async (_event, cwd, relativeOrAbsolutePath) => {
+    if (!cwd || !relativeOrAbsolutePath) {
+      return relativeOrAbsolutePath; // Return original if inputs are bad
+    }
+    try {
+      // path.resolve is smart enough: if relativeOrAbsolutePath is already absolute,
+      // it ignores cwd and returns it directly.
+      return path.resolve(cwd, relativeOrAbsolutePath);
+    } catch (error) {
+      console.error('Error resolving path:', error);
+      return relativeOrAbsolutePath; // Return original on error
+    }
+  });
+  // --- End Path Resolution Handler ---
 });
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.

@@ -1,15 +1,21 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import Stop from './ui/Stop';
-import { Attach, Send } from './icons';
-import { debounce } from 'lodash';
+import { Send, Close, Attach, Upload } from './icons';
+import { DropzoneInputProps } from 'react-dropzone';
 
 interface InputProps {
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (e?: React.FormEvent) => void;
   isLoading?: boolean;
   onStop?: () => void;
   commandHistory?: string[];
-  initialValue?: string;
+  value: string;
+  setValue: React.Dispatch<React.SetStateAction<string>>;
+  isDragActive: boolean;
+  getInputProps: (props?: React.HTMLProps<HTMLInputElement>) => DropzoneInputProps;
+  attachedImages: string[];
+  setAttachedImages: React.Dispatch<React.SetStateAction<string[]>>;
+  removeAttachedImage: (indexToRemove: number) => void;
 }
 
 export default function Input({
@@ -17,20 +23,14 @@ export default function Input({
   isLoading = false,
   onStop,
   commandHistory = [],
-  initialValue = '',
+  value,
+  setValue,
+  isDragActive,
+  getInputProps,
+  attachedImages,
+  setAttachedImages,
+  removeAttachedImage,
 }: InputProps) {
-  const [_value, setValue] = useState(initialValue);
-  const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
-
-  // Update internal value when initialValue changes
-  useEffect(() => {
-    if (initialValue) {
-      setValue(initialValue);
-      setDisplayValue(initialValue);
-    }
-  }, [initialValue]);
-
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
@@ -42,74 +42,51 @@ export default function Input({
     }
   }, []);
 
+  const autosizeTextArea = (textArea: HTMLTextAreaElement | null, _value: string) => {
+    if (textArea) {
+      textArea.style.height = '0px';
+      const scrollHeight = textArea.scrollHeight;
+      textArea.style.height = Math.min(scrollHeight, 10 * 24) + 'px';
+    }
+  };
+
+  const useAutosizeTextArea = (textAreaRef: HTMLTextAreaElement | null, value: string) => {
+    useEffect(() => {
+      autosizeTextArea(textAreaRef, value);
+    }, [textAreaRef, value]);
+  };
+
   const minHeight = '1rem';
   const maxHeight = 10 * 24;
 
-  // Debounced function to update actual value
-  const debouncedSetValue = useCallback((val: string) => {
-    debounce((value: string) => {
-      setValue(value);
-    }, 150)(val);
-  }, []);
-
-  // Debounced autosize function
-  const debouncedAutosize = useCallback(
-    (textArea: HTMLTextAreaElement) => {
-      debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
-        const scrollHeight = element.scrollHeight;
-        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
-      }, 150)(textArea);
-    },
-    [maxHeight]
-  );
-
-  useEffect(() => {
-    if (textAreaRef.current) {
-      debouncedAutosize(textAreaRef.current);
-    }
-  }, [debouncedAutosize, displayValue]);
+  useAutosizeTextArea(textAreaRef.current, value);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
-    setDisplayValue(val); // Update display immediately
-    debouncedSetValue(val); // Debounce the actual state update
+    setValue(val);
   };
 
-  // Cleanup debounced functions on unmount
-  useEffect(() => {
-    return () => {
-      debouncedSetValue.cancel?.();
-      debouncedAutosize.cancel?.();
-    };
-  }, [debouncedSetValue, debouncedAutosize]);
-
-  // Handlers for composition events, which are crucial for proper IME behavior
-  const handleCompositionStart = () => {
+  const handleCompositionStart = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(true);
   };
 
-  const handleCompositionEnd = () => {
+  const handleCompositionEnd = (_evt: React.CompositionEvent<HTMLTextAreaElement>) => {
     setIsComposing(false);
   };
 
   const handleHistoryNavigation = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     evt.preventDefault();
 
-    // Save current input if we're just starting to navigate history
     if (historyIndex === -1) {
-      setSavedInput(displayValue);
+      setSavedInput(value);
     }
 
-    // Calculate new history index
     let newIndex = historyIndex;
     if (evt.key === 'ArrowUp') {
-      // Move backwards through history
       if (historyIndex < commandHistory.length - 1) {
         newIndex = historyIndex + 1;
       }
     } else {
-      // Move forwards through history
       if (historyIndex > -1) {
         newIndex = historyIndex - 1;
       }
@@ -119,134 +96,196 @@ export default function Input({
       return;
     }
 
-    // Update index and value
     setHistoryIndex(newIndex);
-    if (newIndex === -1) {
-      // Restore saved input when going past the end of history
-      setDisplayValue(savedInput);
-      setValue(savedInput);
-    } else {
-      setDisplayValue(commandHistory[newIndex] || '');
-      setValue(commandHistory[newIndex] || '');
-    }
+    const newValue = newIndex === -1 ? savedInput : commandHistory[newIndex] || '';
+    setValue(newValue);
   };
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle command history navigation
     if ((evt.metaKey || evt.ctrlKey) && (evt.key === 'ArrowUp' || evt.key === 'ArrowDown')) {
       handleHistoryNavigation(evt);
       return;
     }
 
     if (evt.key === 'Enter') {
-      // should not trigger submit on Enter if it's composing (IME input in progress) or shift/alt(option) is pressed
-      if (evt.shiftKey || isComposing) {
-        // Allow line break for Shift+Enter, or during IME composition
+      if (evt.shiftKey || isComposing || evt.altKey) {
+        if (evt.altKey && !evt.shiftKey) {
+          setValue(value + '\n');
+        }
         return;
       }
-      if (evt.altKey) {
-        const newValue = displayValue + '\n';
-        setDisplayValue(newValue);
-        setValue(newValue);
-        return;
-      }
-
-      // Prevent default Enter behavior when loading or when not loading but has content
-      // So it won't trigger a new line
       evt.preventDefault();
-
-      // Only submit if not loading and has content
-      if (!isLoading && displayValue.trim()) {
-        handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
-        setDisplayValue('');
-        setValue('');
-        setHistoryIndex(-1);
-        setSavedInput('');
-      }
+      submitData();
     }
   };
 
-  const onFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (displayValue.trim() && !isLoading) {
-      handleSubmit(new CustomEvent('submit', { detail: { value: displayValue } }));
-      setDisplayValue('');
-      setValue('');
+  const submitData = () => {
+    if (!isLoading && (value.trim() || attachedImages.length > 0)) {
+      handleSubmit();
       setHistoryIndex(-1);
       setSavedInput('');
     }
   };
 
-  const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      // Append the path to existing text, with a space if there's existing text
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
+  const handlePaste = (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = evt.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64Image = event.target?.result as string;
+            if (base64Image) {
+              setAttachedImages((prevImages) => [...prevImages, base64Image]);
+              textAreaRef.current?.focus();
+            }
+          };
+          reader.onerror = (error) => {
+            console.error('[Input.tsx] FileReader onerror:', error);
+          };
+          reader.readAsDataURL(blob);
+        }
+      }
     }
   };
 
+  const openFileDialog = () => {
+    const inputElement = document.querySelector('input[type="file"]');
+    if (inputElement instanceof HTMLInputElement) {
+      inputElement.click();
+    }
+  };
+
+  const showDragOverlay = isDragActive;
+  const hasAttachedImages = attachedImages.length > 0;
+  const isOverlayMode = showDragOverlay && hasAttachedImages;
+  const isCollapseReplaceMode = showDragOverlay && !hasAttachedImages;
+
   return (
-    <form
-      onSubmit={onFormSubmit}
-      className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle"
+    <div
+      className={`border-t border-borderSubtle px-4 pt-4 pb-4 overflow-hidden ${isOverlayMode ? 'relative' : ''}`}
     >
-      <textarea
-        autoFocus
-        id="dynamic-textarea"
-        placeholder="What can goose help with?   ⌘↑/⌘↓"
-        value={displayValue}
-        onChange={handleChange}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onKeyDown={handleKeyDown}
-        ref={textAreaRef}
-        rows={1}
-        style={{
-          minHeight: `${minHeight}px`,
-          maxHeight: `${maxHeight}px`,
-          overflowY: 'auto',
-        }}
-        className="w-full outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard"
-      />
-      <Button
-        type="button"
-        size="icon"
-        variant="ghost"
-        onClick={handleFileSelect}
-        className="absolute right-[40px] top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard"
+      {/* Render hidden input unconditionally */}
+      <input {...getInputProps()} />
+
+      {/* Normal Input Content Wrapper - Conditionally Hidden */}
+      <div
+        className={`transition-opacity duration-150 ${
+          isOverlayMode
+            ? 'opacity-0 pointer-events-none' // Keep for height, hide visually
+            : isCollapseReplaceMode
+              ? 'opacity-0 h-0 overflow-hidden p-0 m-0 border-0 pointer-events-none hidden' // Collapse completely
+              : 'opacity-100' // Normal visible state
+        }`}
       >
-        <Attach />
-      </Button>
-      {isLoading ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onStop?.();
-          }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 [&_svg]:size-5 text-textSubtle hover:text-textStandard"
-        >
-          <Stop size={24} />
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          size="icon"
-          variant="ghost"
-          disabled={!displayValue.trim()}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 text-textSubtle hover:text-textStandard ${
-            !displayValue.trim() ? 'text-textSubtle cursor-not-allowed' : ''
-          }`}
-        >
-          <Send />
-        </Button>
-      )}
-    </form>
+        {attachedImages.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2 justify-start">
+            {attachedImages.map((imageBase64, index) => (
+              <div key={index} className="relative max-w-xs">
+                <img
+                  src={imageBase64}
+                  alt={`Attached image preview ${index + 1}`}
+                  className="max-h-20 w-auto rounded border border-borderSubtle object-contain"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeAttachedImage(index);
+                  }}
+                  className="absolute -top-1 -right-1 p-0.5 bg-black/50 text-white rounded-full hover:bg-black/75 w-5 h-5 flex items-center justify-center"
+                  title={`Remove Image ${index + 1}`}
+                >
+                  <Close className="w-3 h-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-end gap-2">
+          <textarea
+            autoFocus
+            id="dynamic-textarea"
+            placeholder="What can goose help with?   ⌘↑/⌘↓"
+            value={value}
+            onChange={handleChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            ref={textAreaRef}
+            rows={1}
+            style={{
+              minHeight: `${minHeight}px`,
+              maxHeight: `${maxHeight}px`,
+              overflowY: 'auto',
+            }}
+            className="flex-1 outline-none border-none focus:ring-0 bg-transparent p-0 text-base resize-none text-textStandard self-center"
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5"
+            onClick={openFileDialog}
+            title="Attach File"
+          >
+            <Attach className="w-4 h-4" />
+          </Button>
+          {isLoading ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onStop && onStop();
+              }}
+              className="text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5"
+              title="Stop Generating"
+            >
+              <Stop size={20} />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              disabled={isLoading || (!value.trim() && attachedImages.length === 0)}
+              onClick={submitData}
+              className={`text-textSubtle hover:text-textStandard w-6 h-6 self-end mb-0.5 ${
+                isLoading || (!value.trim() && attachedImages.length === 0)
+                  ? 'text-textSubtle cursor-not-allowed opacity-50'
+                  : ''
+              }`}
+              title="Send Message"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Drop Zone Indicator - Style and positioning depend on mode */}
+      <div
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md text-center cursor-pointer transition-opacity duration-150 border-gray-300 ${
+          isOverlayMode
+            ? 'absolute top-4 right-4 bottom-4 left-4 z-10 opacity-100' // Overlay mode
+            : isCollapseReplaceMode
+              ? 'opacity-100 min-h-28' // Collapse/replace mode: visible, normal flow, with min-height
+              : 'opacity-0 h-0 overflow-hidden p-0 m-0 border-0 pointer-events-none hidden' // Hidden and collapsed
+        }`}
+      >
+        <div>
+          <Upload className="w-8 h-8 text-textSubtle mx-auto" />
+          <p className="text-textSubtle mt-1">Drop files here to upload into your goose chat</p>
+        </div>
+      </div>
+    </div>
   );
 }

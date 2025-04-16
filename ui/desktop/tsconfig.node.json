@@ -19,6 +19,10 @@
     "vite.renderer.config.ts",
     "forge.config.ts",
     "src/main.ts",
-    "src/preload.ts"
+    "src/preload.ts",
+    "src/goosed.ts",
+    "src/utils/loadEnv.ts",
+    "src/utils/recentDirs.ts",
+    "src/utils/settings.ts"
   ]
 }
