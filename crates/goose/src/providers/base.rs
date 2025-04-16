@@ -213,5 +213,5 @@ mod tests {
         // Get the updated model and verify
         let model = get_current_model();
         assert_eq!(model, Some("claude-3.5-sonnet".to_string()));
-    }    
+    }
 }
