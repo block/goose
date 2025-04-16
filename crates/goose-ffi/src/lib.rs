@@ -10,6 +10,9 @@ use goose::providers::databricks::DatabricksProvider;
 use once_cell::sync::OnceCell;
 use tokio::runtime::Runtime;
 
+// This class is in alpha and not yet ready for production use
+// and the API is not yet stable. Use at your own risk.
+
 // Thread-safe global runtime
 static RUNTIME: OnceCell<Runtime> = OnceCell::new();
 
@@ -42,7 +45,7 @@ pub enum ProviderType {
 /// - host: Provider host URL (null for default from environment variables)
 #[repr(C)]
 pub struct ProviderConfigFFI {
-    pub provider_type: u32,
+    pub provider_type: ProviderType,
     pub api_key: *const c_char,
     pub model_name: *const c_char,
     pub host: *const c_char,
@@ -50,13 +53,25 @@ pub struct ProviderConfigFFI {
 
 // Extension configuration will be implemented in a future commit
 
+/// Role enum for message participants
+#[repr(u32)]
+#[derive(Debug, Clone, Copy)]
+pub enum MessageRole {
+    /// User message role
+    User = 0,
+    /// Assistant message role
+    Assistant = 1,
+    /// System message role
+    System = 2,
+}
+
 /// Message structure for agent interactions
 ///
-/// - role: 0 = user, 1 = assistant, 2 = system
+/// - role: Message role (User, Assistant, or System)
 /// - content: Text content of the message
 #[repr(C)]
 pub struct MessageFFI {
-    pub role: u32,
+    pub role: MessageRole,
     pub content: *const c_char,
 }
 
@@ -116,16 +131,10 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
 
     let config = &*config;
 
-    // Check if the provider type is supported
+    // We currently only support Databricks provider
+    // This match ensures future compiler errors if new provider types are added without handling
     match config.provider_type {
-        0 => { /* Databricks provider is supported */ }
-        unsupported => {
-            eprintln!(
-                "Unsupported provider type: {}. Currently only Databricks (0) is supported.",
-                unsupported
-            );
-            return AgentPtr(ptr::null_mut());
-        }
+        ProviderType::Databricks => (), // Databricks provider is supported
     }
 
     // Get api_key from config or environment
@@ -201,13 +210,11 @@ pub unsafe extern "C" fn goose_agent_free(agent_ptr: AgentPtr) {
     }
 }
 
-// The add_extension functionality will be implemented in a future commit
-
-// Tool callback registration will be implemented in a future commit
-
 /// Send a message to the agent and get the response
 ///
 /// This function sends a message to the agent and returns the response.
+/// Tool handling is not yet supported and will be implemented in a future commit
+/// so this may change significantly
 ///
 /// # Parameters
 ///

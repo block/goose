@@ -12,6 +12,18 @@
 #include <stdbool.h>
 
 /*
+ Provider Type enumeration
+ Currently only Databricks is supported
+ */
+enum goose_ProviderType {
+  /*
+   Databricks AI provider
+   */
+  goose_ProviderType_Databricks = 0,
+};
+typedef uint32_t goose_ProviderType;
+
+/*
  Result type for async operations
 
  - succeeded: true if the operation succeeded, false otherwise
@@ -38,7 +50,7 @@ typedef struct goose_AgentPtr {
  - host: Provider host URL (null for default from environment variables)
  */
 typedef struct goose_ProviderConfigFFI {
-  uint32_t provider_type;
+  goose_ProviderType provider_type;
   const char *api_key;
   const char *model_name;
   const char *host;
@@ -96,6 +108,8 @@ void goose_agent_free(struct goose_AgentPtr agent_ptr);
  Send a message to the agent and get the response
 
  This function sends a message to the agent and returns the response.
+ Tool handling is not yet supported and will be implemented in a future commit
+ so this may change significantly
 
  # Parameters
 
