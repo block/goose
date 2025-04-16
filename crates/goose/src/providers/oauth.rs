@@ -40,12 +40,19 @@ struct TokenCache {
 }
 
 fn get_base_path() -> PathBuf {
-    // choose_app_strategy().config_dir()
-    // - macOS/Linux: ~/.config/goose/databricks/oauth
-    // - Windows:     ~\AppData\Roaming\Block\goose\config\databricks\oauth\
-    choose_app_strategy(crate::config::APP_STRATEGY.clone())
-        .expect("goose requires a home dir")
-        .in_config_dir("databricks/oauth")
+    // On Linux and macOS, use /tmp/.config/goose/databricks/oauth instead of ~/.config/goose/databricks/oauth
+    // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\databricks\oauth\
+    if cfg!(any(target_os = "linux", target_os = "macos")) {
+        let path = PathBuf::from("/tmp/.config/goose/databricks/oauth");
+        std::fs::create_dir_all(&path).ok();
+        path
+    } else {
+        let path = choose_app_strategy(crate::config::APP_STRATEGY.clone())
+            .expect("goose requires a home dir")
+            .in_config_dir("databricks/oauth");
+        std::fs::create_dir_all(&path).ok();
+        path
+    }
 }
 
 impl TokenCache {

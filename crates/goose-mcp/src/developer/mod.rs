@@ -334,15 +334,19 @@ impl DeveloperRouter {
             },
         };
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
+        // On Linux and macOS, use /tmp/.config/goose/ instead of ~/.config/goose/
+        // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\
+        let global_hints_path = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let path = PathBuf::from("/tmp/.config/goose/.goosehints");
+            let _ = std::fs::create_dir_all(path.parent().unwrap());
+            path
+        } else {
+            choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(".goosehints"))
+                .unwrap_or_else(|_| {
+                    PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
+                })
+        };
 
         // Create the directory if it doesn't exist
         let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
@@ -380,13 +384,19 @@ impl DeveloperRouter {
         let mut builder = GitignoreBuilder::new(cwd.clone());
         let mut has_ignore_file = false;
         // Initialize ignore patterns
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        let global_ignore_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".gooseignore"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.gooseignore").to_string())
-            });
+        // On Linux and macOS, use /tmp/.config/goose/ instead of ~/.config/goose/
+        // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\
+        let global_ignore_path = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let path = PathBuf::from("/tmp/.config/goose/.gooseignore");
+            let _ = std::fs::create_dir_all(path.parent().unwrap());
+            path
+        } else {
+            choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(".gooseignore"))
+                .unwrap_or_else(|_| {
+                    PathBuf::from(shellexpand::tilde("~/.config/goose/.gooseignore").to_string())
+                })
+        };
 
         // Create the directory if it doesn't exist
         let _ = std::fs::create_dir_all(global_ignore_path.parent().unwrap());

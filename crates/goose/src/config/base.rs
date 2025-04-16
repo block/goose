@@ -113,14 +113,19 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        let config_dir = choose_app_strategy(APP_STRATEGY.clone())
-            .expect("goose requires a home dir")
-            .config_dir();
-
-        std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+        // On Linux and macOS, use /tmp/.config/goose/ instead of ~/.config/goose/
+        // On Windows, use the standard location: ~\AppData\Roaming\Block\goose\config\
+        let config_dir = if cfg!(any(target_os = "linux", target_os = "macos")) {
+            let tmp_config_dir = PathBuf::from("/tmp/.config/goose");
+            std::fs::create_dir_all(&tmp_config_dir).expect("Failed to create config directory");
+            tmp_config_dir
+        } else {
+            let dir = choose_app_strategy(APP_STRATEGY.clone())
+                .expect("goose requires a home dir")
+                .config_dir();
+            std::fs::create_dir_all(&dir).expect("Failed to create config directory");
+            dir
+        };
 
         let config_path = config_dir.join("config.yaml");
 
