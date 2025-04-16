@@ -34,6 +34,26 @@ impl PromptManager {
         self.system_prompt_override = Some(template);
     }
 
+    /// Normalize a model name (replace - and / with _, lower case)
+    fn normalize_model_name(name: &str) -> String {
+        name.replace(['-', '/'], "_").to_lowercase()
+    }
+
+    /// Map model (normalized) to prompt filenames; returns filename if a key is contained in the normalized model
+    fn model_prompt_map(model: &str) -> Option<&'static str> {
+        let mut map = HashMap::new();
+        map.insert("gpt_4_1", "system_gpt_4_1.md");
+        map.insert("gpt_3_5", "system_gpt_3_5.md");
+        // Add more mappings as needed
+        let norm_model = Self::normalize_model_name(model);
+        for (key, val) in &map {
+            if norm_model.contains(key) {
+                return Some(*val);
+            }
+        }
+        None
+    }
+
     /// Build the final system prompt
     ///
     /// * `extensions_info` – extension information for each extension/MCP
@@ -66,9 +86,12 @@ impl PromptManager {
             prompt_template::render_inline_once(override_prompt, &context)
                 .expect("Prompt should render")
         } else if let Some(model) = model_name {
-            // Try to load a model-specific system prompt first
-            let model_specific_file = format!("system_{}.md", model.replace(['-', '/'], "_"));
-            match prompt_template::render_global_file(&model_specific_file, &context) {
+            // Use the fuzzy mapping to determine the prompt file, or fall back to legacy logic
+            let prompt_file = Self::model_prompt_map(model)
+                .unwrap_or_else(|| {
+                    Box::leak(format!("system_{}.md", Self::normalize_model_name(model)).into_boxed_str())
+                });
+            match prompt_template::render_global_file(prompt_file, &context) {
                 Ok(prompt) => prompt,
                 Err(_) => {
                     // Fall back to the standard system.md if model-specific one doesn't exist
