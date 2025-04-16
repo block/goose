@@ -24,10 +24,8 @@ fn get_runtime() -> &'static Runtime {
     })
 }
 
-/// Opaque pointer to Agent
-#[repr(C)]
-pub struct AgentPtr(*mut Agent);
-
+/// Pointer type for the agent
+pub type AgentPtr = *mut Agent;
 /// Provider Type enumeration
 /// Currently only Databricks is supported
 #[repr(u32)]
@@ -126,7 +124,7 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
     // Check for null pointer
     if config.is_null() {
         eprintln!("Error: config pointer is null");
-        return AgentPtr(ptr::null_mut());
+        return ptr::null_mut();
     }
 
     let config = &*config;
@@ -145,7 +143,7 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
             Ok(key) => key,
             Err(_) => {
                 eprintln!("Error: api_key not provided and DATABRICKS_API_KEY environment variable not set");
-                return AgentPtr(ptr::null_mut());
+                return ptr::null_mut();
             }
         }
     };
@@ -153,7 +151,7 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
     // Check and get required model_name (no env fallback for model)
     if config.model_name.is_null() {
         eprintln!("Error: model_name is required but was null");
-        return AgentPtr(ptr::null_mut());
+        return ptr::null_mut();
     }
     let model_name = CStr::from_ptr(config.model_name)
         .to_string_lossy()
@@ -169,7 +167,7 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
                 eprintln!(
                     "Error: host not provided and DATABRICKS_HOST environment variable not set"
                 );
-                return AgentPtr(ptr::null_mut());
+                return ptr::null_mut();
             }
         }
     };
@@ -181,11 +179,11 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
     match DatabricksProvider::from_params(host, api_key, model_config) {
         Ok(provider) => {
             let agent = Agent::new(Arc::new(provider));
-            AgentPtr(Box::into_raw(Box::new(agent)))
+            Box::into_raw(Box::new(agent))
         }
         Err(e) => {
             eprintln!("Error creating Databricks provider: {:?}", e);
-            AgentPtr(ptr::null_mut())
+            ptr::null_mut()
         }
     }
 }
@@ -205,8 +203,8 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
 /// calling this function.
 #[no_mangle]
 pub unsafe extern "C" fn goose_agent_free(agent_ptr: AgentPtr) {
-    if !agent_ptr.0.is_null() {
-        let _ = Box::from_raw(agent_ptr.0);
+    if !agent_ptr.is_null() {
+        let _ = Box::from_raw(agent_ptr);
     }
 }
 
@@ -235,11 +233,11 @@ pub unsafe extern "C" fn goose_agent_send_message(
     agent_ptr: AgentPtr,
     message: *const c_char,
 ) -> *mut c_char {
-    if agent_ptr.0.is_null() || message.is_null() {
+    if agent_ptr.is_null() || message.is_null() {
         return ptr::null_mut();
     }
 
-    let agent = &mut *agent_ptr.0;
+    let agent = &mut *agent_ptr;
     let message = CStr::from_ptr(message).to_string_lossy().to_string();
 
     let messages = vec![Message::user().with_text(&message)];
