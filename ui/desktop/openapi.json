@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.0.17"
+    "version": "1.0.18"
   },
   "paths": {
     "/agent/tools": {
