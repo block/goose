@@ -9,7 +9,6 @@ function RuleItem({ title, description }: { title: string; description: string }
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleModalClose = () => {
-    console.log('close modal');
     setIsModalOpen(false);
   };
 

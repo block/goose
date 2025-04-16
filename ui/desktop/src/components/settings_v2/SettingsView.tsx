@@ -1,6 +1,6 @@
 import { ScrollArea } from '../ui/scroll-area';
 import BackButton from '../ui/BackButton';
-import type { View } from '../../App';
+import type { View, ViewOptions } from '../../App';
 import ExtensionsSection from './extensions/ExtensionsSection';
 import ModelsSection from './models/ModelsSection';
 import { ModeSection } from './mode/ModeSection';
@@ -18,7 +18,7 @@ export default function SettingsView({
   viewOptions,
 }: {
   onClose: () => void;
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
   return (

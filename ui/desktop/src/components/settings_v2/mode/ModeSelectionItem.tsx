@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
-import { View } from '../../../App';
+import { View, ViewOptions } from '../../../App';
 
 export interface GooseMode {
   key: string;
@@ -32,47 +32,13 @@ export const all_goose_modes: GooseMode[] = [
   },
 ];
 
-export function filterGooseModes(
-  currentMode: string,
-  modes: GooseMode[],
-  previousApproveMode: string
-) {
-  return modes.filter((mode) => {
-    const approveList = ['approve', 'smart_approve'];
-    const nonApproveList = ['auto', 'chat'];
-    // Always keep 'auto' and 'chat'
-    if (nonApproveList.includes(mode.key)) {
-      return true;
-    }
-    // If current mode is non approve mode, we display write approve by default.
-    if (nonApproveList.includes(currentMode) && !previousApproveMode) {
-      return mode.key === 'smart_approve';
-    }
-
-    // Always include the current and previou approve mode
-    if (mode.key === currentMode) {
-      return true;
-    }
-
-    // Current mode and previous approve mode cannot exist at the same time.
-    if (approveList.includes(currentMode) && approveList.includes(previousApproveMode)) {
-      return false;
-    }
-
-    if (mode.key === previousApproveMode) {
-      return true;
-    }
-
-    return false;
-  });
-}
-
 interface ModeSelectionItemProps {
   currentMode: string;
   mode: GooseMode;
   showDescription: boolean;
   isApproveModeConfigure: boolean;
-  setView: (view: View) => void;
+  parentView: View;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   handleModeChange: (newMode: string) => void;
 }
 
@@ -81,6 +47,7 @@ export function ModeSelectionItem({
   mode,
   showDescription,
   isApproveModeConfigure,
+  parentView,
   setView,
   handleModeChange,
 }: ModeSelectionItemProps) {
@@ -112,7 +79,9 @@ export function ModeSelectionItem({
           {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
             <button
               onClick={() => {
-                setView('permission');
+                setView('permission', {
+                  parentView,
+                });
               }}
             >
               <Gear className="w-5 h-5 text-textSubtle hover:text-textStandard" />
