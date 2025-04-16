@@ -47,6 +47,7 @@
     "@playwright/test": "^1.51.1",
     "@tailwindcss/typography": "^0.5.15",
     "@types/cors": "^2.8.17",
+    "@types/electron": "^1.4.38",
     "@types/electron-squirrel-startup": "^1.0.2",
     "@types/electron-window-state": "^2.0.34",
     "@types/express": "^5.0.0",
