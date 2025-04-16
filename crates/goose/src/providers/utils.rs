@@ -149,7 +149,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
             Err(ProviderError::Authentication(format!("Authentication failed. Please ensure your API keys are valid and have the required permissions. \
                 Status: {}. Response: {:?}", final_status, payload )))
         }
-        StatusCode::BAD_REQUEST => {
+        StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND => {
             let mut error_msg = "Unknown error".to_string();
             if let Some(payload) = &payload {
                 if let Some(error) = payload.get("error") {
