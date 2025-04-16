@@ -36,7 +36,7 @@ impl PromptManager {
 
     /// Normalize a model name (replace - and / with _, lower case)
     fn normalize_model_name(name: &str) -> String {
-        name.replace(['-', '/'], "_").to_lowercase()
+        name.replace(['-', '/', '.'], "_").to_lowercase()
     }
 
     /// Map model (normalized) to prompt filenames; returns filename if a key is contained in the normalized model
@@ -132,5 +132,36 @@ impl PromptManager {
     pub async fn get_recipe_prompt(&self) -> String {
         let context: HashMap<&str, Value> = HashMap::new();
         prompt_template::render_global_file("recipe.md", &context).expect("Prompt should render")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_model_name() {
+        assert_eq!(PromptManager::normalize_model_name("gpt-4.1"), "gpt_4_1");
+        assert_eq!(PromptManager::normalize_model_name("gpt/3.5"), "gpt_3_5");
+        assert_eq!(PromptManager::normalize_model_name("GPT-3.5/PLUS"), "gpt_3_5_plus");
+    }
+
+    #[test]
+    fn test_model_prompt_map_matches() {
+        // should match prompts based on contained normalized keys
+        assert_eq!(PromptManager::model_prompt_map("gpt-4.1"), Some("system_gpt_4_1.md"));
+        assert_eq!(PromptManager::model_prompt_map("openai/gpt-4.1"), Some("system_gpt_4_1.md"));
+        assert_eq!(PromptManager::model_prompt_map("goose-gpt-4-1"), Some("system_gpt_4_1.md"));
+        assert_eq!(PromptManager::model_prompt_map("gpt-4-1-huge"), Some("system_gpt_4_1.md"));
+        assert_eq!(PromptManager::model_prompt_map("openai/gpt-3.5-turbo"), Some("system_gpt_3_5.md"));
+    }
+    
+    #[test]
+    fn test_model_prompt_map_none() {
+        // should return None for unrecognized/unsupported model names
+        assert_eq!(PromptManager::model_prompt_map("llama-3-70b"), None);
+        assert_eq!(PromptManager::model_prompt_map("goose"), None);
+        assert_eq!(PromptManager::model_prompt_map("claude-3.7-sonnet"), None);
+        assert_eq!(PromptManager::model_prompt_map("xxx-unknown-model"), None);
     }
 }
