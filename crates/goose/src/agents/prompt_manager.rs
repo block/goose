@@ -3,6 +3,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
+use crate::providers::get_current_model;
 use crate::{config::Config, prompt_template};
 
 pub struct PromptManager {
@@ -80,11 +81,17 @@ impl PromptManager {
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         context.insert("current_date_time", Value::String(current_date_time));
 
+        // First check the global store, and only if it's not available, fall back to the provided model_name
+        let model_to_use: Option<String> =
+            get_current_model().or_else(|| model_name.map(|s| s.to_string()));
+
+        print!("Model to use: {:?}", model_to_use);
+
         // Conditionally load the override prompt or the global system prompt
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
             prompt_template::render_inline_once(override_prompt, &context)
                 .expect("Prompt should render")
-        } else if let Some(model) = model_name {
+        } else if let Some(model) = &model_to_use {
             // Use the fuzzy mapping to determine the prompt file, or fall back to legacy logic
             let prompt_file = Self::model_prompt_map(model);
             match prompt_template::render_global_file(prompt_file, &context) {
@@ -152,6 +159,12 @@ mod tests {
             PromptManager::model_prompt_map("gpt-4.1"),
             "system_gpt_4_1.md"
         );
+
+        assert_eq!(
+            PromptManager::model_prompt_map("gpt-4.1-2025-04-14"),
+            "system_gpt_4_1.md"
+        );
+
         assert_eq!(
             PromptManager::model_prompt_map("openai/gpt-4.1"),
             "system_gpt_4_1.md"

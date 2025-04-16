@@ -90,6 +90,9 @@ impl Agent {
         // Call the provider to get a response
         let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
 
+        // Store the model information in the global store
+        crate::providers::set_current_model(&usage.model);
+
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {
             let interpreter = OllamaInterpreter::new().map_err(|e| {
