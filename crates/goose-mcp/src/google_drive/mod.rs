@@ -1216,7 +1216,7 @@ impl GoogleDriveRouter {
                 // Validation: check for / path separators as invalid uris
                 if drive_uri.contains('/') {
                     return Err(ToolError::InvalidParameters(format!(
-                        "The uri '{}' conatins extra '/'. Only the base URI is allowed.",
+                        "The uri '{}' contains extra '/'. Only the base URI is allowed.",
                         uri
                     )));
                 }
