@@ -27,7 +27,7 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
-  EnableExtensionRequestMessageContent,
+  ExtensionRequestMessageContent,
 } from '../types/message';
 
 export interface ChatType {
@@ -47,7 +47,7 @@ const isUserMessage = (message: Message): boolean => {
   if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
     return false;
   }
-  if (message.content.every((c) => c.type === 'enableExtensionRequest')) {
+  if (message.content.every((c) => c.type === 'extensionRequest')) {
     return false;
   }
   return true;
@@ -258,13 +258,13 @@ export default function ChatView({
             return [content.id, toolCall];
           }
         });
-      const enableExtensionRequests = lastMessage.content
+      const extensionRequests = lastMessage.content
         .filter(
-          (content): content is EnableExtensionRequestMessageContent =>
-            content.type === 'enableExtensionRequest'
+          (content): content is ExtensionRequestMessageContent =>
+            content.type === 'extensionRequest'
         )
         .map((content) => {
-          return [content.id, content.extensionName];
+          return [content.id, content.extensionCall];
         });
 
       if (toolRequests.length !== 0) {
@@ -298,7 +298,7 @@ export default function ChatView({
 
       // do the same for enable extension requests
       // leverages toolResponse to send the error notification
-      if (enableExtensionRequests.length !== 0) {
+      if (extensionRequests.length !== 0) {
         let responseMessage: Message = {
           role: 'user',
           created: Date.now(),
@@ -306,7 +306,7 @@ export default function ChatView({
         };
         const notification = 'Interrupted by the user to make a correction';
         // generate a response saying it was interrupted for each extension request
-        for (const [reqId, _] of enableExtensionRequests) {
+        for (const [reqId, _] of extensionRequests) {
           const toolResponse: ToolResponseMessageContent = {
             type: 'toolResponse',
             id: reqId,
@@ -336,9 +336,9 @@ export default function ChatView({
         (c) => c.type === 'toolConfirmationRequest'
       );
 
-      const hasEnableExtension = message.content.every((c) => c.type === 'enableExtensionRequest');
+      const hasExtensionRequest = message.content.every((c) => c.type === 'extensionRequest');
       // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation || hasEnableExtension;
+      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation || hasExtensionRequest;
     }
 
     return true;
