@@ -102,12 +102,12 @@ pub struct DeveloperRouter {
 
 impl Default for DeveloperRouter {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 
 impl DeveloperRouter {
-    pub fn new() -> Self {
+    pub fn new(disable_local_hints: bool) -> Self {
         // TODO consider rust native search tools, we could use
         // https://docs.rs/ignore/latest/ignore/
 
@@ -492,8 +492,9 @@ impl DeveloperRouter {
                 }
             }
 
+            // Read local hints if they exist and are enabled
             let local_hints_path = cwd.join(hints_filename);
-            if local_hints_path.is_file() {
+            if !disable_local_hints && local_hints_path.is_file() {
                 if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
                     local_hints_contents.push(content);
                 }
@@ -512,6 +513,11 @@ impl DeveloperRouter {
             }
             hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
             hints.push_str(&local_hints_contents.join("\n"));
+        } else if disable_local_hints && hints_filenames.iter().any(|filename| cwd.join(filename).is_file()) {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
+            }
+            hints.push_str("### Project Hints\nLocal hints are disabled via configuration.\n");
         }
 
         // Return base instructions directly when no hints are found
@@ -1722,38 +1728,54 @@ mod tests {
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
+    struct FileBackup {
+        path: PathBuf,
+        original_content: Option<String>,
+    }
+
+    impl FileBackup {
+        fn new(path: PathBuf) -> Self {
+            let original_content = if path.exists() {
+                Some(fs::read_to_string(&path).unwrap_or_default())
+            } else {
+                None
+            };
+            Self {
+                path,
+                original_content,
+            }
+        }
+    }
+
+    impl Drop for FileBackup {
+        fn drop(&mut self) {
+            if let Some(content) = &self.original_content {
+                let _ = fs::write(&self.path, content);
+            } else if self.path.exists() {
+                let _ = fs::remove_file(&self.path);
+            }
+        }
+    }
+
     #[test]
     #[serial]
     fn test_global_goosehints() {
         // if ~/.config/goose/.goosehints exists, it should be included in the instructions
-        // copy the existing global hints file to a .bak file
         let global_hints_path =
             PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string());
-        let global_hints_bak_path =
-            PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints.bak").to_string());
-        let mut globalhints_existed = false;
 
-        if global_hints_path.is_file() {
-            globalhints_existed = true;
-            fs::copy(&global_hints_path, &global_hints_bak_path).unwrap();
-        }
+        let _backup = FileBackup::new(global_hints_path.clone());
 
         fs::write(&global_hints_path, "These are my global goose hints.").unwrap();
 
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
         let instructions = router.instructions();
 
         assert!(instructions.contains("### Global Hints"));
         assert!(instructions.contains("my global goose hints."));
-
-        // restore backup if globalhints previously existed
-        if globalhints_existed {
-            fs::copy(&global_hints_bak_path, &global_hints_path).unwrap();
-            fs::remove_file(&global_hints_bak_path).unwrap();
-        }
     }
 
     #[test]
@@ -1763,10 +1785,69 @@ mod tests {
         std::env::set_current_dir(dir.path()).unwrap();
 
         fs::write(".goosehints", "Test hint content").unwrap();
-        let router = DeveloperRouter::new();
+        // Use default config where disable_local_hints is false
+        let router = DeveloperRouter::new(false);
         let instructions = router.instructions();
 
         assert!(instructions.contains("Test hint content"));
+        assert!(instructions.contains("Project Hints"));
+        assert!(instructions.contains("The developer extension includes some hints for working on the project in this directory"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_when_disabled_via_config() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Create a test with disable_local_hints set to true
+        let disable_local_hints = true;
+
+        fs::write(".goosehints", "Test hint content").unwrap();
+        let router = DeveloperRouter::new(disable_local_hints);
+        let instructions = router.instructions();
+
+        assert!(!instructions.contains("Test hint content"));
+        assert!(instructions.contains("Local hints are disabled via configuration"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_with_global_and_local() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Save current global hints if they exist
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
+            });
+
+        let _backup = FileBackup::new(global_hints_path.clone());
+
+        // Set up test files
+        fs::create_dir_all(global_hints_path.parent().unwrap()).unwrap();
+        fs::write(&global_hints_path, "Global hint content").unwrap();
+        fs::write(".goosehints", "Local hint content").unwrap();
+
+        // Test with both hints enabled (using default where disable_local_hints is false)
+        let router = DeveloperRouter::new(false);
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Global hint content"));
+        assert!(instructions.contains("Global Hints"));
+        assert!(instructions.contains("Local hint content"));
+        assert!(instructions.contains("Project Hints"));
+
+        // Test with local hints disabled (disable_local_hints set to true)
+        let router = DeveloperRouter::new(true);
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Global hint content"));
+        assert!(instructions.contains("Global Hints"));
+        assert!(!instructions.contains("Local hint content"));
+        assert!(instructions.contains("Local hints are disabled"));
     }
 
     #[test]
@@ -1775,17 +1856,46 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let router = DeveloperRouter::new();
+        // Make sure there are no global hints
+        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.in_config_dir(".goosehints"))
+            .unwrap_or_else(|_| {
+                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
+            });
+
+        let _backup = FileBackup::new(global_hints_path.clone());
+
+        // Remove global hints temporarily if they exist
+        if global_hints_path.exists() {
+            fs::remove_file(&global_hints_path).unwrap();
+        }
+
+        let router = DeveloperRouter::new(false);
         let instructions = router.instructions();
 
         assert!(!instructions.contains("Project Hints"));
+        assert!(!instructions.contains("Global Hints"));
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_missing_with_config_disable() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        // Test that disabling local hints doesn't show disabled message when no hints exist
+        let router = DeveloperRouter::new(true);
+        let instructions = router.instructions();
+
+        assert!(!instructions.contains("Project Hints"));
+        assert!(!instructions.contains("Local hints are disabled"));
     }
 
     static DEV_ROUTER: OnceCell<DeveloperRouter> = OnceCell::const_new();
 
     async fn get_router() -> &'static DeveloperRouter {
         DEV_ROUTER
-            .get_or_init(|| async { DeveloperRouter::new() })
+            .get_or_init(|| async { DeveloperRouter::new(false) })
             .await
     }
 
@@ -1818,7 +1928,7 @@ mod tests {
 
         fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
         fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
         let instructions = router.instructions();
 
         assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
@@ -1834,7 +1944,7 @@ mod tests {
         std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
 
         fs::write("CLAUDE.md", "Custom hints file content").unwrap();
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
         let instructions = router.instructions();
 
         assert!(instructions.contains("Custom hints file content"));
@@ -2219,7 +2329,7 @@ mod tests {
         let ignore_patterns = builder.build().unwrap();
 
         let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools, // Reuse default tools
+            tools: DeveloperRouter::new(false).tools, // Reuse default tools
             prompts: Arc::new(HashMap::new()),
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -2279,7 +2389,7 @@ mod tests {
         let ignore_patterns = builder.build().unwrap();
 
         let router = DeveloperRouter {
-            tools: DeveloperRouter::new().tools, // Reuse default tools
+            tools: DeveloperRouter::new(false).tools, // Reuse default tools
             prompts: Arc::new(HashMap::new()),
             instructions: String::new(),
             file_history: Arc::new(Mutex::new(HashMap::new())),
@@ -2333,7 +2443,7 @@ mod tests {
         // Create a .gitignore file but no .gooseignore
         std::fs::write(temp_dir.path().join(".gitignore"), "*.log\n*.tmp\n.env").unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Test that gitignore patterns are respected
         assert!(
@@ -2366,7 +2476,7 @@ mod tests {
         std::fs::write(temp_dir.path().join(".gooseignore"), "*.secret").unwrap();
         std::fs::write(temp_dir.path().join(".gitignore"), "*.log\ntarget/").unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // .gooseignore patterns should be used
         assert!(
@@ -2394,7 +2504,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Don't create any ignore files
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Default patterns should be used
         assert!(
@@ -2424,7 +2534,7 @@ mod tests {
         std::env::set_current_dir(&temp_dir).unwrap();
 
         // Test without editor API configured (should be the case in tests due to cfg!(test))
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
         let tools = router.list_tools();
         let text_editor_tool = tools.iter().find(|t| t.name == "text_editor").unwrap();
 
@@ -2472,7 +2582,7 @@ mod tests {
         // Create a .gitignore file but no .gooseignore
         std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Try to write to a file ignored by .gitignore
         let result = router
@@ -2523,7 +2633,7 @@ mod tests {
         // Create a .gitignore file but no .gooseignore
         std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Create a file that would be ignored by .gitignore
         let log_file_path = temp_dir.path().join("test.log");
@@ -3327,7 +3437,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Test with short output (< 100 lines)
         let short_output = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
@@ -3343,7 +3453,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         std::env::set_current_dir(dir.path()).unwrap();
 
-        let router = DeveloperRouter::new();
+        let router = DeveloperRouter::new(false);
 
         // Test with empty output
         let empty_output = "";
