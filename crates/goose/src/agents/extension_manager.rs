@@ -13,6 +13,7 @@ use tokio::task;
 use tracing::debug;
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
+use super::extension_manager_suggestions::ExtensionManagerSuggestions;
 use crate::config::ExtensionConfigManager;
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
@@ -32,6 +33,7 @@ pub struct ExtensionManager {
     clients: HashMap<String, McpClientBox>,
     instructions: HashMap<String, String>,
     resource_capable_extensions: HashSet<String>,
+    suggestions: ExtensionManagerSuggestions,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -102,6 +104,7 @@ impl ExtensionManager {
             clients: HashMap::new(),
             instructions: HashMap::new(),
             resource_capable_extensions: HashSet::new(),
+            suggestions: ExtensionManagerSuggestions::new(),
         }
     }
 
@@ -224,6 +227,28 @@ impl ExtensionManager {
         self.instructions.remove(&sanitized_name);
         self.resource_capable_extensions.remove(&sanitized_name);
         Ok(())
+    }
+
+    pub async fn should_suggest_disable(&self) -> bool {
+        let enabled_extensions_count = self.clients.len();
+        let total_tools = self
+            .get_prefixed_tools(None)
+            .await
+            .map(|tools| tools.len())
+            .unwrap_or(0);
+
+        // Check if either condition is met
+        enabled_extensions_count >= 3 || total_tools >= 32
+    }
+
+    pub async fn should_show_disable_suggestion(&self) -> bool {
+        // First check if we should suggest based on current state
+        if !self.should_suggest_disable().await {
+            return false;
+        }
+
+        // Then check suggestion limits and cooldown
+        self.suggestions.should_show_disable_suggestion()
     }
 
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
@@ -675,6 +700,16 @@ impl ExtensionManager {
 
         Ok(vec![Content::text(output_parts.join("\n"))])
     }
+
+    // Add a method to record suggestions
+    pub fn record_disable_suggestion(&mut self) {
+        self.suggestions.record_disable_suggestion();
+    }
+
+    // Optional: expose suggestion configuration
+    pub fn set_disable_suggestion_cooldown(&mut self, duration: Duration) {
+        self.suggestions.set_disable_suggestion_cooldown(duration);
+    }
 }
 
 #[cfg(test)]
@@ -877,5 +912,61 @@ mod tests {
             .dispatch_tool_call(invalid_tool_call)
             .await;
         assert!(matches!(result.err().unwrap(), ToolError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn test_should_show_disable_suggestion() {
+        // Create a new ExtensionManager
+        let mut extension_manager = ExtensionManager::new();
+
+        // Test case 1: No clients, should not suggest disable
+        assert!(!extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 2: Less than 3 clients, should not suggest disable
+        extension_manager.clients.insert(
+            normalize("client1".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+        extension_manager.clients.insert(
+            normalize("client2".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+        assert!(!extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 3: Exactly 3 clients, should suggest disable
+        extension_manager.clients.insert(
+            normalize("client3".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+        assert!(extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 4: More than 3 clients, should suggest disable
+        extension_manager.clients.insert(
+            normalize("client4".to_string()),
+            Arc::new(Mutex::new(Box::new(MockClient {}))),
+        );
+        assert!(extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 5: With last_disable_suggestion set to now, should not suggest disable
+        extension_manager.record_disable_suggestion();
+        assert!(!extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 6: With last_disable_suggestion set to a time before cooldown, should not suggest disable
+        // We can't directly manipulate the internal state of suggestions, so we'll use the public API
+        extension_manager.set_disable_suggestion_cooldown(Duration::from_secs(5));
+        extension_manager.record_disable_suggestion();
+        assert!(!extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 7: With last_disable_suggestion set to a time after cooldown, should suggest disable
+        // We can't directly manipulate the time, so we'll use a very short cooldown
+        extension_manager.set_disable_suggestion_cooldown(Duration::from_millis(1));
+        // Wait a bit to ensure the cooldown has passed
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        assert!(extension_manager.should_show_disable_suggestion().await);
+
+        // Test case 8: With custom cooldown duration
+        extension_manager.set_disable_suggestion_cooldown(Duration::from_secs(5));
+        extension_manager.record_disable_suggestion();
+        assert!(!extension_manager.should_show_disable_suggestion().await);
     }
 }
