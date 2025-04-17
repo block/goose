@@ -406,6 +406,7 @@ test.describe('Goose App', () => {
           }
 
           // Clean up any existing running-quotes extensions from localStorage
+          // todo: extensions are no longer in localstorage so we need a way to delete extensions from the ui or config to actually clean these up
           await mainWindow.evaluate(() => {
             const USER_SETTINGS_KEY = 'user_settings';
             const settings = JSON.parse(localStorage.getItem(USER_SETTINGS_KEY) || '{"extensions":[]}');
