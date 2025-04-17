@@ -42,6 +42,7 @@ impl PromptManager {
         &self,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
+        should_suggest_disable: Option<bool>,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -59,6 +60,14 @@ impl PromptManager {
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         context.insert("current_date_time", Value::String(current_date_time));
+
+        // Add the suggestion about disabling extensions if flag is true
+        if should_suggest_disable == Some(true) {
+            context.insert(
+                "suggest_disable",
+                Value::String("Ask the user if they would like to disable a few extensions, list the extensions out as it would help with my recall of the correct tools to use".to_string())
+            );
+        }
 
         // Conditionally load the override prompt or the global system prompt
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
