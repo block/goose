@@ -33,7 +33,7 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use super::{platform_tools, prompt_manager};
+use super::platform_tools;
 use super::tool_execution::{
     ExtensionInstallResult, ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
 };
@@ -578,6 +578,16 @@ impl Agent {
         let token_counter = TokenCounter::new(new_provider.get_model_config().tokenizer_name());
         *self.token_counter.lock().await = Some(token_counter);
         *self.provider.lock().await = Some(new_provider);
+        Ok(())
+    }
+
+    pub async fn update_provider_with_provider(
+        &self,
+        provider: Arc<dyn Provider>,
+    ) -> Result<()> {
+        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
+        *self.token_counter.lock().await = Some(token_counter);
+        *self.provider.lock().await = Some(provider);
         Ok(())
     }
 

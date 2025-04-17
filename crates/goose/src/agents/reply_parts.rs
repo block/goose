@@ -36,7 +36,8 @@ impl Agent {
         let model_config = provider.as_ref().unwrap().get_model_config();
         let model_name = &model_config.model_name;
 
-        let mut system_prompt = self.prompt_manager.build_system_prompt(
+        let prompt_manager = self.prompt_manager.lock().await;
+        let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
             Some(model_name),
