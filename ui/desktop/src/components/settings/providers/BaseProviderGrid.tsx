@@ -88,7 +88,7 @@ function BaseProviderCard({
       >
         <div>
           <div className="flex items-center">
-            <h3 className="text-base font-medium text-textStandard truncate mr-2">test {name}</h3>
+            <h3 className="text-base font-medium text-textStandard truncate mr-2">{name}</h3>
 
             {/* Configured state: Green check */}
             {isConfigured && (
