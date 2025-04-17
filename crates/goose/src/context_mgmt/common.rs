@@ -19,10 +19,7 @@ pub fn estimate_target_context_limit(provider: Arc<dyn Provider>) -> usize {
     target_limit - (SYSTEM_PROMPT_TOKEN_OVERHEAD + TOOLS_TOKEN_OVERHEAD)
 }
 
-pub fn get_messages_token_counts(
-    token_counter: &TokenCounter,
-    messages: &mut [Message],
-) -> Vec<usize> {
+pub fn get_messages_token_counts(token_counter: &TokenCounter, messages: &[Message]) -> Vec<usize> {
     // Calculate current token count of each message, use count_chat_tokens to ensure we
     // capture the full content of the message, include ToolRequests and ToolResponses
     messages

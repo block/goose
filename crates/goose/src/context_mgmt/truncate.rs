@@ -7,23 +7,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::debug;
 
-/// Public API to truncate oldest messages so that the conversation's token count is within the allowed context limit.
-pub fn truncate_context(
-    provider: Arc<dyn Provider>,
-    messages: &mut Vec<Message>,
-    token_counter: &TokenCounter,
-) -> Result<(), anyhow::Error> {
-    let target_context_limit = estimate_target_context_limit(provider);
-    let mut token_counts = get_messages_token_counts(token_counter, messages);
-
-    truncate_messages(
-        messages,
-        &mut token_counts,
-        target_context_limit,
-        &OldestFirstTruncation,
-    )
-}
-
 /// Truncates the messages to fit within the model's context window.
 /// Mutates the input messages and token counts in place.
 /// Returns an error if it's impossible to truncate the messages within the context limit.
@@ -31,7 +14,7 @@ pub fn truncate_context(
 /// - token_counts: A parallel vector containing the token count for each message.
 /// - context_limit: The maximum allowed context length in tokens.
 /// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
-fn truncate_messages(
+pub fn truncate_messages(
     messages: &mut Vec<Message>,
     token_counts: &mut Vec<usize>,
     context_limit: usize,
