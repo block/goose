@@ -12,6 +12,19 @@ A shared Agent in Goose is like a collaborative workspace where multiple people 
 ## Create a shared Agent
 When you create an Agent to be shared, you are creating a host Agent. When your host terminates, the shared Agents are disconnected and collaborators can no longer see activity in the host.
 
+### Setup recipe
+To create a custom session (whether using the desktop app or CLI), you'll need:
+
+* Instructions for the AI
+* Activities it should perform
+*(* A custom prompt (optional)
+
+The CLI calls this a "recipe." The desktop app shows these same options in the Agent Created dialog when you create a new shared session.
+
+:::tip 
+Both tools need the same information, they just use different names for it.
+:::
+
 ### Agent setup instructions
 When you share your Goose Agent setup (either through the command line or desktop app), you'll get a chance to review and edit the setup instructions. These instructions come from your current session, but they might need some extra details to work well for others.
 
@@ -30,6 +43,9 @@ When you work with Goose, it keeps track of everything you do together. Before s
 * Remove any activities that aren't relevant for your teammates
 
 For example: If you used Goose for both writing the application UI and helping you debug it, but only want to share the debugging part, you can remove the coding the application activities.
+
+
+
 
 <Tabs>
     <TabItem value="cli" label="Goose CLI" default>
