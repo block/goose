@@ -1,6 +1,25 @@
-pub fn summarize_context() {
-    todo!()
+use crate::message::Message;
+use crate::providers::base::Provider;
+use crate::token_counter::TokenCounter;
+use anyhow::Result;
+use std::sync::Arc;
+
+// TODO: remove afterwards
+pub async fn summarize_messages(
+    provider: Arc<dyn Provider>,
+    messages: &mut Vec<Message>,
+    token_counter: &TokenCounter,
+    context_limit: usize,
+) -> Result<(), anyhow::Error> {
+    messages.clear();
+    messages.push(Message::user().with_text("This is a test summary message."));
+
+    Ok(())
 }
+
+// TODO: bring back a version of the synopsis summary
+// https://github.com/block/goose/blame/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/summarize.md
+// https://github.com/block/goose/blob/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/moderator.py#L82-L96
 
 // use crate::message::Message;
 // use crate::providers::base::Provider;
@@ -13,20 +32,6 @@ pub fn summarize_context() {
 // // Constants for the summarization prompt and a follow-up user message.
 // const SUMMARY_PROMPT: &str = "You are good at summarizing.";
 // const USER_CHECKIN_PROMPT: &str = "Hello! How are we progressing?";
-
-// /// Public API to summarize the conversation so that its token count is within the allowed context limit.
-// ///
-// /// This function logs the token count before and after processing and asserts that the final token count complies.
-// pub async fn summarize_context(
-//     provider: Arc<dyn Provider>,
-//     messages: &mut Vec<Message>,
-//     token_counter: &TokenCounter,
-// ) -> Result<(), anyhow::Error> {
-//     let target_context_limit = estimate_target_context_limit(provider.clone());
-//     summarize_messages(provider, messages, token_counter, target_context_limit).await?;
-
-//     Ok(())
-// }
 
 // /// Builds a summarization request based on a batch of messages.
 // ///
@@ -53,7 +58,7 @@ pub fn summarize_context() {
 // /// Iteratively summarizes portions of the conversation until the total tokens fit within the context limit.
 // ///
 // /// This routine uses a stack to process messages (starting with the oldest) and replaces chunks with a summary.
-// async fn summarize_messages(
+// pub async fn summarize_messages(
 //     provider: Arc<dyn Provider>,
 //     messages: &mut Vec<Message>,
 //     token_counter: &TokenCounter,
