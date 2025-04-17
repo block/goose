@@ -9,7 +9,7 @@ use super::super::agents::Agent;
 
 impl Agent {
     /// Public API to truncate oldest messages so that the conversation's token count is within the allowed context limit.
-    pub(crate) fn truncate_context(
+    pub fn truncate_context(
         &self,
         mut messages: Vec<Message>,
     ) -> Result<Vec<Message>, anyhow::Error> {
@@ -29,7 +29,7 @@ impl Agent {
     }
 
     /// Public API to summarize the conversation so that its token count is within the allowed context limit.
-    pub(crate) async fn summarize_context(
+    pub async fn summarize_context(
         &self,
         mut messages: Vec<Message>,
     ) -> Result<Vec<Message>, anyhow::Error> {
