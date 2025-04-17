@@ -69,10 +69,13 @@ impl ProviderMetadata {
             display_name: display_name.to_string(),
             description: description.to_string(),
             default_model: default_model.to_string(),
-            known_models: model_names.iter().map(|&name| ModelInfo {
-                name: name.to_string(),
-                context_limit: ModelConfig::new(name.to_string()).context_limit(),
-            }).collect(),
+            known_models: model_names
+                .iter()
+                .map(|&name| ModelInfo {
+                    name: name.to_string(),
+                    context_limit: ModelConfig::new(name.to_string()).context_limit(),
+                })
+                .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
         }
@@ -252,7 +255,10 @@ mod tests {
         assert_eq!(*model_info.get("gpt-4o").unwrap(), 128_000);
 
         // claude-3-5-sonnet-latest should have 200k limit
-        assert_eq!(*model_info.get("claude-3-5-sonnet-latest").unwrap(), 200_000);
+        assert_eq!(
+            *model_info.get("claude-3-5-sonnet-latest").unwrap(),
+            200_000
+        );
 
         // unknown model should have default limit (128k)
         assert_eq!(*model_info.get("unknown-model").unwrap(), 128_000);
