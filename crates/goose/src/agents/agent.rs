@@ -296,9 +296,8 @@ impl Agent {
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             loop {
-                 // TODO: For testing: force a context length exceeded error
-                if messages.len() >= 4 {
-                    // Err(ProviderError::ContextLengthExceeded("Simulated error: context length exceeded for testing".into()))?;
+                 // TODO: For testing: force a context length exceeded error on single msg
+                if messages.len() == 5 {
                     yield Message::assistant().with_context_length_exceeded(
                         "The context length of the model has been exceeded. Please shorten your input and try again.",
                     );
@@ -455,6 +454,8 @@ impl Agent {
                         messages.push(final_message_tool_resp);
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
+                        // At this point, the last message should be a user message
+                        // because call to provider led to context length exceeded error
                         // Immediately yield a special message and break
                         yield Message::assistant().with_context_length_exceeded(
                             "The context length of the model has been exceeded. Please shorten your input and try again.",

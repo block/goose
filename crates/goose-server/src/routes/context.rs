@@ -18,6 +18,7 @@ struct ContextRequest {
 #[derive(Debug, Serialize)]
 struct ContextResponse {
     messages: Vec<Message>,
+    token_counts: Vec<usize>,
 }
 
 async fn truncate_handler(
@@ -38,12 +39,14 @@ async fn truncate_handler(
     // Get a lock on the shared agent
     let agent = state.agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
-    let truncated_messages = agent
-        .truncate_context(payload.messages)
+    let (truncated_messages, token_counts) = agent
+        .truncate_context(&payload.messages)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(ContextResponse {
         messages: truncated_messages,
+        token_counts,
     }))
 }
 
@@ -65,13 +68,14 @@ async fn summarize_handler(
     // Get a lock on the shared agent
     let agent = state.agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
-    let summarized_messages = agent
-        .summarize_context(payload.messages)
+    let (summarized_messages, token_counts) = agent
+        .summarize_context(&payload.messages)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(ContextResponse {
         messages: summarized_messages,
+        token_counts,
     }))
 }
 

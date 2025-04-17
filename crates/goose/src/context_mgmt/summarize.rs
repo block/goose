@@ -7,17 +7,21 @@ use std::sync::Arc;
 // TODO: remove afterwards
 pub async fn summarize_messages(
     _provider: Arc<dyn Provider>,
-    messages: &mut Vec<Message>,
+    _messages: &Vec<Message>,
     _token_counter: &TokenCounter,
     _context_limit: usize,
-) -> Result<(), anyhow::Error> {
-    messages.clear();
-    messages.push(Message::user().with_text("This is a test summary message."));
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    let messages = vec![Message::user().with_text(
+        "John speaks Bengali & English. Jane has been playing some tennis and golf recently.",
+    )];
+    let token_counts: Vec<usize> = vec![17];
 
-    Ok(())
+    Ok((messages, token_counts))
 }
 
 // TODO: bring back a version of the synopsis summary
+// However, note that original synopsis summary would run every turn. In this case, we know we're
+// out of context so we have to chunk/batch them up or sth else if we wanna use LLMs to summarize
 // https://github.com/block/goose/blame/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/summarize.md
 // https://github.com/block/goose/blob/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/moderator.py#L82-L96
 
