@@ -654,7 +654,7 @@ impl Session {
                                 let selected = cliclack::select(prompt)
                                     .item("clear", "Clear Session", "Removes all messages from Goose's memory")
                                     .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
-                                    // .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                    .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
                                     .interact()?;
 
                                 match selected {
