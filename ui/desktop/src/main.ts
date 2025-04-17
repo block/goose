@@ -39,13 +39,15 @@ if (started) app.quit();
 
 app.setAsDefaultProtocolClient('goose');
 
-const gotTheLock = app.requestSingleInstanceLock();
+// Only apply single instance lock on Windows where it's needed for deep links
+let gotTheLock = true;
+if (process.platform === 'win32') {
+  gotTheLock = app.requestSingleInstanceLock();
 
-if (!gotTheLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (event, commandLine) => {
-    if (process.platform === 'win32') {
+  if (!gotTheLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', (event, commandLine) => {
       const protocolUrl = commandLine.find((arg) => arg.startsWith('goose://'));
       if (protocolUrl) {
         const parsedUrl = new URL(protocolUrl);
@@ -84,15 +86,15 @@ if (!gotTheLock) {
         }
         mainWindow.focus();
       }
-    }
-  });
-  if (process.platform === 'win32') {
-    const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
-    if (protocolUrl) {
-      app.whenReady().then(() => {
-        handleProtocolUrl(protocolUrl);
-      });
-    }
+    });
+  }
+
+  // Handle protocol URLs on Windows startup
+  const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
+  if (protocolUrl) {
+    app.whenReady().then(() => {
+      handleProtocolUrl(protocolUrl);
+    });
   }
 }
 
