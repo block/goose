@@ -194,7 +194,7 @@ export default function ExtensionsSection({
         </p>
       </div>
 
-      <div className={'border-b border-borderSubtle pb-8'}>
+      <div className="border-b border-borderSubtle pb-8">
         <ExtensionList
           extensions={extensions}
           onToggle={handleExtensionToggle}
