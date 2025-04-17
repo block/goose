@@ -1,12 +1,14 @@
 ---
 sidebar_position: 2
+title: Updating Goose
+sidebar_label: Updating Goose
 ---
-
-# Updating Goose
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import DesktopInstallButtons from '@site/src/components/DesktopInstallButtons';
+
+The Goose CLI and desktop apps are under active and continuous development. To get the newest features and fixes, you should periodically update your Goose client using the following instructions.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
