@@ -163,23 +163,8 @@ export const initializeSystem = async (
   }
 ) => {
   try {
-    console.log('initializing agent with provider', provider, 'model', model);
     await initializeAgent({ provider, model });
-    const update_response = await fetch(getApiUrl('/agent/update_provider'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': getSecretKey(),
-      },
-      body: JSON.stringify({
-        provider: provider.toLowerCase().replace(/ /g, '_'),
-        model,
-      }),
-    });
-    if (!update_response.ok) {
-      console.error('Failed to initialize agent with provider:', update_response.statusText);
-      throw new Error(`Failed to initialize agent: ${update_response.statusText}`);
-    }
+
     // This will go away after the release of settings v2 as this is now handled in config.yaml
     if (!settingsV2Enabled) {
       // Sync the model state with React

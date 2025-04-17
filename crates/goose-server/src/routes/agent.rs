@@ -7,14 +7,15 @@ use axum::{
 };
 use goose::config::Config;
 use goose::config::PermissionManager;
+use goose::model::ModelConfig;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use goose::model::ModelConfig;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -30,17 +31,6 @@ struct ExtendPromptRequest {
 #[derive(Serialize)]
 struct ExtendPromptResponse {
     success: bool,
-}
-
-#[derive(Deserialize)]
-struct CreateAgentRequest {
-    provider: String,
-    model: Option<String>,
-}
-
-#[derive(Serialize)]
-struct CreateAgentResponse {
-    version: String,
 }
 
 #[derive(Deserialize)]
@@ -80,9 +70,8 @@ async fn get_versions() -> Json<VersionsResponse> {
     })
 }
 
-// TODO: move this one out of /agent route
 async fn extend_prompt(
-    State(state): State<Arc<AppState>>, // TODO: this should be Arc<AppState>
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
@@ -96,39 +85,12 @@ async fn extend_prompt(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    tracing::info!("Getting agent from state");
     let agent = state
         .get_agent()
         .await
         .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     agent.extend_system_prompt(payload.extension.clone()).await;
-    tracing::info!("Extended system prompt with: {}", payload.extension);
     Ok(Json(ExtendPromptResponse { success: true }))
-}
-
-#[axum::debug_handler]
-async fn create_agent(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<CreateAgentRequest>,
-) -> Result<Json<CreateAgentResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let version = String::from("goose");
-    // Create agent without provider to be updated later
-
-
-    tracing::info!("Agent created");
-
-    Ok(Json(CreateAgentResponse { version }))
 }
 
 async fn list_providers() -> Json<Vec<ProviderList>> {
@@ -251,7 +213,7 @@ async fn update_agent_provider(
     let agent = state
         .get_agent()
         .await
-    .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     // Set the environment variable for the model if provided
     if let Some(model) = &payload.model {
@@ -264,16 +226,15 @@ async fn update_agent_provider(
     let model = payload.model.unwrap_or_else(|| {
         config
             .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env")
+            .expect("Did not find a model on payload or in env to update provider with")
     });
     let model_config = ModelConfig::new(model);
-    
-    agent.update_provider(&payload.provider, model_config)
+
+    agent
+        .update_provider(&payload.provider, model_config)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    tracing::info!("Updated agent provider to: {}", payload.provider);
-    
+
     Ok(StatusCode::OK)
 }
 
@@ -283,7 +244,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
-        .route("/agent", post(create_agent))
         .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
 }

@@ -20,30 +20,12 @@ pub struct AppState {
 }
 
 impl AppState {
-    // pub async fn new(secret_key: String) -> Self {
-    //     Self {
-    //         agent: Arc::new(Mutex::new(None)),
-    //         secret_key,
-    //     }
-    // }
     pub async fn new(agent: AgentRef, secret_key: String) -> Arc<AppState> {
         Arc::new(Self {
             agent: Some(agent.clone()),
             secret_key,
         })
     }
-
-    // pub async fn set_agent(&self, agent: Agent) {
-    //     let mut agent_guard = self.agent.lock().await;
-    //     *agent_guard = Some(Arc::new(agent));
-    // }
-
-    // pub async fn get_agent(&self) -> Result<Arc<Agent>, anyhow::Error> {
-    //     let agent_guard = self.agent.lock().await;
-    //     agent_guard
-    //         .clone()
-    //         .ok_or_else(|| anyhow::anyhow!("Agent needs to be created first."))
-    // }
 
     pub async fn get_agent(&self) -> Result<Arc<Agent>, anyhow::Error> {
         self.agent

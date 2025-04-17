@@ -954,8 +954,6 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    // let provider =
-    //     goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
     let agent = Agent::new();

@@ -46,8 +46,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    // let provider =
-    //     goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
     let agent: Agent = Agent::new();
