@@ -660,19 +660,23 @@ impl Session {
                                 match selected {
                                     "clear" => {
                                         self.messages.clear();
-                                        output::render_text("Session cleared", Some(Color::Yellow), true);
+                                        let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
                                         break;  // exit the loop to hand back control to the user
                                     }
                                     "truncate" => {
                                         // Truncate messages to fit within context length
-                                        let truncated_messages = self.agent.truncate_context(self.messages.clone())?;
-                                        output::render_text("Context maxed out. Goose tried its best to truncate messages for you", Some(Color::Yellow), true);
+                                        let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you. You can continue now....", "-".repeat(50));
+                                        output::render_text("", Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true);
                                         self.messages = truncated_messages;
                                     }
                                     "summarize" => {
                                         // Summarize messages to fit within context length
-                                        let summarized_messages = self.agent.summarize_context(self.messages.clone()).await?;
-                                        output::render_text("Context maxed out. Goose summarized messages for you", Some(Color::Yellow), true);
+                                        let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages for you. You can continue now....", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
                                         self.messages = summarized_messages;
                                     }
                                     _ => {

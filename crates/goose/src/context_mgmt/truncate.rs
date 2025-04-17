@@ -12,11 +12,14 @@ use tracing::debug;
 /// - context_limit: The maximum allowed context length in tokens.
 /// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
 pub fn truncate_messages(
-    messages: &mut Vec<Message>,
-    token_counts: &mut Vec<usize>,
+    messages: &Vec<Message>,
+    token_counts: &Vec<usize>,
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
-) -> Result<(), anyhow::Error> {
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    let mut messages = messages.clone();
+    let mut token_counts = token_counts.clone();
+
     if messages.len() != token_counts.len() {
         return Err(anyhow!(
             "The vector for messages and token_counts must have same length"
@@ -43,12 +46,12 @@ pub fn truncate_messages(
     }
 
     if total_tokens <= context_limit {
-        return Ok(()); // No truncation needed
+        return Ok((messages, token_counts)); // No truncation needed
     }
 
     // Step 2: Determine indices to remove based on strategy
     let indices_to_remove =
-        strategy.determine_indices_to_remove(messages, token_counts, context_limit)?;
+        strategy.determine_indices_to_remove(&messages, &token_counts, context_limit)?;
 
     // Step 3: Remove the marked messages
     // Vectorize the set and sort in reverse order to avoid shifting indices when removing
@@ -103,7 +106,7 @@ pub fn truncate_messages(
     }
 
     debug!("Truncation complete. Total tokens: {}", total_tokens);
-    Ok(())
+    Ok((messages, token_counts))
 }
 
 /// Trait representing a truncation strategy
