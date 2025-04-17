@@ -581,10 +581,7 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn update_provider_with_provider(
-        &self,
-        provider: Arc<dyn Provider>,
-    ) -> Result<()> {
+    pub async fn update_provider_with_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         *self.token_counter.lock().await = Some(token_counter);
         *self.provider.lock().await = Some(provider);
