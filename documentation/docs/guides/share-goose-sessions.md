@@ -17,7 +17,7 @@ To create a custom session (whether using the desktop app or CLI), you'll need:
 
 * Instructions for the AI
 * Activities it should perform
-*(* A custom prompt (optional)
+* A custom prompt (optional)
 
 The CLI calls this a "recipe." The desktop app shows these same options in the Agent Created dialog when you create a new shared session.
 
