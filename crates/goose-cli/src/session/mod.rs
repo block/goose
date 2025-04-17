@@ -665,13 +665,15 @@ impl Session {
                                     }
                                     "truncate" => {
                                         // Truncate messages to fit within context length
-                                        let new_messages = self.agent.truncate_context(self.messages.clone())?;
-                                        output::render_text("Goose truncated messages for you to try to fit within context.", Some(Color::Yellow), true);
-                                        self.messages = new_messages;
+                                        let truncated_messages = self.agent.truncate_context(self.messages.clone())?;
+                                        output::render_text("Goose tried its best to truncat messages for you", Some(Color::Yellow), true);
+                                        self.messages = truncated_messages;
                                     }
                                     "summarize" => {
                                         // Summarize messages to fit within context length
-                                        todo!()
+                                        let summarized_messages = self.agent.summarize_context(self.messages.clone()).await?;
+                                        output::render_text("Goose summarized messages for you", Some(Color::Yellow), true);
+                                        self.messages = summarized_messages;
                                     }
                                     _ => {
                                         unreachable!()
