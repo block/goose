@@ -7,7 +7,7 @@ import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import { ModelRadioList } from '../settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from '../icons';
 import type { View, ViewOptions } from '../../App';
-import { bottomMenuPopoverEnabled, settingsV2Enabled } from '../../flags';
+import { settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
@@ -62,19 +62,12 @@ export default function BottomMenu({
 
   // Initial load and refresh when model changes
   useEffect(() => {
-    if (!bottomMenuPopoverEnabled) {
-      return;
-    }
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentModel]);
 
   // Handle tool count alerts
   useEffect(() => {
-    if (!bottomMenuPopoverEnabled) {
-      return;
-    }
-
     clearAlerts();
 
     // Add token alerts if we have a token limit
@@ -164,8 +157,8 @@ export default function BottomMenu({
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">
-        {/* Tool count */}
-        {bottomMenuPopoverEnabled && <BottomMenuAlertPopover alerts={alerts} />}
+        {/* Tool and Token count */}
+        {<BottomMenuAlertPopover alerts={alerts} />}
         {/* Model Selector Dropdown */}
         {settingsV2Enabled ? (
           <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
