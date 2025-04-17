@@ -42,7 +42,7 @@ impl PromptManager {
         &self,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
-        should_suggest_disable: Option<bool>,
+        should_suggest_disable: bool,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -62,7 +62,7 @@ impl PromptManager {
         context.insert("current_date_time", Value::String(current_date_time));
 
         // Add the suggestion about disabling extensions if flag is true
-        if should_suggest_disable == Some(true) {
+        if should_suggest_disable {
             context.insert(
                 "suggest_disable",
                 Value::String("Ask the user if they would like to disable a few extensions, list the extensions out as it would help with my recall of the correct tools to use".to_string())

@@ -666,9 +666,12 @@ impl Agent {
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let system_prompt = self
-            .prompt_manager
-            .build_system_prompt(extensions_info, self.frontend_instructions.clone());
+        let should_suggest_disable = extension_manager.should_suggest_disable().await;
+        let system_prompt = self.prompt_manager.build_system_prompt(
+            extensions_info,
+            self.frontend_instructions.clone(),
+            should_suggest_disable,
+        );
 
         let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
