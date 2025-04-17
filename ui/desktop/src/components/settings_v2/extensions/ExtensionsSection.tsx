@@ -20,7 +20,6 @@ interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
-  hideHeader?: boolean;
   disableConfiguration?: boolean;
   customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
   selectedExtensions?: string[]; // Add controlled state
@@ -30,7 +29,6 @@ export default function ExtensionsSection({
   deepLinkConfig,
   showEnvVars,
   hideButtons,
-  hideHeader,
   disableConfiguration,
   customToggle,
   selectedExtensions = [],
@@ -186,21 +184,17 @@ export default function ExtensionsSection({
 
   return (
     <section id="extensions" className="px-8">
-      {!hideHeader && (
-        <>
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-medium text-textStandard">Extensions</h2>
-          </div>
-          <div className="border-b border-borderSubtle">
-            <p className="text-sm text-textStandard mb-6">
-              These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools.
-            </p>
-          </div>
-        </>
-      )}
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-medium text-textStandard">Extensions</h2>
+      </div>
+      <div>
+        <p className="text-sm text-textStandard mb-6">
+          These extensions use the Model Context Protocol (MCP). They can expand Goose's
+          capabilities using three main components: Prompts, Resources, and Tools.
+        </p>
+      </div>
 
-      <div className={`${!hideHeader ? '' : 'border-b border-borderSubtle'} pb-8`}>
+      <div className={'border-b border-borderSubtle pb-8'}>
         <ExtensionList
           extensions={extensions}
           onToggle={handleExtensionToggle}
