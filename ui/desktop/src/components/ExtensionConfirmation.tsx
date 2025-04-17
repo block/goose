@@ -92,7 +92,7 @@ export default function ExtensionConfirmation({
             onClick={() => handleButtonClick(true)}
           >
             {extensionAction.charAt(0).toUpperCase() + extensionAction.slice(1).toLowerCase()}{' '}
-            extensions
+            extensions for this session
           </button>
           <button
             className={
