@@ -1,6 +1,12 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { addToAgent, removeFromAgent } from './agent-api';
+import { upsertConfig } from '../../../api';
+
+// TODO: unify config.yaml and the agent /extensions/add API's notion of env vars
+export type AgentExtensionConfig = ExtensionConfig & {
+  env_keys?: string[];
+};
 
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
@@ -281,5 +287,13 @@ export async function deleteExtension({ name, removeFromConfig }: DeleteExtensio
   // If we had an error removing from agent but succeeded removing from config, still throw the original error
   if (agentRemoveError) {
     throw agentRemoveError;
+  }
+}
+
+export async function saveEnvVarsToKeyring(extension: ExtensionConfig) {
+  if (extension.type === 'stdio' || extension.type === 'sse') {
+    for (const [key, value] of Object.entries(extension.envs || {})) {
+      await upsertConfig({ body: { key, value, is_secret: true } });
+    }
   }
 }
