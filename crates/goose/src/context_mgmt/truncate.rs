@@ -106,7 +106,6 @@ pub fn truncate_messages(
     Ok(())
 }
 
-
 /// Trait representing a truncation strategy
 pub trait TruncationStrategy {
     /// Determines the indices of messages to remove to fit within the context limit.
