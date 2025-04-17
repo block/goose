@@ -198,8 +198,8 @@ async fn get_tools(
 
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let mut agent = state.agent.write().await;
-    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let agent = state.agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
