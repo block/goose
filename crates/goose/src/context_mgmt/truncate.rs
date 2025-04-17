@@ -1,10 +1,7 @@
-use super::common::{estimate_target_context_limit, get_messages_token_counts};
-use crate::providers::base::Provider;
-use crate::{message::Message, token_counter::TokenCounter};
+use crate::message::Message;
 use anyhow::{anyhow, Result};
 use mcp_core::Role;
 use std::collections::HashSet;
-use std::sync::Arc;
 use tracing::debug;
 
 /// Truncates the messages to fit within the model's context window.
