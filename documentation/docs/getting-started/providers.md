@@ -128,7 +128,7 @@ Goose supports using custom OpenAI-compatible endpoints, which is particularly u
 | `OPENAI_HOST` | No | Custom endpoint URL (defaults to api.openai.com) |
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
-| `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request, in the format "HEADER_A=VALUE_A,HEADER_B=VALUE_B" |
+| `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
 
 ### Example Configurations
 

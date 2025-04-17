@@ -58,6 +58,7 @@ impl OpenAiProvider {
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let custom_headers: Option<HashMap<String, String>> = config
             .get_secret("OPENAI_CUSTOM_HEADERS")
+            .or_else(|_| config.get_param("OPENAI_CUSTOM_HEADERS"))
             .ok()
             .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
