@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 // TODO: remove afterwards
 pub async fn summarize_messages(
-    provider: Arc<dyn Provider>,
+    _provider: Arc<dyn Provider>,
     messages: &mut Vec<Message>,
-    token_counter: &TokenCounter,
-    context_limit: usize,
+    _token_counter: &TokenCounter,
+    _context_limit: usize,
 ) -> Result<(), anyhow::Error> {
     messages.clear();
     messages.push(Message::user().with_text("This is a test summary message."));
@@ -20,6 +20,9 @@ pub async fn summarize_messages(
 // TODO: bring back a version of the synopsis summary
 // https://github.com/block/goose/blame/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/summarize.md
 // https://github.com/block/goose/blob/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/moderator.py#L82-L96
+
+// Below is the old memory_condense.rs -> i am not sure we wanna keep this
+// Also not totally sure why we loop and create summary
 
 // use crate::message::Message;
 // use crate::providers::base::Provider;
