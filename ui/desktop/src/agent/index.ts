@@ -14,11 +14,8 @@ export async function initializeAgent({ model, provider }: initializeAgentProps)
     },
     body: JSON.stringify({
       provider: provider.toLowerCase().replace(/ /g, '_'),
-      model,
+      model: model,
     }),
   });
-  if (!response.ok) {
-    console.error('Failed to initialize agent with provider:', response.statusText);
-    throw new Error(`Failed to initialize agent: ${response.statusText}`);
-  }
+  return response;
 }

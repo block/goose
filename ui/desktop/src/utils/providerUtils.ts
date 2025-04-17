@@ -163,6 +163,7 @@ export const initializeSystem = async (
   }
 ) => {
   try {
+    console.log('initializing agent with provider', provider, 'model', model);
     await initializeAgent({ provider, model });
 
     // This will go away after the release of settings v2 as this is now handled in config.yaml
