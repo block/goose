@@ -2,6 +2,8 @@ import { ExtensionConfig } from '../../../api/types.gen';
 import { getApiUrl, getSecretKey } from '../../../config';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { replaceWithShims } from './utils';
+import { saveEnvVarsToKeyring } from './extension-manager';
+import type { AgentExtensionConfig } from './extension-manager';
 
 interface ApiResponse {
   error?: boolean;
@@ -141,13 +143,17 @@ export async function addToAgent(
   options: ToastServiceOptions = {}
 ): Promise<Response> {
   try {
-    if (extension.type === 'stdio') {
-      extension.cmd = await replaceWithShims(extension.cmd);
+    await saveEnvVarsToKeyring(extension);
+
+    const ext = toAgentExtensionConfig(extension);
+
+    if (ext.type === 'stdio') {
+      ext.cmd = await replaceWithShims(ext.cmd);
     }
 
-    extension.name = sanitizeName(extension.name);
+    ext.name = sanitizeName(ext.name);
 
-    return await extensionApiCall('/extensions/add', extension, options);
+    return await extensionApiCall('/extensions/add', ext, options);
   } catch (error) {
     // Check if this is a 428 error and make the message more descriptive
     if (error.message && error.message.includes('428')) {
@@ -178,4 +184,33 @@ export async function removeFromAgent(
 
 function sanitizeName(name: string) {
   return name.toLowerCase().replace(/-/g, '').replace(/_/g, '').replace(/\s/g, '');
+}
+
+export function toAgentExtensionConfig(config: ExtensionConfig): AgentExtensionConfig {
+  // Use type narrowing to handle different variants of the union type
+  if ('type' in config) {
+    switch (config.type) {
+      case 'sse': {
+        const { envs, ...rest } = config;
+        return {
+          ...rest,
+          env_keys: envs ? Object.keys(envs) : undefined,
+        };
+      }
+      case 'stdio': {
+        const { envs, ...rest } = config;
+        return {
+          ...rest,
+          env_keys: envs ? Object.keys(envs) : undefined,
+        };
+      }
+      case 'builtin':
+      case 'frontend':
+        // These types don't have envs field, so just return as is
+        return config;
+    }
+  }
+
+  // This should never happen due to the union type constraint
+  throw new Error('Invalid extension configuration type');
 }
