@@ -1,0 +1,84 @@
+use crate::state::AppState;
+use axum::{
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    routing::post,
+    Json, Router,
+};
+use goose::message::Message;
+use serde::{Deserialize, Serialize};
+
+// Direct message serialization for context mgmt request
+#[derive(Debug, Deserialize)]
+struct ContextRequest {
+    messages: Vec<Message>,
+}
+
+// Direct message serialization for context mgmt request
+#[derive(Debug, Serialize)]
+struct ContextResponse {
+    messages: Vec<Message>,
+}
+
+async fn truncate_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ContextRequest>,
+) -> Result<Json<ContextResponse>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Get a lock on the shared agent
+    let agent = state.agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let truncated_messages = agent
+        .truncate_context(payload.messages)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ContextResponse {
+        messages: truncated_messages,
+    }))
+}
+
+async fn summarize_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<ContextRequest>,
+) -> Result<Json<ContextResponse>, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Get a lock on the shared agent
+    let agent = state.agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let summarized_messages = agent
+        .summarize_context(payload.messages)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ContextResponse {
+        messages: summarized_messages,
+    }))
+}
+
+// Configure routes for this module
+pub fn routes(state: AppState) -> Router {
+    Router::new()
+        .route("/context/truncate", post(truncate_handler))
+        .route("/context/summarize", post(summarize_handler))
+        .with_state(state)
+}
