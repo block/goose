@@ -33,7 +33,10 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
           console.error('Failed to get tools');
         } else {
           const filteredTools = (response.data || []).filter(
-            (tool) => tool.name !== 'platform__enable_extension'
+            (tool) =>
+              tool.name !== 'platform__enable_extension' &&
+              tool.name !== 'platform__read_resource' &&
+              tool.name !== 'platform__list_resources'
           );
           setTools(filteredTools);
         }
@@ -146,7 +149,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                         <label className="block text-sm font-medium text-textStandard">
                           {tool.name}
                         </label>
-                        <p className="text-sm text-gray-500 mb-2">
+                        <p className="text-sm text-textSubtle mb-2">
                           {getFirstSentence(tool.description)}
                         </p>
                       </div>

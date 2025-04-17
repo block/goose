@@ -150,7 +150,6 @@ export default function ProviderConfigurationModal() {
 
       // go through the keys are remove them
       for (const param of params) {
-        console.log('param', param.name, 'secret', param.secret);
         await remove(param.name, param.secret);
       }
 

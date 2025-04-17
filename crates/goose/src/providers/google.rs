@@ -17,10 +17,6 @@ use url::Url;
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.0-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
-    "gemini-1.5-pro-latest",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite-preview-02-05",
     "gemini-2.0-flash-thinking-exp-01-21",

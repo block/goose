@@ -6,7 +6,7 @@ import { useToolCount } from '../alerts/useToolCount';
 import BottomMenuAlertPopover from './BottomMenuAlertPopover';
 import { ModelRadioList } from '../settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from '../icons';
-import type { View } from '../../App';
+import type { View, ViewOptions } from '../../App';
 import { bottomMenuPopoverEnabled, settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
@@ -23,7 +23,7 @@ export default function BottomMenu({
   numTokens = 0,
 }: {
   hasMessages: boolean;
-  setView: (view: View) => void;
+  setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -160,7 +160,7 @@ export default function BottomMenu({
       </span>
 
       {/* Goose Mode Selector Dropdown */}
-      <BottomMenuModeSelection />
+      <BottomMenuModeSelection setView={setView} />
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">

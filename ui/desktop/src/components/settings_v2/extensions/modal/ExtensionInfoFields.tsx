@@ -52,7 +52,7 @@ export default function ExtensionInfoFields({
             }}
             options={[
               { value: 'stdio', label: 'Standard IO (STDIO)' },
-              { value: 'sse', label: 'Security Service Edge (SSE)' },
+              { value: 'sse', label: 'Server-Sent Events (SSE)' },
             ]}
             isSearchable={false}
           />

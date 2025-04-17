@@ -214,17 +214,17 @@ async fn add_extension(
             env_keys,
             timeout,
         } => {
-            // Check allowlist for Stdio extensions
-            if !is_command_allowed(&cmd, &args) {
-                return Ok(Json(ExtensionResponse {
-                    error: true,
-                    message: Some(format!(
-                        "Extension '{}' is not in the allowed extensions list. Command: '{} {}'. If you require access please ask your administrator to update the allowlist.",                        
-                        args.join(" "),
-                        cmd, args.join(" ")
-                    )),
-                }));
-            }
+            // TODO: We can uncomment once bugs are fixed. Check allowlist for Stdio extensions
+            // if !is_command_allowed(&cmd, &args) {
+            //     return Ok(Json(ExtensionResponse {
+            //         error: true,
+            //         message: Some(format!(
+            //             "Extension '{}' is not in the allowed extensions list. Command: '{} {}'. If you require access please ask your administrator to update the allowlist.",
+            //             args.join(" "),
+            //             cmd, args.join(" ")
+            //         )),
+            //     }));
+            // }
 
             let mut env_map = HashMap::new();
             for key in env_keys {
@@ -342,6 +342,7 @@ pub fn routes(state: AppState) -> Router {
 /// Structure representing the allowed extensions from the YAML file
 #[derive(Deserialize, Debug, Clone)]
 struct AllowedExtensions {
+    #[allow(dead_code)]
     extensions: Vec<ExtensionAllowlistEntry>,
 }
 
@@ -350,13 +351,16 @@ struct AllowedExtensions {
 struct ExtensionAllowlistEntry {
     #[allow(dead_code)]
     id: String,
+    #[allow(dead_code)]
     command: String,
 }
 
 // Global cache for the allowed extensions
+#[allow(dead_code)]
 static ALLOWED_EXTENSIONS: OnceLock<Option<AllowedExtensions>> = OnceLock::new();
 
 /// Fetches and parses the allowed extensions from the URL specified in GOOSE_ALLOWLIST env var
+#[allow(dead_code)]
 fn fetch_allowed_extensions() -> Option<AllowedExtensions> {
     match env::var("GOOSE_ALLOWLIST") {
         Err(_) => {
@@ -390,11 +394,13 @@ fn fetch_allowed_extensions() -> Option<AllowedExtensions> {
 }
 
 /// Gets the cached allowed extensions or fetches them if not yet cached
+#[allow(dead_code)]
 fn get_allowed_extensions() -> &'static Option<AllowedExtensions> {
     ALLOWED_EXTENSIONS.get_or_init(fetch_allowed_extensions)
 }
 
 /// Checks if a command is allowed based on the allowlist
+#[allow(dead_code)]
 fn is_command_allowed(cmd: &str, args: &[String]) -> bool {
     // Check if bypass is enabled
     if let Ok(bypass_value) = env::var("GOOSE_ALLOWLIST_BYPASS") {

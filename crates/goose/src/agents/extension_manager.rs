@@ -231,8 +231,20 @@ impl ExtensionManager {
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
-        let client_futures = self.clients.iter().map(|(name, client)| {
+    pub async fn get_prefixed_tools(
+        &self,
+        extension_name: Option<String>,
+    ) -> ExtensionResult<Vec<Tool>> {
+        // Filter clients based on the provided extension_name or include all if None
+        let filtered_clients = self.clients.iter().filter(|(name, _)| {
+            if let Some(ref name_filter) = extension_name {
+                *name == name_filter
+            } else {
+                true
+            }
+        });
+
+        let client_futures = filtered_clients.map(|(name, client)| {
             let name = name.clone();
             let client = client.clone();
 

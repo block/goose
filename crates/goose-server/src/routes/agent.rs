@@ -198,22 +198,14 @@ async fn get_tools(
 
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let mut agent = state.agent.write().await;
-    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let agent = state.agent.read().await;
+    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools()
+        .list_tools(query.extension_name)
         .await
         .into_iter()
-        .filter(|tool| {
-            // Apply the filter only if the extension name is present in the query
-            if let Some(extension_name) = &query.extension_name {
-                tool.name.starts_with(extension_name)
-            } else {
-                true
-            }
-        })
         .map(|tool| {
             let permission = permission_manager
                 .get_user_permission(&tool.name)

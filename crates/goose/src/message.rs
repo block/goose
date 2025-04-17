@@ -61,9 +61,10 @@ pub struct ToolConfirmationRequest {
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EnableExtensionRequest {
+pub struct ExtensionRequest {
     pub id: String,
     pub extension_name: String,
+    pub tool_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -94,7 +95,7 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
-    EnableExtensionRequest(EnableExtensionRequest),
+    ExtensionRequest(ExtensionRequest),
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
@@ -144,10 +145,15 @@ impl MessageContent {
         })
     }
 
-    pub fn enable_extension_request<S: Into<String>>(id: S, extension_name: String) -> Self {
-        MessageContent::EnableExtensionRequest(EnableExtensionRequest {
+    pub fn extension_request<S: Into<String>>(
+        id: S,
+        extension_name: String,
+        tool_name: String,
+    ) -> Self {
+        MessageContent::ExtensionRequest(ExtensionRequest {
             id: id.into(),
             extension_name,
+            tool_name,
         })
     }
 
@@ -192,9 +198,9 @@ impl MessageContent {
         }
     }
 
-    pub fn as_enable_extension_request(&self) -> Option<&EnableExtensionRequest> {
-        if let MessageContent::EnableExtensionRequest(ref enable_extension_request) = self {
-            Some(enable_extension_request)
+    pub fn as_extension_request(&self) -> Option<&ExtensionRequest> {
+        if let MessageContent::ExtensionRequest(ref extension_request) = self {
+            Some(extension_request)
         } else {
             None
         }
@@ -359,12 +365,17 @@ impl Message {
         ))
     }
 
-    pub fn with_enable_extension_request<S: Into<String>>(
+    pub fn with_extension_request<S: Into<String>>(
         self,
         id: S,
         extension_name: String,
+        tool_name: String,
     ) -> Self {
-        self.with_content(MessageContent::enable_extension_request(id, extension_name))
+        self.with_content(MessageContent::extension_request(
+            id,
+            extension_name,
+            tool_name,
+        ))
     }
 
     pub fn with_frontend_tool_request<S: Into<String>>(
