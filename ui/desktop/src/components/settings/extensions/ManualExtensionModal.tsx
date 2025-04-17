@@ -140,6 +140,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               <div>
                 <label className="block text-sm font-medium text-textStandard mb-2">Type</label>
                 <Select
+                  data-testid="extension-type-select"
                   options={typeOptions}
                   value={typeOptions.find((option) => option.value === formData.type)}
                   onChange={(option) =>
@@ -151,6 +152,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               <div>
                 <label className="block text-sm font-medium text-textStandard mb-2">ID *</label>
                 <Input
+                  data-testid="extension-id-input"
                   type="text"
                   value={formData.id || ''}
                   onChange={(e) => setFormData({ ...formData, id: e.target.value })}
@@ -162,6 +164,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               <div>
                 <label className="block text-sm font-medium text-textStandard mb-2">Name *</label>
                 <Input
+                  data-testid="extension-name-input"
                   type="text"
                   value={formData.name || ''}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -175,6 +178,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                   Description *
                 </label>
                 <Input
+                  data-testid="extension-description-input"
                   type="text"
                   value={formData.description || ''}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -189,6 +193,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                     Command * (command and arguments separated by spaces)
                   </label>
                   <Input
+                    data-testid="extension-command-input"
                     type="text"
                     value={formData.commandInput || ''}
                     onChange={(e) => setFormData({ ...formData, commandInput: e.target.value })}
@@ -203,6 +208,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
                 <div>
                   <label className="block text-sm font-medium text-textStandard mb-2">URI *</label>
                   <Input
+                    data-testid="extension-uri-input"
                     type="text"
                     value={formData.uri || ''}
                     onChange={(e) => setFormData({ ...formData, uri: e.target.value })}
@@ -284,6 +290,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               <Button
                 type="submit"
                 variant="ghost"
+                data-testid="extension-submit-button"
                 className="w-full h-[60px] rounded-none border-t border-borderSubtle text-md hover:bg-bgSubtle text-textProminent font-regular"
               >
                 Add
@@ -291,6 +298,7 @@ export function ManualExtensionModal({ isOpen, onClose, onSubmit }: ManualExtens
               <Button
                 type="button"
                 variant="ghost"
+                data-testid="extension-cancel-button"
                 onClick={() => {
                   resetForm();
                   onClose();

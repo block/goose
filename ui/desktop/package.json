@@ -20,6 +20,7 @@
     "bundle:intel": "npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "npm run generate-api && playwright test",
+    "test-e2e:dev": "npm run generate-api && playwright test --reporter=list --retries=0 --max-failures=1",
     "test-e2e:ui": "npm run generate-api && playwright test --ui",
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
