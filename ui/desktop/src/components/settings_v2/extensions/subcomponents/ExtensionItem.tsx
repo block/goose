@@ -6,11 +6,17 @@ import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
-  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void>;
-  onConfigure: (extension: FixedExtensionEntry) => void;
+  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
+  onConfigure?: (extension: FixedExtensionEntry) => void;
+  isStatic?: boolean; // to not allow users to edit configuration
 }
 
-export default function ExtensionItem({ extension, onToggle, onConfigure }: ExtensionItemProps) {
+export default function ExtensionItem({
+  extension,
+  onToggle,
+  onConfigure,
+  isStatic,
+}: ExtensionItemProps) {
   // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
   // Track if we're in the process of toggling
@@ -59,7 +65,9 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
 
   // Bundled extensions and builtins are not editable
   // Over time we can take the first part of the conditional away as people have bundled: true in their config.yaml entries
-  const editable = !(extension.type === 'builtin' || extension.bundled);
+
+  // allow configuration editing if extension is not a builtin/bundled extension AND isStatic = false
+  const editable = !(extension.type === 'builtin' || extension.bundled) && !isStatic;
 
   return (
     <div
@@ -78,7 +86,7 @@ export default function ExtensionItem({ extension, onToggle, onConfigure }: Exte
         {editable && (
           <button
             className="text-textSubtle hover:text-textStandard"
-            onClick={() => onConfigure(extension)}
+            onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
           >
             <Gear className="h-4 w-4" />
           </button>

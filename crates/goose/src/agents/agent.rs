@@ -33,7 +33,7 @@ use mcp_core::{
     prompt::Prompt, protocol::GetPromptResult, tool::Tool, Content, ToolError, ToolResult,
 };
 
-use super::platform_tools;
+use super::{platform_tools, prompt_manager};
 use super::tool_execution::{
     ExtensionInstallResult, ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
 };
@@ -287,7 +287,7 @@ impl Agent {
             }
             _ => {
                 let mut extension_manager = self.extension_manager.lock().await;
-                let _ = extension_manager.add_extension(extension).await;
+                extension_manager.add_extension(extension).await?;
             }
         };
 
@@ -647,13 +647,21 @@ impl Agent {
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let frontend_instructions = self.frontend_instructions.lock().await.clone();
+
+        // Get model name from provider
+        let provider = self.provider.lock().await;
+        let model_config = provider.as_ref().unwrap().get_model_config();
+        let model_name = &model_config.model_name;
+
         let prompt_manager = self.prompt_manager.lock().await;
-        let system_prompt =
-            prompt_manager.build_system_prompt(extensions_info, frontend_instructions);
+        let system_prompt = prompt_manager.build_system_prompt(
+            extensions_info,
+            self.frontend_instructions.lock().await.clone(),
+            Some(model_name),
+        );
+
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
-        drop(prompt_manager);
 
         messages.push(Message::user().with_text(recipe_prompt));
 

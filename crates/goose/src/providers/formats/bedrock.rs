@@ -31,7 +31,7 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }
-        MessageContent::EnableExtensionRequest(_enable_extension_request) => {
+        MessageContent::ExtensionRequest(_extension_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }
         MessageContent::Image(_) => {

@@ -160,7 +160,7 @@ pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (Princ
     if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
         (
             PrincipalType::Extension,
-            Message::user().with_enable_extension_request(
+            Message::user().with_extension_request(
                 request_id,
                 tool_call
                     .arguments
@@ -168,6 +168,7 @@ pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (Princ
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
+                tool_call.name.clone(),
             ),
         )
     } else {

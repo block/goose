@@ -60,8 +60,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
-                MessageContent::EnableExtensionRequest(_enable_extension_request) => {
-                    // Skip enable extension requests
+                MessageContent::ExtensionRequest(_extension_request) => {
+                    // Skip extension requests
                 }
                 MessageContent::Thinking(thinking) => {
                     content.push(json!({

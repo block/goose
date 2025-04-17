@@ -30,17 +30,21 @@ impl Agent {
         // Prepare system prompt
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let frontend_instructions = self.frontend_instructions.lock().await.clone();
-        let mut system_prompt = self
-            .prompt_manager
-            .lock()
-            .await
-            .build_system_prompt(extensions_info, frontend_instructions);
+
+        // Get model name from provider
+        let provider = self.provider.lock().await;
+        let model_config = provider.as_ref().unwrap().get_model_config();
+        let model_name = &model_config.model_name;
+
+        let mut system_prompt = self.prompt_manager.build_system_prompt(
+            extensions_info,
+            self.frontend_instructions.lock().await.clone(),
+            Some(model_name),
+        );
 
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];
-        let provider = self.provider.lock().await;
-        if provider.as_ref().unwrap().get_model_config().toolshim {
+        if model_config.toolshim {
             // If tool interpretation is enabled, modify the system prompt
             system_prompt = modify_system_prompt_for_tool_json(&system_prompt, &tools);
             // Make a copy of tools before emptying
@@ -88,6 +92,9 @@ impl Agent {
 
         // Call the provider to get a response
         let (mut response, usage) = provider.complete(system_prompt, messages, tools).await?;
+
+        // Store the model information in the global store
+        crate::providers::base::set_current_model(&usage.model);
 
         // Post-process / structure the response only if tool interpretation is enabled
         if config.toolshim {

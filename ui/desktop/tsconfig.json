@@ -20,7 +20,7 @@
     "noFallthroughCasesInSwitch": true,
 
     /* Electron/Node.js specific */
-    "types": ["node", "electron", "vite/client"],
+    "types": ["node", "electron"],
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

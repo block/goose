@@ -35,6 +35,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
 import { initConfig } from './api/sdk.gen';
+import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
 
 // Views and their options
 export type View =
@@ -49,7 +50,8 @@ export type View =
   | 'sessions'
   | 'sharedSession'
   | 'loading'
-  | 'recipeEditor';
+  | 'recipeEditor'
+  | 'permission';
 
 export type ViewOptions =
   | SettingsViewOptions
@@ -777,6 +779,11 @@ export default function App() {
                 );
                 setView('chat');
               }}
+            />
+          )}
+          {view === 'permission' && (
+            <PermissionSettingsView
+              onClose={() => setView((viewOptions as { parentView: View }).parentView)}
             />
           )}
         </div>

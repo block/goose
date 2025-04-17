@@ -9,6 +9,9 @@ on:
       - closed
     paths:
       - 'documentation/**'
+  push:
+    branches-ignore:
+      - 'dependabot/**'
 
 concurrency: preview-${{ github.ref }}
 
