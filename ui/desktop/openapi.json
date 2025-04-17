@@ -669,6 +669,25 @@
           }
         }
       },
+      "ModelInfo": {
+        "type": "object",
+        "description": "Information about a model's capabilities",
+        "required": [
+          "name",
+          "context_limit"
+        ],
+        "properties": {
+          "context_limit": {
+            "type": "integer",
+            "description": "The maximum context length this model supports",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "The name of the model"
+          }
+        }
+      },
       "PermissionConfirmationRequest": {
         "type": "object",
         "required": [
@@ -759,9 +778,9 @@
           "known_models": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ModelInfo"
             },
-            "description": "A list of currently known models\nTODO: eventually query the apis directly"
+            "description": "A list of currently known models with their capabilities\nTODO: eventually query the apis directly"
           },
           "model_doc_link": {
             "type": "string",

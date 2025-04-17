@@ -100,6 +100,20 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+/**
+ * Information about a model's capabilities
+ */
+export type ModelInfo = {
+    /**
+     * The maximum context length this model supports
+     */
+    context_limit: number;
+    /**
+     * The name of the model
+     */
+    name: string;
+};
+
 export type PermissionConfirmationRequest = {
     action: string;
     id: string;
@@ -146,10 +160,10 @@ export type ProviderMetadata = {
      */
     display_name: string;
     /**
-     * A list of currently known models
+     * A list of currently known models with their capabilities
      * TODO: eventually query the apis directly
      */
-    known_models: Array<string>;
+    known_models: Array<ModelInfo>;
     /**
      * Link to the docs where models can be found
      */

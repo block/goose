@@ -22,14 +22,12 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
   // Function to start the hide timer
   const startHideTimer = useCallback((duration = 3000) => {
-    console.log('Starting hide timer');
     // Clear any existing timer
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current);
     }
     // Start new timer
     hideTimerRef.current = setTimeout(() => {
-      console.log('Hide timer completed, closing popover');
       setIsOpen(false);
       setWasAutoShown(false);
     }, duration);
@@ -47,8 +45,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
     previousAlertsRef.current = alerts;
 
+    // Auto show the popover if there are new alerts
     if (!hasShownInitial || hasChanges) {
-      console.log('Auto-showing popover');
       setIsOpen(true);
       setHasShownInitial(true);
       setWasAutoShown(true);

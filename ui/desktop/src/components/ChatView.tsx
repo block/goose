@@ -15,6 +15,7 @@ import { SearchView } from './conversation/SearchView';
 import { createRecipe } from '../recipe';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
+import { fetchSessionDetails } from '../sessions';
 // import { configureRecipeExtensions } from '../utils/recipeExtensions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
@@ -70,6 +71,7 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
+  const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   // Get recipeConfig directly from appConfig
@@ -358,33 +360,20 @@ export default function ChatView({
       .reverse();
   }, [filteredMessages]);
 
-  // Calculate total tokens from messages
-  const totalTokens = useMemo(() => {
-    // todo: do we need to calculate tokens on the front end or is token count available already?
-    return messages.reduce((total, message) => {
-      // Add base tokens for message role
-      let tokens = 3; // Base tokens for role and formatting
-
-      // Add tokens for each content piece
-      const contentTokens = message.content.reduce((sum, content) => {
-        if (content.type === 'text') {
-          // More accurate token estimation:
-          // - Split by whitespace for word count
-          // - Add extra tokens for punctuation and special characters
-          const text = content.text;
-          const words = text.split(/\s+/).length;
-          const specialChars = (text.match(/[.,!?;:'"()[\]{}]/g) || []).length;
-          return sum + words + Math.ceil(specialChars * 0.5);
-        } else if (content.type === 'toolRequest' || content.type === 'toolResponse') {
-          // Add estimated tokens for tool calls/responses
-          return sum + 10; // Base estimate for tool interaction
-        }
-        return sum;
-      }, 0);
-
-      return total + tokens + contentTokens;
-    }, 0);
-  }, [messages]);
+  // Fetch session metadata to get token count
+  useEffect(() => {
+    const fetchSessionTokens = async () => {
+      try {
+        const sessionDetails = await fetchSessionDetails(chat.id);
+        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+      } catch (err) {
+        console.error('Error fetching session token count:', err);
+      }
+    };
+    if (chat.id) {
+      fetchSessionTokens();
+    }
+  }, [chat.id, messages]);
 
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
@@ -473,7 +462,7 @@ export default function ChatView({
             commandHistory={commandHistory}
             initialValue={_input}
           />
-          <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={totalTokens} />
+          <BottomMenu hasMessages={hasMessages} setView={setView} numTokens={sessionTokenCount} />
         </div>
       </Card>
 

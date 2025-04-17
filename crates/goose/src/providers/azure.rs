@@ -101,10 +101,7 @@ impl Provider for AzureProvider {
             "Azure OpenAI",
             "Models through Azure OpenAI Service",
             "gpt-4o",
-            AZURE_OPENAI_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
+            AZURE_OPENAI_KNOWN_MODELS.to_vec(),
             AZURE_DOC_URL,
             vec![
                 ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, None),

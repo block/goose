@@ -102,7 +102,7 @@ impl Provider for OllamaProvider {
             "Ollama",
             "Local open source models",
             OLLAMA_DEFAULT_MODEL,
-            OLLAMA_KNOWN_MODELS.iter().map(|&s| s.to_string()).collect(),
+            OLLAMA_KNOWN_MODELS.to_vec(),
             OLLAMA_DOC_URL,
             vec![ConfigKey::new(
                 "OLLAMA_HOST",
