@@ -75,12 +75,54 @@ impl GoogleErrorCode {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct OpenAIError {
+    #[serde(deserialize_with = "code_as_string")]
     pub code: Option<String>,
     pub message: Option<String>,
     #[serde(rename = "type")]
     pub error_type: Option<String>,
+}
+
+fn code_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+    use std::fmt;
+
+    struct CodeVisitor;
+
+    impl Visitor<'_> for CodeVisitor {
+        type Value = Option<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a number for the code field")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(value.to_string()))
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(value.to_string()))
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(CodeVisitor)
 }
 
 impl OpenAIError {

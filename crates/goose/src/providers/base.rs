@@ -7,6 +7,24 @@ use crate::model::ModelConfig;
 use mcp_core::tool::Tool;
 use utoipa::ToSchema;
 
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
+
+/// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
+pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+/// Set the current model in the global store
+pub fn set_current_model(model: &str) {
+    if let Ok(mut current_model) = CURRENT_MODEL.lock() {
+        *current_model = Some(model.to_string());
+    }
+}
+
+/// Get the current model from the global store, the real model, not an alias
+pub fn get_current_model() -> Option<String> {
+    CURRENT_MODEL.lock().ok().and_then(|model| model.clone())
+}
+
 /// Metadata about a provider's configuration requirements and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {
@@ -178,5 +196,22 @@ mod tests {
         assert_eq!(json_value["total_tokens"], json!(30));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_set_and_get_current_model() {
+        // Set the model
+        set_current_model("gpt-4o");
+
+        // Get the model and verify
+        let model = get_current_model();
+        assert_eq!(model, Some("gpt-4o".to_string()));
+
+        // Change the model
+        set_current_model("claude-3.5-sonnet");
+
+        // Get the updated model and verify
+        let model = get_current_model();
+        assert_eq!(model, Some("claude-3.5-sonnet".to_string()));
     }
 }

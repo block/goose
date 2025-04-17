@@ -1,18 +1,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { getApiUrl, getSecretKey } from '../config';
 import { ChevronDown, ChevronUp } from './icons';
-import {
-  all_goose_modes,
-  filterGooseModes,
-  ModeSelectionItem,
-} from './settings/basic/ModeSelectionItem';
+import { all_goose_modes, ModeSelectionItem } from './settings_v2/mode/ModeSelectionItem';
 import { useConfig } from './ConfigContext';
 import { settingsV2Enabled } from '../flags';
+import { View, ViewOptions } from '../App';
 
-export const BottomMenuModeSelection = () => {
+interface BottomMenuModeSelectionProps {
+  setView: (view: View, viewOptions?: ViewOptions) => void;
+}
+
+export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProps) => {
   const [isGooseModeMenuOpen, setIsGooseModeMenuOpen] = useState(false);
   const [gooseMode, setGooseMode] = useState('auto');
-  const [previousApproveModel, setPreviousApproveModel] = useState('');
   const gooseModeDropdownRef = useRef<HTMLDivElement>(null);
   const { read, upsert } = useConfig();
 
@@ -105,20 +105,14 @@ export const BottomMenuModeSelection = () => {
         console.error('Store response error:', errorText);
         throw new Error(`Failed to store new goose mode: ${newMode}`);
       }
-      if (gooseMode.includes('approve')) {
-        setPreviousApproveModel(gooseMode);
-      }
       setGooseMode(newMode);
     } else {
       await upsert('GOOSE_MODE', newMode, false);
-      if (gooseMode.includes('approve')) {
-        setPreviousApproveModel(gooseMode);
-      }
       setGooseMode(newMode);
     }
   };
 
-  function getValueByKey(key) {
+  function getValueByKey(key: string) {
     const mode = all_goose_modes.find((mode) => mode.key === key);
     return mode ? mode.label : 'auto';
   }
@@ -139,15 +133,17 @@ export const BottomMenuModeSelection = () => {
 
       {/* Dropdown Menu */}
       {isGooseModeMenuOpen && (
-        <div className="absolute bottom-[24px] right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
+        <div className="absolute bottom-[24px] pl-4 pt-2 right-0 w-[240px] bg-bgApp rounded-lg border border-borderSubtle">
           <div>
-            {filterGooseModes(gooseMode, all_goose_modes, previousApproveModel).map((mode) => (
+            {all_goose_modes.map((mode) => (
               <ModeSelectionItem
                 key={mode.key}
                 mode={mode}
                 currentMode={gooseMode}
                 showDescription={false}
                 isApproveModeConfigure={false}
+                parentView="chat"
+                setView={setView}
                 handleModeChange={handleModeChange}
               />
             ))}

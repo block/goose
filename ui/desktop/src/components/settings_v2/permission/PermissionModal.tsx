@@ -149,7 +149,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                         <label className="block text-sm font-medium text-textStandard">
                           {tool.name}
                         </label>
-                        <p className="text-sm text-gray-500 mb-2">
+                        <p className="text-sm text-textSubtle mb-2">
                           {getFirstSentence(tool.description)}
                         </p>
                       </div>

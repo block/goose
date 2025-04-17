@@ -10,15 +10,10 @@
     "target": "ES2020",
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "sourceMap": true
+    "outDir": "dist"
   },
   "include": [
     "vite.config.ts",
-    "vite.main.config.ts",
-    "vite.preload.config.ts",
-    "vite.renderer.config.ts",
-    "forge.config.ts",
-    "src/main.ts",
-    "src/preload.ts"
+    "forge.config.ts"
   ]
 }

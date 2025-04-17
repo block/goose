@@ -84,7 +84,6 @@ impl DatabricksProvider {
         // For compatibility for now we check both config and secret for databricks host
         // but it is not actually a secret value
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
-
         if host.is_err() {
             host = config.get_secret("DATABRICKS_HOST")
         }
@@ -118,6 +117,31 @@ impl DatabricksProvider {
             client,
             auth: DatabricksAuth::oauth(host.clone()),
             host,
+            model,
+            image_format: ImageFormat::OpenAi,
+        })
+    }
+
+    /// Create a new DatabricksProvider with the specified host and token
+    ///
+    /// # Arguments
+    ///
+    /// * `host` - The Databricks host URL
+    /// * `token` - The Databricks API token
+    /// * `model` - The model configuration
+    ///
+    /// # Returns
+    ///
+    /// Returns a Result containing the new DatabricksProvider instance
+    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
+        let client = Client::builder()
+            .timeout(Duration::from_secs(600))
+            .build()?;
+
+        Ok(Self {
+            client,
+            host,
+            auth: DatabricksAuth::token(api_key),
             model,
             image_format: ImageFormat::OpenAi,
         })

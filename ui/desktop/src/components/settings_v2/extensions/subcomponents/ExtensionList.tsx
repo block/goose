@@ -7,11 +7,17 @@ import { combineCmdAndArgs, removeShims } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
-  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void>;
-  onConfigure: (extension: FixedExtensionEntry) => void;
+  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
+  onConfigure?: (extension: FixedExtensionEntry) => void;
+  isStatic?: boolean;
 }
 
-export default function ExtensionList({ extensions, onToggle, onConfigure }: ExtensionListProps) {
+export default function ExtensionList({
+  extensions,
+  onToggle,
+  onConfigure,
+  isStatic,
+}: ExtensionListProps) {
   return (
     <div className="grid grid-cols-2 gap-2 mb-2">
       {extensions.map((extension) => (
@@ -20,6 +26,7 @@ export default function ExtensionList({ extensions, onToggle, onConfigure }: Ext
           extension={extension}
           onToggle={onToggle}
           onConfigure={onConfigure}
+          isStatic={isStatic}
         />
       ))}
     </div>

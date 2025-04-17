@@ -7,15 +7,19 @@ interface ExtensionConfirmationProps {
   isClicked: boolean;
   extensionConfirmationId: string;
   extensionName: string;
+  toolName: string;
 }
 export default function ExtensionConfirmation({
   isCancelledMessage,
   isClicked,
   extensionConfirmationId,
   extensionName,
+  toolName,
 }: ExtensionConfirmationProps) {
   const [clicked, setClicked] = useState(isClicked);
   const [status, setStatus] = useState('unknown');
+
+  const extensionAction = toolName.toLowerCase().includes('enable') ? 'enable' : 'disable';
 
   const handleButtonClick = async (confirmed: boolean) => {
     setClicked(true);
@@ -38,12 +42,12 @@ export default function ExtensionConfirmation({
 
   return isCancelledMessage ? (
     <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 text-textStandard">
-      Extension enablement is cancelled.
+      Extension {extensionAction} is cancelled.
     </div>
   ) : (
     <>
       <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to enable the above extension. Allow?
+        Goose would like to {extensionAction} the following extension. Allow?
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
@@ -75,7 +79,7 @@ export default function ExtensionConfirmation({
             <span className="ml-2 text-textStandard">
               {isClicked
                 ? 'Extension enablement is not available'
-                : `${snakeToTitleCase(extensionName.includes('__') ? extensionName.split('__').pop() : extensionName)} is ${status}`}{' '}
+                : `${snakeToTitleCase(extensionName.includes('__') ? extensionName.split('__').pop() || extensionName : extensionName)} is ${status}`}{' '}
             </span>
           </div>
         </div>
@@ -87,7 +91,8 @@ export default function ExtensionConfirmation({
             }
             onClick={() => handleButtonClick(true)}
           >
-            Enable extension
+            {extensionAction.charAt(0).toUpperCase() + extensionAction.slice(1).toLowerCase()}{' '}
+            extension
           </button>
           <button
             className={

@@ -68,35 +68,36 @@ export interface ToolConfirmationRequestMessageContent {
   prompt?: string;
 }
 
-export interface EnableExtensionCall {
+export interface ExtensionCall {
   name: string;
   arguments: Record<string, unknown>;
   extensionName: string;
 }
 
-export interface EnableExtensionCallResult<T> {
+export interface ExtensionCallResult<T> {
   status: 'success' | 'error';
   value?: T;
   error?: string;
 }
 
-export interface EnableExtensionRequest {
+export interface ExtensionRequest {
   id: string;
-  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
+  extensionCall: ExtensionCallResult<ExtensionCall>;
 }
 
-export interface EnableExtensionConfirmationRequest {
+export interface ExtensionConfirmationRequest {
   id: string;
   extensionName: string;
   arguments: Record<string, unknown>;
   prompt?: string;
 }
 
-export interface EnableExtensionRequestMessageContent {
-  type: 'enableExtensionRequest';
+export interface ExtensionRequestMessageContent {
+  type: 'extensionRequest';
   id: string;
-  extensionCall: EnableExtensionCallResult<EnableExtensionCall>;
+  extensionCall: ExtensionCallResult<ExtensionCall>;
   extensionName: string;
+  toolName: string;
 }
 
 export type MessageContent =
@@ -105,7 +106,7 @@ export type MessageContent =
   | ToolRequestMessageContent
   | ToolResponseMessageContent
   | ToolConfirmationRequestMessageContent
-  | EnableExtensionRequestMessageContent;
+  | ExtensionRequestMessageContent;
 
 export interface Message {
   id?: string;
@@ -219,12 +220,11 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
-export function getEnableExtensionRequests(
+export function getExtensionRequests(
   message: Message
-): EnableExtensionRequestMessageContent[] {
+): ExtensionRequestMessageContent[] {
   return message.content.filter(
-    (content): content is EnableExtensionRequestMessageContent =>
-      content.type === 'enableExtensionRequest'
+    (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
   );
 }
 
@@ -237,10 +237,10 @@ export function getToolConfirmationContent(
   );
 }
 
-export function getEnableExtensionContent(message: Message): EnableExtensionRequestMessageContent {
+export function getExtensionContent(message: Message): ExtensionRequestMessageContent {
   return message.content.find(
-    (content): content is EnableExtensionRequestMessageContent =>
-      content.type === 'enableExtensionRequest'
+    (content): content is ExtensionRequestMessageContent =>
+      content.type === 'extensionRequest'
   );
 }
 
@@ -250,16 +250,6 @@ export function hasCompletedToolCalls(message: Message): boolean {
 
   // For now, we'll assume all tool calls are completed when this is checked
   // In a real implementation, you'd need to check if all tool requests have responses
-  // by looking through subsequent messages
-  return true;
-}
-
-export function hasCompletedEnableExtensionCalls(message: Message): boolean {
-  const extensionRequests = getEnableExtensionRequests(message);
-  if (extensionRequests.length === 0) return false;
-
-  // For now, we'll assume all extension calls are completed when this is checked
-  // In a real implementation, you'd need to check if all extension requests have responses
   // by looking through subsequent messages
   return true;
 }
