@@ -14,6 +14,7 @@ import { Button } from '../ui/button';
 import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import { View, ViewOptions } from '../../App';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
 
 interface SessionListViewProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
@@ -42,29 +43,6 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
       setSessions([]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Format date to be more readable
-  // eg. "10:39 PM, Feb 28, 2025"
-  const formatDateString = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      const time = new Intl.DateTimeFormat('en-US', {
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true,
-      }).format(date);
-
-      const dateStr = new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }).format(date);
-
-      return `${time}, ${dateStr}`;
-    } catch (e) {
-      return dateString;
     }
   };
 
@@ -115,7 +93,9 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                         <div className="flex gap-3">
                           <div className="flex items-center text-textSubtle text-sm">
                             <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                            <span className="truncate">{formatDateString(session.modified)}</span>
+                            <span className="truncate">
+                              {formatMessageTimestamp(Date.parse(session.modified) / 1000)}
+                            </span>
                           </div>
                           <div className="flex items-center text-textSubtle text-sm">
                             <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
