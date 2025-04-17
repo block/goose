@@ -4,77 +4,6 @@ use mcp_core::Role;
 use std::collections::HashSet;
 use tracing::debug;
 
-/// Trait representing a truncation strategy
-pub trait TruncationStrategy {
-    /// Determines the indices of messages to remove to fit within the context limit.
-    ///
-    /// - `messages`: The list of messages in the conversation.
-    /// - `token_counts`: A parallel array containing the token count for each message.
-    /// - `context_limit`: The maximum allowed context length in tokens.
-    ///
-    /// Returns a vector of indices to remove.
-    fn determine_indices_to_remove(
-        &self,
-        messages: &[Message],
-        token_counts: &[usize],
-        context_limit: usize,
-    ) -> Result<HashSet<usize>>;
-}
-
-/// Strategy to truncate messages by removing the oldest first
-pub struct OldestFirstTruncation;
-/// Strategy to truncate messages explicitly
-pub struct ExplicitTruncation;
-
-impl TruncationStrategy for OldestFirstTruncation {
-    fn determine_indices_to_remove(
-        &self,
-        messages: &[Message],
-        token_counts: &[usize],
-        context_limit: usize,
-    ) -> Result<HashSet<usize>> {
-        let mut indices_to_remove = HashSet::new();
-        let mut total_tokens: usize = token_counts.iter().sum();
-        let mut tool_ids_to_remove = HashSet::new();
-
-        for (i, message) in messages.iter().enumerate() {
-            if total_tokens <= context_limit {
-                break;
-            }
-
-            // Remove the message
-            indices_to_remove.insert(i);
-            total_tokens -= token_counts[i];
-            debug!(
-                "OldestFirst: Removing message at index {}. Tokens removed: {}",
-                i, token_counts[i]
-            );
-
-            // If it's a ToolRequest or ToolResponse, mark its pair for removal
-            if message.is_tool_call() || message.is_tool_response() {
-                message.get_tool_ids().iter().for_each(|id| {
-                    tool_ids_to_remove.insert((i, id.to_string()));
-                });
-            }
-        }
-
-        // Now, find and remove paired ToolResponses or ToolRequests
-        for (i, message) in messages.iter().enumerate() {
-            let message_tool_ids = message.get_tool_ids();
-            // Find the other part of the pair - same tool_id but different message index
-            for (message_idx, tool_id) in &tool_ids_to_remove {
-                if message_idx != &i && message_tool_ids.contains(tool_id.as_str()) {
-                    indices_to_remove.insert(i);
-                    // No need to check other tool_ids for this message since it's already marked
-                    break;
-                }
-            }
-        }
-
-        Ok(indices_to_remove)
-    }
-}
-
 /// Truncates the messages to fit within the model's context window.
 /// Mutates the input messages and token counts in place.
 /// Returns an error if it's impossible to truncate the messages within the context limit.
@@ -177,7 +106,75 @@ pub fn truncate_messages(
     Ok(())
 }
 
-// truncate.rs
+
+/// Trait representing a truncation strategy
+pub trait TruncationStrategy {
+    /// Determines the indices of messages to remove to fit within the context limit.
+    ///
+    /// - `messages`: The list of messages in the conversation.
+    /// - `token_counts`: A parallel array containing the token count for each message.
+    /// - `context_limit`: The maximum allowed context length in tokens.
+    ///
+    /// Returns a vector of indices to remove.
+    fn determine_indices_to_remove(
+        &self,
+        messages: &[Message],
+        token_counts: &[usize],
+        context_limit: usize,
+    ) -> Result<HashSet<usize>>;
+}
+
+/// Strategy to truncate messages by removing the oldest first
+pub struct OldestFirstTruncation;
+
+impl TruncationStrategy for OldestFirstTruncation {
+    fn determine_indices_to_remove(
+        &self,
+        messages: &[Message],
+        token_counts: &[usize],
+        context_limit: usize,
+    ) -> Result<HashSet<usize>> {
+        let mut indices_to_remove = HashSet::new();
+        let mut total_tokens: usize = token_counts.iter().sum();
+        let mut tool_ids_to_remove = HashSet::new();
+
+        for (i, message) in messages.iter().enumerate() {
+            if total_tokens <= context_limit {
+                break;
+            }
+
+            // Remove the message
+            indices_to_remove.insert(i);
+            total_tokens -= token_counts[i];
+            debug!(
+                "OldestFirst: Removing message at index {}. Tokens removed: {}",
+                i, token_counts[i]
+            );
+
+            // If it's a ToolRequest or ToolResponse, mark its pair for removal
+            if message.is_tool_call() || message.is_tool_response() {
+                message.get_tool_ids().iter().for_each(|id| {
+                    tool_ids_to_remove.insert((i, id.to_string()));
+                });
+            }
+        }
+
+        // Now, find and remove paired ToolResponses or ToolRequests
+        for (i, message) in messages.iter().enumerate() {
+            let message_tool_ids = message.get_tool_ids();
+            // Find the other part of the pair - same tool_id but different message index
+            for (message_idx, tool_id) in &tool_ids_to_remove {
+                if message_idx != &i && message_tool_ids.contains(tool_id.as_str()) {
+                    indices_to_remove.insert(i);
+                    // No need to check other tool_ids for this message since it's already marked
+                    break;
+                }
+            }
+        }
+
+        Ok(indices_to_remove)
+    }
+}
 
 #[cfg(test)]
 mod tests {
