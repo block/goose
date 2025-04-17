@@ -13,8 +13,9 @@ import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
 import { getCurrentModelAndProvider } from '../settings_v2/models/index';
 
-const TOKEN_WARNING_THRESHOLD = 0.8;
-const SUGGESTED_MAX_TOOLS = 25;
+const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
+const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
+const TOOLS_MAX_SUGGESTED = 25; // max number of tools before we show a warning
 
 export default function BottomMenu({
   hasMessages,
@@ -31,7 +32,7 @@ export default function BottomMenu({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
-  const [tokenLimit, setTokenLimit] = useState<number | null>(null);
+  const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
@@ -92,10 +93,10 @@ export default function BottomMenu({
     }
 
     // Add tool count alert if we have the data
-    if (toolCount !== null && toolCount > SUGGESTED_MAX_TOOLS) {
+    if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
       addAlert(
         AlertType.Warning,
-        `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${SUGGESTED_MAX_TOOLS})`,
+        `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
         {
           text: 'View extensions',
           onClick: () => setView('settings'),
