@@ -65,7 +65,10 @@ impl PromptManager {
         if should_suggest_disable {
             context.insert(
                 "suggest_disable",
-                Value::String("Ask the user if they would like to disable a few extensions, list the extensions out as it would help with my recall of the correct tools to use".to_string())
+                Value::String(
+                    "Ask the user if they would like to disable a few extensions for this session.
+                    To do this, list the extensions out and ask the user which ones they are currently not using.
+                    Explain to them the benefit of minimizing extensions is that it helps with the recall of the correct tools to use".to_string())
             );
         }
 

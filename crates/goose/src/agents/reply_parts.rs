@@ -52,8 +52,6 @@ impl Agent {
 
     /// Categorize tools based on their annotations
     /// Returns:
-    /// Categorize tools based on their annotations
-    /// Returns:
     /// - read_only_tools: Tools with read-only annotations
     /// - non_read_tools: Tools without read-only annotations
     pub(crate) fn categorize_tools_by_annotation(
