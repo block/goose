@@ -5,6 +5,7 @@ interface CardContainerProps {
   body: React.ReactNode;
   onClick: () => void;
   grayedOut: boolean;
+  testId?: string;
 }
 
 function GlowingRing() {
@@ -31,9 +32,11 @@ export default function CardContainer({
   body,
   onClick,
   grayedOut = false,
+  testId,
 }: CardContainerProps) {
   return (
     <div
+      data-testid={testId}
       className={`relative h-full p-[1px] overflow-hidden rounded-[9px] group/card 
                  ${
                    grayedOut

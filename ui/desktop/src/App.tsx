@@ -373,7 +373,8 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array since we only want this to run once
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);

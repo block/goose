@@ -25,6 +25,15 @@ pub fn get_current_model() -> Option<String> {
     CURRENT_MODEL.lock().ok().and_then(|model| model.clone())
 }
 
+/// Information about a model's capabilities
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
+pub struct ModelInfo {
+    /// The name of the model
+    pub name: String,
+    /// The maximum context length this model supports
+    pub context_limit: usize,
+}
+
 /// Metadata about a provider's configuration requirements and capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ProviderMetadata {
@@ -36,9 +45,9 @@ pub struct ProviderMetadata {
     pub description: String,
     /// The default/recommended model for this provider
     pub default_model: String,
-    /// A list of currently known models
+    /// A list of currently known models with their capabilities
     /// TODO: eventually query the apis directly
-    pub known_models: Vec<String>,
+    pub known_models: Vec<ModelInfo>,
     /// Link to the docs where models can be found
     pub model_doc_link: String,
     /// Required configuration keys
@@ -51,7 +60,7 @@ impl ProviderMetadata {
         display_name: &str,
         description: &str,
         default_model: &str,
-        known_models: Vec<String>,
+        model_names: Vec<&str>,
         model_doc_link: &str,
         config_keys: Vec<ConfigKey>,
     ) -> Self {
@@ -60,7 +69,13 @@ impl ProviderMetadata {
             display_name: display_name.to_string(),
             description: description.to_string(),
             default_model: default_model.to_string(),
-            known_models,
+            known_models: model_names
+                .iter()
+                .map(|&name| ModelInfo {
+                    name: name.to_string(),
+                    context_limit: ModelConfig::new(name.to_string()).context_limit(),
+                })
+                .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
         }
@@ -168,6 +183,7 @@ pub trait Provider: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     use serde_json::json;
 
@@ -213,5 +229,62 @@ mod tests {
         // Get the updated model and verify
         let model = get_current_model();
         assert_eq!(model, Some("claude-3.5-sonnet".to_string()));
+    }
+
+    #[test]
+    fn test_provider_metadata_context_limits() {
+        // Test that ProviderMetadata::new correctly sets context limits
+        let test_models = vec!["gpt-4o", "claude-3-5-sonnet-latest", "unknown-model"];
+        let metadata = ProviderMetadata::new(
+            "test",
+            "Test Provider",
+            "Test Description",
+            "gpt-4o",
+            test_models,
+            "https://example.com",
+            vec![],
+        );
+
+        let model_info: HashMap<String, usize> = metadata
+            .known_models
+            .into_iter()
+            .map(|m| (m.name, m.context_limit))
+            .collect();
+
+        // gpt-4o should have 128k limit
+        assert_eq!(*model_info.get("gpt-4o").unwrap(), 128_000);
+
+        // claude-3-5-sonnet-latest should have 200k limit
+        assert_eq!(
+            *model_info.get("claude-3-5-sonnet-latest").unwrap(),
+            200_000
+        );
+
+        // unknown model should have default limit (128k)
+        assert_eq!(*model_info.get("unknown-model").unwrap(), 128_000);
+    }
+
+    #[test]
+    fn test_model_info_creation() {
+        // Test direct ModelInfo creation
+        let info = ModelInfo {
+            name: "test-model".to_string(),
+            context_limit: 1000,
+        };
+        assert_eq!(info.context_limit, 1000);
+
+        // Test equality
+        let info2 = ModelInfo {
+            name: "test-model".to_string(),
+            context_limit: 1000,
+        };
+        assert_eq!(info, info2);
+
+        // Test inequality
+        let info3 = ModelInfo {
+            name: "test-model".to_string(),
+            context_limit: 2000,
+        };
+        assert_ne!(info, info3);
     }
 }

@@ -129,7 +129,7 @@ impl Provider for GoogleProvider {
             "Google Gemini",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
-            GOOGLE_KNOWN_MODELS.iter().map(|&s| s.to_string()).collect(),
+            GOOGLE_KNOWN_MODELS.to_vec(),
             GOOGLE_DOC_URL,
             vec![
                 ConfigKey::new("GOOGLE_API_KEY", true, true, None),
