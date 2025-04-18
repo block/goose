@@ -325,10 +325,10 @@ export default function App() {
         }
 
         // Handle bot config extensions first
-        if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-          console.log('Found extensions in bot config:', recipeConfig.extensions);
-          await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
-        }
+        // if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+        //   console.log('Found extensions in bot config:', recipeConfig.extensions);
+        //   await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
+        // }
 
         const config = window.electron.getConfig();
 

@@ -10,7 +10,7 @@ import Copy from './icons/Copy';
 import { Check } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
-import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
+// import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -34,7 +34,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [copied, setCopied] = useState(false);
 
   // Initialize selected extensions for the recipe from config or localStorage
-  const [recipeExtensions, setRecipeExtensions] = useState<string[]>(() => {
+  const [recipeExtensions] = useState<string[]>(() => {
     // First try to get from localStorage
     const stored = localStorage.getItem('recipe_editor_extensions');
     if (stored) {
@@ -95,20 +95,20 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipeExtensions, extensionsLoaded]);
 
-  const handleExtensionToggle = (extension: FixedExtensionEntry) => {
-    console.log('Toggling extension:', extension.name);
-    setRecipeExtensions((prev) => {
-      const isSelected = prev.includes(extension.name);
-      const newState = isSelected
-        ? prev.filter((extName) => extName !== extension.name)
-        : [...prev, extension.name];
+  // const handleExtensionToggle = (extension: FixedExtensionEntry) => {
+  //   console.log('Toggling extension:', extension.name);
+  //   setRecipeExtensions((prev) => {
+  //     const isSelected = prev.includes(extension.name);
+  //     const newState = isSelected
+  //       ? prev.filter((extName) => extName !== extension.name)
+  //       : [...prev, extension.name];
 
-      // Persist to localStorage
-      localStorage.setItem('recipe_editor_extensions', JSON.stringify(newState));
+  //     // Persist to localStorage
+  //     localStorage.setItem('recipe_editor_extensions', JSON.stringify(newState));
 
-      return newState;
-    });
-  };
+  //     return newState;
+  //   });
+  // };
 
   const handleAddActivity = () => {
     if (newActivity.trim()) {
@@ -270,30 +270,30 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
           </div>
         );
 
-      case 'extensions':
-        return (
-          <div className="p-6 pt-10">
-            <button onClick={() => setActiveSection('none')} className="mb-6">
-              <Back className="w-6 h-6 text-iconProminent" />
-            </button>
-            <div className="py-2">
-              <Bars className="w-6 h-6 text-iconSubtle" />
-            </div>
-            <div className="mb-8 mt-6">
-              <h2 className="text-2xl font-medium mb-2 text-textProminent">Extensions</h2>
-              <p className="text-textSubtle">Select extensions to bundle in the recipe</p>
-            </div>
-            {extensionsLoaded ? (
-              <ExtensionList
-                extensions={extensionOptions}
-                onToggle={handleExtensionToggle}
-                isStatic={true}
-              />
-            ) : (
-              <div className="text-center py-8 text-textSubtle">Loading extensions...</div>
-            )}
-          </div>
-        );
+      // case 'extensions':
+      //   return (
+      //     <div className="p-6 pt-10">
+      //       <button onClick={() => setActiveSection('none')} className="mb-6">
+      //         <Back className="w-6 h-6 text-iconProminent" />
+      //       </button>
+      //       <div className="py-2">
+      //         <Bars className="w-6 h-6 text-iconSubtle" />
+      //       </div>
+      //       <div className="mb-8 mt-6">
+      //         <h2 className="text-2xl font-medium mb-2 text-textProminent">Extensions</h2>
+      //         <p className="text-textSubtle">Select extensions to bundle in the recipe</p>
+      //       </div>
+      //       {extensionsLoaded ? (
+      //         <ExtensionList
+      //           extensions={extensionOptions}
+      //           onToggle={handleExtensionToggle}
+      //           isStatic={true}
+      //         />
+      //       ) : (
+      //         <div className="text-center py-8 text-textSubtle">Loading extensions...</div>
+      //       )}
+      //     </div>
+      //   );
 
       default:
         return (
@@ -362,7 +362,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
               <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
             </button>
 
-            <button
+            {/* <button
               onClick={() => setActiveSection('extensions')}
               className="w-full flex items-start justify-between p-4 border border-borderSubtle rounded-lg bg-bgApp hover:bg-bgSubtle"
             >
@@ -373,7 +373,7 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
                 </p>
               </div>
               <ChevronRight className="w-5 h-5 mt-1 text-iconSubtle" />
-            </button>
+            </button> */}
 
             {/* Deep Link Display */}
             <div className="w-full p-4 bg-bgSubtle rounded-lg">
