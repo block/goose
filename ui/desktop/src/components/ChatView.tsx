@@ -380,7 +380,11 @@ export default function ChatView({
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
       <div className="relative flex items-center h-[36px] w-full">
-        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+        <MoreMenuLayout
+          setView={setView}
+          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          isLoading={isLoading}
+        />
       </div>
 
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
