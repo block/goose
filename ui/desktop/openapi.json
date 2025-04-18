@@ -77,6 +77,29 @@
         }
       }
     },
+    "/config/backup": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "backup_config",
+        "responses": {
+          "200": {
+            "description": "Config file backed up",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -466,6 +489,12 @@
                 "type": "string",
                 "nullable": true
               },
+              "env_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "envs": {
                 "$ref": "#/components/schemas/Envs"
               },
@@ -517,6 +546,12 @@
               "description": {
                 "type": "string",
                 "nullable": true
+              },
+              "env_keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "envs": {
                 "$ref": "#/components/schemas/Envs"

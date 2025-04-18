@@ -34,7 +34,7 @@ import { addExtension as addExtensionDirect, FullExtensionConfig } from './exten
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
-import { initConfig } from './api/sdk.gen';
+import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
 
 // Views and their options
@@ -240,7 +240,7 @@ export default function App() {
     console.log('Finished enabling bot config extensions');
   };
 
-  const enableRecipeConfigExtensionsV2 = useCallback(
+  const _enableRecipeConfigExtensionsV2 = useCallback(
     async (extensions: FullExtensionConfig[]) => {
       if (!extensions?.length) {
         console.log('No extensions to enable from bot config');
@@ -299,8 +299,24 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
-        // Initialize config first
+        // checks if there is a config, and if not creates it
         await initConfig();
+
+        // now try to read config, if we fail and are migrating backup, then re-init config
+        try {
+          await readAllConfig({ throwOnError: true });
+        } catch (error) {
+          // NOTE: we do this check here and in providerUtils.ts, be sure to clean up both in the future
+          const configVersion = localStorage.getItem('configVersion');
+          const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
+          if (shouldMigrateExtensions) {
+            await backupConfig({ throwOnError: true });
+            await initConfig();
+          } else {
+            // if we've migrated throw this back up
+            throw new Error('Unable to read config file, it may be malformed');
+          }
+        }
 
         // note: if in a non recipe session, recipeConfig is undefined, otherwise null if error
         if (recipeConfig === null) {
@@ -309,10 +325,10 @@ export default function App() {
         }
 
         // Handle bot config extensions first
-        if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-          console.log('Found extensions in bot config:', recipeConfig.extensions);
-          await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
-        }
+        // if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+        //   console.log('Found extensions in bot config:', recipeConfig.extensions);
+        //   await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
+        // }
 
         const config = window.electron.getConfig();
 

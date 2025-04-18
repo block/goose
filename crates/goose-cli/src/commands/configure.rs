@@ -583,6 +583,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
             if add_env {
                 loop {
                     let key: String = cliclack::input("Environment variable name:")
@@ -593,7 +596,18 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .mask('▪')
                         .interact()?;
 
-                    envs.insert(key, value);
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -608,6 +622,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     cmd,
                     args,
                     envs: Envs::new(envs),
+                    env_keys,
                     description,
                     timeout: Some(timeout),
                     bundled: None,
@@ -671,6 +686,9 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
             let mut envs = HashMap::new();
+            let mut env_keys = Vec::new();
+            let config = Config::global();
+
             if add_env {
                 loop {
                     let key: String = cliclack::input("Environment variable name:")
@@ -681,7 +699,18 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .mask('▪')
                         .interact()?;
 
-                    envs.insert(key, value);
+                    // Try to store in keychain
+                    let keychain_key = key.to_string();
+                    match config.set_secret(&keychain_key, Value::String(value.clone())) {
+                        Ok(_) => {
+                            // Successfully stored in keychain, add to env_keys
+                            env_keys.push(keychain_key);
+                        }
+                        Err(_) => {
+                            // Failed to store in keychain, store directly in envs
+                            envs.insert(key, value);
+                        }
+                    }
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -695,6 +724,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                     name: name.clone(),
                     uri,
                     envs: Envs::new(envs),
+                    env_keys,
                     description,
                     timeout: Some(timeout),
                     bundled: None,

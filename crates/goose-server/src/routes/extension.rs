@@ -1,14 +1,10 @@
-use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
-use goose::{
-    agents::{extension::Envs, ExtensionConfig},
-    config::Config,
-};
+use goose::agents::{extension::Envs, ExtensionConfig};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use tracing;
@@ -24,6 +20,9 @@ enum ExtensionConfigRequest {
         name: String,
         /// The URI endpoint for the SSE extension.
         uri: String,
+        #[serde(default)]
+        /// Map of environment variable key to values.
+        envs: Envs,
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
@@ -39,6 +38,9 @@ enum ExtensionConfigRequest {
         /// Arguments for the command.
         #[serde(default)]
         args: Vec<String>,
+        #[serde(default)]
+        /// Map of environment variable key to values.
+        envs: Envs,
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
@@ -162,55 +164,28 @@ async fn add_extension(
         }
     }
 
-    // Load the configuration
-    let config = Config::global();
-
-    // Initialize a vector to collect any missing keys.
-    let mut missing_keys = Vec::new();
-
     // Construct ExtensionConfig with Envs populated from keyring based on provided env_keys.
     let extension_config: ExtensionConfig = match request {
         ExtensionConfigRequest::Sse {
             name,
             uri,
+            envs,
             env_keys,
             timeout,
-        } => {
-            let mut env_map = HashMap::new();
-            for key in env_keys {
-                match config.get_secret(&key) {
-                    Ok(value) => {
-                        env_map.insert(key, value);
-                    }
-                    Err(_) => {
-                        missing_keys.push(key);
-                    }
-                }
-            }
-
-            if !missing_keys.is_empty() {
-                return Ok(Json(ExtensionResponse {
-                    error: true,
-                    message: Some(format!(
-                        "Missing secrets for keys: {}",
-                        missing_keys.join(", ")
-                    )),
-                }));
-            }
-
-            ExtensionConfig::Sse {
-                name,
-                uri,
-                envs: Envs::new(env_map),
-                description: None,
-                timeout,
-                bundled: None,
-            }
-        }
+        } => ExtensionConfig::Sse {
+            name,
+            uri,
+            envs,
+            env_keys,
+            description: None,
+            timeout,
+            bundled: None,
+        },
         ExtensionConfigRequest::Stdio {
             name,
             cmd,
             args,
+            envs,
             env_keys,
             timeout,
         } => {
@@ -226,34 +201,13 @@ async fn add_extension(
             //     }));
             // }
 
-            let mut env_map = HashMap::new();
-            for key in env_keys {
-                match config.get_secret(&key) {
-                    Ok(value) => {
-                        env_map.insert(key, value);
-                    }
-                    Err(_) => {
-                        missing_keys.push(key);
-                    }
-                }
-            }
-
-            if !missing_keys.is_empty() {
-                return Ok(Json(ExtensionResponse {
-                    error: true,
-                    message: Some(format!(
-                        "Missing secrets for keys: {}",
-                        missing_keys.join(", ")
-                    )),
-                }));
-            }
-
             ExtensionConfig::Stdio {
                 name,
                 cmd,
                 args,
                 description: None,
-                envs: Envs::new(env_map),
+                envs,
+                env_keys,
                 timeout,
                 bundled: None,
             }

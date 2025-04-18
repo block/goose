@@ -94,8 +94,8 @@ There may be (but not always) some tools mentioned in the instructions which you
  *
  * @param addExtension Function to add extension to config.yaml
  */
-export const migrateExtensionsToSettingsV2 = async () => {
-  console.log('need to perform extension migration');
+export const migrateExtensionsToSettingsV3 = async () => {
+  console.log('need to perform extension migration v3');
 
   const userSettingsStr = localStorage.getItem('user_settings');
   let localStorageExtensions: FullExtensionConfig[] = [];
@@ -140,8 +140,8 @@ export const migrateExtensionsToSettingsV2 = async () => {
   }
 
   if (migrationErrors.length === 0) {
-    localStorage.setItem('configVersion', '2');
-    console.log('Extension migration complete. Config version set to 2.');
+    localStorage.setItem('configVersion', '3');
+    console.log('Extension migration complete. Config version set to 3.');
   } else {
     const errorSummaryStr = migrationErrors
       .map(({ name, error }) => `- ${name}: ${JSON.stringify(error)}`)
@@ -209,11 +209,11 @@ export const initializeSystem = async (
       // NOTE: remove when we want to stop migration logic
       // Check if we need to migrate extensions from localStorage to config.yaml
       const configVersion = localStorage.getItem('configVersion');
-      const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 2;
+      const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
 
       console.log(`shouldMigrateExtensions is ${shouldMigrateExtensions}`);
       if (shouldMigrateExtensions) {
-        await migrateExtensionsToSettingsV2();
+        await migrateExtensionsToSettingsV3();
       }
 
       /* NOTE:
