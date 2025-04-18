@@ -507,9 +507,9 @@ export default function App() {
 
             if (!isCommandAllowed) {
               setExtensionConfirmLabel('Override and install');
-              setExtensionConfirmTitle('⛔️ DANGER: Untrusted Extension');
+              setExtensionConfirmTitle('⛔️ Untrusted Extension ⛔️');
               warningMessage =
-                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks.';
+                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact an admin if you are unsure or want to allow this extension.';
             }
           }
         } catch (error) {

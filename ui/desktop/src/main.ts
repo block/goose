@@ -780,53 +780,6 @@ app.whenReady().then(async () => {
         },
       })
     );
-
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Launch SQL Bot (Demo)',
-        click() {
-          // Example SQL Assistant bot deep link
-          const sqlBotUrl =
-            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
-
-          // Extract the bot config from the URL
-          const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let recipeConfig = null;
-          if (configParam) {
-            try {
-              recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-            } catch (e) {
-              console.error('Failed to parse bot config:', e);
-            }
-          }
-
-          // Create a new window
-          const recentDirs = loadRecentDirs();
-          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-
-          createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
-        },
-      })
-    );
-
-    // NOTE: Add Extension menu item DEVELOPMENT TIME ONLY REMOVE THIS
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Add Extension',
-        click() {
-          // Create extension deeplink
-          const extensionUrl =
-            'goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Web%20search%20capabilities%20powered%20by%20Tavily&env=TAVILY_API_KEY%3DAPI%20key%20for%20Tavily%20web%20search%20service';
-
-          // Get the focused window or create a new one if none exists
-          const existingWindows = BrowserWindow.getAllWindows();
-          const window = existingWindows[0];
-          if (window.isMinimized()) window.restore();
-          window.focus();
-          window.webContents.send('add-extension', extensionUrl);
-        },
-      })
-    );
   }
 
   if (menu) {
