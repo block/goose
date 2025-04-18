@@ -49,30 +49,25 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   }, [isModelMenuOpen]);
 
   return (
-    <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
+    <div className="relative flex items-center" ref={dropdownRef}>
       <div ref={menuRef} className="relative">
         <div
-          className="flex items-center cursor-pointer"
+          className="flex items-center hover:cursor-pointer hover:text-textStandard transition-colors"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
           {model}
-          {isModelMenuOpen ? (
-            <ChevronDown className="w-4 h-4 ml-1" />
-          ) : (
-            <ChevronUp className="w-4 h-4 ml-1" />
-          )}
         </div>
 
         {/* Dropdown Menu */}
         {isModelMenuOpen && (
-          <div className="absolute bottom-[24px] right-0 w-[300px] bg-bgApp rounded-lg border border-borderSubtle">
+          <div className="absolute bottom-[24px] left-0 w-[300px] bg-bgApp rounded-lg border border-borderSubtle">
             <div className="">
               <div className="text-sm text-textProminent mt-3 ml-2">Current:</div>
               <div className="flex items-center justify-between text-sm ml-2">
                 {model} -- {provider}
               </div>
               <div
-                className="flex items-center justify-between text-textStandard p-2 cursor-pointer hover:bg-bgStandard
+                className="flex items-center justify-between text-textStandard p-2 cursor-pointer transition-colors hover:bg-bgStandard
                     border-t border-borderSubtle mt-2"
                 onClick={() => {
                   setIsModelMenuOpen(false);

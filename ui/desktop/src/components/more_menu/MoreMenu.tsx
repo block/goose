@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverPortal, PopoverTrigger } from '../ui/popover';
 import React, { useEffect, useState } from 'react';
-import { ChatSmart, Idea, More, Refresh, Time, Send } from '../icons';
+import { ChatSmart, Idea, More, Refresh, Time, Send, Settings } from '../icons';
 import { FolderOpen, Moon, Sliders, Sun } from 'lucide-react';
 import { useConfig } from '../ConfigContext';
 import { settingsV2Enabled } from '../../flags';
@@ -162,11 +162,9 @@ export default function MoreMenu({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className={`z-[100] absolute top-2 right-4 w-[20px] h-[20px] transition-colors cursor-pointer no-drag hover:text-textProminent ${open ? 'text-textProminent' : 'text-textSubtle'}`}
-          role="button"
-          aria-label="More options"
+          className={`z-[100] w-7 h-7 p-1 rounded-full border border-borderSubtle transition-colors cursor-pointer no-drag hover:text-textStandard hover:border-borderStandard ${open ? 'text-textStandard' : 'text-textSubtle'}`}
         >
-          <More />
+          <Settings />
         </button>
       </PopoverTrigger>
 

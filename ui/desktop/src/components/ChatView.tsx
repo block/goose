@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
-import BottomMenu from './BottomMenu';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
-import Input from './Input';
+import ChatBar from './ChatBar';
 import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -29,6 +28,7 @@ import {
   ToolConfirmationRequestMessageContent,
   ExtensionRequestMessageContent,
 } from '../types/message';
+import ChatInput from './ChatInput';
 
 export interface ChatType {
   id: string;
@@ -362,9 +362,7 @@ export default function ChatView({
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
-      <div className="relative flex items-center h-[36px] w-full">
-        <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-      </div>
+      <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
 
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {recipeConfig?.title && messages.length > 0 && (
@@ -432,20 +430,21 @@ export default function ChatView({
                 </div>
               </div>
             )}
-            <div className="block h-16" />
+            <div className="block h-8" />
           </ScrollArea>
         )}
 
-        <div className="relative">
+        <div className="relative p-4 pt-0 z-10 animate-[fadein_400ms_ease-in_forwards]">
           {isLoading && <LoadingGoose />}
-          <Input
+          <ChatInput
             handleSubmit={handleSubmit}
             isLoading={isLoading}
             onStop={onStopGoose}
             commandHistory={commandHistory}
             initialValue={_input}
+            setView={setView}
+            hasMessages={hasMessages}
           />
-          <BottomMenu hasMessages={hasMessages} setView={setView} />
         </div>
       </Card>
 

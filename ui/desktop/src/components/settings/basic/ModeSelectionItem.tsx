@@ -11,7 +11,7 @@ export interface GooseMode {
 export const all_goose_modes: GooseMode[] = [
   {
     key: 'auto',
-    label: 'Completely Autonomous',
+    label: 'Autonomous',
     description: 'Full file modification capabilities, edit, create, and delete files freely.',
   },
   {
@@ -91,10 +91,10 @@ export function ModeSelectionItem({
   return (
     <div>
       <div
-        className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
+        className="flex hover:cursor-pointer items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
         onClick={() => handleModeChange(mode.key)}
       >
-        <div>
+        <div className="">
           <h3 className="text-sm font-light text-textStandard dark:text-gray-200">{mode.label}</h3>
           {showDescription && (
             <p className="text-xs text-textSubtle dark:text-gray-400 mt-[2px]">
