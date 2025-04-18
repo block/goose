@@ -597,7 +597,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .interact()?;
 
                     // Try to store in keychain
-                    let keychain_key = format!("{}", key);
+                    let keychain_key = key.to_string();
                     match config.set_secret(&keychain_key, Value::String(value.clone())) {
                         Ok(_) => {
                             // Successfully stored in keychain, add to env_keys
@@ -700,7 +700,7 @@ pub fn configure_extensions_dialog() -> Result<(), Box<dyn Error>> {
                         .interact()?;
 
                     // Try to store in keychain
-                    let keychain_key = format!("{}", key);
+                    let keychain_key = key.to_string();
                     match config.set_secret(&keychain_key, Value::String(value.clone())) {
                         Ok(_) => {
                             // Successfully stored in keychain, add to env_keys
