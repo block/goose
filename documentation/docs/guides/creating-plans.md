@@ -64,7 +64,7 @@ Goose Configuration:
  If either `GOOSE_PLANNER_PROVIDER` or `GOOSE_PLANNER_MODEL` are not set, `GOOSE_PROVIDER` and `GOOSE_MODEL`are used to build your plan.  
 
 ## Describe your project
-The Goose CLI can handle project descriptions of almost any complexity. However, it's best if you make your project description succinct and to the point. Goose needs to understand the purpose of your project and ideal outcomes before it can create a project plan. If your project description is vague then Goose is going to ask clarifying questions until it believes it understands your project. 
+While Goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes – if these aren't clear, Goose will ask clarifying questions until it fully understands your goals. 
 
 If Goose believes your project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
 
@@ -102,9 +102,9 @@ You can answer the questions one at a time or you can batch your answers:
 Sometimes Goose will ask you to provide an artifact such as code from your project. In plan mode, Goose isn't going to be able to open the artifact file even if you give it the path. Instead, you need to paste the contents of the file at the Goose prompt. Prefix the pasted text with something like "Here's that source code you asked for"
 :::
 
-You should answer questions in a way that Goose understands which questions you are answering. In the previous example, each answer is preceeded by the question number. You can see that answers like "do not remember preferences" make more sense to Goose than simply "no" or "don't remember". If Goose doesn't connect your answer to its question, it may ask that question again.
+When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. I do not remember my preferences.' This helps Goose track which questions have been answered and prevents repeated questions.
 
-For a project as complex as this example CLI to web site conversion project, Goose may ask sets of clarifying questions many times. Usually a new set of questions is generated because Goose learned more about your project from your previous answers. Sometimes your answers made Goose realize there's more to know about some aspect of your project... and then you get another Clarifying question.
+In complex projects like converting a CLI to a website, Goose may ask multiple rounds of clarifying questions. Each round typically stems from new information in your previous answers or when additional details are needed about specific aspects of your project.
 
 If you've answered _all_ of Gooses questions and it has no more questions, Goose will generate the plan. Other times, you might think Goose will never run out of questions. If you want your plan and don't want to answer more questions, you can simply ask for a "generic" plan:
 
@@ -187,8 +187,36 @@ Given that no extensions are currently available for more specific tools or data
 * Search for available extensions using the <function=platform__search_available_extensions>{}</function>
 
 ```
-The home construction plan has only high-level details because the model and planner Goose is using for the project does not have the necessary construction-specific knowledge. Currently Goose integrates with more technology and development-specific LLMs. This is why you'll get more clarifying questions and far more specific plan detail if your project resembles the first example.
+The home construction plan remains high-level because Goose's current models specialize in technology and software development rather than construction. This is why projects like our first example—building a web application—receive more detailed planning and specific guidance.
 
+## Create a separate plan for plan sub-steps
+Let's return to the home construction example. While the plan includes hiring an architect, this high-level step needs more detail – such as what type of architect to hire and how to navigate the selection process.
+
+```
+- **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
+```
+If you exit plan mode while reviewing your construction plan, you can always resume it to continue working with Goose. 
+
+```
+( O)> /plan hire an architect
+
+Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
+
+◓  Synchronizing flock algorithms...                                                                                                       I need some clarifying questions to better understand your request about hiring an architect:
+
+1. What is your location or preferred region for the architect to be based in?
+2. Do you have a specific budget range for architectural services?
+3. Are you looking for an architect with specific expertise (e.g., energy-efficient homes, modern design, traditional styles)?
+4. Do you need full architectural services (design through construction oversight) or just certain phases?
+5. Do you have a timeline for when you'd like to begin working with an architect?
+6. Have you already purchased land for your home, or will the architect need to help evaluate potential sites?
+7. Are there any specific certifications or qualifications you're looking for in an architect?
+8. Would you prefer to work with a solo practitioner or a larger architectural firm?
+9. Do you have any examples of architectural styles or specific homes you admire?
+10. How involved do you want to be in the design process?
+```
+
+Goose creates another plan for the architect hiring step after you answer one or more rounds of clarifying questions. 
 
 ## Basic usage
 You need to have an active Goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
@@ -206,6 +234,9 @@ To enter planning mode, type `/plan`.  Optionally, you can append your plan desc
 ( O)> /plan
 ```
 
- Plan mode in the CLI is a special interaction mode where Goose helps break down tasks into manageable steps.
+ Plan mode in the CLI is a special interaction mode where Goose helps break down tasks into manageable steps.  If you want to close the plan mode and return to the active session, type `/endplan`.
 
+```bash
+( O)> /endplan
+```
 
