@@ -80,7 +80,7 @@ Entering plan mode. You can provide instructions to create a plan and then act o
 Goose parses your project description, consults with the LLM mode you've configured, and then if it needs more information, starts a round of clarifying questions.
 
 ## Clarifying questions
-Converting a Python CLI into a web site seems simple enough but Goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
+Converting a Python CLI into a website seems simple enough but Goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
 
 ```bash
 1. Should the application support any keyboard shortcuts for common actions?
