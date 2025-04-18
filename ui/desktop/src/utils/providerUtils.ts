@@ -11,6 +11,7 @@ import {
   addToAgentOnStartup,
 } from '../components/settings_v2/extensions';
 import { extractExtensionConfig } from '../components/settings_v2/extensions/utils';
+import { toAgentExtensionConfig } from '../components/settings_v2/extensions/agent-api';
 import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
 // TODO: remove when removing migration logic
 import { toastService } from '../toasts';
@@ -122,7 +123,7 @@ export const migrateExtensionsToSettingsV2 = async () => {
         // manually import apiAddExtension to set throwOnError true
         const query: ExtensionQuery = {
           name: extension.name,
-          config: extension,
+          config: toAgentExtensionConfig(extension),
           enabled: extension.enabled,
         };
         await apiAddExtension({
