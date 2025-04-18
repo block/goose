@@ -98,6 +98,10 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
+  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('OK');
+  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>(
+    'Confirm Extension Installation'
+  );
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
   const { getExtensions, addExtension, disableAllExtensions, read } = useConfig();
   const initAttemptedRef = useRef(false);
@@ -502,6 +506,8 @@ export default function App() {
             );
 
             if (!isCommandAllowed) {
+              setExtensionConfirmLabel('Override and install');
+              setExtensionConfirmTitle('⛔️ DANGER: Untrusted Extension');
               warningMessage =
                 '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks.';
             }
@@ -691,8 +697,9 @@ export default function App() {
       {modalVisible && (
         <ConfirmationModal
           isOpen={modalVisible}
-          title="Confirm Extension Installation"
           message={modalMessage}
+          confirmLabel={extensionConfirmLabel}
+          title={extensionConfirmTitle}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
