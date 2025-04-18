@@ -18,15 +18,6 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    // TODO: Create agent using provider and model as args to CLI command or environment variables
-    // let cli_provider_param = "databricks";
-    // let cli_model_param = "goose-claude-3-5-sonnet";
-
-    // // TODO: Set the environment variable for the model if provided
-    // let model_config = ModelConfig::new(cli_model_param.to_string());
-    // let provider =
-    //     providers::create(cli_provider_param, model_config).expect("Failed to create provider");
-
     let new_agent = Agent::new();
 
     // Create app state with agent

@@ -540,7 +540,8 @@ mod tests {
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = Agent::new(mock_provider);
+            let agent = Agent::new();
+            let _ = agent.update_provider_with_provider(mock_provider);
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
 
             // Build router
