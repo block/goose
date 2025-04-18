@@ -1,0 +1,28 @@
+{
+  "id": "misc-system-control-research",
+  "title": "Control Computer Settings",
+  "description": "Automate system settings while conducting parallel research tasks",
+  "category": "Productivity",
+  "function": "miscellaneous",
+  "extensions": ["computercontroller"],
+  "prompt": "Goose, I need to decompress while researching AI models for tomorrow's meeting. Can you create a relaxing environment and help me research?\n\n1. Play classical music in [your preferred app]\n2. Dim screen brightness (2 levels)\n3. Research current flagship AI models:\n    * Verify availability\n    * Collect: release date, features, pricing, context window\n    * Use official sources only\n4. Create \"ai-models-comparison.csv\" on desktop with collected data\n5. Launch Numbers and open the CSV file\n6. Reset brightness and close Safari",
+  "example": "This will:\n- Create a relaxing environment with music and adjusted lighting\n- Conduct structured research on AI models\n- Organize findings in a spreadsheet\n- Reset workspace settings\n\nThe resulting CSV will contain:\n- Model Name\n- Release Date\n- Key Features\n- Pricing Details\n- Context Window Size\n- Availability Status",
+  "tags": ["automation", "system-control", "research", "multitasking", "workspace", "ai-models"],
+  "author": "GooseAI Team",
+  "dateAdded": "2025-03-14",
+  "lastUpdated": "2025-03-14",
+  "rating": 0,
+  "usageCount": 0,
+  "verified": true,
+  "variables": {
+    "music_app": {
+      "description": "Preferred music application (e.g., Spotify, Apple Music)",
+      "required": true
+    },
+    "csv_filename": {
+      "description": "Name for the CSV file to store research results",
+      "required": false,
+      "default": "ai-models-comparison.csv"
+    }
+  }
+}
