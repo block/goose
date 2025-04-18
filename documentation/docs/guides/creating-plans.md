@@ -57,7 +57,7 @@ Goose Configuration:
   GOOSE_PROVIDER: anthropic
   DATABRICKS_HOST: https://some-domain.databricks.com/
   GOOSE_MODEL: claude-3.5-sonnet
-  GOOSE_PLANNER_PROVIDER: databricks
+  GOOSE_PLANNER_PROVIDER: openai
   GOOSE_MODE: smart_approve
   GOOSE_PLANNER_MODEL: goose-claude-3-7-sonnet
 ```
