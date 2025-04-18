@@ -315,6 +315,29 @@ export type ReadAllConfigResponses = {
 
 export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
 
+export type BackupConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/backup';
+};
+
+export type BackupConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type BackupConfigResponses = {
+    /**
+     * Config file backed up
+     */
+    200: string;
+};
+
+export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
+
 export type GetExtensionsData = {
     body?: never;
     path?: never;

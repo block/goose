@@ -13,6 +13,7 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        super::routes::config_management::backup_config,
         super::routes::config_management::init_config,
         super::routes::config_management::upsert_config,
         super::routes::config_management::remove_config,

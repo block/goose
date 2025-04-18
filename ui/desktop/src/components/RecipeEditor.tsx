@@ -7,10 +7,10 @@ import Back from './icons/Back';
 import { Bars } from './icons/Bars';
 import { Geese } from './icons/Geese';
 import Copy from './icons/Copy';
+import { Check } from 'lucide-react';
 import { useConfig } from './ConfigContext';
 import { FixedExtensionEntry } from './ConfigContext';
 import ExtensionList from './settings_v2/extensions/subcomponents/ExtensionList';
-import { Check } from 'lucide-react';
 
 interface RecipeEditorProps {
   config?: Recipe;
@@ -30,8 +30,8 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
   const [instructions, setInstructions] = useState(config?.instructions || '');
   const [activities, setActivities] = useState<string[]>(config?.activities || []);
   const [extensionOptions, setExtensionOptions] = useState<FixedExtensionEntry[]>([]);
-  const [copied, setCopied] = useState(false);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Initialize selected extensions for the recipe from config or localStorage
   const [recipeExtensions, setRecipeExtensions] = useState<string[]>(() => {
@@ -168,31 +168,13 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleOpenAgent = () => {
-    if (validateForm()) {
-      const updatedConfig = getCurrentConfig();
-      // Clear stored extensions when submitting
-      localStorage.removeItem('recipe_editor_extensions');
-      window.electron.createChatWindow(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        updatedConfig,
-        undefined
-      );
-    }
-  };
-
   const deeplink = generateDeepLink(getCurrentConfig());
 
   const handleCopy = () => {
-    // Copy the text to the clipboard
     navigator.clipboard
       .writeText(deeplink)
       .then(() => {
-        setCopied(true); // Show the check mark
-        // Reset to normal after 2 seconds (2000 milliseconds)
+        setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
       .catch((err) => {
@@ -394,30 +376,45 @@ export default function RecipeEditor({ config }: RecipeEditorProps) {
             </button>
 
             {/* Deep Link Display */}
-            <div className="w-full p-4 bg-bgSubtle rounded-lg flex items-center justify-between">
-              <code className="text-sm text-textSubtle truncate">{deeplink}</code>
-              <button
-                onClick={handleCopy}
-                className="ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!title.trim() || !description.trim()}
+            <div className="w-full p-4 bg-bgSubtle rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-textSubtle text-xs text-textSubtle mt-2">
+                  Copy this link to share with friends or paste directly in Chrome to open
+                </div>
+                <button
+                  onClick={() => validateForm() && handleCopy()}
+                  className="ml-4 p-2 hover:bg-bgApp rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
+                  title={
+                    !title.trim() || !description.trim()
+                      ? 'Fill in required fields first'
+                      : 'Copy link'
+                  }
+                  disabled={!title.trim() || !description.trim()}
+                >
+                  {copied ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-4 h-4 text-iconSubtle" />
+                  )}
+                  <span className="ml-1 text-sm text-textSubtle">
+                    {copied ? 'Copied!' : 'Copy'}
+                  </span>
+                </button>
+              </div>
+              <div
+                className={`text-sm truncate font-mono ${!title.trim() || !description.trim() ? 'text-textDisabled' : 'text-textStandard'}`}
+                title={
+                  !title.trim() || !description.trim()
+                    ? 'Fill in required fields to generate link'
+                    : deeplink
+                }
               >
-                {copied ? (
-                  <Check className="w-5 h-5 text-green-500" />
-                ) : (
-                  <Copy className="w-5 h-5 text-iconSubtle" />
-                )}
-              </button>
+                {deeplink}
+              </div>
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col space-y-2 pt-1">
-              <button
-                onClick={handleOpenAgent}
-                className="w-full p-3 bg-bgAppInverse text-textProminentInverse rounded-lg hover:bg-bgStandardInverse disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!title.trim() || !description.trim()}
-              >
-                Open agent
-              </button>
               <button
                 onClick={() => {
                   localStorage.removeItem('recipe_editor_extensions');
