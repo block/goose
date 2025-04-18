@@ -9,7 +9,7 @@ use http::{HeaderMap, StatusCode};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Serialize)]
 struct ConfigResponse {
@@ -25,7 +25,7 @@ struct ConfigRequest {
 }
 
 async fn store_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<ConfigRequest>,
 ) -> Result<Json<ConfigResponse>, StatusCode> {
@@ -155,7 +155,7 @@ pub struct GetConfigResponse {
 }
 
 pub async fn get_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(query): Query<GetConfigQuery>,
 ) -> Result<Json<GetConfigResponse>, StatusCode> {
@@ -189,7 +189,7 @@ struct DeleteConfigRequest {
 }
 
 async fn delete_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<DeleteConfigRequest>,
 ) -> Result<StatusCode, StatusCode> {
@@ -216,7 +216,7 @@ async fn delete_config(
     }
 }
 
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/configs/providers", post(check_provider_configs))
         .route("/configs/get", get(get_config))

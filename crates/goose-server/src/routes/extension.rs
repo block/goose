@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
@@ -76,7 +76,7 @@ struct ExtensionResponse {
 
 /// Handler for adding a new extension configuration.
 async fn add_extension(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
@@ -280,9 +280,11 @@ async fn add_extension(
         },
     };
 
-    // Acquire a lock on the agent and attempt to add the extension.
-    let mut agent = state.agent.write().await;
-    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    // Get a reference to the agent
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     let response = agent.add_extension(extension_config).await;
 
     // Respond with the result.
@@ -306,7 +308,7 @@ async fn add_extension(
 
 /// Handler for removing an extension by name
 async fn remove_extension(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(name): Json<String>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
@@ -320,9 +322,11 @@ async fn remove_extension(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // Acquire a lock on the agent and attempt to remove the extension
-    let mut agent = state.agent.write().await;
-    let agent = agent.as_mut().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    // Get a reference to the agent
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     agent.remove_extension(&name).await;
 
     Ok(Json(ExtensionResponse {
@@ -332,7 +336,7 @@ async fn remove_extension(
 }
 
 /// Registers the extension management routes with the Axum router.
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/extensions/add", post(add_extension))
         .route("/extensions/remove", post(remove_extension))

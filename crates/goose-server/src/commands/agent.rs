@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
+use goose::agents::Agent;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -15,8 +18,10 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    // Create app state - agent will start as None
-    let state = state::AppState::new(secret_key.clone()).await?;
+    let new_agent = Agent::new();
+
+    // Create app state with agent
+    let state = state::AppState::new(Arc::new(new_agent), secret_key.clone()).await;
 
     // Create router with CORS support
     let cors = CorsLayer::new()

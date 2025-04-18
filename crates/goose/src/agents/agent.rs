@@ -7,6 +7,7 @@ use futures::TryStreamExt;
 
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
+use crate::model::ModelConfig;
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -42,12 +43,12 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Arc<dyn Provider>,
+    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
-    pub(super) frontend_tools: HashMap<String, FrontendTool>,
-    pub(super) frontend_instructions: Option<String>,
-    pub(super) prompt_manager: PromptManager,
-    pub(super) token_counter: TokenCounter,
+    pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
+    pub(super) frontend_instructions: Mutex<Option<String>>,
+    pub(super) prompt_manager: Mutex<PromptManager>,
+    pub(super) token_counter: Mutex<Option<TokenCounter>>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
@@ -55,19 +56,18 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(provider: Arc<dyn Provider>) -> Self {
-        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
+    pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
         Self {
-            provider,
+            provider: Mutex::new(None),
             extension_manager: Mutex::new(ExtensionManager::new()),
-            frontend_tools: HashMap::new(),
-            frontend_instructions: None,
-            prompt_manager: PromptManager::new(),
-            token_counter,
+            frontend_tools: Mutex::new(HashMap::new()),
+            frontend_instructions: Mutex::new(None),
+            prompt_manager: Mutex::new(PromptManager::new()),
+            token_counter: Mutex::new(None),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
@@ -76,22 +76,25 @@ impl Agent {
     }
 
     /// Get a reference count clone to the provider
-    pub fn provider(&self) -> Arc<dyn Provider> {
-        Arc::clone(&self.provider)
+    pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
+        match &*self.provider.lock().await {
+            Some(provider) => Ok(Arc::clone(provider)),
+            None => Err(anyhow!("Provider not set")),
+        }
     }
 
     /// Check if a tool is a frontend tool
-    pub fn is_frontend_tool(&self, name: &str) -> bool {
-        self.frontend_tools.contains_key(name)
+    pub async fn is_frontend_tool(&self, name: &str) -> bool {
+        self.frontend_tools.lock().await.contains_key(name)
     }
 
     /// Get a reference to a frontend tool
-    pub fn get_frontend_tool(&self, name: &str) -> Option<&FrontendTool> {
-        self.frontend_tools.get(name)
+    pub async fn get_frontend_tool(&self, name: &str) -> Option<FrontendTool> {
+        self.frontend_tools.lock().await.get(name).cloned()
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
+    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = self
             .extension_manager
             .lock()
@@ -100,7 +103,8 @@ impl Agent {
             .await?;
 
         // Add frontend tools directly - they don't need prefixing since they're already uniquely named
-        for frontend_tool in self.frontend_tools.values() {
+        let frontend_tools = self.frontend_tools.lock().await;
+        for frontend_tool in frontend_tools.values() {
             tools.push(frontend_tool.tool.clone());
         }
 
@@ -126,7 +130,7 @@ impl Agent {
                 .await
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             extension_manager.search_available_extensions().await
-        } else if self.is_frontend_tool(&tool_call.name) {
+        } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
@@ -155,7 +159,13 @@ impl Agent {
         tools: &mut Vec<Tool>,
     ) -> anyhow::Result<()> {
         // Model's actual context limit
-        let context_limit = self.provider.get_model_config().context_limit();
+        let provider: tokio::sync::MutexGuard<'_, Option<Arc<dyn Provider>>> =
+            self.provider.lock().await;
+        let context_limit = provider
+            .as_ref()
+            .unwrap()
+            .get_model_config()
+            .context_limit();
 
         // Our conservative estimate of the **target** context limit
         // Our token count is an estimate since model providers often don't provide the tokenizer (eg. Claude)
@@ -163,8 +173,16 @@ impl Agent {
 
         // Take into account the system prompt, and our tools input and subtract that from the
         // remaining context limit
-        let system_prompt_token_count = self.token_counter.count_tokens(system_prompt);
-        let tools_token_count = self.token_counter.count_tokens_for_tools(tools.as_slice());
+        let token_counter_guard = self.token_counter.lock().await;
+        let (system_prompt_token_count, tools_token_count) =
+            if let Some(counter) = &*token_counter_guard {
+                (
+                    counter.count_tokens(system_prompt),
+                    counter.count_tokens_for_tools(tools.as_slice()),
+                )
+            } else {
+                (0, 0) // Default if no token counter
+            };
 
         // Check if system prompt + tools exceed our context limit
         let remaining_tokens = context_limit
@@ -178,13 +196,16 @@ impl Agent {
 
         // Calculate current token count of each message, use count_chat_tokens to ensure we
         // capture the full content of the message, include ToolRequests and ToolResponses
-        let mut token_counts: Vec<usize> = messages
-            .iter()
-            .map(|msg| {
-                self.token_counter
-                    .count_chat_tokens("", std::slice::from_ref(msg), &[])
-            })
-            .collect();
+        let mut token_counts: Vec<usize> = if let Some(counter) = &*token_counter_guard {
+            messages
+                .iter()
+                .map(|msg| counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                .collect()
+        } else {
+            // If no token counter, use a default approach
+            vec![1; messages.len()] // Assign each message a default count of 1 token
+        };
+        drop(token_counter_guard);
 
         truncate_messages(
             messages,
@@ -236,7 +257,7 @@ impl Agent {
         (request_id, result)
     }
 
-    pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 name: _,
@@ -245,19 +266,21 @@ impl Agent {
                 bundled: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
+                let mut frontend_tools = self.frontend_tools.lock().await;
                 for tool in tools {
                     let frontend_tool = FrontendTool {
                         name: tool.name.clone(),
                         tool: tool.clone(),
                     };
-                    self.frontend_tools.insert(tool.name.clone(), frontend_tool);
+                    frontend_tools.insert(tool.name.clone(), frontend_tool);
                 }
                 // Store instructions if provided, using "frontend" as the key
+                let mut frontend_instructions = self.frontend_instructions.lock().await;
                 if let Some(instructions) = instructions {
-                    self.frontend_instructions = Some(instructions.clone());
+                    *frontend_instructions = Some(instructions.clone());
                 } else {
                     // Default frontend instructions if none provided
-                    self.frontend_instructions = Some(
+                    *frontend_instructions = Some(
                         "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string(),
                     );
                 }
@@ -293,7 +316,7 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn remove_extension(&mut self, name: &str) {
+    pub async fn remove_extension(&self, name: &str) {
         let mut extension_manager = self.extension_manager.lock().await;
         extension_manager
             .remove_extension(name)
@@ -354,7 +377,7 @@ impl Agent {
             let _ = reply_span.enter();
             loop {
                 match Self::generate_response_from_provider(
-                    self.provider(),
+                    self.provider().await?,
                     &system_prompt,
                     &messages,
                     &tools,
@@ -373,7 +396,7 @@ impl Agent {
                         let (frontend_requests,
                             remaining_requests,
                             filtered_response) =
-                            self.categorize_tool_requests(&response);
+                            self.categorize_tool_requests(&response).await;
 
 
                         // Yield the assistant's response with frontend tool requests filtered out
@@ -423,7 +446,7 @@ impl Agent {
                                                             tools_with_readonly_annotation.clone(),
                                                             tools_without_annotation.clone(),
                                                             &mut permission_manager,
-                                                            self.provider()).await;
+                                                            self.provider().await?).await;
 
 
                             // Handle pre-approved and read-only tools in parallel
@@ -540,13 +563,35 @@ impl Agent {
     }
 
     /// Extend the system prompt with one line of additional instruction
-    pub async fn extend_system_prompt(&mut self, instruction: String) {
-        self.prompt_manager.add_system_prompt_extra(instruction);
+    pub async fn extend_system_prompt(&self, instruction: String) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.add_system_prompt_extra(instruction);
+    }
+
+    /// Update the provider used by this agent
+    pub async fn update_provider(
+        &self,
+        provider_name: &str,
+        model_config: ModelConfig,
+    ) -> Result<()> {
+        let new_provider = crate::providers::create(provider_name, model_config)?;
+        let token_counter = TokenCounter::new(new_provider.get_model_config().tokenizer_name());
+        *self.token_counter.lock().await = Some(token_counter);
+        *self.provider.lock().await = Some(new_provider);
+        Ok(())
+    }
+
+    pub async fn update_provider_with_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
+        *self.token_counter.lock().await = Some(token_counter);
+        *self.provider.lock().await = Some(provider);
+        Ok(())
     }
 
     /// Override the system prompt with a custom template
-    pub async fn override_system_prompt(&mut self, template: String) {
-        self.prompt_manager.set_system_prompt_override(template);
+    pub async fn override_system_prompt(&self, template: String) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.set_system_prompt_override(template);
     }
 
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
@@ -611,22 +656,28 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let model_config = self.provider.get_model_config();
+        let provider = self.provider.lock().await;
+        let model_config = provider.as_ref().unwrap().get_model_config();
         let model_name = &model_config.model_name;
 
-        let system_prompt = self.prompt_manager.build_system_prompt(
+        let prompt_manager = self.prompt_manager.lock().await;
+        let system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
-            self.frontend_instructions.clone(),
+            self.frontend_instructions.lock().await.clone(),
             Some(model_name),
         );
 
-        let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
+        let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
 
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (result, _usage) = self
             .provider
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
             .complete(&system_prompt, &messages, &tools)
             .await?;
 

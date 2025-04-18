@@ -7,7 +7,7 @@ use axum::{
 };
 use goose::config::Config;
 use goose::config::PermissionManager;
-use goose::{agents::Agent, model::ModelConfig, providers};
+use goose::model::ModelConfig;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -15,6 +15,7 @@ use goose::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 
 #[derive(Serialize)]
 struct VersionsResponse {
@@ -30,17 +31,6 @@ struct ExtendPromptRequest {
 #[derive(Serialize)]
 struct ExtendPromptResponse {
     success: bool,
-}
-
-#[derive(Deserialize)]
-struct CreateAgentRequest {
-    provider: String,
-    model: Option<String>,
-}
-
-#[derive(Serialize)]
-struct CreateAgentResponse {
-    version: String,
 }
 
 #[derive(Deserialize)]
@@ -81,7 +71,7 @@ async fn get_versions() -> Json<VersionsResponse> {
 }
 
 async fn extend_prompt(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(payload): Json<ExtendPromptRequest>,
 ) -> Result<Json<ExtendPromptResponse>, StatusCode> {
@@ -95,55 +85,12 @@ async fn extend_prompt(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let mut agent = state.agent.write().await;
-    if let Some(ref mut agent) = *agent {
-        agent.extend_system_prompt(payload.extension).await;
-        Ok(Json(ExtendPromptResponse { success: true }))
-    } else {
-        Err(StatusCode::NOT_FOUND)
-    }
-}
-
-#[axum::debug_handler]
-async fn create_agent(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(payload): Json<CreateAgentRequest>,
-) -> Result<Json<CreateAgentResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    // Set the environment variable for the model if provided
-    if let Some(model) = &payload.model {
-        let env_var_key = format!("{}_MODEL", payload.provider.to_uppercase());
-        env::set_var(env_var_key.clone(), model);
-        println!("Set environment variable: {}={}", env_var_key, model);
-    }
-
-    let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env")
-    });
-    let model_config = ModelConfig::new(model);
-    let provider =
-        providers::create(&payload.provider, model_config).expect("Failed to create provider");
-
-    let version = String::from("goose");
-    let new_agent = Agent::new(provider);
-
-    let mut agent = state.agent.write().await;
-    *agent = Some(new_agent);
-
-    Ok(Json(CreateAgentResponse { version }))
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+    agent.extend_system_prompt(payload.extension.clone()).await;
+    Ok(Json(ExtendPromptResponse { success: true }))
 }
 
 async fn list_providers() -> Json<Vec<ProviderList>> {
@@ -183,7 +130,7 @@ async fn list_providers() -> Json<Vec<ProviderList>> {
     )
 )]
 async fn get_tools(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(query): Query<GetToolsQuery>,
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
@@ -198,14 +145,24 @@ async fn get_tools(
 
     let config = Config::global();
     let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
-    let agent = state.agent.read().await;
-    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools(query.extension_name)
+        .list_tools(None)
         .await
         .into_iter()
+        .filter(|tool| {
+            // Apply the filter only if the extension name is present in the query
+            if let Some(extension_name) = &query.extension_name {
+                tool.name.starts_with(extension_name)
+            } else {
+                true
+            }
+        })
         .map(|tool| {
             let permission = permission_manager
                 .get_user_permission(&tool.name)
@@ -232,12 +189,61 @@ async fn get_tools(
     Ok(Json(tools))
 }
 
-pub fn routes(state: AppState) -> Router {
+#[derive(Deserialize)]
+struct UpdateProviderRequest {
+    provider: String,
+    model: Option<String>,
+}
+
+async fn update_agent_provider(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateProviderRequest>,
+) -> Result<StatusCode, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    // Set the environment variable for the model if provided
+    if let Some(model) = &payload.model {
+        let env_var_key = format!("{}_MODEL", payload.provider.to_uppercase());
+        env::set_var(env_var_key.clone(), model);
+        println!("Set environment variable: {}={}", env_var_key, model);
+    }
+
+    let config = Config::global();
+    let model = payload.model.unwrap_or_else(|| {
+        config
+            .get_param("GOOSE_MODEL")
+            .expect("Did not find a model on payload or in env to update provider with")
+    });
+    let model_config = ModelConfig::new(model);
+
+    agent
+        .update_provider(&payload.provider, model_config)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
-        .route("/agent", post(create_agent))
+        .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
 }
