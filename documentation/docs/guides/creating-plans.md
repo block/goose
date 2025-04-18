@@ -82,7 +82,7 @@ Entering plan mode. You can provide instructions to create a plan and then act o
 Converting a Python CLI into a web site seems simple enough but Goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
 
 ```bash
-. Should the application support any keyboard shortcuts for common actions?
+1. Should the application support any keyboard shortcuts for common actions?
 2. Would you like the application to remember user preferences (like case sensitivity setting) between sessions?
 3. Should there be any form of notification when operations complete successfully?
 4. How should the application handle very large text fields that might be difficult to display in the three-column layout?
@@ -96,6 +96,12 @@ You can answer the questions one at a time or you can batch your answers:
 ```bash
 ( O)> 1 no keyboard shortcuts. 2 do not remember preferences. 3 on success, open a dialog that says "success". 4 Truncate to 30 characters before the string to replace and then 30 characters after the string to replace.5 no CI/CD requirements 6 No automated testing. 7. No specific requirement for organization or architecture. 8 no documentation
 ```
+
+
+:::tip
+Sometimes Goose will ask you to provide an artifact such as code from your project. In plan mode, Goose isn't going to be able to open the artifact file even if you give it the path. Instead, you need to paste the contents of the file at the Goose prompt. Prefix the pasted text with something like "Here's that source code you asked for"
+:::
+
 You should answer questions in a way that Goose understands which questions you are answering. In the previous example, each answer is preceeded by the question number. You can see that answers like "do not remember preferences" make more sense to Goose than simply "no" or "don't remember". If Goose doesn't connect your answer to its question, it may ask that question again.
 
 For a project as complex as this example CLI to web site conversion project, Goose may ask sets of clarifying questions many times. Usually a new set of questions is generated because Goose learned more about your project from your previous answers. Sometimes your answers made Goose realize there's more to know about some aspect of your project... and then you get another Clarifying question.
@@ -181,16 +187,25 @@ Given that no extensions are currently available for more specific tools or data
 * Search for available extensions using the <function=platform__search_available_extensions>{}</function>
 
 ```
+The home construction plan has only high-level details because the model and planner Goose is using for the project does not have the necessary construction-specific knowledge. Currently Goose integrates with more technology and development-specific LLMs. This is why you'll get more clarifying questions and far more specific plan detail if your project resembles the first example.
+
 
 ## Basic usage
 You need to have an active Goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
 
 ```bash
-~ goose session -n web-project-plan
+~ goose session -n web-project-plan -r
+resuming session | provider: databricks model: databricks-meta-llama-3-3-70b-instruct
+    logging to /Users/jaustin/.local/share/goose/sessions/web-plan.jsonl
+    working directory: /Users/jaustin
+
+Goose is running! Enter your instructions, or try asking what goose can do.
+```
+To enter planning mode, type `/plan`.  Optionally, you can append your plan description to the prompt completion command.
+```bash
+( O)> /plan
 ```
 
  Plan mode in the CLI is a special interaction mode where Goose helps break down tasks into manageable steps.
-The `goose run` command starts a new session, begins executing using any arguments provided and exits the session automatically once the task is complete. 
 
-There are multiple ways to run tasks with Goose; check out the [list of options](/docs/guides/goose-cli-commands.md#run-options).
 
