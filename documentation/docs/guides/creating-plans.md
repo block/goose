@@ -59,7 +59,7 @@ Goose Configuration:
   GOOSE_MODEL: claude-3.5-sonnet
   GOOSE_PLANNER_PROVIDER: openai
   GOOSE_MODE: smart_approve
-  GOOSE_PLANNER_MODEL: goose-claude-3-7-sonnet
+  GOOSE_PLANNER_MODEL: gpt-4.1
 ```
 
  If either `GOOSE_PLANNER_PROVIDER` or `GOOSE_PLANNER_MODEL` are not set, `GOOSE_PROVIDER` and `GOOSE_MODEL`are used to build your plan.  
