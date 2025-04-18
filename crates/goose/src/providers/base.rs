@@ -178,6 +178,11 @@ pub trait Provider: Send + Sync {
 
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
+
+    /// Optional hook to fetch supported models asynchronously.
+    async fn fetch_supported_models_async(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
