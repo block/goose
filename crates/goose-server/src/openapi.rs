@@ -4,8 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::ConfigKey;
-use goose::providers::base::ProviderMetadata;
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use mcp_core::tool::{Tool, ToolAnnotations};
 use utoipa::OpenApi;
 
@@ -47,6 +46,7 @@ use utoipa::OpenApi;
         ToolInfo,
         PermissionLevel,
         PrincipalType,
+        ModelInfo,
     ))
 )]
 pub struct ApiDoc;

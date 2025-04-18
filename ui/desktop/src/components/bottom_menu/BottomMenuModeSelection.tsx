@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { getApiUrl, getSecretKey } from '../config';
-import { ChevronDown, ChevronUp } from './icons';
-import { all_goose_modes, ModeSelectionItem } from './settings_v2/mode/ModeSelectionItem';
-import { useConfig } from './ConfigContext';
-import { settingsV2Enabled } from '../flags';
+import { getApiUrl, getSecretKey } from '../../config';
+import { ChevronDown, ChevronUp } from '../icons';
+import { all_goose_modes, ModeSelectionItem } from '../settings_v2/mode/ModeSelectionItem';
+import { useConfig } from '../ConfigContext';
+import { settingsV2Enabled } from '../../flags';
 import { View, ViewOptions } from '../App';
 
 interface BottomMenuModeSelectionProps {

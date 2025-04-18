@@ -85,7 +85,7 @@ impl Provider for BedrockProvider {
             "Amazon Bedrock",
             "Run models through Amazon Bedrock. You may have to set 'AWS_' environment variables to configure authentication.",
             BEDROCK_DEFAULT_MODEL,
-            BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
+            BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![ConfigKey::new("AWS_PROFILE", true, false, Some("default"))],
         )

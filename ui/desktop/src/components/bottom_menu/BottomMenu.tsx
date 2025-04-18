@@ -1,23 +1,104 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useModel } from './settings/models/ModelContext';
+import { useModel } from '../settings/models/ModelContext';
 import { Sliders } from 'lucide-react';
-import { ModelRadioList } from './settings/models/ModelRadioList';
-import { Document, ChevronUp, ChevronDown } from './icons';
-import type { View, ViewOptions } from '../App';
-import { settingsV2Enabled } from '../flags';
+import { AlertType, useAlerts } from '../alerts';
+import { useToolCount } from '../alerts/useToolCount';
+import BottomMenuAlertPopover from './BottomMenuAlertPopover';
+import { ModelRadioList } from '../settings/models/ModelRadioList';
+import { Document, ChevronUp, ChevronDown } from '../icons';
+import type { View, ViewOptions } from '../../App';
+import { settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
-import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
+import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
+import { useConfig } from '../ConfigContext';
+import { getCurrentModelAndProvider } from '../settings_v2/models/index';
+
+const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
+const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
+const TOOLS_MAX_SUGGESTED = 25; // max number of tools before we show a warning
 
 export default function BottomMenu({
   hasMessages,
   setView,
+  numTokens = 0,
 }: {
   hasMessages: boolean;
   setView: (view: View, viewOptions?: ViewOptions) => void;
+  numTokens?: number;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const { currentModel } = useModel();
+  const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const toolCount = useToolCount();
+  const { getProviders, read } = useConfig();
+  const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
+
+  // Load providers and get current model's token limit
+  const loadProviderDetails = async () => {
+    try {
+      // Get current model and provider first to avoid unnecessary provider fetches
+      const { model, provider } = await getCurrentModelAndProvider({ readFromConfig: read });
+      if (!model || !provider) {
+        console.log('No model or provider found');
+        return;
+      }
+
+      const providers = await getProviders(true);
+
+      // Find the provider details for the current provider
+      const currentProvider = providers.find((p) => p.name === provider);
+      if (currentProvider?.metadata?.known_models) {
+        // Find the model's token limit
+        const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
+        if (modelConfig?.context_limit) {
+          setTokenLimit(modelConfig.context_limit);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading providers or token limit:', err);
+    }
+  };
+
+  // Initial load and refresh when model changes
+  useEffect(() => {
+    loadProviderDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentModel]);
+
+  // Handle tool count alerts
+  useEffect(() => {
+    clearAlerts();
+
+    // Add token alerts if we have a token limit
+    if (tokenLimit && numTokens > 0) {
+      if (numTokens >= tokenLimit) {
+        addAlert(
+          AlertType.Error,
+          `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()})`
+        );
+      } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
+        addAlert(
+          AlertType.Warning,
+          `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()})`
+        );
+      }
+    }
+
+    // Add tool count alert if we have the data
+    if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
+      addAlert(
+        AlertType.Warning,
+        `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
+        {
+          text: 'View extensions',
+          onClick: () => setView('settings'),
+        }
+      );
+    }
+    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numTokens, toolCount, tokenLimit, addAlert, clearAlerts]);
 
   // Add effect to handle clicks outside
   useEffect(() => {
@@ -53,8 +134,6 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
-  // Removed the envModelProvider code that was checking for environment variables
-
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
       {/* Directory Chooser - Always visible */}
@@ -78,6 +157,8 @@ export default function BottomMenu({
 
       {/* Right-side section with ToolCount and Model Selector together */}
       <div className="flex items-center mr-4 space-x-1">
+        {/* Tool and Token count */}
+        {<BottomMenuAlertPopover alerts={alerts} />}
         {/* Model Selector Dropdown */}
         {settingsV2Enabled ? (
           <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />

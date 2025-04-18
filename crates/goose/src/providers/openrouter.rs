@@ -229,10 +229,7 @@ impl Provider for OpenRouterProvider {
             "OpenRouter",
             "Router for many model providers",
             OPENROUTER_DEFAULT_MODEL,
-            OPENROUTER_KNOWN_MODELS
-                .iter()
-                .map(|&s| s.to_string())
-                .collect(),
+            OPENROUTER_KNOWN_MODELS.to_vec(),
             OPENROUTER_DOC_URL,
             vec![
                 ConfigKey::new("OPENROUTER_API_KEY", true, true, None),
