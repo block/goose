@@ -494,18 +494,21 @@ export default function App() {
         let warningMessage = '';
         try {
           const allowedCommands = await window.electron.getAllowedExtensions();
-          const isCommandAllowed = allowedCommands.some((allowedCmd) =>
-            command.startsWith(allowedCmd)
-          );
 
-          if (!isCommandAllowed) {
-            warningMessage =
-              '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks.';
+          // Only check and show warning if we have a non-empty allowlist
+          if (allowedCommands && allowedCommands.length > 0) {
+            const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+              command.startsWith(allowedCmd)
+            );
+
+            if (!isCommandAllowed) {
+              warningMessage =
+                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks.';
+            }
           }
         } catch (error) {
           console.error('Error checking allowlist:', error);
-          warningMessage =
-            '\n\n⚠️ WARNING: Could not verify if this extension is allowed. Proceed with caution.';
+          // Don't show a warning if we couldn't check the allowlist
         }
 
         const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
