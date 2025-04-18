@@ -796,6 +796,25 @@ app.whenReady().then(async () => {
         },
       })
     );
+
+    // NOTE: Add Extension menu item DEVELOPMENT TIME ONLY REMOVE THIS
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Add Extension',
+        click() {
+          // Create extension deeplink
+          const extensionUrl =
+            'goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Web%20search%20capabilities%20powered%20by%20Tavily&env=TAVILY_API_KEY%3DAPI%20key%20for%20Tavily%20web%20search%20service';
+
+          // Get the focused window or create a new one if none exists
+          const existingWindows = BrowserWindow.getAllWindows();
+          const window = existingWindows[0];
+          if (window.isMinimized()) window.restore();
+          window.focus();
+          window.webContents.send('add-extension', extensionUrl);
+        },
+      })
+    );
   }
 
   if (menu) {
