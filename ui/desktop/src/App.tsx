@@ -240,7 +240,7 @@ export default function App() {
     console.log('Finished enabling bot config extensions');
   };
 
-  const enableRecipeConfigExtensionsV2 = useCallback(
+  const _enableRecipeConfigExtensionsV2 = useCallback(
     async (extensions: FullExtensionConfig[]) => {
       if (!extensions?.length) {
         console.log('No extensions to enable from bot config');
@@ -373,7 +373,7 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension, enableRecipeConfigExtensionsV2]);
+  }, [read, getExtensions, addExtension]);
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
