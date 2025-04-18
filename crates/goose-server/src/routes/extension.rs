@@ -5,10 +5,7 @@ use std::sync::OnceLock;
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
-use goose::{
-    agents::{extension::Envs, ExtensionConfig},
-    config::Config,
-};
+use goose::agents::{extension::Envs, ExtensionConfig};
 use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use tracing;
@@ -162,12 +159,6 @@ async fn add_extension(
         }
     }
 
-    // Load the configuration
-    let config = Config::global();
-
-    // Initialize a vector to collect any missing keys.
-    let mut missing_keys = Vec::new();
-
     // Construct ExtensionConfig with Envs populated from keyring based on provided env_keys.
     let extension_config: ExtensionConfig = match request {
         ExtensionConfigRequest::Sse {
@@ -175,39 +166,15 @@ async fn add_extension(
             uri,
             env_keys,
             timeout,
-        } => {
-            let mut env_map = HashMap::new();
-            for key in env_keys {
-                match config.get_secret(&key) {
-                    Ok(value) => {
-                        env_map.insert(key, value);
-                    }
-                    Err(_) => {
-                        missing_keys.push(key);
-                    }
-                }
-            }
-
-            if !missing_keys.is_empty() {
-                return Ok(Json(ExtensionResponse {
-                    error: true,
-                    message: Some(format!(
-                        "Missing secrets for keys: {}",
-                        missing_keys.join(", ")
-                    )),
-                }));
-            }
-
-            ExtensionConfig::Sse {
-                name,
-                uri,
-                envs: Envs::new(env_map),
-                env_keys: Vec::new(),
-                description: None,
-                timeout,
-                bundled: None,
-            }
-        }
+        } => ExtensionConfig::Sse {
+            name,
+            uri,
+            envs: Envs::new(HashMap::new()),
+            env_keys,
+            description: None,
+            timeout,
+            bundled: None,
+        },
         ExtensionConfigRequest::Stdio {
             name,
             cmd,
@@ -227,35 +194,13 @@ async fn add_extension(
             //     }));
             // }
 
-            let mut env_map = HashMap::new();
-            for key in env_keys {
-                match config.get_secret(&key) {
-                    Ok(value) => {
-                        env_map.insert(key, value);
-                    }
-                    Err(_) => {
-                        missing_keys.push(key);
-                    }
-                }
-            }
-
-            if !missing_keys.is_empty() {
-                return Ok(Json(ExtensionResponse {
-                    error: true,
-                    message: Some(format!(
-                        "Missing secrets for keys: {}",
-                        missing_keys.join(", ")
-                    )),
-                }));
-            }
-
             ExtensionConfig::Stdio {
                 name,
                 cmd,
                 args,
                 description: None,
-                envs: Envs::new(env_map),
-                env_keys: Vec::new(),
+                envs: Envs::new(HashMap::new()),
+                env_keys,
                 timeout,
                 bundled: None,
             }
