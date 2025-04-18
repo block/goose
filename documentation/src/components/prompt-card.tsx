@@ -12,6 +12,7 @@ function extensionToMCPServer(extension: Extension): MCPServer {
     id: extension.command,
     name: extension.name,
     command: extension.command,
+    url: extension.url,
     description: extension.name,
     is_builtin: extension.is_builtin,
     link: extension.link || '',
@@ -119,9 +120,15 @@ export function PromptCard({ prompt }: { prompt: Prompt }) {
                                     <Terminal className="h-4 w-4" />
                                     <h4 className="mx-2">Command</h4>
                                   </button>
-                                    <CodeBlock language="bash">
-                                      goose session --with-extension "{extension.command}"
-                                    </CodeBlock>
+                                    {extension.url ? (
+                                      <CodeBlock language="bash">
+                                        goose session --with-remote-extension "{extension.url}"
+                                      </CodeBlock>
+                                      ) : (
+                                      <CodeBlock language="bash">
+                                        goose session --with-extension "{extension.command}"
+                                      </CodeBlock>
+                                    )}
                                 </div>
                               </motion.div>
                             )}
