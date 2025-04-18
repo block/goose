@@ -541,7 +541,7 @@ mod tests {
                 model_config: mock_model_config,
             });
             let agent = Agent::new();
-            let _ = agent.update_provider_with_provider(mock_provider);
+            let _ = agent.update_provider_with_provider(mock_provider).await;
             let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
 
             // Build router
