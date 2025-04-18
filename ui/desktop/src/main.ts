@@ -935,15 +935,31 @@ app.whenReady().then(async () => {
 });
 
 /**
- * Fetches the allowed extensions list from the remote YAML file
- * @returns A promise that resolves to an array of extension commands
+ * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink 
+ * doesn't match a command from the list. 
+ * If it fails to load, then it will return an empty list.
+ * If the format is incorrect, it will return an empty list.
+ * Format of yaml is:
+ *  
+ ```yaml:
+ extensions:
+  - id: slack
+    command: uvx mcp_slack
+  - id: knowledge_graph_memory
+    command: npx -y @modelcontextprotocol/server-memory
+  ```
+ * 
+ * @returns A promise that resolves to an array of extension commands that are allowed.
  */
 async function getAllowList(): Promise<string[]> {
-  const ALLOWED_EXTENSIONS_URL = 'https://d138qt27bkxomz.cloudfront.net/allowed_extensions.yaml';
+  if (!process.env.GOOSE_ALLOWLIST) {
+    return [];
+  }
 
   try {
     // Fetch the YAML file
-    const response = await fetch(ALLOWED_EXTENSIONS_URL);
+    const response = await fetch(process.env.GOOSE_ALLOWLIST);
 
     if (!response.ok) {
       throw new Error(

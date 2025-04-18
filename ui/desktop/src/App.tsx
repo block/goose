@@ -508,7 +508,6 @@ export default function App() {
           }
         } catch (error) {
           console.error('Error checking allowlist:', error);
-          // Don't show a warning if we couldn't check the allowlist
         }
 
         const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
