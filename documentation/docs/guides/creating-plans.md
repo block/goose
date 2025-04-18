@@ -1,6 +1,6 @@
 ---
 sidebar_position: 17
-title: Creating Plans with the /plan prompt
+title: Creating Plans Before Working
 sidebar_label: Creating Plans
 ---
 
