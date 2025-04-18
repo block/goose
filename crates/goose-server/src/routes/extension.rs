@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -21,6 +20,9 @@ enum ExtensionConfigRequest {
         name: String,
         /// The URI endpoint for the SSE extension.
         uri: String,
+        #[serde(default)]
+        /// Map of environment variable key to values.
+        envs: Envs,
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
@@ -36,6 +38,9 @@ enum ExtensionConfigRequest {
         /// Arguments for the command.
         #[serde(default)]
         args: Vec<String>,
+        #[serde(default)]
+        /// Map of environment variable key to values.
+        envs: Envs,
         /// List of environment variable keys. The server will fetch their values from the keyring.
         #[serde(default)]
         env_keys: Vec<String>,
@@ -164,12 +169,13 @@ async fn add_extension(
         ExtensionConfigRequest::Sse {
             name,
             uri,
+            envs,
             env_keys,
             timeout,
         } => ExtensionConfig::Sse {
             name,
             uri,
-            envs: Envs::new(HashMap::new()),
+            envs,
             env_keys,
             description: None,
             timeout,
@@ -179,6 +185,7 @@ async fn add_extension(
             name,
             cmd,
             args,
+            envs,
             env_keys,
             timeout,
         } => {
@@ -199,7 +206,7 @@ async fn add_extension(
                 cmd,
                 args,
                 description: None,
-                envs: Envs::new(HashMap::new()),
+                envs,
                 env_keys,
                 timeout,
                 bundled: None,

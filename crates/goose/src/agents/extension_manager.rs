@@ -125,6 +125,12 @@ impl ExtensionManager {
             let config_instance = Config::global();
 
             for key in env_keys {
+                // If the Envs payload already contains the key, prefer that value
+                // over looking into the keychain/secret store
+                if all_envs.contains_key(key) {
+                    continue;
+                }
+
                 match config_instance.get(key, true) {
                     Ok(value) => {
                         if value.is_null() {
