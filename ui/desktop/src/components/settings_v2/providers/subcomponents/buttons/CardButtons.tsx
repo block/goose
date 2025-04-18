@@ -110,6 +110,7 @@ export function ConfigureSettingsButton({ tooltip, className, ...props }: Action
 export function RocketButton({ tooltip, className, ...props }: ActionButtonProps) {
   return (
     <ActionButton
+      data-testid="provider-launch-button"
       icon={Rocket}
       tooltip={tooltip}
       className={className}
