@@ -238,7 +238,9 @@ impl ExtensionManager {
             .unwrap_or(0);
 
         // Check if either condition is met
-        enabled_extensions_count >= 3 || total_tools >= 32
+        const MIN_EXTENSIONS: usize = 3;
+        const MIN_TOOLS: usize = 32;
+        enabled_extensions_count >= MIN_EXTENSIONS || total_tools >= MIN_TOOLS
     }
 
     pub async fn should_show_disable_suggestion(&self) -> bool {
