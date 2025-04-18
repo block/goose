@@ -98,10 +98,8 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
-  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('OK');
-  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>(
-    'Confirm Extension Installation'
-  );
+  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
+  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
   const { getExtensions, addExtension, disableAllExtensions, read } = useConfig();
   const initAttemptedRef = useRef(false);
@@ -496,6 +494,8 @@ export default function App() {
 
         // Fetch the allowlist and check if the command is allowed
         let warningMessage = '';
+        let label = 'OK';
+        let title = 'Confirm Extension Installation';
         try {
           const allowedCommands = await window.electron.getAllowedExtensions();
 
@@ -506,10 +506,10 @@ export default function App() {
             );
 
             if (!isCommandAllowed) {
-              setExtensionConfirmLabel('Override and install');
-              setExtensionConfirmTitle('⛔️ Untrusted Extension ⛔️');
+              title = '⛔️ Untrusted Extension ⛔️';
+              label = 'Override and install';
               warningMessage =
-                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact an admin if you are unsure or want to allow this extension.';
+                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact and admin if you are unsusure or want to allow this extension.';
             }
           }
         } catch (error) {
@@ -520,6 +520,8 @@ export default function App() {
         setModalMessage(
           `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}${warningMessage}`
         );
+        setExtensionConfirmLabel(label);
+        setExtensionConfirmTitle(title);
         setModalVisible(true);
       } catch (error) {
         console.error('Error handling add-extension event:', error);
