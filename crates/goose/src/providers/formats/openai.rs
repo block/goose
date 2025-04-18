@@ -52,6 +52,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
+                MessageContent::ContextLengthExceeded(_) => {
+                    continue;
+                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);

@@ -87,6 +87,11 @@ pub struct FrontendToolRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ContextLengthExceeded {
+    pub msg: String,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -99,6 +104,7 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
+    ContextLengthExceeded(ContextLengthExceeded),
 }
 
 impl MessageContent {
@@ -174,6 +180,11 @@ impl MessageContent {
             tool_call,
         })
     }
+
+    pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
+        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
+    }
+
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
             Some(tool_request)
@@ -398,6 +409,11 @@ impl Message {
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
         self.with_content(MessageContent::redacted_thinking(data))
+    }
+
+    /// Add context length exceeded content to the message
+    pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
+        self.with_content(MessageContent::context_length_exceeded(msg))
     }
 
     /// Get the concatenated text content of the message, separated by newlines
