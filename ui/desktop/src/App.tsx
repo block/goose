@@ -306,6 +306,7 @@ export default function App() {
         try {
           await readAllConfig({ throwOnError: true });
         } catch (error) {
+          // NOTE: we do this check here and in providerUtils.ts, be sure to clean up both in the future
           const configVersion = localStorage.getItem('configVersion');
           const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
           if (shouldMigrateExtensions) {
