@@ -21,6 +21,7 @@ The Goose desktop doesn't have a `plan` keyword. If you want the desktop to crea
 Unless you ask Goose to "create a plan", it might just start into the project work. 
 :::
 
+The Goose CLI's plan mode differs from desktop planning in a key way: it's interactive, asking clarifying questions to understand your project before creating a plan. In contrast, the desktop version creates plans immediately based on your description alone, making assumptions that might miss critical project details.
 
 ## Set your planner provider and model
 The Goose CLI plan mode uses two configuration values:
@@ -69,14 +70,13 @@ While Goose can handle complex project descriptions, it works best with clear, c
 If Goose believes your project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
 
 ```bash 
-Goose is running! Enter your instructions, or try asking what goose can do.
-
 ( O)> /plan
 
 Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
 
-( O)> Convert the CLI at /Users/jaustin/Development/devs-content/contentful-goose-script/search_replace_routes.py into a web page
+( O)> Convert the CLI built by search_replace_routes.py into a web page
 ```
+Goose parses your project description, consults with the LLM mode you've configured, and then if it needs more information, starts a round of clarifying questions.
 
 ## Clarifying questions
 Converting a Python CLI into a web site seems simple enough but Goose will have questions about things like styling, authentication, features, technology stack, and more. You might see questions like this:
@@ -87,22 +87,20 @@ Converting a Python CLI into a web site seems simple enough but Goose will have 
 3. Should there be any form of notification when operations complete successfully?
 4. How should the application handle very large text fields that might be difficult to display in the three-column layout?
 5. Are there any specific CI/CD requirements for deployment to AWS?
-6. Will you need any automated testing implemented (unit tests, integration tests, etc.)?
-7. Do you have any specific requirements for code organization or architecture patterns?
-8. Should the application include any form of documentation or help section for users?
+
 ```
 You can answer the questions one at a time or you can batch your answers:
 
 ```bash
-( O)> 1 no keyboard shortcuts. 2 do not remember preferences. 3 on success, open a dialog that says "success". 4 Truncate to 30 characters before the string to replace and then 30 characters after the string to replace.5 no CI/CD requirements 6 No automated testing. 7. No specific requirement for organization or architecture. 8 no documentation
+( O)> 1 no keyboard shortcuts. 2 do not remember preferences. 3 on success, open a dialog that says "success". 4 Truncate to 30 characters before the string to replace and then 30 characters after the string to replace.5 no CI/CD requirements 
 ```
 
 
 :::tip
-Sometimes Goose will ask you to provide an artifact such as code from your project. In plan mode, Goose isn't going to be able to open the artifact file even if you give it the path. Instead, you need to paste the contents of the file at the Goose prompt. Prefix the pasted text with something like "Here's that source code you asked for"
+When Goose requests a project artifact like source code during plan mode, you'll need to paste the content directly into the chat. Simply copying the file contents and prefixing it with a brief description like 'Here's the requested code:' is sufficient – providing just a file path won't work in plan mode.
 :::
 
-When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. I do not remember my preferences.' This helps Goose track which questions have been answered and prevents repeated questions.
+When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. Do not store my preferences.' This helps Goose track which questions have been answered and prevents repeated questions.
 
 In complex projects like converting a CLI to a website, Goose may ask multiple rounds of clarifying questions. Each round typically stems from new information in your previous answers or when additional details are needed about specific aspects of your project.
 
@@ -120,13 +118,78 @@ I still need some critical information to create a comprehensive plan:
 Without this information, I can only provide a generic plan that might not accurately capture your requirements.
 ( O)> please provde a generic plan
 ```
-Despite the fact that Goose produces a "generic" plan, it still takes into account the questions that you _have_ answered.
+While Goose creates a standardized plan format, it customizes the content based on your answers. Goose can generate the code needed to implement the steps of the plan it produces. You should review the plan and any code that it generates before ending plan mode (`/endplan`) and asking Goose to implement the plan. 
+
+Below is a sample plan for this project, with the generated website code omitted for brevity:
+
+```bash
+# Plan for Converting CLI Script to React Web Application
+
+## Step 1: Set up the React project and dependencies
+1. Create a new React application using Create React App
+2. Install necessary dependencies
+3. Set up project structure
+   src/
+   ├── components/
+   │   ├── Auth/
+   │   ├── Layout/
+   │   ├── Search/
+   │   ├── Results/
+   │   └── History/
+   ├── services/
+   │   ├── contentful.ts
+   │   ├── auth.ts
+   │   └── storage.ts
+   ├── utils/
+   │   ├── validation.ts
+   │   └── helpers.ts
+   ├── contexts/
+   │   └── AppContext.tsx
+   └── pages/
+       ├── Home.tsx
+       ├── Search.tsx
+       └── History.tsx
+
+## Step 2: Implement authentication with Okta
+1. Create an Okta application in the Okta Developer Console
+2. Configure the Okta authentication settings in the application
+3. Implement protected routes using Okta's React components
+## Step 3: Create the layout and UI components with Material UI
+1. Implement the main layout with Material UI
+2. Create the search form component
+3. Create the results display component with three columns
+4. Implement the "Load More" pagination component
+## Step 4: Implement Contentful service
+1. Create a service for interacting with Contentful
+## Step 5: Implement local storage service for history
+1. Create a service for managing search history in localStorage
+## Step 6: Implement validation utilities
+1. Create utility functions for input validation
+## Step 7: Implement main pages
+1. Create the Search page
+2. Create the History page
+## Step 8: Set up routing and main application
+1. Create the main App component
+## Step 9: Implement error handling and loading states
+1. Create error boundary components
+2. Add loading indicators for API operations
+3. Implement error messages display
+
+## Step 10: Set up deployment configuration
+1. Create AWS deployment configuration
+## Step 11: Testing and quality assurance
+1. Write unit tests for key components
+2. Implement integration tests for the main workflows
+3. Perform manual testing of the application
+
+This plan provides a comprehensive framework for converting your CLI script to a React web application with Material UI and Okta authentication. You'll need to adapt specific parts based on your exact requirements and the functionality of your original script.
+
+```
 
 ## A simple construction plan example
 Goose can produce good plans for relatively simple projects such as the home construction example:
 
 ```bash
-
 ( O)> /plan
 
 Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
@@ -144,9 +207,8 @@ I need to gather more information before creating a detailed house-building plan
 6. How many bathrooms and other rooms (e.g., kitchen, living room, dining room, garage) do you want?
 7. Do you have any specific sustainability or energy efficiency requirements?
 8. What is your timeline for completion?
-9. Are you working with any professionals already (architects, contractors, etc.)?
-10. Are there any special considerations for the house (accessibility features, home office space, etc.)?
-( O)> 1 construction steps and a project management timeline. 2 $600,000. 3 4,000 sq feet. 4 the lot is not yet selected. 5 one story rambler. 6 four bedrooms, two ful baths, a kitchen, diningroom, family room, and garage. 7 the house must be efficient and powered by solar energy. 8 complete in six months. 9 I am working with an architect. 10 I need a home office
+
+( O)> 1 construction steps and a project management timeline. 2 $600,000. 3 4,000 sq feet. 4 the lot is not yet selected. 5 one story rambler. 6 four bedrooms, two ful baths, a kitchen, diningroom, family room, and garage. 7 the house must be efficient and powered by solar energy. 8 complete in six months. 
 ◓  Taming tensors...                                                                                                          I'll create a detailed plan for building a 4,000 sq ft, one-story rambler with four bedrooms, two full bathrooms, kitchen, dining room, family room, garage, and home office. The house will be energy efficient with solar power, with a $600,000 budget and 6-month timeline.
 
 ◇  Do you want to clear message history & act on this plan?
@@ -216,7 +278,7 @@ Entering plan mode. You can provide instructions to create a plan and then act o
 10. How involved do you want to be in the design process?
 ```
 
-Goose creates another plan for the architect hiring step after you answer one or more rounds of clarifying questions. 
+After gathering information through clarifying questions, Goose creates a detailed plan for hiring an architect. This sub-plan integrates with the larger home construction project, with steps that reflect and support the overall construction context.
 
 ## Basic usage
 You need to have an active Goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
@@ -231,7 +293,7 @@ Goose is running! Enter your instructions, or try asking what goose can do.
 ```
 To enter planning mode, type `/plan`.  Optionally, you can append your plan description to the prompt completion command.
 ```bash
-( O)> /plan
+( O)> /plan  Build a four bedroom house
 ```
 
  Plan mode in the CLI is a special interaction mode where Goose helps break down tasks into manageable steps.  If you want to close the plan mode and return to the active session, type `/endplan`.
