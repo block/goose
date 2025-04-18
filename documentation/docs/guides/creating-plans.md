@@ -31,8 +31,8 @@ The Goose CLI plan mode uses two configuration values:
 
 For example, you might configure:
 ```bash
-export GOOSE_PLANNER_PROVIDER=databricks
-export GOOSE_PLANNER_MODEL=goose-claude-3-7-sonnet
+export GOOSE_PLANNER_PROVIDER=<my-chosen-provider>
+export GOOSE_PLANNER_MODEL=<my-chosen-model>
 ```
 If these aren't set, Goose will use your default provider and model settings. You might want to set different planning models if you find certain models are better at breaking down tasks into clear steps. However, your default model configuration is usually sufficient.
 
@@ -49,13 +49,13 @@ Goose Version:
   Version:          1.0.18
 
 Goose Locations:
-  Config file:      /Users/jaustin/.config/goose/config.yaml
-  Sessions dir:     /Users/jaustin/.local/share/goose/sessions
-  Logs dir:         /Users/jaustin/.local/state/goose/logs
+  Config file:      /Users/alincoln/.config/goose/config.yaml
+  Sessions dir:     /Users/alincoln/.local/share/goose/sessions
+  Logs dir:         /Users/alincoln/.local/state/goose/logs
 
 Goose Configuration:
   GOOSE_PROVIDER: databricks
-  DATABRICKS_HOST: https://block-lakehouse-production.cloud.databricks.com/
+  DATABRICKS_HOST: https://some-domain.databricks.com/
   GOOSE_MODEL: databricks-meta-llama-3-3-70b-instruct
   GOOSE_PLANNER_PROVIDER: databricks
   GOOSE_MODE: smart_approve
@@ -285,9 +285,9 @@ You need to have an active Goose session before you can put the CLI into plan mo
 
 ```bash
 ~ goose session -n web-project-plan -r
-resuming session | provider: databricks model: databricks-meta-llama-3-3-70b-instruct
-    logging to /Users/jaustin/.local/share/goose/sessions/web-plan.jsonl
-    working directory: /Users/jaustin
+resuming session | provider: databricks model: databricks-meta-llama
+    logging to /Users/alincoln/.local/share/goose/sessions/web-plan.jsonl
+    working directory: /Users/alincoln
 
 Goose is running! Enter your instructions, or try asking what goose can do.
 ```
