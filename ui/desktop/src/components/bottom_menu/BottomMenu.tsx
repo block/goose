@@ -15,7 +15,7 @@ import { getCurrentModelAndProvider } from '../settings_v2/models/index';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
-const TOOLS_MAX_SUGGESTED = 25; // max number of tools before we show a warning
+const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 export default function BottomMenu({
   hasMessages,
