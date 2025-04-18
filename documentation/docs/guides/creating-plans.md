@@ -36,7 +36,7 @@ export GOOSE_PLANNER_MODEL=<my-chosen-model>
 ```
 If these aren't set, Goose will use your default provider and model settings. You might want to set different planning models if you find certain models are better at breaking down tasks into clear steps. However, your default model configuration is usually sufficient.
 
-To verify that the planner provider is set input the following terminal command:
+To verify that the planner provider is set, input the following terminal command:
 
 ```bash
 ~ goose info -v
