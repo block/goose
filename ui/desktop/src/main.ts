@@ -32,6 +32,7 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import * as yaml from 'yaml';
 
 const exec = promisify(execCallback);
 
@@ -671,6 +672,17 @@ EOT`;
   });
 });
 
+// Handle allowed extensions list fetching
+ipcMain.handle('get-allowed-extensions', async () => {
+  try {
+    const allowList = await getAllowList();
+    return allowList;
+  } catch (error) {
+    console.error('Error fetching allowed extensions:', error);
+    throw error;
+  }
+});
+
 app.whenReady().then(async () => {
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -921,6 +933,44 @@ app.whenReady().then(async () => {
     }
   });
 });
+
+/**
+ * Fetches the allowed extensions list from the remote YAML file
+ * @returns A promise that resolves to an array of extension commands
+ */
+async function getAllowList(): Promise<string[]> {
+  const ALLOWED_EXTENSIONS_URL = 'https://d138qt27bkxomz.cloudfront.net/allowed_extensions.yaml';
+
+  try {
+    // Fetch the YAML file
+    const response = await fetch(ALLOWED_EXTENSIONS_URL);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
+      );
+    }
+
+    // Parse the YAML content
+    const yamlContent = await response.text();
+    const parsedYaml = yaml.parse(yamlContent);
+
+    // Extract the commands from the extensions array
+    if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+      const commands = parsedYaml.extensions.map(
+        (ext: { id: string; command: string }) => ext.command
+      );
+      console.log(`Fetched ${commands.length} allowed extension commands`);
+      return commands;
+    } else {
+      console.error('Invalid YAML structure:', parsedYaml);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error in getAllowList:', error);
+    throw error;
+  }
+}
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {

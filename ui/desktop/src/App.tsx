@@ -481,7 +481,7 @@ export default function App() {
   // TODO: modify
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = (_event: IpcRendererEvent, link: string) => {
+    const handleAddExtension = async (_event: IpcRendererEvent, link: string) => {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -490,9 +490,27 @@ export default function App() {
         window.electron.logInfo(`Adding extension from deep link ${link}`);
         setPendingLink(link);
 
+        // Fetch the allowlist and check if the command is allowed
+        let warningMessage = '';
+        try {
+          const allowedCommands = await window.electron.getAllowedExtensions();
+          const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+            command.startsWith(allowedCmd)
+          );
+
+          if (!isCommandAllowed) {
+            warningMessage =
+              '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks.';
+          }
+        } catch (error) {
+          console.error('Error checking allowlist:', error);
+          warningMessage =
+            '\n\n⚠️ WARNING: Could not verify if this extension is allowed. Proceed with caution.';
+        }
+
         const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
         setModalMessage(
-          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
+          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}${warningMessage}`
         );
         setModalVisible(true);
       } catch (error) {
