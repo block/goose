@@ -66,7 +66,7 @@ Goose Configuration:
  If either `GOOSE_PLANNER_PROVIDER` or `GOOSE_PLANNER_MODEL` are not set, `GOOSE_PROVIDER` and `GOOSE_MODEL`are used to build your plan.  
 
 ## Describe your project
-While Goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes – if these aren't clear, Goose will ask clarifying questions until it fully understands your goals. 
+While Goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes. If these aren't clear, Goose will ask clarifying questions until it fully understands your goals. 
 
 If Goose believes your project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
 
