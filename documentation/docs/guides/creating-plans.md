@@ -54,7 +54,7 @@ Goose Locations:
   Logs dir:         /Users/alincoln/.local/state/goose/logs
 
 Goose Configuration:
-  GOOSE_PROVIDER: databricks
+  GOOSE_PROVIDER: anthropic
   DATABRICKS_HOST: https://some-domain.databricks.com/
   GOOSE_MODEL: databricks-meta-llama-3-3-70b-instruct
   GOOSE_PLANNER_PROVIDER: databricks
