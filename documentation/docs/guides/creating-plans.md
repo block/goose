@@ -98,7 +98,7 @@ You can answer the questions one at a time or you can batch your answers:
 
 
 :::tip
-When Goose requests a project artifact like source code during plan mode, you'll need to paste the content directly into the chat. Simply copying the file contents and prefixing it with a brief description like 'Here's the requested code:' is sufficient – providing just a file path won't work in plan mode.
+When Goose requests a project artifact like source code during plan mode, you'll need to paste the content directly into the chat. Simply copying the file contents and prefixing it with a brief description like 'Here's the requested code:' is sufficient. Note that providing just a file path won't work in plan mode.
 :::
 
 When answering multiple questions, number your responses to match each question. For example, instead of answering with a simple 'no' or 'don't remember', provide context like '2. Do not store my preferences.' This helps Goose track which questions have been answered and prevents repeated questions.
