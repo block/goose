@@ -98,6 +98,8 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
+  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
+  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
   const { getExtensions, addExtension, disableAllExtensions, read } = useConfig();
   const initAttemptedRef = useRef(false);
@@ -498,7 +500,7 @@ export default function App() {
   // TODO: modify
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = (_event: IpcRendererEvent, link: string) => {
+    const handleAddExtension = async (_event: IpcRendererEvent, link: string) => {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -507,10 +509,36 @@ export default function App() {
         window.electron.logInfo(`Adding extension from deep link ${link}`);
         setPendingLink(link);
 
+        // Fetch the allowlist and check if the command is allowed
+        let warningMessage = '';
+        let label = 'OK';
+        let title = 'Confirm Extension Installation';
+        try {
+          const allowedCommands = await window.electron.getAllowedExtensions();
+
+          // Only check and show warning if we have a non-empty allowlist
+          if (allowedCommands && allowedCommands.length > 0) {
+            const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+              command.startsWith(allowedCmd)
+            );
+
+            if (!isCommandAllowed) {
+              title = '⛔️ Untrusted Extension ⛔️';
+              label = 'Override and install';
+              warningMessage =
+                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact and admin if you are unsusure or want to allow this extension.';
+            }
+          }
+        } catch (error) {
+          console.error('Error checking allowlist:', error);
+        }
+
         const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
         setModalMessage(
-          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
+          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}${warningMessage}`
         );
+        setExtensionConfirmLabel(label);
+        setExtensionConfirmTitle(title);
         setModalVisible(true);
       } catch (error) {
         console.error('Error handling add-extension event:', error);
@@ -688,8 +716,9 @@ export default function App() {
       {modalVisible && (
         <ConfirmationModal
           isOpen={modalVisible}
-          title="Confirm Extension Installation"
           message={modalMessage}
+          confirmLabel={extensionConfirmLabel}
+          title={extensionConfirmTitle}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />
