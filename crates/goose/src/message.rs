@@ -63,7 +63,7 @@ pub struct ToolConfirmationRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionRequest {
     pub id: String,
-    pub extension_name: String,
+    pub extension_names: Vec<String>,
     pub tool_name: String,
 }
 
@@ -147,12 +147,12 @@ impl MessageContent {
 
     pub fn extension_request<S: Into<String>>(
         id: S,
-        extension_name: String,
+        extension_names: Vec<String>,
         tool_name: String,
     ) -> Self {
         MessageContent::ExtensionRequest(ExtensionRequest {
             id: id.into(),
-            extension_name,
+            extension_names,
             tool_name,
         })
     }
@@ -368,12 +368,12 @@ impl Message {
     pub fn with_extension_request<S: Into<String>>(
         self,
         id: S,
-        extension_name: String,
+        extension_names: Vec<String>,
         tool_name: String,
     ) -> Self {
         self.with_content(MessageContent::extension_request(
             id,
-            extension_name,
+            extension_names,
             tool_name,
         ))
     }

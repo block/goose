@@ -6,14 +6,14 @@ interface ExtensionConfirmationProps {
   isCancelledMessage: boolean;
   isClicked: boolean;
   extensionConfirmationId: string;
-  extensionName: string;
+  extensionNames: string[];
   toolName: string;
 }
 export default function ExtensionConfirmation({
   isCancelledMessage,
   isClicked,
   extensionConfirmationId,
-  extensionName,
+  extensionNames,
   toolName,
 }: ExtensionConfirmationProps) {
   const [clicked, setClicked] = useState(isClicked);
@@ -47,7 +47,7 @@ export default function ExtensionConfirmation({
   ) : (
     <>
       <div className="goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 rounded-b-none text-textStandard">
-        Goose would like to {extensionAction} the following extension. Allow?
+        Goose would like to {extensionAction} the following extensions. Allow?
       </div>
       {clicked ? (
         <div className="goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 flex gap-4 mt-1">
@@ -79,7 +79,7 @@ export default function ExtensionConfirmation({
             <span className="ml-2 text-textStandard">
               {isClicked
                 ? 'Extension enablement is not available'
-                : `${snakeToTitleCase(extensionName.includes('__') ? extensionName.split('__').pop() || extensionName : extensionName)} is ${status}`}{' '}
+                : `${extensionNames.map((name: string) => snakeToTitleCase(name.includes('__') ? name.split('__').pop() || name : name)).join(', ')} is ${status}`}{' '}
             </span>
           </div>
         </div>
@@ -92,7 +92,7 @@ export default function ExtensionConfirmation({
             onClick={() => handleButtonClick(true)}
           >
             {extensionAction.charAt(0).toUpperCase() + extensionAction.slice(1).toLowerCase()}{' '}
-            extension
+            extensions
           </button>
           <button
             className={

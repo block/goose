@@ -6,7 +6,8 @@ pub const PLATFORM_READ_RESOURCE_TOOL_NAME: &str = "platform__read_resource";
 pub const PLATFORM_LIST_RESOURCES_TOOL_NAME: &str = "platform__list_resources";
 pub const PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME: &str =
     "platform__search_available_extensions";
-pub const PLATFORM_ENABLE_EXTENSION_TOOL_NAME: &str = "platform__enable_extension";
+pub const PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME: &str = "platform__enables_extension";
+pub const PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME: &str = "platform__disables_extension";
 
 pub fn read_resource_tool() -> Tool {
     Tool::new(
@@ -87,22 +88,53 @@ pub fn search_available_extensions_tool() -> Tool {
     )
 }
 
-pub fn enable_extension_tool() -> Tool {
+pub fn enable_extensions_tool() -> Tool {
     Tool::new(
-        PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
+        PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME.to_string(),
         "Enable extensions to help complete tasks.
             Enable an extension by providing the extension name.
             "
         .to_string(),
         json!({
             "type": "object",
-            "required": ["extension_name"],
+            "required": ["extension_names"],
             "properties": {
-                "extension_name": {"type": "string", "description": "The name of the extension to enable"}
+                "extension_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "The names of the extensions to enable"
+                }
             }
         }),
         Some(ToolAnnotations {
             title: Some("Enable extensions".to_string()),
+            read_only_hint: false,
+            destructive_hint: false,
+            idempotent_hint: false,
+            open_world_hint: false,
+        }),
+    )
+}
+
+pub fn disable_extensions_tool() -> Tool {
+    Tool::new(
+        PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME.to_string(),
+        "Disable extensions to preserve relevant extensions and tools.
+        "
+        .to_string(),
+        json!({
+            "type": "object",
+            "required": ["extension_names"],
+            "properties": {
+                "extension_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "The names of the extensions to disable"
+                }
+            }
+        }),
+        Some(ToolAnnotations {
+            title: Some("Disable extensions".to_string()),
             read_only_hint: false,
             destructive_hint: false,
             idempotent_hint: false,

@@ -50,21 +50,26 @@ impl Agent {
         try_stream! {
             for request in tool_requests {
                 if let Ok(tool_call) = request.tool_call.clone() {
-                    let (principal_type, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
-                    yield confirmation;
+                    let (principal_type, confirmation_message) = get_confirmation_message(&request.id.clone(), tool_call.clone());
+                    yield confirmation_message;
 
                     let mut rx = self.confirmation_rx.lock().await;
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
                                 if principal_type == PrincipalType::Extension {
-                                    let extension_name = tool_call.arguments.get("extension_name")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
+                                    let extension_names = tool_call
+                                        .arguments
+                                        .get("extension_names")
+                                        .and_then(|v| v.as_array())
+                                        .and_then(|arr| arr.first())
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or("")
+                                        .to_string();
+                                    let tool_name = tool_call.name.clone();
 
                                     let mut results = install_results.lock().await;
-                                    let install_result = self.enable_extension(extension_name, request.id.clone()).await;
+                                    let install_result = self.handle_extension_request(vec![extension_names.clone()], request.id.clone(), tool_name).await;
                                     results.push(install_result);
                                 } else {
                                     // Add this tool call to the futures collection

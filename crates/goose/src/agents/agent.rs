@@ -22,6 +22,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
+    PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME, PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME,
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
@@ -194,46 +195,101 @@ impl Agent {
         )
     }
 
-    pub(super) async fn enable_extension(
+    pub(super) async fn handle_extension_request(
         &self,
-        extension_name: String,
+        extension_names: Vec<String>,
         request_id: String,
+        tool_name: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.lock().await;
-        let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
-            Ok(Some(config)) => config,
-            Ok(None) => {
-                return (
-                    request_id,
-                    Err(ToolError::ExecutionError(format!(
+
+        // Get configs for all extension names
+        let mut configs = Vec::new();
+        for extension_name in &extension_names {
+            match ExtensionConfigManager::get_config_by_name(extension_name) {
+                Ok(Some(config)) => configs.push(config),
+                Ok(None) => {
+                    return (
+                        request_id,
+                        Err(ToolError::ExecutionError(format!(
                         "Extension '{}' not found. Please check the extension name and try again.",
                         extension_name
                     ))),
-                )
-            }
-            Err(e) => {
-                return (
-                    request_id,
-                    Err(ToolError::ExecutionError(format!(
-                        "Failed to get extension config: {}",
-                        e
-                    ))),
-                )
-            }
-        };
+                    )
+                }
+                Err(e) => {
+                    return (
+                        request_id,
+                        Err(ToolError::ExecutionError(format!(
+                            "Failed to get extension config: {}",
+                            e
+                        ))),
+                    )
+                }
+            };
+        }
 
-        let result = extension_manager
-            .add_extension(config)
-            .await
-            .map(|_| {
-                vec![Content::text(format!(
-                    "The extension '{}' has been installed successfully",
-                    extension_name
-                ))]
-            })
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
+        match tool_name {
+            ref name if name == PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME => {
+                let mut success_messages = Vec::new();
+                let mut errors = Vec::new();
 
-        (request_id, result)
+                // Process each config
+                for config in configs {
+                    let name = config.name();
+                    match extension_manager.add_extension(config).await {
+                        Ok(_) => success_messages.push(format!(
+                            "The extension '{}' has been installed successfully",
+                            name
+                        )),
+                        Err(e) => {
+                            errors.push(format!("Failed to install extension '{}': {}", name, e))
+                        }
+                    }
+                }
+
+                let result = if !errors.is_empty() {
+                    Err(ToolError::ExecutionError(errors.join("\n")))
+                } else {
+                    Ok(vec![Content::text(success_messages.join("\n"))])
+                };
+
+                (request_id, result)
+            }
+            ref name if name == PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME => {
+                let mut success_messages = Vec::new();
+                let mut errors = Vec::new();
+
+                // Process each config
+                for config in configs {
+                    let name = config.name();
+                    match extension_manager.remove_extension(&name).await {
+                        Ok(_) => success_messages.push(format!(
+                            "The extension '{}' has been removed successfully",
+                            name
+                        )),
+                        Err(e) => {
+                            errors.push(format!("Failed to remove extension '{}': {}", name, e))
+                        }
+                    }
+                }
+
+                let result = if !errors.is_empty() {
+                    Err(ToolError::ExecutionError(errors.join("\n")))
+                } else {
+                    Ok(vec![Content::text(success_messages.join("\n"))])
+                };
+
+                (request_id, result)
+            }
+            _ => (
+                request_id,
+                Err(ToolError::ExecutionError(format!(
+                    "Invalid tool name: {}",
+                    tool_name
+                ))),
+            ),
+        }
     }
 
     pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
@@ -281,7 +337,8 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::enable_extension_tool());
+            prefixed_tools.push(platform_tools::enable_extensions_tool());
+            prefixed_tools.push(platform_tools::disable_extensions_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {

@@ -36,7 +36,8 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
             (tool) =>
               tool.name !== 'platform__enable_extension' &&
               tool.name !== 'platform__read_resource' &&
-              tool.name !== 'platform__list_resources'
+              tool.name !== 'platform__list_resources' &&
+              tool.name !== 'platform__disable_extension'
           );
           setTools(filteredTools);
         }

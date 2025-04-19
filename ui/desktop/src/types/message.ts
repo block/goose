@@ -96,7 +96,7 @@ export interface ExtensionRequestMessageContent {
   type: 'extensionRequest';
   id: string;
   extensionCall: ExtensionCallResult<ExtensionCall>;
-  extensionName: string;
+  extensionNames: string[];
   toolName: string;
 }
 

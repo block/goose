@@ -17,7 +17,7 @@ use completion::GooseCompleter;
 use etcetera::choose_app_strategy;
 use etcetera::AppStrategy;
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
+use goose::agents::platform_tools::PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME;
 use goose::agents::{Agent, SessionConfig};
 use goose::config::Config;
 use goose::message::{Message, MessageContent};
@@ -623,26 +623,26 @@ impl Session {
                                     principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
-                            } else if let Some(MessageContent::ExtensionRequest(enable_extension_request)) = message.content.first() {
+                            } else if let Some(MessageContent::ExtensionRequest(extension_request)) = message.content.first() {
                                 output::hide_thinking();
 
-                                let extension_action = if enable_extension_request.tool_name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+                                let extension_action = if extension_request.tool_name == PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME {
                                     "enable"
                                 } else {
                                     "disable"
                                 };
 
-                                let prompt = format!("Goose would like to {} the following extension, do you approve?", extension_action);
+                                let prompt = format!("Goose would like to {} the following extensions, do you approve?", extension_action);
                                 let confirmed = cliclack::select(prompt)
-                                    .item(true, "Yes, for this session", format!("{} the extension for this session", extension_action))
-                                    .item(false, "No", format!("Do not {} the extension", extension_action))
+                                    .item(true, "Yes, for this session", format!("{} the extensions for this session", extension_action))
+                                    .item(false, "No", format!("Do not {} the extensions", extension_action))
                                     .interact()?;
                                 let permission = if confirmed {
                                     Permission::AllowOnce
                                 } else {
                                     Permission::DenyOnce
                                 };
-                                self.agent.handle_confirmation(enable_extension_request.id.clone(), PermissionConfirmation {
+                                self.agent.handle_confirmation(extension_request.id.clone(), PermissionConfirmation {
                                     principal_type: PrincipalType::Extension,
                                     permission,
                                 },).await;

@@ -1,4 +1,6 @@
-use crate::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
+use crate::agents::platform_tools::{
+    PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME, PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME,
+};
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -157,17 +159,23 @@ pub async fn detect_read_only_tools(
 /// Gets the boolean value whether the message is enable extension related and
 /// the cconfirmation message based on the tool call
 pub fn get_confirmation_message(request_id: &str, tool_call: ToolCall) -> (PrincipalType, Message) {
-    if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+    if tool_call.name == PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME
+        || tool_call.name == PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME
+    {
         (
             PrincipalType::Extension,
             Message::user().with_extension_request(
                 request_id,
                 tool_call
                     .arguments
-                    .get("extension_name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string(),
+                    .get("extension_names")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .map(|v| v.as_str().unwrap_or("").to_string())
+                            .collect::<Vec<String>>()
+                    })
+                    .unwrap_or_default(),
                 tool_call.name.clone(),
             ),
         )
@@ -207,7 +215,9 @@ pub async fn check_tool_permissions(
     for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
             // Always ask approval for enable extension tool.
-            if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+            if tool_call.name == PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME
+                || tool_call.name == PLATFORM_DISABLE_EXTENSIONS_TOOL_NAME
+            {
                 // Insert at the front of the list so that enable extension can be run before other tools.
                 needs_approval.insert(0, request.clone());
                 continue;
@@ -462,7 +472,7 @@ mod tests {
         let enable_extension = ToolRequest {
             id: "tool_3".to_string(),
             tool_call: ToolResult::Ok(ToolCall {
-                name: PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
+                name: PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME.to_string(),
                 arguments: serde_json::json!({"url": "http://example.com"}),
             }),
         };
@@ -498,7 +508,7 @@ mod tests {
         assert_eq!(
             tool_0.unwrap().id,
             "tool_3",
-            "PLATFORM_ENABLE_EXTENSION_TOOL_NAME should be the first in needs_approval"
+            "PLATFORM_ENABLE_EXTENSIONS_TOOL_NAME should be the first in needs_approval"
         );
     }
 
