@@ -32,7 +32,7 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let provider = self.provider.lock().await;
+        let provider = self.provider().await;
         let model_config = provider.as_ref().unwrap().get_model_config();
         let model_name = &model_config.model_name;
 

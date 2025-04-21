@@ -158,8 +158,7 @@ impl Agent {
         tools: &mut Vec<Tool>,
     ) -> anyhow::Result<()> {
         // Model's actual context limit
-        let provider: tokio::sync::MutexGuard<'_, Option<Arc<dyn Provider>>> =
-            self.provider.lock().await;
+        let provider = self.provider().await;
         let context_limit = provider
             .as_ref()
             .unwrap()
@@ -643,7 +642,7 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let provider = self.provider.lock().await;
+        let provider = self.provider().await;
         let model_config = provider.as_ref().unwrap().get_model_config();
         let model_name = &model_config.model_name;
 
