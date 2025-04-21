@@ -129,6 +129,11 @@ Tool permissions work alongside [Goose Permission Modes](/docs/guides/goose-perm
 </Tabs>
 
 ## Benefits of Permission Management
+
+:::tip
+Review and update your tool permissions as your tasks change. You can modify permissions at any time during a session.
+:::
+
 There are several reasons to configure tool permissions:
 
 1. **Performance Optimization**
@@ -150,10 +155,6 @@ There are several reasons to configure tool permissions:
 ## Example Permission Configuration
 
 ### Task-Based Configuration
-
-:::tip
-Review and update your tool permissions as your tasks change. You can modify permissions at any time during a session.
-:::
 
 Configure permissions based on your current task:
 
