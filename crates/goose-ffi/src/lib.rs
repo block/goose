@@ -120,7 +120,7 @@ pub unsafe extern "C" fn goose_free_async_result(result: *mut AsyncResult) {
 /// The config pointer must be valid or NULL. The resulting agent must be freed
 /// with goose_agent_free when no longer needed.
 #[no_mangle]
-pub async unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> AgentPtr {
+pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> AgentPtr {
     // Check for null pointer
     if config.is_null() {
         eprintln!("Error: config pointer is null");
@@ -179,7 +179,9 @@ pub async unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI)
     match DatabricksProvider::from_params(host, api_key, model_config) {
         Ok(provider) => {
             let agent = Agent::new();
-            let _ = agent.update_provider(Arc::new(provider)).await;
+            get_runtime().block_on(async {
+                let _ = agent.update_provider(Arc::new(provider)).await;
+            });
             Box::into_raw(Box::new(agent))
         }
         Err(e) => {
