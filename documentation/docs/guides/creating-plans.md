@@ -13,7 +13,7 @@ Starting a project without a clear plan is like building a house without a bluep
 A good plan keeps everyone on track and helps measure progress. That's why the Goose CLI includes the `/plan` prompt completion command to help break down your projects into clear, manageable steps.
  
 :::tip Plans in the Goose Desktop
-The Goose desktop doesn't have a `plan` keyword. If you want the desktop to create a plan for you, you need to use a prompt like:
+The Goose Desktop doesn't have a `plan` keyword. If you want Goose Desktop to create a plan for you, you need to use a prompt like:
 
 ```
 "Hey Goose, can you create a plan to convert my CLI project into a locally hosted web page that gives me input fields for each CLI command I can run? Please don't start the actual work"
