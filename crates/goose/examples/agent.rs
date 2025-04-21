@@ -16,7 +16,7 @@ async fn main() {
 
     // Setup an agent with the developer extension
     let agent = Agent::new();
-    let _ = agent.update_provider_with_provider(provider).await;
+    let _ = agent.update_provider(provider).await;
 
     let config = ExtensionConfig::stdio(
         "developer",

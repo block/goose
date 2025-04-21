@@ -111,7 +111,7 @@ async fn run_truncate_test(
     let provider = provider_type.create_provider(model_config)?;
 
     let agent = Agent::new();
-    agent.update_provider_with_provider(provider).await?;
+    agent.update_provider(provider).await?;
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
     let messages = vec![

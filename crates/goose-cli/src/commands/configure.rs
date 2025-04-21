@@ -957,7 +957,8 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
 
     // Create the agent
     let agent = Agent::new();
-    agent.update_provider(&provider_name, model_config).await?;
+    let new_provider = create(&provider_name, model_config)?;
+    agent.update_provider(new_provider).await?;
     if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())

@@ -179,9 +179,7 @@ pub async unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI)
     match DatabricksProvider::from_params(host, api_key, model_config) {
         Ok(provider) => {
             let agent = Agent::new();
-            let _ = agent
-                .update_provider_with_provider(Arc::new(provider))
-                .await;
+            let _ = agent.update_provider(Arc::new(provider)).await;
             Box::into_raw(Box::new(agent))
         }
         Err(e) => {

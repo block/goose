@@ -7,14 +7,12 @@ use axum::{
 };
 use goose::config::Config;
 use goose::config::PermissionManager;
-use goose::model::ModelConfig;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::env;
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -152,17 +150,9 @@ async fn get_tools(
     let permission_manager = PermissionManager::default();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools(None)
+        .list_tools(query.extension_name)
         .await
         .into_iter()
-        .filter(|tool| {
-            // Apply the filter only if the extension name is present in the query
-            if let Some(extension_name) = &query.extension_name {
-                tool.name.starts_with(extension_name)
-            } else {
-                true
-            }
-        })
         .map(|tool| {
             let permission = permission_manager
                 .get_user_permission(&tool.name)
@@ -189,61 +179,11 @@ async fn get_tools(
     Ok(Json(tools))
 }
 
-#[derive(Deserialize)]
-struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-}
-
-async fn update_agent_provider(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
-    // Set the environment variable for the model if provided
-    if let Some(model) = &payload.model {
-        let env_var_key = format!("{}_MODEL", payload.provider.to_uppercase());
-        env::set_var(env_var_key.clone(), model);
-        println!("Set environment variable: {}={}", env_var_key, model);
-    }
-
-    let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env to update provider with")
-    });
-    let model_config = ModelConfig::new(model);
-
-    agent
-        .update_provider(&payload.provider, model_config)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::OK)
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
-        .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
 }

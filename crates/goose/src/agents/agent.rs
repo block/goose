@@ -7,7 +7,6 @@ use futures::TryStreamExt;
 
 use crate::config::{Config, ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
-use crate::model::ModelConfig;
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
@@ -569,19 +568,7 @@ impl Agent {
     }
 
     /// Update the provider used by this agent
-    pub async fn update_provider(
-        &self,
-        provider_name: &str,
-        model_config: ModelConfig,
-    ) -> Result<()> {
-        let new_provider = crate::providers::create(provider_name, model_config)?;
-        let token_counter = TokenCounter::new(new_provider.get_model_config().tokenizer_name());
-        *self.token_counter.lock().await = Some(token_counter);
-        *self.provider.lock().await = Some(new_provider);
-        Ok(())
-    }
-
-    pub async fn update_provider_with_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         *self.token_counter.lock().await = Some(token_counter);
         *self.provider.lock().await = Some(provider);
