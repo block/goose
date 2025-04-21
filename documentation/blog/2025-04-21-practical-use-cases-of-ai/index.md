@@ -193,7 +193,7 @@ The hardest part of debugging is often just figuring out where to look. Git bise
 
 ### Use Case
 
-I used Goose’s tutorial extension to walk through building my own extension or Model Context Protocol (MCP) server.
+I like to keep up with the latest technologies. Since MCP servers are popular, I used Goose’s tutorial extension to walk through building my own MCP server.
 
 ### Why It’s Useful
 
