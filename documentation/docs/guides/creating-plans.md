@@ -68,7 +68,104 @@ Goose Configuration:
 ## Describe your project
 While Goose can handle complex project descriptions, it works best with clear, concise ones. Focus on stating your project's purpose and desired outcomes. If these aren't clear, Goose will ask clarifying questions until it fully understands your goals. 
 
-If Goose believes your project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
+## A simple construction plan example
+Goose can produce good plans for relatively simple projects such as the home construction example:
+
+```bash
+( O)> /plan
+
+Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
+
+( O)> Build a four bedroom house
+◓  Measuring semantic distance...                                                                                                         
+
+I need to gather more information before creating a detailed house-building plan. Please provide clarification on the following:
+
+1. What is the purpose of this plan? Are you looking for architectural designs, construction steps, or a project management timeline?
+2. What is your budget range for this four-bedroom house?
+3. What is the approximate square footage or size requirements?
+4. Do you have a specific location or lot already selected? What are the dimensions and any zoning restrictions?
+5. Are there any specific architectural styles or features you want included?
+6. How many bathrooms and other rooms (e.g., kitchen, living room, dining room, garage) do you want?
+7. Do you have any specific sustainability or energy efficiency requirements?
+8. What is your timeline for completion?
+
+( O)> 1 construction steps and a project management timeline. 2 $600,000. 3 4,000 sq feet. 4 the lot is not yet selected. 5 one story rambler. 6 four bedrooms, two ful baths, a kitchen, diningroom, family room, and garage. 7 the house must be efficient and powered by solar energy. 8 complete in six months. 
+◓  Taming tensors...                                                                                                          I'll create a detailed plan for building a 4,000 sq ft, one-story rambler with four bedrooms, two full bathrooms, kitchen, dining room, family room, garage, and home office. The house will be energy efficient with solar power, with a $600,000 budget and 6-month timeline.
+
+◇  Do you want to clear message history & act on this plan?
+│  Yes 
+│
+
+Exiting plan mode and acting on the above plan
+
+### Introduction to Building a 4,000 Sq Ft Rambler
+To create a detailed plan for your 4,000 sq ft, one-story rambler, we need to consider several factors including design, energy efficiency, budget, and timeline. Given your requirements, here's an overview of how to approach this project:
+
+### Step 1: Design and Planning
+- **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
+- **Floor Plan**: Create a floor plan that includes four bedrooms, two full bathrooms, a kitchen, dining room, family room, garage, and home office. Ensure the layout is functional and spacious.
+- **Land Preparation**: Ensure the building site is prepared, including clearing the land, grading, and preparing the foundation.
+
+### Step 2: Energy Efficiency and Solar Power
+- **Solar Power System**: Design and install a solar power system that can meet the energy needs of a 4,000 sq ft house. This may include a large solar panel array and a battery storage system for nighttime and cloudy days.
+- **Insulation and Windows**: Use high-quality insulation in the walls, floor, and ceiling to minimize heat loss. Install energy-efficient windows that allow natural light in while keeping the heat or cold out.
+- **Energy-Efficient Appliances**: Specify energy-efficient appliances and lighting to minimize energy consumption.
+
+### Step 3: Budgeting
+- **Construction Costs**: Allocate approximately $200-250 per sq ft for construction, which translates to $800,000-$1,000,000 for a 4,000 sq ft house. However, your budget is $600,000, so you'll need to optimize costs without compromising on quality and energy efficiency.
+- **Solar Power System Costs**: Budget an additional $20,000 to $50,000 for the solar power system, depending on its size and complexity.
+- **Contingency Fund**: Set aside 10-20% of the budget for unexpected expenses.
+
+### Step 4: Timeline
+- **Month 1-2: Design and Planning**: Complete the architectural design, obtain necessary permits, and prepare the building site.
+- **Month 3-4: Foundation and Framing**: Lay the foundation, frame the house, and install the roof.
+- **Month 5: Installation of Electrical, Plumbing, and HVAC Systems**: Install the solar power system, electrical, plumbing, and HVAC systems.
+- **Month 6: Finishing Work**: Complete the interior finishing work, including installation of energy-efficient appliances, flooring, and fixtures.
+
+### Conclusion
+Building a 4,000 sq ft, energy-efficient rambler with solar power within a $600,000 budget and 6-month timeline is challenging but feasible with careful planning and design. It's essential to work closely with your architect, contractor, and solar power system installer to ensure the project stays on track and within budget.
+
+Given that no extensions are currently available for more specific tools or data sources, consider the following steps to proceed with your project:
+
+* Search for available extensions using the <function=platform__search_available_extensions>{}</function>
+
+```
+The home construction plan remains high-level because Goose's current models specialize in technology and software development rather than construction. This is why projects like our first example—building a web application—receive more detailed planning and specific guidance.
+
+### Create a separate plan for plan sub-steps
+Let's return to the home construction example. While the plan includes hiring an architect, this high-level step needs more detail – such as what type of architect to hire and how to navigate the selection process.
+
+```
+- **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
+```
+If you exit plan mode while reviewing your construction plan, you can always resume it to continue working with Goose. 
+
+```
+( O)> /plan hire an architect
+
+Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
+
+◓  Synchronizing flock algorithms...                                                                                                       I need some clarifying questions to better understand your request about hiring an architect:
+
+1. What is your location or preferred region for the architect to be based in?
+2. Do you have a specific budget range for architectural services?
+3. Are you looking for an architect with specific expertise (e.g., energy-efficient homes, modern design, traditional styles)?
+4. Do you need full architectural services (design through construction oversight) or just certain phases?
+5. Do you have a timeline for when you'd like to begin working with an architect?
+6. Have you already purchased land for your home, or will the architect need to help evaluate potential sites?
+7. Are there any specific certifications or qualifications you're looking for in an architect?
+8. Would you prefer to work with a solo practitioner or a larger architectural firm?
+9. Do you have any examples of architectural styles or specific homes you admire?
+10. How involved do you want to be in the design process?
+```
+
+After gathering information through clarifying questions, Goose creates a detailed plan for hiring an architect. This sub-plan integrates with the larger home construction project, with steps that reflect and support the overall construction context.
+
+## A development project example
+In this example, a developer has written a CLI in Python that interacts with the Contentful CMS to let a user search for strings and replace them with new strings. As a website, the search/replace feature would be more usable and also allow for a larger set of features. The developer is using the Goose CLI to plan the conversion project.
+
+If Goose believes the project can be completed in many different ways and using a wide variety of components, it will ask you a clarifying question for each of these decision points. For example, if you start a plan like this:
 
 ```bash 
 ( O)> /plan
@@ -187,99 +284,7 @@ This plan provides a comprehensive framework for converting your CLI script to a
 
 ```
 
-## A simple construction plan example
-Goose can produce good plans for relatively simple projects such as the home construction example:
 
-```bash
-( O)> /plan
-
-Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
-
-( O)> Build a four bedroom house
-◓  Measuring semantic distance...                                                                                                         
-
-I need to gather more information before creating a detailed house-building plan. Please provide clarification on the following:
-
-1. What is the purpose of this plan? Are you looking for architectural designs, construction steps, or a project management timeline?
-2. What is your budget range for this four-bedroom house?
-3. What is the approximate square footage or size requirements?
-4. Do you have a specific location or lot already selected? What are the dimensions and any zoning restrictions?
-5. Are there any specific architectural styles or features you want included?
-6. How many bathrooms and other rooms (e.g., kitchen, living room, dining room, garage) do you want?
-7. Do you have any specific sustainability or energy efficiency requirements?
-8. What is your timeline for completion?
-
-( O)> 1 construction steps and a project management timeline. 2 $600,000. 3 4,000 sq feet. 4 the lot is not yet selected. 5 one story rambler. 6 four bedrooms, two ful baths, a kitchen, diningroom, family room, and garage. 7 the house must be efficient and powered by solar energy. 8 complete in six months. 
-◓  Taming tensors...                                                                                                          I'll create a detailed plan for building a 4,000 sq ft, one-story rambler with four bedrooms, two full bathrooms, kitchen, dining room, family room, garage, and home office. The house will be energy efficient with solar power, with a $600,000 budget and 6-month timeline.
-
-◇  Do you want to clear message history & act on this plan?
-│  Yes 
-│
-
-Exiting plan mode and acting on the above plan
-
-### Introduction to Building a 4,000 Sq Ft Rambler
-To create a detailed plan for your 4,000 sq ft, one-story rambler, we need to consider several factors including design, energy efficiency, budget, and timeline. Given your requirements, here's an overview of how to approach this project:
-
-### Step 1: Design and Planning
-- **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
-- **Floor Plan**: Create a floor plan that includes four bedrooms, two full bathrooms, a kitchen, dining room, family room, garage, and home office. Ensure the layout is functional and spacious.
-- **Land Preparation**: Ensure the building site is prepared, including clearing the land, grading, and preparing the foundation.
-
-### Step 2: Energy Efficiency and Solar Power
-- **Solar Power System**: Design and install a solar power system that can meet the energy needs of a 4,000 sq ft house. This may include a large solar panel array and a battery storage system for nighttime and cloudy days.
-- **Insulation and Windows**: Use high-quality insulation in the walls, floor, and ceiling to minimize heat loss. Install energy-efficient windows that allow natural light in while keeping the heat or cold out.
-- **Energy-Efficient Appliances**: Specify energy-efficient appliances and lighting to minimize energy consumption.
-
-### Step 3: Budgeting
-- **Construction Costs**: Allocate approximately $200-250 per sq ft for construction, which translates to $800,000-$1,000,000 for a 4,000 sq ft house. However, your budget is $600,000, so you'll need to optimize costs without compromising on quality and energy efficiency.
-- **Solar Power System Costs**: Budget an additional $20,000 to $50,000 for the solar power system, depending on its size and complexity.
-- **Contingency Fund**: Set aside 10-20% of the budget for unexpected expenses.
-
-### Step 4: Timeline
-- **Month 1-2: Design and Planning**: Complete the architectural design, obtain necessary permits, and prepare the building site.
-- **Month 3-4: Foundation and Framing**: Lay the foundation, frame the house, and install the roof.
-- **Month 5: Installation of Electrical, Plumbing, and HVAC Systems**: Install the solar power system, electrical, plumbing, and HVAC systems.
-- **Month 6: Finishing Work**: Complete the interior finishing work, including installation of energy-efficient appliances, flooring, and fixtures.
-
-### Conclusion
-Building a 4,000 sq ft, energy-efficient rambler with solar power within a $600,000 budget and 6-month timeline is challenging but feasible with careful planning and design. It's essential to work closely with your architect, contractor, and solar power system installer to ensure the project stays on track and within budget.
-
-Given that no extensions are currently available for more specific tools or data sources, consider the following steps to proceed with your project:
-
-* Search for available extensions using the <function=platform__search_available_extensions>{}</function>
-
-```
-The home construction plan remains high-level because Goose's current models specialize in technology and software development rather than construction. This is why projects like our first example—building a web application—receive more detailed planning and specific guidance.
-
-## Create a separate plan for plan sub-steps
-Let's return to the home construction example. While the plan includes hiring an architect, this high-level step needs more detail – such as what type of architect to hire and how to navigate the selection process.
-
-```
-- **Architectural Design**: Hire an architect to design the house, ensuring it meets your space requirements and is energy efficient. Consider factors like natural lighting, insulation, and window placement.
-```
-If you exit plan mode while reviewing your construction plan, you can always resume it to continue working with Goose. 
-
-```
-( O)> /plan hire an architect
-
-Entering plan mode. You can provide instructions to create a plan and then act on it. To exit early, type /endplan
-
-◓  Synchronizing flock algorithms...                                                                                                       I need some clarifying questions to better understand your request about hiring an architect:
-
-1. What is your location or preferred region for the architect to be based in?
-2. Do you have a specific budget range for architectural services?
-3. Are you looking for an architect with specific expertise (e.g., energy-efficient homes, modern design, traditional styles)?
-4. Do you need full architectural services (design through construction oversight) or just certain phases?
-5. Do you have a timeline for when you'd like to begin working with an architect?
-6. Have you already purchased land for your home, or will the architect need to help evaluate potential sites?
-7. Are there any specific certifications or qualifications you're looking for in an architect?
-8. Would you prefer to work with a solo practitioner or a larger architectural firm?
-9. Do you have any examples of architectural styles or specific homes you admire?
-10. How involved do you want to be in the design process?
-```
-
-After gathering information through clarifying questions, Goose creates a detailed plan for hiring an architect. This sub-plan integrates with the larger home construction project, with steps that reflect and support the overall construction context.
 
 ## Basic usage
 You need to have an active Goose session before you can put the CLI into plan mode. If you are going to dedicate a session to creating a plan, you should give your new session a name as in the following example:
