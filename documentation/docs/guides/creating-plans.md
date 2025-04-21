@@ -21,7 +21,7 @@ The Goose Desktop doesn't have a `plan` keyword. If you want Goose Desktop to cr
 Unless you ask Goose to "create a plan", it might just start into the project work. 
 :::
 
-The Goose CLI's plan mode differs from desktop planning in a key way: it's interactive, asking clarifying questions to understand your project before creating a plan. In contrast, the desktop version creates plans immediately based on your description alone, making assumptions that might miss critical project details.
+The Goose CLI's plan mode is interactive, asking clarifying questions to understand your project before creating a plan. If you can provide thoughtful and informative answers to those questions, Goose can generate a really useul and actionable plan.
 
 ## Set your planner provider and model
 In some workflows, it can be helpful to use one LLM for planning and a different one for execution. For example, GPT-4.1 tends to excel at strategic planning and breaking down complex tasks into clear, logical steps. On the other hand, Claude Sonnet 3.5 is particularly strong at writing clean, efficient code and following instructions precisely. By using GPT-4.1 to plan and Claude to execute, you can play to the strengths of both models and get better results overall.
