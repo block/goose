@@ -248,13 +248,21 @@ It’s fast, functional, and lets me validate whether an idea is worth pursuing 
    > Build a JavaScript webcam app with real-time filters
 
 🎥 **See it live:**  
-Watch our Goose livestream where we challenged it to create full apps from scratch, like:  
+Watch The Great Goose Off where we challenged Goose to create creative apps from scratch, like:  
 - A Goose-shaped drawing tool  
 - A purposely chaotic authentication flow
 
 You’ll see ideas go from prompt to prototype in one session.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/OsA3qhns7dg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
+### Looking for more examples?
+
+This blog post included just a few of the ways I use Goose. If you’re curious about what else it can do, check out the [Prompt Library](/goose/prompt-library) or just ask:
+
+What are 5 useful things you can help me with today?
+
+Let it surprise you.
 
 
 <head>
