@@ -1,12 +1,11 @@
 ---
 sidebar_position: 3
-title: Goose Permissions
+title: Goose Permission Modes
+sidebar_label: Goose Permissions
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
-# Managing Goose Modes
 
 Goose’s permissions determine how much autonomy it has when modifying files, using extensions, and performing automated actions. By selecting a permission mode, you have full control over how Goose interacts with your development environment.
 

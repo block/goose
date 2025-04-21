@@ -194,6 +194,7 @@ export default function Input({
       className="flex relative h-auto px-[16px] pr-[68px] py-[1rem] border-t border-borderSubtle"
     >
       <textarea
+        data-testid="chat-input"
         autoFocus
         id="dynamic-textarea"
         placeholder="What can goose help with?   ⌘↑/⌘↓"

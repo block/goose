@@ -1,8 +1,8 @@
 ---
-sidebar_position: 7
+sidebar_position: 12
+title: Benchmarking with Goose
+sidebar_label: Benchmark with Goose
 ---
-
-# Benchmarking with Goose
 
 The Goose benchmarking system allows you to evaluate goose performance on complex tasks with one or more system
 configurations.<br></br>

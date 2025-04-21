@@ -15,13 +15,15 @@ const ImageCarousel = ({ images, id, width = '100%', names = [] }) => {
       return names[activeIndex];
     }
     
-    // Fallback to default naming
-    return `Image ${activeIndex + 1}`;
+    // Don't show anything if no names provided
+    return '';
   };
 
   return (
     <div className="carousel-container">
-      <h3 className="carousel-header">{getCurrentImageName()}</h3>
+      {getCurrentImageName() && (
+        <h3 className="carousel-header">{getCurrentImageName()}</h3>
+      )}
     
       <Swiper
         spaceBetween={10}

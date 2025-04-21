@@ -158,6 +158,7 @@ impl Session {
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
+            env_keys: Vec::new(),
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
@@ -190,6 +191,7 @@ impl Session {
             name,
             uri: extension_url,
             envs: Envs::new(HashMap::new()),
+            env_keys: Vec::new(),
             description: Some(goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string()),
             // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),

@@ -10,10 +10,11 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::task;
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 use super::extension::{ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, ToolInfo};
-use crate::config::ExtensionConfigManager;
+use crate::agents::extension::Envs;
+use crate::config::{Config, ExtensionConfigManager};
 use crate::prompt_template;
 use mcp_client::client::{ClientCapabilities, ClientInfo, McpClient, McpClientTrait};
 use mcp_client::transport::{SseTransport, StdioTransport, Transport};
@@ -113,11 +114,74 @@ impl ExtensionManager {
     // TODO IMPORTANT need to ensure this times out if the extension command is broken!
     pub async fn add_extension(&mut self, config: ExtensionConfig) -> ExtensionResult<()> {
         let sanitized_name = normalize(config.key().to_string());
+
+        /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
+        async fn merge_environments(
+            envs: &Envs,
+            env_keys: &[String],
+            ext_name: &str,
+        ) -> Result<HashMap<String, String>, ExtensionError> {
+            let mut all_envs = envs.get_env();
+            let config_instance = Config::global();
+
+            for key in env_keys {
+                // If the Envs payload already contains the key, prefer that value
+                // over looking into the keychain/secret store
+                if all_envs.contains_key(key) {
+                    continue;
+                }
+
+                match config_instance.get(key, true) {
+                    Ok(value) => {
+                        if value.is_null() {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                "Secret key not found in config (returned null)."
+                            );
+                            continue;
+                        }
+
+                        // Try to get string value
+                        if let Some(str_val) = value.as_str() {
+                            all_envs.insert(key.clone(), str_val.to_string());
+                        } else {
+                            warn!(
+                                key = %key,
+                                ext_name = %ext_name,
+                                value_type = %value.get("type").and_then(|t| t.as_str()).unwrap_or("unknown"),
+                                "Secret value is not a string; skipping."
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            key = %key,
+                            ext_name = %ext_name,
+                            error = %e,
+                            "Failed to fetch secret from config."
+                        );
+                        return Err(ExtensionError::SetupError(format!(
+                            "Failed to fetch secret '{}' from config: {}",
+                            key, e
+                        )));
+                    }
+                }
+            }
+
+            Ok(all_envs)
+        }
+
         let mut client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse {
-                uri, envs, timeout, ..
+                uri,
+                envs,
+                env_keys,
+                timeout,
+                ..
             } => {
-                let transport = SseTransport::new(uri, envs.get_env());
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport = SseTransport::new(uri, all_envs);
                 let handle = transport.start().await?;
                 let service = McpService::with_timeout(
                     handle,
@@ -131,10 +195,12 @@ impl ExtensionManager {
                 cmd,
                 args,
                 envs,
+                env_keys,
                 timeout,
                 ..
             } => {
-                let transport = StdioTransport::new(cmd, args.to_vec(), envs.get_env());
+                let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
+                let transport = StdioTransport::new(cmd, args.to_vec(), all_envs);
                 let handle = transport.start().await?;
                 let service = McpService::with_timeout(
                     handle,
@@ -150,7 +216,6 @@ impl ExtensionManager {
                 timeout,
                 bundled: _,
             } => {
-                // For builtin extensions, we run the current executable with mcp and extension name
                 let cmd = std::env::current_exe()
                     .expect("should find the current executable")
                     .to_str()
@@ -185,19 +250,16 @@ impl ExtensionManager {
             .await
             .map_err(|e| ExtensionError::Initialization(config.clone(), e))?;
 
-        // Store instructions if provided
         if let Some(instructions) = init_result.instructions {
             self.instructions
                 .insert(sanitized_name.clone(), instructions);
         }
 
-        // if the server is capable if resources we track it
         if init_result.capabilities.resources.is_some() {
             self.resource_capable_extensions
                 .insert(sanitized_name.clone());
         }
 
-        // Store the client using the provided name
         self.clients
             .insert(sanitized_name.clone(), Arc::new(Mutex::new(client)));
 

@@ -85,26 +85,26 @@ const SessionListView: React.FC<SessionListViewProps> = ({ setView, onSelectSess
                     onClick={() => onSelectSession(session.id)}
                     className="p-2 bg-bgSecondary hover:bg-bgSubtle cursor-pointer transition-all duration-150"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="w-full">
-                        <h3 className="text-base font-medium text-textStandard truncate">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-medium text-textStandard truncate max-w-[50vw]">
                           {session.metadata.description || session.id}
                         </h3>
-                        <div className="flex gap-3">
-                          <div className="flex items-center text-textSubtle text-sm">
+                        <div className="flex gap-3 min-w-0">
+                          <div className="flex items-center text-textSubtle text-sm shrink-0">
                             <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                            <span className="truncate">
+                            <span>
                               {formatMessageTimestamp(Date.parse(session.modified) / 1000)}
                             </span>
                           </div>
-                          <div className="flex items-center text-textSubtle text-sm">
+                          <div className="flex items-center text-textSubtle text-sm min-w-0">
                             <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
                             <span className="truncate">{session.metadata.working_dir}</span>
                           </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
                         <div className="flex flex-col items-end">
                           <div className="flex items-center text-sm text-textSubtle">
                             <span>{session.path.split('/').pop() || session.path}</span>

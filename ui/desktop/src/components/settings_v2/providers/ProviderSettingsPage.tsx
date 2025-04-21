@@ -98,7 +98,10 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
         <div className="px-8 pt-6 pb-4">
           {/* Only show back button if not in onboarding mode */}
           {!isOnboarding && <BackButton onClick={onClose} />}
-          <h1 className="text-3xl font-medium text-textStandard mt-1">
+          <h1
+            className="text-3xl font-medium text-textStandard mt-1"
+            data-testid="provider-selection-heading"
+          >
             {isOnboarding ? 'Configure your providers' : 'Provider Configuration Settings'}
           </h1>
           {isOnboarding && (
