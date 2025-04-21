@@ -31,8 +31,8 @@ Sidenote: I met an AI enthusiast at a meetup who said he sometimes gets coding i
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/speech-mcp)   
-2. Enable the [`Speech`](https://github.com/Kvadratni/speech-mcp) and [`Developer`](/goose/extensions/detail?id=developer) extensions
+1. Follow [this tutorial](/docs/tutorials/speech-mcp)   
+2. Enable the [`Speech`](https://github.com/Kvadratni/speech-mcp) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
     > I’d like to speak instead of typing.
 
@@ -50,8 +50,8 @@ I want guests to feel like I actually know their work, even if I don’t have ho
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/youtube-transcript)
-2. Enable the [YouTube Transcript](https://github.com/jkawamoto/mcp-youtube-transcript) and [Developer](/goose/extensions/detail?id=developer) extensions
+1. Follow [this tutorial](/docs/tutorials/youtube-transcript)
+2. Enable the [YouTube Transcript](https://github.com/jkawamoto/mcp-youtube-transcript) and [Developer](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
    > Generate a transcript for this video https://www.youtube.com/watch?v=dQw4w9WgXcQ, then create relevant interview questions based on the content
 
@@ -69,7 +69,7 @@ It saves me from wrestling with random online tools or bloated design apps. I ge
 
 ### How to Try It
 
-1. Enable the [Developer](/Goose/extensions/detail?id=developer) extension
+1. Enable the [Developer](/extensions/detail?id=developer) extension
 2. Prompt Goose:
    > Resize this image (~/Downloads/image.png) to 1000x1000 pixels. Maintain the aspect ratio and image quality.
 
@@ -87,7 +87,7 @@ I’m not currently looking for a job, but I like to stay prepared. My strategy 
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/pdf-mcp)
+1. Follow [this tutorial](/docs/tutorials/pdf-mcp)
 2. Enable the [PDF Reader](https://github.com/michaelneale/mcp-read-pdf) extension
 3. Prompt Goose:
    > Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate aligns with the following role requirements:
@@ -114,7 +114,7 @@ Because I wasn’t born in America and I'm neurodivergent, I sometimes take idio
 
 ### How to Try It
 
-1. Enable the [Developer](/goose/extensions/detail?id=developer) extension
+1. Enable the [Developer](/extensions/detail?id=developer) extension
 2. Prompt Goose:
    > What does this phrase mean: “Who does Vegas have as the favorite?”
 
@@ -132,8 +132,8 @@ SQL can get complex with joins, stored procedures, and subqueries. Goose helps m
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/postgres-mcp)
-2. Enable the [PostgreSQL](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/postgres) and [Developer](/Goose/extensions/detail?id=developer) extensions
+1. Follow [this tutorial](/docs/tutorials/postgres-mcp)
+2. Enable the [PostgreSQL](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/postgres) and [Developer](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
    > Search my database for any students whose GPA is higher than the average in their grade level. Return name, grade, GPA difference, and the average GPA.
 
@@ -152,7 +152,7 @@ I tend to overbook myself or get anxious that I won't get accepted, so I apply t
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/agentql-mcp)
+1. Follow [this tutorial](/docs/tutorials/agentql-mcp)
 2. Enable the [AgentQL](https://github.com/tinyfish-io/agentql-mcp) extension
 3. Prompt Goose:
    > I'm a tech conference speaker planning my 2025-2026 submissions. 
@@ -183,7 +183,7 @@ The hardest part of debugging is often just figuring out where to look. Git bise
 ### How to Try It
 
 1. Install the [Git CLI](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-2. Enable the [Developer](/Goose/extensions/detail?id=developer) extension
+2. Enable the [Developer](/extensions/detail?id=developer) extension
 3. Prompt Goose:
    > I don’t know when I introduced a bug. Can you walk me through using git bisect to find the commit that caused it?
 
@@ -201,7 +201,7 @@ In addition to generating code, AI agents can help you learn how to code. Goose 
 
 ### How to Try It
 
-1. Follow [this tutorial](/goose/docs/tutorials/tutorial-extension)
+1. Follow [this tutorial](/docs/tutorials/tutorial-extension)
 3. Prompt Goose:
    > I'd like to learn how to build an extension or MCP server for Goose
 
@@ -219,7 +219,7 @@ Legal documents are often dense and repetitive. Goose can highlight what actuall
 
 ### How to Try It
 
-1. Enable the [Computer Controller](/goose/extensions/detail?id=computercontroller) extension
+1. Enable the [Computer Controller](/extensions/detail?id=computercontroller) extension
 2. Prompt Goose:
    > Highlight the differences between these two versions of FinCEN’s Investment Adviser AML regulations:
    >
@@ -243,7 +243,7 @@ It’s fast, functional, and lets me validate whether an idea is worth pursuing 
 
 ### How to Try It
 
-1. Enable the [Developer](/goose/extensions/detail?id=developer) extension  
+1. Enable the [Developer](/extensions/detail?id=developer) extension  
 2. Prompt Goose:  
    > Build a JavaScript webcam app with real-time filters
 
@@ -258,7 +258,7 @@ You’ll see ideas go from prompt to prototype in one session.
 
 ### Looking for more examples?
 
-This blog post included just a few of the ways I use Goose. If you’re curious about what else it can do, check out the [Prompt Library](/goose/prompt-library) or just ask:
+This blog post included just a few of the ways I use Goose. If you’re curious about what else it can do, check out the [Prompt Library](/prompt-library) or just ask:
 
 What are 5 useful things you can help me with today?
 
