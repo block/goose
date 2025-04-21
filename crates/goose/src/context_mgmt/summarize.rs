@@ -86,153 +86,194 @@ pub async fn summarize_messages(
             summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
     }
 
-    println!("accumulated_summary: {:?}", accumulated_summary);
-
     Ok((
         accumulated_summary.clone(),
         get_messages_token_counts(token_counter, &accumulated_summary),
     ))
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::message::Message;
-//     use crate::providers::base::{Provider, ProviderMetadata};
-//     use crate::token_counter::TokenCounter;
-//     use async_trait::async_trait;
-//     use anyhow::Result;
-//     use std::sync::Arc;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::message::{Message, MessageContent};
+    use crate::model::{ModelConfig, GPT_4O_TOKENIZER};
+    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+    use crate::providers::errors::ProviderError;
+    use chrono::Utc;
+    use mcp_core::TextContent;
+    use mcp_core::{tool::Tool, Role};
+    use std::sync::Arc;
 
-//     // --- Dummy types for testing purposes ---
-//     #[derive(Clone, Debug)]
-//     struct DummyModelConfig;
+    #[derive(Clone)]
+    struct MockProvider {
+        model_config: ModelConfig,
+    }
 
-//     #[derive(Debug)]
-//     struct DummyUsage;
-//     impl Default for DummyUsage {
-//         fn default() -> Self {
-//             DummyUsage
-//         }
-//     }
+    #[async_trait::async_trait]
+    impl Provider for MockProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
 
-//     #[derive(Debug)]
-//     struct DummyProviderError;
-//     impl std::fmt::Display for DummyProviderError {
-//         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//             write!(f, "DummyProviderError")
-//         }
-//     }
-//     impl std::error::Error for DummyProviderError {}
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
 
-//     // Assume Tool is defined somewhere in your project. For testing, we can use an empty struct.
-//     #[derive(Clone, Debug)]
-//     struct Tool;
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message {
+                    role: Role::Assistant,
+                    created: Utc::now().timestamp(),
+                    content: vec![MessageContent::Text(TextContent {
+                        text: "Summarized content".to_string(),
+                        annotations: None,
+                    })],
+                },
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+    }
 
-//     // For provider usage, we create a dummy struct with a constructor.
-//     #[derive(Debug)]
-//     struct DummyProviderUsage;
-//     impl DummyProviderUsage {
-//         fn new(source: String, _usage: DummyUsage) -> Self {
-//             DummyProviderUsage
-//         }
-//     }
-//     // For brevity, we alias the dummy types to those expected by the provider trait.
-//     type ProviderUsage = DummyProviderUsage;
-//     type ProviderError = DummyProviderError;
-//     type ModelConfig = DummyModelConfig;
-//     type Usage = DummyUsage;
+    fn create_mock_provider() -> Arc<dyn Provider> {
+        let mock_model_config =
+            ModelConfig::new("test-model".to_string()).with_context_limit(200_000.into());
+        Arc::new(MockProvider {
+            model_config: mock_model_config,
+        })
+    }
 
-//     // --- The provided MockProvider implementation ---
-//     #[derive(Clone)]
-//     struct MockProvider {
-//         model_config: ModelConfig,
-//     }
+    fn create_test_messages() -> Vec<Message> {
+        vec![
+            Message {
+                role: Role::User,
+                created: Utc::now().timestamp(),
+                content: vec![MessageContent::Text(TextContent {
+                    text: "Message 1".to_string(),
+                    annotations: None,
+                })],
+            },
+            Message {
+                role: Role::Assistant,
+                created: Utc::now().timestamp(),
+                content: vec![MessageContent::Text(TextContent {
+                    text: "Message 2".to_string(),
+                    annotations: None,
+                })],
+            },
+            Message {
+                role: Role::User,
+                created: Utc::now().timestamp(),
+                content: vec![MessageContent::Text(TextContent {
+                    text: "Message 3".to_string(),
+                    annotations: None,
+                })],
+            },
+        ]
+    }
 
-//     #[async_trait]
-//     impl Provider for MockProvider {
-//         fn metadata() -> ProviderMetadata {
-//             // Return an empty metadata instance for testing.
-//             ProviderMetadata::empty()
-//         }
+    #[tokio::test]
+    async fn test_summarize_messages_single_chunk() {
+        let provider = create_mock_provider();
+        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let context_limit = 100; // Set a high enough limit to avoid chunking.
+        let messages = create_test_messages();
 
-//         fn get_model_config(&self) -> ModelConfig {
-//             self.model_config.clone()
-//         }
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
 
-//         async fn complete(
-//             &self,
-//             _system: &str,
-//             _messages: &[Message],
-//             _tools: &[Tool],
-//         ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-//             Ok((
-//                 Message::assistant().with_text("Mock response"),
-//                 ProviderUsage::new("mock".to_string(), Usage::default()),
-//             ))
-//         }
-//     }
+        assert!(result.is_ok(), "The function should return Ok.");
+        let (summarized_messages, token_counts) = result.unwrap();
 
-//     // --- Dummy TokenCounter that uses word counts as a proxy for token counts ---
-//     struct DummyTokenCounter;
-//     impl TokenCounter for DummyTokenCounter {
-//         fn count_tokens(&self, text: &str) -> usize {
-//             text.split_whitespace().count()
-//         }
-//         fn count_chat_tokens(
-//             &self,
-//             _system_prompt: &str,
-//             messages: &[Message],
-//             _options: &[&str],
-//         ) -> usize {
-//             messages.iter().map(|msg| msg.get_text().split_whitespace().count()).sum()
-//         }
-//     }
+        assert_eq!(
+            summarized_messages.len(),
+            1,
+            "The summary should contain one message."
+        );
+        assert_eq!(
+            summarized_messages[0].role,
+            Role::Assistant,
+            "The summarized message should be from the assistant."
+        );
 
-//     // --- Updated tests using the MockProvider ---
+        assert_eq!(
+            token_counts.len(),
+            1,
+            "Token counts should match the number of summarized messages."
+        );
+    }
 
-//     #[tokio::test]
-//     async fn test_summarize_messages_no_summarization_needed() -> Result<()> {
-//         let provider = Arc::new(MockProvider { model_config: DummyModelConfig });
-//         let token_counter = DummyTokenCounter;
-//         // Messages that are clearly under the limit.
-//         let mut messages = vec![
-//             Message::user().with_text("Hello"),
-//             Message::assistant().with_text("Hi there!"),
-//         ];
-//         let mut token_counts = messages
-//             .iter()
-//             .map(|msg| token_counter.count_tokens(&msg.get_text()))
-//             .collect::<Vec<_>>();
+    #[tokio::test]
+    async fn test_summarize_messages_multiple_chunks() {
+        let provider = create_mock_provider();
+        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let context_limit = 30;
+        let messages = create_test_messages();
 
-//         // Set a high context limit so no summarization occurs.
-//         summarize_messages(provider, &token_counter, &mut messages, &mut token_counts, 100).await?;
-//         // Expect the original conversation to remain unchanged.
-//         assert_eq!(messages.len(), 2);
-//         Ok(())
-//     }
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
 
-//     #[tokio::test]
-//     async fn test_summarize_messages_triggered() -> Result<()> {
-//         let provider = Arc::new(MockProvider { model_config: DummyModelConfig });
-//         let token_counter = DummyTokenCounter;
-//         // Craft messages whose token counts force the summarization logic.
-//         let mut messages = vec![
-//             Message::user().with_text("This is a long conversation segment that must be summarized."),
-//             Message::assistant().with_text("Here is a lengthy reply that also adds up quickly."),
-//         ];
-//         let mut token_counts = messages
-//             .iter()
-//             .map(|msg| token_counter.count_tokens(&msg.get_text()))
-//             .collect::<Vec<_>>();
+        assert!(result.is_ok(), "The function should return Ok.");
+        let (summarized_messages, token_counts) = result.unwrap();
 
-//         // Use a very low context limit to force summarization.
-//         summarize_messages(provider, &token_counter, &mut messages, &mut token_counts, 10).await?;
-//         // Verify the final token count is within the limit.
-//         let final_tokens: usize = token_counts.iter().sum();
-//         assert!(final_tokens <= 10);
-//         // Ensure that the conversation still begins with a user message.
-//         assert_eq!(messages.first().unwrap().role(), "user");
-//         Ok(())
-//     }
-// }
+        assert_eq!(
+            summarized_messages.len(),
+            1,
+            "There should be one final summarized message."
+        );
+        assert_eq!(
+            summarized_messages[0].role,
+            Role::Assistant,
+            "The summarized message should be from the assistant."
+        );
+
+        assert_eq!(
+            token_counts.len(),
+            1,
+            "Token counts should match the number of summarized messages."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_summarize_messages_empty_input() {
+        let provider = create_mock_provider();
+        let token_counter = TokenCounter::new(GPT_4O_TOKENIZER);
+        let context_limit = 100;
+        let messages: Vec<Message> = Vec::new();
+
+        let result = summarize_messages(
+            Arc::clone(&provider),
+            &messages,
+            &token_counter,
+            context_limit,
+        )
+        .await;
+
+        assert!(result.is_ok(), "The function should return Ok.");
+        let (summarized_messages, token_counts) = result.unwrap();
+
+        assert_eq!(
+            summarized_messages.len(),
+            0,
+            "The summary should be empty for an empty input."
+        );
+        assert!(
+            token_counts.is_empty(),
+            "Token counts should be empty for an empty input."
+        );
+    }
+}
