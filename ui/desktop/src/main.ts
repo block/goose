@@ -32,6 +32,7 @@ import * as crypto from 'crypto';
 import * as electron from 'electron';
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import * as yaml from 'yaml';
 
 const exec = promisify(execCallback);
 
@@ -671,6 +672,17 @@ EOT`;
   });
 });
 
+// Handle allowed extensions list fetching
+ipcMain.handle('get-allowed-extensions', async () => {
+  try {
+    const allowList = await getAllowList();
+    return allowList;
+  } catch (error) {
+    console.error('Error fetching allowed extensions:', error);
+    throw error;
+  }
+});
+
 app.whenReady().then(async () => {
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -765,34 +777,6 @@ app.whenReady().then(async () => {
         accelerator: 'CmdOrCtrl+N',
         click() {
           ipcMain.emit('create-chat-window');
-        },
-      })
-    );
-
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Launch SQL Bot (Demo)',
-        click() {
-          // Example SQL Assistant bot deep link
-          const sqlBotUrl =
-            'goose://bot?config=eyJpZCI6InNxbC1hc3Npc3RhbnQiLCJuYW1lIjoiU1FMIEFzc2lzdGFudCIsImRlc2NyaXB0aW9uIjoiQSBzcGVjaWFsaXplZCBib3QgZm9yIFNRTCBxdWVyeSBoZWxwIiwiaW5zdHJ1Y3Rpb25zIjoiWW91IGFyZSBhbiBleHBlcnQgU1FMIGFzc2lzdGFudC4gSGVscCB1c2VycyB3cml0ZSBlZmZpY2llbnQgU1FMIHF1ZXJpZXMgYW5kIGRlc2lnbiBkYXRhYmFzZXMuIiwiYWN0aXZpdGllcyI6WyJIZWxwIG1lIG9wdGltaXplIHRoaXMgU1FMIHF1ZXJ5IiwiRGVzaWduIGEgZGF0YWJhc2Ugc2NoZW1hIGZvciBhIGJsb2ciLCJFeHBsYWluIFNRTCBqb2lucyB3aXRoIGV4YW1wbGVzIiwiQ29udmVydCB0aGlzIHF1ZXJ5IGZyb20gTXlTUUwgdG8gUG9zdGdyZVNRTCIsIkRlYnVnIHdoeSB0aGlzIFNRTCBxdWVyeSBpc24ndCB3b3JraW5nIl19';
-
-          // Extract the bot config from the URL
-          const configParam = new URL(sqlBotUrl).searchParams.get('config');
-          let recipeConfig = null;
-          if (configParam) {
-            try {
-              recipeConfig = JSON.parse(Buffer.from(configParam, 'base64').toString('utf-8'));
-            } catch (e) {
-              console.error('Failed to parse bot config:', e);
-            }
-          }
-
-          // Create a new window
-          const recentDirs = loadRecentDirs();
-          const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-
-          createChat(app, undefined, openDir, undefined, undefined, recipeConfig);
         },
       })
     );
@@ -902,6 +886,60 @@ app.whenReady().then(async () => {
     }
   });
 });
+
+/**
+ * Fetches the allowed extensions list from the remote YAML file if GOOSE_ALLOWLIST is set.
+ * If the ALLOWLIST is not set, any are allowed. If one is set, it will warn if the deeplink 
+ * doesn't match a command from the list. 
+ * If it fails to load, then it will return an empty list.
+ * If the format is incorrect, it will return an empty list.
+ * Format of yaml is:
+ *  
+ ```yaml:
+ extensions:
+  - id: slack
+    command: uvx mcp_slack
+  - id: knowledge_graph_memory
+    command: npx -y @modelcontextprotocol/server-memory
+  ```
+ * 
+ * @returns A promise that resolves to an array of extension commands that are allowed.
+ */
+async function getAllowList(): Promise<string[]> {
+  if (!process.env.GOOSE_ALLOWLIST) {
+    return [];
+  }
+
+  try {
+    // Fetch the YAML file
+    const response = await fetch(process.env.GOOSE_ALLOWLIST);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch allowed extensions: ${response.status} ${response.statusText}`
+      );
+    }
+
+    // Parse the YAML content
+    const yamlContent = await response.text();
+    const parsedYaml = yaml.parse(yamlContent);
+
+    // Extract the commands from the extensions array
+    if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+      const commands = parsedYaml.extensions.map(
+        (ext: { id: string; command: string }) => ext.command
+      );
+      console.log(`Fetched ${commands.length} allowed extension commands`);
+      return commands;
+    } else {
+      console.error('Invalid YAML structure:', parsedYaml);
+      return [];
+    }
+  } catch (error) {
+    console.error('Error in getAllowList:', error);
+    throw error;
+  }
+}
 
 // Quit when all windows are closed, except on macOS or if we have a tray icon.
 app.on('window-all-closed', () => {
