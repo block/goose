@@ -1,3 +1,4 @@
+use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
     extract::State,
@@ -26,15 +27,7 @@ async fn truncate_handler(
     headers: HeaderMap,
     Json(payload): Json<ContextRequest>,
 ) -> Result<Json<ContextResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     // Get a lock on the shared agent
     let agent = state.agent.read().await;
@@ -55,15 +48,7 @@ async fn summarize_handler(
     headers: HeaderMap,
     Json(payload): Json<ContextRequest>,
 ) -> Result<Json<ContextResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     // Get a lock on the shared agent
     let agent = state.agent.read().await;
