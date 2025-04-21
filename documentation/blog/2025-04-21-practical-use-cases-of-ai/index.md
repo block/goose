@@ -1,6 +1,6 @@
 ---
 title: 11 Practical Ways I Use AI Agents Without Losing My Authenticity
-description: From conference planning to prepping podcasts, here's how I use AI agents built on MCP for everyday tasks.
+description: From conference planning to prepping podcasts, here's how I use AI Agents built on MCP for everyday tasks.
 authors: 
     - rizel
 ---
@@ -268,14 +268,14 @@ Let Goose surprise you. ✨
 
 
 <head>
-  <meta property="og:title" content="11 Practical Ways I Use AI Without Losing My Authenticity" />
+  <meta property="og:title" content="11 Practical Ways I Use AI Agents Without Losing My Authenticity" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/21/practical-use-cases-of-ai" />
-  <meta property="og:description" content="From conference planning to prepping podcasts, here's how I use AI agents built on MCP for everyday tasks." />
+  <meta property="og:description" content="From conference planning to prepping podcasts, here's how I use AI Agents built on MCP for everyday tasks." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/mcp-use-cases-905ae8bd61ce09ea4cd46677ab74fa04.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="11 Practical Ways I Use AI Without Losing My Authenticity" />
-  <meta name="twitter:description" content="From conference planning to prepping podcasts, here's how I use AI agents built on MCP for everyday tasks." />
+  <meta name="twitter:title" content="11 Practical Ways I Use AI Agents Without Losing My Authenticity" />
+  <meta name="twitter:description" content="From conference planning to prepping podcasts, here's how I use AI Agents built on MCP for everyday tasks." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-use-cases-905ae8bd61ce09ea4cd46677ab74fa04.png" />
 </head>
