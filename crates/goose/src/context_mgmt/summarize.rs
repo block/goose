@@ -103,11 +103,11 @@ fn reintegrate_removed_messages(
 // 3. Generate a final summary using a tailored prompt.
 pub async fn summarize_messages(
     provider: Arc<dyn Provider>,
-    messages: &Vec<Message>,
+    messages: &[Message],
     token_counter: &TokenCounter,
     context_limit: usize,
 ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-    let chunk_size = context_limit / 3; // 30% of the context window.
+    let chunk_size = context_limit / 3; // 33% of the context window.
     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
     let mut accumulated_summary = Vec::new();
 

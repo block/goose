@@ -13,7 +13,7 @@ impl Agent {
     /// Public API to truncate oldest messages so that the conversation's token count is within the allowed context limit.
     pub async fn truncate_context(
         &self,
-        messages: &Vec<Message>, // last message is a user msg that led to assistant message with_context_length_exceeded
+        messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider.clone();
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
@@ -39,7 +39,7 @@ impl Agent {
     /// Public API to summarize the conversation so that its token count is within the allowed context limit.
     pub async fn summarize_context(
         &self,
-        messages: &Vec<Message>, // last message is a user msg that led to assistant message with_context_length_exceeded
+        messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
         let provider = self.provider.clone();
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
