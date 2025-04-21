@@ -233,15 +233,13 @@ export const initializeSystem = async (
         await syncBundledExtensions(refreshedExtensions, options.addExtension);
       }
 
-      // enable all extensions in parallel
-      await Promise.all(
-        refreshedExtensions
-          .filter((e) => e.enabled)
-          .map((extensionEntry) => {
-            const extensionConfig = extractExtensionConfig(extensionEntry);
-            return addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
-          })
-      );
+      // Add enabled extensions to agent
+      for (const extensionEntry of refreshedExtensions) {
+        if (extensionEntry.enabled) {
+          const extensionConfig = extractExtensionConfig(extensionEntry);
+          await addToAgentOnStartup({ addToConfig: options.addExtension, extensionConfig });
+        }
+      }
     } else {
       loadAndAddStoredExtensions().catch((error) => {
         console.error('Failed to load and add stored extension configs:', error);
