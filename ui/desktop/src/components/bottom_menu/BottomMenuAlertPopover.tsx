@@ -37,6 +37,9 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length === 0) return;
 
+    // Check if there are any error alerts
+    const hasErrorAlerts = alerts.some((alert) => alert.type === AlertType.Error);
+
     // Compare current and previous alerts for any changes
     const hasChanges = alerts.some((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
@@ -45,8 +48,8 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
     previousAlertsRef.current = alerts;
 
-    // Auto show the popover if there are new alerts
-    if (!hasShownInitial || hasChanges) {
+    // Auto show the popover only if there are error alerts and either it hasn't shown initially or there are changes
+    if (hasErrorAlerts && (!hasShownInitial || hasChanges)) {
       setIsOpen(true);
       setHasShownInitial(true);
       setWasAutoShown(true);
