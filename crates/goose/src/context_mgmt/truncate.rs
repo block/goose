@@ -325,7 +325,7 @@ mod tests {
         let (mut messages, mut token_counts) = create_messages_with_counts(2, 25, false);
         let context_limit = 100; // Exactly matches total tokens
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -339,7 +339,7 @@ mod tests {
         messages.push(user_text(5, 1).0);
         token_counts.push(1);
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -379,7 +379,7 @@ mod tests {
         let mut messages_clone = messages.clone();
         let mut token_counts_clone = token_counts.clone();
 
-        truncate_messages(
+        (messages_clone, _) = truncate_messages(
             &mut messages_clone,
             &mut token_counts_clone,
             context_limit,
@@ -424,7 +424,7 @@ mod tests {
         let mut token_counts = vec![50, 10, 10, 20, 5];
         let context_limit = 45; // Force truncation
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
