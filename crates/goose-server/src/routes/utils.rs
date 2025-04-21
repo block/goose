@@ -1,5 +1,7 @@
+use crate::state::AppState;
 use goose::config::Config;
 use goose::providers::base::{ConfigKey, ProviderMetadata};
+use http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::error::Error;
@@ -19,6 +21,20 @@ pub struct KeyInfo {
     pub location: KeyLocation,
     pub is_secret: bool,
     pub value: Option<String>, // Only populated for non-secret keys that are set
+}
+
+pub fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        Err(StatusCode::UNAUTHORIZED)
+    } else {
+        Ok(StatusCode::OK)
+    }
 }
 
 /// Inspects a configuration key to determine if it's set, its location, and value (for non-secret keys)

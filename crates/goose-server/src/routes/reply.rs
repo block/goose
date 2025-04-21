@@ -1,3 +1,4 @@
+use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{
     extract::State,
@@ -104,15 +105,7 @@ async fn handler(
     headers: HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     // Create channel for streaming
     let (tx, rx) = mpsc::channel(100);
@@ -273,15 +266,7 @@ async fn ask_handler(
     headers: HeaderMap,
     Json(request): Json<AskRequest>,
 ) -> Result<Json<AskResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let session_working_dir = request.session_working_dir;
 
@@ -393,15 +378,7 @@ pub async fn confirm_permission(
     headers: HeaderMap,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let agent = state.agent.clone();
     let agent = agent.read().await;
@@ -437,6 +414,8 @@ async fn submit_tool_result(
     headers: HeaderMap,
     raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<Value>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
     // Log the raw request for debugging
     tracing::info!(
         "Received tool result request: {}",
@@ -455,16 +434,6 @@ async fn submit_tool_result(
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
     };
-
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
 
     let agent = state.agent.read().await;
     let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
