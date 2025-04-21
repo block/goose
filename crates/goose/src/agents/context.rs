@@ -9,25 +9,6 @@ use crate::context_mgmt::{estimate_target_context_limit, get_messages_token_coun
 
 use super::super::agents::Agent;
 
-// Sample Conversation
-// USER: whats your name?
-
-// ---> provider
-// ASSISTANT: my name is Goose
-
-// USER: call shell tool
-
-// ---> provider (if error is here, we don't need to include last user msg)
-// ASSISTANT - tool call: tool: shell, cmd: ls
-
-// USER - tool result: here's the output:
-// 		- file 1
-// 		- file 2
-// 		- pdf 1
-
-// ---> provider (if error is here, we MUST include last user msg - matching tool result)
-// ASSISTANT: i have called the shell tool for you!
-
 impl Agent {
     /// Public API to truncate oldest messages so that the conversation's token count is within the allowed context limit.
     pub async fn truncate_context(
@@ -48,8 +29,9 @@ impl Agent {
 
         // Add an assistant message to the truncated messages
         // to ensure the assistant's response is included in the context.
-        new_messages.push(Message::assistant().with_text("I had run into a context length exceeded error so I truncated some of the oldest messages in our conversation."));
-        new_token_counts.push(28);
+        let assistant_message = Message::assistant().with_text("I had run into a context length exceeded error so I truncated some of the oldest messages in our conversation.");
+        new_messages.push(assistant_message.clone());
+        new_token_counts.push(token_counter.count_chat_tokens("", &[assistant_message], &[]));
 
         Ok((new_messages, new_token_counts))
     }
@@ -68,10 +50,11 @@ impl Agent {
 
         // Add an assistant message to the truncated messages
         // to ensure the assistant's response is included in the context.
-        new_messages.push(Message::assistant().with_text(
+        let assistant_message = Message::assistant().with_text(
             "I had run into a context length exceeded error so I summarized our conversation.",
-        ));
-        new_token_counts.push(22);
+        );
+        new_messages.push(assistant_message.clone());
+        new_token_counts.push(token_counter.count_chat_tokens("", &[assistant_message], &[]));
 
         Ok((new_messages, new_token_counts))
     }

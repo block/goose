@@ -299,7 +299,7 @@ impl Agent {
                  // TODO: For testing: force a context length exceeded error on single msg
                 if messages.len() == 5 {
                     yield Message::assistant().with_context_length_exceeded(
-                        "The context length of the model has been exceeded. Please shorten your input and try again.",
+                        "The context length of the model has been exceeded. Please start a new session and try again.",
                     );
                     break;
                 }
@@ -458,7 +458,7 @@ impl Agent {
                         // because call to provider led to context length exceeded error
                         // Immediately yield a special message and break
                         yield Message::assistant().with_context_length_exceeded(
-                            "The context length of the model has been exceeded. Please shorten your input and try again.",
+                            "The context length of the model has been exceeded. Please start a new session and try again.",
                         );
                         break;
                     },
