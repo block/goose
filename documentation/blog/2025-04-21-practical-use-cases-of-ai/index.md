@@ -256,7 +256,9 @@ You’ll see ideas go from prompt to prototype in one session.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/OsA3qhns7dg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
-### Looking for more examples?
+---
+
+## Looking for more examples?
 
 This blog post included just a few of the ways I use Goose. If you’re curious about what else it can do, check out the [Prompt Library](/prompt-library) or just ask:
 
