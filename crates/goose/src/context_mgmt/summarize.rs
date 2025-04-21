@@ -1,150 +1,98 @@
+use super::common::get_messages_token_counts;
 use crate::message::Message;
 use crate::providers::base::Provider;
 use crate::token_counter::TokenCounter;
 use anyhow::Result;
 use std::sync::Arc;
 
-// TODO: remove afterwards
-pub async fn summarize_messages(
-    _provider: Arc<dyn Provider>,
-    _messages: &Vec<Message>,
-    _token_counter: &TokenCounter,
-    _context_limit: usize,
-) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-    let messages = vec![Message::user().with_text(
-        "John speaks Bengali & English. Jane has been playing some tennis and golf recently.",
-    )];
-    let token_counts: Vec<usize> = vec![17];
+// Constants for the summarization prompt and a follow-up user message.
+const SUMMARY_PROMPT: &str = "You are good at summarizing conversations";
 
-    Ok((messages, token_counts))
+/// Summarize the combined messages from the accumulated summary and the current chunk.
+///
+/// This method builds the summarization request, sends it to the provider, and returns the summarized response.
+async fn summarize_combined_messages(
+    provider: &Arc<dyn Provider>,
+    accumulated_summary: &[Message],
+    current_chunk: &[Message],
+) -> Result<Vec<Message>, anyhow::Error> {
+    // Combine the accumulated summary and current chunk into a single batch.
+    let combined_messages: Vec<Message> = accumulated_summary
+        .iter()
+        .cloned()
+        .chain(current_chunk.iter().cloned())
+        .collect();
+
+    // Format the batch as a summarization request.
+    let request_text = format!(
+        "Please summarize the following conversation history, preserving the key points. This summarization will be used for the later conversations.\n\n```\n{:?}\n```",
+        combined_messages
+    );
+    let summarization_request = vec![Message::user().with_text(&request_text)];
+
+    // Send the request to the provider and fetch the response.
+    let response = provider
+        .complete(SUMMARY_PROMPT, &summarization_request, &[])
+        .await?
+        .0;
+
+    // Return the summary as the new accumulated summary.
+    Ok(vec![response])
 }
 
-// TODO: bring back a version of the synopsis summary
-// However, note that original synopsis summary would run every turn. In this case, we know we're
-// out of context so we have to chunk/batch them up or sth else if we wanna use LLMs to summarize
-// https://github.com/block/goose/blame/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/summarize.md
-// https://github.com/block/goose/blob/92302c386225190c240c3c04ac651683c307276e/src/goose/synopsis/moderator.py#L82-L96
+// Summarization steps:
+// 1. Break down large text into smaller chunks (roughly 30% of the model’s context window).
+// 2. For each chunk:
+//    a. Combine it with the previous summary (or leave blank for the first iteration).
+//    b. Summarize the combined text, focusing on extracting only the information we need.
+// 3. Generate a final summary using a tailored prompt.
+pub async fn summarize_messages(
+    provider: Arc<dyn Provider>,
+    messages: &Vec<Message>,
+    token_counter: &TokenCounter,
+    context_limit: usize,
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    let chunk_size = context_limit / 3; // 30% of the context window.
+    let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
+    let mut accumulated_summary = Vec::new();
 
-// Below is the old memory_condense.rs -> i am not sure we wanna keep this
-// Also not totally sure why we loop and create summary
+    // Get token counts for each message.
+    let token_counts = get_messages_token_counts(token_counter, messages);
 
-// use crate::message::Message;
-// use crate::providers::base::Provider;
-// use crate::token_counter::TokenCounter;
-// use anyhow::{anyhow, Result};
-// use std::sync::Arc;
-// use tracing::debug;
-// use super::common::{estimate_target_context_limit, get_messages_token_counts};
+    // Tokenize and break messages into chunks.
+    let mut current_chunk: Vec<Message> = Vec::new();
+    let mut current_chunk_tokens = 0;
 
-// // Constants for the summarization prompt and a follow-up user message.
-// const SUMMARY_PROMPT: &str = "You are good at summarizing.";
-// const USER_CHECKIN_PROMPT: &str = "Hello! How are we progressing?";
+    for (message, message_tokens) in messages.iter().zip(token_counts.iter()) {
+        if current_chunk_tokens + message_tokens > chunk_size - summary_prompt_tokens {
+            // Summarize the current chunk with the accumulated summary.
+            accumulated_summary =
+                summarize_combined_messages(&provider, &accumulated_summary, &current_chunk)
+                    .await?;
 
-// /// Builds a summarization request based on a batch of messages.
-// ///
-// /// Formats the batch as a code block with an instruction to summarize concisely.
-// fn build_summarization_request(batch: &[Message]) -> Vec<Message> {
-//     let request_text = format!(
-//         "Please summarize the following conversation succinctly, preserving the key points.\n\n```\n{:?}\n```",
-//         batch
-//     );
-//     vec![Message::user().with_text(request_text)]
-// }
+            // Reset for the next chunk.
+            current_chunk.clear();
+            current_chunk_tokens = 0;
+        }
 
-// /// Sends the summarization request to the provider and returns its response.
-// ///
-// /// This function uses the global summarization prompt.
-// async fn fetch_summary(
-//     provider: &Arc<dyn Provider>,
-//     messages: &[Message],
-// ) -> Result<Message, anyhow::Error> {
-//     // Call the provider with the summarization prompt and request messages.
-//     Ok(provider.complete(SUMMARY_PROMPT, messages, &[]).await?.0)
-// }
+        // Add message to the current chunk.
+        current_chunk.push(message.clone());
+        current_chunk_tokens += message_tokens;
+    }
 
-// /// Iteratively summarizes portions of the conversation until the total tokens fit within the context limit.
-// ///
-// /// This routine uses a stack to process messages (starting with the oldest) and replaces chunks with a summary.
-// pub async fn summarize_messages(
-//     provider: Arc<dyn Provider>,
-//     messages: &mut Vec<Message>,
-//     token_counter: &TokenCounter,
-//     context_limit: usize,
-// ) -> Result<(), anyhow::Error> {
-//     let summary_prompt_tokens = token_counter.count_tokens(SUMMARY_PROMPT);
+    // Summarize the final chunk if it exists.
+    if !current_chunk.is_empty() {
+        accumulated_summary =
+            summarize_combined_messages(&provider, &accumulated_summary, &current_chunk).await?;
+    }
 
-//     // Reverse the messages and token counts for efficient pop operations (processing from oldest first).
-//     let mut msg_stack: Vec<Message> = messages.iter().cloned().rev().collect();
-//     let mut token_counts = get_messages_token_counts(token_counter, messages);
-//     let mut token_stack: Vec<usize> = token_counts.iter().copied().rev().collect();
+    println!("accumulated_summary: {:?}", accumulated_summary);
 
-//     // Calculate the total tokens currently held in the stack.
-//     let mut total_tokens: usize = token_stack.iter().sum();
-//     // net_token_change tracks the net change in tokens during each summarization iteration.
-//     let mut net_token_change = 1; // non-zero to ensure we enter the loop
-
-//     // Continue summarizing until the token budget is met or no further progress is made.
-//     while total_tokens > context_limit && net_token_change > 0 {
-//         let mut messages_batch: Vec<Message> = Vec::new();
-//         let mut batch_tokens = 0;
-
-//         // Collect messages until the batch (plus the summary prompt) fits within the context limit.
-//         while total_tokens > batch_tokens + context_limit
-//             && batch_tokens + summary_prompt_tokens <= context_limit
-//         {
-//             // Pop the oldest message (from the bottom of the original conversation).
-//             let msg = msg_stack.pop().expect("Expected message in stack");
-//             let count = token_stack.pop().expect("Expected token count in stack");
-//             messages_batch.push(msg);
-//             batch_tokens += count;
-//         }
-
-//         // When possible, force an additional message into the batch to guarantee progress.
-//         if !messages_batch.is_empty()
-//             && !msg_stack.is_empty()
-//             && batch_tokens + summary_prompt_tokens <= context_limit
-//         {
-//             let msg = msg_stack.pop().expect("Expected message in stack");
-//             let count = token_stack.pop().expect("Expected token count in stack");
-//             messages_batch.push(msg);
-//             batch_tokens += count;
-//         }
-
-//         // Start with a negative value of removed tokens.
-//         net_token_change = -(batch_tokens as isize);
-
-//         let summarization_request = build_summarization_request(&messages_batch);
-//         let summary_response = fetch_summary(&provider, &summarization_request)
-//             .await?
-//             .as_concat_text();
-
-//         // Create a mini-conversation: the assistant's summary and a follow-up user message.
-//         let new_messages = vec![
-//             Message::assistant().with_text(&summary_response),
-//             Message::user().with_text(USER_CHECKIN_PROMPT),
-//         ];
-//         let new_messages_tokens =
-//             token_counter.count_chat_tokens("", &new_messages, &[]);
-//         net_token_change += new_messages_tokens as isize;
-
-//         // Add the new messages (and their token count) to the stack.
-//         token_stack.push(new_messages_tokens);
-//         msg_stack.extend(new_messages);
-
-//         total_tokens = total_tokens
-//             .checked_add_signed(net_token_change)
-//             .ok_or(anyhow!("Error updating token total"))?;
-//     }
-
-//     if total_tokens <= context_limit {
-//         // Restore the original chronological order.
-//         *messages = msg_stack.into_iter().rev().collect();
-//         *token_counts = token_stack.into_iter().rev().collect();
-//         Ok(())
-//     } else {
-//         Err(anyhow!("Unable to summarize messages within the context limit."))
-//     }
-// }
+    Ok((
+        accumulated_summary.clone(),
+        get_messages_token_counts(token_counter, &accumulated_summary),
+    ))
+}
 
 // #[cfg(test)]
 // mod tests {
