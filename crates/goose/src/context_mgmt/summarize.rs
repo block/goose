@@ -52,8 +52,8 @@ async fn summarize_combined_messages(
 ///    - The corresponding tool request message that immediately precedes the last tool response message (if present).
 ///
 /// The function only considers the last tool response message and its pair for removal.
-fn preprocess_messages(messages: &Vec<Message>) -> (Vec<Message>, Vec<Message>) {
-    let mut preprocessed_messages = messages.clone();
+fn preprocess_messages(messages: &[Message]) -> (Vec<Message>, Vec<Message>) {
+    let mut preprocessed_messages = messages.to_owned();
     let mut removed_messages = Vec::new();
 
     if let Some((last_index, last_message)) = messages.iter().enumerate().rev().find(|(_, m)| {
@@ -87,10 +87,10 @@ fn preprocess_messages(messages: &Vec<Message>) -> (Vec<Message>, Vec<Message>) 
 /// back into the summarized message list. This ensures that important context,
 /// such as tool responses, is not lost.
 fn reintegrate_removed_messages(
-    summarized_messages: &Vec<Message>,
-    removed_messages: &Vec<Message>,
+    summarized_messages: &[Message],
+    removed_messages: &[Message],
 ) -> Vec<Message> {
-    let mut final_messages = summarized_messages.clone();
+    let mut final_messages = summarized_messages.to_owned();
     final_messages.extend_from_slice(removed_messages);
     final_messages
 }

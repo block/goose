@@ -18,7 +18,7 @@ impl Agent {
         let provider = self.provider.clone();
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         let target_context_limit = estimate_target_context_limit(provider);
-        let token_counts = get_messages_token_counts(&token_counter, &messages);
+        let token_counts = get_messages_token_counts(&token_counter, messages);
 
         let (mut new_messages, mut new_token_counts) = truncate_messages(
             messages,

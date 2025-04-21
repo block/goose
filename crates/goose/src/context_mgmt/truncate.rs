@@ -12,13 +12,13 @@ use tracing::debug;
 /// - context_limit: The maximum allowed context length in tokens.
 /// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
 pub fn truncate_messages(
-    messages: &Vec<Message>,
-    token_counts: &Vec<usize>,
+    messages: &[Message],
+    token_counts: &[usize],
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
 ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-    let mut messages = messages.clone();
-    let mut token_counts = token_counts.clone();
+    let mut messages = messages.to_owned();
+    let mut token_counts = token_counts.to_owned();
 
     if messages.len() != token_counts.len() {
         return Err(anyhow!(
