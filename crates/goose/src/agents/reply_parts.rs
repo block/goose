@@ -29,11 +29,10 @@ impl Agent {
         // Prepare system prompt
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let should_suggest_disable = extension_manager.should_show_disable_suggestion().await;
         let mut system_prompt = self.prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.clone(),
-            should_suggest_disable,
+            extension_manager.suggest_disable_extensions_prompt().await,
         );
 
         // Handle toolshim if enabled

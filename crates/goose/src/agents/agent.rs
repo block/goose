@@ -277,7 +277,6 @@ impl Agent {
                 let result = if !errors.is_empty() {
                     Err(ToolError::ExecutionError(errors.join("\n")))
                 } else {
-                    extension_manager.record_disable_suggestion();
                     Ok(vec![Content::text(success_messages.join("\n"))])
                 };
 
@@ -667,11 +666,10 @@ impl Agent {
     pub async fn create_recipe(&self, mut messages: Vec<Message>) -> Result<Recipe> {
         let extension_manager = self.extension_manager.lock().await;
         let extensions_info = extension_manager.get_extensions_info().await;
-        let should_suggest_disable = extension_manager.should_show_disable_suggestion().await;
         let system_prompt = self.prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.clone(),
-            should_suggest_disable,
+            extension_manager.suggest_disable_extensions_prompt().await,
         );
 
         let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;

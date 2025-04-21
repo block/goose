@@ -42,7 +42,7 @@ impl PromptManager {
         &self,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
-        should_suggest_disable: bool,
+        suggest_disable_extensions_prompt: Value,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
@@ -62,16 +62,10 @@ impl PromptManager {
         context.insert("current_date_time", Value::String(current_date_time));
 
         // Add the suggestion about disabling extensions if flag is true
-        if should_suggest_disable {
-            context.insert(
-                "suggest_disable",
-                Value::String(
-                    "If the user has enabled a lot of extensions and corrects you on using the wrong tool,
-                    ask the user if they would like to disable a few extensions for this session.
-                    To do this, list the extensions out and ask the user which ones they are currently not using.
-                    Explain to them the benefit of minimizing extensions is that it helps with the recall of the correct tools to use".to_string())
-            );
-        }
+        context.insert(
+            "suggest_disable",
+            Value::String(suggest_disable_extensions_prompt.to_string()),
+        );
 
         // Conditionally load the override prompt or the global system prompt
         let base_prompt = if let Some(override_prompt) = &self.system_prompt_override {
