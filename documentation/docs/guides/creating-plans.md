@@ -31,11 +31,14 @@ The Goose CLI plan mode uses two configuration values:
 - `GOOSE_PLANNER_PROVIDER`: Which provider to use for planning
 - `GOOSE_PLANNER_MODEL`: Which model to use for planning
 
-For example, you might configure:
+### Set Goose planner environment variables
+You might add these lines to your bash shell config file (.bashrc) to add the planner environment variables:
 ```bash
 export GOOSE_PLANNER_PROVIDER=<my-chosen-provider>
 export GOOSE_PLANNER_MODEL=<my-chosen-model>
 ```
+After you save your changes to the config file, you need to re-start your Goose session so that Goose can use the variables.
+
 If these aren't set, Goose will use your default provider and model settings. You might want to set different planning models if you find certain models are better at breaking down tasks into clear steps. However, your default model configuration is usually sufficient.
 
 To verify that the planner provider is set, input the following terminal command:
