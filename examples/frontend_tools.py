@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Configuration
 GOOSE_HOST = "127.0.0.1"
-GOOSE_PORT = "3001"
+GOOSE_PORT = "3000"
 GOOSE_URL = f"http://{GOOSE_HOST}:{GOOSE_PORT}"
 SECRET_KEY = "test"  # Default development secret key
 
@@ -63,7 +63,7 @@ async def setup_agent() -> None:
     async with httpx.AsyncClient() as client:
         # First create the agent
         response = await client.post(
-            f"{GOOSE_URL}/agent",
+            f"{GOOSE_URL}/config/update_provider",
             json={"provider": "databricks", "model": "goose"},
             headers={"X-Secret-Key": SECRET_KEY},
         )
@@ -194,7 +194,7 @@ async def chat_loop() -> None:
     session_id = "test-session"
 
     # Use a client with a longer timeout for streaming
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         # Get user input
         user_message = input("\nYou: ")
         if user_message.lower() in ["exit", "quit"]:
@@ -253,36 +253,26 @@ async def chat_loop() -> None:
                         print(f"\nTool Request: {tool_call}")
 
                         if tool_call['name'] == "calculator":
-                            # print(f"Calculator: {tool_call}")
+                            print(f"Calculator: {tool_call}")
                             # Execute the tool
                             result = execute_calculator(tool_call["arguments"])
                         elif tool_call['name'] == "enable_extension":
-                            result = execute_enable_extension(arguments)
+                            # to trigger this tool, use the instruction "use enable_extension tool with "fetch" extension name"
+                            print(f"Enabling fetch extension")
+                            result = execute_enable_extension(args={
+                                "type": "stdio", 
+                                "name": "fetch",
+                                "cmd": "uvx",
+                                "args": ["mcp-server-fetch"],
+                                "timeout": 300, 
+                                "bundled": False
+                            })
+                            listed_tools = get_tools()
+                            print(f"\nTools after enabling extension: {listed_tools}")
 
 
                         # Submit the result
                         submit_tool_result(content["id"], result)
-
-
-                # list tools 
-                listed_tools = get_tools()
-                print(f"\nTools BEFORE: {listed_tools}")
-
-                print("\nCalling enable extension - hardcoded")
-                # acquire lock! deadlock!
-                execute_enable_extension(args={
-                  "type": "stdio", 
-                  "name": "fetch",
-                  "cmd": "uvx",
-                  "args": ["mcp-server-fetch"],
-                  "timeout": 300, 
-                  "bundled": False
-                })
-                print("Called")
-
-                # list tools 
-                listed_tools = get_tools()
-                print(f"\nTools AFTER: {listed_tools}")
 
 
 async def main():
