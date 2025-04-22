@@ -175,11 +175,12 @@ I tend to overbook myself or get anxious that I won't get accepted, so I apply t
 
 ### Use Case
 
-A feature broke, but I had made so many commits, I couldn't tell which one introduced the bug. I asked Goose to help me run git bisect, so we could identify the problematic code.
+A feature broke, but I had made so many commits, I couldn't tell which one introduced the bug. I asked Goose to help me run `git bisect`, so we could identify the problematic code.
 
 ### Why It's Useful
 
 The hardest part of debugging is often just figuring out where to look. Git bisect makes that faster, and Goose walked me through the process without needing to memorize the steps.
+
 ### How to Try It
 
 1. Install the [Git CLI](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
