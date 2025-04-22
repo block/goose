@@ -106,7 +106,7 @@ I'm not currently looking for a job, but I like to stay prepared. My strategy in
 
 ### Use Case
 
-I've asked to explain idioms or references that I didn't understand.  
+I've asked Goose to explain idioms or references that I didn't understand.  
 
 ### Why It's Useful
 
