@@ -274,9 +274,7 @@
 
   .bg-inline-code {
     border-radius: 4px;
-    color: rgb(255 119 43);
-    background-color: var(--background-app);
-    border: 1px solid var(--border-subtle);
+    color: var(--grey-80);
     font-family: 'Cash Sans Mono', monospace;
     font-size: 12px;
     font-style: normal;
@@ -287,14 +285,14 @@
   .bg-inline-code:before {
     content: '';
   }
+
   pre:has(> code.bg-inline-code) {
     padding: 1em;
   }
 
-  *:has(> code.bg-inline-code) {
-    .bg-inline-code {
-      padding: 2px 4px;
-    }
+  p > code.bg-inline-code {
+    color: var(--block-orange);
+    padding: 2px 4px;
   }
 
   .bg-inline-code:after {

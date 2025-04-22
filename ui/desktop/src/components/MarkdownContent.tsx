@@ -103,10 +103,7 @@ export default function MarkdownContent({ content, className = '' }: MarkdownCon
             return inlinecode == 'false' && match ? (
               <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
             ) : (
-              <code
-                {...props}
-                className={`break-all bg-inline-code dark:bg-inline-code-dark whitespace-pre-wrap`}
-              >
+              <code {...props} className={`break-all bg-inline-code whitespace-pre-wrap`}>
                 {children}
               </code>
             );
