@@ -61,7 +61,7 @@ I want guests to feel like I actually know their work, even if I don't have hour
 
 ### Use Case
 
-Speaker management platforms often have different image requirements for headshots. I used to spend an embarrassingly unnecessary amount of time trying to resize my photo without ruining the aspect ratio. Now, I just ask Goose to do it.
+Speaker management platforms often have different image requirements for headshots. I used to spend an embarrassingly amount of time trying to resize my photo without ruining the aspect ratio. Now, I just ask Goose to do it.
 
 ### Why It's Useful
 
