@@ -1,3 +1,4 @@
+use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
@@ -5,6 +6,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use goose::config::Config;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
@@ -12,25 +14,12 @@ use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
 use std::collections::HashMap;
 use utoipa::ToSchema;
-
-fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        Err(StatusCode::UNAUTHORIZED)
-    } else {
-        Ok(StatusCode::OK)
-    }
-}
 
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
@@ -431,8 +420,6 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
-use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
-use once_cell::sync::Lazy;
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
     author: "Block".to_string(),
