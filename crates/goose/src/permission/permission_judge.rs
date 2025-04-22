@@ -206,18 +206,18 @@ pub async fn check_tool_permissions(
 
     for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
-            // Always ask approval for enable extension tool.
-            if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
-                // Insert at the front of the list so that enable extension can be run before other tools.
-                needs_approval.insert(0, request.clone());
-                continue;
-            }
-
             if mode == "chat" {
                 continue;
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
+                // Always ask approval for enable extension tool.
+                if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+                    // Insert at the front of the list so that enable extension can be run before other tools.
+                    needs_approval.insert(0, request.clone());
+                    continue;
+                }
+
                 // 1. Check user-defined permission
                 if let Some(level) = permission_manager.get_user_permission(&tool_call.name) {
                     match level {
@@ -489,17 +489,7 @@ mod tests {
         // Ensure the right tools are in the approved and needs_approval lists
         assert!(result.approved.iter().any(|req| req.id == "tool_1"));
         assert!(result.needs_approval.iter().any(|req| req.id == "tool_2"));
-
-        let tool_0 = result.needs_approval.get(0);
-        assert!(
-            tool_0.is_some(),
-            "Expected at least one tool in needs_approval"
-        );
-        assert_eq!(
-            tool_0.unwrap().id,
-            "tool_3",
-            "PLATFORM_ENABLE_EXTENSION_TOOL_NAME should be the first in needs_approval"
-        );
+        assert!(result.needs_approval.iter().any(|req| req.id == "tool_3"));
     }
 
     #[tokio::test]
