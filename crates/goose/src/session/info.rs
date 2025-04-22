@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::session::{self, SessionMetadata};
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct SessionInfo {
     pub id: String,
     pub path: String,
