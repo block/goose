@@ -7,6 +7,7 @@ import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
+import { upsertConfig } from '../../../../api/sdk.gen';
 
 interface ExtensionModalProps {
   title: string;
@@ -34,7 +35,7 @@ export default function ExtensionModal({
   const handleAddEnvVar = (key: string, value: string) => {
     setFormData({
       ...formData,
-      envVars: [...formData.envVars, { key, value }],
+      envVars: [...formData.envVars, { key, value, isEdited: true }],
     });
   };
 
@@ -50,10 +51,33 @@ export default function ExtensionModal({
   const handleEnvVarChange = (index: number, field: 'key' | 'value', value: string) => {
     const newEnvVars = [...formData.envVars];
     newEnvVars[index][field] = value;
+
+    // Mark as edited if it's a value change
+    if (field === 'value') {
+      newEnvVars[index].isEdited = true;
+    }
+
     setFormData({
       ...formData,
       envVars: newEnvVars,
     });
+  };
+
+  // Function to store a secret value
+  const storeSecret = async (key: string, value: string) => {
+    try {
+      await upsertConfig({
+        body: {
+          is_secret: true,
+          key: key,
+          value: value,
+        },
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to store secret:', error);
+      return false;
+    }
   };
 
   // Function to determine which icon to display with proper styling
@@ -104,23 +128,36 @@ export default function ExtensionModal({
     return isNameValid() && isConfigValid() && isEnvVarsValid() && isTimeoutValid();
   };
 
-  // Handle submit with validation
-  const handleSubmit = () => {
+  // Handle submit with validation and secret storage
+  const handleSubmit = async () => {
     setSubmitAttempted(true);
 
     if (isFormValid()) {
-      const dataToSubmit = { ...formData };
+      // Only store env vars that have been edited (which includes new)
+      const secretPromises = formData.envVars
+        .filter((envVar) => envVar.isEdited)
+        .map(({ key, value }) => storeSecret(key, value));
 
-      // Convert the timeout to a number if it's a string
-      if (typeof dataToSubmit.timeout === 'string') {
-        dataToSubmit.timeout = Number(dataToSubmit.timeout);
+      try {
+        // Wait for all secrets to be stored
+        const results = await Promise.all(secretPromises);
+
+        if (results.every((success) => success)) {
+          // Convert timeout to number if needed
+          const dataToSubmit = {
+            ...formData,
+            timeout:
+              typeof formData.timeout === 'string' ? Number(formData.timeout) : formData.timeout,
+          };
+          onSubmit(dataToSubmit);
+          onClose();
+        } else {
+          console.error('Failed to store one or more secrets');
+        }
+      } catch (error) {
+        console.error('Error during submission:', error);
       }
-
-      // Submit the data with converted timeout
-      onSubmit(dataToSubmit);
-      onClose(); // Only close the modal if the form is valid
     } else {
-      // Optional: Add some feedback that validation failed (like a toast notification)
       console.log('Form validation failed');
     }
   };
@@ -241,7 +278,7 @@ export default function ExtensionModal({
               envVars={formData.envVars}
               onAdd={handleAddEnvVar}
               onRemove={handleRemoveEnvVar}
-              onChange={Object.assign(handleEnvVarChange, { setSubmitAttempted })}
+              onChange={handleEnvVarChange}
               submitAttempted={submitAttempted}
             />
           </div>

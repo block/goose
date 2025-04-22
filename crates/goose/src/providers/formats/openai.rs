@@ -367,11 +367,10 @@ pub fn create_request(
         ));
     }
 
-    let is_o1 = model_config.model_name.starts_with("o1");
-    let is_o3 = model_config.model_name.starts_with("o3");
+    let is_ox_model = model_config.model_name.starts_with("o");
 
     // Only extract reasoning effort for O1/O3 models
-    let (model_name, reasoning_effort) = if is_o1 || is_o3 {
+    let (model_name, reasoning_effort) = if is_ox_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
@@ -391,7 +390,7 @@ pub fn create_request(
     };
 
     let system_message = json!({
-        "role": if is_o1 || is_o3 { "developer" } else { "system" },
+        "role": if is_ox_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -427,7 +426,7 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
     // o1, o3 models currently don't support temperature
-    if !is_o1 && !is_o3 {
+    if !is_ox_model {
         if let Some(temp) = model_config.temperature {
             payload
                 .as_object_mut()
@@ -438,7 +437,7 @@ pub fn create_request(
 
     // o1 models use max_completion_tokens instead of max_tokens
     if let Some(tokens) = model_config.max_tokens {
-        let key = if is_o1 || is_o3 {
+        let key = if is_ox_model {
             "max_completion_tokens"
         } else {
             "max_tokens"

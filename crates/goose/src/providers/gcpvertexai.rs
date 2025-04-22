@@ -425,7 +425,7 @@ impl Provider for GcpVertexAIProvider {
     where
         Self: Sized,
     {
-        let known_models = vec![
+        let model_strings: Vec<String> = vec![
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet35V2),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
@@ -434,9 +434,11 @@ impl Provider for GcpVertexAIProvider {
             GcpVertexAIModel::Gemini(GeminiVersion::Flash20),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro20Exp),
         ]
-        .into_iter()
+        .iter()
         .map(|model| model.to_string())
         .collect();
+
+        let known_models: Vec<&str> = model_strings.iter().map(|s| s.as_str()).collect();
 
         ProviderMetadata::new(
             "gcp_vertex_ai",
@@ -583,12 +585,13 @@ mod tests {
     #[test]
     fn test_provider_metadata() {
         let metadata = GcpVertexAIProvider::metadata();
-        assert!(metadata
+        let model_names: Vec<String> = metadata
             .known_models
-            .contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
-        assert!(metadata
-            .known_models
-            .contains(&"gemini-1.5-pro-002".to_string()));
+            .iter()
+            .map(|m| m.name.clone())
+            .collect();
+        assert!(model_names.contains(&"claude-3-5-sonnet-v2@20241022".to_string()));
+        assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         // Should contain the original 2 config keys plus 4 new retry-related ones
         assert_eq!(metadata.config_keys.len(), 6);
     }

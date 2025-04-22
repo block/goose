@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Goose App",
   "engines": {
     "node": "^23.0.0"
@@ -20,6 +20,7 @@
     "bundle:intel": "npm run make -- --arch=x64 && cd out/Goose-darwin-x64 && ditto -c -k --sequesterRsrc --keepParent Goose.app Goose_intel_mac.zip",
     "debug": "echo 'run --remote-debugging-port=8315' && lldb out/Goose-darwin-arm64/Goose.app",
     "test-e2e": "npm run generate-api && playwright test",
+    "test-e2e:dev": "npm run generate-api && playwright test --reporter=list --retries=0 --max-failures=1",
     "test-e2e:ui": "npm run generate-api && playwright test --ui",
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
@@ -28,7 +29,8 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "prepare": "cd ../.. && husky install",
-    "start-alpha-gui": "ALPHA=true npm run start-gui"
+    "start-alpha-gui": "ALPHA=true npm run start-gui",
+    "start-alpha-server": "cd ../.. && just run-ui-alpha"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.5.0",
@@ -64,7 +66,7 @@
     "postcss": "^8.4.47",
     "prettier": "^3.4.2",
     "tailwindcss": "^3.4.14",
-    "vite": "^5.4.18"
+    "vite": "^6.3.1"
   },
   "keywords": [],
   "license": "Apache-2.0",

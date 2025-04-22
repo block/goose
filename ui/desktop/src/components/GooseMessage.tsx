@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import LinkPreview from './LinkPreview';
 import GooseResponseForm from './GooseResponseForm';
 import { extractUrls } from '../utils/urlUtils';
+import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
@@ -38,6 +39,9 @@ export default function GooseMessage({
 
   // Extract text content from the message
   let textContent = getTextContent(message);
+
+  // Memoize the timestamp
+  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
 
   // Get tool requests from the message
   const toolRequests = getToolRequests(message);
@@ -116,35 +120,47 @@ export default function GooseMessage({
         {textContent && (
           <div className="flex flex-col group">
             <div
-              className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : ''}`}
+              className={`goose-message-content bg-bgSubtle rounded-2xl px-4 py-2 ${toolRequests.length > 0 ? 'rounded-b-none' : 'rounded-bl-none'}`}
             >
               <div ref={contentRef}>{<MarkdownContent content={textContent} />}</div>
             </div>
             {/* Only show MessageCopyLink if there's text content and no tool requests/responses */}
-            {textContent && message.content.every((content) => content.type === 'text') && (
-              <div className="flex justify-end mr-2">
-                <MessageCopyLink text={textContent} contentRef={contentRef} />
-              </div>
-            )}
+            <div className="relative flex justify-end z-[-1]">
+              {toolRequests.length === 0 && (
+                <div className="absolute left-0 text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+                  {timestamp}
+                </div>
+              )}
+              {textContent && message.content.every((content) => content.type === 'text') && (
+                <div className="absolute left-0 pt-1">
+                  <MessageCopyLink text={textContent} contentRef={contentRef} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {toolRequests.length > 0 && (
-          <div
-            className={`goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 ${textContent ? '' : 'rounded-t-2xl'} rounded-b-2xl px-4 pt-4 pb-2`}
-          >
-            {toolRequests.map((toolRequest) => (
-              <ToolCallWithResponse
-                // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
-                isCancelledMessage={
-                  messageIndex < messageHistoryIndex &&
-                  toolResponsesMap.get(toolRequest.id) == undefined
-                }
-                key={toolRequest.id}
-                toolRequest={toolRequest}
-                toolResponse={toolResponsesMap.get(toolRequest.id)}
-              />
-            ))}
+          <div className="relative flex flex-col w-full">
+            <div
+              className={`goose-message-tool bg-bgApp border border-borderSubtle dark:border-gray-700 ${textContent ? '' : 'rounded-t-2xl'} rounded-b-2xl rounded-bl-none px-4 pt-4 pb-2`}
+            >
+              {toolRequests.map((toolRequest) => (
+                <ToolCallWithResponse
+                  // If the message is resumed and not matched tool response, it means the tool is broken or cancelled.
+                  isCancelledMessage={
+                    messageIndex < messageHistoryIndex &&
+                    toolResponsesMap.get(toolRequest.id) == undefined
+                  }
+                  key={toolRequest.id}
+                  toolRequest={toolRequest}
+                  toolResponse={toolResponsesMap.get(toolRequest.id)}
+                />
+              ))}
+            </div>
+            <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
+              {timestamp}
+            </div>
           </div>
         )}
 

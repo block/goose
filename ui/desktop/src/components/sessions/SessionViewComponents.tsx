@@ -8,31 +8,7 @@ import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
 import { type Message } from '../../types/message';
-
-/**
- * Format a timestamp into a human-readable date string
- */
-export const formatDate = (timestamp: number) => {
-  const date = new Date(timestamp * 1000);
-
-  const getOrdinal = (n: number) => {
-    const s = ['th', 'st', 'nd', 'rd'];
-    const v = n % 100;
-    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-  };
-
-  const hours = date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-
-  const month = date.toLocaleString('en-US', { month: 'short' });
-  const day = getOrdinal(date.getDate());
-  const year = date.getFullYear();
-
-  return `${hours}, ${month} ${day}, ${year}`;
-};
+import { formatMessageTimestamp } from '../../utils/timeUtils';
 
 /**
  * Get tool responses map from messages
@@ -166,7 +142,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                           {message.role === 'user' ? 'You' : 'Goose'}
                         </span>
                         <span className="text-xs text-textSubtle">
-                          {new Date(message.created * 1000).toLocaleTimeString()}
+                          {formatMessageTimestamp(message.created)}
                         </span>
                       </div>
 

@@ -1,3 +1,4 @@
+use super::utils::verify_secret_key;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::{
@@ -5,6 +6,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use etcetera::{choose_app_strategy, AppStrategy, AppStrategyArgs};
 use goose::config::Config;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
@@ -12,25 +14,12 @@ use goose::providers::base::ProviderMetadata;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
 use std::collections::HashMap;
 use utoipa::ToSchema;
-
-fn verify_secret_key(headers: &HeaderMap, state: &AppState) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        Err(StatusCode::UNAUTHORIZED)
-    } else {
-        Ok(StatusCode::OK)
-    }
-}
 
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
@@ -292,7 +281,9 @@ pub async fn read_all_config(
     let config = Config::global();
 
     // Load values from config file
-    let values = config.load_values().unwrap_or_default();
+    let values = config
+        .load_values()
+        .map_err(|_| StatusCode::UNPROCESSABLE_ENTITY)?;
 
     Ok(Json(ConfigResponse { config: values }))
 }
@@ -429,6 +420,52 @@ pub async fn upsert_permissions(
     Ok(Json("Permissions updated successfully".to_string()))
 }
 
+pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
+    top_level_domain: "Block".to_string(),
+    author: "Block".to_string(),
+    app_name: "goose".to_string(),
+});
+
+#[utoipa::path(
+    post,
+    path = "/config/backup",
+    responses(
+        (status = 200, description = "Config file backed up", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn backup_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<String>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
+    let config_dir = choose_app_strategy(APP_STRATEGY.clone())
+        .expect("goose requires a home dir")
+        .config_dir();
+
+    let config_path = config_dir.join("config.yaml");
+
+    if config_path.exists() {
+        let file_name = config_path
+            .file_name()
+            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        // Append ".bak" to the file name
+        let mut backup_name = file_name.to_os_string();
+        backup_name.push(".bak");
+
+        // Construct the new path with the same parent directory
+        let backup = config_path.with_file_name(backup_name);
+        match std::fs::rename(&config_path, &backup) {
+            Ok(_) => Ok(Json(format!("Moved {:?} to {:?}", config_path, backup))),
+            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    } else {
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
 pub fn routes(state: AppState) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -440,6 +477,7 @@ pub fn routes(state: AppState) -> Router {
         .route("/config/extensions/:name", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/init", post(init_config))
+        .route("/config/backup", post(backup_config))
         .route("/config/permissions", post(upsert_permissions))
         .with_state(state)
 }
