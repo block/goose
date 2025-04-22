@@ -17,7 +17,7 @@ In March 2023, OpenAI announced an easier integration to ChatGPT by using proper
 
 Skip ahead just a short while, and [AI agents](https://news.microsoft.com/source/features/ai/ai-agents-what-they-are-and-how-theyll-change-the-way-we-work/) combined with the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) are splitting this workload where MCP could contain the context and awareness, and your API team can focus on the API itself. These aren't just incremental improvements, either; the combination of Agentic AI and MCP represent a fundamental shift in how we connect and interact with data and services.
 
-The shift to [using AI Agents and MCP](/goose/blog/2025/02/17/agentic-ai-mcp/) has the potential to be as big a change as the introduction of REST APIs was back in 2005. Imagine a world where integrations are more dynamic, context-aware, and require less manual coding. This isn't a distant future -- it's already happening. This is an opportunity for us to boost productivity, enhance app intelligence, and ultimately deliver better experiences to our users, clients, and customers.
+The shift to [using AI Agents and MCP](/blog/2025/02/17/agentic-ai-mcp/) has the potential to be as big a change as the introduction of REST APIs was back in 2005. Imagine a world where integrations are more dynamic, context-aware, and require less manual coding. This isn't a distant future -- it's already happening. This is an opportunity for us to boost productivity, enhance app intelligence, and ultimately deliver better experiences to our users, clients, and customers.
 
 Let's use an example: imagine your team wants AI to handle dynamic pricing adjustments in your e-commerce workflow at Square. If you could gain a faster response time to market changes or inventory, you could reduce the need to build dozens or hundreds of dynamic pricing rules into your code. Your productivity as a developer goes up, and you have less code to maintain. You could write those rules in a more spoken-language way, and the AI agent can handle the rest through MCP and your APIs.
 
@@ -39,7 +39,7 @@ This dual integration of AI agents and MCP can have a significant positive impac
 
 * **Developer Productivity:** By automating many integration tasks and reducing the need for extensive manual coding, AI agents free up our time to focus on core application logic and innovation. (And testing. And security. And documentation. And...)
 * **Customer Satisfaction:** Intelligent integrations can lead to more personalized and responsive user experiences. Agents can facilitate real-time data analysis and context-aware interactions, making our applications smarter and more user-friendly.
-* **Scalability:** As your application grows, the complexity of managing multiple APIs can become overwhelming. [Using multiple AI agents](/goose/blog/2025/02/21/gooseteam-mcp/) can help manage this complexity by dynamically adapting to changes in the underlying services and workflows.
+* **Scalability:** As your application grows, the complexity of managing multiple APIs can become overwhelming. [Using multiple AI agents](/blog/2025/02/21/gooseteam-mcp/) can help manage this complexity by dynamically adapting to changes in the underlying services and workflows.
 
 ### Business Impact: Driving Efficiency and Cost Savings
 
@@ -65,7 +65,7 @@ This illustrates the potential for significant time and cost savings per develop
 
 Integrating AI agents, especially through a platform like MCP, requires careful consideration.
 
-- Risk Management: MCP, while promising, is a newer technology. Your team needs to thoroughly evaluate [potential security concerns](/goose/blog/2025/03/26/mcp-security/) and understand the maturity of the platform before deep integration into critical systems.
+- Risk Management: MCP, while promising, is a newer technology. Your team needs to thoroughly evaluate [potential security concerns](/blog/2025/03/26/mcp-security/) and understand the maturity of the platform before deep integration into critical systems.
 - Planning for Continuity and Versioning: As with any evolving technology, you will need strategies for ensuring the continuity of integrations and managing versioning of both the AI agents and MCP itself.
 
 ### Phased Approach: A Practical Integration Strategy
@@ -122,7 +122,7 @@ Additional Reading:
   
 2. [An Introduction to MCP](https://modelcontextprotocol.io/introduction)
 
-3. [Connecting AI Agents to Your Systems with MCP](/goose/blog/2024/12/10/connecting-ai-agents-to-your-systems-with-mcp/)
+3. [Connecting AI Agents to Your Systems with MCP](/blog/2024/12/10/connecting-ai-agents-to-your-systems-with-mcp/)
 
 4. [Global AI Survey: AI proves its worth, but few scale impact](https://www.mckinsey.com/featured-insights/artificial-intelligence/global-ai-survey-ai-proves-its-worth-but-few-scale-impact)
 
@@ -132,13 +132,13 @@ Additional Reading:
 ## TL;DR Common Questions
 
 Q: **How will MCP help with APIs?**<br/>
-A: Start with [this post by Angie Jones](/goose/blog/2025/02/17/agentic-ai-mcp/#mcp-ecosystem). MCP provides context about your API, to give AI Agents more context and awareness of the capabilities of your API endpoints and responses. This can help the Agent understand the intent of the request, and dynamically invoke (or "call") to underlying API endpoint, handle data transformation, and return a response. No more manually writing the code, response validators, error handlers, and so on!
+A: Start with [this post by Angie Jones](/blog/2025/02/17/agentic-ai-mcp/#mcp-ecosystem). MCP provides context about your API, to give AI Agents more context and awareness of the capabilities of your API endpoints and responses. This can help the Agent understand the intent of the request, and dynamically invoke (or "call") to underlying API endpoint, handle data transformation, and return a response. No more manually writing the code, response validators, error handlers, and so on!
 
 Q: **What are some initial steps I can take as a developer to explore AI agents and MCP?**<br/>
-A: Start by researching the fundamental concepts, and use other existing MCP servers. We recommend starting with [Goose](https://block.github.io/goose) to integrate an existing MCP server. We have a growing [listof tutorials](https://block.github.io/goose/docs/category/tutorials/) to help you find some technologies like GitHub, PostgreSQL, Google Maps, and more. Once you feel comfortable with using MCP, you can start building your own MCP server for your own APIs.
+A: Start by researching the fundamental concepts, and use other existing MCP servers. We recommend starting with [Goose](https://block.github.io/goose) to integrate an existing MCP server. We have a growing [listof tutorials](https://block.github.io/docs/category/tutorials/) to help you find some technologies like GitHub, PostgreSQL, Google Maps, and more. Once you feel comfortable with using MCP, you can start building your own MCP server for your own APIs.
 
 Q: **What about AI and MCP security?**<br/>
-A: AI agents can enhance security through better context awareness in interactions, but MCP is still relatively new, and requires [careful security evaluations](/goose/blog/2025/03/26/mcp-security/). Your business and dev teams should thoroughly investigate MCP's capabilities to ensure you're building appropriate access control, and managing data privacy.
+A: AI agents can enhance security through better context awareness in interactions, but MCP is still relatively new, and requires [careful security evaluations](/blog/2025/03/26/mcp-security/). Your business and dev teams should thoroughly investigate MCP's capabilities to ensure you're building appropriate access control, and managing data privacy.
 
 Q: **How long would a full migration typically take?**<br/>
 A: It's too dynamic to give one solid answer. Integration and migrations can vary a lot, depending on the scope of your existing API usage and existing integrations. Start small, build some pilot projects to try it out, and these might only take a few days or weeks.
