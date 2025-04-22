@@ -97,7 +97,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
             std::env::current_dir().expect("Failed to get current working directory");
         if current_workdir != metadata.working_dir {
             // Ask user if they want to change the working directory
-            let change_workdir = cliclack::confirm(format!("{} The working directory of this session was set to {}. It does not match the current working directory. Would you like to change it?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan()))
+            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(metadata.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
             .initial_value(true)
             .interact().expect("Failed to get user input");
 
