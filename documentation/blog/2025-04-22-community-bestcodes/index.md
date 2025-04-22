@@ -31,7 +31,7 @@ Interested in contributing to goose and having your work featured? Whether it's 
 <head>
   <meta property="og:title" content="How One Contribution Can Spark Many Wins" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/14/community-atruelight4" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/22/community-bestcodes" />
   <meta property="og:description" content="The snowball effect of one contributor's fixes" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/bestcodes.png" />
   <meta name="twitter:card" content="summary_large_image" />
