@@ -84,3 +84,14 @@ mic:
   page: true
   socials:
     github: michaelneale
+
+ian:
+  name: W Ian Douglas
+  title: Staff Developer Advocate
+  image_url: https://avatars.githubusercontent.com/u/168030?v=4
+  page: true
+  socials:
+    linkedin: iandouglas736
+    github: iandouglas
+    bluesky: iandouglas736.com
+    x: iandouglas736
