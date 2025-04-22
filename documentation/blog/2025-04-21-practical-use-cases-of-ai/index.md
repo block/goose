@@ -28,7 +28,6 @@ I have a lot of "my brain has the idea but my hands are full" moments. Whether I
 
 Sidenote: I met an AI enthusiast at a meetup who said he sometimes gets coding ideas while driving. He's exploring using his voice to vibe code on the go. Stay safe out there. Don't code and drive! 🚗⛑️
 
-
 ### How to Try It
 
 1. Follow [this tutorial](/docs/tutorials/speech-mcp)   
