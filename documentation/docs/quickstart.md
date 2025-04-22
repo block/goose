@@ -39,15 +39,6 @@ You can use Goose via CLI or Desktop application.
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop (macOS only)">
-    <iframe
-    width="100%"
-    height="540"
-    src="https://www.youtube.com/embed/_i9Dhz7eo58?si=6DkfRfMfJVL70Ev9"
-    title="Getting started with the Goose Desktop App"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-    allowFullScreen
-    ></iframe>
     To install the latest version of Goose, click the **button** below:
     <div className="pill-button">
       <Link
@@ -62,6 +53,15 @@ You can use Goose via CLI or Desktop application.
       1. Unzip the downloaded `Goose.zip` file.
       2. Run the executable file to launch the Goose desktop application.
     </div>
+    <iframe
+    width="100%"
+    height="540"
+    src="https://www.youtube.com/embed/_i9Dhz7eo58?si=6DkfRfMfJVL70Ev9"
+    title="Getting started with the Goose Desktop App"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    ></iframe>
   </TabItem>
 </Tabs>
 
