@@ -23,6 +23,15 @@ You can use Goose via CLI or Desktop application.
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
+    <iframe
+    width="100%"
+    height="540"
+    src="https://www.youtube.com/embed/SbomoGzTRQY?si=MQWbhenGng9mt4-o"
+    title="Getting started with the Goose CLI"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    ></iframe>
     Run the following command to install the latest version of Goose:
 
     ```sh
@@ -30,6 +39,15 @@ You can use Goose via CLI or Desktop application.
     ```
   </TabItem>
   <TabItem value="ui" label="Goose Desktop (macOS only)">
+    <iframe
+    width="100%"
+    height="540"
+    src="https://www.youtube.com/embed/_i9Dhz7eo58?si=6DkfRfMfJVL70Ev9"
+    title="Getting started with the Goose Desktop App"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    ></iframe>
     To install the latest version of Goose, click the **button** below:
     <div className="pill-button">
       <Link
