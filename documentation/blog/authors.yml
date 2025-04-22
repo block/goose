@@ -41,11 +41,13 @@ tania:
   name: Tania Chakraborty
   title: Senior Technical Community Manager
   image_url: https://avatars.githubusercontent.com/u/126204004?v=4
+  url: https://taniachakraborty.com
   page: true
   socials:
     linkedin: taniachakraborty
     x: taniashiba
     github: taniashiba
+    bluesky: taniachakraborty.com
 
 angie:
   name: Angie Jones
