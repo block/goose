@@ -33,10 +33,10 @@ Interested in contributing to goose and having your work featured? Whether it's 
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/22/community-bestcodes" />
   <meta property="og:description" content="The snowball effect of one contributor's fixes" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/bestcodes.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/bestcodes-3d6c50de10a2d84def19d515aaea0724.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="How One Contribution Can Spark Many Wins" />
   <meta name="twitter:description" content="The snowball effect of one contributor's small fixes" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/bestcodes.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/bestcodes-3d6c50de10a2d84def19d515aaea0724.png" />
 </head>
