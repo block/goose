@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getApiUrl } from '../config';
 import FlappyGoose from './FlappyGoose';
 import GooseMessage from './GooseMessage';
-import ChatBar from './ChatBar';
 import { type View, ViewOptions } from '../App';
 import LoadingGoose from './LoadingGoose';
 import MoreMenuLayout from './more_menu/MoreMenuLayout';
@@ -14,6 +13,7 @@ import { SearchView } from './conversation/SearchView';
 import { createRecipe } from '../recipe';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
+import { fetchSessionDetails } from '../sessions';
 // import { configureRecipeExtensions } from '../utils/recipeExtensions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
@@ -70,6 +70,7 @@ export default function ChatView({
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [showGame, setShowGame] = useState(false);
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
+  const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const scrollRef = useRef<ScrollAreaHandle>(null);
 
   // Get recipeConfig directly from appConfig
@@ -358,11 +359,30 @@ export default function ChatView({
       .reverse();
   }, [filteredMessages]);
 
+  // Fetch session metadata to get token count
+  useEffect(() => {
+    const fetchSessionTokens = async () => {
+      try {
+        const sessionDetails = await fetchSessionDetails(chat.id);
+        setSessionTokenCount(sessionDetails.metadata.total_tokens);
+      } catch (err) {
+        console.error('Error fetching session token count:', err);
+      }
+    };
+    if (chat.id) {
+      fetchSessionTokens();
+    }
+  }, [chat.id, messages]);
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
       {isGeneratingRecipe && <LayingEggLoader />}
-      <MoreMenuLayout setView={setView} setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+      <MoreMenuLayout
+        hasMessages={hasMessages}
+        setView={setView}
+        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+      />
 
       <Card className="flex flex-col flex-1 rounded-none h-[calc(100vh-95px)] w-full bg-bgApp mt-0 border-none relative">
         {recipeConfig?.title && messages.length > 0 && (
@@ -389,7 +409,11 @@ export default function ChatView({
           <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
             <SearchView>
               {filteredMessages.map((message, index) => (
-                <div key={message.id || index} className="mt-4 px-4">
+                <div
+                  key={message.id || index}
+                  className="mt-4 px-4"
+                  data-testid="message-container"
+                >
                   {isUserMessage(message) ? (
                     <UserMessage message={message} />
                   ) : (
@@ -444,6 +468,7 @@ export default function ChatView({
             initialValue={_input}
             setView={setView}
             hasMessages={hasMessages}
+            numTokens={sessionTokenCount}
           />
         </div>
       </Card>

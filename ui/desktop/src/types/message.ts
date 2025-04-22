@@ -220,9 +220,7 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
-export function getExtensionRequests(
-  message: Message
-): ExtensionRequestMessageContent[] {
+export function getExtensionRequests(message: Message): ExtensionRequestMessageContent[] {
   return message.content.filter(
     (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
   );
@@ -239,8 +237,7 @@ export function getToolConfirmationContent(
 
 export function getExtensionContent(message: Message): ExtensionRequestMessageContent {
   return message.content.find(
-    (content): content is ExtensionRequestMessageContent =>
-      content.type === 'extensionRequest'
+    (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
   );
 }
 

@@ -67,7 +67,10 @@ function BaseProviderCard({
   const tooltipText = numRequiredKeys === 1 ? `Add ${name} API Key` : `Add ${name} API Keys`;
 
   return (
-    <div className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300">
+    <div
+      className="relative h-full p-[2px] overflow-hidden rounded-[9px] group/card bg-borderSubtle hover:bg-transparent hover:duration-300"
+      data-testid={`provider-card-${name.toLowerCase()}`}
+    >
       {/* Glowing ring */}
       <div
         className={`absolute pointer-events-none w-[260px] h-[260px] top-[-50px] left-[-30px] origin-center bg-[linear-gradient(45deg,#13BBAF,#FF4F00)] animate-[rotate_6s_linear_infinite] z-[-1] ${
@@ -195,6 +198,7 @@ function BaseProviderCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    data-testid="provider-launch-button"
                     variant="default"
                     size="sm"
                     onClick={(e) => {

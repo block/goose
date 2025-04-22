@@ -812,12 +812,19 @@ impl GoogleDriveRouter {
             The Google Drive MCP server provides tools for interacting with Google Drive files, Google Sheets, and Google Docs:
             1. search - Find files in your Google Drive
             2. read - Read file contents directly using a uri in the `gdrive:///uri` format
-            3. sheets_tool - Work with Google Sheets data using various operations
-            4. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
-            5. update_google_file - Update existing Google Workspace files (Docs, Sheets, or Slides)
-            6. update_file - Update existing normal non-Google Workspace files
-            7. docs_tool - Work with Google Docs data using various operations
-
+            3. move_file - Move a file to a new location in Google Drive
+            4. list_drives - List the shared drives to which you have access
+            5. get_permissions - List the permissions of a file or folder
+            6. sharing - Share a file or folder with others
+            7. get_comments - List a file or folder's comments
+            8. create_comment - Create a comment on a file or folder
+            9. reply - Reply to a comment on a file or folder
+            10. create_file - Create Google Workspace files (Docs, Sheets, or Slides)
+            11. update_google_file - Update existing Google Workspace files (Docs, Sheets, or Slides)
+            12. upload - Upload any kind of file to Google Drive
+            13. update_file - Update existing normal non-Google Workspace files
+            14. sheets_tool - Work with Google Sheets data using various operations
+            15. docs_tool - Work with Google Docs data using various operations
 
             ## Available Tools
 
@@ -849,14 +856,72 @@ impl GoogleDriveRouter {
             Limitations: Google Sheets exporting only supports reading the first sheet. This is an important limitation that should
             be communicated to the user whenever dealing with a Google Sheet (mimeType: application/vnd.google-apps.spreadsheet).
 
-            ### 3. Sheets Tool
+            #### File Format Handling
+            The read file tool's output will be converted:
+            - Google Docs → Markdown
+            - Google Sheets → CSV
+            - Google Presentations → Plain text
+            - Text/JSON files → UTF-8 text
+            - Binary files → Base64 encoded
+
+            ### 3. Move File Tool
+            Move a file from its current folder to a new folder, including folders on another drive.
+
+            ### 4. List Drives Tool
+            Lists the user's available Shared Drives.
+
+            ### 5. Get Permissions Tool
+            Lists the permissions for a file or folder. Permissions in Google
+            Drive consist of a type ('user', 'group', 'domain', 'anyone') and a role
+            ('owner', 'organizer', 'fileOrganizer', 'writer', 'commenter',
+            'reader').
+
+            ### 6. Sharing Tool
+            Create a new permission, update the role on an existing permission,
+            or delete a permission. User, group, and domain permissions should
+            have a provided "target" email address or domain name.
+
+            ### 7. Get Comments Tool
+            Lists the comments for a Google Workspace file.
+
+            ### 8. Create Comment Tool
+            Create a new comment on a Google Workspace file. The Google Drive
+            API only allows "unanchored" comments, which are comments not
+            attache to a specific location or region in the document.
+
+            ### 9. Reply Tool
+            Reply to an existing comment.
+
+            ### 10. Create File Tool
+            Create Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
+            - For Google Docs: Converts Markdown text to a Google Document
+            - For Google Sheets: Converts CSV text to a Google Spreadsheet
+            - For Google Slides: Converts a PowerPoint file to Google Slides (requires a path to the powerpoint file)
+
+            ### 11. Update Google File Tool
+            Update existing Google Workspace files (Docs, Sheets, or Slides) in Google Drive.
+            - For Google Docs: Updates with new Markdown text
+            - For Google Sheets: Updates with new CSV text
+            - For Google Slides: Updates with a new PowerPoint file (requires a path to the powerpoint file)
+
+            *Note*: All updates overwrite the existing content with the new
+            content provided. To modify specific parts of the document, you must
+            include the changes as part of the entire document.
+
+            ### 12. Upload Tool
+            Upload any kind of file to Google Drive. The file will not be converted to a Google Workspace file.
+
+            ### 13. Update File Tool
+            Replace the entire contents of an existing Google Drive file with new content. This is for non-Google Workspace files only.
+
+            ### 14. Sheets Tool
             Work with Google Sheets data using various operations:
             - list_sheets: List all sheets in a spreadsheet
             - get_columns: Get column headers from a specific sheet
             - get_values: Get values from a range
             - update_values: Update values in a range (requires CSV formatted data)
             - update_cell: Update a single cell value
-            - add_sheet: Add a new sheet (tab) to a spreadshee
+            - add_sheet: Add a new sheet (tab) to a spreadsheet
             - clear_values: Clear values from a range
 
             For update_values operation, provide CSV formatted data in the values parameter.
@@ -865,7 +930,18 @@ impl GoogleDriveRouter {
 
             For update_cell operation, provide the cell reference (e.g., 'Sheet1!A1') and the value to set.
 
-            ### 4. Docs Tool
+            Parameters:
+            - spreadsheetId: The ID of the spreadsheet (can be obtained from search results)
+            - operation: The operation to perform (one of the operations listed above)
+            - sheetName: The name of the sheet to work with (optional for some operations)
+            - range: The A1 notation of the range to retrieve or update values (e.g., 'Sheet1!A1:D10')
+            - values: CSV formatted data for update operations
+            - cell: The A1 notation of the cell to update (e.g., 'Sheet1!A1') for update_cell operation
+            - value: The value to set in the cell for update_cell operation
+            - title: Title for the new sheet (required for add_sheet operation)
+            - valueInputOption: How input data should be interpreted (RAW or USER_ENTERED)
+
+            ### 15. Docs Tool
             Work with Google Docs data using various operations:
             - get_document: Get the full document content
             - insert_text: Insert text at a specific location
@@ -882,38 +958,6 @@ impl GoogleDriveRouter {
             - position: The position in the document (index) for operations that require a position
             - startPosition: The start position for delete_content operation
             - endPosition: The end position for delete_content operation
-
-            ### 5. Create File Tool
-            Create Google Workspace files (Docs, Sheets, or Slides) directly in Google Drive.
-            - For Google Docs: Converts Markdown text to a Google Document
-            - For Google Sheets: Converts CSV text to a Google Spreadsheet
-            - For Google Slides: Converts a PowerPoint file to Google Slides (requires a path to the powerpoint file)
-
-            ### 6. Update File Tool
-            Update existing Google Workspace files (Docs, Sheets, or Slides) in Google Drive.
-            - For Google Docs: Updates with new Markdown text
-            - For Google Sheets: Updates with new CSV text
-            - For Google Slides: Updates with a new PowerPoint file (requires a path to the powerpoint file)
-                - Note: This functionally is an overwrite to the slides, warn the user before using this tool.
-
-            Parameters:
-            - spreadsheetId: The ID of the spreadsheet (can be obtained from search results)
-            - operation: The operation to perform (one of the operations listed above)
-            - sheetName: The name of the sheet to work with (optional for some operations)
-            - range: The A1 notation of the range to retrieve or update values (e.g., 'Sheet1!A1:D10')
-            - values: CSV formatted data for update operations
-            - cell: The A1 notation of the cell to update (e.g., 'Sheet1!A1') for update_cell operation
-            - value: The value to set in the cell for update_cell operation
-            - title: Title for the new sheet (required for add_sheet operation)
-            - valueInputOption: How input data should be interpreted (RAW or USER_ENTERED)
-
-            ## File Format Handling
-            The server automatically handles different file types:
-            - Google Docs → Markdown
-            - Google Sheets → CSV
-            - Google Presentations → Plain text
-            - Text/JSON files → UTF-8 text
-            - Binary files → Base64 encoded
 
             ## Common Usage Pattern
 

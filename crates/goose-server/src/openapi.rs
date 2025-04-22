@@ -4,8 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::ConfigKey;
-use goose::providers::base::ProviderMetadata;
+use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use mcp_core::tool::{Tool, ToolAnnotations};
 use utoipa::OpenApi;
 
@@ -13,6 +12,7 @@ use utoipa::OpenApi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
+        super::routes::config_management::backup_config,
         super::routes::config_management::init_config,
         super::routes::config_management::upsert_config,
         super::routes::config_management::remove_config,
@@ -47,6 +47,7 @@ use utoipa::OpenApi;
         ToolInfo,
         PermissionLevel,
         PrincipalType,
+        ModelInfo,
     ))
 )]
 pub struct ApiDoc;

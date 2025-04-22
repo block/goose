@@ -29,6 +29,7 @@ export type ExtensionConfig = {
      */
     bundled?: boolean | null;
     description?: string | null;
+    env_keys?: Array<string>;
     envs?: Envs;
     /**
      * The name used to identify this extension
@@ -45,6 +46,7 @@ export type ExtensionConfig = {
     bundled?: boolean | null;
     cmd: string;
     description?: string | null;
+    env_keys?: Array<string>;
     envs?: Envs;
     /**
      * The name used to identify this extension
@@ -100,6 +102,20 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+/**
+ * Information about a model's capabilities
+ */
+export type ModelInfo = {
+    /**
+     * The maximum context length this model supports
+     */
+    context_limit: number;
+    /**
+     * The name of the model
+     */
+    name: string;
+};
+
 export type PermissionConfirmationRequest = {
     action: string;
     id: string;
@@ -146,10 +162,10 @@ export type ProviderMetadata = {
      */
     display_name: string;
     /**
-     * A list of currently known models
+     * A list of currently known models with their capabilities
      * TODO: eventually query the apis directly
      */
-    known_models: Array<string>;
+    known_models: Array<ModelInfo>;
     /**
      * Link to the docs where models can be found
      */
@@ -312,6 +328,29 @@ export type ReadAllConfigResponses = {
 };
 
 export type ReadAllConfigResponse = ReadAllConfigResponses[keyof ReadAllConfigResponses];
+
+export type BackupConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/backup';
+};
+
+export type BackupConfigErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type BackupConfigResponses = {
+    /**
+     * Config file backed up
+     */
+    200: string;
+};
+
+export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
 export type GetExtensionsData = {
     body?: never;

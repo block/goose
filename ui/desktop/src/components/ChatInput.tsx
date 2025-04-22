@@ -4,7 +4,7 @@ import type { View } from '../App';
 import Stop from './ui/Stop';
 import { Attach, Send } from './icons';
 import { debounce } from 'lodash';
-import BottomMenu from './BottomMenu';
+import BottomMenu from './bottom_menu/BottomMenu';
 
 interface InputProps {
   handleSubmit: (e: React.FormEvent) => void;
@@ -13,7 +13,7 @@ interface InputProps {
   commandHistory?: string[];
   initialValue?: string;
   setView: (view: View) => void;
-  hasMessages?: boolean;
+  numTokens?: number;
 }
 
 export default function Input({
@@ -23,7 +23,7 @@ export default function Input({
   commandHistory = [],
   initialValue = '',
   setView,
-  hasMessages = false,
+  numTokens,
 }: InputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -205,6 +205,7 @@ export default function Input({
     >
       <form onSubmit={onFormSubmit}>
         <textarea
+          data-testid="chat-input"
           autoFocus
           id="dynamic-textarea"
           placeholder="What can goose help with?   ⌘↑/⌘↓"
@@ -268,7 +269,7 @@ export default function Input({
             <Attach />
           </Button>
 
-          <BottomMenu hasMessages={hasMessages} setView={setView} />
+          <BottomMenu setView={setView} numTokens={numTokens} />
         </div>
       </div>
     </div>

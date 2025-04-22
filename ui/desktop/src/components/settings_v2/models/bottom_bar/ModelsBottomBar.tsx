@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronUp } from '../../../icons';
 import { Sliders } from 'lucide-react';
 import React, { useEffect, useState, useRef } from 'react';
 import { useConfig } from '../../../ConfigContext';

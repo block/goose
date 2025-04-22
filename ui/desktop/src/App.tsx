@@ -34,7 +34,7 @@ import { addExtension as addExtensionDirect, FullExtensionConfig } from './exten
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig, MalformedConfigError } from './components/ConfigContext';
 import { addExtensionFromDeepLink as addExtensionFromDeepLinkV2 } from './components/settings_v2/extensions';
-import { initConfig } from './api/sdk.gen';
+import { backupConfig, initConfig, readAllConfig } from './api/sdk.gen';
 import PermissionSettingsView from './components/settings_v2/permission/PermissionSetting';
 
 // Views and their options
@@ -88,7 +88,7 @@ const getInitialView = (): ViewConfig => {
 
   // Default case
   return {
-    view: 'welcome',
+    view: 'loading',
     viewOptions: {},
   };
 };
@@ -98,6 +98,8 @@ export default function App() {
   const [modalVisible, setModalVisible] = useState(false);
   const [pendingLink, setPendingLink] = useState<string | null>(null);
   const [modalMessage, setModalMessage] = useState<string>('');
+  const [extensionConfirmLabel, setExtensionConfirmLabel] = useState<string>('');
+  const [extensionConfirmTitle, setExtensionConfirmTitle] = useState<string>('');
   const [{ view, viewOptions }, setInternalView] = useState<ViewConfig>(getInitialView());
   const { getExtensions, addExtension, disableAllExtensions, read } = useConfig();
   const initAttemptedRef = useRef(false);
@@ -240,7 +242,7 @@ export default function App() {
     console.log('Finished enabling bot config extensions');
   };
 
-  const enableRecipeConfigExtensionsV2 = useCallback(
+  const _enableRecipeConfigExtensionsV2 = useCallback(
     async (extensions: FullExtensionConfig[]) => {
       if (!extensions?.length) {
         console.log('No extensions to enable from bot config');
@@ -299,8 +301,24 @@ export default function App() {
 
     const initializeApp = async () => {
       try {
-        // Initialize config first
+        // checks if there is a config, and if not creates it
         await initConfig();
+
+        // now try to read config, if we fail and are migrating backup, then re-init config
+        try {
+          await readAllConfig({ throwOnError: true });
+        } catch (error) {
+          // NOTE: we do this check here and in providerUtils.ts, be sure to clean up both in the future
+          const configVersion = localStorage.getItem('configVersion');
+          const shouldMigrateExtensions = !configVersion || parseInt(configVersion, 10) < 3;
+          if (shouldMigrateExtensions) {
+            await backupConfig({ throwOnError: true });
+            await initConfig();
+          } else {
+            // if we've migrated throw this back up
+            throw new Error('Unable to read config file, it may be malformed');
+          }
+        }
 
         // note: if in a non recipe session, recipeConfig is undefined, otherwise null if error
         if (recipeConfig === null) {
@@ -309,10 +327,10 @@ export default function App() {
         }
 
         // Handle bot config extensions first
-        if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
-          console.log('Found extensions in bot config:', recipeConfig.extensions);
-          await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
-        }
+        // if (recipeConfig?.extensions?.length > 0 && viewType != 'recipeEditor') {
+        //   console.log('Found extensions in bot config:', recipeConfig.extensions);
+        //   await enableRecipeConfigExtensionsV2(recipeConfig.extensions);
+        // }
 
         const config = window.electron.getConfig();
 
@@ -357,7 +375,8 @@ export default function App() {
       console.error('Unhandled error in initialization:', error);
       setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
     });
-  }, [read, getExtensions, addExtension, enableRecipeConfigExtensionsV2]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array since we only want this to run once
 
   const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -481,7 +500,7 @@ export default function App() {
   // TODO: modify
   useEffect(() => {
     console.log('Setting up extension handler');
-    const handleAddExtension = (_event: IpcRendererEvent, link: string) => {
+    const handleAddExtension = async (_event: IpcRendererEvent, link: string) => {
       try {
         console.log(`Received add-extension event with link: ${link}`);
         const command = extractCommand(link);
@@ -490,10 +509,36 @@ export default function App() {
         window.electron.logInfo(`Adding extension from deep link ${link}`);
         setPendingLink(link);
 
+        // Fetch the allowlist and check if the command is allowed
+        let warningMessage = '';
+        let label = 'OK';
+        let title = 'Confirm Extension Installation';
+        try {
+          const allowedCommands = await window.electron.getAllowedExtensions();
+
+          // Only check and show warning if we have a non-empty allowlist
+          if (allowedCommands && allowedCommands.length > 0) {
+            const isCommandAllowed = allowedCommands.some((allowedCmd) =>
+              command.startsWith(allowedCmd)
+            );
+
+            if (!isCommandAllowed) {
+              title = '⛔️ Untrusted Extension ⛔️';
+              label = 'Override and install';
+              warningMessage =
+                '\n\n⚠️ WARNING: This extension command is not in the allowed list. Installing extensions from untrusted sources may pose security risks. Please contact and admin if you are unsusure or want to allow this extension.';
+            }
+          }
+        } catch (error) {
+          console.error('Error checking allowlist:', error);
+        }
+
         const messageDetails = remoteUrl ? `Remote URL: ${remoteUrl}` : `Command: ${command}`;
         setModalMessage(
-          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}`
+          `Are you sure you want to install the ${extName} extension?\n\n${messageDetails}${warningMessage}`
         );
+        setExtensionConfirmLabel(label);
+        setExtensionConfirmTitle(title);
         setModalVisible(true);
       } catch (error) {
         console.error('Error handling add-extension event:', error);
@@ -671,8 +716,9 @@ export default function App() {
       {modalVisible && (
         <ConfirmationModal
           isOpen={modalVisible}
-          title="Confirm Extension Installation"
           message={modalMessage}
+          confirmLabel={extensionConfirmLabel}
+          title={extensionConfirmTitle}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
         />

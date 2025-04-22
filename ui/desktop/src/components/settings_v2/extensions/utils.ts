@@ -26,7 +26,11 @@ export interface ExtensionFormData {
   endpoint?: string;
   enabled: boolean;
   timeout?: number;
-  envVars: { key: string; value: string }[];
+  envVars: {
+    key: string;
+    value: string;
+    isEdited?: boolean;
+  }[];
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -46,13 +50,30 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   // Type guard: Check if 'envs' property exists for this variant
   const hasEnvs = extension.type === 'sse' || extension.type === 'stdio';
 
-  const envVars =
-    hasEnvs && extension.envs
-      ? Object.entries(extension.envs).map(([key, value]) => ({
-          key,
-          value: value as string,
-        }))
-      : [];
+  // Handle both envs (legacy) and env_keys (new secrets)
+  let envVars = [];
+
+  // Add legacy envs with their values
+  if (hasEnvs && extension.envs) {
+    envVars.push(
+      ...Object.entries(extension.envs).map(([key, value]) => ({
+        key,
+        value: value as string,
+        isEdited: true, // We want to submit legacy values as secrets to migrate forward
+      }))
+    );
+  }
+
+  // Add env_keys with placeholder values
+  if (hasEnvs && extension.env_keys) {
+    envVars.push(
+      ...extension.env_keys.map((key) => ({
+        key,
+        value: '••••••••', // Placeholder for secret values
+        isEdited: false, // Mark as not edited initially
+      }))
+    );
+  }
 
   return {
     name: extension.name,
@@ -68,15 +89,8 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
 }
 
 export function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
-  const envs = formData.envVars.reduce(
-    (acc, { key, value }) => {
-      if (key) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, string>
-  );
+  // Extract just the keys from env vars
+  const env_keys = formData.envVars.map(({ key }) => key).filter((key) => key.length > 0);
 
   if (formData.type === 'stdio') {
     // we put the cmd + args all in the form cmd field but need to split out into cmd + args
@@ -89,7 +103,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       cmd: cmd,
       args: args,
       timeout: formData.timeout,
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
+      ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else if (formData.type === 'sse') {
     return {
@@ -97,8 +111,8 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       name: formData.name,
       description: formData.description,
       timeout: formData.timeout,
-      uri: formData.endpoint, // Assuming endpoint maps to uri for SSE type
-      ...(Object.keys(envs).length > 0 ? { envs } : {}),
+      uri: formData.endpoint,
+      ...(env_keys.length > 0 ? { env_keys } : {}),
     };
   } else {
     // For other types

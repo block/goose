@@ -1,5 +1,5 @@
 import MoreMenu from './MoreMenu';
-import type { View } from '../../App';
+import type { View, ViewOptions } from '../../App';
 import { Document } from '../icons';
 
 export default function MoreMenuLayout({
@@ -10,7 +10,7 @@ export default function MoreMenuLayout({
 }: {
   hasMessages?: boolean;
   showMenu?: boolean;
-  setView?: (view: View, viewOptions?: Record<any, any>) => void;
+  setView?: (view: View, viewOptions?: ViewOptions) => void;
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
 }) {
   return (
