@@ -290,6 +290,7 @@
     padding: 1em;
   }
 
+  li > code.bg-inline-code,
   p > code.bg-inline-code {
     color: var(--block-orange);
     padding: 2px 4px;
