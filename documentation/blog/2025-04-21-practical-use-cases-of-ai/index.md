@@ -134,7 +134,7 @@ SQL can get complex with joins, stored procedures, and subqueries. Goose helps m
 1. Follow [this tutorial](/docs/tutorials/postgres-mcp)
 2. Enable the [`PostgreSQL`](https://github.com/modelcontextprotocol/servers/tree/HEAD/src/postgres) and [`Developer`](/extensions/detail?id=developer) extensions
 3. Prompt Goose:
-   > Search my database for any students whose GPA is higher than the average in their grade level. Return name, grade, GPA difference, and the average GPA.
+   > Find my top 3 blog posts by average weekly views over the past 90 days. Include title, URL, average weekly views, and whether they were promoted on social.
 
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/PZlYQ5IthYM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 ---
