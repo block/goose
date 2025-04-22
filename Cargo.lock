@@ -2486,6 +2486,7 @@ dependencies = [
  "mcp-server",
  "once_cell",
  "rand",
+ "regex",
  "reqwest 0.12.12",
  "rustyline",
  "serde",
