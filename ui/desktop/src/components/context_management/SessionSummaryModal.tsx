@@ -1,3 +1,4 @@
+// import {Geese} from '../icons/Geese'
 import React from 'react';
 import { Card } from '../ui/card';
 
@@ -24,7 +25,7 @@ function WiderBaseModal({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[9999] flex items-center justify-center overflow-y-auto">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] max-h-[85vh] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0 flex flex-col">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] max-h-[85vh] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0 flex flex-col">
         <div className="px-4 pb-0 space-y-8 flex-grow overflow-hidden">
           {/* Header */}
           <div className="flex">
@@ -48,6 +49,23 @@ export function SessionSummaryModal({
   onSave,
   summaryContent,
 }: SessionSummaryModalProps) {
+  // Use a ref for the textarea instead of state
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Initialize the textarea value when the modal opens
+  React.useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      textareaRef.current.value = summaryContent;
+    }
+  }, [isOpen, summaryContent]);
+
+  // Handle Save action with the edited content
+  const handleSave = () => {
+    const currentText = textareaRef.current ? textareaRef.current.value : '';
+    console.log('Saving edited content:', currentText);
+    onSave();
+  };
+
   // Header Component - Icon, Title, and Description
   const Header = () => (
     <div className="flex flex-col items-center text-center mb-6">
@@ -81,14 +99,16 @@ export function SessionSummaryModal({
     </div>
   );
 
-  // Summary Content Component
+  // Uncontrolled Summary Content Component
   const SummaryContent = () => (
     <div className="w-full mb-6">
       <h3 className="text-base font-medium text-gray-900 dark:text-white mb-3">Summarization</h3>
 
-      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-sm w-full">
-        {summaryContent}
-      </div>
+      <textarea
+        ref={textareaRef}
+        defaultValue={summaryContent}
+        className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-sm w-full min-h-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      />
     </div>
   );
 
@@ -96,7 +116,7 @@ export function SessionSummaryModal({
   const modalActions = (
     <div>
       <button
-        onClick={onSave}
+        onClick={handleSave}
         className="w-full h-[60px] text-gray-900 dark:text-white font-medium text-base hover:bg-gray-50 dark:hover:bg-gray-800 border-t border-gray-200 dark:border-gray-700"
       >
         Save and Continue
