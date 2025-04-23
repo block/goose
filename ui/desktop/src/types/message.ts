@@ -41,13 +41,6 @@ export interface ToolResponse {
   toolResult: ToolCallResult<Content[]>;
 }
 
-export interface ToolConfirmationRequest {
-  id: string;
-  toolName: string;
-  arguments: Record<string, unknown>;
-  prompt?: string;
-}
-
 export interface ToolRequestMessageContent {
   type: 'toolRequest';
   id: string;
@@ -80,33 +73,12 @@ export interface ExtensionCallResult<T> {
   error?: string;
 }
 
-export interface ExtensionRequest {
-  id: string;
-  extensionCall: ExtensionCallResult<ExtensionCall>;
-}
-
-export interface ExtensionConfirmationRequest {
-  id: string;
-  extensionName: string;
-  arguments: Record<string, unknown>;
-  prompt?: string;
-}
-
-export interface ExtensionRequestMessageContent {
-  type: 'extensionRequest';
-  id: string;
-  extensionCall: ExtensionCallResult<ExtensionCall>;
-  extensionName: string;
-  toolName: string;
-}
-
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
-  | ToolConfirmationRequestMessageContent
-  | ExtensionRequestMessageContent;
+  | ToolConfirmationRequestMessageContent;
 
 export interface Message {
   id?: string;
@@ -220,24 +192,12 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
-export function getExtensionRequests(message: Message): ExtensionRequestMessageContent[] {
-  return message.content.filter(
-    (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
-  );
-}
-
 export function getToolConfirmationContent(
   message: Message
 ): ToolConfirmationRequestMessageContent {
   return message.content.find(
     (content): content is ToolConfirmationRequestMessageContent =>
       content.type === 'toolConfirmationRequest'
-  );
-}
-
-export function getExtensionContent(message: Message): ExtensionRequestMessageContent {
-  return message.content.find(
-    (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
   );
 }
 
