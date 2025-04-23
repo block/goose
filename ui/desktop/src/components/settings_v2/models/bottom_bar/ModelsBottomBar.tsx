@@ -5,6 +5,7 @@ import { useConfig } from '../../../ConfigContext';
 import { getCurrentModelAndProviderForDisplay } from '../index';
 import { AddModelModal } from '../subcomponents/AddModelModal';
 import { View } from '../../../../App';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../ui/Tooltip';
 
 interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;
@@ -52,14 +53,23 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
       <div ref={menuRef} className="relative">
         <div
-          className="flex items-center cursor-pointer"
+          className="flex items-center cursor-pointer max-w-[180px] min-w-0 group"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
-          {model}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="truncate max-w-[130px] min-w-0 block">
+                  {model || 'Select Model'}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{model || 'Select Model'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {isModelMenuOpen ? (
-            <ChevronDown className="w-4 h-4 ml-1" />
+            <ChevronDown className="w-4 h-4 ml-1 flex-shrink-0" />
           ) : (
-            <ChevronUp className="w-4 h-4 ml-1" />
+            <ChevronUp className="w-4 h-4 ml-1 flex-shrink-0" />
           )}
         </div>
 
