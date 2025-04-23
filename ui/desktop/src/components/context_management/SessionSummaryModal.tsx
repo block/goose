@@ -1,6 +1,6 @@
-// import {Geese} from '../icons/Geese'
 import React from 'react';
 import { Card } from '../ui/card';
+import { Geese } from '../icons/Geese';
 
 interface SessionSummaryModalProps {
   isOpen: boolean;
@@ -70,22 +70,8 @@ export function SessionSummaryModal({
   const Header = () => (
     <div className="flex flex-col items-center text-center mb-6">
       {/* Icon */}
-      <div className="bg-gray-900 dark:bg-gray-800 rounded-md p-2 mb-4 flex items-center justify-center">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M15 6L9 12L15 18"
-            stroke="white"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+      <div className="mb-4">
+        <Geese width="48" height="50" />
       </div>
 
       {/* Title */}
