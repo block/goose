@@ -28,7 +28,6 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
-  ExtensionRequestMessageContent,
 } from '../types/message';
 
 export interface ChatType {
@@ -46,9 +45,6 @@ const isUserMessage = (message: Message): boolean => {
     return false;
   }
   if (message.content.every((c) => c.type === 'toolConfirmationRequest')) {
-    return false;
-  }
-  if (message.content.every((c) => c.type === 'extensionRequest')) {
     return false;
   }
   return true;
@@ -260,14 +256,6 @@ export default function ChatView({
             return [content.id, toolCall];
           }
         });
-      const extensionRequests = lastMessage.content
-        .filter(
-          (content): content is ExtensionRequestMessageContent =>
-            content.type === 'extensionRequest'
-        )
-        .map((content) => {
-          return [content.id, content.extensionCall];
-        });
 
       if (toolRequests.length !== 0) {
         // This means we were interrupted during a tool request
@@ -297,30 +285,6 @@ export default function ChatView({
         // Use an immutable update to add the response message to the messages array
         setMessages([...messages, responseMessage]);
       }
-
-      // do the same for enable extension requests
-      // leverages toolResponse to send the error notification
-      if (extensionRequests.length !== 0) {
-        let responseMessage: Message = {
-          role: 'user',
-          created: Date.now(),
-          content: [],
-        };
-        const notification = 'Interrupted by the user to make a correction';
-        // generate a response saying it was interrupted for each extension request
-        for (const [reqId, _] of extensionRequests) {
-          const toolResponse: ToolResponseMessageContent = {
-            type: 'toolResponse',
-            id: reqId,
-            toolResult: {
-              status: 'error',
-              error: notification,
-            },
-          };
-          responseMessage.content.push(toolResponse);
-        }
-        setMessages([...messages, responseMessage]);
-      }
     }
   };
 
@@ -338,9 +302,8 @@ export default function ChatView({
         (c) => c.type === 'toolConfirmationRequest'
       );
 
-      const hasExtensionRequest = message.content.every((c) => c.type === 'extensionRequest');
       // Keep the message if it has text content or tool confirmation or is not just tool responses
-      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation || hasExtensionRequest;
+      return hasTextContent || !hasOnlyToolResponses || hasToolConfirmation;
     }
 
     return true;

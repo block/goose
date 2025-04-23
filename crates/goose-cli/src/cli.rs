@@ -73,6 +73,13 @@ enum SessionCommand {
             default_value = "text"
         )]
         format: String,
+
+        #[arg(
+            long = "ascending",
+            help = "Sort by date in ascending order (oldest first)",
+            long_help = "Sort sessions by date in ascending order (oldest first). Default is descending order (newest first)."
+        )]
+        ascending: bool,
     },
     #[command(about = "Remove sessions")]
     Remove {
@@ -393,8 +400,12 @@ pub async fn cli() -> Result<()> {
             builtins,
         }) => {
             return match command {
-                Some(SessionCommand::List { verbose, format }) => {
-                    handle_session_list(verbose, format)?;
+                Some(SessionCommand::List {
+                    verbose,
+                    format,
+                    ascending,
+                }) => {
+                    handle_session_list(verbose, format, ascending)?;
                     Ok(())
                 }
                 Some(SessionCommand::Remove { id, regex }) => {

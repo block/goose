@@ -34,9 +34,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         } else {
           const filteredTools = (response.data || []).filter(
             (tool) =>
-              tool.name !== 'platform__enable_extension' &&
-              tool.name !== 'platform__read_resource' &&
-              tool.name !== 'platform__list_resources'
+              tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
           );
           setTools(filteredTools);
         }

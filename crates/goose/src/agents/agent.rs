@@ -22,8 +22,8 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
@@ -33,9 +33,7 @@ use mcp_core::{
 };
 
 use super::platform_tools;
-use super::tool_execution::{
-    ExtensionInstallResult, ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE,
-};
+use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
 const MAX_TRUNCATION_ATTEMPTS: usize = 3;
 const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
@@ -114,6 +112,24 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
+        if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+            let extension_name = tool_call
+                .arguments
+                .get("extension_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let action = tool_call
+                .arguments
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            return self
+                .manage_extensions(action, extension_name, request_id)
+                .await;
+        }
+
         let extension_manager = self.extension_manager.lock().await;
         let result = if tool_call.name == PLATFORM_READ_RESOURCE_TOOL_NAME {
             // Check if the tool is read_resource and handle it separately
@@ -194,12 +210,28 @@ impl Agent {
         )
     }
 
-    pub(super) async fn enable_extension(
+    pub(super) async fn manage_extensions(
         &self,
+        action: String,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.lock().await;
+
+        if action == "disable" {
+            let result = extension_manager
+                .remove_extension(&extension_name)
+                .await
+                .map(|_| {
+                    vec![Content::text(format!(
+                        "The extension '{}' has been disabled successfully",
+                        extension_name
+                    ))]
+                })
+                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            return (request_id, result);
+        }
+
         let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
@@ -281,7 +313,7 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::enable_extension_tool());
+            prefixed_tools.push(platform_tools::manage_extensions_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -418,26 +450,26 @@ impl Agent {
                             // What remains is handling the remaining tool requests (enable extension,
                             // regular tool calls) in goose_mode == ["auto", "approve" or "smart_approve"]
                             let mut permission_manager = PermissionManager::default();
-                            let permission_check_result = check_tool_permissions(&remaining_requests,
-                                                            &mode,
-                                                            tools_with_readonly_annotation.clone(),
-                                                            tools_without_annotation.clone(),
-                                                            &mut permission_manager,
-                                                            self.provider()).await;
-
+                            let (permission_check_result, enable_extension_request_ids) = check_tool_permissions(
+                                &remaining_requests,
+                                &mode,
+                                tools_with_readonly_annotation.clone(),
+                                tools_without_annotation.clone(),
+                                &mut permission_manager,
+                                self.provider(),
+                            ).await;
 
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures: Vec<ToolFuture> = Vec::new();
-                            let mut install_results: Vec<ExtensionInstallResult> = Vec::new();
-                            let install_results_arc = Arc::new(Mutex::new(install_results));
 
                             // Skip the confirmation for approved tools
                             for request in &permission_check_result.approved {
                                 if let Ok(tool_call) = request.tool_call.clone() {
                                     let tool_future = self.dispatch_tool_call(tool_call, request.id.clone());
-                                        tool_futures.push(Box::pin(tool_future));
+                                    tool_futures.push(Box::pin(tool_future));
                                 }
                             }
+
                             for request in &permission_check_result.denied {
                                 let mut response = message_tool_response.lock().await;
                                 *response = response.clone().with_tool_response(
@@ -446,51 +478,42 @@ impl Agent {
                                 );
                             }
 
-                            // we need interior mutability in handle_approval_tool_requests
+                            // We need interior mutability in handle_approval_tool_requests
                             let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
+
                             // Process tools requiring approval (enable extension, regular tool calls)
                             let mut tool_approval_stream = self.handle_approval_tool_requests(
                                 &permission_check_result.needs_approval,
-                                install_results_arc.clone(),
                                 tool_futures_arc.clone(),
                                 &mut permission_manager,
-                                message_tool_response.clone()
+                                message_tool_response.clone(),
                             );
 
-                            // we have a stream of tool_approval_requests to handle
-                            // execution is yeield back to this reply loop, and is of the same Message
-                            // type, so we can yield the Message back up to be handled and grab and
+                            // We have a stream of tool_approval_requests to handle
+                            // Execution is yielded back to this reply loop, and is of the same Message
+                            // type, so we can yield the Message back up to be handled and grab any
                             // confirmations or denials
                             while let Some(msg) = tool_approval_stream.try_next().await? {
                                 yield msg;
                             }
 
                             tool_futures = {
-                                // Lock the mutex asynchronously.
+                                // Lock the mutex asynchronously
                                 let mut futures_lock = tool_futures_arc.lock().await;
-                                // Drain the vector and collect into a new Vec.
+                                // Drain the vector and collect into a new Vec
                                 futures_lock.drain(..).collect::<Vec<_>>()
                             };
 
-                            install_results = {
-                                // Lock the mutex asynchronously.
-                                let mut results_lock = install_results_arc.lock().await;
-                                // Drain the vector and collect into a new Vec.
-                                results_lock.drain(..).collect::<Vec<_>>()
-                            };
-
-
                             // Wait for all tool calls to complete
                             let results = futures::future::join_all(tool_futures).await;
+                            let mut all_install_successful = true;
 
-                            // Check if any install results had errors before processing them
-                            let all_install_successful = !install_results.iter().any(|(_, result)| result.is_err());
-                            for (request_id, output) in results.into_iter().chain(install_results.into_iter()) {
+                            for (request_id, output) in results.into_iter() {
+                                if enable_extension_request_ids.contains(&request_id) && output.is_err(){
+                                    all_install_successful = false;
+                                }
                                 let mut response = message_tool_response.lock().await;
-                                *response = response.clone().with_tool_response(
-                                    request_id,
-                                    output
-                                );
+                                *response = response.clone().with_tool_response(request_id, output);
                             }
 
                             // Update system prompt and tools if installations were successful
@@ -617,6 +640,7 @@ impl Agent {
         let system_prompt = self.prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.clone(),
+            extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
         );
 

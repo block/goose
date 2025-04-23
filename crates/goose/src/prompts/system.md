@@ -31,6 +31,11 @@ and platform__list_resources on this extension.
 No extensions are defined. You should let the user know that they should add extensions.
 {% endif %}
 
+{% if suggest_disable is defined %}
+# Suggestion
+{{suggest_disable}}
+{% endif %}
+
 # Response Guidelines
 
 - Use Markdown formatting for all responses.

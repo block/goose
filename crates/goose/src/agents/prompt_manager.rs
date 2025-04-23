@@ -62,6 +62,7 @@ impl PromptManager {
         &self,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
+        suggest_disable_extensions_prompt: Value,
         model_name: Option<&str>,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
@@ -80,6 +81,12 @@ impl PromptManager {
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         context.insert("current_date_time", Value::String(current_date_time));
+
+        // Add the suggestion about disabling extensions if flag is true
+        context.insert(
+            "suggest_disable",
+            Value::String(suggest_disable_extensions_prompt.to_string()),
+        );
 
         // First check the global store, and only if it's not available, fall back to the provided model_name
         let model_to_use: Option<String> =
