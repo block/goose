@@ -22,7 +22,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
@@ -112,14 +112,22 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+        if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
                 .get("extension_name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            return self.enable_extension(extension_name, request_id).await;
+            let action = tool_call
+                .arguments
+                .get("action")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            return self
+                .manage_extensions(action, extension_name, request_id)
+                .await;
         }
 
         let extension_manager = self.extension_manager.lock().await;
@@ -202,12 +210,28 @@ impl Agent {
         )
     }
 
-    pub(super) async fn enable_extension(
+    pub(super) async fn manage_extensions(
         &self,
+        action: String,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.lock().await;
+
+        if action == "disable" {
+            let result = extension_manager
+                .remove_extension(&extension_name)
+                .await
+                .map(|_| {
+                    vec![Content::text(format!(
+                        "The extension '{}' has been disabled successfully",
+                        extension_name
+                    ))]
+                })
+                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            return (request_id, result);
+        }
+
         let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
@@ -289,7 +313,7 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::enable_extension_tool());
+            prefixed_tools.push(platform_tools::manage_extensions_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
@@ -616,6 +640,7 @@ impl Agent {
         let system_prompt = self.prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.clone(),
+            extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
         );
 
