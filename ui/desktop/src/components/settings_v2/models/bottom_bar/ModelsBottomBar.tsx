@@ -18,6 +18,8 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const [model, setModel] = useState<string>('');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [isModelTruncated, setIsModelTruncated] = useState(false);
+  const modelRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -25,10 +27,21 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
         readFromConfig: read,
         getProviders,
       });
-      setProvider(modelProvider.provider);
-      setModel(modelProvider.model);
+      setProvider(modelProvider.provider as string | null);
+      setModel(modelProvider.model as string);
     })();
   });
+
+  useEffect(() => {
+    const checkTruncation = () => {
+      if (modelRef.current) {
+        setIsModelTruncated(modelRef.current.scrollWidth > modelRef.current.clientWidth);
+      }
+    };
+    checkTruncation();
+    window.addEventListener('resize', checkTruncation);
+    return () => window.removeEventListener('resize', checkTruncation);
+  }, [model]);
 
   // Add click outside handler
   useEffect(() => {
@@ -59,13 +72,18 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block">
+                <span
+                  ref={modelRef}
+                  className="truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0 block"
+                >
                   {model || 'Select Model'}
                 </span>
               </TooltipTrigger>
-              <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-                {model || 'Select Model'}
-              </TooltipContent>
+              {isModelTruncated && (
+                <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+                  {model || 'Select Model'}
+                </TooltipContent>
+              )}
             </Tooltip>
           </TooltipProvider>
           {isModelMenuOpen ? (

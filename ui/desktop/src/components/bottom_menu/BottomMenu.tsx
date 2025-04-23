@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useModel } from '../settings/models/ModelContext';
 import { Sliders } from 'lucide-react';
 import { AlertType, useAlerts } from '../alerts';
@@ -34,6 +34,8 @@ export default function BottomMenu({
   const toolCount = useToolCount();
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
+  const [isDirTruncated, setIsDirTruncated] = useState(false);
+  const dirRef = useRef<HTMLSpanElement>(null);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
@@ -138,6 +140,17 @@ export default function BottomMenu({
     };
   }, [isModelMenuOpen]);
 
+  useEffect(() => {
+    const checkTruncation = () => {
+      if (dirRef.current) {
+        setIsDirTruncated(dirRef.current.scrollWidth > dirRef.current.clientWidth);
+      }
+    };
+    checkTruncation();
+    window.addEventListener('resize', checkTruncation);
+    return () => window.removeEventListener('resize', checkTruncation);
+  }, []);
+
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
       {/* Directory Chooser - Always visible */}
@@ -155,13 +168,18 @@ export default function BottomMenu({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 block">
-                Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+              <span
+                ref={dirRef}
+                className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 block"
+              >
+                Working in {window.appConfig.get('GOOSE_WORKING_DIR') as string}
               </span>
             </TooltipTrigger>
-            <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
-              {window.appConfig.get('GOOSE_WORKING_DIR')}
-            </TooltipContent>
+            {isDirTruncated && (
+              <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+                {window.appConfig.get('GOOSE_WORKING_DIR') as string}
+              </TooltipContent>
+            )}
           </Tooltip>
         </TooltipProvider>
         <ChevronUp className="ml-1" />
