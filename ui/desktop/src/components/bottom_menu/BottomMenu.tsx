@@ -11,11 +11,11 @@ import { settingsV2Enabled } from '../../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
-import { getCurrentModelAndProvider } from '../settings_v2/models/index';
+import { getCurrentModelAndProvider } from '../settings_v2/models';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
-const TOOLS_MAX_SUGGESTED = 25; // max number of tools before we show a warning
+const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 export default function BottomMenu({
   hasMessages,
@@ -73,28 +73,31 @@ export default function BottomMenu({
     // Add token alerts if we have a token limit
     if (tokenLimit && numTokens > 0) {
       if (numTokens >= tokenLimit) {
-        addAlert(
-          AlertType.Error,
-          `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()})`
-        );
+        addAlert({
+          type: AlertType.Error,
+          message: `Token limit reached (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’ve reached the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          autoShow: true, // Auto-show token limit errors
+        });
       } else if (numTokens >= tokenLimit * TOKEN_WARNING_THRESHOLD) {
-        addAlert(
-          AlertType.Warning,
-          `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()})`
-        );
+        addAlert({
+          type: AlertType.Warning,
+          message: `Approaching token limit (${numTokens.toLocaleString()}/${tokenLimit.toLocaleString()}) \n You’re reaching the model’s conversation limit. The session will be saved — copy anything important and start a new one to continue.`,
+          autoShow: true, // Auto-show token limit warnings
+        });
       }
     }
 
     // Add tool count alert if we have the data
     if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
-      addAlert(
-        AlertType.Warning,
-        `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
-        {
+      addAlert({
+        type: AlertType.Warning,
+        message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
+        action: {
           text: 'View extensions',
           onClick: () => setView('settings'),
-        }
-      );
+        },
+        autoShow: false, // Don't auto-show tool count warnings
+      });
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps

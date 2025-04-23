@@ -15,6 +15,7 @@ type BundledExtension = {
   args?: string[];
   uri?: string;
   envs?: { [key: string]: string };
+  env_keys?: Array<string>;
   timeout?: number;
   allow_configure?: boolean;
 };
@@ -65,6 +66,7 @@ export async function syncBundledExtensions(
             cmd: bundledExt.cmd,
             args: bundledExt.args,
             envs: bundledExt.envs,
+            env_keys: bundledExt.env_keys,
             bundled: true,
           };
           break;

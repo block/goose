@@ -8,6 +8,8 @@ import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
 import SupportedEnvironments from '@site/src/components/SupportedEnvironments';
 import RateLimits from '@site/src/components/RateLimits';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+
 
 # Goose in 5 minutes
 
@@ -22,14 +24,37 @@ Goose is an open source AI agent that supercharges your software development by 
 You can use Goose via CLI or Desktop application.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="Goose CLI">
+  <details>
+  <summary>Quickstart Video Demo</summary>
+    <iframe
+    class="aspect-ratio"
+    src="https://www.youtube.com/embed/SbomoGzTRQY"
+    title="Getting started with the Goose CLI"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+    ></iframe>
+  </details>
+
     Run the following command to install the latest version of Goose:
 
     ```sh
     curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
     ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop (macOS only)">
+  <TabItem value="ui" label="Goose Desktop (macOS only)" default>
+    <details>
+    <summary>Quickstart Video Demo</summary>
+      <iframe
+      class="aspect-ratio"
+      src="https://www.youtube.com/embed/_i9Dhz7eo58"
+      title="Getting started with Goose Desktop"
+      frameBorder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+      ></iframe>
+    </details>
     To install the latest version of Goose, click the **button** below:
     <div className="pill-button">
       <Link
@@ -52,7 +77,7 @@ You can use Goose via CLI or Desktop application.
 Goose works with [supported LLM providers][providers]. When you install Goose, you'll be prompted to choose your preferred LLM and supply an API key.
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="Goose CLI" default>
+  <TabItem value="cli" label="Goose CLI">
     Use the up and down arrow keys to navigate the CLI menu, and press Enter once you've selected a choice.
 
     ```
@@ -75,7 +100,7 @@ Goose works with [supported LLM providers][providers]. When you install Goose, y
     └ Configuration saved successfully
   ```
   </TabItem>
-  <TabItem value="ui" label="Goose Desktop">
+  <TabItem value="ui" label="Goose Desktop" default>
     ![Set Up a Provider UI](./assets/guides/set-up-provider-ui.png)
   </TabItem>
 </Tabs>
@@ -90,14 +115,14 @@ Goose relies heavily on tool calling capabilities and currently works best with 
 Sessions are single, continuous conversations between you and Goose. Let's start one.
 
 <Tabs groupId="interface">
-    <TabItem value="cli" label="Goose CLI" default>
+    <TabItem value="cli" label="Goose CLI">
         1. Make an empty directory (e.g. `goose-demo`) and navigate to that directory from the terminal.
         2. To start a new session, run:
         ```sh
         goose session
         ```
     </TabItem>
-    <TabItem value="ui" label="Goose Desktop">
+    <TabItem value="ui" label="Goose Desktop" default>
         After choosing an LLM provider, you’ll see the session interface ready for use.
 
         Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work.
@@ -122,7 +147,7 @@ Goose will create a plan and then get right to work on implementing it. Once don
 While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if Goose did that for you? Let's give Goose the ability to open a web browser by enabling the `Computer Controller` extension.
 
 <Tabs groupId="interface">
-    <TabItem value="cli" label="Goose CLI" default>
+    <TabItem value="cli" label="Goose CLI">
         1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
         2. Run the configuration command
         ```sh
@@ -156,11 +181,11 @@ While you're able to manually navigate to your working directory and open the HT
         ```
         5. Ask Goose to launch your game in a browser:
     </TabItem>
-    <TabItem value="ui" label="Goose Desktop">
+    <TabItem value="ui" label="Goose Desktop" default>
         1. Locate the menu (`...`) in the top right corner of the Goose Desktop.
-        2. Select `Settings` from the menu.
+        2. Select `Advanced settings` from the menu.
         3. Under the `Extensions` section, toggle the `Computer Controller` extension to enable it. This [extension](https://block.github.io/goose/v1/extensions/detail/nondeveloper) enables webscraping, file caching, and automations.
-        4. Click `<- Back` in the upper left corner to return to your session.
+        4. Scroll back to the top and click `<- Back` in the upper left corner to return to your session.
         5. Now that Goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
 </Tabs>
