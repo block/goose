@@ -24,7 +24,7 @@ You'll need to provide both instructions and activities for your Recipe.
 <Tabs>
   <TabItem value="ui" label="Goose Desktop" default>
 
-   1. While in the session you want to save as an agent, click the menu icon **⋮** in the top right corner  
+   1. While in the session you want to save as a recipe, click the menu icon **⋮** in the top right corner  
    2. Select **Make Agent from this session**  
    3. In the dialog that appears:
       - Edit the **instructions** to clarify its purpose. 
@@ -78,7 +78,7 @@ You'll need to provide both instructions and activities for your Recipe.
    You can then edit the recipe file to include the following key information:
 
    - `instructions`: Add or modify the system instructions
-   - `activities`: List the activities the Agent should perform
+   - `activities`: List the activities that can be performed
 
 
    **To validate the recipe**, [exit the session](/docs/guides/managing-goose-sessions/#exit-session) and run:
@@ -142,7 +142,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
 A Recipe captures:
 
-- AI instructions (Agent goal/purpose)  
+- AI instructions (goal/purpose)  
 - Suggested activities (examples for the user to click)  
 - Enabled extensions and their configurations  
 - Project folder or file context  
@@ -170,9 +170,9 @@ This means others may need to supply their own credentials or memory context if 
 
 ## Tips for Great Recipes
 
-If you're sharing Agents with others, here are some tips:
+If you're sharing recipes with others, here are some tips:
 
-- Be specific and clear in the instructions, so users know what the Agent is meant to do.
+- Be specific and clear in the instructions, so users know what the recipe is meant to do.
 - Keep the activity list focused. Remove anything that's too specific or out of scope.
 - Test the link yourself before sharing to make sure everything loads as expected.
 - Mention any setup steps that users might need to complete (e.g., obtaining an API key).
