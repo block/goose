@@ -44,7 +44,7 @@ You'll need to provide both instructions and activities for your Recipe.
 
    This will generate a `recipe.yaml` file in your current directory.
 
-   You can also provide a custom filename:
+   Alternatively, you can provide a custom filename:
 
    ```sh
    /recipe my-custom-recipe.yaml
@@ -81,19 +81,22 @@ You'll need to provide both instructions and activities for your Recipe.
    - `activities`: List the activities that can be performed
 
 
-   **To validate the recipe**, [exit the session](/docs/guides/managing-goose-sessions/#exit-session) and run:
+   #### Validate the recipe
+   
+   [Exit the session](/docs/guides/managing-goose-sessions/#exit-session) and run:
 
    ```sh
    goose recipe validate recipe.yaml
    ```
 
-   **To share the recipe**, run the following command to create a deeplink:
+   #### Share the recipe
+
+   - To share with **CLI users**, send them the recipe yaml file
+   - To share with **Desktop users**, run the following command to create a deep link:
 
    ```sh
    goose recipe deeplink recipe.yaml
    ```
-
-   This will create a `goose://` link that can be shared with Goose Desktop users. Alternatively, you can share the recipe yaml file with CLI users.
 
    </TabItem> 
 </Tabs>
