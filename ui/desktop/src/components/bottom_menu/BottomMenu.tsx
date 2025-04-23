@@ -152,20 +152,16 @@ export default function BottomMenu({
         }}
       >
         <Document className="mr-1" />
-        <span className="truncate max-w-[170px]">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate max-w-[170px] min-w-0 block">
-                  Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {window.appConfig.get('GOOSE_WORKING_DIR')}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </span>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="truncate max-w-[170px] md:max-w-[240px] lg:max-w-[380px] min-w-0 block">
+                Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">{window.appConfig.get('GOOSE_WORKING_DIR')}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <ChevronUp className="ml-1" />
       </span>
 

@@ -53,13 +53,13 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     <div className="relative flex items-center ml-auto mr-4" ref={dropdownRef}>
       <div ref={menuRef} className="relative">
         <div
-          className="flex items-center cursor-pointer max-w-[180px] min-w-0 group"
+          className="flex items-center cursor-pointer max-w-[180px] md:max-w-[240px] lg:max-w-[380px] min-w-0 group"
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate max-w-[130px] min-w-0 block">
+                <span className="truncate max-w-[130px] md:max-w-[240px] lg:max-w-[360px] min-w-0 block">
                   {model || 'Select Model'}
                 </span>
               </TooltipTrigger>
