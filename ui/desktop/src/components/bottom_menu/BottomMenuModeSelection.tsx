@@ -123,7 +123,7 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
         className="flex items-center cursor-pointer"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
-        <span className="truncate max-w-[170px] md:max-w-[240px]">
+        <span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px]">
           Goose Mode: {getValueByKey(gooseMode)}
         </span>
         {isGooseModeMenuOpen ? (

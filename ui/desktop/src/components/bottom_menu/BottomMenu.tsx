@@ -155,7 +155,7 @@ export default function BottomMenu({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="truncate max-w-[170px] md:max-w-[240px] lg:max-w-[380px] min-w-0 block">
+              <span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px] min-w-0 block">
                 Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
               </span>
             </TooltipTrigger>
