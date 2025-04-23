@@ -4,7 +4,7 @@ pub mod extensions;
 pub mod permission;
 
 pub use crate::agents::ExtensionConfig;
-pub use base::{Config, ConfigError, APP_STRATEGY};
+pub use base::{is_in_memory, set_in_memory, Config, ConfigError, APP_STRATEGY};
 pub use experiments::ExperimentManager;
 pub use extensions::{ExtensionConfigManager, ExtensionEntry};
 pub use permission::PermissionManager;

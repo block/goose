@@ -40,6 +40,8 @@ const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
 
 /// The main goose Agent
 pub struct Agent {
+    /// Each agent's own configuration (no global sharing)
+    pub(super) config: Config,
     pub(super) provider: Arc<dyn Provider>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
     pub(super) frontend_tools: HashMap<String, FrontendTool>,
@@ -53,13 +55,15 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(provider: Arc<dyn Provider>) -> Self {
+    /// Create an agent with a custom Config instance (e.g. in-memory or file-backed)
+    pub fn new_with_config(provider: Arc<dyn Provider>, config: Config) -> Self {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
         Self {
+            config: config.clone(),
             provider,
             extension_manager: Mutex::new(ExtensionManager::new()),
             frontend_tools: HashMap::new(),
@@ -71,6 +75,12 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
         }
+    }
+
+    /// Create an agent using the global Config (backward-compatible)
+    pub fn new(provider: Arc<dyn Provider>) -> Self {
+        let cfg = Config::global().clone();
+        Agent::new_with_config(provider, cfg)
     }
 
     /// Get a reference count clone to the provider
@@ -338,14 +348,14 @@ impl Agent {
         let reply_span = tracing::Span::current();
         let mut truncation_attempt: usize = 0;
 
-        // Load settings from config
-        let config = Config::global();
-
         // Setup tools and prompt
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
 
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = self
+            .config
+            .get_param("GOOSE_MODE")
+            .unwrap_or("auto".to_string());
 
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);
@@ -613,10 +623,12 @@ impl Agent {
         let model_config = self.provider.get_model_config();
         let model_name = &model_config.model_name;
 
+        // Build system prompt with this agent's config
         let system_prompt = self.prompt_manager.build_system_prompt(
+            &self.config,
             extensions_info,
             self.frontend_instructions.clone(),
-            Some(model_name),
+            Some(model_name.as_str()),
         );
 
         let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
@@ -722,5 +734,53 @@ impl Agent {
             .expect("valid recipe");
 
         Ok(recipe)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Config;
+    use crate::message::Message;
+    use crate::model::ModelConfig;
+    use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage};
+    use crate::providers::errors::ProviderError;
+    use async_trait::async_trait;
+    use mcp_core::tool::Tool;
+    use serde_json::json;
+    use std::sync::Arc;
+
+    struct DummyProvider;
+
+    #[async_trait]
+    impl Provider for DummyProvider {
+        fn metadata() -> ProviderMetadata {
+            ProviderMetadata::empty()
+        }
+
+        async fn complete(
+            &self,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> std::result::Result<(Message, ProviderUsage), ProviderError> {
+            unreachable!()
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            ModelConfig::new("test-model".to_string())
+        }
+    }
+
+    #[tokio::test]
+    async fn two_agents_in_memory_do_not_share_state() {
+        let provider = Arc::new(DummyProvider);
+        let cfg1 = Config::new_in_memory();
+        let agent1 = Agent::new_with_config(provider.clone(), cfg1.clone());
+        let cfg2 = Config::new_in_memory();
+        let agent2 = Agent::new_with_config(provider.clone(), cfg2.clone());
+
+        agent1.config.set_param("foo", json!("bar")).unwrap();
+        assert!(agent2.config.get_param::<String>("foo").is_err());
     }
 }

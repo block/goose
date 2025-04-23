@@ -9,7 +9,23 @@ use std::env;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
+/// Atomic flag for programmatic control of in-memory configuration.
+static EPHEMERAL_IN_MEMORY: AtomicBool = AtomicBool::new(false);
+
+/// Programmatically enable or disable in-memory configuration.
+/// When enabled, Config::default() and related constructors will
+/// yield in-memory storage regardless of environment variables.
+pub fn set_in_memory(on: bool) {
+    EPHEMERAL_IN_MEMORY.store(on, Ordering::SeqCst);
+}
+
+/// Returns true if in-memory configuration is enabled via the atomic flag.
+pub fn is_in_memory() -> bool {
+    EPHEMERAL_IN_MEMORY.load(Ordering::SeqCst)
+}
 
 pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     top_level_domain: "Block".to_string(),
@@ -66,6 +82,7 @@ impl From<keyring::Error> for ConfigError {
 /// - YAML-based configuration file storage
 /// - Hot reloading of configuration changes
 /// - Secure secret storage in system keyring
+/// - Ephemeral in-memory configuration for temporary usage
 ///
 /// Configuration values are loaded with the following precedence:
 /// 1. Environment variables (exact key match)
@@ -76,6 +93,12 @@ impl From<keyring::Error> for ConfigError {
 /// 2. System keyring (which can be disabled with GOOSE_DISABLE_KEYRING)
 /// 3. If the keyring is disabled, secrets are stored in a secrets file
 ///    (~/.config/goose/secrets.yaml by default)
+///
+/// The system also supports ephemeral in-memory storage that does not write to disk.
+/// To use this mode use the Config::new_in_memory() constructor programmatically
+///
+/// When using in-memory storage, all configuration and secrets are stored only in memory
+/// and will be lost when the program exits.
 ///
 /// # Examples
 ///
@@ -95,6 +118,10 @@ impl From<keyring::Error> for ConfigError {
 /// }
 ///
 /// let server_config: ServerConfig = config.get_param("server").unwrap();
+///
+/// // Create an ephemeral in-memory config
+/// let memory_config = Config::new_in_memory();
+/// memory_config.set_param("test", serde_json::json!("value"));
 /// ```
 ///
 /// # Naming Convention
@@ -103,14 +130,33 @@ impl From<keyring::Error> for ConfigError {
 /// environment variable OPENAI_API_KEY
 ///
 /// For Goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
+#[derive(Clone, Debug)]
+enum ConfigStorage {
+    File {
+        config_path: PathBuf,
+    },
+    Memory {
+        values: Arc<Mutex<HashMap<String, Value>>>,
+    },
+}
+
+#[derive(Clone, Debug)]
 pub struct Config {
-    config_path: PathBuf,
+    config_storage: ConfigStorage,
     secrets: SecretStorage,
 }
 
+#[derive(Clone, Debug)]
 enum SecretStorage {
-    Keyring { service: String },
-    File { path: PathBuf },
+    Keyring {
+        service: String,
+    },
+    File {
+        path: PathBuf,
+    },
+    Memory {
+        values: Arc<Mutex<HashMap<String, Value>>>,
+    },
 }
 
 // Global instance
@@ -118,6 +164,18 @@ static GLOBAL_CONFIG: OnceCell<Config> = OnceCell::new();
 
 impl Default for Config {
     fn default() -> Self {
+        // Check if we should use in-memory storage
+        if is_in_memory() {
+            return Config {
+                config_storage: ConfigStorage::Memory {
+                    values: Arc::new(Mutex::new(HashMap::new())),
+                },
+                secrets: SecretStorage::Memory {
+                    values: Arc::new(Mutex::new(HashMap::new())),
+                },
+            };
+        }
+
         // choose_app_strategy().config_dir()
         // - macOS/Linux: ~/.config/goose/
         // - Windows:     ~\AppData\Roaming\Block\goose\config\
@@ -128,6 +186,7 @@ impl Default for Config {
         std::fs::create_dir_all(&config_dir).expect("Failed to create config directory");
 
         let config_path = config_dir.join("config.yaml");
+        let config_storage = ConfigStorage::File { config_path };
 
         let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
             Ok(_) => SecretStorage::File {
@@ -137,8 +196,9 @@ impl Default for Config {
                 service: KEYRING_SERVICE.to_string(),
             },
         };
+
         Config {
-            config_path,
+            config_storage,
             secrets,
         }
     }
@@ -159,7 +219,9 @@ impl Config {
     /// to manage multiple configuration files.
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
-            config_path: config_path.as_ref().to_path_buf(),
+            config_storage: ConfigStorage::File {
+                config_path: config_path.as_ref().to_path_buf(),
+            },
             secrets: SecretStorage::Keyring {
                 service: service.to_string(),
             },
@@ -175,76 +237,168 @@ impl Config {
         secrets_path: P2,
     ) -> Result<Self, ConfigError> {
         Ok(Config {
-            config_path: config_path.as_ref().to_path_buf(),
+            config_storage: ConfigStorage::File {
+                config_path: config_path.as_ref().to_path_buf(),
+            },
             secrets: SecretStorage::File {
                 path: secrets_path.as_ref().to_path_buf(),
             },
         })
     }
 
-    /// Check if this config already exists
-    pub fn exists(&self) -> bool {
-        self.config_path.exists()
+    /// Create a new in-memory configuration instance
+    ///
+    /// This is useful for ephemeral runs or testing where no persistent storage is needed.
+    /// Each instance created with this method will have its own isolated configuration storage.
+    ///
+    /// # Thread Safety
+    ///
+    /// This configuration is thread-safe and can be safely shared between threads.
+    /// All access to the in-memory storage is protected by an Arc<Mutex<>>. The Config struct
+    /// implements Clone, allowing you to clone and pass it to different threads.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use goose::config::Config;
+    /// use serde_json::json;
+    ///
+    /// // Create a config that can be shared across threads
+    /// let config = Config::new_in_memory();
+    /// config.set_param("key", json!("value")).unwrap();
+    ///
+    /// // Clone the config for use in another thread
+    /// let config_clone = config.clone();
+    /// ```
+    pub fn new_in_memory() -> Self {
+        Config {
+            config_storage: ConfigStorage::Memory {
+                values: Arc::new(Mutex::new(HashMap::new())),
+            },
+            secrets: SecretStorage::Memory {
+                values: Arc::new(Mutex::new(HashMap::new())),
+            },
+        }
     }
 
     /// Check if this config already exists
+    pub fn exists(&self) -> bool {
+        match &self.config_storage {
+            ConfigStorage::File { config_path: path } => path.exists(),
+            ConfigStorage::Memory { .. } => true, // In-memory configuration always "exists"
+        }
+    }
+
+    /// Clear this configuration
     pub fn clear(&self) -> Result<(), ConfigError> {
-        Ok(std::fs::remove_file(&self.config_path)?)
+        match &self.config_storage {
+            ConfigStorage::File { config_path: path } => Ok(std::fs::remove_file(path)?),
+            ConfigStorage::Memory { values } => {
+                // Clear in-memory configuration using Mutex
+                match values.lock() {
+                    Ok(mut guard) => {
+                        guard.clear();
+                        Ok(())
+                    }
+                    Err(_) => Err(ConfigError::LockError(
+                        "Failed to acquire mutex lock".to_string(),
+                    )),
+                }
+            }
+        }
     }
 
     /// Get the path to the configuration file
     pub fn path(&self) -> String {
-        self.config_path.to_string_lossy().to_string()
+        match &self.config_storage {
+            ConfigStorage::File { config_path: path } => path.to_string_lossy().to_string(),
+            ConfigStorage::Memory { .. } => "<in-memory>".to_string(),
+        }
     }
 
-    // Load current values from the config file
+    /// Check if this is an in-memory configuration
+    pub fn is_in_memory(&self) -> bool {
+        matches!(&self.config_storage, ConfigStorage::Memory { .. })
+    }
+
+    // Load current values from storage
     pub fn load_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        if self.config_path.exists() {
-            let file_content = std::fs::read_to_string(&self.config_path)?;
-            // Parse YAML into JSON Value for consistent internal representation
-            let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
-            let json_value: Value = serde_json::to_value(yaml_value)?;
+        match &self.config_storage {
+            ConfigStorage::File { config_path: path } => {
+                if path.exists() {
+                    let file_content = std::fs::read_to_string(path)?;
+                    // Parse YAML into JSON Value for consistent internal representation
+                    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
+                    let json_value: Value = serde_json::to_value(yaml_value)?;
 
-            match json_value {
-                Value::Object(map) => Ok(map.into_iter().collect()),
-                _ => Ok(HashMap::new()),
+                    match json_value {
+                        Value::Object(map) => Ok(map.into_iter().collect()),
+                        _ => Ok(HashMap::new()),
+                    }
+                } else {
+                    Ok(HashMap::new())
+                }
             }
-        } else {
-            Ok(HashMap::new())
+            ConfigStorage::Memory { values } => {
+                // Return a clone of the in-memory values
+                match values.lock() {
+                    Ok(guard) => Ok(guard.clone()),
+                    Err(_) => Err(ConfigError::LockError(
+                        "Failed to acquire mutex lock".to_string(),
+                    )),
+                }
+            }
         }
     }
 
-    // Save current values to the config file
+    // Save current values to storage
     pub fn save_values(&self, values: HashMap<String, Value>) -> Result<(), ConfigError> {
-        // Convert to YAML for storage
-        let yaml_value = serde_yaml::to_string(&values)?;
+        match &self.config_storage {
+            ConfigStorage::File { config_path: path } => {
+                // Convert to YAML for storage
+                let yaml_value = serde_yaml::to_string(&values)?;
 
-        // Ensure the directory exists
-        if let Some(parent) = self.config_path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+                // Ensure the directory exists
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| ConfigError::DirectoryError(e.to_string()))?;
+                }
+
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(true)
+                    .open(path)?; // Use path directly instead of self.path()
+
+                // Acquire an exclusive lock
+                file.lock_exclusive()
+                    .map_err(|e| ConfigError::LockError(e.to_string()))?;
+
+                // Write the contents using the same file handle
+                file.write_all(yaml_value.as_bytes())?;
+                file.sync_all()?;
+
+                // Unlock is handled automatically when file is dropped
+                Ok(())
+            }
+            ConfigStorage::Memory {
+                values: value_storage,
+            } => {
+                // Store in memory using Mutex
+                match value_storage.lock() {
+                    Ok(mut guard) => {
+                        *guard = values;
+                        Ok(())
+                    }
+                    Err(_) => Err(ConfigError::LockError(
+                        "Failed to acquire mutex lock".to_string(),
+                    )),
+                }
+            }
         }
-
-        // Open the file with write permissions, create if it doesn't exist
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&self.config_path)?;
-
-        // Acquire an exclusive lock
-        file.lock_exclusive()
-            .map_err(|e| ConfigError::LockError(e.to_string()))?;
-
-        // Write the contents using the same file handle
-        file.write_all(yaml_value.as_bytes())?;
-        file.sync_all()?;
-
-        // Unlock is handled automatically when file is dropped
-        Ok(())
     }
 
-    // Load current secrets from the keyring
+    // Load current secrets from storage
     pub fn load_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
         match &self.secrets {
             SecretStorage::Keyring { service } => {
@@ -270,6 +424,15 @@ impl Config {
                     }
                 } else {
                     Ok(HashMap::new())
+                }
+            }
+            SecretStorage::Memory { values } => {
+                // Return a clone of the in-memory secret values
+                match values.lock() {
+                    Ok(guard) => Ok(guard.clone()),
+                    Err(_) => Err(ConfigError::LockError(
+                        "Failed to acquire mutex lock".to_string(),
+                    )),
                 }
             }
         }
@@ -400,7 +563,7 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
-    /// Set a secret value in the system keyring.
+    /// Set a secret value in the appropriate storage.
     ///
     /// This will store the value in a single JSON object in the system keyring,
     /// alongside any other secrets. The value can be any type that can be
@@ -428,13 +591,29 @@ impl Config {
                 let yaml_value = serde_yaml::to_string(&values)?;
                 std::fs::write(path, yaml_value)?;
             }
+            SecretStorage::Memory {
+                values: secret_values,
+            } => {
+                // Store in memory using Mutex
+                match secret_values.lock() {
+                    Ok(mut guard) => {
+                        *guard = values;
+                    }
+                    Err(e) => {
+                        return Err(ConfigError::LockError(format!(
+                            "Failed to acquire mutex lock: {}",
+                            e
+                        )))
+                    }
+                }
+            }
         };
         Ok(())
     }
 
-    /// Delete a secret from the system keyring.
+    /// Delete a secret from storage.
     ///
-    /// This will remove the specified key from the JSON object in the system keyring.
+    /// This will remove the specified key from storage.
     /// Other secrets will remain unchanged.
     ///
     /// # Errors
@@ -456,6 +635,22 @@ impl Config {
                 let yaml_value = serde_yaml::to_string(&values)?;
                 std::fs::write(path, yaml_value)?;
             }
+            SecretStorage::Memory {
+                values: secret_values,
+            } => {
+                // Update in-memory storage using Mutex
+                match secret_values.lock() {
+                    Ok(mut guard) => {
+                        *guard = values;
+                    }
+                    Err(e) => {
+                        return Err(ConfigError::LockError(format!(
+                            "Failed to acquire mutex lock: {}",
+                            e
+                        )))
+                    }
+                }
+            }
         };
         Ok(())
     }
@@ -474,6 +669,113 @@ mod tests {
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(ConfigError::KeyringError(e.to_string())),
         }
+    }
+
+    #[test]
+    fn test_in_memory_config() -> Result<(), ConfigError> {
+        // Create in-memory config
+        let config = Config::new_in_memory();
+
+        // Verify is_in_memory works
+        assert!(config.is_in_memory());
+        assert_eq!(config.path(), "<in-memory>");
+
+        // Set and get a value
+        config.set_param("key", Value::String("value".to_string()))?;
+        let value: String = config.get_param("key")?;
+        assert_eq!(value, "value");
+
+        // Test setting and getting a secret
+        config.set_secret("secret_key", Value::String("secret_value".to_string()))?;
+        let secret: String = config.get_secret("secret_key")?;
+        assert_eq!(secret, "secret_value");
+
+        // Test that deletion works
+        config.delete("key")?;
+        let result: Result<String, ConfigError> = config.get_param("key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        // Test that secret deletion works
+        config.delete_secret("secret_key")?;
+        let result: Result<String, ConfigError> = config.get_secret("secret_key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        // Test instance isolation
+        let config1 = Config::new_in_memory();
+        let config2 = Config::new_in_memory();
+
+        config1.set_param("isolation_key", Value::String("value1".to_string()))?;
+        config2.set_param("isolation_key", Value::String("value2".to_string()))?;
+
+        let value1: String = config1.get_param("isolation_key")?;
+        let value2: String = config2.get_param("isolation_key")?;
+
+        assert_eq!(value1, "value1");
+        assert_eq!(value2, "value2");
+
+        // Verify config2 can't see config1's value
+        let result = config2.get_param::<String>("not_here");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_ephemeral_flag() -> Result<(), ConfigError> {
+        // Enable in-memory mode
+        set_in_memory(true);
+
+        // Create config using default constructor - should use in-memory storage
+        let config = Config::default();
+
+        // Verify that the path shows it's in-memory
+        assert_eq!(config.path(), "<in-memory>");
+        assert!(config.is_in_memory());
+
+        // Test that we can set and get values
+        config.set_param("env_test", Value::String("env_value".to_string()))?;
+        let value: String = config.get_param("env_test")?;
+        assert_eq!(value, "env_value");
+
+        // Clean up
+        set_in_memory(false);
+
+        Ok(())
+    }
+
+    // Verify that two configs used from different threads do not interfere with each other
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_config_isolation_concurrent() -> Result<(), ConfigError> {
+        use serde_json::json;
+
+        let config1 = Config::new_in_memory();
+        let config2 = Config::new_in_memory();
+
+        let t1 = tokio::spawn(async move {
+            config1.set_param("k", json!("v1"))?;
+            config1.set_secret("s", json!("sec1"))?;
+            let v: String = config1.get_param("k")?;
+            let s: String = config1.get_secret("s")?;
+            assert_eq!(v, "v1");
+            assert_eq!(s, "sec1");
+            Ok::<(), ConfigError>(())
+        });
+
+        let t2 = tokio::spawn(async move {
+            config2.set_param("k", json!("v2"))?;
+            config2.set_secret("s", json!("sec2"))?;
+            let v: String = config2.get_param("k")?;
+            let s: String = config2.get_secret("s")?;
+            assert_eq!(v, "v2");
+            assert_eq!(s, "sec2");
+            Ok::<(), ConfigError>(())
+        });
+
+        let res1 = t1.await.unwrap();
+        let res2 = t2.await.unwrap();
+        res1?;
+        res2?;
+        Ok(())
     }
 
     #[test]

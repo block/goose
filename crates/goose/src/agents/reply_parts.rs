@@ -35,9 +35,10 @@ impl Agent {
         let model_name = &model_config.model_name;
 
         let mut system_prompt = self.prompt_manager.build_system_prompt(
+            &self.config,
             extensions_info,
             self.frontend_instructions.clone(),
-            Some(model_name),
+            Some(model_name.as_str()),
         );
 
         // Handle toolshim if enabled

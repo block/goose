@@ -69,6 +69,18 @@ You need to have Python 3.6+ installed with the `ctypes` module (included in sta
 
 The agent will respond with information about the Eiffel Tower.
 
+We also include a Dockerfile to run the example from the Dockerfile, this also enables testing in the read only mode
+```bash
+
+CROSS_BUILD_OPTS="--platform linux/amd64 --no-cache" CROSS_CONTAINER_OPTS="--platform linux/amd64" cross build -p goose-ffi --release --target x86_64-unknown-linux-gnu
+docker build -t goose-agent --platform=linux/amd64 -f Dockerfile .
+
+docker run -it --read-only  --platform=linux/amd64 \
+    -e DATABRICKS_API_KEY=...\
+    -e DATABRICKS_HOST=... \
+    -e RUST_BACKTRACE=full \
+    goose-agent
+```
 ## Using from Other Languages
 
 The Goose FFI library can be used from many programming languages with C FFI support, including:

@@ -46,12 +46,14 @@ typedef goose_Agent *goose_AgentPtr;
  - api_key: Provider API key (null for default from environment variables)
  - model_name: Model name to use (null for provider default)
  - host: Provider host URL (null for default from environment variables)
+ - ephemeral: Whether to use ephemeral in-memory configuration (true) or persistent configuration (false)
  */
 typedef struct goose_ProviderConfigFFI {
   goose_ProviderType provider_type;
   const char *api_key;
   const char *model_name;
   const char *host;
+  bool ephemeral;
 } goose_ProviderConfigFFI;
 
 /*

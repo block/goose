@@ -48,6 +48,7 @@ class ProviderConfig(Structure):
         ("api_key", c_char_p),
         ("model_name", c_char_p),
         ("host", c_char_p),
+        ("ephemeral", c_bool),
     ]
 
 class AsyncResult(Structure):
@@ -73,12 +74,13 @@ goose.goose_free_async_result.argtypes = [POINTER(AsyncResult)]
 goose.goose_free_async_result.restype = None
 
 class GooseAgent:
-    def __init__(self, provider_type=ProviderType.DATABRICKS, api_key=None, model_name=None, host=None):
+    def __init__(self, provider_type=ProviderType.DATABRICKS, api_key=None, model_name=None, host=None, ephemeral=False):
         self.config = ProviderConfig(
             provider_type=provider_type,
             api_key=api_key.encode("utf-8") if api_key else None,
             model_name=model_name.encode("utf-8") if model_name else None,
             host=host.encode("utf-8") if host else None,
+            ephemeral=ephemeral,
         )
         self.agent = goose.goose_agent_new(ctypes.byref(self.config))
         if not self.agent:
@@ -102,7 +104,9 @@ class GooseAgent:
 def main():
     api_key = os.getenv("DATABRICKS_API_KEY")
     host = os.getenv("DATABRICKS_HOST")
-    agent = GooseAgent(api_key=api_key, model_name="claude-3-7-sonnet", host=host)
+
+    # Create agent with ephemeral config
+    agent = GooseAgent(api_key=api_key, model_name="claude-3-7-sonnet", host=host, ephemeral=True)
 
     print("Type a message (or 'quit' to exit):")
     while True:

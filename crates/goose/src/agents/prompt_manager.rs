@@ -3,8 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
+use crate::prompt_template;
 use crate::providers::base::get_current_model;
-use crate::{config::Config, prompt_template};
 
 pub struct PromptManager {
     system_prompt_override: Option<String>,
@@ -18,6 +18,7 @@ impl Default for PromptManager {
 }
 
 impl PromptManager {
+    /// Create a PromptManager
     pub fn new() -> Self {
         PromptManager {
             system_prompt_override: None,
@@ -60,13 +61,13 @@ impl PromptManager {
     /// * `frontend_instructions` – instructions for the "frontend" tool
     pub fn build_system_prompt(
         &self,
+        config: &crate::config::Config,
         extensions_info: Vec<ExtensionInfo>,
         frontend_instructions: Option<String>,
         model_name: Option<&str>,
     ) -> String {
         let mut context: HashMap<&str, Value> = HashMap::new();
         let mut extensions_info = extensions_info.clone();
-
         // Add frontend instructions to extensions_info to simplify json rendering
         if let Some(frontend_instructions) = frontend_instructions {
             extensions_info.push(ExtensionInfo::new(
@@ -75,7 +76,6 @@ impl PromptManager {
                 false,
             ));
         }
-
         context.insert("extensions", serde_json::to_value(extensions_info).unwrap());
 
         let current_date_time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -106,7 +106,7 @@ impl PromptManager {
         };
 
         let mut system_prompt_extras = self.system_prompt_extras.clone();
-        let config = Config::global();
+        // Determine mode from provided config
         let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
         if goose_mode == "chat" {
             system_prompt_extras.push(

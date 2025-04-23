@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use goose::agents::Agent;
+use goose::config::Config;
 use goose::message::Message;
 use goose::model::ModelConfig;
 use goose::providers::databricks::DatabricksProvider;
@@ -41,12 +42,14 @@ pub enum ProviderType {
 /// - api_key: Provider API key (null for default from environment variables)
 /// - model_name: Model name to use (null for provider default)
 /// - host: Provider host URL (null for default from environment variables)
+/// - ephemeral: Whether to use ephemeral in-memory configuration (true) or persistent configuration (false)
 #[repr(C)]
 pub struct ProviderConfigFFI {
     pub provider_type: ProviderType,
     pub api_key: *const c_char,
     pub model_name: *const c_char,
     pub host: *const c_char,
+    pub ephemeral: bool,
 }
 
 // Extension configuration will be implemented in a future commit
@@ -135,6 +138,13 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
         ProviderType::Databricks => (), // Databricks provider is supported
     }
 
+    // Build a per-agent Config: in-memory if requested, else default
+    let cfg = if config.ephemeral {
+        Config::new_in_memory()
+    } else {
+        Config::default()
+    };
+
     // Get api_key from config or environment
     let api_key = if !config.api_key.is_null() {
         CStr::from_ptr(config.api_key).to_string_lossy().to_string()
@@ -178,7 +188,8 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
     // Create Databricks provider with required parameters
     match DatabricksProvider::from_params(host, api_key, model_config) {
         Ok(provider) => {
-            let agent = Agent::new(Arc::new(provider));
+            // Use per-agent Config rather than the global
+            let agent = Agent::new_with_config(Arc::new(provider), cfg);
             Box::into_raw(Box::new(agent))
         }
         Err(e) => {
