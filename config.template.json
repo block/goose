@@ -1,0 +1,24 @@
+{
+    // Internal Integration Configuration
+    "notion_token": "secret_xxxxx", // Your internal integration token from Notion
+
+    // OAuth Configuration (optional - for public integrations)
+    "oauth": {
+        "client_id": "", // Your OAuth client ID
+        "client_secret": "", // Your OAuth client secret
+        "redirect_uri": "", // Your OAuth redirect URI
+        "access_token": "", // Optional: Existing OAuth access token
+        "refresh_token": "", // Optional: Existing OAuth refresh token
+        "code": "" // Optional: Authorization code from OAuth flow
+    },
+
+    // Additional Configuration
+    "workspace_id": "", // Optional: Specific workspace ID if needed
+    "capabilities": [ // Required capabilities for your integration
+        "read_content",
+        "update_content",
+        "insert_content",
+        "read_comments",
+        "create_comments"
+    ]
+}
