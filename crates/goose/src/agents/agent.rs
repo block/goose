@@ -312,8 +312,7 @@ impl Agent {
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
-            prefixed_tools.push(platform_tools::enable_extension_tool());
-            prefixed_tools.push(platform_tools::disable_extension_tool());
+            prefixed_tools.push(platform_tools::manage_extensions_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
