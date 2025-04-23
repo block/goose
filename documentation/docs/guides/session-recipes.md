@@ -16,9 +16,9 @@ You can turn your current Goose session into a reusable recipe that includes the
 :::tip Heads Up
 You'll need to provide both instructions and activities for your Recipe.
 
-- **Instructions** provide the Agent's purpose. These get sent directly to the model and define how it behaves. Think of this as its internal mission statement. Make it clear, action-oriented, and scoped to the task at hand.
+- **Instructions** provide the purpose. These get sent directly to the model and define how it behaves. Think of this as its internal mission statement. Make it clear, action-oriented, and scoped to the task at hand.
 
-- **Activities** are specific, example prompts that appear as clickable bubbles on a fresh session. They help others understand how to use the Agent.
+- **Activities** are specific, example prompts that appear as clickable bubbles on a fresh session. They help others understand how to use the Recipe.
 :::
 
 <Tabs>
@@ -27,10 +27,10 @@ You'll need to provide both instructions and activities for your Recipe.
    1. While in the session you want to save as an agent, click the menu icon **⋮** in the top right corner  
    2. Select **Make Agent from this session**  
    3. In the dialog that appears:
-      - Edit the Agent's **instructions** to clarify its purpose. 
+      - Edit the **instructions** to clarify its purpose. 
       - Add or remove **activities** as needed.
    4. Click **Save**  
-   5. Copy the recipe URL and use it however you like (e.g., send it with teammates, drop it in documentation, or keep it for yourself)
+   5. Copy the Recipe URL and use it however you like (e.g., send it with teammates, drop it in documentation, or keep it for yourself)
 
   </TabItem>
 
