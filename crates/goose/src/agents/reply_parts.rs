@@ -53,7 +53,6 @@ impl Agent {
             // Empty the tools vector for provider completion
             tools = vec![];
         }
-        drop(provider);
 
         Ok((tools, toolshim_tools, system_prompt))
     }

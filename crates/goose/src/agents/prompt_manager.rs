@@ -27,7 +27,7 @@ impl PromptManager {
 
     /// Add an additional instruction to the system prompt
     pub fn add_system_prompt_extra(&mut self, instruction: String) {
-        self.system_prompt_extras.push(instruction.clone());
+        self.system_prompt_extras.push(instruction);
     }
 
     /// Override the system prompt with custom text

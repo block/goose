@@ -71,7 +71,15 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
         }
     }
+}
 
+impl Default for Agent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Agent {
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {

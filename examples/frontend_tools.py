@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Configuration
 GOOSE_HOST = "127.0.0.1"
-GOOSE_PORT = "3000"
+GOOSE_PORT = "3001"
 GOOSE_URL = f"http://{GOOSE_HOST}:{GOOSE_PORT}"
 SECRET_KEY = "test"  # Default development secret key
 
