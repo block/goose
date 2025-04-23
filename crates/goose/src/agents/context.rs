@@ -48,13 +48,15 @@ impl Agent {
         let (mut new_messages, mut new_token_counts) =
             summarize_messages(provider, messages, &token_counter, target_context_limit).await?;
 
-        // Add an assistant message to the truncated messages
-        // to ensure the assistant's response is included in the context.
-        let assistant_message = Message::assistant().with_text(
-            "I had run into a context length exceeded error so I summarized our conversation.",
-        );
-        new_messages.push(assistant_message.clone());
-        new_token_counts.push(token_counter.count_chat_tokens("", &[assistant_message], &[]));
+        // If the summarized messages only contains one message, it means no tool request and response message in the summarized messages,
+        // Add an assistant message to the summarized messages to ensure the assistant's response is included in the context.
+        if new_messages.len() == 1 {
+            let assistant_message = Message::assistant().with_text(
+                "I had run into a context length exceeded error so I summarized our conversation.",
+            );
+            new_messages.push(assistant_message.clone());
+            new_token_counts.push(token_counter.count_chat_tokens("", &[assistant_message], &[]));
+        }
 
         Ok((new_messages, new_token_counts))
     }

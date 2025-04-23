@@ -61,8 +61,7 @@ fn preprocess_messages(messages: &[Message]) -> (Vec<Message>, Vec<Message>) {
             .iter()
             .any(|c| matches!(c, MessageContent::ToolResponse(_)))
     }) {
-        removed_messages.push(last_message.clone());
-
+        // Check for the corresponding tool request message
         if last_index > 0 {
             if let Some(previous_message) = messages.get(last_index - 1) {
                 if previous_message
@@ -70,12 +69,19 @@ fn preprocess_messages(messages: &[Message]) -> (Vec<Message>, Vec<Message>) {
                     .iter()
                     .any(|c| matches!(c, MessageContent::ToolRequest(_)))
                 {
+                    // Add the tool request message to removed_messages
                     removed_messages.push(previous_message.clone());
                 }
             }
         }
+        // Add the last tool response message to removed_messages
+        removed_messages.push(last_message.clone());
 
-        preprocessed_messages.truncate(last_index - removed_messages.len() + 1);
+        // Calculate the correct start index for removal
+        let start_index = last_index + 1 - removed_messages.len();
+
+        // Remove the tool response and its paired tool request from preprocessed_messages
+        preprocessed_messages.drain(start_index..=last_index);
     }
 
     (preprocessed_messages, removed_messages)
