@@ -1,40 +1,106 @@
-<div align="center">
+# Goose Notion Extension
 
-# codename goose
+A Notion integration for Goose that provides seamless interaction with Notion databases and pages.
 
-_a local, extensible, open source AI agent that automates engineering tasks_
+## Installation
 
-<p align="center">
-  <a href="https://opensource.org/licenses/Apache-2.0">
-    <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
-  </a>
-  <a href="https://discord.gg/7GaTvbDwga">
-    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">
-  </a>
-  <a href="https://github.com/block/goose/actions/workflows/ci.yml">
-     <img src="https://img.shields.io/github/actions/workflow/status/block/goose/ci.yml?branch=main" alt="CI">
-  </a>
-</p>
-</div>
+```bash
+goose extension install goose-notion
+```
 
-goose is your on-machine AI agent, capable of automating complex development tasks from start to finish. More than just code suggestions, goose can build entire projects from scratch, write and execute code, debug failures, orchestrate workflows, and interact with external APIs - _autonomously_.
+## Configuration
 
-Whether you're prototyping an idea, refining existing code, or managing intricate engineering pipelines, goose adapts to your workflow and executes tasks with precision.
+Add your Notion integration token to your Goose configuration:
 
-Designed for maximum flexibility, goose works with any LLM, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation. 
+```yaml
+notion:
+  token: "your-notion-integration-token"
+```
 
+To get your integration token:
+1. Go to https://www.notion.so/my-integrations
+2. Create a new integration
+3. Copy the integration token
 
-# Quick Links
-- [Quickstart](https://block.github.io/goose/docs/quickstart)
-- [Installation](https://block.github.io/goose/docs/getting-started/installation)
-- [Tutorials](https://block.github.io/goose/docs/category/tutorials)
-- [Documentation](https://block.github.io/goose/docs/category/getting-started)
+## Usage
 
+### Query a Database
 
-# Goose Around with Us
-- [Discord](https://discord.gg/block-opensource)
-- [YouTube](https://www.youtube.com/@blockopensource)
-- [LinkedIn](https://www.linkedin.com/company/block-opensource)
-- [Twitter/X](https://x.com/blockopensource)
-- [Bluesky](https://bsky.app/profile/opensource.block.xyz)
-- [Nostr](https://njump.me/opensource@block.xyz)
+```python
+# Simple query
+results = await notion.query_database(
+    database_id="your-database-id"
+)
+
+# With filters
+results = await notion.query_database(
+    database_id="your-database-id",
+    filter={
+        "property": "Status",
+        "select": {
+            "equals": "Active"
+        }
+    }
+)
+```
+
+### Create a Page
+
+```python
+page = await notion.create_page(
+    parent_id="your-database-id",
+    properties={
+        "Name": {"title": [{"text": {"content": "New Page"}}]},
+        "Status": {"select": {"name": "Active"}}
+    }
+)
+```
+
+## Development
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/block/goose-notion
+cd goose-notion
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+```
+
+3. Install development dependencies:
+```bash
+pip install -e ".[dev]"
+```
+
+### Testing
+
+Run the tests:
+```bash
+pytest
+```
+
+### Code Style
+
+This project uses:
+- Black for code formatting
+- isort for import sorting
+- pylint for linting
+
+Format code:
+```bash
+black goose_notion
+isort goose_notion
+```
+
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
