@@ -46,6 +46,11 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
     const extensionsList = await getExtensions(true); // Force refresh
     // Filter out disabled extensions
     const enabledExtensions = extensionsList.filter((extension) => extension.enabled);
+    enabledExtensions.push({
+      name: 'platform',
+      type: 'builtin',
+      enabled: true,
+    });
     // Sort extensions by name to maintain consistent order
     const sortedExtensions = [...enabledExtensions].sort((a, b) => {
       // First sort by builtin

@@ -8,7 +8,7 @@ use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
 use crate::commands::mcp::run_server;
 use crate::commands::recipe::{handle_deeplink, handle_validate};
-use crate::commands::session::handle_session_list;
+use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::logging::setup_logging;
 use crate::recipe::load_recipe;
 use crate::session;
@@ -73,6 +73,25 @@ enum SessionCommand {
             default_value = "text"
         )]
         format: String,
+
+        #[arg(
+            long = "ascending",
+            help = "Sort by date in ascending order (oldest first)",
+            long_help = "Sort sessions by date in ascending order (oldest first). Default is descending order (newest first)."
+        )]
+        ascending: bool,
+    },
+    #[command(about = "Remove sessions")]
+    Remove {
+        #[arg(short, long, help = "session id to be removed", default_value = "")]
+        id: String,
+        #[arg(
+            short,
+            long,
+            help = "regex for removing matched session",
+            default_value = ""
+        )]
+        regex: String,
     },
 }
 
@@ -381,9 +400,17 @@ pub async fn cli() -> Result<()> {
             builtins,
         }) => {
             return match command {
-                Some(SessionCommand::List { verbose, format }) => {
-                    handle_session_list(verbose, format)?;
+                Some(SessionCommand::List {
+                    verbose,
+                    format,
+                    ascending,
+                }) => {
+                    handle_session_list(verbose, format, ascending)?;
                     Ok(())
+                }
+                Some(SessionCommand::Remove { id, regex }) => {
+                    handle_session_remove(id, regex)?;
+                    return Ok(());
                 }
                 None => {
                     // Run session command by default

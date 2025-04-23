@@ -60,14 +60,6 @@ pub struct ToolConfirmationRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExtensionRequest {
-    pub id: String,
-    pub extension_name: String,
-    pub tool_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
@@ -95,7 +87,6 @@ pub enum MessageContent {
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
-    ExtensionRequest(ExtensionRequest),
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
@@ -145,18 +136,6 @@ impl MessageContent {
         })
     }
 
-    pub fn extension_request<S: Into<String>>(
-        id: S,
-        extension_name: String,
-        tool_name: String,
-    ) -> Self {
-        MessageContent::ExtensionRequest(ExtensionRequest {
-            id: id.into(),
-            extension_name,
-            tool_name,
-        })
-    }
-
     pub fn thinking<S1: Into<String>, S2: Into<String>>(thinking: S1, signature: S2) -> Self {
         MessageContent::Thinking(ThinkingContent {
             thinking: thinking.into(),
@@ -193,14 +172,6 @@ impl MessageContent {
     pub fn as_tool_confirmation_request(&self) -> Option<&ToolConfirmationRequest> {
         if let MessageContent::ToolConfirmationRequest(ref tool_confirmation_request) = self {
             Some(tool_confirmation_request)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_extension_request(&self) -> Option<&ExtensionRequest> {
-        if let MessageContent::ExtensionRequest(ref extension_request) = self {
-            Some(extension_request)
         } else {
             None
         }
@@ -362,19 +333,6 @@ impl Message {
     ) -> Self {
         self.with_content(MessageContent::tool_confirmation_request(
             id, tool_name, arguments, prompt,
-        ))
-    }
-
-    pub fn with_extension_request<S: Into<String>>(
-        self,
-        id: S,
-        extension_name: String,
-        tool_name: String,
-    ) -> Self {
-        self.with_content(MessageContent::extension_request(
-            id,
-            extension_name,
-            tool_name,
         ))
     }
 

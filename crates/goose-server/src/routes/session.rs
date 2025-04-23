@@ -8,7 +8,7 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::info::{get_session_info, SessionInfo};
+use goose::session::info::{get_session_info, SessionInfo, SortOrder};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -30,7 +30,8 @@ async fn list_sessions(
 ) -> Result<Json<SessionListResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let sessions = get_session_info().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions =
+        get_session_info(SortOrder::Descending).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
