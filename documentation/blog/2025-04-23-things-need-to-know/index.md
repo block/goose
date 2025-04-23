@@ -8,10 +8,12 @@ authors:
 
 # 4 Things You *Actually* Need to Know Before Using Goose
 
-So you’ve heard about Goose. Maybe you saw a livestream, maybe someone on your team mentioned it, or maybe you just stumbled into our corner of the internet while trying to automate your dev setup. Either way—love that for you.
+So you’ve heard about Goose. Maybe you saw a livestream, someone on your team mentioned it, or you just stumbled into our corner of the internet while trying to automate your dev setup.  Either way—love that for you.
+
+Goose is a local, open source AI agent that can automate tasks, interact with your codebase, and connect to a growing ecosystem of tools. But before you hit install, here are four things you should know to get the most out of it.
+
 
 <!-- truncate -->
-Goose is a local, open source AI agent that can automate tasks, interact with your codebase, and connect to a growing ecosystem of tools. But before you hit install, here are four things you should know to get the most out of it.
 
 ---
 
@@ -19,7 +21,7 @@ Goose is a local, open source AI agent that can automate tasks, interact with yo
 
 Goose is an **MCP client**.
 
-That means it connects to tools and data through something called the **Model Context Protocol (MCP)**—an open standard that makes it possible for AI agents to interact with external systems through natural language. If you’ve used Claude Desktop, or Cursor you’ve already used an MCP client, even if you didn’t realize it.
+That means it connects to tools and data through something called the [**Model Context Protocol (MCP)**](https://www.anthropic.com/news/model-context-protocol)—an open standard that makes it possible for AI agents to interact with external systems through natural language. If you’ve used Claude Desktop, Windsurf, Agent mode in VS Code or Cursor you’ve already used an MCP client, even if you didn’t realize it.
 
 Here’s what makes Goose different:
 
@@ -61,7 +63,7 @@ Goose itself? Totally free and open source. 🎉 But your LLM provider might not
 
 Most models give you a free tier to play around with, but if you're doing anything intensive or using it often, you’ll eventually run into rate limits or token charges. That’s normal but it can sneak up on you if you’re not expecting it.
 
-To help you manage this, there is a [Handling Rate limits Guide](https://block.github.io/goose/docs/guides/handling-llm-rate-limits-with-goose/) that you can check out. 
+To help you manage this, there is a [Handling Rate Limits Guide](https://block.github.io/goose/docs/guides/handling-llm-rate-limits-with-goose/) that you can check out. 
 
 ---
 
@@ -85,7 +87,7 @@ If you’ve got those four things, a solid LLM, the right servers, a basic under
 
 Now, head over to the [Quickstart Guide](https://block.github.io/goose/docs/quickstart) and get started.  
 
-Oh and when you get to the Tic-Tac-Toe game?
+Oh and when you get to the [Tic-Tac-Toe game](https://block.github.io/goose/docs/quickstart/#write-prompt)?
 I’ll bet you 10 Goosebucks you won’t beat the bot. 
 
 
