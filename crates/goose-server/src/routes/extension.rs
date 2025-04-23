@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+use super::utils::verify_secret_key;
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -83,6 +84,8 @@ async fn add_extension(
     headers: HeaderMap,
     raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
+    verify_secret_key(&headers, &state)?;
+
     // Log the raw request for debugging
     tracing::info!(
         "Received extension request: {}",
@@ -101,15 +104,6 @@ async fn add_extension(
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
     };
-    // Verify the presence and validity of the secret key.
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
 
     // If this is a Stdio extension that uses npx, check for Node.js installation
     #[cfg(target_os = "windows")]
@@ -267,15 +261,7 @@ async fn remove_extension(
     headers: HeaderMap,
     Json(name): Json<String>,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
-    // Verify the presence and validity of the secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     // Get a reference to the agent
     let agent = state

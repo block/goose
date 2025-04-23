@@ -10,8 +10,6 @@ use tokio::sync::Mutex;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, ToolRequest};
-use crate::permission::permission_confirmation::PrincipalType;
-use crate::permission::permission_judge::get_confirmation_message;
 use crate::permission::Permission;
 use mcp_core::{Content, ToolError};
 
@@ -19,9 +17,6 @@ use mcp_core::{Content, ToolError};
 pub(crate) type ToolFuture<'a> =
     Pin<Box<dyn Future<Output = (String, Result<Vec<Content>, ToolError>)> + Send + 'a>>;
 pub(crate) type ToolFuturesVec<'a> = Arc<Mutex<Vec<ToolFuture<'a>>>>;
-// Type alias for extension installation results
-pub(crate) type ExtensionInstallResult = (String, Result<Vec<Content>, ToolError>);
-pub(crate) type ExtensionInstallResults = Arc<Mutex<Vec<ExtensionInstallResult>>>;
 
 use crate::agents::Agent;
 
@@ -42,7 +37,6 @@ impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
-        install_results: ExtensionInstallResults,
         tool_futures: ToolFuturesVec<'a>,
         permission_manager: &'a mut PermissionManager,
         message_tool_response: Arc<Mutex<Message>>,
@@ -50,31 +44,24 @@ impl Agent {
         try_stream! {
             for request in tool_requests {
                 if let Ok(tool_call) = request.tool_call.clone() {
-                    let (principal_type, confirmation) = get_confirmation_message(&request.id.clone(), tool_call.clone());
+                    let confirmation = Message::user().with_tool_confirmation_request(
+                        request.id.clone(),
+                        tool_call.name.clone(),
+                        tool_call.arguments.clone(),
+                        Some("Goose would like to call the above tool. Allow? (y/n):".to_string()),
+                    );
                     yield confirmation;
 
                     let mut rx = self.confirmation_rx.lock().await;
                     while let Some((req_id, confirmation)) = rx.recv().await {
                         if req_id == request.id {
                             if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                                if principal_type == PrincipalType::Extension {
-                                    let extension_name = tool_call.arguments.get("extension_name")
-                                                    .and_then(|v| v.as_str())
-                                                    .unwrap_or("")
-                                                    .to_string();
+                                let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
+                                let mut futures = tool_futures.lock().await;
+                                futures.push(Box::pin(tool_future));
 
-                                    let mut results = install_results.lock().await;
-                                    let install_result = self.enable_extension(extension_name, request.id.clone()).await;
-                                    results.push(install_result);
-                                } else {
-                                    // Add this tool call to the futures collection
-                                    let tool_future = self.dispatch_tool_call(tool_call.clone(), request.id.clone());
-                                    let mut futures = tool_futures.lock().await;
-                                    futures.push(Box::pin(tool_future));
-
-                                    if confirmation.permission == Permission::AlwaysAllow {
-                                        permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
-                                    }
+                                if confirmation.permission == Permission::AlwaysAllow {
+                                    permission_manager.update_user_permission(&tool_call.name, PermissionLevel::AlwaysAllow);
                                 }
                             } else {
                                 // User declined - add declined response

@@ -88,7 +88,7 @@ const getInitialView = (): ViewConfig => {
 
   // Default case
   return {
-    view: 'welcome',
+    view: 'loading',
     viewOptions: {},
   };
 };

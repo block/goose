@@ -1,3 +1,4 @@
+use super::utils::verify_secret_key;
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -9,7 +10,7 @@ use axum::{
 };
 use goose::message::Message;
 use goose::session;
-use goose::session::info::{get_session_info, SessionInfo};
+use goose::session::info::{get_session_info, SessionInfo, SortOrder};
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -29,17 +30,10 @@ async fn list_sessions(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<SessionListResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    verify_secret_key(&headers, &state)?;
 
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let sessions = get_session_info().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions =
+        get_session_info(SortOrder::Descending).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
@@ -50,15 +44,7 @@ async fn get_session_history(
     headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
+    verify_secret_key(&headers, &state)?;
 
     let session_path = session::get_path(session::Identifier::Name(session_id.clone()));
 
