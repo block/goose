@@ -509,7 +509,7 @@ mod tests {
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = Agent::new(mock_provider);
+            let agent = Agent::new(mock_provider, None);
             let state = AppState {
                 config: Arc::new(Mutex::new(HashMap::new())),
                 agent: Arc::new(RwLock::new(Some(agent))),

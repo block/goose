@@ -46,12 +46,14 @@ typedef goose_Agent *goose_AgentPtr;
  - api_key: Provider API key (null for default from environment variables)
  - model_name: Model name to use (null for provider default)
  - host: Provider host URL (null for default from environment variables)
+ - mode: Agent mode (null for default "auto" mode)
  */
 typedef struct goose_ProviderConfigFFI {
   goose_ProviderType provider_type;
   const char *api_key;
   const char *model_name;
   const char *host;
+  const char *mode;
 } goose_ProviderConfigFFI;
 
 /*

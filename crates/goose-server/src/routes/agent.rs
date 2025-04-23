@@ -123,7 +123,14 @@ async fn create_agent(
         providers::create(&payload.provider, model_config).expect("Failed to create provider");
 
     let version = String::from("goose");
-    let new_agent = Agent::new(provider);
+    let mode = state
+        .config
+        .lock()
+        .await
+        .get("GOOSE_MODE")
+        .cloned()
+        .and_then(|v| v.as_str().map(String::from));
+    let new_agent = Agent::new(provider, mode);
 
     let mut agent = state.agent.write().await;
     *agent = Some(new_agent);

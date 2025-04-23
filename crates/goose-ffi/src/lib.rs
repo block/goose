@@ -41,12 +41,14 @@ pub enum ProviderType {
 /// - api_key: Provider API key (null for default from environment variables)
 /// - model_name: Model name to use (null for provider default)
 /// - host: Provider host URL (null for default from environment variables)
+/// - mode: Agent mode (null for default "auto" mode)
 #[repr(C)]
 pub struct ProviderConfigFFI {
     pub provider_type: ProviderType,
     pub api_key: *const c_char,
     pub model_name: *const c_char,
     pub host: *const c_char,
+    pub mode: *const c_char,
 }
 
 // Extension configuration will be implemented in a future commit
@@ -172,13 +174,20 @@ pub unsafe extern "C" fn goose_agent_new(config: *const ProviderConfigFFI) -> Ag
         }
     };
 
+    // Get mode from config or use default
+    let mode = if !config.mode.is_null() {
+        Some(CStr::from_ptr(config.mode).to_string_lossy().to_string())
+    } else {
+        None
+    };
+
     // Create model config with model name
     let model_config = ModelConfig::new(model_name);
 
     // Create Databricks provider with required parameters
     match DatabricksProvider::from_params(host, api_key, model_config) {
         Ok(provider) => {
-            let agent = Agent::new(Arc::new(provider));
+            let agent = Agent::new(Arc::new(provider), mode);
             Box::into_raw(Box::new(agent))
         }
         Err(e) => {

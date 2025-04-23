@@ -110,7 +110,7 @@ async fn run_truncate_test(
         .with_temperature(Some(0.0));
     let provider = provider_type.create_provider(model_config)?;
 
-    let agent = Agent::new(provider);
+    let agent = Agent::new(provider, None);
     let repeat_count = context_window + 10_000;
     let large_message_content = "hello ".repeat(repeat_count);
     let messages = vec![

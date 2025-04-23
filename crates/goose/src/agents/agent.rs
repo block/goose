@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use futures::stream::BoxStream;
 use futures::TryStreamExt;
 
-use crate::config::{Config, ExtensionConfigManager, PermissionManager};
+use crate::config::{ExtensionConfigManager, PermissionManager};
 use crate::message::Message;
 use crate::permission::permission_judge::check_tool_permissions;
 use crate::permission::PermissionConfirmation;
@@ -50,10 +50,11 @@ pub struct Agent {
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) mode: String,
 }
 
 impl Agent {
-    pub fn new(provider: Arc<dyn Provider>) -> Self {
+    pub fn new(provider: Arc<dyn Provider>, mode: Option<String>) -> Self {
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
@@ -70,6 +71,7 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            mode: mode.unwrap_or_else(|| "auto".to_string()),
         }
     }
 
@@ -338,14 +340,11 @@ impl Agent {
         let reply_span = tracing::Span::current();
         let mut truncation_attempt: usize = 0;
 
-        // Load settings from config
-        let config = Config::global();
-
         // Setup tools and prompt
         let (mut tools, mut toolshim_tools, mut system_prompt) =
             self.prepare_tools_and_prompt().await?;
 
-        let goose_mode = config.get_param("GOOSE_MODE").unwrap_or("auto".to_string());
+        let goose_mode = self.mode.clone();
 
         let (tools_with_readonly_annotation, tools_without_annotation) =
             Self::categorize_tools_by_annotation(&tools);
