@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::Serialize;
+use std::cmp::Ordering;
 
 use crate::session::{self, SessionMetadata};
 
@@ -11,7 +12,13 @@ pub struct SessionInfo {
     pub metadata: SessionMetadata,
 }
 
-pub fn get_session_info() -> Result<Vec<SessionInfo>> {
+/// Sort order for listing sessions
+pub enum SortOrder {
+    Ascending,
+    Descending,
+}
+
+pub fn get_session_info(sort_order: SortOrder) -> Result<Vec<SessionInfo>> {
     let sessions = match session::list_sessions() {
         Ok(sessions) => sessions,
         Err(e) => {
@@ -19,7 +26,7 @@ pub fn get_session_info() -> Result<Vec<SessionInfo>> {
             return Err(anyhow::anyhow!("Failed to list sessions"));
         }
     };
-    let session_infos = sessions
+    let mut session_infos = sessions
         .into_iter()
         .map(|(id, path)| {
             // Get last modified time as string
@@ -43,7 +50,25 @@ pub fn get_session_info() -> Result<Vec<SessionInfo>> {
                 metadata,
             }
         })
-        .collect();
+        .collect::<Vec<SessionInfo>>();
+
+    // Sort sessions by modified date
+    // Since all dates are in ISO format (YYYY-MM-DD HH:MM:SS UTC), we can just use string comparison
+    // This works because the ISO format ensures lexicographical ordering matches chronological ordering
+    session_infos.sort_by(|a, b| {
+        if a.modified == "Unknown" && b.modified == "Unknown" {
+            return Ordering::Equal;
+        } else if a.modified == "Unknown" {
+            return Ordering::Greater; // Unknown dates go last
+        } else if b.modified == "Unknown" {
+            return Ordering::Less;
+        }
+
+        match sort_order {
+            SortOrder::Ascending => a.modified.cmp(&b.modified),
+            SortOrder::Descending => b.modified.cmp(&a.modified),
+        }
+    });
 
     Ok(session_infos)
 }
