@@ -1,10 +1,45 @@
-import { BaseModal } from '../ui/BaseModal';
+import React from 'react';
+import { Card } from '../ui/card';
 
 interface SessionSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
   summaryContent: string;
+}
+
+// This is a specialized version of BaseModal that's wider just for the SessionSummaryModal
+function WiderBaseModal({
+  isOpen,
+  title,
+  children,
+  actions,
+}: {
+  isOpen: boolean;
+  title: string;
+  children: React.ReactNode;
+  actions: React.ReactNode; // Buttons for actions
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[9999] flex items-center justify-center overflow-y-auto">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] max-h-[85vh] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0 flex flex-col">
+        <div className="px-4 pb-0 space-y-8 flex-grow overflow-hidden">
+          {/* Header */}
+          <div className="flex">
+            <h2 className="text-2xl font-regular dark:text-white text-gray-900">{title}</h2>
+          </div>
+
+          {/* Content - Make it scrollable */}
+          {children && <div className="px-2 overflow-y-auto max-h-[60vh]">{children}</div>}
+
+          {/* Actions */}
+          <div className="mt-[8px] ml-[-24px] mr-[-24px] pt-[16px]">{actions}</div>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 export function SessionSummaryModal({
@@ -48,10 +83,10 @@ export function SessionSummaryModal({
 
   // Summary Content Component
   const SummaryContent = () => (
-    <div className="w-full px-4 mb-6">
+    <div className="w-full mb-6">
       <h3 className="text-base font-medium text-gray-900 dark:text-white mb-3">Summarization</h3>
 
-      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-sm">
+      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-sm w-full">
         {summaryContent}
       </div>
     </div>
@@ -76,12 +111,12 @@ export function SessionSummaryModal({
   );
 
   return (
-    <BaseModal isOpen={isOpen} title="" actions={modalActions}>
+    <WiderBaseModal isOpen={isOpen} title="" actions={modalActions}>
       <div className="flex flex-col w-full">
         <Header />
         <SummaryContent />
       </div>
-    </BaseModal>
+    </WiderBaseModal>
   );
 }
 
@@ -94,6 +129,20 @@ export function SessionSummaryExample() {
 But there was one thing about Mudge that nobody knew—he had a secret.
 
 Every evening, just before sunset, Mudge would trot out past the last row of houses, across a crumbling wooden fence, and...`;
+
+  // Create a long summary for testing scrolling behavior
+  const final =
+    exampleSummary +
+    '\n\n' +
+    exampleSummary +
+    '\n\n' +
+    exampleSummary +
+    '\n\n' +
+    exampleSummary +
+    '\n\n' +
+    exampleSummary +
+    '\n\n' +
+    exampleSummary;
 
   return (
     <div>
@@ -108,7 +157,7 @@ Every evening, just before sunset, Mudge would trot out past the last row of hou
           console.log('Saving summary');
           setIsOpen(false);
         }}
-        summaryContent={exampleSummary}
+        summaryContent={final}
       />
     </div>
   );
