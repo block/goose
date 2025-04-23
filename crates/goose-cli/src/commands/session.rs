@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use goose::session::info::{get_session_info, SessionInfo};
+use goose::session::info::{get_session_info, SessionInfo, SortOrder};
 use regex::Regex;
 use std::fs;
 
@@ -21,7 +21,7 @@ pub fn remove_session(session: &SessionInfo) -> Result<()> {
 }
 
 pub fn handle_session_remove(id: String, regex_string: String) -> Result<()> {
-    let sessions = match get_session_info() {
+    let sessions = match get_session_info(SortOrder::Descending) {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to remove sessions: {:?}", e);
@@ -57,8 +57,14 @@ pub fn handle_session_remove(id: String, regex_string: String) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_session_list(verbose: bool, format: String) -> Result<()> {
-    let sessions = match get_session_info() {
+pub fn handle_session_list(verbose: bool, format: String, ascending: bool) -> Result<()> {
+    let sort_order = if ascending {
+        SortOrder::Ascending
+    } else {
+        SortOrder::Descending
+    };
+
+    let sessions = match get_session_info(sort_order) {
         Ok(sessions) => sessions,
         Err(e) => {
             tracing::error!("Failed to list sessions: {:?}", e);
