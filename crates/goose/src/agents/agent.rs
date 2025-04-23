@@ -22,8 +22,9 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
-    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_ENABLE_EXTENSION_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
+    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
@@ -252,14 +253,22 @@ impl Agent {
         (request_id, result)
     }
 
-    pub(super) async fn disable_extension(&self, extension_name: String, request_id: String) -> (String, Result<Vec<Content>, ToolError>) {
+    pub(super) async fn disable_extension(
+        &self,
+        extension_name: String,
+        request_id: String,
+    ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.lock().await;
-        let result = extension_manager.remove_extension(&extension_name).await.map(|_| {
-            vec![Content::text(format!(
-                "The extension '{}' has been disabled successfully",
-                extension_name
-            ))]
-        }).map_err(|e| ToolError::ExecutionError(e.to_string()));
+        let result = extension_manager
+            .remove_extension(&extension_name)
+            .await
+            .map(|_| {
+                vec![Content::text(format!(
+                    "The extension '{}' has been disabled successfully",
+                    extension_name
+                ))]
+            })
+            .map_err(|e| ToolError::ExecutionError(e.to_string()));
         (request_id, result)
     }
 
@@ -636,6 +645,7 @@ impl Agent {
         let system_prompt = self.prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.clone(),
+            extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
         );
 

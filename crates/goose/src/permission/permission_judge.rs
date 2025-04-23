@@ -1,4 +1,6 @@
-use crate::agents::platform_tools::{PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_DISABLE_EXTENSION_TOOL_NAME};
+use crate::agents::platform_tools::{
+    PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_ENABLE_EXTENSION_TOOL_NAME,
+};
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -179,7 +181,9 @@ pub async fn check_tool_permissions(
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
-                if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME || tool_call.name == PLATFORM_DISABLE_EXTENSION_TOOL_NAME {
+                if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME
+                    || tool_call.name == PLATFORM_DISABLE_EXTENSION_TOOL_NAME
+                {
                     extension_request_ids.push(request.id.clone());
                 }
 
