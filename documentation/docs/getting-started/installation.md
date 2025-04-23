@@ -240,7 +240,7 @@ Goose works with a set of [supported LLM providers][providers], and you’ll nee
     </TabItem>
 </Tabs>
 
-# Goose Configuration Sharing
+## Goose Configuration Sharing
 
 Goose Desktop and CLI applications share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `/Users/<USER_NAME>/.config/goose/config.yaml`, making them available to both the Desktop application and CLI.
 
