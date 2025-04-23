@@ -30,7 +30,7 @@ You'll need to provide both instructions and activities for your Recipe.
       - Edit the **instructions** to clarify its purpose. 
       - Add or remove **activities** as needed.
    4. Click **Save**  
-   5. Copy the Recipe URL and use it however you like (e.g., send it with teammates, drop it in documentation, or keep it for yourself)
+   5. Copy the Recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
 
   </TabItem>
 
