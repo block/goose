@@ -12,6 +12,7 @@ import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from '../settings_v2/models/bottom_bar/ModelsBottomBar';
 import { useConfig } from '../ConfigContext';
 import { getCurrentModelAndProvider } from '../settings_v2/models';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
@@ -152,7 +153,18 @@ export default function BottomMenu({
       >
         <Document className="mr-1" />
         <span className="truncate max-w-[170px]">
-          Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="truncate max-w-[170px] min-w-0 block">
+                  Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {window.appConfig.get('GOOSE_WORKING_DIR')}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </span>
         <ChevronUp className="ml-1" />
       </span>

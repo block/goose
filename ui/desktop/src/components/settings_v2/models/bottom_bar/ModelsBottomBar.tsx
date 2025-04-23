@@ -59,7 +59,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="truncate max-w-[170px] min-w-0 block">
+                <span className="truncate max-w-[130px] min-w-0 block">
                   {model || 'Select Model'}
                 </span>
               </TooltipTrigger>

@@ -118,7 +118,7 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
   }
 
   return (
-    <div className="relative flex items-center ml-6" ref={gooseModeDropdownRef}>
+    <div className="relative flex items-center" ref={gooseModeDropdownRef}>
       <div
         className="flex items-center cursor-pointer"
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
