@@ -22,7 +22,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_ENABLE_EXTENSION_TOOL_NAME,
+    PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
     PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
     PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
@@ -113,22 +113,20 @@ impl Agent {
         tool_call: mcp_core::tool::ToolCall,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
-        if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
+        if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
             let extension_name = tool_call
                 .arguments
                 .get("extension_name")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            return self.enable_extension(extension_name, request_id).await;
-        } else if tool_call.name == PLATFORM_DISABLE_EXTENSION_TOOL_NAME {
-            let extension_name = tool_call
+            let action = tool_call
                 .arguments
-                .get("extension_name")
+                .get("action")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            return self.disable_extension(extension_name, request_id).await;
+            return self.manage_extensions(action, extension_name, request_id).await;
         }
 
         let extension_manager = self.extension_manager.lock().await;
@@ -211,12 +209,28 @@ impl Agent {
         )
     }
 
-    pub(super) async fn enable_extension(
+    pub(super) async fn manage_extensions(
         &self,
+        action: String,
         extension_name: String,
         request_id: String,
     ) -> (String, Result<Vec<Content>, ToolError>) {
         let mut extension_manager = self.extension_manager.lock().await;
+
+        if action == "disable" {
+            let result = extension_manager
+                .remove_extension(&extension_name)
+                .await
+                .map(|_| {
+                    vec![Content::text(format!(
+                        "The extension '{}' has been disabled successfully",
+                        extension_name
+                    ))]
+                })
+                .map_err(|e| ToolError::ExecutionError(e.to_string()));
+            return (request_id, result);
+        }
+
         let config = match ExtensionConfigManager::get_config_by_name(&extension_name) {
             Ok(Some(config)) => config,
             Ok(None) => {
@@ -250,25 +264,6 @@ impl Agent {
             })
             .map_err(|e| ToolError::ExecutionError(e.to_string()));
 
-        (request_id, result)
-    }
-
-    pub(super) async fn disable_extension(
-        &self,
-        extension_name: String,
-        request_id: String,
-    ) -> (String, Result<Vec<Content>, ToolError>) {
-        let mut extension_manager = self.extension_manager.lock().await;
-        let result = extension_manager
-            .remove_extension(&extension_name)
-            .await
-            .map(|_| {
-                vec![Content::text(format!(
-                    "The extension '{}' has been disabled successfully",
-                    extension_name
-                ))]
-            })
-            .map_err(|e| ToolError::ExecutionError(e.to_string()));
         (request_id, result)
     }
 
