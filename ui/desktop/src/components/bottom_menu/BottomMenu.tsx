@@ -151,7 +151,9 @@ export default function BottomMenu({
         }}
       >
         <Document className="mr-1" />
-        Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+        <span className="truncate max-w-[170px]">
+          Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
+        </span>
         <ChevronUp className="ml-1" />
       </span>
 
