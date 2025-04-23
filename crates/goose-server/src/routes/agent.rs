@@ -7,6 +7,8 @@ use axum::{
 };
 use goose::config::Config;
 use goose::config::PermissionManager;
+use goose::model::ModelConfig;
+use goose::providers::create;
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -51,6 +53,12 @@ struct ProviderDetails {
 struct ProviderList {
     id: String,
     details: ProviderDetails,
+}
+
+#[derive(Deserialize)]
+struct UpdateProviderRequest {
+    provider: String,
+    model: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -179,11 +187,56 @@ async fn get_tools(
     Ok(Json(tools))
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/update_provider",
+    responses(
+        (status = 200, description = "Update provider completed", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn update_agent_provider(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<UpdateProviderRequest>,
+) -> Result<StatusCode, StatusCode> {
+    // Verify secret key
+    let secret_key = headers
+        .get("X-Secret-Key")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if secret_key != state.secret_key {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
+
+    let config = Config::global();
+    let model = payload.model.unwrap_or_else(|| {
+        config
+            .get_param("GOOSE_MODEL")
+            .expect("Did not find a model on payload or in env to update provider with")
+    });
+    let model_config = ModelConfig::new(model);
+    let new_provider = create(&payload.provider, model_config).unwrap();
+    agent
+        .update_provider(new_provider)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/versions", get(get_versions))
         .route("/agent/providers", get(list_providers))
         .route("/agent/prompt", post(extend_prompt))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/update_provider", post(update_agent_provider))
         .with_state(state)
 }

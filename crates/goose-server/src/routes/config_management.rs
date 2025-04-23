@@ -8,9 +8,7 @@ use axum::{
 use goose::config::Config;
 use goose::config::{extensions::name_to_key, PermissionManager};
 use goose::config::{ExtensionConfigManager, ExtensionEntry};
-use goose::model::ModelConfig;
 use goose::providers::base::ProviderMetadata;
-use goose::providers::create;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel};
 use http::{HeaderMap, StatusCode};
@@ -90,12 +88,6 @@ pub struct ToolPermission {
 #[derive(Deserialize, ToSchema)]
 pub struct UpsertPermissionsQuery {
     pub tool_permissions: Vec<ToolPermission>,
-}
-
-#[derive(Deserialize)]
-struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
 }
 
 #[utoipa::path(
@@ -487,50 +479,6 @@ pub async fn backup_config(
     }
 }
 
-#[utoipa::path(
-    post,
-    path = "/config/update_provider",
-    responses(
-        (status = 200, description = "Update provider completed", body = String),
-        (status = 500, description = "Internal server error")
-    )
-)]
-async fn update_agent_provider(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<UpdateProviderRequest>,
-) -> Result<StatusCode, StatusCode> {
-    // Verify secret key
-    let secret_key = headers
-        .get("X-Secret-Key")
-        .and_then(|value| value.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    if secret_key != state.secret_key {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let agent = state
-        .get_agent()
-        .await
-        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
-
-    let config = Config::global();
-    let model = payload.model.unwrap_or_else(|| {
-        config
-            .get_param("GOOSE_MODEL")
-            .expect("Did not find a model on payload or in env to update provider with")
-    });
-    let model_config = ModelConfig::new(model);
-    let new_provider = create(&payload.provider, model_config).unwrap();
-    agent
-        .update_provider(new_provider)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::OK)
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -544,6 +492,5 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/permissions", post(upsert_permissions))
-        .route("/config/update_provider", post(update_agent_provider))
         .with_state(state)
 }

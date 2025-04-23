@@ -1,7 +1,7 @@
 use std::env;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::OnceLock;
-use std::{collections::HashMap, sync::Arc};
 
 use crate::state::AppState;
 use axum::{extract::State, routing::post, Json, Router};

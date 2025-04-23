@@ -6,7 +6,7 @@ interface initializeAgentProps {
 }
 
 export async function initializeAgent({ model, provider }: initializeAgentProps) {
-  const response = await fetch(getApiUrl('/config/update_provider'), {
+  const response = await fetch(getApiUrl('/agent/update_provider'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
