@@ -739,7 +739,7 @@ mod tests {
                 thread::sleep(Duration::from_millis(i * 10));
 
                 let extension_key = format!("extension_{}", i);
-                
+
                 // Use set_param which handles concurrent access properly
                 config.set_param(
                     &extension_key,
