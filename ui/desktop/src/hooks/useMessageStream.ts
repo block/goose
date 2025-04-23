@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, useId } from 'react';
 import useSWR from 'swr';
 import { getSecretKey } from '../config';
 import { Message, createUserMessage, hasCompletedToolCalls } from '../types/message';
+import {generateId} from "ai";
 
 // Ensure TextDecoder is available in the global scope
 const TextDecoder = globalThis.TextDecoder;
@@ -258,8 +259,52 @@ export function useMessageStream({
   );
 
   // Send a request to the server
+  // Add these variables at the top of the file, outside any function
+  const TESTING_CONTEXT_LENGTH = true; // Set to true to enable the test
+  const MESSAGE_COUNT_THRESHOLD = 2; // After this many user messages, trigger the context length exceeded
+
+// Add this inside the sendRequest function before the try block
   const sendRequest = useCallback(
-    async (requestMessages: Message[]) => {
+      async (requestMessages: Message[]) => {
+        // Test harness for ContextLengthExceededContent
+        if (TESTING_CONTEXT_LENGTH) {
+          // Count user messages
+          const userMessageCount = requestMessages.filter(msg => msg.role === 'user').length;
+
+          // If we've reached the threshold, inject the context length exceeded content
+          if (userMessageCount >= MESSAGE_COUNT_THRESHOLD) {
+            console.log('Triggering ContextLengthExceeded test');
+
+            // Create a test assistant response with ContextLengthExceededContent
+            const assistantResponse: Message = {
+              role: 'assistant',
+              id: generateId(), // Make sure this function is available in your code
+              created: Math.floor(Date.now() / 1000),
+              content: [
+                {
+                  type: 'text',
+                  text: "I notice our conversation is getting quite long. I'll summarize what we've discussed so far to help manage the context length."
+                },
+                {
+                  type: 'contextLengthExceeded',
+                  msg: 'The conversation context length has been exceeded. Previous messages have been summarized.'
+                }
+              ]
+            };
+
+            // Update the messages with our test response
+            const updatedMessages = [...requestMessages, assistantResponse];
+            mutate(updatedMessages, false);
+            messagesRef.current = updatedMessages;
+
+            // Simulate finishing the request
+            if (onFinish) {
+              onFinish(assistantResponse, 'context_length_exceeded');
+            }
+
+            return;
+          }
+        }
       try {
         mutateLoading(true);
         setError(undefined);
