@@ -1,6 +1,4 @@
-use crate::agents::platform_tools::{
-    PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_ENABLE_EXTENSION_TOOL_NAME,
-};
+use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -181,9 +179,7 @@ pub async fn check_tool_permissions(
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
-                if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME
-                    || tool_call.name == PLATFORM_DISABLE_EXTENSION_TOOL_NAME
-                {
+                if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
                     extension_request_ids.push(request.id.clone());
                 }
 
@@ -434,8 +430,8 @@ mod tests {
         let enable_extension = ToolRequest {
             id: "tool_3".to_string(),
             tool_call: ToolResult::Ok(ToolCall {
-                name: PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
-                arguments: serde_json::json!({"url": "http://example.com"}),
+                name: PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME.to_string(),
+                arguments: serde_json::json!({"action": "enable", "extension_name": "data_fetcher"}),
             }),
         };
 
