@@ -593,7 +593,7 @@ impl Session {
             .reply(
                 &self.messages,
                 Some(SessionConfig {
-                    id: session_id,
+                    id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
                 }),
@@ -643,7 +643,7 @@ impl Session {
                                     "truncate" => {
                                         // Truncate messages to fit within context length
                                         let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
-                                        let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you. You can continue now....", "-".repeat(50));
+                                        let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50));
                                         output::render_text("", Some(Color::Yellow), true);
                                         output::render_text(&msg, Some(Color::Yellow), true);
                                         self.messages = truncated_messages;
@@ -651,7 +651,7 @@ impl Session {
                                     "summarize" => {
                                         // Summarize messages to fit within context length
                                         let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
-                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages for you. You can continue now....", "-".repeat(50));
+                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages for you.", "-".repeat(50));
                                         output::render_text(&msg, Some(Color::Yellow), true);
                                         self.messages = summarized_messages;
                                     }
@@ -659,6 +659,18 @@ impl Session {
                                         unreachable!()
                                     }
                                 }
+                                // Restart the stream after handling ContextLengthExceeded
+                                stream = self
+                                    .agent
+                                    .reply(
+                                        &self.messages,
+                                        Some(SessionConfig {
+                                            id: session_id.clone(),
+                                            working_dir: std::env::current_dir()
+                                                .expect("failed to get current session working directory"),
+                                        }),
+                                    )
+                                    .await?;
                             }
                             // otherwise we have a model/tool to render
                             else {
