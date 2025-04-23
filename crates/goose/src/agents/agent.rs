@@ -22,9 +22,8 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
-    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_READ_RESOURCE_TOOL_NAME,
-    PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_LIST_RESOURCES_TOOL_NAME, PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME,
+    PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::types::SessionConfig;
@@ -126,7 +125,9 @@ impl Agent {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            return self.manage_extensions(action, extension_name, request_id).await;
+            return self
+                .manage_extensions(action, extension_name, request_id)
+                .await;
         }
 
         let extension_manager = self.extension_manager.lock().await;
