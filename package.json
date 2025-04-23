@@ -1,0 +1,17 @@
+{
+    "name": "goose-notion",
+    "version": "0.1.0",
+    "description": "Notion integration for Goose",
+    "author": "Kyle Woolstenhulme",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/goose-notion"
+    },
+    "goose": {
+        "version": ">=1.0.0"
+    },
+    "dependencies": {
+        "notion-client": "^1.0.0"
+    }
+}
