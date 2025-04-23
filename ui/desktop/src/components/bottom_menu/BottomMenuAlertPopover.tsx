@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import { IoIosCloseCircle, IoIosWarning } from 'react-icons/io';
+import { FaCircle } from 'react-icons/fa';
+import { IoIosCloseCircle } from 'react-icons/io';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { cn } from '../../utils';
 import { Alert, AlertType } from '../alerts';
@@ -37,16 +38,21 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   useEffect(() => {
     if (alerts.length === 0) return;
 
-    // Compare current and previous alerts for any changes
-    const hasChanges = alerts.some((alert, index) => {
+    // Find new or changed alerts
+    const changedAlerts = alerts.filter((alert, index) => {
       const prevAlert = previousAlertsRef.current[index];
       return !prevAlert || prevAlert.type !== alert.type || prevAlert.message !== alert.message;
     });
 
     previousAlertsRef.current = alerts;
 
-    // Auto show the popover if there are new alerts
-    if (!hasShownInitial || hasChanges) {
+    // Only auto-show if any of the new/changed alerts have autoShow: true
+    const hasNewAutoShowAlert = changedAlerts.some((alert) => alert.autoShow === true);
+
+    // Auto show the popover only if:
+    // 1. There are new alerts that should auto-show AND
+    // 2. We haven't shown this specific alert before (tracked by hasShownInitial)
+    if (hasNewAutoShowAlert && !hasShownInitial) {
       setIsOpen(true);
       setHasShownInitial(true);
       setWasAutoShown(true);
@@ -83,10 +89,15 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
 
   if (alerts.length === 0) return null;
 
-  // Determine the icon to show based on the highest priority alert
+  // Determine the icon and styling based on the alerts
   const hasError = alerts.some((alert) => alert.type === AlertType.Error);
-  const TriggerIcon = hasError ? IoIosCloseCircle : IoIosWarning;
+  const TriggerIcon = hasError ? IoIosCloseCircle : FaCircle;
   const triggerColor = hasError ? 'text-[#d7040e]' : 'text-[#cc4b03]';
+
+  // Different styling for error icon vs notification dot
+  const iconStyles = hasError
+    ? 'h-5 w-5' // Keep error icon larger
+    : 'h-2.5 w-2.5'; // Smaller notification dot
 
   return (
     <div ref={popoverRef}>
@@ -94,7 +105,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
         <div className="relative">
           <PopoverTrigger asChild>
             <div
-              className="cursor-pointer flex items-center"
+              className="cursor-pointer flex items-center justify-center min-w-5 min-h-5 translate-y-[1px]"
               onClick={() => {
                 if (hideTimerRef.current) {
                   clearTimeout(hideTimerRef.current);
@@ -114,7 +125,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
                 setIsHovered(false);
               }}
             >
-              <TriggerIcon className={cn('h-5 w-5', triggerColor)} />
+              <TriggerIcon className={cn(iconStyles, triggerColor)} />
             </div>
           </PopoverTrigger>
 
