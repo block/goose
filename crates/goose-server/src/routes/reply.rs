@@ -224,7 +224,7 @@ async fn handler(
                             // Store messages and generate description in background
                             let session_path = session_path.clone();
                             let messages = all_messages.clone();
-                            let provider = Arc::clone(&provider.as_ref().unwrap());
+                            let provider = Arc::clone(provider.as_ref().unwrap());
                             tokio::spawn(async move {
                                 if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
                                     tracing::error!("Failed to store session history: {:?}", e);
@@ -360,7 +360,7 @@ async fn ask_handler(
     // Store messages and generate description in background
     let session_path = session_path.clone();
     let messages = all_messages.clone();
-    let provider = Arc::clone(&provider.as_ref().unwrap());
+    let provider = Arc::clone(provider.as_ref().unwrap());
     tokio::spawn(async move {
         if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
             tracing::error!("Failed to store session history: {:?}", e);

@@ -9,8 +9,7 @@ pub type AgentRef = Arc<Agent>;
 /// Outer Arc: Allows multiple route handlers to access the same Mutex
 /// - Mutex provides exclusive access for updates
 /// - Option allows for the case where no agent exists yet
-// pub type SharedAgentStore = Arc<Mutex<Option<AgentRef>>>;
-
+///
 /// Shared application state
 #[derive(Clone)]
 pub struct AppState {
