@@ -159,7 +159,9 @@ export default function BottomMenu({
                 Working in {window.appConfig.get('GOOSE_WORKING_DIR')}
               </span>
             </TooltipTrigger>
-            <TooltipContent side="top">{window.appConfig.get('GOOSE_WORKING_DIR')}</TooltipContent>
+            <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+              {window.appConfig.get('GOOSE_WORKING_DIR')}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
         <ChevronUp className="ml-1" />

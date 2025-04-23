@@ -63,7 +63,9 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
                   {model || 'Select Model'}
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="top">{model || 'Select Model'}</TooltipContent>
+              <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+                {model || 'Select Model'}
+              </TooltipContent>
             </Tooltip>
           </TooltipProvider>
           {isModelMenuOpen ? (
