@@ -22,7 +22,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::platform_tools::{
-    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
+    PLATFORM_ENABLE_EXTENSION_TOOL_NAME, PLATFORM_DISABLE_EXTENSION_TOOL_NAME, PLATFORM_LIST_RESOURCES_TOOL_NAME,
     PLATFORM_READ_RESOURCE_TOOL_NAME, PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
 };
 use crate::agents::prompt_manager::PromptManager;
@@ -120,6 +120,14 @@ impl Agent {
                 .unwrap_or("")
                 .to_string();
             return self.enable_extension(extension_name, request_id).await;
+        } else if tool_call.name == PLATFORM_DISABLE_EXTENSION_TOOL_NAME {
+            let extension_name = tool_call
+                .arguments
+                .get("extension_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            return self.disable_extension(extension_name, request_id).await;
         }
 
         let extension_manager = self.extension_manager.lock().await;
@@ -244,6 +252,17 @@ impl Agent {
         (request_id, result)
     }
 
+    pub(super) async fn disable_extension(&self, extension_name: String, request_id: String) -> (String, Result<Vec<Content>, ToolError>) {
+        let mut extension_manager = self.extension_manager.lock().await;
+        let result = extension_manager.remove_extension(&extension_name).await.map(|_| {
+            vec![Content::text(format!(
+                "The extension '{}' has been disabled successfully",
+                extension_name
+            ))]
+        }).map_err(|e| ToolError::ExecutionError(e.to_string()));
+        (request_id, result)
+    }
+
     pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
@@ -290,6 +309,7 @@ impl Agent {
             // Add platform tools
             prefixed_tools.push(platform_tools::search_available_extensions_tool());
             prefixed_tools.push(platform_tools::enable_extension_tool());
+            prefixed_tools.push(platform_tools::disable_extension_tool());
 
             // Add resource tools if supported
             if extension_manager.supports_resources() {
