@@ -27,10 +27,11 @@ You'll need to provide both instructions and activities for your Recipe.
    1. While in the session you want to save as a recipe, click the menu icon **⋮** in the top right corner  
    2. Select **Make Agent from this session**  
    3. In the dialog that appears:
-      - Edit the **instructions** to clarify its purpose. 
-      - Add or remove **activities** as needed.
-   4. Click **Save**  
-   5. Copy the Recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
+      - Name the recipe
+      - Provide a description
+      - Some **activities** will be automatically generated. Add or remove as needed.
+      - A set of **instructions** will also be automatically generated. Review and edit as needed. 
+   4. Copy the Recipe URL and use it however you like (e.g., share it with teammates, drop it in documentation, or keep it for yourself)
 
   </TabItem>
 
