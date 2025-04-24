@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Geese } from '../icons/Geese';
 
 interface SessionSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (editedContent: string) => void;
   summaryContent: string;
 }
 
@@ -49,21 +49,20 @@ export function SessionSummaryModal({
   onSave,
   summaryContent,
 }: SessionSummaryModalProps) {
-  // Use a ref for the textarea instead of state
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  // Use a ref for the textarea for uncontrolled component
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Initialize the textarea value when the modal opens
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen && textareaRef.current) {
       textareaRef.current.value = summaryContent;
     }
   }, [isOpen, summaryContent]);
 
-  // Handle Save action with the edited content
+  // Handle Save action with the edited content from the ref
   const handleSave = () => {
     const currentText = textareaRef.current ? textareaRef.current.value : '';
-    console.log('Saving edited content:', currentText);
-    onSave();
+    onSave(currentText);
   };
 
   // Header Component - Icon, Title, and Description
@@ -129,26 +128,19 @@ export function SessionSummaryModal({
 // Example usage
 export function SessionSummaryExample() {
   const [isOpen, setIsOpen] = React.useState(false);
-
-  const exampleSummary = `In the quiet town of Willow Creek, there lived a scruffy brown dog named Mudge. He wasn't anyone's dog, exactly. He just sort of belonged to the whole town. Mudge spent his days napping in sunny spots outside the bakery, chasing butterflies in the park, and occasionally walking kids to school like a furry little crossing guard.
+  const [currentSummary, setCurrentSummary] =
+    React.useState(`In the quiet town of Willow Creek, there lived a scruffy brown dog named Mudge. He wasn't anyone's dog, exactly. He just sort of belonged to the whole town. Mudge spent his days napping in sunny spots outside the bakery, chasing butterflies in the park, and occasionally walking kids to school like a furry little crossing guard.
 
 But there was one thing about Mudge that nobody knew—he had a secret.
 
-Every evening, just before sunset, Mudge would trot out past the last row of houses, across a crumbling wooden fence, and...`;
+Every evening, just before sunset, Mudge would trot out past the last row of houses, across a crumbling wooden fence, and...`);
 
   // Create a long summary for testing scrolling behavior
-  const final =
-    exampleSummary +
-    '\n\n' +
-    exampleSummary +
-    '\n\n' +
-    exampleSummary +
-    '\n\n' +
-    exampleSummary +
-    '\n\n' +
-    exampleSummary +
-    '\n\n' +
-    exampleSummary;
+  const handleSaveSummary = (editedContent: string) => {
+    console.log('Saving edited summary:', editedContent);
+    setCurrentSummary(editedContent);
+    setIsOpen(false);
+  };
 
   return (
     <div>
@@ -159,11 +151,8 @@ Every evening, just before sunset, Mudge would trot out past the last row of hou
       <SessionSummaryModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onSave={() => {
-          console.log('Saving summary');
-          setIsOpen(false);
-        }}
-        summaryContent={final}
+        onSave={handleSaveSummary}
+        summaryContent={currentSummary}
       />
     </div>
   );

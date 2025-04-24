@@ -75,8 +75,8 @@ export default function ChatView({
   const [summaryContent, setSummaryContent] = useState('');
 
   // Add this function to handle opening the summary modal with content
-  const handleViewSummary = (content: string) => {
-    setSummaryContent(content);
+  const handleViewSummary = (summary: string) => {
+    setSummaryContent(summary);
     setIsSummaryModalOpen(true);
   };
 
@@ -304,6 +304,11 @@ export default function ChatView({
   };
 
   const handleContextLengthExceeded = () => {
+    // If we already have a summary, use that
+    if (summaryContent) {
+      return summaryContent;
+    }
+
     // Otherwise, generate a summary
     return mockContextApi(messages, 'summarize');
   };
@@ -318,14 +323,12 @@ export default function ChatView({
   };
 
   const SummarizedNotification = ({
-    summaryContent,
     onViewSummary,
   }: {
-    summaryContent: string;
     onViewSummary: (summaryContent: string) => void;
   }) => {
     const handleViewSummary = () => {
-      onViewSummary(summaryContent);
+      onViewSummary(summaryContent || handleContextLengthExceeded());
     };
 
     return (
@@ -443,10 +446,7 @@ export default function ChatView({
                         />
                       ) : (
                         // Render the summarized notification for CLE messages
-                        <SummarizedNotification
-                          summaryContent={handleContextLengthExceeded()}
-                          onViewSummary={handleViewSummary}
-                        />
+                        <SummarizedNotification onViewSummary={handleViewSummary} />
                       )}
                     </>
                   )}
@@ -497,8 +497,9 @@ export default function ChatView({
         <SessionSummaryModal
           isOpen={isSummaryModalOpen}
           onClose={() => setIsSummaryModalOpen(false)}
-          onSave={() => {
+          onSave={(editedContent) => {
             console.log('Saving summary...');
+            setSummaryContent(editedContent);
             setIsSummaryModalOpen(false);
           }}
           summaryContent={summaryContent}
