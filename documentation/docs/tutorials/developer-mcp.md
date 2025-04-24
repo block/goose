@@ -46,7 +46,7 @@ The Developer extension is already enabled by default when Goose is installed.
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
-  2. Click `Settings`
+  2. Click `Advanced Settings`
   3. Under `Extensions`, toggle `Developer` to on.
   </TabItem>
 </Tabs>

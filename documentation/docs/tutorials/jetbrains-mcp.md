@@ -88,7 +88,7 @@ This tutorial covers how to enable and use the JetBrains MCP Server as a built-i
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
-  2. Click `Settings`
+  2. Click `Advanced Settings`
   3. Under `Extensions`, toggle `Jetbrains` to on.
   </TabItem>
 </Tabs>
