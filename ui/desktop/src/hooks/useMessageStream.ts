@@ -283,7 +283,7 @@ export function useMessageStream({
             content: [
               {
                 type: 'contextLengthExceeded',
-                msg: 'The conversation context length has been exceeded.',
+                msg: 'The conversation context length has been exceeded (this is a test).',
               },
             ],
           };

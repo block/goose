@@ -329,7 +329,7 @@ export default function ChatView({
     };
 
     return (
-      <div className="flex flex-col items-end mt-1 pr-4">
+      <div className="flex flex-col items-start mt-1 pl-4">
         <span className="text-xs text-gray-400 italic">Session summarized</span>
         <button
           onClick={handleViewSummary}
@@ -429,17 +429,20 @@ export default function ChatView({
                     <UserMessage message={message} />
                   ) : (
                     <>
-                      <GooseMessage
-                        messageHistoryIndex={chat?.messageHistoryIndex}
-                        message={message}
-                        messages={messages}
-                        append={(text) => append(createUserMessage(text))}
-                        appendMessage={(newMessage) => {
-                          const updatedMessages = [...messages, newMessage];
-                          setMessages(updatedMessages);
-                        }}
-                      />
-                      {process.env.ALPHA && hasContextLengthExceededContent(message) && (
+                      {/* Only render GooseMessage if it's not a CLE message */}
+                      {!hasContextLengthExceededContent(message) ? (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          append={(text) => append(createUserMessage(text))}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      ) : (
+                        // Render the summarized notification for CLE messages
                         <SummarizedNotification
                           summaryContent={handleContextLengthExceeded()}
                           onViewSummary={handleViewSummary}
