@@ -1,13 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useModel } from './settings/models/ModelContext';
-import { Sliders, FileText } from 'lucide-react';
+import { Sliders } from 'lucide-react';
 import { ModelRadioList } from './settings/models/ModelRadioList';
 import { Document, ChevronUp, ChevronDown } from './icons';
 import type { View, ViewOptions } from '../App';
 import { settingsV2Enabled } from '../flags';
 import { BottomMenuModeSelection } from './BottomMenuModeSelection';
 import ModelsBottomBar from './settings_v2/models/bottom_bar/ModelsBottomBar';
-import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 
 export default function BottomMenu({
   hasMessages,
@@ -17,36 +16,10 @@ export default function BottomMenu({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
 
   const { currentModel } = useModel();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const sampleSentence = `In the quiet town of Willow Creek, there lived a scruffy brown dog named Mudge. He wasn't anyone's dog, exactly. He just sort of belonged to the whole town. Mudge spent his days napping in sunny spots outside the bakery, chasing butterflies in the park, and occasionally walking kids to school like a furry little crossing guard.`;
-  const sampleSummaryContent =
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence +
-    '\n\n' +
-    sampleSentence;
   // Add effect to handle clicks outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -104,15 +77,6 @@ export default function BottomMenu({
 
         {/* Goose Mode Selector Dropdown */}
         <BottomMenuModeSelection setView={setView} />
-
-        {/* Session Summary Button - Center */}
-        <button
-          onClick={() => setIsSummaryModalOpen(true)}
-          className="flex items-center px-3 py-1 rounded-md bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-xs font-medium transition-colors"
-        >
-          <FileText className="w-3 h-3 mr-1" />
-          Session Summary
-        </button>
 
         {/* Right-side section with ToolCount and Model Selector together */}
         <div className="flex items-center mr-4 space-x-1">
@@ -189,17 +153,6 @@ export default function BottomMenu({
           )}
         </div>
       </div>
-
-      {/* Session Summary Modal */}
-      <SessionSummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={() => setIsSummaryModalOpen(false)}
-        onSave={() => {
-          console.log('Saving summary...');
-          setIsSummaryModalOpen(false);
-        }}
-        summaryContent={sampleSummaryContent}
-      />
     </>
   );
 }

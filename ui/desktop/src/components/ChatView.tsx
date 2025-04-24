@@ -29,7 +29,8 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
-  ExtensionRequestMessageContent, ContextLengthExceededContent,
+  ExtensionRequestMessageContent,
+  ContextLengthExceededContent,
 } from '../types/message';
 
 export interface ChatType {
@@ -305,16 +306,15 @@ export default function ChatView({
   };
 
   const SummarizedNotification = ({
-                                   message,
-                                   onViewSummary
-                                 }: {
-    message: Message,
-    onViewSummary: (summaryContent: string) => void
+    message,
+    onViewSummary,
+  }: {
+    message: Message;
+    onViewSummary: (summaryContent: string) => void;
   }) => {
     // Extract the contextLengthExceeded message content
     const contextExceededContent = message.content.find(
-        (content): content is ContextLengthExceededContent =>
-            content.type === 'contextLengthExceeded'
+      (content): content is ContextLengthExceededContent => content.type === 'contextLengthExceeded'
     );
 
     const summaryContent = contextExceededContent?.msg || '';
@@ -324,17 +324,15 @@ export default function ChatView({
     };
 
     return (
-        <div className="flex justify-end mt-1 pr-4 items-center space-x-2">
-      <span className="text-xs text-gray-400 italic">
-        Session summarized
-      </span>
-          <button
-              onClick={handleViewSummary}
-              className="text-xs text-textStandard underline cursor-pointer hover:text-blue-600 transition-colors"
-          >
-            View or edit summary
-          </button>
-        </div>
+      <div className="flex flex-col items-end mt-1 pr-4">
+        <span className="text-xs text-gray-400 italic">Session summarized</span>
+        <button
+          onClick={handleViewSummary}
+          className="text-xs text-textStandard cursor-pointer hover:text-textSubtle transition-colors mt-1"
+        >
+          View or edit summary
+        </button>
+      </div>
     );
   };
 
@@ -421,30 +419,30 @@ export default function ChatView({
           <ScrollArea ref={scrollRef} className="flex-1" autoScroll>
             <SearchView>
               {filteredMessages.map((message, index) => (
-                  <div key={message.id || index} className="mt-4 px-4">
-                    {isUserMessage(message) ? (
-                        <UserMessage message={message} />
-                    ) : (
-                        <>
-                          <GooseMessage
-                              messageHistoryIndex={chat?.messageHistoryIndex}
-                              message={message}
-                              messages={messages}
-                              append={(text) => append(createUserMessage(text))}
-                              appendMessage={(newMessage) => {
-                                const updatedMessages = [...messages, newMessage];
-                                setMessages(updatedMessages);
-                              }}
-                          />
-                          {hasContextLengthExceededContent(message) && (
-                              <SummarizedNotification
-                                  message={message}
-                                  onViewSummary={handleViewSummary}
-                              />
-                          )}
-                        </>
-                    )}
-                  </div>
+                <div key={message.id || index} className="mt-4 px-4">
+                  {isUserMessage(message) ? (
+                    <UserMessage message={message} />
+                  ) : (
+                    <>
+                      <GooseMessage
+                        messageHistoryIndex={chat?.messageHistoryIndex}
+                        message={message}
+                        messages={messages}
+                        append={(text) => append(createUserMessage(text))}
+                        appendMessage={(newMessage) => {
+                          const updatedMessages = [...messages, newMessage];
+                          setMessages(updatedMessages);
+                        }}
+                      />
+                      {process.env.ALPHA && hasContextLengthExceededContent(message) && (
+                        <SummarizedNotification
+                          message={message}
+                          onViewSummary={handleViewSummary}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
               ))}
             </SearchView>
             {error && (
@@ -487,7 +485,8 @@ export default function ChatView({
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
-      <SessionSummaryModal
+      {process.env.ALPHA && (
+        <SessionSummaryModal
           isOpen={isSummaryModalOpen}
           onClose={() => setIsSummaryModalOpen(false)}
           onSave={() => {
@@ -495,7 +494,8 @@ export default function ChatView({
             setIsSummaryModalOpen(false);
           }}
           summaryContent={summaryContent}
-      />
+        />
+      )}
     </div>
   );
 }
