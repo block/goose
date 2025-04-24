@@ -361,6 +361,43 @@ const createChat = async (
     },
   });
 
+  // Enable spellcheck / right and ctrl + click on mispelled word
+  //
+  // NOTE: We could use webContents.session.availableSpellCheckerLanguages to include
+  // all languages in the list of spell checked words, but it diminishes the times you
+  // get red squigglies back for mispelled english words. Given the rest of Goose only
+  // renders in english right now, this feels like the correct set of language codes
+  // for the moment.
+  //
+  // TODO: Load language codes from a setting if we ever have i18n/l10n
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu();
+
+    // Add each spelling suggestion
+    for (const suggestion of params.dictionarySuggestions) {
+      menu.append(
+        new MenuItem({
+          label: suggestion,
+          click: () => mainWindow.webContents.replaceMisspelling(suggestion),
+        })
+      );
+    }
+
+    // Allow users to add the misspelled word to the dictionary
+    if (params.misspelledWord) {
+      menu.append(
+        new MenuItem({
+          label: 'Add to dictionary',
+          click: () =>
+            mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
+        })
+      );
+    }
+
+    menu.popup();
+  });
+
   // Store config in localStorage for future windows
   const windowConfig = {
     ...appConfig,
