@@ -11,7 +11,7 @@ An allowlist lets administrators control which commands can run in Goose's `stdi
 
 ## How It Works
 
-1. Goose fetches the allowlist from a URL specified by the `GOOSE_ALLOWLIST` environment variable.
+1. Goose fetches the allowlist from an URL specified by the `GOOSE_ALLOWLIST` environment variable.
 2. The allowlist is a YAML file that contains a list of allowed extension commands.
 3. The allowlist is fetched once when first needed and cached for the lifetime of the Goose server.
 4. When an extension is [added](/docs/getting-started/using-extensions#adding-extensions), Goose checks the MCP server's installation command against the allowlist.
@@ -90,7 +90,7 @@ To effectively use the allowlist with exact matching:
 1. **HTTPS**: Always use HTTPS URLs for your allowlist to prevent man-in-the-middle attacks.
 2. **Access Control**: Ensure the allowlist URL is only accessible to authorized users.
 3. **Validation**: The allowlist file should be carefully reviewed to ensure only trusted commands are included.
-4. **Monitoring**: Monitor extension registrations for any rejected commands, which might indicate attempted abuse.
+4. **Monitoring**: Monitor extension installations for any rejected commands, which might indicate attempted abuse.
 
 To implement monitoring for rejected commands, use your centralized logging infrastructure and configure Goose clients to send their logs to your logging system.
 
@@ -102,7 +102,7 @@ If extensions are being rejected unexpectedly:
 2. Verify that the allowlist file is accessible from the server.
 3. Ensure the allowlist file is properly formatted YAML.
 4. Check [server logs](/docs/guides/logs) for any errors related to fetching or parsing the allowlist.
-5. Verify that the command in the extension registration exactly matches what's in the allowlist.
+5. Verify that the command in the extension installations exactly matches what's in the allowlist.
 
 ## Example Usage
 
