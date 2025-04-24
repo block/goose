@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/m7YmPMDy3Ns" />
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/JoGqnX1HzOY" />
 
 This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a Goose extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
 
