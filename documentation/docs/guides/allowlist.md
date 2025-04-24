@@ -93,6 +93,8 @@ To effectively use the allowlist with exact matching:
 3. **Validation**: The allowlist file should be carefully reviewed to ensure only trusted commands are included.
 4. **Monitoring**: Monitor extension registrations for any rejected commands, which might indicate attempted abuse.
 
+To implement monitoring for rejected commands, use your centralized logging infrastructure and configure Goose clients to send their logs to your logging system.
+
 ## Troubleshooting
 
 If extensions are being rejected unexpectedly:
