@@ -15,7 +15,7 @@ impl Agent {
         &self,
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-        let provider = self.provider.clone();
+        let provider = self.provider().await?;
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         let target_context_limit = estimate_target_context_limit(provider);
         let token_counts = get_messages_token_counts(&token_counter, messages);
@@ -41,7 +41,7 @@ impl Agent {
         &self,
         messages: &[Message], // last message is a user msg that led to assistant message with_context_length_exceeded
     ) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
-        let provider = self.provider.clone();
+        let provider = self.provider().await?;
         let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         let target_context_limit = estimate_target_context_limit(provider.clone());
 

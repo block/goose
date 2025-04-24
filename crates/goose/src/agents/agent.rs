@@ -37,9 +37,9 @@ use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINE
 pub struct Agent {
     pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
-    pub(super) frontend_tools: HashMap<String, FrontendTool>,
-    pub(super) frontend_instructions: Option<String>,
-    pub(super) prompt_manager: PromptManager,
+    pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
+    pub(super) frontend_instructions: Mutex<Option<String>>,
+    pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
@@ -58,7 +58,6 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
-            token_counter: Mutex::new(None),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
@@ -512,8 +511,6 @@ impl Agent {
 
     /// Update the provider used by this agent
     pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
-        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
-        *self.token_counter.lock().await = Some(token_counter);
         *self.provider.lock().await = Some(provider);
         Ok(())
     }
@@ -586,8 +583,8 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let provider = self.provider().await;
-        let model_config = provider.as_ref().unwrap().get_model_config();
+        let provider = self.provider().await?;
+        let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
 
         let prompt_manager = self.prompt_manager.lock().await;

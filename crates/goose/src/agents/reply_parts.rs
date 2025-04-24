@@ -32,8 +32,8 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let provider = self.provider().await;
-        let model_config = provider.as_ref().unwrap().get_model_config();
+        let provider = self.provider().await?;
+        let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
 
         let prompt_manager = self.prompt_manager.lock().await;
