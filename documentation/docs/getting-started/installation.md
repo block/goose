@@ -246,7 +246,27 @@ Goose Desktop and CLI applications share all core configurations, including LLM 
 
 You can manage these shared configurations through the Desktop settings or by using the CLI command `goose configure`, which allows you to add, remove, or toggle extensions and modify other core settings.
 
-Provider settings and extension API keys are also centrally stored and shared between both interfaces. The specific storage method varies by extension - for example, the GitHub extension accesses any required authentication tokens from environment variables that are referenced in the shared configuration.  
+## Shared Configuration Settings 
+
+The Goose CLI and Desktop UI share all core configurations, including LLM provider settings, model selection, and extension configurations. When you install or configure extensions in either interface, the settings are stored in a central location at `~/.config/goose/config.yaml`, making them available to both the Desktop application and CLI. This makes it convenient to switch between interfaces while maintaining consistent settings.
+
+:::note
+While core configurations are shared between interfaces, extensions have flexibility in how they store authentication credentials. Some extensions may use the shared config file while others implement their own storage methods.
+:::
+
+<Tabs groupId="interface">
+    <TabItem value="cli" label="Goose CLI" default>
+        Use the following command to manage shared configurations:
+        ```sh
+        goose configure
+        ```
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+        Navigate to shared configurations through:
+        1. Click `...` in the upper right corner
+        2. Click `Advanced Settings`
+    </TabItem>
+</Tabs>
 
 ## Additional Resources
 
