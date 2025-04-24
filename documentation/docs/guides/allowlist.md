@@ -71,7 +71,7 @@ To effectively use the allowlist with exact matching:
 1. **Specify commands**: Define the exact command string that you want to allow.
 2. **Include full paths**: If you want to allow a command only from a specific path, include the full path in the allowlist.
 3. **Audit regularly**: Review your allowlist frequently to ensure it only contains the commands you intend to allow.
-4. **Use HTTPS**: Always use HTTPS URLs in your allowlist to prevent man-in-the-middle attacks.
+4. **Use HTTPS**: Use an HTTPS URL for your allowlist to prevent man-in-the-middle attacks.
 5. **Restrict edit access**: Ensure that only authorized users can edit the allowlist.
 6. **Validate entries**: Carefully review the allowlist to ensure only trusted commands are included.
 7. **Monitor installations**: Watch for rejected commands during extension installation, which might indicate attempted abuse.
