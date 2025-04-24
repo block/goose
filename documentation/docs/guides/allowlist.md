@@ -64,7 +64,7 @@ If this environment variable is not set, no allowlist restrictions are applied. 
 :::
 
 
-## Best Practices for Defining Allowlist Entries
+## Best Practices
 
 To effectively use the allowlist with exact matching:
 
