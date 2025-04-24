@@ -1826,59 +1826,6 @@ impl GoogleDriveRouter {
         }
     }
 
-    async fn upload(&self, params: Value) -> Result<Vec<Content>, ToolError> {
-        let filename =
-            params
-                .get("name")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The name param is required".to_string(),
-                ))?;
-
-        let mime_type =
-            params
-                .get("mimeType")
-                .and_then(|q| q.as_str())
-                .ok_or(ToolError::InvalidParameters(
-                    "The mimeType param is required".to_string(),
-                ))?;
-
-        let body = params.get("body").and_then(|q| q.as_str());
-        let path = params.get("path").and_then(|q| q.as_str());
-
-        let reader: Box<dyn ReadSeek> = match (body, path) {
-            (None, None) | (Some(_), Some(_)) => {
-                return Err(ToolError::InvalidParameters(
-                    "Either the body or path param is required".to_string(),
-                ))
-            }
-            (Some(b), None) => Box::new(Cursor::new(b.as_bytes().to_owned())),
-            (None, Some(p)) => Box::new(std::fs::File::open(p).map_err(|e| {
-                ToolError::ExecutionError(format!("Error opening {}: {}", p, e).to_string())
-            })?),
-        };
-
-        let parent_id = params.get("parentId").and_then(|q| q.as_str());
-
-        let allow_shared_drives = params
-            .get("allowSharedDrives")
-            .and_then(|q| q.as_bool())
-            .unwrap_or_default();
-
-        self.upload_to_drive(
-            FileOperation::Create {
-                name: filename.to_string(),
-            },
-            reader,
-            mime_type,
-            mime_type,
-            parent_id,
-            allow_shared_drives,
-            None,
-        )
-        .await
-    }
-
     async fn create_file(&self, params: Value) -> Result<Vec<Content>, ToolError> {
         // Extract common parameters
         let filename =
@@ -3014,7 +2961,6 @@ impl Router for GoogleDriveRouter {
             match tool_name.as_str() {
                 "search" => this.search(arguments).await,
                 "read" => this.read(arguments).await,
-                "upload" => this.upload(arguments).await,
                 "create_file" => this.create_file(arguments).await,
                 "move_file" => this.move_file(arguments).await,
                 "update_file" => this.update_file(arguments).await,
