@@ -29,8 +29,6 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
-  ExtensionRequestMessageContent,
-  ContextLengthExceededContent,
 } from '../types/message';
 
 export interface ChatType {
@@ -305,20 +303,27 @@ export default function ChatView({
     return message.content.some((content) => content.type === 'contextLengthExceeded');
   };
 
+  const handleContextLengthExceeded = () => {
+    // Otherwise, generate a summary
+    return mockContextApi(messages, 'summarize');
+  };
+
+  const mockContextApi = (messages: Message[], manage_action: 'summarize' | 'truncate') => {
+    if (manage_action === 'summarize') {
+      const preface = 'This is the summary of the whole conversation';
+      return `${preface}\n\n${formatCombinedMessages(messages)}`;
+    } else {
+      return '';
+    }
+  };
+
   const SummarizedNotification = ({
-    message,
+    summaryContent,
     onViewSummary,
   }: {
-    message: Message;
+    summaryContent: string;
     onViewSummary: (summaryContent: string) => void;
   }) => {
-    // Extract the contextLengthExceeded message content
-    const contextExceededContent = message.content.find(
-      (content): content is ContextLengthExceededContent => content.type === 'contextLengthExceeded'
-    );
-
-    const summaryContent = contextExceededContent?.msg || '';
-
     const handleViewSummary = () => {
       onViewSummary(summaryContent);
     };
@@ -436,7 +441,7 @@ export default function ChatView({
                       />
                       {process.env.ALPHA && hasContextLengthExceededContent(message) && (
                         <SummarizedNotification
-                          message={message}
+                          summaryContent={handleContextLengthExceeded()}
                           onViewSummary={handleViewSummary}
                         />
                       )}
@@ -498,4 +503,23 @@ export default function ChatView({
       )}
     </div>
   );
+}
+
+function formatCombinedMessages(messages) {
+  return messages
+    .map((message) => {
+      // Extract text from the message
+      const textContent = message.content
+        .filter((content) => content.type === 'text')
+        .map((content) => content.text)
+        .join(' ');
+
+      if (!textContent.trim()) return ''; // Skip empty messages
+
+      // Format based on role
+      const prefix = message.role === 'user' ? 'User: ' : 'Assistant: ';
+      return prefix + textContent;
+    })
+    .filter((text) => text !== '') // Remove empty entries
+    .join('\n\n'); // Join with double line breaks
 }

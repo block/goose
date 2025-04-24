@@ -278,16 +278,12 @@ export function useMessageStream({
           // Create a test assistant response with ContextLengthExceededContent
           const assistantResponse: Message = {
             role: 'assistant',
-            id: generateId(), // Make sure this function is available in your code
+            id: generateId(),
             created: Math.floor(Date.now() / 1000),
             content: [
               {
-                type: 'text',
-                text: "I notice our conversation is getting quite long. I'll summarize what we've discussed so far to help manage the context length.",
-              },
-              {
                 type: 'contextLengthExceeded',
-                msg: 'The conversation context length has been exceeded. Previous messages have been summarized.',
+                msg: 'The conversation context length has been exceeded.',
               },
             ],
           };
