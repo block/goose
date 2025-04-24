@@ -19,6 +19,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [isModelTruncated, setIsModelTruncated] = useState(false);
+  // eslint-disable-next-line no-undef
   const modelRef = useRef<HTMLSpanElement>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 

@@ -35,6 +35,7 @@ export default function BottomMenu({
   const { getProviders, read } = useConfig();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isDirTruncated, setIsDirTruncated] = useState(false);
+  // eslint-disable-next-line no-undef
   const dirRef = useRef<HTMLSpanElement>(null);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
