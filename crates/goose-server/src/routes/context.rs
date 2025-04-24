@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 // Direct message serialization for context mgmt request
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ContextManageRequest {
+pub struct ContextManageRequest {
     messages: Vec<Message>,
     manage_action: String,
 }
@@ -20,12 +20,12 @@ struct ContextManageRequest {
 // Direct message serialization for context mgmt request
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ContextManageResponse {
+pub struct ContextManageResponse {
     messages: Vec<Message>,
     token_counts: Vec<usize>,
 }
 
-async fn manage_handler(
+async fn manage_context(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(request): Json<ContextManageRequest>,
@@ -59,6 +59,6 @@ async fn manage_handler(
 // Configure routes for this module
 pub fn routes(state: AppState) -> Router {
     Router::new()
-        .route("/context/manage", post(manage_handler))
+        .route("/context/manage", post(manage_context))
         .with_state(state)
 }
