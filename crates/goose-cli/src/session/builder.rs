@@ -2,6 +2,7 @@ use console::style;
 use goose::agents::extension::ExtensionError;
 use goose::agents::Agent;
 use goose::config::{Config, ExtensionConfig, ExtensionConfigManager};
+use goose::providers::create;
 use goose::session;
 use goose::session::Identifier;
 use mcp_client::transport::Error as McpClientError;
@@ -46,11 +47,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> Session {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Run 'goose configure' first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    let provider =
-        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = Agent::new(provider);
+    let agent: Agent = Agent::new();
+    let new_provider = create(&provider_name, model_config).unwrap();
+    let _ = agent.update_provider(new_provider).await;
 
     // Handle session file resolution and resuming
     let session_file = if session_config.resume {

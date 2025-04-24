@@ -26,6 +26,7 @@ use std::{
     convert::Infallible,
     path::PathBuf,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -101,7 +102,7 @@ async fn stream_event(
 }
 
 async fn handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, StatusCode> {
@@ -119,15 +120,34 @@ async fn handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    // Get a lock on the shared agent
-    let agent = state.agent.clone();
-
     // Spawn task to handle streaming
     tokio::spawn(async move {
-        let agent = agent.read().await;
-        let agent = match agent.as_ref() {
-            Some(agent) => agent,
-            None => {
+        let agent = state.get_agent().await;
+        let agent = match agent {
+            Ok(agent) => {
+                let provider = agent.provider().await;
+                match provider {
+                    Ok(_) => agent,
+                    Err(_) => {
+                        let _ = stream_event(
+                            MessageEvent::Error {
+                                error: "No provider configured".to_string(),
+                            },
+                            &tx,
+                        )
+                        .await;
+                        let _ = stream_event(
+                            MessageEvent::Finish {
+                                reason: "error".to_string(),
+                            },
+                            &tx,
+                        )
+                        .await;
+                        return;
+                    }
+                }
+            }
+            Err(_) => {
                 let _ = stream_event(
                     MessageEvent::Error {
                         error: "No agent configured".to_string(),
@@ -147,7 +167,7 @@ async fn handler(
         };
 
         // Get the provider first, before starting the reply stream
-        let provider = agent.provider();
+        let provider = agent.provider().await;
 
         let mut stream = match agent
             .reply(
@@ -204,7 +224,7 @@ async fn handler(
                             // Store messages and generate description in background
                             let session_path = session_path.clone();
                             let messages = all_messages.clone();
-                            let provider = provider.clone();
+                            let provider = Arc::clone(provider.as_ref().unwrap());
                             tokio::spawn(async move {
                                 if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
                                     tracing::error!("Failed to store session history: {:?}", e);
@@ -262,7 +282,7 @@ struct AskResponse {
 
 // Simple ask an AI for a response, non streaming
 async fn ask_handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<AskRequest>,
 ) -> Result<Json<AskResponse>, StatusCode> {
@@ -275,12 +295,13 @@ async fn ask_handler(
         .session_id
         .unwrap_or_else(session::generate_session_id);
 
-    let agent = state.agent.clone();
-    let agent = agent.write().await;
-    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     // Get the provider first, before starting the reply stream
-    let provider = agent.provider();
+    let provider = agent.provider().await;
 
     // Create a single message for the prompt
     let messages = vec![Message::user().with_text(request.prompt)];
@@ -339,7 +360,7 @@ async fn ask_handler(
     // Store messages and generate description in background
     let session_path = session_path.clone();
     let messages = all_messages.clone();
-    let provider = provider.clone();
+    let provider = Arc::clone(provider.as_ref().unwrap());
     tokio::spawn(async move {
         if let Err(e) = session::persist_messages(&session_path, &messages, Some(provider)).await {
             tracing::error!("Failed to store session history: {:?}", e);
@@ -374,15 +395,16 @@ fn default_principal_type() -> PrincipalType {
     )
 )]
 pub async fn confirm_permission(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<PermissionConfirmationRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    let agent = state.agent.clone();
-    let agent = agent.read().await;
-    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     let permission = match request.action.as_str() {
         "always_allow" => Permission::AlwaysAllow,
@@ -410,7 +432,7 @@ struct ToolResultRequest {
 }
 
 async fn submit_tool_result(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     raw: axum::extract::Json<serde_json::Value>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -435,14 +457,16 @@ async fn submit_tool_result(
         }
     };
 
-    let agent = state.agent.read().await;
-    let agent = agent.as_ref().ok_or(StatusCode::NOT_FOUND)?;
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
     agent.handle_tool_result(payload.id, payload.result).await;
     Ok(Json(json!({"status": "ok"})))
 }
 
 // Configure routes for this module
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/reply", post(handler))
         .route("/ask", post(ask_handler))
@@ -496,9 +520,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
-        use std::collections::HashMap;
         use std::sync::Arc;
-        use tokio::sync::{Mutex, RwLock};
         use tower::ServiceExt;
 
         // This test requires tokio runtime
@@ -509,12 +531,9 @@ mod tests {
             let mock_provider = Arc::new(MockProvider {
                 model_config: mock_model_config,
             });
-            let agent = Agent::new(mock_provider);
-            let state = AppState {
-                config: Arc::new(Mutex::new(HashMap::new())),
-                agent: Arc::new(RwLock::new(Some(agent))),
-                secret_key: "test-secret".to_string(),
-            };
+            let agent = Agent::new();
+            let _ = agent.update_provider(mock_provider).await;
+            let state = AppState::new(Arc::new(agent), "test-secret".to_string()).await;
 
             // Build router
             let app = routes(state);

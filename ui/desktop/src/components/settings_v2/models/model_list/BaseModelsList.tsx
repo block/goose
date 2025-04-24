@@ -30,7 +30,7 @@ export function BaseModelsList({
   } else {
     modelList = providedModelList;
   }
-  const { read, upsert, getExtensions, addExtension } = useConfig();
+  const { read, upsert } = useConfig();
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -75,7 +75,7 @@ export function BaseModelsList({
   }, [read, modelList, upsert]);
 
   const handleModelSelection = async (model: Model) => {
-    await changeModel({ model: model, writeToConfig: upsert, getExtensions, addExtension });
+    await changeModel({ model: model, writeToConfig: upsert });
   };
 
   const handleRadioChange = async (model: Model) => {

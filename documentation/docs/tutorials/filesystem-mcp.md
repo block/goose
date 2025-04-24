@@ -142,7 +142,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   <TabItem value="ui" label="Goose Desktop">
 
     1. Click `...` in the upper right corner
-    2. Click `Settings`
+    2. Click `Advanced Settings`
     3. Under `Extensions`, click the `Add` link
     4. On the `Add Extension Manually` modal, enter the following:
             * **Type**: `Standard IO`

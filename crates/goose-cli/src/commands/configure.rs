@@ -983,11 +983,11 @@ pub async fn configure_tool_permissions_dialog() -> Result<(), Box<dyn Error>> {
         .get_param("GOOSE_MODEL")
         .expect("No model configured. Please set model first");
     let model_config = goose::model::ModelConfig::new(model.clone());
-    let provider =
-        goose::providers::create(&provider_name, model_config).expect("Failed to create provider");
 
     // Create the agent
-    let mut agent = Agent::new(provider);
+    let agent = Agent::new();
+    let new_provider = create(&provider_name, model_config)?;
+    agent.update_provider(new_provider).await?;
     if let Ok(Some(config)) = ExtensionConfigManager::get_config_by_name(&selected_extension_name) {
         agent
             .add_extension(config.clone())

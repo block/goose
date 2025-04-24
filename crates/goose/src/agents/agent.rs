@@ -12,12 +12,10 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
-use crate::token_counter::TokenCounter;
-use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -35,17 +33,13 @@ use mcp_core::{
 use super::platform_tools;
 use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
-const MAX_TRUNCATION_ATTEMPTS: usize = 3;
-const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
-
 /// The main goose Agent
 pub struct Agent {
-    pub(super) provider: Arc<dyn Provider>,
+    pub(super) provider: Mutex<Option<Arc<dyn Provider>>>,
     pub(super) extension_manager: Mutex<ExtensionManager>,
-    pub(super) frontend_tools: HashMap<String, FrontendTool>,
-    pub(super) frontend_instructions: Option<String>,
-    pub(super) prompt_manager: PromptManager,
-    pub(super) token_counter: TokenCounter,
+    pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
+    pub(super) frontend_instructions: Mutex<Option<String>>,
+    pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
@@ -53,43 +47,52 @@ pub struct Agent {
 }
 
 impl Agent {
-    pub fn new(provider: Arc<dyn Provider>) -> Self {
-        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
+    pub fn new() -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
 
         Self {
-            provider,
+            provider: Mutex::new(None),
             extension_manager: Mutex::new(ExtensionManager::new()),
-            frontend_tools: HashMap::new(),
-            frontend_instructions: None,
-            prompt_manager: PromptManager::new(),
-            token_counter,
+            frontend_tools: Mutex::new(HashMap::new()),
+            frontend_instructions: Mutex::new(None),
+            prompt_manager: Mutex::new(PromptManager::new()),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
         }
     }
+}
 
+impl Default for Agent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Agent {
     /// Get a reference count clone to the provider
-    pub fn provider(&self) -> Arc<dyn Provider> {
-        Arc::clone(&self.provider)
+    pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
+        match &*self.provider.lock().await {
+            Some(provider) => Ok(Arc::clone(provider)),
+            None => Err(anyhow!("Provider not set")),
+        }
     }
 
     /// Check if a tool is a frontend tool
-    pub fn is_frontend_tool(&self, name: &str) -> bool {
-        self.frontend_tools.contains_key(name)
+    pub async fn is_frontend_tool(&self, name: &str) -> bool {
+        self.frontend_tools.lock().await.contains_key(name)
     }
 
     /// Get a reference to a frontend tool
-    pub fn get_frontend_tool(&self, name: &str) -> Option<&FrontendTool> {
-        self.frontend_tools.get(name)
+    pub async fn get_frontend_tool(&self, name: &str) -> Option<FrontendTool> {
+        self.frontend_tools.lock().await.get(name).cloned()
     }
 
     /// Get all tools from all clients with proper prefixing
-    pub async fn get_prefixed_tools(&mut self) -> ExtensionResult<Vec<Tool>> {
+    pub async fn get_prefixed_tools(&self) -> ExtensionResult<Vec<Tool>> {
         let mut tools = self
             .extension_manager
             .lock()
@@ -98,7 +101,8 @@ impl Agent {
             .await?;
 
         // Add frontend tools directly - they don't need prefixing since they're already uniquely named
-        for frontend_tool in self.frontend_tools.values() {
+        let frontend_tools = self.frontend_tools.lock().await;
+        for frontend_tool in frontend_tools.values() {
             tools.push(frontend_tool.tool.clone());
         }
 
@@ -142,7 +146,7 @@ impl Agent {
                 .await
         } else if tool_call.name == PLATFORM_SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME {
             extension_manager.search_available_extensions().await
-        } else if self.is_frontend_tool(&tool_call.name) {
+        } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             Err(ToolError::ExecutionError(
                 "Frontend tool execution required".to_string(),
@@ -159,55 +163,6 @@ impl Agent {
         );
 
         (request_id, result)
-    }
-
-    /// Truncates the messages to fit within the model's context window
-    /// Ensures the last message is a user message and removes tool call-response pairs
-    async fn truncate_messages(
-        &self,
-        messages: &mut Vec<Message>,
-        estimate_factor: f32,
-        system_prompt: &str,
-        tools: &mut Vec<Tool>,
-    ) -> anyhow::Result<()> {
-        // Model's actual context limit
-        let context_limit = self.provider.get_model_config().context_limit();
-
-        // Our conservative estimate of the **target** context limit
-        // Our token count is an estimate since model providers often don't provide the tokenizer (eg. Claude)
-        let context_limit = (context_limit as f32 * estimate_factor) as usize;
-
-        // Take into account the system prompt, and our tools input and subtract that from the
-        // remaining context limit
-        let system_prompt_token_count = self.token_counter.count_tokens(system_prompt);
-        let tools_token_count = self.token_counter.count_tokens_for_tools(tools.as_slice());
-
-        // Check if system prompt + tools exceed our context limit
-        let remaining_tokens = context_limit
-            .checked_sub(system_prompt_token_count)
-            .and_then(|remaining| remaining.checked_sub(tools_token_count))
-            .ok_or_else(|| {
-                anyhow::anyhow!("System prompt and tools exceed estimated context limit")
-            })?;
-
-        let context_limit = remaining_tokens;
-
-        // Calculate current token count of each message, use count_chat_tokens to ensure we
-        // capture the full content of the message, include ToolRequests and ToolResponses
-        let mut token_counts: Vec<usize> = messages
-            .iter()
-            .map(|msg| {
-                self.token_counter
-                    .count_chat_tokens("", std::slice::from_ref(msg), &[])
-            })
-            .collect();
-
-        truncate_messages(
-            messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )
     }
 
     pub(super) async fn manage_extensions(
@@ -268,7 +223,7 @@ impl Agent {
         (request_id, result)
     }
 
-    pub async fn add_extension(&mut self, extension: ExtensionConfig) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 name: _,
@@ -277,19 +232,21 @@ impl Agent {
                 bundled: _,
             } => {
                 // For frontend tools, just store them in the frontend_tools map
+                let mut frontend_tools = self.frontend_tools.lock().await;
                 for tool in tools {
                     let frontend_tool = FrontendTool {
                         name: tool.name.clone(),
                         tool: tool.clone(),
                     };
-                    self.frontend_tools.insert(tool.name.clone(), frontend_tool);
+                    frontend_tools.insert(tool.name.clone(), frontend_tool);
                 }
                 // Store instructions if provided, using "frontend" as the key
+                let mut frontend_instructions = self.frontend_instructions.lock().await;
                 if let Some(instructions) = instructions {
-                    self.frontend_instructions = Some(instructions.clone());
+                    *frontend_instructions = Some(instructions.clone());
                 } else {
                     // Default frontend instructions if none provided
-                    self.frontend_instructions = Some(
+                    *frontend_instructions = Some(
                         "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string(),
                     );
                 }
@@ -325,7 +282,7 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn remove_extension(&mut self, name: &str) {
+    pub async fn remove_extension(&self, name: &str) {
         let mut extension_manager = self.extension_manager.lock().await;
         extension_manager
             .remove_extension(name)
@@ -360,7 +317,6 @@ impl Agent {
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut truncation_attempt: usize = 0;
 
         // Load settings from config
         let config = Config::global();
@@ -386,7 +342,7 @@ impl Agent {
             let _ = reply_span.enter();
             loop {
                 match Self::generate_response_from_provider(
-                    self.provider(),
+                    self.provider().await?,
                     &system_prompt,
                     &messages,
                     &tools,
@@ -398,14 +354,11 @@ impl Agent {
                             Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                         }
 
-                        // Reset truncation attempt
-                        truncation_attempt = 0;
-
                         // categorize the type of requests we need to handle
                         let (frontend_requests,
                             remaining_requests,
                             filtered_response) =
-                            self.categorize_tool_requests(&response);
+                            self.categorize_tool_requests(&response).await;
 
 
                         // Yield the assistant's response with frontend tool requests filtered out
@@ -456,8 +409,7 @@ impl Agent {
                                 tools_with_readonly_annotation.clone(),
                                 tools_without_annotation.clone(),
                                 &mut permission_manager,
-                                self.provider(),
-                            ).await;
+                                self.provider().await?).await;
 
                             // Handle pre-approved and read-only tools in parallel
                             let mut tool_futures: Vec<ToolFuture> = Vec::new();
@@ -529,24 +481,13 @@ impl Agent {
                         messages.push(final_message_tool_resp);
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
-                        if truncation_attempt >= MAX_TRUNCATION_ATTEMPTS {
-                            // Create an error message & terminate the stream
-                            // the previous message would have been a user message (e.g. before any tool calls, this is just after the input message.
-                            // at the start of a loop after a tool call, it would be after a tool_use assistant followed by a tool_result user)
-                            yield Message::assistant().with_text("Error: Context length exceeds limits even after multiple attempts to truncate. Please start a new session with fresh context and try again.");
-                            break;
-                        }
-                        truncation_attempt += 1;
-                        warn!("Context length exceeded. Truncation Attempt: {}/{}.", truncation_attempt, MAX_TRUNCATION_ATTEMPTS);
-                        // Decay the estimate factor as we make more truncation attempts
-                        // Estimate factor decays like this over time: 0.9, 0.81, 0.729, ...
-                        let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
-                        if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
-                            yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
-                            break;
-                        }
-                        // Retry the loop after truncation
-                        continue;
+                        // At this point, the last message should be a user message
+                        // because call to provider led to context length exceeded error
+                        // Immediately yield a special message and break
+                        yield Message::assistant().with_context_length_exceeded(
+                            "The context length of the model has been exceeded. Please start a new session and try again.",
+                        );
+                        break;
                     },
                     Err(e) => {
                         // Create an error message & terminate the stream
@@ -563,13 +504,21 @@ impl Agent {
     }
 
     /// Extend the system prompt with one line of additional instruction
-    pub async fn extend_system_prompt(&mut self, instruction: String) {
-        self.prompt_manager.add_system_prompt_extra(instruction);
+    pub async fn extend_system_prompt(&self, instruction: String) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.add_system_prompt_extra(instruction);
+    }
+
+    /// Update the provider used by this agent
+    pub async fn update_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+        *self.provider.lock().await = Some(provider);
+        Ok(())
     }
 
     /// Override the system prompt with a custom template
-    pub async fn override_system_prompt(&mut self, template: String) {
-        self.prompt_manager.set_system_prompt_override(template);
+    pub async fn override_system_prompt(&self, template: String) {
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.set_system_prompt_override(template);
     }
 
     pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
@@ -634,23 +583,29 @@ impl Agent {
         let extensions_info = extension_manager.get_extensions_info().await;
 
         // Get model name from provider
-        let model_config = self.provider.get_model_config();
+        let provider = self.provider().await?;
+        let model_config = provider.get_model_config();
         let model_name = &model_config.model_name;
 
-        let system_prompt = self.prompt_manager.build_system_prompt(
+        let prompt_manager = self.prompt_manager.lock().await;
+        let system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
-            self.frontend_instructions.clone(),
+            self.frontend_instructions.lock().await.clone(),
             extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
         );
 
-        let recipe_prompt = self.prompt_manager.get_recipe_prompt().await;
+        let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = extension_manager.get_prefixed_tools(None).await?;
 
         messages.push(Message::user().with_text(recipe_prompt));
 
         let (result, _usage) = self
             .provider
+            .lock()
+            .await
+            .as_ref()
+            .unwrap()
             .complete(&system_prompt, &messages, &tools)
             .await?;
 

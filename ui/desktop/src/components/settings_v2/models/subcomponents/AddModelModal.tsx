@@ -38,7 +38,7 @@ type AddModelModalProps = {
   setView: (view: View) => void;
 };
 export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
-  const { getProviders, upsert, getExtensions, addExtension } = useConfig();
+  const { getProviders, upsert } = useConfig();
   const { switchModel } = useModel();
   const [providerOptions, setProviderOptions] = useState([]);
   const [modelOptions, setModelOptions] = useState([]);
@@ -88,8 +88,6 @@ export const AddModelModal = ({ onClose, setView }: AddModelModalProps) => {
       await changeModel({
         model: modelObj,
         writeToConfig: upsert,
-        getExtensions,
-        addExtension,
       });
 
       // Update the model context
