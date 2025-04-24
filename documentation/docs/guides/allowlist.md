@@ -12,7 +12,7 @@ This guide explains how you can create an **allowlist** of safe extensions that 
 
 1. The allowlist is a YAML file that contains a list of allowed extension commands.
 2. Goose fetches the allowlist from a URL specified by the `GOOSE_ALLOWLIST` environment variable.
-3. The allowlist is fetched when first needed and is cached.
+3. The allowlist is fetched when first needed and is cached. It is refetched on every restart of Goose.
 4. When a user attempts to install an extension, Goose checks the MCP server's installation command against the allowlist.
 5. If the command is not in the allowlist, the extension installation is rejected.
 
