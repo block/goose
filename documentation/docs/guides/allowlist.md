@@ -14,7 +14,7 @@ An allowlist lets administrators control which commands can run in Goose's `stdi
 1. Goose fetches the allowlist from a URL specified by the `GOOSE_ALLOWLIST` environment variable.
 2. The allowlist is a YAML file that contains a list of allowed extension commands.
 3. The allowlist is fetched once when first needed and cached for the lifetime of the Goose server.
-4. When a Stdio extension is [added](/docs/getting-started/using-extensions#adding-extensions), Goose checks the command against the allowlist.
+4. When an extension is [added](/docs/getting-started/using-extensions#adding-extensions), Goose checks the MCP server's installation command against the allowlist.
 5. If the command is not in the allowlist, the extension registration is rejected.
 
 ## Configuration
