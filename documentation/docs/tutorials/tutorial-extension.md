@@ -83,7 +83,7 @@ goose configure
 </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
-  2. Click `Settings`
+  2. Click `Advanced Settings`
   3. Under `Extensions`, toggle `Tutorial` to on.
   </TabItem>
 </Tabs>
