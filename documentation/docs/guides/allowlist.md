@@ -6,7 +6,6 @@ sidebar_label: Goose Extension Allowlist
 
 Goose is an extensible framework that, by default, allows you to install any MCP server. However when using Goose in a corporate setting, you may want stricter controls on which MCP servers can be installed as extensions. This guide explains how your organization can create an approved list of safe extensions that work with both the desktop app and command line version of Goose. This keeps your system secure by making sure only trusted extensions can run commands. The approved list is known as an **allowlist**.
 
-## Overview
 An allowlist lets administrators control which commands can run in Goose's Stdio extensions. This security feature stops harmful extensions from running unapproved commands on your computer. When turned on, the Goose server agent only allows commands that are on the list. Any command not on this list are blocked, and a Goose user see an error message.
 
 
