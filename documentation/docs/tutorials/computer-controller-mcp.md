@@ -87,7 +87,7 @@ Let Goose complete its tasks without interruption - avoid using your mouse or ke
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
-  2. Click `Settings`
+  2. Click `Advanced Settings`
   3. Under `Extensions`, toggle `Computer Controller` to on.
   </TabItem>
 </Tabs>

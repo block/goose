@@ -6,6 +6,7 @@ mod prompt;
 mod thinking;
 
 pub use builder::{build_session, SessionBuilderConfig};
+use console::Color;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
@@ -284,7 +285,7 @@ impl Session {
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
-        let provider = self.agent.provider();
+        let provider = self.agent.provider().await?;
 
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
@@ -356,7 +357,7 @@ impl Session {
                             self.messages.push(Message::user().with_text(&content));
 
                             // Get the provider from the agent for description generation
-                            let provider = self.agent.provider();
+                            let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
                             session::persist_messages(
@@ -525,7 +526,7 @@ impl Session {
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider())
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
                 .await?;
 
         match planner_response_type {
@@ -592,7 +593,7 @@ impl Session {
             .reply(
                 &self.messages,
                 Some(SessionConfig {
-                    id: session_id,
+                    id: session_id.clone(),
                     working_dir: std::env::current_dir()
                         .expect("failed to get current session working directory"),
                 }),
@@ -622,6 +623,54 @@ impl Session {
                                     principal_type: PrincipalType::Tool,
                                     permission,
                                 },).await;
+                            } else if let Some(MessageContent::ContextLengthExceeded(_)) = message.content.first() {
+                                output::hide_thinking();
+
+                                let prompt = "The model's context length is maxed out. You will need to reduce the # msgs. Do you want to?".to_string();
+                                let selected = cliclack::select(prompt)
+                                    .item("clear", "Clear Session", "Removes all messages from Goose's memory")
+                                    .item("truncate", "Truncate Messages", "Removes old messages till context is within limits")
+                                    .item("summarize", "Summarize Session", "Summarize the session to reduce context length")
+                                    .interact()?;
+
+                                match selected {
+                                    "clear" => {
+                                        self.messages.clear();
+                                        let msg = format!("Session cleared.\n{}", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        break;  // exit the loop to hand back control to the user
+                                    }
+                                    "truncate" => {
+                                        // Truncate messages to fit within context length
+                                        let (truncated_messages, _) = self.agent.truncate_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose tried its best to truncate messages for you.", "-".repeat(50));
+                                        output::render_text("", Some(Color::Yellow), true);
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = truncated_messages;
+                                    }
+                                    "summarize" => {
+                                        // Summarize messages to fit within context length
+                                        let (summarized_messages, _) = self.agent.summarize_context(&self.messages).await?;
+                                        let msg = format!("Context maxed out\n{}\nGoose summarized messages for you.", "-".repeat(50));
+                                        output::render_text(&msg, Some(Color::Yellow), true);
+                                        self.messages = summarized_messages;
+                                    }
+                                    _ => {
+                                        unreachable!()
+                                    }
+                                }
+                                // Restart the stream after handling ContextLengthExceeded
+                                stream = self
+                                    .agent
+                                    .reply(
+                                        &self.messages,
+                                        Some(SessionConfig {
+                                            id: session_id.clone(),
+                                            working_dir: std::env::current_dir()
+                                                .expect("failed to get current session working directory"),
+                                        }),
+                                    )
+                                    .await?;
                             }
                             // otherwise we have a model/tool to render
                             else {

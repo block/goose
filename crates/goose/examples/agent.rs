@@ -15,7 +15,8 @@ async fn main() {
     let provider = Arc::new(DatabricksProvider::default());
 
     // Setup an agent with the developer extension
-    let mut agent = Agent::new(provider);
+    let agent = Agent::new();
+    let _ = agent.update_provider(provider).await;
 
     let config = ExtensionConfig::stdio(
         "developer",
