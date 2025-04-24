@@ -208,14 +208,6 @@ export function getToolResponses(message: Message): ToolResponseMessageContent[]
   );
 }
 
-export function getExtensionRequests(
-  message: Message
-): ExtensionRequestMessageContent[] {
-  return message.content.filter(
-    (content): content is ExtensionRequestMessageContent => content.type === 'extensionRequest'
-  );
-}
-
 export function getToolConfirmationContent(
   message: Message
 ): ToolConfirmationRequestMessageContent {
