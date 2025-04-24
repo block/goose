@@ -220,16 +220,12 @@ impl VeniceProvider {
 #[async_trait]
 impl Provider for VeniceProvider {
     fn metadata() -> ProviderMetadata {
-        let known_models: Vec<String> = FALLBACK_MODELS.iter().map(|&s| s.to_string()).collect();
-
-        let description = { format!("Open-source & private: Llama, DeepSeek, Mistral, ...") };
-
         ProviderMetadata::new(
             "venice",
             "Venice.ai",
-            &description,
+            "Venice.ai models (Llama, DeepSeek, Mistral) with function calling",
             VENICE_DEFAULT_MODEL,
-            known_models,
+            FALLBACK_MODELS.to_vec(),
             VENICE_DOC_URL,
             vec![
                 ConfigKey::new("VENICE_API_KEY", true, true, None),

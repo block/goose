@@ -214,33 +214,4 @@ export const PROVIDER_REGISTRY: ProviderRegistry[] = [
       ],
     },
   },
-  {
-    name: 'Venice',
-    details: {
-      id: 'venice',
-      name: 'Venice',
-      description: 'Venice.ai models (Llama, DeepSeek, Mistral) with function calling   port',
-      parameters: [
-        {
-          name: 'VENICE_API_KEY',
-          is_secret: true,
-        },
-        {
-          name: 'VENICE_HOST',
-          is_secret: false,
-          default: 'https://api.venice.ai',
-        },
-        {
-          name: 'VENICE_BASE_PATH',
-          is_secret: false,
-          default: 'v1/chat/completions',
-        },
-        {
-          name: 'VENICE_MODELS_PATH',
-          is_secret: false,
-          default: 'v1/models',
-        },
-      ],
-    },
-  },
 ];
