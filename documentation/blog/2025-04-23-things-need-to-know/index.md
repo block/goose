@@ -1,6 +1,6 @@
 ---
 title: "4 Things You Need to Know Before Using Goose"
-description: "Learn what you need to get starte with Goose,local, open-source, and powered by the LLM of choice."
+description: "Learn what you need to get started with Goose - a local open source AI agent that's powered by the LLM of your choice."
 authors: 
     - ebony
 ---
@@ -29,27 +29,29 @@ Here’s what makes Goose different:
 - You **bring your own LLM**, allowing you to use the one that works best for you
 - You can **add new capabilities**, using open-source MCP servers
 
-Think of it less like “an AI assistant” and more like “your personal automation toolkit.” You decide which LLM to use, what tools it should have access to, and what tasks it can perform. You’re not locked in, you’re in charge.
+Think of it less like “an AI assistant” and more like “your personal automation toolkit.” You decide which LLM to use, what tools it should have access to, and what tasks it can perform. You're not locked in; you're in charge.
 
 ---
 
 ## 1. Pick the Right LLM
 
-Goose doesn’t bundle in an LLM, you bring your own. That means you get to choose what kind of model works best for you, whether it’s a fancy hosted one like Claude or Gemini, or something more private and local like Ollama.
+Goose doesn’t bundle in an LLM. You bring your own LLM. That means you get to choose what kind of model works best for you, whether it’s a fancy hosted one like Claude or Gemini, or something more private and local like Ollama.
 
 But heads up: not every model is created equal, especially when it comes to privacy, performance, or how much they charge you per token. If you're just exploring, a cloud-hosted LLM with a free tier is a great place to start. But if you’re working with sensitive data or just don’t want to send things off to a third-party server, local is the way to go.
 
 Either way, Goose gives you the flexibility.
 
-That said, if you’re looking for the best performance with Goose right now, Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) are recommended, as they currently offer the strongest support for tool calling.
+That said, if you’re looking for the best performance with Goose right now, Anthropic's Claude 3.5 Sonnet and OpenAI's GPT-4o (2024-11-20) are recommended, as they currently offer the strongest support for tool calling. 
 
-You can check out the full list of [available LLM providers here](https://block.github.io/goose/docs/getting-started/providers#available-providers).
+Curious how other models stack up? Check out the [Community-Inspired Benchmark Leaderboard](https://block.github.io/goose/blog/2025/03/31/goose-benchmark/#leaderboard) to see how your favorite model performs with Goose.
+
+And if you’re still deciding, here’s the full list of [available LLM providers](https://block.github.io/goose/docs/getting-started/providers#available-providers).
 
 ---
 
 ## 2. Understand What MCP Servers Are
 
-Here’s where things get fun. Goose is a client that speaks **MCP**—the Model Context Protocol. MCP is what makes it possible to talk to other apps and tools *as part of your prompt*. Want to read emails, check GitHub issues, run a Cypress test, or scrape a webpage? That’s where MCP servers come in.
+Here’s where things get fun. Goose is a client that speaks **MCP**. MCP is what makes it possible to talk to other apps and tools *as part of your prompt*. Want to read emails, check GitHub issues, run an automated test, or scrape a webpage? That’s where MCP servers come in.
 
 Each server gives Goose a new ability.
 
@@ -83,24 +85,23 @@ You’ll find those livestreams on our [YouTube channel](https://www.youtube.com
 
 ---
 
-If you’ve got those four things, a solid LLM, the right servers, a basic understanding of LLM cost, and a place to ask questions you’re more than ready to Goose.
+If you've got those four things: a performant LLM, the right MCP servers, a basic understanding of LLM cost, and a place to ask questions, you're more than ready to Goose.
 
 Now, head over to the [Quickstart Guide](https://block.github.io/goose/docs/quickstart) and get started.  
 
-Oh and when you get to the [Tic-Tac-Toe game](https://block.github.io/goose/docs/quickstart/#write-prompt)?
-I’ll bet you 10 Goosebucks you won’t beat the bot. 
+Oh and when you get to the [Tic-Tac-Toe game](https://block.github.io/goose/docs/quickstart/#write-prompt), I’ll bet you 10 Goosebucks you won’t beat the bot. 
 
 
 
 <head>
   <meta property="og:title" content="4 Things You Need to Know Before Using Goose" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/22/community-bestcodes" />
-  <meta property="og:description" content="Learn what you need to get starte with Goose,local, open-source, and powered by the LLM of choice." />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/04/23/things-need-to-know" />
+  <meta property="og:description" content="Learn what you need to get started with Goose - a local open source AI agent that's powered by the LLM of your choice." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/cover-2ba7c2e15786be2db6108c91d27dc1ec.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="4 Things You Need to Know Before Using Goose" />
-  <meta name="twitter:description" content="Learn what you need to get starte with Goose,local, open-source, and powered by the LLM of choice." />
+  <meta name="twitter:description" content="Learn what you need to get started with Goose - a local open source AI agent that's powered by the LLM of your choice." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/cover-2ba7c2e15786be2db6108c91d27dc1ec.png" />
 </head>
