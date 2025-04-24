@@ -285,7 +285,7 @@ impl Session {
     async fn process_message(&mut self, message: String) -> Result<()> {
         self.messages.push(Message::user().with_text(&message));
         // Get the provider from the agent for description generation
-        let provider = self.agent.provider();
+        let provider = self.agent.provider().await?;
 
         // Persist messages with provider for automatic description generation
         session::persist_messages(&self.session_file, &self.messages, Some(provider)).await?;
@@ -357,7 +357,7 @@ impl Session {
                             self.messages.push(Message::user().with_text(&content));
 
                             // Get the provider from the agent for description generation
-                            let provider = self.agent.provider();
+                            let provider = self.agent.provider().await?;
 
                             // Persist messages with provider for automatic description generation
                             session::persist_messages(
@@ -526,7 +526,7 @@ impl Session {
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
         let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider())
+            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
                 .await?;
 
         match planner_response_type {

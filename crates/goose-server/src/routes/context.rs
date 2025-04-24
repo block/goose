@@ -8,6 +8,7 @@ use axum::{
 };
 use goose::message::Message;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 // Direct message serialization for context mgmt request
 #[derive(Debug, Deserialize)]
@@ -26,15 +27,16 @@ pub struct ContextManageResponse {
 }
 
 async fn manage_context(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(request): Json<ContextManageRequest>,
 ) -> Result<Json<ContextManageResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
 
-    // Get a lock on the shared agent
-    let agent = state.agent.read().await;
-    let agent = agent.as_ref().ok_or(StatusCode::PRECONDITION_REQUIRED)?;
+    let agent = state
+        .get_agent()
+        .await
+        .map_err(|_| StatusCode::PRECONDITION_FAILED)?;
 
     let mut processed_messages: Vec<Message> = vec![];
     let mut token_counts: Vec<usize> = vec![];
@@ -57,7 +59,7 @@ async fn manage_context(
 }
 
 // Configure routes for this module
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/context/manage", post(manage_context))
         .with_state(state)

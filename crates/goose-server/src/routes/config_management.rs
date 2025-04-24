@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_yaml;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
@@ -89,7 +89,7 @@ pub struct UpsertPermissionsQuery {
     )
 )]
 pub async fn upsert_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(query): Json<UpsertConfigQuery>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -116,7 +116,7 @@ pub async fn upsert_config(
     )
 )]
 pub async fn remove_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<String>, StatusCode> {
@@ -148,7 +148,7 @@ pub async fn remove_config(
     )
 )]
 pub async fn read_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -180,7 +180,7 @@ pub async fn read_config(
     )
 )]
 pub async fn get_extensions(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<ExtensionResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
@@ -213,7 +213,7 @@ pub async fn get_extensions(
     )
 )]
 pub async fn add_extension(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(extension_query): Json<ExtensionQuery>,
 ) -> Result<Json<String>, StatusCode> {
@@ -251,7 +251,7 @@ pub async fn add_extension(
     )
 )]
 pub async fn remove_extension(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<String>, StatusCode> {
@@ -272,7 +272,7 @@ pub async fn remove_extension(
     )
 )]
 pub async fn read_all_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<ConfigResponse>, StatusCode> {
     // Use the helper function to verify the secret key
@@ -297,7 +297,7 @@ pub async fn read_all_config(
     )
 )]
 pub async fn providers(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<ProviderDetails>>, StatusCode> {
     verify_secret_key(&headers, &state)?;
@@ -332,7 +332,7 @@ pub async fn providers(
     )
 )]
 pub async fn init_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
@@ -402,7 +402,7 @@ pub async fn init_config(
     )
 )]
 pub async fn upsert_permissions(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, StatusCode> {
@@ -435,7 +435,7 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
     )
 )]
 pub async fn backup_config(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<String>, StatusCode> {
     verify_secret_key(&headers, &state)?;
@@ -466,7 +466,7 @@ pub async fn backup_config(
     }
 }
 
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
         .route("/config/upsert", post(upsert_config))
