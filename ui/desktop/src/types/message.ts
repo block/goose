@@ -73,12 +73,18 @@ export interface ExtensionCallResult<T> {
   error?: string;
 }
 
+export interface ContextLengthExceededContent {
+  type: 'contextLengthExceeded';
+  msg: string;
+}
+
 export type MessageContent =
   | TextContent
   | ImageContent
   | ToolRequestMessageContent
   | ToolResponseMessageContent
-  | ToolConfirmationRequestMessageContent;
+  | ToolConfirmationRequestMessageContent
+  | ContextLengthExceededContent;
 
 export interface Message {
   id?: string;
@@ -175,8 +181,18 @@ function generateId(): string {
 // Helper functions to extract content from messages
 export function getTextContent(message: Message): string {
   return message.content
-    .filter((content): content is TextContent => content.type === 'text')
-    .map((content) => content.text)
+    .filter(
+      (content): content is TextContent | ContextLengthExceededContent =>
+        content.type === 'text' || content.type === 'contextLengthExceeded'
+    )
+    .map((content) => {
+      if (content.type === 'text') {
+        return content.text;
+      } else if (content.type === 'contextLengthExceeded') {
+        return content.msg;
+      }
+      return '';
+    })
     .join('\n');
 }
 

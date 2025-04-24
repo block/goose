@@ -12,12 +12,10 @@ use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe};
-use crate::token_counter::TokenCounter;
-use crate::truncate::{truncate_messages, OldestFirstTruncation};
 use regex::Regex;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{debug, error, instrument, warn};
+use tracing::{debug, error, instrument};
 
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -35,9 +33,6 @@ use mcp_core::{
 use super::platform_tools;
 use super::tool_execution::{ToolFuture, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 
-const MAX_TRUNCATION_ATTEMPTS: usize = 3;
-const ESTIMATE_FACTOR_DECAY: f32 = 0.9;
-
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: Arc<dyn Provider>,
@@ -45,7 +40,7 @@ pub struct Agent {
     pub(super) frontend_tools: HashMap<String, FrontendTool>,
     pub(super) frontend_instructions: Option<String>,
     pub(super) prompt_manager: PromptManager,
-    pub(super) token_counter: TokenCounter,
+    // Channels for tool results and confirmations
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
@@ -54,7 +49,6 @@ pub struct Agent {
 
 impl Agent {
     pub fn new(provider: Arc<dyn Provider>) -> Self {
-        let token_counter = TokenCounter::new(provider.get_model_config().tokenizer_name());
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
@@ -65,7 +59,6 @@ impl Agent {
             frontend_tools: HashMap::new(),
             frontend_instructions: None,
             prompt_manager: PromptManager::new(),
-            token_counter,
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
@@ -159,55 +152,6 @@ impl Agent {
         );
 
         (request_id, result)
-    }
-
-    /// Truncates the messages to fit within the model's context window
-    /// Ensures the last message is a user message and removes tool call-response pairs
-    async fn truncate_messages(
-        &self,
-        messages: &mut Vec<Message>,
-        estimate_factor: f32,
-        system_prompt: &str,
-        tools: &mut Vec<Tool>,
-    ) -> anyhow::Result<()> {
-        // Model's actual context limit
-        let context_limit = self.provider.get_model_config().context_limit();
-
-        // Our conservative estimate of the **target** context limit
-        // Our token count is an estimate since model providers often don't provide the tokenizer (eg. Claude)
-        let context_limit = (context_limit as f32 * estimate_factor) as usize;
-
-        // Take into account the system prompt, and our tools input and subtract that from the
-        // remaining context limit
-        let system_prompt_token_count = self.token_counter.count_tokens(system_prompt);
-        let tools_token_count = self.token_counter.count_tokens_for_tools(tools.as_slice());
-
-        // Check if system prompt + tools exceed our context limit
-        let remaining_tokens = context_limit
-            .checked_sub(system_prompt_token_count)
-            .and_then(|remaining| remaining.checked_sub(tools_token_count))
-            .ok_or_else(|| {
-                anyhow::anyhow!("System prompt and tools exceed estimated context limit")
-            })?;
-
-        let context_limit = remaining_tokens;
-
-        // Calculate current token count of each message, use count_chat_tokens to ensure we
-        // capture the full content of the message, include ToolRequests and ToolResponses
-        let mut token_counts: Vec<usize> = messages
-            .iter()
-            .map(|msg| {
-                self.token_counter
-                    .count_chat_tokens("", std::slice::from_ref(msg), &[])
-            })
-            .collect();
-
-        truncate_messages(
-            messages,
-            &mut token_counts,
-            context_limit,
-            &OldestFirstTruncation,
-        )
     }
 
     pub(super) async fn manage_extensions(
@@ -360,7 +304,6 @@ impl Agent {
     ) -> anyhow::Result<BoxStream<'_, anyhow::Result<Message>>> {
         let mut messages = messages.to_vec();
         let reply_span = tracing::Span::current();
-        let mut truncation_attempt: usize = 0;
 
         // Load settings from config
         let config = Config::global();
@@ -397,9 +340,6 @@ impl Agent {
                         if let Some(session_config) = session.clone() {
                             Self::update_session_metrics(session_config, &usage, messages.len()).await?;
                         }
-
-                        // Reset truncation attempt
-                        truncation_attempt = 0;
 
                         // categorize the type of requests we need to handle
                         let (frontend_requests,
@@ -529,24 +469,13 @@ impl Agent {
                         messages.push(final_message_tool_resp);
                     },
                     Err(ProviderError::ContextLengthExceeded(_)) => {
-                        if truncation_attempt >= MAX_TRUNCATION_ATTEMPTS {
-                            // Create an error message & terminate the stream
-                            // the previous message would have been a user message (e.g. before any tool calls, this is just after the input message.
-                            // at the start of a loop after a tool call, it would be after a tool_use assistant followed by a tool_result user)
-                            yield Message::assistant().with_text("Error: Context length exceeds limits even after multiple attempts to truncate. Please start a new session with fresh context and try again.");
-                            break;
-                        }
-                        truncation_attempt += 1;
-                        warn!("Context length exceeded. Truncation Attempt: {}/{}.", truncation_attempt, MAX_TRUNCATION_ATTEMPTS);
-                        // Decay the estimate factor as we make more truncation attempts
-                        // Estimate factor decays like this over time: 0.9, 0.81, 0.729, ...
-                        let estimate_factor: f32 = ESTIMATE_FACTOR_DECAY.powi(truncation_attempt as i32);
-                        if let Err(err) = self.truncate_messages(&mut messages, estimate_factor, &system_prompt, &mut tools).await {
-                            yield Message::assistant().with_text(format!("Error: Unable to truncate messages to stay within context limit. \n\nRan into this error: {}.\n\nPlease start a new session with fresh context and try again.", err));
-                            break;
-                        }
-                        // Retry the loop after truncation
-                        continue;
+                        // At this point, the last message should be a user message
+                        // because call to provider led to context length exceeded error
+                        // Immediately yield a special message and break
+                        yield Message::assistant().with_context_length_exceeded(
+                            "The context length of the model has been exceeded. Please start a new session and try again.",
+                        );
+                        break;
                     },
                     Err(e) => {
                         // Create an error message & terminate the stream

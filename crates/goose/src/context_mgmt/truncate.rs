@@ -4,77 +4,6 @@ use mcp_core::Role;
 use std::collections::HashSet;
 use tracing::debug;
 
-/// Trait representing a truncation strategy
-pub trait TruncationStrategy {
-    /// Determines the indices of messages to remove to fit within the context limit.
-    ///
-    /// - `messages`: The list of messages in the conversation.
-    /// - `token_counts`: A parallel array containing the token count for each message.
-    /// - `context_limit`: The maximum allowed context length in tokens.
-    ///
-    /// Returns a vector of indices to remove.
-    fn determine_indices_to_remove(
-        &self,
-        messages: &[Message],
-        token_counts: &[usize],
-        context_limit: usize,
-    ) -> Result<HashSet<usize>>;
-}
-
-/// Strategy to truncate messages by removing the oldest first
-pub struct OldestFirstTruncation;
-/// Strategy to truncate messages explicitly
-pub struct ExplicitTruncation;
-
-impl TruncationStrategy for OldestFirstTruncation {
-    fn determine_indices_to_remove(
-        &self,
-        messages: &[Message],
-        token_counts: &[usize],
-        context_limit: usize,
-    ) -> Result<HashSet<usize>> {
-        let mut indices_to_remove = HashSet::new();
-        let mut total_tokens: usize = token_counts.iter().sum();
-        let mut tool_ids_to_remove = HashSet::new();
-
-        for (i, message) in messages.iter().enumerate() {
-            if total_tokens <= context_limit {
-                break;
-            }
-
-            // Remove the message
-            indices_to_remove.insert(i);
-            total_tokens -= token_counts[i];
-            debug!(
-                "OldestFirst: Removing message at index {}. Tokens removed: {}",
-                i, token_counts[i]
-            );
-
-            // If it's a ToolRequest or ToolResponse, mark its pair for removal
-            if message.is_tool_call() || message.is_tool_response() {
-                message.get_tool_ids().iter().for_each(|id| {
-                    tool_ids_to_remove.insert((i, id.to_string()));
-                });
-            }
-        }
-
-        // Now, find and remove paired ToolResponses or ToolRequests
-        for (i, message) in messages.iter().enumerate() {
-            let message_tool_ids = message.get_tool_ids();
-            // Find the other part of the pair - same tool_id but different message index
-            for (message_idx, tool_id) in &tool_ids_to_remove {
-                if message_idx != &i && message_tool_ids.contains(tool_id.as_str()) {
-                    indices_to_remove.insert(i);
-                    // No need to check other tool_ids for this message since it's already marked
-                    break;
-                }
-            }
-        }
-
-        Ok(indices_to_remove)
-    }
-}
-
 /// Truncates the messages to fit within the model's context window.
 /// Mutates the input messages and token counts in place.
 /// Returns an error if it's impossible to truncate the messages within the context limit.
@@ -83,11 +12,14 @@ impl TruncationStrategy for OldestFirstTruncation {
 /// - context_limit: The maximum allowed context length in tokens.
 /// - strategy: The truncation strategy to use. Only option is OldestFirstTruncation.
 pub fn truncate_messages(
-    messages: &mut Vec<Message>,
-    token_counts: &mut Vec<usize>,
+    messages: &[Message],
+    token_counts: &[usize],
     context_limit: usize,
     strategy: &dyn TruncationStrategy,
-) -> Result<(), anyhow::Error> {
+) -> Result<(Vec<Message>, Vec<usize>), anyhow::Error> {
+    let mut messages = messages.to_owned();
+    let mut token_counts = token_counts.to_owned();
+
     if messages.len() != token_counts.len() {
         return Err(anyhow!(
             "The vector for messages and token_counts must have same length"
@@ -114,12 +46,12 @@ pub fn truncate_messages(
     }
 
     if total_tokens <= context_limit {
-        return Ok(()); // No truncation needed
+        return Ok((messages, token_counts)); // No truncation needed
     }
 
     // Step 2: Determine indices to remove based on strategy
     let indices_to_remove =
-        strategy.determine_indices_to_remove(messages, token_counts, context_limit)?;
+        strategy.determine_indices_to_remove(&messages, &token_counts, context_limit)?;
 
     // Step 3: Remove the marked messages
     // Vectorize the set and sort in reverse order to avoid shifting indices when removing
@@ -174,10 +106,77 @@ pub fn truncate_messages(
     }
 
     debug!("Truncation complete. Total tokens: {}", total_tokens);
-    Ok(())
+    Ok((messages, token_counts))
 }
 
-// truncate.rs
+/// Trait representing a truncation strategy
+pub trait TruncationStrategy {
+    /// Determines the indices of messages to remove to fit within the context limit.
+    ///
+    /// - `messages`: The list of messages in the conversation.
+    /// - `token_counts`: A parallel array containing the token count for each message.
+    /// - `context_limit`: The maximum allowed context length in tokens.
+    ///
+    /// Returns a vector of indices to remove.
+    fn determine_indices_to_remove(
+        &self,
+        messages: &[Message],
+        token_counts: &[usize],
+        context_limit: usize,
+    ) -> Result<HashSet<usize>>;
+}
+
+/// Strategy to truncate messages by removing the oldest first
+pub struct OldestFirstTruncation;
+
+impl TruncationStrategy for OldestFirstTruncation {
+    fn determine_indices_to_remove(
+        &self,
+        messages: &[Message],
+        token_counts: &[usize],
+        context_limit: usize,
+    ) -> Result<HashSet<usize>> {
+        let mut indices_to_remove = HashSet::new();
+        let mut total_tokens: usize = token_counts.iter().sum();
+        let mut tool_ids_to_remove = HashSet::new();
+
+        for (i, message) in messages.iter().enumerate() {
+            if total_tokens <= context_limit {
+                break;
+            }
+
+            // Remove the message
+            indices_to_remove.insert(i);
+            total_tokens -= token_counts[i];
+            debug!(
+                "OldestFirst: Removing message at index {}. Tokens removed: {}",
+                i, token_counts[i]
+            );
+
+            // If it's a ToolRequest or ToolResponse, mark its pair for removal
+            if message.is_tool_call() || message.is_tool_response() {
+                message.get_tool_ids().iter().for_each(|id| {
+                    tool_ids_to_remove.insert((i, id.to_string()));
+                });
+            }
+        }
+
+        // Now, find and remove paired ToolResponses or ToolRequests
+        for (i, message) in messages.iter().enumerate() {
+            let message_tool_ids = message.get_tool_ids();
+            // Find the other part of the pair - same tool_id but different message index
+            for (message_idx, tool_id) in &tool_ids_to_remove {
+                if message_idx != &i && message_tool_ids.contains(tool_id.as_str()) {
+                    indices_to_remove.insert(i);
+                    // No need to check other tool_ids for this message since it's already marked
+                    break;
+                }
+            }
+        }
+
+        Ok(indices_to_remove)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -326,7 +325,7 @@ mod tests {
         let (mut messages, mut token_counts) = create_messages_with_counts(2, 25, false);
         let context_limit = 100; // Exactly matches total tokens
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -340,7 +339,7 @@ mod tests {
         messages.push(user_text(5, 1).0);
         token_counts.push(1);
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
@@ -380,7 +379,7 @@ mod tests {
         let mut messages_clone = messages.clone();
         let mut token_counts_clone = token_counts.clone();
 
-        truncate_messages(
+        (messages_clone, _) = truncate_messages(
             &mut messages_clone,
             &mut token_counts_clone,
             context_limit,
@@ -425,7 +424,7 @@ mod tests {
         let mut token_counts = vec![50, 10, 10, 20, 5];
         let context_limit = 45; // Force truncation
 
-        truncate_messages(
+        (messages, token_counts) = truncate_messages(
             &mut messages,
             &mut token_counts,
             context_limit,
