@@ -14,11 +14,12 @@ use mcp_core::prompt::{PromptMessage, PromptMessageContent, PromptMessageRole};
 use mcp_core::resource::ResourceContents;
 use mcp_core::role::Role;
 use mcp_core::tool::ToolCall;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod tool_result_serde;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolRequest {
     pub id: String,
@@ -42,7 +43,7 @@ impl ToolRequest {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolResponse {
     pub id: String,
@@ -50,7 +51,7 @@ pub struct ToolResponse {
     pub tool_result: ToolResult<Vec<Content>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolConfirmationRequest {
     pub id: String,
@@ -59,18 +60,18 @@ pub struct ToolConfirmationRequest {
     pub prompt: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ThinkingContent {
     pub thinking: String,
     pub signature: String,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedactedThinkingContent {
     pub data: String,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
@@ -78,7 +79,12 @@ pub struct FrontendToolRequest {
     pub tool_call: ToolResult<ToolCall>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContextLengthExceeded {
+    pub msg: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -90,6 +96,7 @@ pub enum MessageContent {
     FrontendToolRequest(FrontendToolRequest),
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
+    ContextLengthExceeded(ContextLengthExceeded),
 }
 
 impl MessageContent {
@@ -153,6 +160,11 @@ impl MessageContent {
             tool_call,
         })
     }
+
+    pub fn context_length_exceeded<S: Into<String>>(msg: S) -> Self {
+        MessageContent::ContextLengthExceeded(ContextLengthExceeded { msg: msg.into() })
+    }
+
     pub fn as_tool_request(&self) -> Option<&ToolRequest> {
         if let MessageContent::ToolRequest(ref tool_request) = self {
             Some(tool_request)
@@ -261,7 +273,7 @@ impl From<PromptMessage> for Message {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 /// A message to or from an LLM
 #[serde(rename_all = "camelCase")]
 pub struct Message {
@@ -356,6 +368,11 @@ impl Message {
     /// Add redacted thinking content to the message
     pub fn with_redacted_thinking<S: Into<String>>(self, data: S) -> Self {
         self.with_content(MessageContent::redacted_thinking(data))
+    }
+
+    /// Add context length exceeded content to the message
+    pub fn with_context_length_exceeded<S: Into<String>>(self, msg: S) -> Self {
+        self.with_content(MessageContent::context_length_exceeded(msg))
     }
 
     /// Get the concatenated text content of the message, separated by newlines

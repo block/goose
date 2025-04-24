@@ -1,4 +1,4 @@
-use crate::agents::platform_tools::PLATFORM_ENABLE_EXTENSION_TOOL_NAME;
+use crate::agents::platform_tools::PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME;
 use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::message::{Message, MessageContent, ToolRequest};
@@ -170,7 +170,7 @@ pub async fn check_tool_permissions(
     let mut needs_approval = vec![];
     let mut denied = vec![];
     let mut llm_detect_candidates = vec![];
-    let mut enable_extension_request_ids = vec![];
+    let mut extension_request_ids = vec![];
 
     for request in candidate_requests {
         if let Ok(tool_call) = request.tool_call.clone() {
@@ -179,8 +179,8 @@ pub async fn check_tool_permissions(
             } else if mode == "auto" {
                 approved.push(request.clone());
             } else {
-                if tool_call.name == PLATFORM_ENABLE_EXTENSION_TOOL_NAME {
-                    enable_extension_request_ids.push(request.id.clone());
+                if tool_call.name == PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME {
+                    extension_request_ids.push(request.id.clone());
                 }
 
                 // 1. Check user-defined permission
@@ -255,7 +255,7 @@ pub async fn check_tool_permissions(
             needs_approval,
             denied,
         },
-        enable_extension_request_ids,
+        extension_request_ids,
     )
 }
 
@@ -430,8 +430,8 @@ mod tests {
         let enable_extension = ToolRequest {
             id: "tool_3".to_string(),
             tool_call: ToolResult::Ok(ToolCall {
-                name: PLATFORM_ENABLE_EXTENSION_TOOL_NAME.to_string(),
-                arguments: serde_json::json!({"url": "http://example.com"}),
+                name: PLATFORM_MANAGE_EXTENSIONS_TOOL_NAME.to_string(),
+                arguments: serde_json::json!({"action": "enable", "extension_name": "data_fetcher"}),
             }),
         };
 

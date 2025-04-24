@@ -40,6 +40,7 @@ impl Agent {
         let mut system_prompt = prompt_manager.build_system_prompt(
             extensions_info,
             self.frontend_instructions.lock().await.clone(),
+            extension_manager.suggest_disable_extensions_prompt().await,
             Some(model_name),
         );
 

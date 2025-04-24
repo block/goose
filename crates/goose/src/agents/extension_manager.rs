@@ -288,6 +288,38 @@ impl ExtensionManager {
         Ok(())
     }
 
+    pub async fn suggest_disable_extensions_prompt(&self) -> Value {
+        let enabled_extensions_count = self.clients.len();
+
+        let total_tools = self
+            .get_prefixed_tools(None)
+            .await
+            .map(|tools| tools.len())
+            .unwrap_or(0);
+
+        // Check if either condition is met
+        const MIN_EXTENSIONS: usize = 5;
+        const MIN_TOOLS: usize = 50;
+
+        if enabled_extensions_count > MIN_EXTENSIONS || total_tools > MIN_TOOLS {
+            Value::String(format!(
+                "The user currently has enabled {} extensions with a total of {} tools. \
+                Since this exceeds the recommended limits ({} extensions or {} tools), \
+                you should ask the user if they would like to disable some extensions for this session.\n\n\
+                Use the search_available_extensions tool to find extensions available to disable. \
+                You should only disable extensions found from the search_available_extensions tool. \
+                List all the extensions available to disable in the response. \
+                Explain that minimizing extensions helps with the recall of the correct tools to use.",
+                enabled_extensions_count,
+                total_tools,
+                MIN_EXTENSIONS,
+                MIN_TOOLS,
+            ))
+        } else {
+            Value::String(String::new()) // Empty string if under limits
+        }
+    }
+
     pub async fn list_extensions(&self) -> ExtensionResult<Vec<String>> {
         Ok(self.clients.keys().cloned().collect())
     }
@@ -725,14 +757,30 @@ impl ExtensionManager {
             }
         }
 
+        // Get currently enabled extensions that can be disabled
+        let enabled_extensions: Vec<String> = self.clients.keys().cloned().collect();
+
+        // Build output string
         if !disabled_extensions.is_empty() {
             output_parts.push(format!(
-                "Currently available extensions user can enable:\n{}\n",
+                "Extensions available to enable:\n{}\n",
                 disabled_extensions.join("\n")
             ));
         } else {
-            output_parts
-                .push("No available extensions found in current configuration.\n".to_string());
+            output_parts.push("No extensions available to enable.\n".to_string());
+        }
+
+        if !enabled_extensions.is_empty() {
+            output_parts.push(format!(
+                "\n\nExtensions available to disable:\n{}\n",
+                enabled_extensions
+                    .iter()
+                    .map(|name| format!("- {}", name))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        } else {
+            output_parts.push("No extensions that can be disabled.\n".to_string());
         }
 
         Ok(vec![Content::text(output_parts.join("\n"))])
