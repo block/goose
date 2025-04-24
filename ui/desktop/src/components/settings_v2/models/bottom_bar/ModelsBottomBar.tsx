@@ -20,6 +20,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
   const menuRef = useRef<HTMLDivElement>(null);
   const [isModelTruncated, setIsModelTruncated] = useState(false);
   const modelRef = useRef<HTMLSpanElement>(null);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +43,10 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
     window.addEventListener('resize', checkTruncation);
     return () => window.removeEventListener('resize', checkTruncation);
   }, [model]);
+
+  useEffect(() => {
+    setIsTooltipOpen(false);
+  }, [isModelTruncated]);
 
   // Add click outside handler
   useEffect(() => {
@@ -70,7 +75,7 @@ export default function ModelsBottomBar({ dropdownRef, setView }: ModelsBottomBa
           onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
         >
           <TooltipProvider>
-            <Tooltip>
+            <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
               <TooltipTrigger asChild>
                 <span
                   ref={modelRef}

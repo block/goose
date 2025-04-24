@@ -36,6 +36,7 @@ export default function BottomMenu({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isDirTruncated, setIsDirTruncated] = useState(false);
   const dirRef = useRef<HTMLSpanElement>(null);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
@@ -151,6 +152,10 @@ export default function BottomMenu({
     return () => window.removeEventListener('resize', checkTruncation);
   }, []);
 
+  useEffect(() => {
+    setIsTooltipOpen(false);
+  }, [isDirTruncated]);
+
   return (
     <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
       {/* Directory Chooser - Always visible */}
@@ -166,7 +171,7 @@ export default function BottomMenu({
       >
         <Document className="mr-1" />
         <TooltipProvider>
-          <Tooltip>
+          <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
             <TooltipTrigger asChild>
               <span
                 ref={dirRef}
