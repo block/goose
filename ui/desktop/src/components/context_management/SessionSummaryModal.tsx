@@ -124,36 +124,3 @@ export function SessionSummaryModal({
     </WiderBaseModal>
   );
 }
-
-// Example usage
-export function SessionSummaryExample() {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [currentSummary, setCurrentSummary] =
-    React.useState(`In the quiet town of Willow Creek, there lived a scruffy brown dog named Mudge. He wasn't anyone's dog, exactly. He just sort of belonged to the whole town. Mudge spent his days napping in sunny spots outside the bakery, chasing butterflies in the park, and occasionally walking kids to school like a furry little crossing guard.
-
-But there was one thing about Mudge that nobody knew—he had a secret.
-
-Every evening, just before sunset, Mudge would trot out past the last row of houses, across a crumbling wooden fence, and...`);
-
-  // Create a long summary for testing scrolling behavior
-  const handleSaveSummary = (editedContent: string) => {
-    console.log('Saving edited summary:', editedContent);
-    setCurrentSummary(editedContent);
-    setIsOpen(false);
-  };
-
-  return (
-    <div>
-      <button onClick={() => setIsOpen(true)} className="px-4 py-2 bg-blue-500 text-white rounded">
-        Show Session Summary
-      </button>
-
-      <SessionSummaryModal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        onSave={handleSaveSummary}
-        summaryContent={currentSummary}
-      />
-    </div>
-  );
-}

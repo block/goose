@@ -30,6 +30,7 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
 } from '../types/message';
+import { manageContext } from './context_management';
 
 export interface ChatType {
   id: string;
@@ -73,6 +74,7 @@ export default function ChatView({
 
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [summaryContent, setSummaryContent] = useState('');
+  const [summarizedThread, setSummarizedThread] = useState<Message[]>([]);
 
   // Add this function to handle opening the summary modal with content
   const handleViewSummary = (summary: string) => {
@@ -303,23 +305,16 @@ export default function ChatView({
     return message.content.some((content) => content.type === 'contextLengthExceeded');
   };
 
-  const handleContextLengthExceeded = () => {
+  const handleContextLengthExceeded = async () => {
     // If we already have a summary, use that
     if (summaryContent) {
       return summaryContent;
     }
 
     // Otherwise, generate a summary
-    return mockContextApi(messages, 'summarize');
-  };
-
-  const mockContextApi = (messages: Message[], manage_action: 'summarize' | 'truncate') => {
-    if (manage_action === 'summarize') {
-      const preface = 'This is the summary of the whole conversation';
-      return `${preface}\n\n${formatCombinedMessages(messages)}`;
-    } else {
-      return '';
-    }
+    const response = await manageContext({ messages: messages, manageAction: 'summarize' });
+    setSummarizedThread(response.messages);
+    return response.messages[0].text;
   };
 
   const SummarizedNotification = ({
@@ -327,8 +322,10 @@ export default function ChatView({
   }: {
     onViewSummary: (summaryContent: string) => void;
   }) => {
-    const handleViewSummary = () => {
-      onViewSummary(summaryContent || handleContextLengthExceeded());
+    const handleViewSummary = async () => {
+      // Await the result to get a string
+      const summary = summaryContent || (await handleContextLengthExceeded());
+      onViewSummary(summary); // Now always passing a string
     };
 
     return (
@@ -347,6 +344,11 @@ export default function ChatView({
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
   const filteredMessages = messages.filter((message) => {
+    // TODO: use this summarized thread in the chat window
+    if (summarizedThread.length > 0) {
+      // we have a summarized thread
+      console.log('summarized thread has been created --', summarizedThread);
+    }
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
 
@@ -436,8 +438,11 @@ export default function ChatView({
                     <UserMessage message={message} />
                   ) : (
                     <>
-                      {/* Only render GooseMessage if it's not a CLE message */}
-                      {!hasContextLengthExceededContent(message) ? (
+                      {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
+                      {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
+                        // Render the summarized notification for CLE messages only in alpha mode
+                        <SummarizedNotification onViewSummary={handleViewSummary} />
+                      ) : (
                         <GooseMessage
                           messageHistoryIndex={chat?.messageHistoryIndex}
                           message={message}
@@ -448,9 +453,6 @@ export default function ChatView({
                             setMessages(updatedMessages);
                           }}
                         />
-                      ) : (
-                        // Render the summarized notification for CLE messages
-                        <SummarizedNotification onViewSummary={handleViewSummary} />
                       )}
                     </>
                   )}
@@ -511,23 +513,4 @@ export default function ChatView({
       )}
     </div>
   );
-}
-
-function formatCombinedMessages(messages) {
-  return messages
-    .map((message) => {
-      // Extract text from the message
-      const textContent = message.content
-        .filter((content) => content.type === 'text')
-        .map((content) => content.text)
-        .join(' ');
-
-      if (!textContent.trim()) return ''; // Skip empty messages
-
-      // Format based on role
-      const prefix = message.role === 'user' ? 'User: ' : 'Assistant: ';
-      return prefix + textContent;
-    })
-    .filter((text) => text !== '') // Remove empty entries
-    .join('\n\n'); // Join with double line breaks
 }

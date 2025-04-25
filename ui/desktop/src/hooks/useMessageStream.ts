@@ -258,8 +258,6 @@ export function useMessageStream({
   );
 
   // Send a request to the server
-  // Add these variables at the top of the file, outside any function
-
   // Add this inside the sendRequest function before the try block
   const sendRequest = useCallback(
     async (requestMessages: Message[]) => {
