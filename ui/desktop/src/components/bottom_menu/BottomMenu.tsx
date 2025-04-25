@@ -19,10 +19,10 @@ const TOKEN_WARNING_THRESHOLD = 0.8; // warning shows at 80% of the token limit
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 export default function BottomMenu({
-  hasMessages,
-  setView,
-  numTokens = 0,
-}: {
+                                     hasMessages,
+                                     setView,
+                                     numTokens = 0,
+                                   }: {
   hasMessages: boolean;
   setView: (view: View, viewOptions?: ViewOptions) => void;
   numTokens?: number;
@@ -158,18 +158,18 @@ export default function BottomMenu({
   }, [isDirTruncated]);
 
   return (
-    <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
-      {/* Directory Chooser - Always visible */}
-      <span
-        className="cursor-pointer flex items-center [&>svg]:size-4"
-        onClick={async () => {
-          if (hasMessages) {
-            window.electron.directoryChooser();
-          } else {
-            window.electron.directoryChooser(true);
-          }
-        }}
-      >
+      <div className="flex justify-between items-center text-textSubtle relative bg-bgSubtle border-t border-borderSubtle text-xs pl-4 h-[40px] pb-1 align-middle">
+        {/* Directory Chooser - Always visible */}
+        <span
+            className="cursor-pointer flex items-center [&>svg]:size-4"
+            onClick={async () => {
+              if (hasMessages) {
+                window.electron.directoryChooser();
+              } else {
+                window.electron.directoryChooser(true);
+              }
+            }}
+        >
         <Document className="mr-1" />
         <TooltipProvider>
           <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
@@ -191,85 +191,85 @@ export default function BottomMenu({
         <ChevronUp className="ml-1" />
       </span>
 
-      {/* Goose Mode Selector Dropdown */}
-      <BottomMenuModeSelection setView={setView} />
+        {/* Goose Mode Selector Dropdown */}
+        <BottomMenuModeSelection setView={setView} />
 
-      {/* Right-side section with ToolCount and Model Selector together */}
-      <div className="flex items-center mr-4 space-x-1">
-        {/* Tool and Token count */}
-        {<BottomMenuAlertPopover alerts={alerts} />}
-        {/* Model Selector Dropdown */}
-        {settingsV2Enabled ? (
-          <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
-        ) : (
-          <div className="relative flex items-center ml-0 mr-4" ref={dropdownRef}>
-            <div
-              className="flex items-center cursor-pointer"
-              onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-            >
-              <span>{(currentModel?.alias ?? currentModel?.name) || 'Select Model'}</span>
-              {isModelMenuOpen ? (
-                <ChevronDown className="w-4 h-4 ml-1" />
-              ) : (
-                <ChevronUp className="w-4 h-4 ml-1" />
-              )}
-            </div>
+        {/* Right-side section with ToolCount and Model Selector together */}
+        <div className="flex items-center mr-4 space-x-1">
+          {/* Tool and Token count */}
+          {<BottomMenuAlertPopover alerts={alerts} />}
+          {/* Model Selector Dropdown */}
+          {settingsV2Enabled ? (
+              <ModelsBottomBar dropdownRef={dropdownRef} setView={setView} />
+          ) : (
+              <div className="relative flex items-center ml-0 mr-4" ref={dropdownRef}>
+                <div
+                    className="flex items-center cursor-pointer"
+                    onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                >
+                  <span>{(currentModel?.alias ?? currentModel?.name) || 'Select Model'}</span>
+                  {isModelMenuOpen ? (
+                      <ChevronDown className="w-4 h-4 ml-1" />
+                  ) : (
+                      <ChevronUp className="w-4 h-4 ml-1" />
+                  )}
+                </div>
 
-            {/* Dropdown Menu */}
-            {isModelMenuOpen && (
-              <div className="absolute bottom-[24px] right-0 w-[300px] bg-bgApp rounded-lg border border-borderSubtle">
-                <div className="">
-                  <ModelRadioList
-                    className="divide-y divide-borderSubtle"
-                    renderItem={({ model, isSelected, onSelect }) => (
-                      <label key={model.alias ?? model.name} className="block cursor-pointer">
-                        <div
-                          className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
-                          onClick={onSelect}
-                        >
-                          <div>
-                            <p className="text-sm ">{model.alias ?? model.name}</p>
-                            <p className="text-xs text-textSubtle">
-                              {model.subtext ?? model.provider}
-                            </p>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="radio"
-                              name="recentModels"
-                              value={model.name}
-                              checked={isSelected}
-                              onChange={onSelect}
-                              className="peer sr-only"
-                            />
-                            <div
-                              className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
+                {/* Dropdown Menu */}
+                {isModelMenuOpen && (
+                    <div className="absolute bottom-[24px] right-0 w-[300px] bg-bgApp rounded-lg border border-borderSubtle">
+                      <div className="">
+                        <ModelRadioList
+                            className="divide-y divide-borderSubtle"
+                            renderItem={({ model, isSelected, onSelect }) => (
+                                <label key={model.alias ?? model.name} className="block cursor-pointer">
+                                  <div
+                                      className="flex items-center justify-between p-2 text-textStandard hover:bg-bgSubtle transition-colors"
+                                      onClick={onSelect}
+                                  >
+                                    <div>
+                                      <p className="text-sm ">{model.alias ?? model.name}</p>
+                                      <p className="text-xs text-textSubtle">
+                                        {model.subtext ?? model.provider}
+                                      </p>
+                                    </div>
+                                    <div className="relative">
+                                      <input
+                                          type="radio"
+                                          name="recentModels"
+                                          value={model.name}
+                                          checked={isSelected}
+                                          onChange={onSelect}
+                                          className="peer sr-only"
+                                      />
+                                      <div
+                                          className="h-4 w-4 rounded-full border border-gray-400 dark:border-gray-500
                           peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                           peer-checked:bg-white dark:peer-checked:bg-black
                           transition-all duration-200 ease-in-out"
-                            ></div>
-                          </div>
-                        </div>
-                      </label>
-                    )}
-                  />
-                  <div
-                    className="flex items-center justify-between text-textStandard p-2 cursor-pointer hover:bg-bgStandard
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </label>
+                            )}
+                        />
+                        <div
+                            className="flex items-center justify-between text-textStandard p-2 cursor-pointer hover:bg-bgStandard
                   border-t border-borderSubtle mt-2"
-                    onClick={() => {
-                      setIsModelMenuOpen(false);
-                      setView('settings');
-                    }}
-                  >
-                    <span className="text-sm">Tools and Settings</span>
-                    <Sliders className="w-5 h-5 ml-2 rotate-90" />
-                  </div>
-                </div>
+                            onClick={() => {
+                              setIsModelMenuOpen(false);
+                              setView('settings');
+                            }}
+                        >
+                          <span className="text-sm">Tools and Settings</span>
+                          <Sliders className="w-5 h-5 ml-2 rotate-90" />
+                        </div>
+                      </div>
+                    </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
   );
 }

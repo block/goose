@@ -19,6 +19,7 @@ import { fetchSessionDetails } from '../sessions';
 // import { configureRecipeExtensions } from '../utils/recipeExtensions';
 import 'react-toastify/dist/ReactToastify.css';
 import { useMessageStream } from '../hooks/useMessageStream';
+import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import { Recipe } from '../recipe';
 import {
   Message,
@@ -29,6 +30,7 @@ import {
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
 } from '../types/message';
+import { manageContext } from './context_management';
 
 export interface ChatType {
   id: string;
@@ -69,6 +71,16 @@ export default function ChatView({
   const [isGeneratingRecipe, setIsGeneratingRecipe] = useState(false);
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
   const scrollRef = useRef<ScrollAreaHandle>(null);
+
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [summarizedThread, setSummarizedThread] = useState<Message[]>([]);
+
+  // Add this function to handle opening the summary modal with content
+  const handleViewSummary = (summary: string) => {
+    setSummaryContent(summary);
+    setIsSummaryModalOpen(true);
+  };
 
   // Get recipeConfig directly from appConfig
   const recipeConfig = window.appConfig.get('recipeConfig') as Recipe | null;
@@ -288,9 +300,55 @@ export default function ChatView({
     }
   };
 
+  // Add this function to ChatView.tsx to detect if a message contains ContextLengthExceededContent
+  const hasContextLengthExceededContent = (message: Message): boolean => {
+    return message.content.some((content) => content.type === 'contextLengthExceeded');
+  };
+
+  const handleContextLengthExceeded = async () => {
+    // If we already have a summary, use that
+    if (summaryContent) {
+      return summaryContent;
+    }
+
+    // Otherwise, generate a summary
+    const response = await manageContext({ messages: messages, manageAction: 'summarize' });
+    setSummarizedThread(response.messages);
+    return response.messages[0].text;
+  };
+
+  const SummarizedNotification = ({
+    onViewSummary,
+  }: {
+    onViewSummary: (summaryContent: string) => void;
+  }) => {
+    const handleViewSummary = async () => {
+      // Await the result to get a string
+      const summary = summaryContent || (await handleContextLengthExceeded());
+      onViewSummary(summary); // Now always passing a string
+    };
+
+    return (
+      <div className="flex flex-col items-start mt-1 pl-4">
+        <span className="text-xs text-gray-400 italic">Session summarized</span>
+        <button
+          onClick={handleViewSummary}
+          className="text-xs text-textStandard cursor-pointer hover:text-textSubtle transition-colors mt-1"
+        >
+          View or edit summary
+        </button>
+      </div>
+    );
+  };
+
   // Filter out standalone tool response messages for rendering
   // They will be shown as part of the tool invocation in the assistant message
   const filteredMessages = messages.filter((message) => {
+    // TODO: use this summarized thread in the chat window
+    if (summarizedThread.length > 0) {
+      // we have a summarized thread
+      console.log('summarized thread has been created --', summarizedThread);
+    }
     // Keep all assistant messages and user messages that aren't just tool responses
     if (message.role === 'assistant') return true;
 
@@ -379,17 +437,24 @@ export default function ChatView({
                   {isUserMessage(message) ? (
                     <UserMessage message={message} />
                   ) : (
-                    <GooseMessage
-                      messageHistoryIndex={chat?.messageHistoryIndex}
-                      message={message}
-                      messages={messages}
-                      // metadata={messageMetadata[message.id || '']}
-                      append={(text) => append(createUserMessage(text))}
-                      appendMessage={(newMessage) => {
-                        const updatedMessages = [...messages, newMessage];
-                        setMessages(updatedMessages);
-                      }}
-                    />
+                    <>
+                      {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
+                      {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
+                        // Render the summarized notification for CLE messages only in alpha mode
+                        <SummarizedNotification onViewSummary={handleViewSummary} />
+                      ) : (
+                        <GooseMessage
+                          messageHistoryIndex={chat?.messageHistoryIndex}
+                          message={message}
+                          messages={messages}
+                          append={(text) => append(createUserMessage(text))}
+                          appendMessage={(newMessage) => {
+                            const updatedMessages = [...messages, newMessage];
+                            setMessages(updatedMessages);
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -434,6 +499,18 @@ export default function ChatView({
       </Card>
 
       {showGame && <FlappyGoose onClose={() => setShowGame(false)} />}
+      {process.env.ALPHA && (
+        <SessionSummaryModal
+          isOpen={isSummaryModalOpen}
+          onClose={() => setIsSummaryModalOpen(false)}
+          onSave={(editedContent) => {
+            console.log('Saving summary...');
+            setSummaryContent(editedContent);
+            setIsSummaryModalOpen(false);
+          }}
+          summaryContent={summaryContent}
+        />
+      )}
     </div>
   );
 }
