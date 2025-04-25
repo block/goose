@@ -184,7 +184,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
-  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fseerver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
+  1. [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-brave-search&id=brave-search&name=Brave%20Search&description=Brave%20Search%20API&env=BRAVE_API_KEY%3DYour%20API%20Key)
   2. Press `Yes` to confirm the installation
   3. Get your [Brave Search API Key](https://api-dashboard.search.brave.com/app/keys) and paste it in
   4. Click `Save Configuration`
