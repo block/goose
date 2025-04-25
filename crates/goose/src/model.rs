@@ -81,7 +81,6 @@ impl ModelConfig {
             name if name.contains("gpt-4.1") => Some(1_000_000),
             name if name.contains("gpt-4-1") => Some(1_000_000),
 
-
             // Anthropic models, https://docs.anthropic.com/en/docs/about-claude/models
             name if name.contains("claude-3") => Some(200_000),
 
