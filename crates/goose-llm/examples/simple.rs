@@ -1,7 +1,9 @@
+use std::vec;
+
 use anyhow::Result;
-use goose::message::Message;
+use goose::{agents::extension, message::Message};
 use goose::model::ModelConfig;
-use goose_llm::{completion, CompletionResponse};
+use goose_llm::{completion, CompletionResponse, Extension};
 use mcp_core::tool::Tool;
 use serde_json::json;
 
@@ -49,13 +51,25 @@ async fn main() -> Result<()> {
         None,
     );
 
-    let tools = vec![calculator_tool, bash_tool];
-    let system_preamble = "You are a helpful assistant";
+    let extensions = vec![
+        Extension::new(
+            "calculator_extension".to_string(),
+            Some("This extension provides a calculator tool.".to_string()),
+            vec![calculator_tool]
+        ),
+        Extension::new(
+            "bash_extension".to_string(),
+            Some("This extension provides a bash shell tool.".to_string()),
+            vec![bash_tool]
+        ),
+    ];
+
+    let system_preamble = "You are a helpful assistant.";
 
     for text in [
         "Add 10037 + 23123", 
-        "Write some random bad words to end of words.txt",
-        "List all json files in the current directory and then multiply the count of the files by 7",
+        // "Write some random bad words to end of words.txt",
+        // "List all json files in the current directory and then multiply the count of the files by 7",
     ] {
         println!("\n---------------\n");
         println!("User Input: {text}");
@@ -65,7 +79,7 @@ async fn main() -> Result<()> {
             model_config.clone(),
             system_preamble,
             &messages,
-            &tools
+            &extensions
         )
         .await?;
         // Print the response
