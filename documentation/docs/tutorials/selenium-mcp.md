@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
-<!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PLqPOEeGPLc" />
 
 
 This tutorial covers how to add the [Selenium MCP Server](https://github.com/angiejones/mcp-selenium) as a Goose extension to automate browser interactions such as navigating web pages and completing forms.

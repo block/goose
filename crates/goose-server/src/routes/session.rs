@@ -1,4 +1,6 @@
 use super::utils::verify_secret_key;
+use std::sync::Arc;
+
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
@@ -25,7 +27,7 @@ struct SessionHistoryResponse {
 
 // List all available sessions
 async fn list_sessions(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<SessionListResponse>, StatusCode> {
     verify_secret_key(&headers, &state)?;
@@ -38,7 +40,7 @@ async fn list_sessions(
 
 // Get a specific session's history
 async fn get_session_history(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionHistoryResponse>, StatusCode> {
@@ -65,7 +67,7 @@ async fn get_session_history(
 }
 
 // Configure routes for this module
-pub fn routes(state: AppState) -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
         .route("/sessions/:session_id", get(get_session_history))

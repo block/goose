@@ -87,7 +87,7 @@ impl Agent {
         try_stream! {
             for request in tool_requests {
                 if let Ok(tool_call) = request.tool_call.clone() {
-                    if self.is_frontend_tool(&tool_call.name) {
+                    if self.is_frontend_tool(&tool_call.name).await {
                         // Send frontend tool request and wait for response
                         yield Message::assistant().with_frontend_tool_request(
                             request.id.clone(),

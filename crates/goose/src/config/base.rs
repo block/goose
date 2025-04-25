@@ -739,10 +739,10 @@ mod tests {
                 thread::sleep(Duration::from_millis(i * 10));
 
                 let extension_key = format!("extension_{}", i);
-                let mut values = config.load_values()?;
 
-                values.insert(
-                    extension_key.clone(),
+                // Use set_param which handles concurrent access properly
+                config.set_param(
+                    &extension_key,
                     serde_json::json!({
                         "name": format!("test_extension_{}", i),
                         "version": format!("1.0.{}", i),
@@ -752,10 +752,7 @@ mod tests {
                             "option2": i
                         }
                     }),
-                );
-
-                // Write all values atomically
-                config.save_values(values)?;
+                )?;
                 Ok(())
             });
             handles.push(handle);

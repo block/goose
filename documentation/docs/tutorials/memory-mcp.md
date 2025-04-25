@@ -84,7 +84,7 @@ This tutorial covers enabling and using the Memory MCP Server, which is a built-
   </TabItem>
   <TabItem value="ui" label="Goose Desktop">
   1. Click `...` in the upper right corner
-  2. Click `Settings`
+  2. Click `Advanced Settings`
   3. Under `Extensions`, toggle `Memory` to on.
   4. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
