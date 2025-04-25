@@ -167,9 +167,25 @@ export async function replaceWithShims(cmd: string) {
 }
 
 export function removeShims(cmd: string) {
-  const segments = cmd.split('/');
-  // Filter out any empty segments (which can happen with trailing slashes)
-  const nonEmptySegments = segments.filter((segment) => segment.length > 0);
-  // Return the last segment or empty string if there are no segments
-  return nonEmptySegments.length > 0 ? nonEmptySegments[nonEmptySegments.length - 1] : '';
+  // Only remove shims if the path matches our known shim patterns
+  const shimPatterns = [
+    /\/goose-shims\/goosed$/,
+    /\/goose-shims\/jbang$/,
+    /\/goose-shims\/npx$/,
+    /\/goose-shims\/uvx$/,
+  ];
+
+  // Check if the command matches any shim pattern
+  const isShim = shimPatterns.some((pattern) => pattern.test(cmd));
+
+  if (isShim) {
+    const segments = cmd.split('/');
+    // Filter out any empty segments (which can happen with trailing slashes)
+    const nonEmptySegments = segments.filter((segment) => segment.length > 0);
+    // Return the last segment or empty string if there are no segments
+    return nonEmptySegments.length > 0 ? nonEmptySegments[nonEmptySegments.length - 1] : '';
+  }
+
+  // If it's not a shim, return the original command
+  return cmd;
 }

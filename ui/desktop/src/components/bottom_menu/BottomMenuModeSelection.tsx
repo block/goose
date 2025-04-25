@@ -124,7 +124,14 @@ export const BottomMenuModeSelection = ({ setView }: BottomMenuModeSelectionProp
         onClick={() => setIsGooseModeMenuOpen(!isGooseModeMenuOpen)}
       >
         <Orbit />
-        {/* {getValueByKey(gooseMode)} */}
+        {/*<span className="truncate max-w-[170px] md:max-w-[200px] lg:max-w-[380px]">*/}
+        {/*  Goose Mode: {getValueByKey(gooseMode)}*/}
+        {/*</span>*/}
+        {/*{isGooseModeMenuOpen ? (*/}
+        {/*  <ChevronDown className="w-4 h-4 ml-1" />*/}
+        {/*) : (*/}
+        {/*  <ChevronUp className="w-4 h-4 ml-1" />*/}
+        {/*)}*/}
       </button>
 
       {/* Dropdown Menu */}

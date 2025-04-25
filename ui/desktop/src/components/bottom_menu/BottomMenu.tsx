@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useModel } from '../settings/models/ModelContext';
 import { Sliders } from 'lucide-react';
 import { AlertType, useAlerts } from '../alerts';
