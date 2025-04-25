@@ -1,0 +1,11 @@
+{
+    "id": "diff_edit_test",
+    "template": "Create a unit test for the text_editor diff_edit command.\n\nThe diff_edit command should:\n1. Accept a file path, start_line, end_line, and file_text\n2. Replace the lines from start_line to end_line (inclusive) with the new file_text\n3. Handle edge cases appropriately (file doesn't exist, invalid line numbers)\n4. Save history for undo functionality\n\nYour test should verify these behaviors.\n\n{{additional_info}}",
+    "arguments": [
+        {
+            "name": "additional_info",
+            "description": "Any additional information or specific test scenarios",
+            "required": false
+        }
+    ]
+}
