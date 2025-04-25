@@ -205,64 +205,79 @@ The Brave Search MCP server gives you access to the Brave Search API, providing 
 #### Goose Prompt
 
 ```
-( O)> I'd like to learn to cook Italian food. Can you search for the top 3 YouTube channels to watch? Also, can you find me the top 5 Italian food recipes for beginners?
+( O)> Organize a Italian dinner party with Ian, Rizel, Ace, and Ebony. Find 3 or 4 YouTube cooking channels (with URLs) that focus on Italian cuisine for beginners, and then find one recipe (with URL) for each person to make: one salad, two entrees, and one dessert.
 ```
 
 #### Goose Output
 
 ```
-I'll help you search for YouTube cooking channels and beginner-friendly Italian recipes. Let me break this down into two searches.
 
-First, let's search for top YouTube channels for Italian cooking.
+I'll help you organize the Italian dinner party and search for appropriate cooking resources and recipes. Let me break this down into parts.
 
-─── brave_web_search | brave-search ──────────────────────────
-count: 3
-query: top 3 Italian cooking YouTube channels
+First, let's search for some beginner-friendly Italian cooking YouTube channels:
+
+Brave Web Search
+query: best youtube channels italian cooking for beginners authenti...
+
+Let me search for some specific recipes:
+
+Brave Web Search
+query: authentic italian salad recipes panzanella caprese insalata
+
+Brave Web Search
+query: authentic italian main course pasta recipes carbonara osso b...
+
+Brave Web Search
+query: authentic italian dessert recipes tiramisu panna cotta
 
 
-─── brave_web_search | brave-search ──────────────────────────
-count: 5
-query: top 5 easy Italian recipes for beginners
+Based on my research, I'll organize the dinner party plan with recommended YouTube channels and specific recipes for each person. Here's the plan:
+
+Recommended Italian Cooking YouTube Channels for Beginners
+
+1. Vincenzo's Plate (https://www.youtube.com/channel/UCcsSowAamCLJv-xeF9geXoA)
+  - Authentic Italian recipes with clear instructions
+  - Run by an Italian native who explains techniques well for beginners
+
+2. Italia Squisita (https://www.youtube.com/c/ItaliaSquisita)
+  - Features traditional Italian recipes
+  - Often shows multiple ways to make classic dishes
+
+3. Giallo Zafferano (https://www.youtube.com/user/GialloZafferano)
+  - Italy's most popular cooking channel
+  - Comprehensive collection of authentic Italian recipes
 
 
-Okay, I have some information for you.
+Recipe Assignments
 
-**Top 3 Italian Cooking YouTube Channels:**
+1. Rizel - Salad Course
+  - Classic Panzanella (Tuscan Bread and Tomato Salad)
+  - Recipe: https://www.themediterraneandish.com/tomato-panzanella-salad-recipe/
+  - Perfect summer salad with crusty bread, tomatoes, and fresh basil
 
-Based on the search results, here are a few channels to consider:
+2. Ian - First Entrée
+  - Authentic Spaghetti Carbonara
+  - Recipe: https://anitalianinmykitchen.com/spaghetti-carbonara/
+  - Classic Roman pasta dish with eggs, pecorino, and guanciale
 
-1.  **Pasta Grannies:** Feature authentic Italian grandmothers sharing traditional recipes and techniques. Perfect for learning authentic, traditional methods.
-2.  **Italia Squisita:** A professional channel that shows multiple versions of classic Italian dishes, great for understanding different approaches to traditional recipes.
-3.  **Vincenzo's Plate:** Run by Vincenzo and his Italian family, focusing on authentic Italian recipes with detailed instructions perfect for beginners.
+3. Ace - Second Entrée
+  - Osso Buco alla Milanese
+  - Recipe: https://www.pastagrammar.com/post/osso-buco-authentic-italian-veal-recipe
+  - Traditional Milanese braised veal shanks with gremolata
 
-**Top 5 Easy Italian Recipes for Beginners:**
+4. Ebony - Dessert
+  - Classic Vanilla Panna Cotta
+  - Recipe: https://www.recipesfromitaly.com/panna-cotta-recipe/
+  - Elegant, creamy dessert that can be made ahead
 
-1.  **Classic Spaghetti Aglio e Olio (Carlig and Oil Pasta):**
-  - One of the simplest yet most delicious Italian pasta dishes
-  - Requires minimal ingredients: pasta, garlic, olive oil, and red pepper flakes
 
-2.  **Basic Marinara Sauce:**
-  - Foundation of many Italian dishes
-  - Made with tomatoes, garlic, herbs, and olive oil
+Tips for Success
 
-3.  **Bruschetta:**
-  - Simple appetize with toasted bread, tomatoes, garlic, and basil
-  - Great way to learn about balancing Italian flavors
-
-4.  **Chicken Piccata:**
-  - Classic Italian-American dish
-  - Made with chicken cutlets, lemon, capers, and white wine sauce
-
-5.  **Panzanella:**
-  - Traditional Tuscan bread salad
-  - Perfect for learning to work with fresh ingredients and understanding Italian flavor combinations
-
-**Tips for Beginners:**
-
-- Start with simple recipes that have few ingredients
-- Focus on quality ingredients, especially fresh good olive oil
-- Learn basic Italian cooking techniques like al dente pasta cooking
-- Don't be afraid to make mistakes - Italian cooking is about feeling and adjusting to taste
-- Watch videos multiple times before attempting recipes to understand the techniques
+- Watch the YouTube channels beforehand to familiarize yourself with Italian cooking techniques
+- Make sure to read through the entire recipe before starting
+- The Panna Cotta should be made at least 4 hours ahead (or the night before) to allow proper setting time
+- The Panzanella can be assembled just before serving for the best texture
+- The Osso Buco can be made slightly ahead and reheated, as it often tastes better the next day
+- The Carbonara should be made just before serving and served immediately while hot
 
 ```
