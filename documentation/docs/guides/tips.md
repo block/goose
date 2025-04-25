@@ -4,49 +4,44 @@ sidebar_position: 6
 sidebar_label: Quick Tips
 ---
 
-Here is a collection of tips for working with Goose:
+### Goose works on your behalf
+Goose is an AI agent, which means you can prompt Goose to perform tasks for you like opening applications, running shell commands, automating workflows, writing code, browsing the web, and more.
 
-### Goose can and will edit files
-Use a git strategy to avoid losing anything - such as staging your personal edits and leaving Goose edits unstaged until reviewed. Consider using individual commits which can be reverted. See more on [File Management](/docs/guides/file-management).
+### Prompt Goose using natural language
+You don't need fancy language or special syntax to prompt Goose. Talk with Goose like you would talk to a friend. You can even use slang or say please and thank you; Goose will understand.
 
-### Goose can and will run commands
-Goose will check commands for safety, however, you can also ask Goose to check with you before running commands if you are concerned.
+### Extend Goose's capabilities to any application
+Goose's capabilities are extensible. As an [MCP](https://modelcontextprotocol.io/) client, Goose can connect to your apps and services through [extensions](/extensions), allowing it to work across your entire workflow.
 
-### You can interrupt Goose with `CTRL+C`
-Use this command to stop Goose in the event that you need to correct it or give it more info.
+### Choose how much control Goose has
+You can customize how much [supervision](/docs/guides/goose-permissions) Goose needs. Choose between full autonomy, requiring approval before actions, or simply chatting without any actions.
 
-### Goose works best when solving concrete problems
-Experiment with how far you need to break a problem down to get Goose to solve it. Be specific! For example, it will likely fail to "create a banking app", but probably does a good job if prompted with "create a Fastapi app with an endpoint for deposit and withdrawal and with account balances stored in mysql keyed by id".
+### Choose the right LLM
+Your experience with Goose is shaped by your [choice of LLM](/blog/2025/03/31/goose-benchmark), as it handles all the planning while Goose manages the execution. When choosing an LLM, consider its tool support, specific capabilities, and associated costs.
 
-### Goose can troubleshoot
-If something goes wrong, Goose can help troubleshoot issues by examining logs, analyzing error messages, and suggesting possible resolutions.
+### Keep sessions short
+LLMs have context windows, which are limits on how much conversation history they can retain. Once exceeded, they may forget earlier parts of the conversation. Monitor your token usage and [start new sessions](/docs/guides/managing-goose-sessions) as needed.
 
-### Leverage Goose to learn
-Use Goose to learn new technologies or frameworks by asking it to explain things like code snippets, concepts, or best practices relevant to your project.
+### Turn off unnecessary extensions or tool
+Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
-### Goose needs context
-If Goose doesn't have enough context to start with, it might go in the wrong direction. Tell it to read files that you are referring to or search for objects in code. Even better, ask it to summarize them for you, which will help it set up its own next steps. You can create a [goosehints](/docs/guides/using-goosehints) file to help with this.
+### Teach Goose your preferences
+Help Goose remember how you like to work by using [`.goosehints`](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/tutorials/memory-mcp) for things you want Goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
 
-### Use easy search terms
-Refer to any objects in files with something that is easy for Goose to search for, such as "the MyExample class".
+### Protect sensitive files
+Goose is often eager to make changes. You can stop it from changing specific files by creating a [.gooseignore](/docs/guides/using-gooseignore) file. In this file, you can list all the file paths you want it to avoid.
 
-### Teach Goose how you test
-Goose *loves* to know how to run tests to get a feedback loop going, just like you do. If you tell it how you test things locally and quickly, it can make use of that when working on your project.
+### Version Control
+Commit your code changes early and often. This allows you to rollback any unexpected changes.
 
-### Goose can do scripting tasks
-You can use Goose for tasks that would require scripting. It can even look at your screen and correct designs, or help you fix bugs. Try asking it to help you in a way you would ask a person.
+### Control which extensions Goose can use
+Administrators can use an [allowlist](/docs/guides/allowlist) to restrict Goose to approved extensions only. This helps prevent risky installs from unknown MCP servers.
 
-### Goose will make mistakes
-Sometimes Goose will go in the wrong direction. Feel free to correct it, or start over again.
+### Set up starter templates
+You can turn a successful session into a reusable "[recipe](/docs/guides/session-recipes)" to share with others or use again later—no need to start from scratch.
 
-### Goose can run tasks continuously if asked
-You can tell Goose to run things for you continuously and it will iterate, try, and retry.
-
-### Goose can run anywhere
-It doesn't have to be in a repo. Just ask Goose!
+### Embrace an experimental mindset
+You don’t need to get it right the first time. Iterating on prompts and tools is part of the workflow.
 
 ### Keep Goose updated
-Regularly update Goose to benefit from the latest features, bug fixes, and performance improvements. For the CLI, the best way to keep it updated is by re-running the [Goose installation script][installation]. For Goose Desktop, check the [GitHub Releases page][ui-release] regularly for updates.
-
-[installation]: https://block.github.io/goose/docs/quickstart/#installation
-[ui-release]: https://github.com/block/goose/releases/stable
+Regularly [update](/docs/guides/updating-goose) Goose to benefit from the latest features, bug fixes, and performance improvements.
