@@ -2,6 +2,7 @@
 sidebar_position: 5
 title: Create a Recipe from Your Session
 sidebar_label: Shareable Recipes
+description: "Share a Goose session setup (including tools, goals, and instructions) as a reusable recipe that others can launch with a single click"
 ---
 
 import Tabs from '@theme/Tabs';
