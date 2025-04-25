@@ -65,8 +65,7 @@ async fn main() -> Result<()> {
             model_config.clone(),
             system_preamble,
             &messages,
-            &tools,
-            true,
+            &tools
         )
         .await?;
         // Print the response
