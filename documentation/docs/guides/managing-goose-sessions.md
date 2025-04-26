@@ -79,7 +79,7 @@ Note that sessions are automatically saved when you exit.
         To resume a specific session, run the following command: 
 
         ```
-        goose session -r --name <n>
+        goose session -r --name <name>
         ```
         For example, to resume the session named `react-migration`, you would run:
 
