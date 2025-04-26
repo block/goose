@@ -185,7 +185,7 @@ Search allows you to find specific content within your current session. The sear
 
         | Action | macOS | Windows/Linux |
         |--------|-------|---------------|
-        | Open Search | `Cmd+F` or search icon | `Ctrl+F` or search icon |
+        | Open Search | `Cmd+F`  | `Ctrl+F`  |
         | Previous Match | `↑` | `↑` |
         | Next Match | `↓` | `↓` |
         | Toggle Case-Sensitivity | `Aa` | `Aa` |
