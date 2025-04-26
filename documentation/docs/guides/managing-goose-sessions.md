@@ -191,8 +191,5 @@ Search allows you to find specific content within your current session. The sear
         | Toggle Case-Sensitivity | `Aa` | `Aa` |
         | Close Search | `Esc` or X | `Esc` or X |
 
-        Search features:
-        - Real-time results as you type
-        - Match count display
     </TabItem>
 </Tabs>
