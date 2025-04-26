@@ -20,7 +20,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
+        After choosing an LLM provider, you’ll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
@@ -136,7 +136,7 @@ You can resume a CLI session in Desktop and vice versa.
     3. Click the session you'd like to resume
 
     :::tip
-    If you named the session, you’ll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
+    If you named the session, you'll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
     :::
 
     4. Click `Resume Session` in the upper right corner
