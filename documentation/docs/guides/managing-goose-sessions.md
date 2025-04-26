@@ -136,7 +136,7 @@ You can resume a CLI session in Desktop and vice versa.
     3. Click the session you'd like to resume
 
     :::tip
-    If you named the session, you'll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
+    If you named the session, you’ll recognize the filename. However, if you don't remember the exact session name, there is a description of the topic.
     :::
 
     4. Click `Resume Session` in the upper right corner
