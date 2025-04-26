@@ -20,7 +20,7 @@ A session is a single, continuous interaction between you and Goose, providing a
         ```
     </TabItem>
     <TabItem value="ui" label="Goose Desktop">
-        After choosing an LLM provider, you’ll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
+        After choosing an LLM provider, you'll see the session interface ready for use. Type your questions, tasks, or instructions directly into the input field, and Goose will immediately get to work. 
 
         To start a new session at any time, click the three dots in the top-right corner of the application and select **New Session** from the dropdown menu.
 
@@ -79,7 +79,7 @@ Note that sessions are automatically saved when you exit.
         To resume a specific session, run the following command: 
 
         ```
-        goose session -r --name <name>
+        goose session -r --name <n>
         ```
         For example, to resume the session named `react-migration`, you would run:
 
@@ -158,5 +158,41 @@ You can resume a CLI session in Desktop and vice versa.
 
 
     :::
+    </TabItem>
+</Tabs>
+
+## Search Within Sessions
+
+Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
+
+<Tabs>
+    <TabItem value="cli" label="Goose CLI" default>
+        Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
+
+        | Terminal | Operating System | Shortcut |
+        |----------|-----------------|-----------|
+        | iTerm2 | macOS | `Cmd+F` |
+        | Terminal.app | macOS | `Cmd+F` |
+        | Windows Terminal | Windows | `Ctrl+F` |
+        | Linux Terminal | Linux | `Ctrl+F` |
+
+        :::info
+        Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
+        :::
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+        Trigger search using keyboard shortcuts or the search icon:
+
+        | Action | macOS | Windows/Linux |
+        |--------|-------|---------------|
+        | Open Search | `Cmd+F` or search icon | `Ctrl+F` or search icon |
+        | Previous Match | `↑` | `↑` |
+        | Next Match | `↓` | `↓` |
+        | Toggle Case-Sensitivity | `Aa` | `Aa` |
+        | Close Search | `Esc` or X | `Esc` or X |
+
+        Search features:
+        - Real-time results as you type
+        - Match count display
     </TabItem>
 </Tabs>
