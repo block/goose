@@ -160,3 +160,36 @@ You can resume a CLI session in Desktop and vice versa.
     :::
     </TabItem>
 </Tabs>
+
+## Search Within Sessions
+
+Search allows you to find specific content within your current session. The search functionality is available in both CLI and Desktop interfaces.
+
+<Tabs>
+    <TabItem value="cli" label="Goose CLI" default>
+        Search functionality is provided by your terminal interface. Use the appropriate shortcut for your environment:
+
+        | Terminal | Operating System | Shortcut |
+        |----------|-----------------|-----------|
+        | iTerm2 | macOS | `Cmd+F` |
+        | Terminal.app | macOS | `Cmd+F` |
+        | Windows Terminal | Windows | `Ctrl+F` |
+        | Linux Terminal | Linux | `Ctrl+F` |
+
+        :::info
+        Your specific terminal emulator may use a different keyboard shortcut. Check your terminal's documentation or settings for the search command.
+        :::
+    </TabItem>
+    <TabItem value="ui" label="Goose Desktop">
+        Trigger search using keyboard shortcuts or the search icon:
+
+        | Action | macOS | Windows/Linux |
+        |--------|-------|---------------|
+        | Open Search | `Cmd+F`  | `Ctrl+F`  |
+        | Previous Match | `↑` | `↑` |
+        | Next Match | `↓` | `↓` |
+        | Toggle Case-Sensitivity | `Aa` | `Aa` |
+        | Close Search | `Esc` or X | `Esc` or X |
+
+    </TabItem>
+</Tabs>
