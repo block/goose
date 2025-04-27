@@ -6,7 +6,7 @@ description: Add Pieces for Developers MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Pieces for Developers MCP Server](https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
+This tutorial covers how to add the [Pieces for Developers MCP Server](https://docs.pieces.app/products/mcp/get-started?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
 
 ## Configuration
 
@@ -19,7 +19,11 @@ This tutorial covers how to add the [Pieces for Developers MCP Server](https://p
    - Copy the server URL
 
 :::tip
-The default server URL is `http://localhost:39300/model_context_protocol/2024-11-05/sse`. PiecesOS may use a different port if 39300 is already in use on your system.
+The default server URL is shown below. PiecesOS may use a different port if 39300 is already in use on your system:
+
+```
+http://localhost:39300/model_context_protocol/2024-11-05/sse
+```
 :::
 
 ### Add Pieces MCP Server
@@ -222,4 +226,6 @@ These activities demonstrate a productive day with a focus on development, colla
 ```
 
 
-To see some more examples of prompting capabilities unlocked by using the Pieces MCP server, check out the [Pieces MCP prompting guide](https://docs.pieces.app/products/mcp/prompting?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
+:::tip
+For more examples of prompts you can use with the Pieces for Developers MCP Server, see the [Pieces MCP prompting guide](https://docs.pieces.app/products/mcp/prompting?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
+:::
