@@ -6,27 +6,27 @@ description: Add Pieces for Developers MCP Server as a Goose Extension
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Pieces for Developers MCP Server](https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
-
-To learn more about MCP in Pieces, check out the Pieces [MCP documentation](https://docs.pieces.app/products/mcp/get-started?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
-
-:::tip TLDR
-
-**URL**
-
-```bash
-http://localhost:39300/model_context_protocol/2024-11-05/sse
-```
-
-This can change if the port is already in use when you start PiecesOS. Check your URL in Pieces
-
-:::
+This tutorial covers how to add the [Pieces for Developers MCP Server](https://docs.pieces.app/products/mcp/get-started?utm_source=goose&utm_medium=collab&utm_campaign=mcp) as a Goose extension to enable interaction with your Pieces Long-Term Memory.
 
 ## Configuration
 
-:::info
-Note that you'll need [Pieces](https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp) installed to use this extension.
+1. Download [PiecesOS](https://pieces.app/)
+
+2. Enable [Long-Term Memory Context](https://docs.pieces.app/products/quick-guides/ltm-context) in PiecesOS
+
+3. Locate your MCP Server URL
+   - In PiecesOS, navigate to Settings > Model Context Protocol (MCP)
+   - Copy the server URL
+
+:::tip
+The default server URL is shown below. PiecesOS may use a different port if 39300 is already in use on your system:
+
+```
+http://localhost:39300/model_context_protocol/2024-11-05/sse
+```
 :::
+
+### Add Pieces MCP Server
 
 <Tabs groupId="interface">
   <TabItem value="cli" label="Goose CLI" default>
@@ -73,7 +73,9 @@ Note that you'll need [Pieces](https://pieces.app?utm_source=goose&utm_medium=co
 
   4. Enter the SSE endpoint URI.
 
-      You can get this from the Pieces settings. The default is `http://localhost:39300/model_context_protocol/2024-11-05/sse`, but the port may be different from 39300 to avoid clashing with other applications running locally.
+      :::info
+      Use the server URL you copied from PiecesOS settings earlier.
+      :::
 
       ```sh
         ┌   goose-configure 
@@ -223,6 +225,7 @@ Here's a report summarizing your key activities from yesterday, based on the mos
 These activities demonstrate a productive day with a focus on development, collaboration, and content management within your technical community.
 ```
 
-## Learn more
 
-To see some more examples of prompting capabilities unlocked by using the Pieces MCP server, check out the [Pieces MCP prompting guide](https://docs.pieces.app/products/mcp/prompting?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
+:::tip
+For more examples of prompts you can use with the Pieces for Developers MCP Server, see the [Pieces MCP prompting guide](https://docs.pieces.app/products/mcp/prompting?utm_source=goose&utm_medium=collab&utm_campaign=mcp).
+:::
