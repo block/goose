@@ -9,9 +9,14 @@ import type {
 } from 'electron';
 
 const isDevelopment = !app.isPackaged;
+const isHeadless = process.env.HEADLESS === 'true';
 
 // Enable sandbox before app is ready
 app.enableSandbox();
+
+if (isHeadless) {
+  app.disableHardwareAcceleration();
+}
 
 async function createWindow() {
   // Handle different preload paths for dev and prod
@@ -19,17 +24,31 @@ async function createWindow() {
     ? path.join(app.getAppPath(), '.vite/build/preload/preload.js')
     : path.join(__dirname, 'preload.js');
 
-  // Create the browser window.
+  // Create the browser window with headless options when needed
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      webSecurity: true,
-      preload: preloadPath,
-      sandbox: true,
-    },
+    ...(isHeadless
+      ? {
+          show: false,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true,
+            preload: preloadPath,
+            sandbox: true,
+            offscreen: true,
+          },
+        }
+      : {
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true,
+            preload: preloadPath,
+            sandbox: true,
+          },
+        }),
   });
 
   // Set up CSP
@@ -108,7 +127,9 @@ async function createWindow() {
   // Load the app
   if (isDevelopment) {
     mainWindow.loadURL('http://localhost:3001/');
-    mainWindow.webContents.openDevTools();
+    if (!isHeadless) {
+      mainWindow.webContents.openDevTools();
+    }
   } else {
     // In production, load from the asar archive
     mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));

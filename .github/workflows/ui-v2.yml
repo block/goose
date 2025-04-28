@@ -1,0 +1,63 @@
+name: UI v2 CI
+
+on:
+  push:
+    paths:
+      - 'ui-v2/**'
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'ui-v2/**'
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  ui-v2-checks:
+    name: Lint and Test UI v2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: ui-v2/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ui-v2
+        run: npm ci
+
+      - name: Run All Checks
+        working-directory: ui-v2
+        run: npm run check-all
+
+      - name: Run Unit Tests
+        working-directory: ui-v2
+        run: npm test
+
+      - name: Install Playwright Browsers
+        working-directory: ui-v2
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E Tests
+        working-directory: ui-v2
+        env:
+          HEADLESS: true
+        run: |
+          npm run test:e2e:web:headless
+          npm run test:e2e:electron:headless
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            ui-v2/playwright-report/
+            ui-v2/test-results/
+          retention-days: 30
