@@ -48,7 +48,14 @@ jobs:
         working-directory: ui-v2
         env:
           HEADLESS: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
+          # Increase system limits
+          sudo sysctl -w vm.max_map_count=262144
+          sudo sysctl -w fs.file-max=65535
+          ulimit -n 65535
+          
+          # Run tests with xvfb
           xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- npm run test:e2e:web:headless
           xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- npm run test:e2e:electron:headless
 
