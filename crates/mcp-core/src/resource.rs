@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
-
+use utoipa::ToSchema;
 use crate::content::Annotations;
 
 const EPSILON: f32 = 1e-6; // Tolerance for floating point comparison
@@ -28,6 +28,7 @@ pub struct Resource {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase", untagged)]
+#[derive(ToSchema)]
 pub enum ResourceContents {
     TextResourceContents {
         uri: String,

@@ -3,6 +3,11 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::message::{Message, MessageContent, ContextLengthExceeded, ToolRequest, ToolResponse, ToolConfirmationRequest, ThinkingContent, RedactedThinkingContent, FrontendToolRequest};
+use mcp_core::role::Role;
+use mcp_core::handler::ToolResultSchema;
+use mcp_core::content::{Content, TextContent, ImageContent, Annotations, EmbeddedResource};
+use mcp_core::resource::ResourceContents;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 use mcp_core::tool::{Tool, ToolAnnotations};
@@ -25,6 +30,7 @@ use utoipa::OpenApi;
         super::routes::config_management::upsert_permissions,
         super::routes::agent::get_tools,
         super::routes::reply::confirm_permission,
+        super::routes::context::manage_context, // Added this path
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -37,6 +43,25 @@ use utoipa::OpenApi;
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
         super::routes::reply::PermissionConfirmationRequest,
+        super::routes::context::ContextManageRequest,
+        super::routes::context::ContextManageResponse,
+        Message,
+        MessageContent,
+        Content,
+        EmbeddedResource,
+        ImageContent,
+        Annotations,
+        TextContent,
+        ToolResponse,
+        ToolRequest,
+        ToolResultSchema,
+        ToolConfirmationRequest,
+        ThinkingContent,
+        RedactedThinkingContent,
+        FrontendToolRequest,
+        ResourceContents,
+        ContextLengthExceeded,
+        Role,
         ProviderMetadata,
         ExtensionEntry,
         ExtensionConfig,

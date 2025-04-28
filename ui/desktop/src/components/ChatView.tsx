@@ -29,8 +29,9 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   ToolConfirmationRequestMessageContent,
+  TextContent,
 } from '../types/message';
-import { manageContext } from './context_management';
+import { convertApiMessageToFrontendMessage, manageContextFromBackend } from './context_management';
 
 export interface ChatType {
   id: string;
@@ -201,11 +202,28 @@ export default function ChatView({
     window.electron.startPowerSaveBlocker();
     const customEvent = e as CustomEvent;
     const content = customEvent.detail?.value || '';
+
     if (content.trim()) {
       setLastInteractionTime(Date.now());
-      append(createUserMessage(content));
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
+
+      // Check if we have a summarized thread and this is the first message after editing
+      if (summarizedThread.length > 0) {
+        // First reset the messages with the summary
+        resetMessagesWithSummary();
+
+        // Then append the new user message
+        setTimeout(() => {
+          append(createUserMessage(content));
+          if (scrollRef.current?.scrollToBottom) {
+            scrollRef.current.scrollToBottom();
+          }
+        }, 150); // Small delay to ensure state updates properly
+      } else {
+        // Normal flow - just append the message
+        append(createUserMessage(content));
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
       }
     }
   };
@@ -305,40 +323,179 @@ export default function ChatView({
     return message.content.some((content) => content.type === 'contextLengthExceeded');
   };
 
-  const handleContextLengthExceeded = async () => {
-    // If we already have a summary, use that
-    if (summaryContent) {
-      return summaryContent;
+  // const handleContextLengthExceeded = async () => {
+  //   // If we already have a summary, use that
+  //   if (summaryContent) {
+  //     return summaryContent;
+  //   }
+  //
+  //   // Otherwise, generate a summary
+  //   const response = await manageContextFromBackend({ messages: messages, manageAction: 'summarize' });
+  //
+  //   // Convert API messages to frontend messages
+  //   const convertedMessages = response.messages.map(apiMessage =>
+  //       convertApiMessageToFrontendMessage(apiMessage)
+  //   );
+  //
+  //   setSummarizedThread(convertedMessages);
+  //
+  //   const summaryMessage = convertedMessages[0].content[0] as TextContent  // to avoid type errors
+  //   return summaryMessage.text;
+  // };
+
+  interface ContextLengthExceededHandlerProps {
+    onSummaryFetched: (summary: string, convertedMessages: Message[]) => void;
+    existingSummary: string;
+    onViewSummary: (summary: string) => void;
+    messages: Message[];
+  }
+
+  const ContextLengthExceededHandler: React.FC<ContextLengthExceededHandlerProps> = ({
+    onSummaryFetched,
+    existingSummary,
+    onViewSummary,
+    messages,
+  }) => {
+    const [isLoading, setIsLoading] = useState(!existingSummary);
+    const [error, setError] = useState(false);
+    const [hasFetchStarted, setHasFetchStarted] = useState(false);
+
+    // Use a ref to track if we've started the fetch
+    const fetchStartedRef = useRef(false);
+
+    // Immediately invoke the fetch function in the render phase, but only once
+    if (!existingSummary && isLoading && !error && !hasFetchStarted) {
+      setHasFetchStarted(true);
+      fetchStartedRef.current = true;
+
+      // Start the fetch process
+      manageContextFromBackend({ messages: messages, manageAction: 'summarize' })
+        .then((response) => {
+          // Convert API messages to frontend messages
+          const convertedMessages = response.messages.map((apiMessage) =>
+            convertApiMessageToFrontendMessage(apiMessage)
+          );
+
+          const summaryMessage = convertedMessages[0].content[0] as TextContent;
+          const summary = summaryMessage.text;
+
+          // Call the callback to update parent state
+          onSummaryFetched(summary, convertedMessages);
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          console.error('Error fetching summary:', err);
+          setError(true);
+          setIsLoading(false);
+        });
     }
 
-    // Otherwise, generate a summary
-    const response = await manageContext({ messages: messages, manageAction: 'summarize' });
-    setSummarizedThread(response.messages);
-    return response.messages[0].text;
-  };
+    // Handle retry
+    const handleRetry = () => {
+      setIsLoading(true);
+      setError(false);
 
-  const SummarizedNotification = ({
-    onViewSummary,
-  }: {
-    onViewSummary: (summaryContent: string) => void;
-  }) => {
-    const handleViewSummary = async () => {
-      // Await the result to get a string
-      const summary = summaryContent || (await handleContextLengthExceeded());
-      onViewSummary(summary); // Now always passing a string
+      manageContextFromBackend({ messages: messages, manageAction: 'summarize' })
+        .then((response) => {
+          const convertedMessages = response.messages.map((apiMessage) =>
+            convertApiMessageToFrontendMessage(apiMessage)
+          );
+
+          const summaryMessage = convertedMessages[0].content[0] as TextContent;
+          const summary = summaryMessage.text;
+
+          onSummaryFetched(summary, convertedMessages);
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          console.error('Error retrying summary fetch:', err);
+          setError(true);
+          setIsLoading(false);
+        });
     };
 
+    //                      onClick={() => error ? handleRetry() : onViewSummary(existingSummary)}
+
+    // Render the notification UI
     return (
       <div className="flex flex-col items-start mt-1 pl-4">
-        <span className="text-xs text-gray-400 italic">Session summarized</span>
-        <button
-          onClick={handleViewSummary}
-          className="text-xs text-textStandard cursor-pointer hover:text-textSubtle transition-colors mt-1"
-        >
-          View or edit summary
-        </button>
+        {isLoading ? (
+          // Only show loading indicator during loading state, no "Session summarized" text
+          <div className="flex items-center text-xs text-gray-400">
+            <span className="mr-2">Preparing summary...</span>
+            <span className="animate-spin h-3 w-3 border-2 border-gray-400 rounded-full border-t-transparent"></span>
+          </div>
+        ) : (
+          // Show "Session summarized" text only after loading is complete
+          <>
+            <span className="text-xs text-gray-400 italic">Session summarized</span>
+            <button
+              onClick={() => (error ? handleRetry() : onViewSummary(existingSummary))}
+              className="text-xs text-textStandard hover:text-textSubtle transition-colors mt-1 flex items-center"
+            >
+              {error ? 'Retry loading summary' : 'View or edit summary'}
+            </button>
+          </>
+        )}
       </div>
     );
+  };
+
+  // Function to update both summary content and the thread
+  const updateSummary = (newSummaryContent: string) => {
+    // Update the summary content
+    setSummaryContent(newSummaryContent);
+
+    // Update the thread if it exists
+    if (summarizedThread.length > 0) {
+      // Create a deep copy of the thread
+      const updatedThread = [...summarizedThread];
+
+      // Create a copy of the first message
+      const firstMessage = { ...updatedThread[0] };
+
+      // Create a copy of the content array
+      const updatedContent = [...firstMessage.content];
+
+      // Update the summary text in the first content item
+      if (updatedContent[0] && updatedContent[0].type === 'text') {
+        updatedContent[0] = {
+          ...updatedContent[0],
+          text: newSummaryContent,
+        };
+      }
+
+      // Update the message with the new content
+      firstMessage.content = updatedContent;
+      updatedThread[0] = firstMessage;
+
+      // Update the thread
+      setSummarizedThread(updatedThread);
+    }
+  };
+
+  // Function to reset messages with the summarized thread
+  const resetMessagesWithSummary = () => {
+    if (summarizedThread.length > 0) {
+      // Make a copy of the summarized thread
+      const newMessages = [...summarizedThread];
+
+      // Update the messages state with the summarized thread
+      setMessages(newMessages);
+
+      // Clear the summarized thread state since we've now used it
+      setSummarizedThread([]);
+
+      // Clear the summary content as well
+      setSummaryContent('');
+
+      // Scroll to the bottom after the state updates
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
+    }
   };
 
   // Filter out standalone tool response messages for rendering
@@ -396,6 +553,8 @@ export default function ChatView({
     }
   }, [chat.id, messages]);
 
+  console.log('message summary', summarizedThread);
+
   return (
     <div className="flex flex-col w-full h-screen items-center justify-center">
       {/* Loader when generating recipe */}
@@ -441,7 +600,16 @@ export default function ChatView({
                       {/* Only render GooseMessage if it's not a CLE message (and we are not in alpha mode) */}
                       {process.env.ALPHA && hasContextLengthExceededContent(message) ? (
                         // Render the summarized notification for CLE messages only in alpha mode
-                        <SummarizedNotification onViewSummary={handleViewSummary} />
+                        // trigger the summary fetch directly here
+                        <ContextLengthExceededHandler
+                          onSummaryFetched={(summary, convertedMessages) => {
+                            setSummaryContent(summary);
+                            setSummarizedThread(convertedMessages);
+                          }}
+                          existingSummary={summaryContent}
+                          onViewSummary={handleViewSummary}
+                          messages={messages}
+                        />
                       ) : (
                         <GooseMessage
                           messageHistoryIndex={chat?.messageHistoryIndex}
@@ -504,9 +672,16 @@ export default function ChatView({
           isOpen={isSummaryModalOpen}
           onClose={() => setIsSummaryModalOpen(false)}
           onSave={(editedContent) => {
-            console.log('Saving summary...');
-            setSummaryContent(editedContent);
+            // Use our function to update both summary and thread
+            updateSummary(editedContent);
             setIsSummaryModalOpen(false);
+
+            // Show a small notification to the user that they can now continue the conversation
+            // with the summarized history
+            window.electron.showNotification({
+              title: 'Summary updated',
+              body: 'Your conversation summary has been updated. Your next message will continue with this summary.',
+            });
           }}
           summaryContent={summaryContent}
         />
